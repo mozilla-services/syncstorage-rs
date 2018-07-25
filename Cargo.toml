@@ -1,0 +1,25 @@
+[package]
+name = "syncstorage"
+version = "0.1.0"
+license = "MPL-2.0"
+authors = [
+  "Ben Bangert <ben@groovie.org>",
+  "Phil Jenvey <pjenvey@underboss.org>",
+]
+
+[dependencies]
+actix = "0.7"
+actix-web = "0.7.1"
+cadence = "0.15.1"
+chrono = "0.4"
+config = "0.9.0"
+diesel = { version = "1.3", features = ["sqlite"] }
+docopt = "1.0.0"
+futures = "0.1"
+# hawk = "1.0.2"
+mozsvc-common = "0.1.0"
+num_cpus = "1.8.0"
+rand = "0.5.2"
+serde = "1.0.67"
+serde_derive = "1.0.67"
+uuid = { version = "0.6.5", features = ["serde", "v4"] }

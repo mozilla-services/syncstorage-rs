@@ -1,0 +1,11 @@
+language: rust
+
+rust:
+    - stable
+
+cache: cargo
+
+notifications:
+  email: false
+  slack:
+    secure: vT9sWtUuxk28g6xYKAsQmiPZllErOYVfx5lcL+/jo1eRFrmbpYnyndT6s+FxGI1547oizZ0IqZbHVvB7BUoSJixXJyQJYXW2MchwN1UeHrey8mYpF1GNEaJT7FMfqSkxUU9gvAZ3IU7zstNeTLbfG1GkLuzybp0WAiHl/ocUTz8=
