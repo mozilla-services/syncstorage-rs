@@ -8,7 +8,7 @@ CREATE TABLE bso (
   payload         TEXT NOT NULL DEFAULT '',
   payload_size    INTEGER NOT NULL DEFAULT 0,
 
-  -- milliseconds since unix epoch. Sync 1.5 spec says it shoud
+  -- milliseconds since unix epoch. Sync 1.5 spec says it should
   -- be a float of seconds since epoch accurate to two decimal places
   -- convert it in the API response, but work with it as an int
   last_modified   INTEGER NOT NULL,
