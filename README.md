@@ -4,3 +4,15 @@
 # Syncstorage-rs
 
 Mozilla Sync Storage node built with [Rust](https://rust-lang.org).
+
+API docs: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html
+
+Functional tests live in https://github.com/mozilla-services/server-syncstorage/
+and can be run against a local server like this:
+
+```apple js
+git clone https://github.com/mozilla-services/server-syncstorage/
+cd server-syncstorage
+make build
+./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000
+```
