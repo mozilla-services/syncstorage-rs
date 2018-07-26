@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use diesel::{
-    delete, dsl::sql, insert_into, replace_into, result::Error as DieselError,
-    result::Error::NotFound, sql_query, sql_types::Integer, sqlite::SqliteConnection, update,
-    Connection, ConnectionError, ExpressionMethods, QueryDsl, RunQueryDsl, Table,
+    delete, dsl::sql, insert_into, replace_into, result::Error as DieselError, sql_query,
+    sql_types::Integer, sqlite::SqliteConnection, update, Connection, ConnectionError,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, Table,
 };
 
 use super::schema::{bso, collections, keyvalues};
@@ -19,7 +19,7 @@ pub const MAX_TIMESTAMP: i64 = 4070822400000;
 
 pub const STORAGE_LAST_MODIFIED: &'static str = "Storage Last Modified";
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct DBConfig {
     pub cache_size: i64,
 }
@@ -30,6 +30,7 @@ pub struct DBManager {
     config: DBConfig,
 }
 
+#[derive(Debug)]
 pub enum Sorting {
     None,
     Newest,
@@ -37,10 +38,11 @@ pub enum Sorting {
     Index,
 }
 
+#[derive(Debug)]
 pub struct BSOs {
-    bsos: Vec<BSO>,
-    more: bool,
-    offset: i64, // XXX: i64?
+    pub bsos: Vec<BSO>, // XXX: naming
+    pub more: bool,
+    pub offset: i64, // XXX: i64?
 }
 
 impl DBManager {
@@ -79,16 +81,13 @@ impl DBManager {
         // XXX: potentially use sqlite 3.24.0 (2018-06-04) new UPSERT (ON
         // CONFLICT DO)?
         self.conn.transaction(|| {
-            let exists = match bso::table
+            let exists = bso::table
                 .select(sql::<Integer>("1"))
                 .filter(bso::collection_id.eq(&bso.collection_id))
                 .filter(bso::id.eq(&bso.id))
                 .get_result::<i32>(&self.conn)
-            {
-                Ok(_) => true,
-                Err(NotFound) => false,
-                Err(e) => return Err(e),
-            };
+                .optional()?
+                .is_some();
 
             if exists {
                 update(bso::table)
@@ -128,20 +127,25 @@ impl DBManager {
         offset: i64,
     ) -> Result<BSOs, DieselError> {
         // XXX: ensure offset/limit/newer are valid
+
+        // XXX: should error out (400 Bad Request) when more than 100
+        // are provided (move to validation layer)
         if ids.len() > 100 {
             // spec says only 100 ids at a time
             ids = &ids[0..100];
         }
-        let cut_off_ttl = ms_since_epoch();
 
         let mut query = bso::table
             .select(bso::table::all_columns())
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::last_modified.lt(&older))
             .filter(bso::last_modified.gt(&newer))
-            .filter(bso::expiry.gt(&cut_off_ttl))
-            .filter(bso::id.eq_any(ids))
+            .filter(bso::expiry.gt(ms_since_epoch()))
             .into_boxed();
+
+        if !ids.is_empty() {
+            query = query.filter(bso::id.eq_any(ids));
+        }
 
         query = match sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
@@ -154,6 +158,8 @@ impl DBManager {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
         if offset != 0 {
+            // XXX: copy over this optimization:
+            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
             query = query.offset(offset);
         }
         let mut bsos = query.load::<BSO>(&self.conn)?;
@@ -173,31 +179,59 @@ impl DBManager {
     }
 
     pub fn get_bso(&self, collection_id: i64, bso_id: &str) -> Result<Option<BSO>, DieselError> {
-        let result = bso::table
+        bso::table
             .select(bso::table::all_columns())
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&bso_id))
             .filter(bso::expiry.ge(&ms_since_epoch()))
-            .first::<BSO>(&self.conn);
-        match result {
-            Ok(bso) => Ok(Some(bso)),
-            Err(NotFound) => Ok(None),
-            Err(e) => Err(e),
-        }
+            .first::<BSO>(&self.conn)
+            .optional()
+    }
+
+    pub fn get_bso_modified(&self, collection_id: i64, bso_id: &str) -> Result<i64, DieselError> {
+        let last_modified = bso::table
+            .select(bso::last_modified)
+            .filter(bso::collection_id.eq(&collection_id))
+            .filter(bso::id.eq(&bso_id))
+            .filter(bso::expiry.ge(&ms_since_epoch()))
+            .first(&self.conn)
+            .optional()?;
+        // XXX: returning 0 when not found or prefer Option?
+        Ok(last_modified.unwrap_or(0))
+    }
+
+    pub fn delete_bso(&self, collection_id: i64, bso_id: &str) -> Result<i64, DieselError> {
+        self.delete_bsos(collection_id, &[bso_id])
+    }
+
+    pub fn delete_bsos(&self, collection_id: i64, bso_id: &[&str]) -> Result<i64, DieselError> {
+        self.conn.transaction(|| {
+            delete(bso::table)
+                .filter(bso::collection_id.eq(&collection_id))
+                .filter(bso::id.eq_any(bso_id))
+                .execute(&self.conn)?;
+
+            let last_modified = ms_since_epoch();
+            self.touch_collection_and_storage(collection_id, last_modified)?;
+            Ok(last_modified)
+        })
     }
 
     pub fn get_collection_modified(&self, collection_id: i64) -> Result<i64, DieselError> {
-        collections::table
+        let last_modified = collections::table
             .select(collections::last_modified)
             .filter(collections::id.eq(&collection_id))
             .first(&self.conn)
+            .optional()?;
+        // XXX: returning 0 when not found or prefer Option?
+        Ok(last_modified.unwrap_or(0))
     }
 
     pub fn get_collection_id(&self, name: &str) -> Result<i64, DieselError> {
         match name {
             "clients" => return Ok(1),
             "crypto" => return Ok(2),
-            "forms" => return Ok(1),
+            "forms" => return Ok(3),
             "history" => return Ok(4),
             "keys" => return Ok(5),
             "meta" => return Ok(6),
@@ -208,12 +242,11 @@ impl DBManager {
             "addons" => return Ok(11),
             "addresses" => return Ok(12),
             "creditcards" => return Ok(13),
-            _ => (),
+            _ => collections::table
+                .select(collections::id)
+                .filter(collections::name.eq(name))
+                .first(&self.conn),
         }
-        collections::table
-            .select(collections::id)
-            .filter(collections::name.eq(name))
-            .first(&self.conn)
     }
 
     /// Implied that this is called within a transaction
@@ -235,10 +268,10 @@ impl DBManager {
     }
 
     fn touch_storage(&self, last_modified: i64) -> Result<(), DieselError> {
-        self.set_key(STORAGE_LAST_MODIFIED, last_modified.to_string())
+        self.set_key(STORAGE_LAST_MODIFIED, &last_modified.to_string())
     }
 
-    fn set_key(&self, key: &'static str, value: String) -> Result<(), DieselError> {
+    pub(super) fn set_key(&self, key: &'static str, value: &str) -> Result<(), DieselError> {
         // XXX: go code ignored these errors..
         replace_into(keyvalues::table)
             .values((keyvalues::key.eq(key), keyvalues::value.eq(&value)))
@@ -246,16 +279,12 @@ impl DBManager {
             .map(|_| ())
     }
 
-    fn get_key(&self, key: &'static str) -> Result<Option<String>, DieselError> {
-        match keyvalues::table
+    pub(super) fn get_key(&self, key: &'static str) -> Result<Option<String>, DieselError> {
+        keyvalues::table
             .select(keyvalues::value)
             .filter(keyvalues::key.eq(key))
             .first(&self.conn)
-        {
-            Ok(value) => Ok(Some(value)),
-            Err(NotFound) => Ok(None),
-            Err(e) => Err(e),
-        }
+            .optional()
     }
 
     pub fn create_collection(&self, name: &str) -> Result<i64, DieselError> {
@@ -277,6 +306,7 @@ impl DBManager {
     pub fn delete_collection(&self, collection_id: i64) -> Result<i64, DieselError> {
         self.conn.transaction(|| {
             delete(bso::table.filter(bso::collection_id.eq(&collection_id))).execute(&self.conn)?;
+
             self.touch_collection(collection_id, 0)?;
             let last_modified = ms_since_epoch();
             self.touch_storage(last_modified)?;

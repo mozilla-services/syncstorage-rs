@@ -1,9 +1,9 @@
-#[cfg(test)]
-use std::{thread, time};
+use std::collections::HashMap;
 
-use diesel::{sql_query, sql_types::Integer, RunQueryDsl};
+use diesel::{sql_query, sql_types::Integer, QueryDsl, RunQueryDsl};
 
 use db::models::{DBConfig, DBManager, PutBSO, Sorting, DEFAULT_BSO_TTL, MAX_TIMESTAMP};
+use db::schema::collections;
 use db::util::ms_since_epoch;
 
 #[derive(QueryableByName)]
@@ -36,7 +36,7 @@ fn pbso(
 }
 
 #[test]
-fn test_init() {
+fn db_init() {
     for size in &[0, -1, -10, 1, 100] {
         let db = DBManager::new(":memory:", DBConfig { cache_size: *size }).unwrap();
         db.init().unwrap();
@@ -46,36 +46,54 @@ fn test_init() {
 }
 
 #[test]
-fn test_static_collection_id() {
-    /*
-        let db = db();
-        // ensure DB actually has predefined common collections
-        let cols = vec![
-            (1, "clients"),
-            (2, "crypto"),
-            (3, "forms"),
-            (4, "history"),
-            (5, "keys"),
-            (6, "meta"),
-            (7, "bookmarks"),
-            (8, "prefs"),
-            (9, "tabs"),
-            (10, "passwords"),
-            (11, "addons"),
-            (12, "addresses"),
-            (13, "creditcards"),
-        ];
-         */
+fn static_collection_id() {
+    let db = db();
+
+    // ensure DB actually has predefined common collections
+    let cols: Vec<(i64, _)> = vec![
+        (1, "clients"),
+        (2, "crypto"),
+        (3, "forms"),
+        (4, "history"),
+        (5, "keys"),
+        (6, "meta"),
+        (7, "bookmarks"),
+        (8, "prefs"),
+        (9, "tabs"),
+        (10, "passwords"),
+        (11, "addons"),
+        (12, "addresses"),
+        (13, "creditcards"),
+    ];
+
+    let results: HashMap<i64, String> = collections::table
+        .select((collections::id, collections::name))
+        .load(&db.conn)
+        .unwrap()
+        .into_iter()
+        .collect();
+    assert_eq!(results.len(), cols.len());
+    for (id, name) in &cols {
+        assert_eq!(results.get(id).unwrap(), name);
+    }
+
+    for (id, name) in &cols {
+        let result = db.get_collection_id(name).unwrap();
+        assert_eq!(result, *id);
+    }
+
+    let cid = db.create_collection("col1").unwrap();
+    assert_eq!(cid, 100);
 }
 
 #[test]
-fn test_bso_successfully_updates_single_values() {
+fn bso_successfully_updates_single_values() {
     let db = db();
+
     let cid = 1;
     let bid = "testBSO";
     let sortindex = 1;
     let ttl = 3600 * 1000;
-
     let bso1 = pbso(cid, bid, Some("initial value"), Some(sortindex), Some(ttl));
     db.put_bso(&bso1).unwrap();
 
@@ -104,7 +122,7 @@ fn test_bso_successfully_updates_single_values() {
 }
 
 #[test]
-fn test_bso_modified_not_changed_on_ttl_touch() {
+fn bso_modified_not_changed_on_ttl_touch() {
     let db = db();
     let cid = 1;
     let bid = "testBSO";
@@ -123,11 +141,11 @@ fn test_bso_modified_not_changed_on_ttl_touch() {
 }
 
 #[test]
-fn test_put_bso_updates() {
+fn put_bso_updates() {
     let db = db();
+
     let cid = 1;
     let bid = "1";
-
     let bso1 = pbso(cid, bid, Some("initial"), None, None);
     db.put_bso(&bso1).unwrap();
 
@@ -140,26 +158,215 @@ fn test_put_bso_updates() {
     assert_eq!(bso.last_modified, bso2.last_modified);
 }
 
-/*
 #[test]
-fn test_get_bsos_limit_offset() {
+fn get_bsos_limit_offset() {
+    let db = db();
+
+    let cid = 1;
+    let size = 12;
+    for i in 0..size {
+        let mut bso = pbso(
+            cid,
+            &i.to_string(),
+            Some(&format!("payload-{}", i)),
+            Some(i),
+            Some(DEFAULT_BSO_TTL),
+        );
+        bso.last_modified += i * 10;
+        db.put_bso(&bso).unwrap();
+    }
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)
+        .unwrap();
+    assert!(bsos.bsos.is_empty());
+    assert!(bsos.more);
+    assert_eq!(bsos.offset, 0);
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), size as usize);
+    assert!(!bsos.more);
+    assert_eq!(bsos.offset, 0);
+
+    let newer = 0;
+    let limit = 5;
+    let offset = 0;
+    // XXX: validation?
+    /*
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0).unwrap();
+    .. etc
+    */
+
+    let bsos = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        newer,
+        Sorting::Newest,
+        limit,
+        offset,
+    ).unwrap();
+    assert_eq!(bsos.bsos.len(), 5 as usize);
+    assert!(bsos.more);
+    assert_eq!(bsos.offset, 5);
+    assert_eq!(bsos.bsos[0].id, "11");
+    assert_eq!(bsos.bsos[4].id, "7");
+
+    let bsos2 = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        newer,
+        Sorting::Index,
+        limit,
+        bsos.offset,
+    ).unwrap();
+    assert_eq!(bsos2.bsos.len(), 5 as usize);
+    assert!(bsos2.more);
+    assert_eq!(bsos2.offset, 10);
+    assert_eq!(bsos2.bsos[0].id, "6");
+    assert_eq!(bsos2.bsos[4].id, "2");
+
+    let bsos3 = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        newer,
+        Sorting::Index,
+        limit,
+        bsos2.offset,
+    ).unwrap();
+    assert_eq!(bsos3.bsos.len(), 2 as usize);
+    assert!(!bsos3.more);
+    assert_eq!(bsos3.offset, 0);
+    assert_eq!(bsos3.bsos[0].id, "1");
+    assert_eq!(bsos3.bsos[1].id, "0");
 }
 
 #[test]
-fn test_get_bsos_newer() {
+fn get_bsos_newer() {
+    let db = db();
+
+    let cid = 1;
+    let modified = ms_since_epoch();
+    // XXX: validation
+    //db.get_bsos(cid, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
+
+    for i in (0..=2).rev() {
+        let mut pbso = pbso(
+            cid,
+            &format!("b{}", i),
+            Some("a"),
+            Some(1),
+            Some(DEFAULT_BSO_TTL),
+        );
+        pbso.last_modified = modified - i;
+        db.put_bso(&pbso).unwrap();
+    }
+
+    let bsos = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        modified - 3,
+        Sorting::Newest,
+        10,
+        0,
+    ).unwrap();
+    assert_eq!(bsos.bsos.len(), 3);
+    assert_eq!(bsos.bsos[0].id, "b0");
+    assert_eq!(bsos.bsos[1].id, "b1");
+    assert_eq!(bsos.bsos[2].id, "b2");
+
+    let bsos = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        modified - 2,
+        Sorting::Newest,
+        10,
+        0,
+    ).unwrap();
+    assert_eq!(bsos.bsos.len(), 2);
+    assert_eq!(bsos.bsos[0].id, "b0");
+    assert_eq!(bsos.bsos[1].id, "b1");
+
+    let bsos = db.get_bsos(
+        cid,
+        &[],
+        MAX_TIMESTAMP,
+        modified - 1,
+        Sorting::Newest,
+        10,
+        0,
+    ).unwrap();
+    assert_eq!(bsos.bsos.len(), 1);
+    assert_eq!(bsos.bsos[0].id, "b0");
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, modified, Sorting::Newest, 10, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), 0);
 }
 
 #[test]
-fn test_get_bsos_sort() {
+fn get_bsos_sort() {
+    let db = db();
+
+    let cid = 1;
+    let modified = ms_since_epoch();
+    // XXX: validation again
+    //db.get_bsos(cid, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
+
+    for (revi, sortindex) in [1, 0, 2].iter().enumerate().rev() {
+        let mut pbso = pbso(
+            cid,
+            &format!("b{}", revi),
+            Some("a"),
+            Some(*sortindex),
+            Some(DEFAULT_BSO_TTL),
+        );
+        pbso.last_modified = modified - revi as i64;
+        db.put_bso(&pbso).unwrap();
+    }
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), 3);
+    assert_eq!(bsos.bsos[0].id, "b0");
+    assert_eq!(bsos.bsos[1].id, "b1");
+    assert_eq!(bsos.bsos[2].id, "b2");
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Oldest, 10, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), 3);
+    assert_eq!(bsos.bsos[0].id, "b2");
+    assert_eq!(bsos.bsos[1].id, "b1");
+    assert_eq!(bsos.bsos[2].id, "b0");
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 10, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), 3);
+    assert_eq!(bsos.bsos[0].id, "b2");
+    assert_eq!(bsos.bsos[1].id, "b0");
+    assert_eq!(bsos.bsos[2].id, "b1");
 }
 
 #[test]
-fn test_delete_bsos_in_correct_collection() {
+fn delete_bsos_in_correct_collection() {
+    let db = db();
+
+    let payload = "data";
+    db.put_bso(&pbso(1, "b1", Some(payload), None, None))
+        .unwrap();
+    db.put_bso(&pbso(2, "b1", Some(payload), None, None))
+        .unwrap();
+    db.delete_bsos(1, &["b1"]).unwrap();
+    let bso = db.get_bso(2, "b1").unwrap();
+    assert!(bso.is_some());
 }
-*/
 
 #[test]
-fn test_last_modified() {
+fn last_modified() {
     let db = db();
     db.create_collection("col1").unwrap();
     let col2 = db.create_collection("col2").unwrap();
@@ -173,13 +380,13 @@ fn test_last_modified() {
 }
 
 #[test]
-fn test_get_collection_id() {
+fn get_collection_id() {
     let db = db();
     db.get_collection_id("bookmarks").unwrap();
 }
 
 #[test]
-fn test_get_collection_modified() {
+fn get_collection_modified() {
     let db = db();
 
     let name = "test";
@@ -192,7 +399,7 @@ fn test_get_collection_modified() {
 }
 
 #[test]
-fn test_create_collection() {
+fn create_collection() {
     let db = db();
 
     let name = "NewCollection";
@@ -203,7 +410,7 @@ fn test_create_collection() {
 }
 
 #[test]
-fn test_touch_collection() {
+fn touch_collection() {
     let db = db();
 
     let cid = db.create_collection("test").unwrap();
@@ -212,7 +419,7 @@ fn test_touch_collection() {
 }
 
 #[test]
-fn test_delete_collection() {
+fn delete_collection() {
     let db = db();
 
     let cname = "NewConnection";
@@ -236,7 +443,7 @@ fn test_delete_collection() {
 }
 
 #[test]
-fn test_info_collections() {
+fn info_collections() {
     let db = db();
 
     let name = "bookmarks";
@@ -250,22 +457,22 @@ fn test_info_collections() {
 
 /*
 #[test]
-fn test_info_collection_usage() {
+fn info_collection_usage() {
     let db = db();
 }
 
 #[test]
-fn test_info_collection_counts() {
+fn info_collection_counts() {
     let db = db();
 }
 */
 
 #[test]
-fn test_put_bso() {
+fn put_bso() {
     let db = db();
+
     let cid = 1;
     let bid = "b0";
-
     let bso1 = pbso(cid, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
     db.put_bso(&bso1).unwrap();
     let modified = db.get_collection_modified(cid).unwrap();
@@ -275,11 +482,8 @@ fn test_put_bso() {
     assert_eq!(&bso.payload, "foo");
     assert_eq!(bso.sortindex, Some(1));
 
-    // sleep a bit so we have a least a 100th of a millisecond difference
-    // between the operations
-    thread::sleep(time::Duration::from_millis(19));
-
-    let bso2 = pbso(cid, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
+    let mut bso2 = pbso(cid, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
+    bso2.last_modified += 19;
     db.put_bso(&bso2).unwrap();
     let modified = db.get_collection_modified(cid).unwrap();
     assert_eq!(bso2.last_modified, modified);
@@ -291,12 +495,16 @@ fn test_put_bso() {
 
 /*
 #[test]
-fn test_post_bsos() {
+fn post_bsos() {
+    let db = db();
+
+    let cid = 1;
+    // XXX:
 }
- */
+*/
 
 #[test]
-fn test_get_bso() {
+fn get_bso() {
     let db = db();
 
     let cid = 1;
@@ -314,22 +522,20 @@ fn test_get_bso() {
 }
 
 #[test]
-fn test_get_bsos() {
+fn get_bsos() {
     let db = db();
 
     let cid = 1;
-    let payload = "Hello";
-    // XXX: document this
     let sortindexes = vec![1, 3, 4, 2, 0];
-    for i in sortindexes.iter().rev() {
+    for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let mut bso = pbso(
             cid,
-            &format!("b{}", i.to_string()),
-            Some(payload),
-            Some(*i),
+            &format!("b{}", revi.to_string()),
+            Some("Hello"),
+            Some(*sortindex),
             None,
         );
-        bso.last_modified += i;
+        bso.last_modified += i as i64 * 10;
         db.put_bso(&bso).unwrap();
     }
 
@@ -342,18 +548,104 @@ fn test_get_bsos() {
         10,
         0,
     ).unwrap();
-    /*
     assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(&bsos.bsos[0], "b0");
-    assert_eq!(&bsos.bsos[0], "b2");
-    assert_eq!(&bsos.bsos[0], "b4");
-    */
+    assert_eq!(bsos.bsos[0].id, "b0");
+    assert_eq!(bsos.bsos[1].id, "b2");
+    assert_eq!(bsos.bsos[2].id, "b4");
+
+    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 2, 0)
+        .unwrap();
+    assert_eq!(bsos.bsos.len(), 2);
+    assert_eq!(bsos.offset, 2);
+    assert!(bsos.more);
+    assert_eq!(bsos.bsos[0].id, "b2");
+    assert_eq!(bsos.bsos[1].id, "b1");
+}
+
+#[test]
+fn get_bso_modified() {
+    let db = db();
+
+    let cid = 1;
+    let bid = "b0";
+    let bso = pbso(cid, bid, Some("a"), None, None);
+    db.put_bso(&bso).unwrap();
+    let modified = db.get_bso_modified(cid, bid).unwrap();
+    assert_eq!(modified, bso.last_modified);
+}
+
+#[test]
+fn delete_bso() {
+    let db = db();
+
+    let cid = 1;
+    let bid = "b0";
+    db.put_bso(&pbso(cid, bid, Some("a"), None, None)).unwrap();
+    db.delete_bso(cid, bid).unwrap();
+    let bso = db.get_bso(cid, bid).unwrap();
+    assert!(bso.is_none());
+}
+
+#[test]
+fn delete_bsos() {
+    let db = db();
+
+    let cid = 1;
+    let bids = (0..=2).map(|i| format!("b{}", i));
+    for bid in bids.clone() {
+        db.put_bso(&pbso(
+            cid,
+            &bid,
+            Some("payload"),
+            Some(10),
+            Some(DEFAULT_BSO_TTL),
+        )).unwrap();
+    }
+    db.delete_bso(cid, "b0").unwrap();
+    // deleting non existant bid returns no errors
+    db.delete_bso(cid, "bxi0").unwrap();
+    db.delete_bsos(cid, &["b1", "b2"]).unwrap();
+    for bid in bids {
+        let bso = db.get_bso(cid, &bid).unwrap();
+        assert!(bso.is_none());
+    }
 }
 
 /*
 #[test]
-fn test_get_bso_modified() {
+fn usage_stats() {
+    let db = db();
+}
+
+#[test]
+fn purge_expired() {
+    let db = db();
+}
+
+#[test]
+fn optimize() {
+    let db = db();
+}
+
+#[test]
+fn delete_everything() {
+    let db = db();
 }
 */
 
-// more..
+#[test]
+fn get_set_keyvalue() {
+    let db = db();
+    let value = db.get_key("testing").unwrap();
+    assert!(value.is_none());
+    db.set_key("testing", "12345").unwrap();
+    let value = db.get_key("testing").unwrap();
+    assert_eq!(value, Some("12345".to_owned()));
+}
+
+/*
+#[test]
+fn schema_upgrades() {
+    let db = db();
+}
+*/
