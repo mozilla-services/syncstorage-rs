@@ -39,6 +39,11 @@ impl Server {
                                 r.method(http::Method::GET)
                                     .with(handlers::collection_info)
                             })
+                        .resource(
+                            "{uid}/storage/{collection}/{bso}", |r| {
+                                r.method(http::Method::GET)
+                                    .with(handlers::get_bso)
+                            })
                         .register()
                 })
         }).bind(format!("127.0.0.1:{}", settings.port))

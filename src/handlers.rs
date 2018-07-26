@@ -42,3 +42,21 @@ pub fn collection_info(state: State<ServerState>) -> FutureResponse<HttpResponse
         })
         .responder()
 }
+
+pub fn get_bso(
+    (params, state): (Path<(String, String, String)>, State<ServerState>)
+) -> FutureResponse<HttpResponse> {
+    state
+        .db_executor
+        .send(dispatcher::GetBso {
+            user_id: params.0.clone(),
+            collection: params.1.clone(),
+            bso_id: params.2.clone(),
+        })
+        .from_err()
+        .and_then(|res| match res {
+            Ok(info) => Ok(HttpResponse::Ok().json(info)),
+            Err(_) => Ok(HttpResponse::InternalServerError().into()),
+        })
+        .responder()
+}
