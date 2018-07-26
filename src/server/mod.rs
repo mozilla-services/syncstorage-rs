@@ -1,4 +1,8 @@
 //! Main application server
+
+#[cfg(test)]
+mod test;
+
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
@@ -38,6 +42,13 @@ impl Server {
                             "{uid}/info/collections", |r| {
                                 r.method(http::Method::GET)
                                     .with(handlers::collection_info)
+                            })
+                        .resource(
+                            "{uid}/storage/{collection}/{bso}", |r| {
+                                r.method(http::Method::GET)
+                                    .with(handlers::get_bso);
+                                r.method(http::Method::PUT)
+                                    .with(handlers::put_bso);
                             })
                         .register()
                 })
