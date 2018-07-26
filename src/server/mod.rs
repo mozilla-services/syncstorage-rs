@@ -1,4 +1,8 @@
 //! Main application server
+
+#[cfg(test)]
+mod test;
+
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 

@@ -90,9 +90,9 @@ pub struct BsoParams {
     bso: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct BsoBody {
-    sortindex: Option<i64>,
-    payload: Option<String>,
-    ttl: Option<i64>,
+    pub sortindex: Option<i64>,
+    pub payload: Option<String>,
+    pub ttl: Option<i64>,
 }
