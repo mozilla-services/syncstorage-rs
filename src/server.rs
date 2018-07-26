@@ -42,7 +42,9 @@ impl Server {
                         .resource(
                             "{uid}/storage/{collection}/{bso}", |r| {
                                 r.method(http::Method::GET)
-                                    .with(handlers::get_bso)
+                                    .with(handlers::get_bso);
+                                r.method(http::Method::PUT)
+                                    .with(handlers::put_bso);
                             })
                         .register()
                 })

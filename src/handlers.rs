@@ -1,7 +1,8 @@
 //! API Handlers
 use actix::{ActorResponse, Addr};
 use actix_web::{
-    error, Error, AsyncResponder, FromRequest, FutureResponse, HttpRequest, HttpResponse, Path, Responder, State,
+    error, Error, AsyncResponder, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
+    Path, Responder, State,
 };
 use futures::Future;
 // Hawk lib brings in some libs that don't compile at the moment for some reason
@@ -44,14 +45,14 @@ pub fn collection_info(state: State<ServerState>) -> FutureResponse<HttpResponse
 }
 
 pub fn get_bso(
-    (params, state): (Path<(String, String, String)>, State<ServerState>)
+    (params, state): (Path<BsoParams>, State<ServerState>),
 ) -> FutureResponse<HttpResponse> {
     state
         .db_executor
         .send(dispatcher::GetBso {
-            user_id: params.0.clone(),
-            collection: params.1.clone(),
-            bso_id: params.2.clone(),
+            user_id: params.uid.clone(),
+            collection: params.collection.clone(),
+            bso_id: params.bso.clone(),
         })
         .from_err()
         .and_then(|res| match res {
@@ -59,4 +60,39 @@ pub fn get_bso(
             Err(_) => Ok(HttpResponse::InternalServerError().into()),
         })
         .responder()
+}
+
+pub fn put_bso(
+    (params, body, state): (Path<BsoParams>, Json<BsoBody>, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    state
+        .db_executor
+        .send(dispatcher::PutBso {
+            user_id: params.uid.clone(),
+            collection: params.collection.clone(),
+            bso_id: params.bso.clone(),
+            sortindex: body.sortindex,
+            payload: body.payload.as_ref().map(|payload| payload.clone()),
+            ttl: body.ttl,
+        })
+        .from_err()
+        .and_then(|res| match res {
+            Ok(info) => Ok(HttpResponse::Ok().json(info)),
+            Err(_) => Ok(HttpResponse::InternalServerError().into()),
+        })
+        .responder()
+}
+
+#[derive(Deserialize)]
+pub struct BsoParams {
+    uid: String,
+    collection: String,
+    bso: String,
+}
+
+#[derive(Deserialize)]
+pub struct BsoBody {
+    sortindex: Option<i64>,
+    payload: Option<String>,
+    ttl: Option<i64>,
 }
