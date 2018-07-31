@@ -1,13 +1,13 @@
 //! `Dispatcher` is a command dispatching actor that distributes commands to the appropriate
 //! actor for a given user. If an actor for that user is no longer active, it creates and
 //! initializes the actor before dispatching the command.
-use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
-use actix::{Actor, Addr, Context, SyncContext, Handler, Message};
+use actix::{Actor, Addr, Context, Handler, Message, SyncContext};
 
-use db::models::{BSO, DBConfig, DBManager, PutBSO};
+use db::models::{DBConfig, DBManager, PutBSO, BSO};
 use db::util::ms_since_epoch;
 
 // Messages that can be sent to the user

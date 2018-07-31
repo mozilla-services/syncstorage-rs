@@ -1,7 +1,7 @@
 //! API Handlers
 use actix::{ActorResponse, Addr};
 use actix_web::{
-    error, Error, AsyncResponder, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
+    error, AsyncResponder, Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
     Path, Responder, State,
 };
 use futures::Future;
