@@ -330,7 +330,7 @@ impl DBManager {
 }
 
 /// BSO records from the DB
-#[derive(Debug, Queryable, Serialize)]
+#[derive(Debug, Queryable, Serialize, Deserialize)]
 pub struct BSO {
     pub collection_id: i64,
     pub id: String,
