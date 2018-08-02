@@ -3,8 +3,8 @@
 #[cfg(test)]
 mod test;
 
-use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use actix::{SyncArbiter, System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
@@ -24,8 +24,8 @@ impl Server {
 
         // Start dispatcher with the arbiter
         let db_pool = Arc::new(RwLock::new(HashMap::new()));
-        let db_executor = SyncArbiter::start(num_cpus::get(), move || {
-            DBExecutor { db_handles: db_pool.clone() }
+        let db_executor = SyncArbiter::start(num_cpus::get(), move || DBExecutor {
+            db_handles: db_pool.clone(),
         });
 
         HttpServer::new(move || {
