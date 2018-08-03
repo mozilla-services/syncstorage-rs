@@ -10,14 +10,25 @@ use actix::{Actor, Addr, Context, Handler, Message, SyncContext};
 use db::models::{DBConfig, DBManager, PutBSO, BSO};
 use db::util::ms_since_epoch;
 
-// Messages that can be sent to the user
-#[derive(Default)]
-pub struct CollectionInfo {
-    pub user_id: String,
+macro_rules! uid_messages {
+    ($($message:ident),+) => ($(
+        #[derive(Default)]
+        pub struct $message {
+            pub user_id: String,
+        }
+
+        impl Message for $message {
+            type Result = <DBExecutor as Handler<$message>>::Result;
+        }
+    )+)
 }
 
-impl Message for CollectionInfo {
-    type Result = <DBExecutor as Handler<CollectionInfo>>::Result;
+uid_messages! {
+    Collections,
+    CollectionCounts,
+    CollectionUsage,
+    Configuration,
+    Quota
 }
 
 #[derive(Default)]
@@ -72,11 +83,43 @@ impl DBExecutor {
     }
 }
 
-impl Handler<CollectionInfo> for DBExecutor {
+impl Handler<Collections> for DBExecutor {
     type Result = Result<HashMap<String, String>, Error>;
 
-    fn handle(&mut self, msg: CollectionInfo, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Collections, _: &mut Self::Context) -> Self::Result {
         Ok(HashMap::new())
+    }
+}
+
+impl Handler<CollectionCounts> for DBExecutor {
+    type Result = Result<HashMap<String, u64>, Error>;
+
+    fn handle(&mut self, msg: CollectionCounts, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<CollectionUsage> for DBExecutor {
+    type Result = Result<HashMap<String, u32>, Error>;
+
+    fn handle(&mut self, msg: CollectionUsage, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<Configuration> for DBExecutor {
+    type Result = Result<HashMap<String, u64>, Error>;
+
+    fn handle(&mut self, msg: Configuration, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<Quota> for DBExecutor {
+    type Result = Result<Vec<Option<u32>>, Error>;
+
+    fn handle(&mut self, msg: Quota, _: &mut Self::Context) -> Self::Result {
+        Ok(vec![Some(0), None])
     }
 }
 

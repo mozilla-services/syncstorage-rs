@@ -25,8 +25,22 @@ fn setup() -> TestServer {
         ServerState { db_executor }
     }).start(|app| {
         app.resource("{uid}/info/collections", |r| {
-            r.method(http::Method::GET).with(handlers::collection_info);
-        }).resource("{uid}/storage/{collection}/{bso}", |r| {
+            r.method(http::Method::GET).with(handlers::collections);
+        });
+        app.resource("{uid}/info/collection_counts", |r| {
+            r.method(http::Method::GET)
+                .with(handlers::collection_counts);
+        });
+        app.resource("{uid}/info/collection_usage", |r| {
+            r.method(http::Method::GET).with(handlers::collection_usage);
+        });
+        app.resource("{uid}/info/configuration", |r| {
+            r.method(http::Method::GET).with(handlers::configuration);
+        });
+        app.resource("{uid}/info/quota", |r| {
+            r.method(http::Method::GET).with(handlers::quota);
+        });
+        app.resource("{uid}/storage/{collection}/{bso}", |r| {
             r.method(http::Method::GET).with(handlers::get_bso);
             r.method(http::Method::PUT).with(handlers::put_bso);
         });
@@ -34,7 +48,7 @@ fn setup() -> TestServer {
 }
 
 #[test]
-fn collection_info() {
+fn collections() {
     let mut server = setup();
 
     let request = server
@@ -47,6 +61,70 @@ fn collection_info() {
 
     let body = server.execute(response.body()).unwrap();
     assert_eq!(body, "{}".as_bytes());
+}
+
+#[test]
+fn collection_counts() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::GET, "deadbeef/info/collection_counts")
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    assert_eq!(body, "{}".as_bytes());
+}
+
+#[test]
+fn collection_usage() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::GET, "deadbeef/info/collection_usage")
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    assert_eq!(body, "{}".as_bytes());
+}
+
+#[test]
+fn configuration() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::GET, "deadbeef/info/configuration")
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    assert_eq!(body, "{}".as_bytes());
+}
+
+#[test]
+fn quota() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::GET, "deadbeef/info/quota")
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    assert_eq!(body, "[0,null]".as_bytes());
 }
 
 #[test]

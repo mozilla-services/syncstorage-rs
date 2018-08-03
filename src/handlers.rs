@@ -30,18 +30,37 @@ impl<S> FromRequest<S> for HawkHeader {
     }
 }
 
-/// HTTP API methods
-pub fn collection_info(state: State<ServerState>) -> FutureResponse<HttpResponse> {
-    let user_id = "dummyval".to_string();
-    state
-        .db_executor
-        .send(dispatcher::CollectionInfo { user_id: user_id })
-        .from_err()
-        .and_then(|res| match res {
-            Ok(info) => Ok(HttpResponse::Ok().json(info)),
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
+macro_rules! info_endpoints {
+    ($($handler:ident: $dispatcher:ident),+) => ($(
+        pub fn $handler(
+            (params, state): (Path<UidParam>, State<ServerState>),
+        ) -> FutureResponse<HttpResponse> {
+            state
+                .db_executor
+                .send(dispatcher::$dispatcher {
+                    user_id: params.uid.clone(),
+                })
+                .from_err()
+                .and_then(|res| match res {
+                    Ok(info) => Ok(HttpResponse::Ok().json(info)),
+                    Err(_) => Ok(HttpResponse::InternalServerError().into()),
+                })
+                .responder()
+        }
+    )+)
+}
+
+info_endpoints! {
+    collections: Collections,
+    collection_counts: CollectionCounts,
+    collection_usage: CollectionUsage,
+    configuration: Configuration,
+    quota: Quota
+}
+
+#[derive(Deserialize)]
+pub struct UidParam {
+    uid: String,
 }
 
 pub fn get_bso(
