@@ -17,7 +17,7 @@ pub struct CollectionInfo {
 }
 
 impl Message for CollectionInfo {
-    type Result = Result<HashMap<String, String>, Error>;
+    type Result = <DBExecutor as Handler<CollectionInfo>>::Result;
 }
 
 #[derive(Default)]
@@ -28,7 +28,7 @@ pub struct GetBso {
 }
 
 impl Message for GetBso {
-    type Result = Result<Option<BSO>, Error>;
+    type Result = <DBExecutor as Handler<GetBso>>::Result;
 }
 
 #[derive(Clone, Default)]
@@ -42,7 +42,7 @@ pub struct PutBso {
 }
 
 impl Message for PutBso {
-    type Result = Result<(), Error>;
+    type Result = <DBExecutor as Handler<PutBso>>::Result;
 }
 
 pub struct DBExecutor {
