@@ -31,29 +31,30 @@ uid_messages! {
     Quota
 }
 
-#[derive(Default)]
-pub struct GetBso {
-    pub user_id: String,
-    pub collection: String,
-    pub bso_id: String,
+macro_rules! bso_messages {
+    ($($message:ident {$($property:ident: $type:ty),*}),+) => ($(
+        #[derive(Clone, Default)]
+        pub struct $message {
+            pub user_id: String,
+            pub collection: String,
+            pub bso_id: String,
+            $(pub $property: $type),*
+        }
+
+        impl Message for $message {
+            type Result = <DBExecutor as Handler<$message>>::Result;
+        }
+    )+)
 }
 
-impl Message for GetBso {
-    type Result = <DBExecutor as Handler<GetBso>>::Result;
-}
-
-#[derive(Clone, Default)]
-pub struct PutBso {
-    pub user_id: String,
-    pub collection: String,
-    pub bso_id: String,
-    pub sortindex: Option<i64>,
-    pub payload: Option<String>,
-    pub ttl: Option<i64>,
-}
-
-impl Message for PutBso {
-    type Result = <DBExecutor as Handler<PutBso>>::Result;
+bso_messages! {
+    DeleteBso {},
+    GetBso {},
+    PutBso {
+        sortindex: Option<i64>,
+        payload: Option<String>,
+        ttl: Option<i64>
+    }
 }
 
 pub struct DBExecutor {
@@ -120,6 +121,14 @@ impl Handler<Quota> for DBExecutor {
 
     fn handle(&mut self, msg: Quota, _: &mut Self::Context) -> Self::Result {
         Ok(vec![Some(0), None])
+    }
+}
+
+impl Handler<DeleteBso> for DBExecutor {
+    type Result = Result<(), Error>;
+
+    fn handle(&mut self, msg: DeleteBso, _: &mut Self::Context) -> Self::Result {
+        Ok(())
     }
 }
 

@@ -41,6 +41,7 @@ fn setup() -> TestServer {
             r.method(http::Method::GET).with(handlers::quota);
         });
         app.resource("{uid}/storage/{collection}/{bso}", |r| {
+            r.method(http::Method::DELETE).with(handlers::delete_bso);
             r.method(http::Method::GET).with(handlers::get_bso);
             r.method(http::Method::PUT).with(handlers::put_bso);
         });
@@ -125,6 +126,22 @@ fn quota() {
 
     let body = server.execute(response.body()).unwrap();
     assert_eq!(body, "[0,null]".as_bytes());
+}
+
+#[test]
+fn delete_bso() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::DELETE, "deadbeef/storage/bookmarks/wibble")
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    assert_eq!(body, "null".as_bytes());
 }
 
 #[test]

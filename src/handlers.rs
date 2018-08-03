@@ -63,43 +63,37 @@ pub struct UidParam {
     uid: String,
 }
 
-pub fn get_bso(
-    (params, state): (Path<BsoParams>, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
-    state
-        .db_executor
-        .send(dispatcher::GetBso {
-            user_id: params.uid.clone(),
-            collection: params.collection.clone(),
-            bso_id: params.bso.clone(),
-        })
-        .from_err()
-        .and_then(|res| match res {
-            Ok(info) => Ok(HttpResponse::Ok().json(info)),
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
+macro_rules! bso_endpoints {
+    ($($handler:ident: $dispatcher:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr),*}),+) => ($(
+        pub fn $handler(
+            (params, state$(, $param),*): (Path<BsoParams>, State<ServerState>$(, $type),*),
+        ) -> FutureResponse<HttpResponse> {
+            state
+                .db_executor
+                .send(dispatcher::$dispatcher {
+                    user_id: params.uid.clone(),
+                    collection: params.collection.clone(),
+                    bso_id: params.bso.clone(),
+                    $($property: $value),*
+                })
+                .from_err()
+                .and_then(|res| match res {
+                    Ok(info) => Ok(HttpResponse::Ok().json(info)),
+                    Err(_) => Ok(HttpResponse::InternalServerError().into()),
+                })
+                .responder()
+        }
+    )+)
 }
 
-pub fn put_bso(
-    (params, body, state): (Path<BsoParams>, Json<BsoBody>, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
-    state
-        .db_executor
-        .send(dispatcher::PutBso {
-            user_id: params.uid.clone(),
-            collection: params.collection.clone(),
-            bso_id: params.bso.clone(),
-            sortindex: body.sortindex,
-            payload: body.payload.as_ref().map(|payload| payload.clone()),
-            ttl: body.ttl,
-        })
-        .from_err()
-        .and_then(|res| match res {
-            Ok(info) => Ok(HttpResponse::Ok().json(info)),
-            Err(_) => Ok(HttpResponse::InternalServerError().into()),
-        })
-        .responder()
+bso_endpoints! {
+    delete_bso: DeleteBso () {},
+    get_bso: GetBso () {},
+    put_bso: PutBso (body: Json<BsoBody>) {
+        sortindex: body.sortindex,
+        payload: body.payload.as_ref().map(|payload| payload.clone()),
+        ttl: body.ttl
+    }
 }
 
 #[derive(Deserialize)]
