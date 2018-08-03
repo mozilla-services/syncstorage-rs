@@ -176,13 +176,15 @@ fn get_bsos_limit_offset() {
         db.put_bso(&bso).unwrap();
     }
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)
         .unwrap();
     assert!(bsos.bsos.is_empty());
     assert!(bsos.more);
     assert_eq!(bsos.offset, 0);
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), size as usize);
     assert!(!bsos.more);
@@ -197,45 +199,48 @@ fn get_bsos_limit_offset() {
     .. etc
     */
 
-    let bsos = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        newer,
-        Sorting::Newest,
-        limit,
-        offset,
-    ).unwrap();
+    let bsos =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            newer,
+            Sorting::Newest,
+            limit,
+            offset,
+        ).unwrap();
     assert_eq!(bsos.bsos.len(), 5 as usize);
     assert!(bsos.more);
     assert_eq!(bsos.offset, 5);
     assert_eq!(bsos.bsos[0].id, "11");
     assert_eq!(bsos.bsos[4].id, "7");
 
-    let bsos2 = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        newer,
-        Sorting::Index,
-        limit,
-        bsos.offset,
-    ).unwrap();
+    let bsos2 =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            newer,
+            Sorting::Index,
+            limit,
+            bsos.offset,
+        ).unwrap();
     assert_eq!(bsos2.bsos.len(), 5 as usize);
     assert!(bsos2.more);
     assert_eq!(bsos2.offset, 10);
     assert_eq!(bsos2.bsos[0].id, "6");
     assert_eq!(bsos2.bsos[4].id, "2");
 
-    let bsos3 = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        newer,
-        Sorting::Index,
-        limit,
-        bsos2.offset,
-    ).unwrap();
+    let bsos3 =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            newer,
+            Sorting::Index,
+            limit,
+            bsos2.offset,
+        ).unwrap();
     assert_eq!(bsos3.bsos.len(), 2 as usize);
     assert!(!bsos3.more);
     assert_eq!(bsos3.offset, 0);
@@ -264,46 +269,50 @@ fn get_bsos_newer() {
         db.put_bso(&pbso).unwrap();
     }
 
-    let bsos = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        modified - 3,
-        Sorting::Newest,
-        10,
-        0,
-    ).unwrap();
+    let bsos =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            modified - 3,
+            Sorting::Newest,
+            10,
+            0,
+        ).unwrap();
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b2");
 
-    let bsos = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        modified - 2,
-        Sorting::Newest,
-        10,
-        0,
-    ).unwrap();
+    let bsos =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            modified - 2,
+            Sorting::Newest,
+            10,
+            0,
+        ).unwrap();
     assert_eq!(bsos.bsos.len(), 2);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
 
-    let bsos = db.get_bsos(
-        cid,
-        &[],
-        MAX_TIMESTAMP,
-        modified - 1,
-        Sorting::Newest,
-        10,
-        0,
-    ).unwrap();
+    let bsos =
+        db.get_bsos(
+            cid,
+            &[],
+            MAX_TIMESTAMP,
+            modified - 1,
+            Sorting::Newest,
+            10,
+            0,
+        ).unwrap();
     assert_eq!(bsos.bsos.len(), 1);
     assert_eq!(bsos.bsos[0].id, "b0");
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, modified, Sorting::Newest, 10, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, modified, Sorting::Newest, 10, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), 0);
 }
@@ -329,21 +338,24 @@ fn get_bsos_sort() {
         db.put_bso(&pbso).unwrap();
     }
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b2");
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Oldest, 10, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Oldest, 10, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b2");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b0");
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 10, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 10, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b2");
@@ -539,21 +551,23 @@ fn get_bsos() {
         db.put_bso(&bso).unwrap();
     }
 
-    let bsos = db.get_bsos(
-        cid,
-        &vec!["b0", "b2", "b4"],
-        MAX_TIMESTAMP,
-        0,
-        Sorting::Newest,
-        10,
-        0,
-    ).unwrap();
+    let bsos =
+        db.get_bsos(
+            cid,
+            &vec!["b0", "b2", "b4"],
+            MAX_TIMESTAMP,
+            0,
+            Sorting::Newest,
+            10,
+            0,
+        ).unwrap();
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b2");
     assert_eq!(bsos.bsos[2].id, "b4");
 
-    let bsos = db.get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 2, 0)
+    let bsos = db
+        .get_bsos(cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 2, 0)
         .unwrap();
     assert_eq!(bsos.bsos.len(), 2);
     assert_eq!(bsos.offset, 2);
