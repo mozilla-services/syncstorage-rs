@@ -2,24 +2,24 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use actix_web::test::TestServer;
 use actix_web::HttpMessage;
+use serde_json;
 
 use super::*;
-use db::models::{DBConfig, DBManager};
+use db::models::{DBConfig, DBManager, BSO};
 use db::util::ms_since_epoch;
 use handlers::BsoBody;
 
 fn setup() -> TestServer {
     TestServer::build_with_state(move || {
-        let db_executor = SyncArbiter::start(num_cpus::get(), move || {
-            let db_manager = DBManager::new(":memory:", DBConfig::default()).unwrap();
-            db_manager.init().unwrap();
+        let db_manager = DBManager::new(":memory:", DBConfig::default()).unwrap();
+        db_manager.init().unwrap();
 
-            let mut db_handles = HashMap::new();
-            db_handles.insert("deadbeef".to_string(), Mutex::new(db_manager));
+        let mut db_handles = HashMap::new();
+        db_handles.insert("deadbeef".to_string(), Mutex::new(db_manager));
+        let db_handles = Arc::new(RwLock::new(db_handles));
 
-            DBExecutor {
-                db_handles: Arc::new(RwLock::new(db_handles)),
-            }
+        let db_executor = SyncArbiter::start(num_cpus::get(), move || DBExecutor {
+            db_handles: db_handles.clone(),
         });
 
         ServerState { db_executor }
@@ -79,9 +79,11 @@ fn get_bso() {
 #[test]
 fn put_bso() {
     let mut server = setup();
-    let bso_path = format!("storage/bookmarks/test.server.put_bso.{}", ms_since_epoch());
 
+    let start_time = ms_since_epoch();
+    let bso_path = format!("storage/bookmarks/{}", start_time);
     let good_path = format!("deadbeef/{}", &bso_path);
+
     let request = server
         .client(http::Method::PUT, &good_path)
         .json(BsoBody {
@@ -93,6 +95,24 @@ fn put_bso() {
 
     let response = server.execute(request.send()).unwrap();
     assert!(response.status().is_success());
+
+    let request = server
+        .client(http::Method::GET, &good_path)
+        .finish()
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
+
+    let body = server.execute(response.body()).unwrap();
+    let bso: BSO = serde_json::from_slice(&*body).unwrap();
+    assert_eq!(bso.collection_id, 7);
+    assert_eq!(bso.id, start_time.to_string());
+    assert_eq!(bso.sortindex.unwrap(), 0);
+    assert_eq!(bso.payload, "wibble");
+    assert_eq!(bso.payload_size, 6);
+    assert!(bso.last_modified >= start_time && bso.last_modified <= ms_since_epoch());
+    assert_eq!(bso.expiry, bso.last_modified + 31536000000);
 
     let bad_path = format!("baadf00d/{}", &bso_path);
     let request = server
