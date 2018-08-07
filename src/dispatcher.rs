@@ -10,39 +10,51 @@ use actix::{Actor, Addr, Context, Handler, Message, SyncContext};
 use db::models::{DBConfig, DBManager, PutBSO, BSO};
 use db::util::ms_since_epoch;
 
-// Messages that can be sent to the user
-#[derive(Default)]
-pub struct CollectionInfo {
-    pub user_id: String,
+macro_rules! uid_messages {
+    ($($message:ident),+) => ($(
+        #[derive(Default)]
+        pub struct $message {
+            pub user_id: String,
+        }
+
+        impl Message for $message {
+            type Result = <DBExecutor as Handler<$message>>::Result;
+        }
+    )+)
 }
 
-impl Message for CollectionInfo {
-    type Result = Result<HashMap<String, String>, Error>;
+uid_messages! {
+    Collections,
+    CollectionCounts,
+    CollectionUsage,
+    Configuration,
+    Quota
 }
 
-#[derive(Default)]
-pub struct GetBso {
-    pub user_id: String,
-    pub collection: String,
-    pub bso_id: String,
+macro_rules! bso_messages {
+    ($($message:ident {$($property:ident: $type:ty),*}),+) => ($(
+        #[derive(Clone, Default)]
+        pub struct $message {
+            pub user_id: String,
+            pub collection: String,
+            pub bso_id: String,
+            $(pub $property: $type),*
+        }
+
+        impl Message for $message {
+            type Result = <DBExecutor as Handler<$message>>::Result;
+        }
+    )+)
 }
 
-impl Message for GetBso {
-    type Result = Result<Option<BSO>, Error>;
-}
-
-#[derive(Clone, Default)]
-pub struct PutBso {
-    pub user_id: String,
-    pub collection: String,
-    pub bso_id: String,
-    pub sortindex: Option<i64>,
-    pub payload: Option<String>,
-    pub ttl: Option<i64>,
-}
-
-impl Message for PutBso {
-    type Result = Result<(), Error>;
+bso_messages! {
+    DeleteBso {},
+    GetBso {},
+    PutBso {
+        sortindex: Option<i64>,
+        payload: Option<String>,
+        ttl: Option<i64>
+    }
 }
 
 pub struct DBExecutor {
@@ -72,11 +84,51 @@ impl DBExecutor {
     }
 }
 
-impl Handler<CollectionInfo> for DBExecutor {
+impl Handler<Collections> for DBExecutor {
     type Result = Result<HashMap<String, String>, Error>;
 
-    fn handle(&mut self, msg: CollectionInfo, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: Collections, _: &mut Self::Context) -> Self::Result {
         Ok(HashMap::new())
+    }
+}
+
+impl Handler<CollectionCounts> for DBExecutor {
+    type Result = Result<HashMap<String, u64>, Error>;
+
+    fn handle(&mut self, msg: CollectionCounts, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<CollectionUsage> for DBExecutor {
+    type Result = Result<HashMap<String, u32>, Error>;
+
+    fn handle(&mut self, msg: CollectionUsage, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<Configuration> for DBExecutor {
+    type Result = Result<HashMap<String, u64>, Error>;
+
+    fn handle(&mut self, msg: Configuration, _: &mut Self::Context) -> Self::Result {
+        Ok(HashMap::new())
+    }
+}
+
+impl Handler<Quota> for DBExecutor {
+    type Result = Result<Vec<Option<u32>>, Error>;
+
+    fn handle(&mut self, msg: Quota, _: &mut Self::Context) -> Self::Result {
+        Ok(vec![Some(0), None])
+    }
+}
+
+impl Handler<DeleteBso> for DBExecutor {
+    type Result = Result<(), Error>;
+
+    fn handle(&mut self, msg: DeleteBso, _: &mut Self::Context) -> Self::Result {
+        Ok(())
     }
 }
 

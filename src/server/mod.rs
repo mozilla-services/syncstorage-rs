@@ -41,10 +41,22 @@ impl Server {
                         .resource(
                             "{uid}/info/collections", |r| {
                                 r.method(http::Method::GET)
-                                    .with(handlers::collection_info)
+                                    .with(handlers::collections)
+                            })
+                        .resource(
+                            "{uid}/info/quota", |r| {
+                                r.method(http::Method::GET)
+                                    .with(handlers::quota);
+                            })
+                        .resource(
+                            "{uid}/info/collection_usage", |r| {
+                                r.method(http::Method::GET)
+                                    .with(handlers::collection_usage);
                             })
                         .resource(
                             "{uid}/storage/{collection}/{bso}", |r| {
+                                r.method(http::Method::DELETE)
+                                    .with(handlers::delete_bso);
                                 r.method(http::Method::GET)
                                     .with(handlers::get_bso);
                                 r.method(http::Method::PUT)

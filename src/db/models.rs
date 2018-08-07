@@ -324,7 +324,8 @@ impl DBManager {
     }
 
     pub fn last_modified(&self) -> Result<i64, DieselError> {
-        Ok(self.get_key(STORAGE_LAST_MODIFIED)?
+        Ok(self
+            .get_key(STORAGE_LAST_MODIFIED)?
             .map_or(0, |last_modified| last_modified.parse().unwrap()))
     }
 }

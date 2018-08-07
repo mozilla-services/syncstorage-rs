@@ -9,10 +9,7 @@ before_script:
   - rustup component add rustfmt-preview
 
 script:
-  - cargo fmt -- --write-mode=diff
-  # HACK: Force CI to fail if there are rustfmt diffs. We can stop doing this
-  #       as soon as `cargo fmt -- --check` works in stable.
-  - if [ "$(cargo fmt -- --write-mode=diff | wc -l)" != "0" ]; then exit 1; fi
+  - cargo fmt -- --check
   - cargo build
   - cargo test
 
