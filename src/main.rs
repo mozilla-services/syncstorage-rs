@@ -11,11 +11,11 @@ extern crate futures;
 //extern crate hawk;
 extern crate mozsvc_common;
 extern crate num_cpus;
+extern crate rand;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate rand;
 extern crate uuid;
 
 use std::error::Error;
