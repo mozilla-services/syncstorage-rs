@@ -24,27 +24,7 @@ fn setup() -> TestServer {
 
         ServerState { db_executor }
     }).start(|app| {
-        app.resource("{uid}/info/collections", |r| {
-            r.method(http::Method::GET).with(handlers::collections);
-        });
-        app.resource("{uid}/info/collection_counts", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::collection_counts);
-        });
-        app.resource("{uid}/info/collection_usage", |r| {
-            r.method(http::Method::GET).with(handlers::collection_usage);
-        });
-        app.resource("{uid}/info/configuration", |r| {
-            r.method(http::Method::GET).with(handlers::configuration);
-        });
-        app.resource("{uid}/info/quota", |r| {
-            r.method(http::Method::GET).with(handlers::quota);
-        });
-        app.resource("{uid}/storage/{collection}/{bso}", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_bso);
-            r.method(http::Method::GET).with(handlers::get_bso);
-            r.method(http::Method::PUT).with(handlers::put_bso);
-        });
+        init_routes!(app);
     })
 }
 
