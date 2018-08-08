@@ -7,7 +7,7 @@ use serde_json;
 use super::*;
 use db::models::{DBConfig, DBManager, BSO};
 use db::util::ms_since_epoch;
-use handlers::BsoBody;
+use handlers::{BsoBody, PostCollectionBody};
 
 fn setup() -> TestServer {
     TestServer::build_with_state(move || {
@@ -63,6 +63,44 @@ fn configuration() {
 #[test]
 fn quota() {
     test_endpoint(http::Method::GET, "deadbeef/info/quota", "[0,null]");
+}
+
+#[test]
+fn delete_collection() {
+    test_endpoint(http::Method::DELETE, "deadbeef/storage/bookmarks", "null");
+    test_endpoint(
+        http::Method::DELETE,
+        "deadbeef/storage/bookmarks?ids=1,",
+        "null",
+    );
+    test_endpoint(
+        http::Method::DELETE,
+        "deadbeef/storage/bookmarks?ids=1,2,3",
+        "null",
+    );
+}
+
+#[test]
+fn get_collection() {
+    test_endpoint(http::Method::GET, "deadbeef/storage/bookmarks", "[]");
+}
+
+#[test]
+fn post_collection() {
+    let mut server = setup();
+
+    let request = server
+        .client(http::Method::POST, "deadbeef/storage/bookmarks")
+        .json(vec![PostCollectionBody {
+            id: "foo".to_string(),
+            sortindex: Some(0),
+            payload: Some("bar".to_string()),
+            ttl: Some(31536000000),
+        }])
+        .unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert!(response.status().is_success());
 }
 
 #[test]

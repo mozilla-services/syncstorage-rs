@@ -41,6 +41,36 @@ uid_messages! {
     Quota
 }
 
+macro_rules! collection_messages {
+    ($($message:ident {$($property:ident: $type:ty),*}),+) => ($(
+        message! {
+            $message {
+                user_id: String,
+                collection: String
+                $(, $property: $type)*
+            }
+        }
+    )+)
+}
+
+collection_messages! {
+    DeleteCollection {
+        bso_ids: Vec<String>
+    },
+    GetCollection {},
+    PostCollection {
+        bsos: Vec<PostCollectionBso>
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct PostCollectionBso {
+    pub bso_id: String,
+    pub sortindex: Option<i64>,
+    pub payload: Option<String>,
+    pub ttl: Option<i64>,
+}
+
 macro_rules! bso_messages {
     ($($message:ident {$($property:ident: $type:ty),*}),+) => ($(
         message! {
@@ -128,6 +158,30 @@ impl Handler<Quota> for DBExecutor {
 
     fn handle(&mut self, msg: Quota, _: &mut Self::Context) -> Self::Result {
         Ok(vec![Some(0), None])
+    }
+}
+
+impl Handler<DeleteCollection> for DBExecutor {
+    type Result = Result<(), Error>;
+
+    fn handle(&mut self, msg: DeleteCollection, _: &mut Self::Context) -> Self::Result {
+        Ok(())
+    }
+}
+
+impl Handler<GetCollection> for DBExecutor {
+    type Result = Result<Vec<BSO>, Error>;
+
+    fn handle(&mut self, msg: GetCollection, _: &mut Self::Context) -> Self::Result {
+        Ok(Vec::new())
+    }
+}
+
+impl Handler<PostCollection> for DBExecutor {
+    type Result = Result<(), Error>;
+
+    fn handle(&mut self, msg: PostCollection, _: &mut Self::Context) -> Self::Result {
+        Ok(())
     }
 }
 

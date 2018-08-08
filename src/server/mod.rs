@@ -30,6 +30,12 @@ macro_rules! init_routes {
             .resource("{uid}/info/quota", |r| {
                 r.method(http::Method::GET).with(handlers::quota);
             })
+            .resource("{uid}/storage/{collection}", |r| {
+                r.method(http::Method::DELETE)
+                    .with(handlers::delete_collection);
+                r.method(http::Method::GET).with(handlers::get_collection);
+                r.method(http::Method::POST).with(handlers::post_collection);
+            })
             .resource("{uid}/storage/{collection}/{bso}", |r| {
                 r.method(http::Method::DELETE).with(handlers::delete_bso);
                 r.method(http::Method::GET).with(handlers::get_bso);
