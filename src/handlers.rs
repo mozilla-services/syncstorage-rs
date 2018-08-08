@@ -30,15 +30,15 @@ impl<S> FromRequest<S> for HawkHeader {
     }
 }
 
-macro_rules! info_endpoints {
-    ($($handler:ident: $dispatcher:ident),+) => ($(
+macro_rules! endpoint {
+    ($handler:ident: $dispatcher:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr),*}) => {
         pub fn $handler(
-            (params, state): (Path<UidParam>, State<ServerState>),
+            ($path, state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
         ) -> FutureResponse<HttpResponse> {
             state
                 .db_executor
                 .send(dispatcher::$dispatcher {
-                    user_id: params.uid.clone(),
+                    $($property: $value),*
                 })
                 .from_err()
                 .and_then(|res| match res {
@@ -46,6 +46,16 @@ macro_rules! info_endpoints {
                     Err(_) => Ok(HttpResponse::InternalServerError().into()),
                 })
                 .responder()
+        }
+    }
+}
+
+macro_rules! info_endpoints {
+    ($($handler:ident: $dispatcher:ident),+) => ($(
+        endpoint! {
+            $handler: $dispatcher (params: UidParam) {
+                user_id: params.uid.clone()
+            }
         }
     )+)
 }
@@ -65,23 +75,13 @@ pub struct UidParam {
 
 macro_rules! bso_endpoints {
     ($($handler:ident: $dispatcher:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr),*}),+) => ($(
-        pub fn $handler(
-            (params, state$(, $param),*): (Path<BsoParams>, State<ServerState>$(, $type),*),
-        ) -> FutureResponse<HttpResponse> {
-            state
-                .db_executor
-                .send(dispatcher::$dispatcher {
-                    user_id: params.uid.clone(),
-                    collection: params.collection.clone(),
-                    bso_id: params.bso.clone(),
-                    $($property: $value),*
-                })
-                .from_err()
-                .and_then(|res| match res {
-                    Ok(info) => Ok(HttpResponse::Ok().json(info)),
-                    Err(_) => Ok(HttpResponse::InternalServerError().into()),
-                })
-                .responder()
+        endpoint! {
+            $handler: $dispatcher (params: BsoParams $(, $param: $type)*) {
+                user_id: params.uid.clone(),
+                collection: params.collection.clone(),
+                bso_id: params.bso.clone()
+                $(, $property: $value)*
+            }
         }
     )+)
 }

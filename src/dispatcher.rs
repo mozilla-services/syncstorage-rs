@@ -10,15 +10,25 @@ use actix::{Actor, Addr, Context, Handler, Message, SyncContext};
 use db::models::{DBConfig, DBManager, PutBSO, BSO};
 use db::util::ms_since_epoch;
 
-macro_rules! uid_messages {
-    ($($message:ident),+) => ($(
-        #[derive(Default)]
+macro_rules! message {
+    ($message:ident {$($property:ident: $type:ty),*}) => {
+        #[derive(Clone, Default)]
         pub struct $message {
-            pub user_id: String,
+            $(pub $property: $type),*
         }
 
         impl Message for $message {
             type Result = <DBExecutor as Handler<$message>>::Result;
+        }
+    }
+}
+
+macro_rules! uid_messages {
+    ($($message:ident),+) => ($(
+        message! {
+            $message {
+                user_id: String
+            }
         }
     )+)
 }
@@ -33,16 +43,13 @@ uid_messages! {
 
 macro_rules! bso_messages {
     ($($message:ident {$($property:ident: $type:ty),*}),+) => ($(
-        #[derive(Clone, Default)]
-        pub struct $message {
-            pub user_id: String,
-            pub collection: String,
-            pub bso_id: String,
-            $(pub $property: $type),*
-        }
-
-        impl Message for $message {
-            type Result = <DBExecutor as Handler<$message>>::Result;
+        message! {
+            $message {
+                user_id: String,
+                collection: String,
+                bso_id: String
+                $(, $property: $type)*
+            }
         }
     )+)
 }
