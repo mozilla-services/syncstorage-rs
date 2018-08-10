@@ -1,8 +1,5 @@
 //! Main application server
 
-#[cfg(test)]
-mod test;
-
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -15,6 +12,41 @@ use dispatcher::DBExecutor;
 use handlers;
 use handlers::ServerState;
 use settings::Settings;
+
+macro_rules! init_routes {
+    ($app:expr) => {
+        $app.resource("{uid}/info/collections", |r| {
+            r.method(http::Method::GET).with(handlers::collections);
+        }).resource("{uid}/info/collection_counts", |r| {
+                r.method(http::Method::GET)
+                    .with(handlers::collection_counts);
+            })
+            .resource("{uid}/info/collection_usage", |r| {
+                r.method(http::Method::GET).with(handlers::collection_usage);
+            })
+            .resource("{uid}/info/configuration", |r| {
+                r.method(http::Method::GET).with(handlers::configuration);
+            })
+            .resource("{uid}/info/quota", |r| {
+                r.method(http::Method::GET).with(handlers::quota);
+            })
+            .resource("{uid}/storage/{collection}", |r| {
+                r.method(http::Method::DELETE)
+                    .with(handlers::delete_collection);
+                r.method(http::Method::GET).with(handlers::get_collection);
+                r.method(http::Method::POST).with(handlers::post_collection);
+            })
+            .resource("{uid}/storage/{collection}/{bso}", |r| {
+                r.method(http::Method::DELETE).with(handlers::delete_bso);
+                r.method(http::Method::GET).with(handlers::get_bso);
+                r.method(http::Method::PUT).with(handlers::put_bso);
+            })
+    };
+}
+
+// The tests depend on the init_routes! macro, so this mod must come after it
+#[cfg(test)]
+mod test;
 
 pub struct Server {}
 
@@ -34,36 +66,7 @@ impl Server {
                 db_executor: db_executor.clone(),
             };
 
-            App::with_state(state)
-                // HTTP handler routes
-                .configure(|app| {
-                    Cors::for_app(app)
-                        .resource(
-                            "{uid}/info/collections", |r| {
-                                r.method(http::Method::GET)
-                                    .with(handlers::collections)
-                            })
-                        .resource(
-                            "{uid}/info/quota", |r| {
-                                r.method(http::Method::GET)
-                                    .with(handlers::quota);
-                            })
-                        .resource(
-                            "{uid}/info/collection_usage", |r| {
-                                r.method(http::Method::GET)
-                                    .with(handlers::collection_usage);
-                            })
-                        .resource(
-                            "{uid}/storage/{collection}/{bso}", |r| {
-                                r.method(http::Method::DELETE)
-                                    .with(handlers::delete_bso);
-                                r.method(http::Method::GET)
-                                    .with(handlers::get_bso);
-                                r.method(http::Method::PUT)
-                                    .with(handlers::put_bso);
-                            })
-                        .register()
-                })
+            App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())
         }).bind(format!("127.0.0.1:{}", settings.port))
             .unwrap()
             .start();
