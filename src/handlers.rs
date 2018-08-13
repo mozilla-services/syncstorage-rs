@@ -27,6 +27,33 @@ impl<S> FromRequest<S> for HawkHeader {
 
     fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
         // TODO: Actually extract the Hawk Header
+        // There are a couple of layers of signing involved here, that eventually
+        // chain back to a secret key shared between this storage node and the tokenserver.
+        // The Authorization header will look like this:
+        //    Authorization: Hawk id="<...>", ts="1353832234", nonce="j4h3g2", a", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="
+        // Where the "id" field is a signed-and-base64-encoded JSON blob of user metadata,
+        // produced by the python "tokenlib" library (https://github.com/mozilla-services/tokenlib)
+        // The decoding procedure must proceed as follows:
+        //
+        //   * Obtain the `master_secret` master token secret from config
+        //   * Derive `signing_secret = HKDF-SHA256(master_secret, size=32, salt=None, info="services.mozilla.com/tokenlib/v1/signing")`
+        //   * Extract the `id` from the Hawk auth header
+        //   * urlsafe_b64decode `id` and split off the last 32 bytes to give (`payload`, `signature`)
+        //   * Calculate `HMAC-SHA256(payload, signing_secret)` and check that it matches `signature`
+        //   * JSON decode `payload` to give an object like: {
+        //       'userid': 42,
+        //       'expires': 1329875384.073159
+        //       'salt': '1c033f'
+        //     }
+        //   * Check that the "expires" timestamp is not in the past.
+        //   * Derive `token_secret = HKDF-SHA256(master_secret, size=32, salt=payload["salt"], info="services.mozilla.com/tokenlib/v1/derive/" + id)`
+        //   * Use `token_secret` as the secret key for calculating the Hawk request MAC
+        //   * Check that the Hawk request MAC matches the "mac" value from the Hawk authorization header.
+        //   * Use the `userid` and other user meta-data from the decoded `payload`.
+        //
+        // Phew!  That's a lot of steps, but they all exist in order to help ensure that tokens are only
+        // used by the right user, on the right storage node.  We should probably create our own local
+        // rust port of https://github.com/mozilla-services/tokenlib to encapsulate those details.
         Ok(HawkHeader("token".to_string()))
     }
 }
