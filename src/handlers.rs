@@ -1,21 +1,17 @@
 //! API Handlers
-use actix::{ActorResponse, Addr};
 use actix_web::{
-    error, AsyncResponder, Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
-    Path, Query, Responder, State,
+    Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json, Path, Query, State,
 };
-use futures::Future;
+use futures::future::result;
 // Hawk lib brings in some libs that don't compile at the moment for some reason
 //use hawk::
 use serde::de::{Deserialize, Deserializer};
 
-use dispatcher;
+use data;
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
-pub struct ServerState {
-    pub db_executor: Addr<dispatcher::DBExecutor>,
-}
+pub struct ServerState;
 
 #[derive(Debug, Deserialize)]
 struct HawkHeader(String);
@@ -59,30 +55,23 @@ impl<S> FromRequest<S> for HawkHeader {
 }
 
 macro_rules! endpoint {
-    ($handler:ident: $dispatcher:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr),*}) => {
+    ($handler:ident: $data:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr,)*}) => {
         pub fn $handler(
-            ($path, state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
+            ($path, _state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
         ) -> FutureResponse<HttpResponse> {
-            state
-                .db_executor
-                .send(dispatcher::$dispatcher {
-                    $($property: $value),*
-                })
-                .from_err()
-                .and_then(|res| match res {
-                    Ok(info) => Ok(HttpResponse::Ok().json(info)),
-                    Err(_) => Ok(HttpResponse::InternalServerError().into()),
-                })
-                .responder()
+            let _data = data::$data {
+                $($property: $value,)*
+            };
+            Box::new(result(Ok(HttpResponse::Ok().json(()))))
         }
     }
 }
 
 macro_rules! info_endpoints {
-    ($($handler:ident: $dispatcher:ident),+) => ($(
+    ($($handler:ident: $data:ident,)+) => ($(
         endpoint! {
-            $handler: $dispatcher (params: UidParam) {
-                user_id: params.uid.clone()
+            $handler: $data (params: UidParam) {
+                user_id: params.uid.clone(),
             }
         }
     )+)
@@ -93,7 +82,7 @@ info_endpoints! {
     collection_counts: CollectionCounts,
     collection_usage: CollectionUsage,
     configuration: Configuration,
-    quota: Quota
+    quota: Quota,
 }
 
 #[derive(Deserialize)]
@@ -102,12 +91,12 @@ pub struct UidParam {
 }
 
 macro_rules! collection_endpoints {
-    ($($handler:ident: $dispatcher:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr),*}),+) => ($(
+    ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
         endpoint! {
-            $handler: $dispatcher (params: CollectionParams $(, $param: $type)*) {
+            $handler: $data (params: CollectionParams $(, $param: $type)*) {
                 user_id: params.uid.clone(),
-                collection: params.collection.clone()
-                $(, $property: $value)*
+                collection: params.collection.clone(),
+                $($property: $value,)*
             }
         }
     )+)
@@ -115,12 +104,12 @@ macro_rules! collection_endpoints {
 
 collection_endpoints! {
     delete_collection: DeleteCollection (query: Query<DeleteCollectionQuery>) {
-        bso_ids: query.ids.as_ref().map_or_else(|| Vec::new(), |ids| ids.0.clone())
+        bso_ids: query.ids.as_ref().map_or_else(|| Vec::new(), |ids| ids.0.clone()),
     },
     get_collection: GetCollection () {},
     post_collection: PostCollection (body: Json<Vec<PostCollectionBody>>) {
-        bsos: body.into_inner().into_iter().map(From::from).collect()
-    }
+        bsos: body.into_inner().into_iter().map(From::from).collect(),
+    },
 }
 
 #[derive(Deserialize)]
@@ -148,9 +137,9 @@ pub struct PostCollectionBody {
     pub ttl: Option<i64>,
 }
 
-impl From<PostCollectionBody> for dispatcher::PostCollectionBso {
-    fn from(body: PostCollectionBody) -> dispatcher::PostCollectionBso {
-        dispatcher::PostCollectionBso {
+impl From<PostCollectionBody> for data::PostCollectionBso {
+    fn from(body: PostCollectionBody) -> data::PostCollectionBso {
+        data::PostCollectionBso {
             bso_id: body.id.clone(),
             sortindex: body.sortindex,
             payload: body.payload.as_ref().map(|payload| payload.clone()),
@@ -166,13 +155,13 @@ pub struct CollectionParams {
 }
 
 macro_rules! bso_endpoints {
-    ($($handler:ident: $dispatcher:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr),*}),+) => ($(
+    ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
         endpoint! {
-            $handler: $dispatcher (params: BsoParams $(, $param: $type)*) {
+            $handler: $data (params: BsoParams $(, $param: $type)*) {
                 user_id: params.uid.clone(),
                 collection: params.collection.clone(),
-                bso_id: params.bso.clone()
-                $(, $property: $value)*
+                bso_id: params.bso.clone(),
+                $($property: $value,)*
             }
         }
     )+)
@@ -184,8 +173,8 @@ bso_endpoints! {
     put_bso: PutBso (body: Json<BsoBody>) {
         sortindex: body.sortindex,
         payload: body.payload.as_ref().map(|payload| payload.clone()),
-        ttl: body.ttl
-    }
+        ttl: body.ttl,
+    },
 }
 
 #[derive(Deserialize)]
