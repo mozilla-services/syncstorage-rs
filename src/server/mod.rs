@@ -24,6 +24,12 @@ macro_rules! init_routes {
             .resource("{uid}/info/quota", |r| {
                 r.method(http::Method::GET).with(handlers::quota);
             })
+            .resource("{uid}", |r| {
+                r.method(http::Method::DELETE).with(handlers::delete_all);
+            })
+            .resource("{uid}/storage", |r| {
+                r.method(http::Method::DELETE).with(handlers::delete_all);
+            })
             .resource("{uid}/storage/{collection}", |r| {
                 r.method(http::Method::DELETE)
                     .with(handlers::delete_collection);

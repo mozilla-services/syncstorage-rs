@@ -68,6 +68,12 @@ fn quota() {
 }
 
 #[test]
+fn delete_all() {
+    test_endpoint(http::Method::DELETE, "deadbeef", "null");
+    test_endpoint(http::Method::DELETE, "deadbeef/storage", "null");
+}
+
+#[test]
 fn delete_collection() {
     test_endpoint(http::Method::DELETE, "deadbeef/storage/bookmarks", "null");
     test_endpoint(

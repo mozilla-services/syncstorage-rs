@@ -54,6 +54,7 @@ uid_data! {
     CollectionUsage,
     Configuration,
     Quota,
+    DeleteAll,
 }
 
 collection_data! {

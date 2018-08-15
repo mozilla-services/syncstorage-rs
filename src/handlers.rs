@@ -83,6 +83,7 @@ info_endpoints! {
     collection_usage: CollectionUsage,
     configuration: Configuration,
     quota: Quota,
+    delete_all: DeleteAll,
 }
 
 #[derive(Deserialize)]
