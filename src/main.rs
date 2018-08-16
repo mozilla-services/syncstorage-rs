@@ -22,8 +22,9 @@ use std::error::Error;
 
 use docopt::Docopt;
 
+#[macro_use]
+mod data;
 mod db;
-mod dispatcher;
 mod handlers;
 mod server;
 mod settings;
