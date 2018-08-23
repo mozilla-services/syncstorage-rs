@@ -1,17 +1,25 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, you can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! API Handlers
+
 use actix_web::{
-    Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json, Path, Query, State,
+    error::ResponseError, Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
+    Path, Query, State,
 };
-use futures::future::result;
+use futures::future::{self, Future};
 // Hawk lib brings in some libs that don't compile at the moment for some reason
 //use hawk::
 use serde::de::{Deserialize, Deserializer};
 
-use data;
+use db::{params, Db, DbError};
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
-pub struct ServerState;
+pub struct ServerState {
+    pub db: Box<Db>,
+}
 
 #[derive(Debug, Deserialize)]
 struct HawkHeader(String);
@@ -54,22 +62,25 @@ impl<S> FromRequest<S> for HawkHeader {
     }
 }
 
-macro_rules! endpoint {
+macro_rules! db_endpoint {
     ($handler:ident: $data:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr,)*}) => {
         pub fn $handler(
-            ($path, _state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
+            ($path, state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
         ) -> FutureResponse<HttpResponse> {
-            let _data = data::$data {
-                $($property: $value,)*
-            };
-            Box::new(result(Ok(HttpResponse::Ok().json(()))))
+            Box::new(
+                state.db.$handler(params::$data {
+                    $($property: $value,)*
+                })
+                .map_err(From::from)
+                .map(|result| HttpResponse::Ok().json(result))
+            )
         }
     }
 }
 
 macro_rules! info_endpoints {
     ($($handler:ident: $data:ident,)+) => ($(
-        endpoint! {
+        db_endpoint! {
             $handler: $data (params: UidParam) {
                 user_id: params.uid.clone(),
             }
@@ -78,11 +89,10 @@ macro_rules! info_endpoints {
 }
 
 info_endpoints! {
-    collections: Collections,
-    collection_counts: CollectionCounts,
-    collection_usage: CollectionUsage,
-    configuration: Configuration,
-    quota: Quota,
+    get_collections: GetCollections,
+    get_collection_counts: GetCollectionCounts,
+    get_collection_usage: GetCollectionUsage,
+    get_quota: GetQuota,
     delete_all: DeleteAll,
 }
 
@@ -93,7 +103,7 @@ pub struct UidParam {
 
 macro_rules! collection_endpoints {
     ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
-        endpoint! {
+        db_endpoint! {
             $handler: $data (params: CollectionParams $(, $param: $type)*) {
                 user_id: params.uid.clone(),
                 collection: params.collection.clone(),
@@ -133,14 +143,14 @@ impl<'d> Deserialize<'d> for BsoIds {
 #[derive(Deserialize, Serialize)]
 pub struct PostCollectionBody {
     pub id: String,
-    pub sortindex: Option<i64>,
+    pub sortindex: Option<i32>,
     pub payload: Option<String>,
-    pub ttl: Option<i64>,
+    pub ttl: Option<u32>,
 }
 
-impl From<PostCollectionBody> for data::PostCollectionBso {
-    fn from(body: PostCollectionBody) -> data::PostCollectionBso {
-        data::PostCollectionBso {
+impl From<PostCollectionBody> for params::PostCollectionBso {
+    fn from(body: PostCollectionBody) -> params::PostCollectionBso {
+        params::PostCollectionBso {
             bso_id: body.id.clone(),
             sortindex: body.sortindex,
             payload: body.payload.as_ref().map(|payload| payload.clone()),
@@ -157,7 +167,7 @@ pub struct CollectionParams {
 
 macro_rules! bso_endpoints {
     ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
-        endpoint! {
+        db_endpoint! {
             $handler: $data (params: BsoParams $(, $param: $type)*) {
                 user_id: params.uid.clone(),
                 collection: params.collection.clone(),
@@ -187,7 +197,32 @@ pub struct BsoParams {
 
 #[derive(Deserialize, Serialize)]
 pub struct BsoBody {
-    pub sortindex: Option<i64>,
+    pub sortindex: Option<i32>,
     pub payload: Option<String>,
-    pub ttl: Option<i64>,
+    pub ttl: Option<u32>,
 }
+
+pub fn get_configuration(_state: State<ServerState>) -> FutureResponse<HttpResponse> {
+    // TODO: populate from static config?
+    Box::new(future::result(Ok(
+        HttpResponse::Ok().json(Configuration::default())
+    )))
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Configuration {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_post_bytes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_post_records: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_request_bytes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_total_bytes: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_total_records: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_record_payload_bytes: Option<u32>,
+}
+
+impl ResponseError for DbError {}

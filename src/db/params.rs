@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Data definitions.
+//! Parameter types for database methods.
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {
@@ -49,11 +49,10 @@ macro_rules! bso_data {
 }
 
 uid_data! {
-    Collections,
-    CollectionCounts,
-    CollectionUsage,
-    Configuration,
-    Quota,
+    GetCollections,
+    GetCollectionCounts,
+    GetCollectionUsage,
+    GetQuota,
     DeleteAll,
 }
 
@@ -71,16 +70,16 @@ bso_data! {
     DeleteBso {},
     GetBso {},
     PutBso {
-        sortindex: Option<i64>,
+        sortindex: Option<i32>,
         payload: Option<String>,
-        ttl: Option<i64>,
+        ttl: Option<u32>,
     },
 }
 
 #[derive(Debug)]
 pub struct PostCollectionBso {
     pub bso_id: String,
-    pub sortindex: Option<i64>,
+    pub sortindex: Option<i32>,
     pub payload: Option<String>,
-    pub ttl: Option<i64>,
+    pub ttl: Option<u32>,
 }
