@@ -1,28 +1,35 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, you can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! Main application server
 
 use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 use num_cpus;
 
+use db::{mock::MockDb, Db};
 use handlers::{self, ServerState};
 use settings::Settings;
 
 macro_rules! init_routes {
     ($app:expr) => {
         $app.resource("{uid}/info/collections", |r| {
-            r.method(http::Method::GET).with(handlers::collections);
+            r.method(http::Method::GET).with(handlers::get_collections);
         }).resource("{uid}/info/collection_counts", |r| {
                 r.method(http::Method::GET)
-                    .with(handlers::collection_counts);
+                    .with(handlers::get_collection_counts);
             })
             .resource("{uid}/info/collection_usage", |r| {
-                r.method(http::Method::GET).with(handlers::collection_usage);
+                r.method(http::Method::GET)
+                    .with(handlers::get_collection_usage);
             })
             .resource("{uid}/info/configuration", |r| {
-                r.method(http::Method::GET).with(handlers::configuration);
+                r.method(http::Method::GET)
+                    .with(handlers::get_configuration);
             })
             .resource("{uid}/info/quota", |r| {
-                r.method(http::Method::GET).with(handlers::quota);
+                r.method(http::Method::GET).with(handlers::get_quota);
             })
             .resource("{uid}", |r| {
                 r.method(http::Method::DELETE).with(handlers::delete_all);
@@ -56,7 +63,10 @@ impl Server {
 
         HttpServer::new(move || {
             // Setup the server state
-            let state = ServerState;
+            let state = ServerState {
+                // TODO: replace MockDb with a real implementation
+                db: MockDb::new(),
+            };
 
             App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())
         }).bind(format!("127.0.0.1:{}", settings.port))

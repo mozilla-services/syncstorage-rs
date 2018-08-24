@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, you can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! Main application
 #[macro_use]
 extern crate actix;
@@ -22,8 +26,6 @@ use std::error::Error;
 
 use docopt::Docopt;
 
-#[macro_use]
-mod data;
 mod db;
 mod handlers;
 mod server;
