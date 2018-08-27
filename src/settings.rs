@@ -5,6 +5,10 @@ use config::{Config, ConfigError, Environment, File};
 pub struct Settings {
     pub debug: bool,
     pub port: u16,
+    pub database_url: String,
+    pub database_pool_max_size: Option<u32>,
+    #[cfg(test)]
+    pub database_use_test_transactions: bool,
 }
 
 impl Settings {
@@ -15,6 +19,8 @@ impl Settings {
         // https://github.com/mehcode/config-rs/issues/60
         s.set_default("debug", false)?;
         s.set_default("port", 8000)?;
+        #[cfg(test)]
+        s.set_default("database_use_test_transactions", false)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {

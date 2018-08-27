@@ -6,9 +6,9 @@
 
 use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
-use num_cpus;
+//use num_cpus;
 
-use db::{mock::MockDb, Db};
+use db::mock::MockDb;
 use handlers::{self, ServerState};
 use settings::Settings;
 
@@ -65,7 +65,7 @@ impl Server {
             // Setup the server state
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
-                db: MockDb::new(),
+                db: Box::new(MockDb::new()),
             };
 
             App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())

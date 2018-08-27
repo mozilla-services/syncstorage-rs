@@ -11,19 +11,22 @@ use super::*;
 #[derive(Debug)]
 pub struct MockDb;
 
+impl MockDb {
+    pub fn new() -> Self {
+        MockDb
+    }
+}
+
 macro_rules! mock_db_method {
     ($name:ident, $type:ident) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<results::$type> {
+        fn $name(&self, _params: &params::$type) -> DbFuture<results::$type> {
             Box::new(future::result(Ok(results::$type::default())))
         }
     }
 }
 
 impl Db for MockDb {
-    fn new() -> Box<Db> {
-        Box::new(MockDb)
-    }
-
+    mock_db_method!(get_collection_id, GetCollectionId);
     mock_db_method!(get_collections, GetCollections);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
