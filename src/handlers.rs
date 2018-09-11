@@ -13,7 +13,7 @@ use futures::future::{self, Future};
 //use hawk::
 use serde::de::{Deserialize, Deserializer};
 
-use db::{params, Db, DbError};
+use db::{params, util::ms_since_epoch, Db, DbError};
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
@@ -68,7 +68,7 @@ macro_rules! db_endpoint {
             ($path, state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
         ) -> FutureResponse<HttpResponse> {
             Box::new(
-                state.db.$handler(params::$data {
+                state.db.$handler(&params::$data {
                     $($property: $value,)*
                 })
                 .map_err(From::from)
@@ -82,7 +82,8 @@ macro_rules! info_endpoints {
     ($($handler:ident: $data:ident,)+) => ($(
         db_endpoint! {
             $handler: $data (params: UidParam) {
-                user_id: params.uid.clone(),
+                // XXX: -> HawkPayload::uid
+                user_id: 1,
             }
         }
     )+)
@@ -105,8 +106,9 @@ macro_rules! collection_endpoints {
     ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
         db_endpoint! {
             $handler: $data (params: CollectionParams $(, $param: $type)*) {
-                user_id: params.uid.clone(),
-                collection: params.collection.clone(),
+                // XXX: -> HawkPayload::uid
+                user_id: 1,
+                collection_id: 2, // XXX: get_collection_id(&params.collection)
                 $($property: $value,)*
             }
         }
@@ -151,7 +153,7 @@ pub struct PostCollectionBody {
 impl From<PostCollectionBody> for params::PostCollectionBso {
     fn from(body: PostCollectionBody) -> params::PostCollectionBso {
         params::PostCollectionBso {
-            bso_id: body.id.clone(),
+            id: body.id.clone(),
             sortindex: body.sortindex,
             payload: body.payload.as_ref().map(|payload| payload.clone()),
             ttl: body.ttl,
@@ -169,9 +171,10 @@ macro_rules! bso_endpoints {
     ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
         db_endpoint! {
             $handler: $data (params: BsoParams $(, $param: $type)*) {
-                user_id: params.uid.clone(),
-                collection: params.collection.clone(),
-                bso_id: params.bso.clone(),
+                // XXX: -> HawkPayload::uid
+                user_id: 1,
+                collection_id: 2, // XXX: get_collection_id(&params.collection)
+                id: params.bso.clone(),
                 $($property: $value,)*
             }
         }
@@ -182,6 +185,7 @@ bso_endpoints! {
     delete_bso: DeleteBso () {},
     get_bso: GetBso () {},
     put_bso: PutBso (body: Json<BsoBody>) {
+        modified: ms_since_epoch(),
         sortindex: body.sortindex,
         payload: body.payload.as_ref().map(|payload| payload.clone()),
         ttl: body.ttl,

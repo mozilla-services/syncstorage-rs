@@ -12,7 +12,9 @@ use db::results::{GetBso, GetCollection, PostCollection, PutBso};
 use handlers::{BsoBody, PostCollectionBody};
 
 fn setup() -> TestServer {
-    TestServer::build_with_state(move || ServerState { db: MockDb::new() }).start(|app| {
+    TestServer::build_with_state(move || ServerState {
+        db: Box::new(MockDb::new()),
+    }).start(|app| {
         init_routes!(app);
     })
 }
