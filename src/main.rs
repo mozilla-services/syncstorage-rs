@@ -5,6 +5,7 @@
 //! Main application
 extern crate actix;
 extern crate actix_web;
+extern crate base64;
 extern crate chrono;
 extern crate config;
 #[macro_use]
@@ -18,22 +19,28 @@ extern crate env_logger;
 #[macro_use]
 extern crate failure;
 extern crate futures;
-//extern crate hawk;
 #[macro_use]
 extern crate lazy_static;
+extern crate hawk;
+extern crate hkdf;
+extern crate hmac;
 extern crate mozsvc_common;
 extern crate num_cpus;
 extern crate rand;
+extern crate ring;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate sha2;
+extern crate time;
 extern crate uuid;
 
 use std::error::Error;
 
 use docopt::Docopt;
 
+mod auth;
 mod db;
 mod handlers;
 mod server;
