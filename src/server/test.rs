@@ -67,46 +67,46 @@ macro_rules! test_endpoint_with_body {
 
 #[test]
 fn collections() {
-    test_endpoint(http::Method::GET, "deadbeef/info/collections", "{}");
+    test_endpoint(http::Method::GET, "/deadbeef/info/collections", "{}");
 }
 
 #[test]
 fn collection_counts() {
-    test_endpoint(http::Method::GET, "deadbeef/info/collection_counts", "{}");
+    test_endpoint(http::Method::GET, "/deadbeef/info/collection_counts", "{}");
 }
 
 #[test]
 fn collection_usage() {
-    test_endpoint(http::Method::GET, "deadbeef/info/collection_usage", "{}");
+    test_endpoint(http::Method::GET, "/deadbeef/info/collection_usage", "{}");
 }
 
 #[test]
 fn configuration() {
-    test_endpoint(http::Method::GET, "deadbeef/info/configuration", "{}");
+    test_endpoint(http::Method::GET, "/deadbeef/info/configuration", "{}");
 }
 
 #[test]
 fn quota() {
-    test_endpoint(http::Method::GET, "deadbeef/info/quota", "[]");
+    test_endpoint(http::Method::GET, "/deadbeef/info/quota", "[]");
 }
 
 #[test]
 fn delete_all() {
-    test_endpoint(http::Method::DELETE, "deadbeef", "null");
-    test_endpoint(http::Method::DELETE, "deadbeef/storage", "null");
+    test_endpoint(http::Method::DELETE, "/deadbeef", "null");
+    test_endpoint(http::Method::DELETE, "/deadbeef/storage", "null");
 }
 
 #[test]
 fn delete_collection() {
-    test_endpoint(http::Method::DELETE, "deadbeef/storage/bookmarks", "null");
+    test_endpoint(http::Method::DELETE, "/deadbeef/storage/bookmarks", "null");
     test_endpoint(
         http::Method::DELETE,
-        "deadbeef/storage/bookmarks?ids=1,",
+        "/deadbeef/storage/bookmarks?ids=1,",
         "null",
     );
     test_endpoint(
         http::Method::DELETE,
-        "deadbeef/storage/bookmarks?ids=1,2,3",
+        "/deadbeef/storage/bookmarks?ids=1,2,3",
         "null",
     );
 }
@@ -115,7 +115,7 @@ fn delete_collection() {
 fn get_collection() {
     test_endpoint_with_response(
         http::Method::GET,
-        "deadbeef/storage/bookmarks",
+        "/deadbeef/storage/bookmarks",
         &move |collection: GetCollection| {
             assert_eq!(collection.len(), 0);
         },
@@ -125,7 +125,7 @@ fn get_collection() {
 #[test]
 fn post_collection() {
     test_endpoint_with_body! {
-        POST "deadbeef/storage/bookmarks", vec![PostCollectionBody {
+        POST "/deadbeef/storage/bookmarks", vec![PostCollectionBody {
             id: "foo".to_string(),
             sortindex: Some(0),
             payload: Some("bar".to_string()),
@@ -143,7 +143,7 @@ fn post_collection() {
 fn delete_bso() {
     test_endpoint(
         http::Method::DELETE,
-        "deadbeef/storage/bookmarks/wibble",
+        "/deadbeef/storage/bookmarks/wibble",
         "null",
     );
 }
@@ -152,7 +152,7 @@ fn delete_bso() {
 fn get_bso() {
     test_endpoint_with_response(
         http::Method::GET,
-        "deadbeef/storage/bookmarks/wibble",
+        "/deadbeef/storage/bookmarks/wibble",
         &move |bso: GetBso| {
             assert_eq!(bso.id, "");
             assert_eq!(bso.modified, 0);
@@ -165,7 +165,7 @@ fn get_bso() {
 #[test]
 fn put_bso() {
     test_endpoint_with_body! {
-        PUT "deadbeef/storage/bookmarks/wibble", BsoBody {
+        PUT "/deadbeef/storage/bookmarks/wibble", BsoBody {
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31536000),
