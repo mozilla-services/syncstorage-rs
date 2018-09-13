@@ -4,68 +4,18 @@
 
 //! API Handlers
 
-use actix_web::{
-    error::ResponseError, Error, FromRequest, FutureResponse, HttpRequest, HttpResponse, Json,
-    Path, Query, State,
-};
+use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, Query, State};
 use futures::future::{self, Future};
-// Hawk lib brings in some libs that don't compile at the moment for some reason
-//use hawk::
 use serde::de::{Deserialize, Deserializer};
 
-use db::{params, util::ms_since_epoch, Db, DbError};
-
-/// This is the global HTTP state object that will be made available to all
-/// HTTP API calls.
-pub struct ServerState {
-    pub db: Box<Db>,
-}
-
-#[derive(Debug, Deserialize)]
-struct HawkHeader(String);
-
-/// Extract a HAWK header
-impl<S> FromRequest<S> for HawkHeader {
-    type Config = ();
-    type Result = Result<HawkHeader, Error>;
-
-    fn from_request(req: &HttpRequest<S>, _cfg: &Self::Config) -> Self::Result {
-        // TODO: Actually extract the Hawk Header
-        // There are a couple of layers of signing involved here, that eventually
-        // chain back to a secret key shared between this storage node and the tokenserver.
-        // The Authorization header will look like this:
-        //    Authorization: Hawk id="<...>", ts="1353832234", nonce="j4h3g2", a", mac="6R4rV5iE+NPoym+WwjeHzjAGXUtLNIxmo1vpMofpLAE="
-        // Where the "id" field is a signed-and-base64-encoded JSON blob of user metadata,
-        // produced by the python "tokenlib" library (https://github.com/mozilla-services/tokenlib)
-        // The decoding procedure must proceed as follows:
-        //
-        //   * Obtain the `master_secret` master token secret from config
-        //   * Derive `signing_secret = HKDF-SHA256(master_secret, size=32, salt=None, info="services.mozilla.com/tokenlib/v1/signing")`
-        //   * Extract the `id` from the Hawk auth header
-        //   * urlsafe_b64decode `id` and split off the last 32 bytes to give (`payload`, `signature`)
-        //   * Calculate `HMAC-SHA256(payload, signing_secret)` and check that it matches `signature`
-        //   * JSON decode `payload` to give an object like: {
-        //       'userid': 42,
-        //       'expires': 1329875384.073159
-        //       'salt': '1c033f'
-        //     }
-        //   * Check that the "expires" timestamp is not in the past.
-        //   * Derive `token_secret = HKDF-SHA256(master_secret, size=32, salt=payload["salt"], info="services.mozilla.com/tokenlib/v1/derive/" + id)`
-        //   * Use `token_secret` as the secret key for calculating the Hawk request MAC
-        //   * Check that the Hawk request MAC matches the "mac" value from the Hawk authorization header.
-        //   * Use the `userid` and other user meta-data from the decoded `payload`.
-        //
-        // Phew!  That's a lot of steps, but they all exist in order to help ensure that tokens are only
-        // used by the right user, on the right storage node.  We should probably create our own local
-        // rust port of https://github.com/mozilla-services/tokenlib to encapsulate those details.
-        Ok(HawkHeader("token".to_string()))
-    }
-}
+use auth::HawkPayload;
+use db::{params, util::ms_since_epoch, DbError};
+use server::ServerState;
 
 macro_rules! db_endpoint {
     ($handler:ident: $data:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr,)*}) => {
         pub fn $handler(
-            ($path, state$(, $param)*): (Path<$path_type>, State<ServerState>$(, $type)*),
+            ($path, _auth, state$(, $param)*): (Path<$path_type>, HawkPayload, State<ServerState>$(, $type)*),
         ) -> FutureResponse<HttpResponse> {
             Box::new(
                 state.db.$handler(&params::$data {
@@ -206,7 +156,9 @@ pub struct BsoBody {
     pub ttl: Option<u32>,
 }
 
-pub fn get_configuration(_state: State<ServerState>) -> FutureResponse<HttpResponse> {
+pub fn get_configuration(
+    (_auth, _state): (HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
     // TODO: populate from static config?
     Box::new(future::result(Ok(
         HttpResponse::Ok().json(Configuration::default())

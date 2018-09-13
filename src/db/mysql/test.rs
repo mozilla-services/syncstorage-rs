@@ -36,6 +36,7 @@ pub fn db() -> MysqlDb {
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
         database_use_test_transactions: true,
+        master_token_secret: vec![],
     };
 
     run_embedded_migrations(&settings).unwrap();
