@@ -28,6 +28,7 @@ use serde_json::{self, Error as JsonError};
 use sha2::Sha256;
 use time::Duration;
 
+use server::ServerState;
 use settings::Settings;
 
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
@@ -45,7 +46,7 @@ impl HawkPayload {
         path: &str,
         host: &str,
         port: u16,
-        settings: &Settings,
+        master_secret: &[u8],
         expiry: u64,
     ) -> AuthResult<HawkPayload> {
         if &header[0..5] != "Hawk " {
@@ -55,12 +56,12 @@ impl HawkPayload {
         let header: HawkHeader = header[5..].parse()?;
         let id = header.id.as_ref().ok_or(AuthError)?;
 
-        let payload = HawkPayload::extract_and_validate(id, &settings.master_token_secret, expiry)?;
+        let payload = HawkPayload::extract_and_validate(id, master_secret, expiry)?;
 
         let token_secret = hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(payload.salt.as_bytes()),
-            &settings.master_token_secret,
+            master_secret,
         )?;
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
 
@@ -110,12 +111,12 @@ impl HawkPayload {
     }
 }
 
-impl<S> FromRequest<S> for HawkPayload {
+impl FromRequest<ServerState> for HawkPayload {
     type Config = Settings;
     type Result = AuthResult<HawkPayload>;
 
     /// Extract and validate HAWK payload from an actix request object.
-    fn from_request(request: &HttpRequest<S>, settings: &Self::Config) -> Self::Result {
+    fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         HawkPayload::new(
             request
                 .headers()
@@ -126,7 +127,7 @@ impl<S> FromRequest<S> for HawkPayload {
             request.uri().path_and_query().ok_or(AuthError)?.as_str(),
             request.uri().host().unwrap_or("127.0.0.1"),
             request.uri().port().unwrap_or(settings.port),
-            settings,
+            &request.state().master_token_secret,
             Utc::now().timestamp() as u64,
         )
     }

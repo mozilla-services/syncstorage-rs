@@ -23,7 +23,7 @@ impl Default for Settings {
             database_pool_max_size: None,
             #[cfg(test)]
             database_use_test_transactions: false,
-            master_token_secret: [0u8; 32].to_vec(),
+            master_token_secret: vec![],
         }
     }
 }

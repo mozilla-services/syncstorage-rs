@@ -67,7 +67,7 @@ fn main() -> Result<(), Box<Error>> {
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
 
     // Setup and run the server
-    let sys = server::Server::with_settings(&settings);
+    let sys = server::Server::with_settings(settings);
     println!("Server running");
     let _ = sys.run();
 

@@ -4,12 +4,14 @@
 
 //! Main application server
 
+use std::sync::Arc;
+
 use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 //use num_cpus;
 
-use db::mock::MockDb;
-use handlers::{self, ServerState};
+use db::{mock::MockDb, Db};
+use handlers;
 use settings::Settings;
 
 macro_rules! init_routes {
@@ -55,17 +57,26 @@ macro_rules! init_routes {
 #[cfg(test)]
 mod test;
 
+/// This is the global HTTP state object that will be made available to all
+/// HTTP API calls.
+pub struct ServerState {
+    pub db: Box<Db>,
+    pub master_token_secret: Arc<Vec<u8>>,
+}
+
 pub struct Server {}
 
 impl Server {
-    pub fn with_settings(settings: &Settings) -> SystemRunner {
+    pub fn with_settings(settings: Settings) -> SystemRunner {
         let sys = System::new("syncserver");
+        let master_token_secret = Arc::new(settings.master_token_secret);
 
         HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
                 db: Box::new(MockDb::new()),
+                master_token_secret: master_token_secret.clone(),
             };
 
             App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())

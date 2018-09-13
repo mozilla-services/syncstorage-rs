@@ -9,13 +9,8 @@ use futures::future::{self, Future};
 use serde::de::{Deserialize, Deserializer};
 
 use auth::HawkPayload;
-use db::{params, util::ms_since_epoch, Db, DbError};
-
-/// This is the global HTTP state object that will be made available to all
-/// HTTP API calls.
-pub struct ServerState {
-    pub db: Box<Db>,
-}
+use db::{params, util::ms_since_epoch, DbError};
+use server::ServerState;
 
 macro_rules! db_endpoint {
     ($handler:ident: $data:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr,)*}) => {

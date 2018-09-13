@@ -18,9 +18,14 @@ use auth::HawkPayload;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
 use handlers::{BsoBody, PostCollectionBody};
 
+lazy_static! {
+    static ref MASTER_TOKEN_SECRET: Arc<Vec<u8>> = Arc::new("foo".as_bytes().to_vec());
+}
+
 fn setup() -> TestServer {
-    TestServer::build_with_state(move || ServerState {
+    TestServer::build_with_state(|| ServerState {
         db: Box::new(MockDb::new()),
+        master_token_secret: MASTER_TOKEN_SECRET.clone(),
     }).start(|app| {
         init_routes!(app);
     })
@@ -57,7 +62,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
     let signing_secret = hkdf_expand_32(
         b"services.mozilla.com/tokenlib/v1/signing",
         None,
-        &[0u8; 32],
+        &MASTER_TOKEN_SECRET,
     );
     let mut signature: Hmac<Sha256> = Hmac::new_varkey(&signing_secret).unwrap();
     signature.input(payload.as_bytes());
@@ -69,7 +74,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
     let token_secret = hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
-        &[0u8; 32],
+        &MASTER_TOKEN_SECRET,
     );
     let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
     let request = RequestBuilder::new(method, "127.0.0.1", 8000, path).request();

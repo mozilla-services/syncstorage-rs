@@ -14,7 +14,7 @@ fn valid_header() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -42,7 +42,7 @@ fn valid_header_with_querystring() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -62,7 +62,7 @@ fn missing_hawk_prefix() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -71,8 +71,7 @@ fn missing_hawk_prefix() {
 
 #[test]
 fn bad_master_secret() {
-    let mut fixture = TestFixture::new();
-    fixture.settings.master_token_secret = "wibble".as_bytes().to_vec();
+    let fixture = TestFixture::new();
 
     let result = HawkPayload::new(
         &fixture.header.to_string(),
@@ -80,7 +79,7 @@ fn bad_master_secret() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &"wibble".as_bytes().to_vec(),
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -102,7 +101,7 @@ fn bad_signature() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -119,7 +118,7 @@ fn expired_payload() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64,
     );
 
@@ -137,7 +136,7 @@ fn bad_mac() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -155,7 +154,7 @@ fn bad_nonce() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -173,7 +172,7 @@ fn bad_ts() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -191,7 +190,7 @@ fn bad_method() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -212,7 +211,7 @@ fn bad_path() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -230,7 +229,7 @@ fn bad_host() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -248,7 +247,7 @@ fn bad_port() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings,
+        &fixture.settings.master_token_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
