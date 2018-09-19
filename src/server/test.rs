@@ -17,15 +17,16 @@ use super::*;
 use auth::HawkPayload;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
 use handlers::{BsoBody, PostCollectionBody};
+use settings::Secrets;
 
 lazy_static! {
-    static ref MASTER_TOKEN_SECRET: Arc<Vec<u8>> = Arc::new("foo".as_bytes().to_vec());
+    static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo"));
 }
 
 fn setup() -> TestServer {
     TestServer::build_with_state(|| ServerState {
         db: Box::new(MockDb::new()),
-        master_token_secret: MASTER_TOKEN_SECRET.clone(),
+        secrets: SECRETS.clone(),
     }).start(|app| {
         init_routes!(app);
     })
@@ -59,12 +60,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
         uid: 42,
     };
     let payload = serde_json::to_string(&payload).unwrap();
-    let signing_secret = hkdf_expand_32(
-        b"services.mozilla.com/tokenlib/v1/signing",
-        None,
-        &MASTER_TOKEN_SECRET,
-    );
-    let mut signature: Hmac<Sha256> = Hmac::new_varkey(&signing_secret).unwrap();
+    let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret).unwrap();
     signature.input(payload.as_bytes());
     let signature = signature.result().code();
     let mut id: Vec<u8> = vec![];
@@ -74,7 +70,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
     let token_secret = hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
-        &MASTER_TOKEN_SECRET,
+        &SECRETS.master_secret,
     );
     let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
     let request = RequestBuilder::new(method, "127.0.0.1", 8000, path).request();

@@ -18,7 +18,7 @@ use actix_web::{error::ResponseError, http::header::ToStrError, FromRequest, Htt
 use base64::{self, DecodeError};
 use chrono::offset::Utc;
 use hawk::{Error as HawkError, Header as HawkHeader, Key, RequestBuilder};
-use hkdf::{Hkdf, InvalidLength};
+use hkdf::Hkdf;
 use hmac::{
     crypto_mac::{InvalidKeyLength, MacError},
     Hmac, Mac,
@@ -29,7 +29,7 @@ use sha2::Sha256;
 use time::Duration;
 
 use server::ServerState;
-use settings::Settings;
+use settings::{Secrets, Settings};
 
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct HawkPayload {
@@ -46,7 +46,7 @@ impl HawkPayload {
         path: &str,
         host: &str,
         port: u16,
-        master_secret: &[u8],
+        secrets: &Secrets,
         expiry: u64,
     ) -> AuthResult<HawkPayload> {
         if &header[0..5] != "Hawk " {
@@ -56,13 +56,13 @@ impl HawkPayload {
         let header: HawkHeader = header[5..].parse()?;
         let id = header.id.as_ref().ok_or(AuthError)?;
 
-        let payload = HawkPayload::extract_and_validate(id, master_secret, expiry)?;
+        let payload = HawkPayload::extract_and_validate(id, secrets, expiry)?;
 
         let token_secret = hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(payload.salt.as_bytes()),
-            master_secret,
-        )?;
+            &secrets.master_secret,
+        );
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
 
         let request = RequestBuilder::new(method, host, port, path).request();
@@ -79,11 +79,7 @@ impl HawkPayload {
         }
     }
 
-    fn extract_and_validate(
-        id: &str,
-        master_secret: &[u8],
-        expiry: u64,
-    ) -> AuthResult<HawkPayload> {
+    fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> AuthResult<HawkPayload> {
         let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
         if decoded_id.len() <= 32 {
             return Err(AuthError);
@@ -93,13 +89,7 @@ impl HawkPayload {
         let payload = &decoded_id[0..payload_length];
         let signature = &decoded_id[payload_length..];
 
-        let signing_secret = hkdf_expand_32(
-            b"services.mozilla.com/tokenlib/v1/signing",
-            None,
-            master_secret,
-        )?;
-
-        verify_hmac(payload, &signing_secret, signature)?;
+        verify_hmac(payload, &secrets.signing_secret, signature)?;
 
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
@@ -127,17 +117,18 @@ impl FromRequest<ServerState> for HawkPayload {
             request.uri().path_and_query().ok_or(AuthError)?.as_str(),
             request.uri().host().unwrap_or("127.0.0.1"),
             request.uri().port().unwrap_or(settings.port),
-            &request.state().master_token_secret,
+            &request.state().secrets,
             Utc::now().timestamp() as u64,
         )
     }
 }
 
-fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> AuthResult<[u8; 32]> {
+pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
     let mut result = [0u8; 32];
     let hkdf: Hkdf<Sha256> = Hkdf::extract(salt, key);
-    hkdf.expand(info, &mut result)?;
-    Ok(result)
+    // This unwrap will never panic because 32 bytes is a valid size for Hkdf<Sha256>
+    hkdf.expand(info, &mut result).unwrap();
+    result
 }
 
 fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> AuthResult<()> {
@@ -173,7 +164,6 @@ macro_rules! from_error {
 from_error!(DecodeError);
 from_error!(HawkError);
 from_error!(InvalidKeyLength);
-from_error!(InvalidLength);
 from_error!(JsonError);
 from_error!(MacError);
 from_error!(ToStrError);

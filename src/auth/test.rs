@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, you can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{HawkPayload, Settings};
+use super::{HawkPayload, Secrets, Settings};
 
 #[test]
 fn valid_header() {
@@ -14,7 +14,7 @@ fn valid_header() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -42,7 +42,7 @@ fn valid_header_with_querystring() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -62,7 +62,7 @@ fn missing_hawk_prefix() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -79,7 +79,7 @@ fn bad_master_secret() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &"wibble".as_bytes().to_vec(),
+        &Secrets::new("wibble"),
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -101,7 +101,7 @@ fn bad_signature() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -118,7 +118,7 @@ fn expired_payload() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64,
     );
 
@@ -136,7 +136,7 @@ fn bad_mac() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -154,7 +154,7 @@ fn bad_nonce() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -172,7 +172,7 @@ fn bad_ts() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -190,7 +190,7 @@ fn bad_method() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -211,7 +211,7 @@ fn bad_path() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -229,7 +229,7 @@ fn bad_host() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -247,7 +247,7 @@ fn bad_port() {
         &fixture.request.path,
         &fixture.request.host,
         fixture.request.port,
-        &fixture.settings.master_token_secret,
+        &fixture.settings.master_secret,
         fixture.expected.expires.round() as u64 - 1,
     );
 
@@ -283,7 +283,7 @@ impl TestFixture {
                 database_url: "".to_string(),
                 database_pool_max_size: None,
                 database_use_test_transactions: false,
-                master_token_secret: "Ted Koppel is a robot".as_bytes().to_vec(),
+                master_secret: Secrets::new("Ted Koppel is a robot"),
             },
             expected: HawkPayload {
                 expires: 1536199274.0,
