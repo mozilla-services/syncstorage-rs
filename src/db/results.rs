@@ -1,5 +1,7 @@
 //! Result types for database methods.
 
+#![allow(proc_macro_derive_resolution_fallback)]
+
 use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};

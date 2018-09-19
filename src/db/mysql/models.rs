@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 use std::{self, ops::Deref};
 
 use diesel::{

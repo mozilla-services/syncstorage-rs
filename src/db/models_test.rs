@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 use std::collections::HashMap;
 
 use diesel::{sql_query, sql_types::Integer, QueryDsl, RunQueryDsl};

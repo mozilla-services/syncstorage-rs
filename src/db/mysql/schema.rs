@@ -1,3 +1,5 @@
+#![allow(proc_macro_derive_resolution_fallback)]
+
 table! {
     batches (user_id, collection_id, id) {
         user_id -> Integer,
