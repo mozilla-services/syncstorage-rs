@@ -1,7 +1,3 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, you can obtain one at https://mozilla.org/MPL/2.0/.
-
 //! Main application
 extern crate actix;
 extern crate actix_web;
@@ -40,11 +36,10 @@ use std::error::Error;
 
 use docopt::Docopt;
 
-mod auth;
-mod db;
-mod handlers;
-mod server;
-mod settings;
+pub mod db;
+pub mod server;
+pub mod settings;
+pub mod web;
 
 const USAGE: &'static str = "
 Usage: syncstorage [options]

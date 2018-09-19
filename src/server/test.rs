@@ -1,7 +1,3 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, you can obtain one at https://mozilla.org/MPL/2.0/.
-
 use actix_web::{client::ClientRequest, test::TestServer, HttpMessage};
 use base64;
 use chrono::offset::Utc;
@@ -14,10 +10,10 @@ use serde_json;
 use sha2::Sha256;
 
 use super::*;
-use auth::HawkPayload;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
-use handlers::{BsoBody, PostCollectionBody};
 use settings::Secrets;
+use web::auth::HawkPayload;
+use web::handlers::{BsoBody, PostCollectionBody};
 
 lazy_static! {
     static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo"));
