@@ -22,7 +22,7 @@ lazy_static! {
 fn setup() -> TestServer {
     TestServer::build_with_state(|| ServerState {
         db: Box::new(MockDb::new()),
-        secrets: SECRETS.clone(),
+        secrets: Arc::clone(&SECRETS),
     }).start(|app| {
         init_routes!(app);
     })

@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use db::mysql::{
-    models::{run_embedded_migrations, MysqlDb, MysqlDbPool, DEFAULT_BSO_TTL},
+    models::{run_embedded_migrations, DEFAULT_BSO_TTL},
+    pool::MysqlDbPool,
     schema::collections,
 };
-use db::{params, util::ms_since_epoch, Sorting};
+use db::{error::DbErrorKind, params, util::ms_since_epoch, Sorting};
 use env_logger;
 use settings::{Secrets, Settings};
 
@@ -26,7 +27,7 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
     }
 }
 
-pub fn db() -> MysqlDb {
+pub fn pool() -> MysqlDbPool {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
     let settings = Settings::with_env_and_config_file(&None).unwrap();
@@ -40,8 +41,7 @@ pub fn db() -> MysqlDb {
     };
 
     run_embedded_migrations(&settings).unwrap();
-    let pool = MysqlDbPool::new(&settings).unwrap();
-    pool.get().unwrap()
+    MysqlDbPool::new(&settings).unwrap()
 }
 
 fn pbso(
@@ -73,7 +73,8 @@ fn gbso(user_id: u32, cid: i32, bid: &str) -> params::GetBso {
 
 #[test]
 fn static_collection_id() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     // ensure DB actually has predefined common collections
     let cols: Vec<(i32, _)> = vec![
@@ -105,17 +106,18 @@ fn static_collection_id() {
     }
 
     for (id, name) in &cols {
-        let result = db.get_collection_id_sync(name).unwrap();
+        let result = db.get_collection_id(name).unwrap();
         assert_eq!(result, *id);
     }
 
-    let cid = db.create_collection_sync("col1").unwrap();
+    let cid = db.create_collection("col1").unwrap();
     assert!(cid >= 100);
 }
 
 #[test]
 fn bso_successfully_updates_single_values() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -158,7 +160,8 @@ fn bso_successfully_updates_single_values() {
 
 #[test]
 fn bso_modified_not_changed_on_ttl_touch() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -179,7 +182,8 @@ fn bso_modified_not_changed_on_ttl_touch() {
 
 #[test]
 fn put_bso_updates() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -198,7 +202,8 @@ fn put_bso_updates() {
 
 #[test]
 fn get_bsos_limit_offset() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -293,7 +298,8 @@ fn get_bsos_limit_offset() {
 
 #[test]
 fn get_bsos_newer() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -375,7 +381,8 @@ fn get_bsos_newer() {
 
 #[test]
 fn get_bsos_sort() {
-    let db = db();
+    let pool = pool();
+    let db = pool.get().unwrap();
 
     let uid = 1;
     let cid = 1;
@@ -419,4 +426,114 @@ fn get_bsos_sort() {
     assert_eq!(bsos.bsos[0].id, "b2");
     assert_eq!(bsos.bsos[1].id, "b0");
     assert_eq!(bsos.bsos[2].id, "b1");
+}
+
+#[test]
+fn delete_bsos_in_correct_collection() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let uid = 1;
+    let payload = "data";
+    db.put_bso_sync(&pbso(uid, 1, "b1", Some(payload), None, None))
+        .unwrap();
+    db.put_bso_sync(&pbso(uid, 2, "b1", Some(payload), None, None))
+        .unwrap();
+    db.delete_bsos_sync(uid, 1, &["b1"]).unwrap();
+    let bso = db.get_bso_sync(&gbso(uid, 2, "b1")).unwrap();
+    assert!(bso.is_some());
+}
+
+#[test]
+fn get_storage_modified() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let uid = 1;
+    db.create_collection("col1").unwrap();
+    let col2 = db.create_collection("col2").unwrap();
+    db.create_collection("col3").unwrap();
+
+    let modified = ms_since_epoch() + 100000;
+    db.touch_collection(uid, col2, modified).unwrap();
+
+    let m = db.get_storage_modified_sync(uid).unwrap();
+    assert_eq!(m, modified);
+}
+
+#[test]
+fn get_collection_id() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+    db.get_collection_id("bookmarks").unwrap();
+}
+
+#[test]
+fn create_collection() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let name = "NewCollection";
+    let cid = db.create_collection(name).unwrap();
+    assert_ne!(cid, 0);
+    let cid2 = db.get_collection_id(name).unwrap();
+    assert_eq!(cid2, cid);
+}
+
+#[test]
+fn touch_collection() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let cid = db.create_collection("test").unwrap();
+    db.touch_collection(1, cid, ms_since_epoch()).unwrap();
+}
+
+#[test]
+fn delete_collection() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let uid = 1;
+    let cname = "NewConnection";
+    let cid = db.create_collection(cname).unwrap();
+    for bid in 1..=3 {
+        db.put_bso_sync(&pbso(uid, cid, &bid.to_string(), Some("test"), None, None))
+            .unwrap();
+    }
+    let modified = db.delete_collection_sync(uid, cid).unwrap();
+    let modified2 = db.get_storage_modified_sync(uid).unwrap();
+    assert_eq!(modified2, modified);
+
+    // make sure BSOs are deleted
+    for bid in 1..=3 {
+        let result = db.get_bso_sync(&gbso(uid, cid, &bid.to_string())).unwrap();
+        assert!(result.is_none());
+    }
+
+    let result = db.get_collection_modified_sync(uid, cid);
+    match result.unwrap_err().kind() {
+        DbErrorKind::CollectionNotFound => assert!(true),
+        _ => assert!(false),
+    };
+}
+
+#[test]
+fn get_collections_modified() {
+    let pool = pool();
+    let db = pool.get().unwrap();
+
+    let uid = 1;
+    let name = "test";
+    let cid = db.create_collection(name).unwrap();
+    let modified = ms_since_epoch();
+    db.touch_collection(uid, cid, modified).unwrap();
+    let cols = db
+        .get_collections_modified_sync(&params::GetCollections { user_id: uid })
+        .unwrap();
+    assert!(cols.contains_key(name));
+    assert_eq!(cols.get(name), Some(&modified));
+
+    let modified = db.get_collection_modified_sync(uid, cid).unwrap();
+    assert_eq!(Some(&modified), cols.get(name));
 }

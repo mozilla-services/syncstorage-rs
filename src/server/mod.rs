@@ -65,7 +65,7 @@ impl Server {
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
                 db: Box::new(MockDb::new()),
-                secrets: secrets.clone(),
+                secrets: Arc::clone(&secrets),
             };
 
             App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())
