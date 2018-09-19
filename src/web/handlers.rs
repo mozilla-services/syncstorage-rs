@@ -1,16 +1,12 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, you can obtain one at https://mozilla.org/MPL/2.0/.
-
 //! API Handlers
 
 use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, Query, State};
 use futures::future::{self, Future};
 use serde::de::{Deserialize, Deserializer};
 
-use auth::HawkPayload;
 use db::{params, util::ms_since_epoch, DbError};
 use server::ServerState;
+use web::auth::HawkPayload;
 
 #[derive(Deserialize)]
 pub struct UidParam {

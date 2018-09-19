@@ -1,7 +1,3 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, you can obtain one at https://mozilla.org/MPL/2.0/.
-
 //! Main application server
 
 use std::sync::Arc;
@@ -11,8 +7,8 @@ use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 //use num_cpus;
 
 use db::{mock::MockDb, Db};
-use handlers;
 use settings::{Secrets, Settings};
+use web::handlers;
 
 macro_rules! init_routes {
     ($app:expr) => {
