@@ -12,67 +12,9 @@ use auth::HawkPayload;
 use db::{params, util::ms_since_epoch, DbError};
 use server::ServerState;
 
-macro_rules! db_endpoint {
-    ($handler:ident: $data:ident ($path:ident: $path_type:ty $(, $param:ident: $type:ty)*) {$($property:ident: $value:expr,)*}) => {
-        pub fn $handler(
-            ($path, _auth, state$(, $param)*): (Path<$path_type>, HawkPayload, State<ServerState>$(, $type)*),
-        ) -> FutureResponse<HttpResponse> {
-            Box::new(
-                state.db.$handler(&params::$data {
-                    $($property: $value,)*
-                })
-                .map_err(From::from)
-                .map(|result| HttpResponse::Ok().json(result))
-            )
-        }
-    }
-}
-
-macro_rules! info_endpoints {
-    ($($handler:ident: $data:ident,)+) => ($(
-        db_endpoint! {
-            $handler: $data (params: UidParam) {
-                // XXX: -> HawkPayload::uid
-                user_id: 1,
-            }
-        }
-    )+)
-}
-
-info_endpoints! {
-    get_collections: GetCollections,
-    get_collection_counts: GetCollectionCounts,
-    get_collection_usage: GetCollectionUsage,
-    get_quota: GetQuota,
-    delete_all: DeleteAll,
-}
-
 #[derive(Deserialize)]
 pub struct UidParam {
     uid: String,
-}
-
-macro_rules! collection_endpoints {
-    ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
-        db_endpoint! {
-            $handler: $data (params: CollectionParams $(, $param: $type)*) {
-                // XXX: -> HawkPayload::uid
-                user_id: 1,
-                collection_id: 2, // XXX: get_collection_id(&params.collection)
-                $($property: $value,)*
-            }
-        }
-    )+)
-}
-
-collection_endpoints! {
-    delete_collection: DeleteCollection (query: Query<DeleteCollectionQuery>) {
-        bso_ids: query.ids.as_ref().map_or_else(|| Vec::new(), |ids| ids.0.clone()),
-    },
-    get_collection: GetCollection () {},
-    post_collection: PostCollection (body: Json<Vec<PostCollectionBody>>) {
-        bsos: body.into_inner().into_iter().map(From::from).collect(),
-    },
 }
 
 #[derive(Deserialize)]
@@ -117,31 +59,6 @@ pub struct CollectionParams {
     collection: String,
 }
 
-macro_rules! bso_endpoints {
-    ($($handler:ident: $data:ident ($($param:ident: $type:ty),*) {$($property:ident: $value:expr,)*},)+) => ($(
-        db_endpoint! {
-            $handler: $data (params: BsoParams $(, $param: $type)*) {
-                // XXX: -> HawkPayload::uid
-                user_id: 1,
-                collection_id: 2, // XXX: get_collection_id(&params.collection)
-                id: params.bso.clone(),
-                $($property: $value,)*
-            }
-        }
-    )+)
-}
-
-bso_endpoints! {
-    delete_bso: DeleteBso () {},
-    get_bso: GetBso () {},
-    put_bso: PutBso (body: Json<BsoBody>) {
-        modified: ms_since_epoch(),
-        sortindex: body.sortindex,
-        payload: body.payload.as_ref().map(|payload| payload.clone()),
-        ttl: body.ttl,
-    },
-}
-
 #[derive(Deserialize)]
 pub struct BsoParams {
     uid: String,
@@ -154,6 +71,177 @@ pub struct BsoBody {
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
     pub ttl: Option<u32>,
+}
+
+pub fn get_collections(
+    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_collections(&params::GetCollections { user_id: 1 })
+            .map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn get_collection_counts(
+    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_collection_counts(&params::GetCollectionCounts { user_id: 1 })
+            .map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn get_collection_usage(
+    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_collection_usage(&params::GetCollectionUsage { user_id: 1 })
+            .map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn get_quota(
+    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_quota(&params::GetQuota { user_id: 1 })
+            .map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn delete_all(
+    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .delete_all(&params::DeleteAll { user_id: 1 })
+            .map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn delete_collection(
+    (params, _auth, state, query): (
+        Path<CollectionParams>,
+        HawkPayload,
+        State<ServerState>,
+        Query<DeleteCollectionQuery>,
+    ),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .delete_collection(&params::DeleteCollection {
+                user_id: 1,
+                collection_id: 2,
+                bso_ids: query
+                    .ids
+                    .as_ref()
+                    .map_or_else(|| Vec::new(), |ids| ids.0.clone()),
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn get_collection(
+    (params, _auth, state): (Path<CollectionParams>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_collection(&params::GetCollection {
+                user_id: 1,
+                collection_id: 2,
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn post_collection(
+    (params, _auth, state, body): (
+        Path<CollectionParams>,
+        HawkPayload,
+        State<ServerState>,
+        Json<Vec<PostCollectionBody>>,
+    ),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .post_collection(&params::PostCollection {
+                user_id: 1,
+                collection_id: 2,
+                bsos: body.into_inner().into_iter().map(From::from).collect(),
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn delete_bso(
+    (params, _auth, state): (Path<BsoParams>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .delete_bso(&params::DeleteBso {
+                user_id: 1,
+                collection_id: 2,
+                id: params.bso.clone(),
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn get_bso(
+    (params, _auth, state): (Path<BsoParams>, HawkPayload, State<ServerState>),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .get_bso(&params::GetBso {
+                user_id: 1,
+                collection_id: 2,
+                id: params.bso.clone(),
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
+}
+
+pub fn put_bso(
+    (params, _auth, state, body): (
+        Path<BsoParams>,
+        HawkPayload,
+        State<ServerState>,
+        Json<BsoBody>,
+    ),
+) -> FutureResponse<HttpResponse> {
+    Box::new(
+        state
+            .db
+            .put_bso(&params::PutBso {
+                user_id: 1,
+                collection_id: 2,
+                id: params.bso.clone(),
+                modified: ms_since_epoch(),
+                sortindex: body.sortindex,
+                payload: body.payload.as_ref().map(|payload| payload.clone()),
+                ttl: body.ttl,
+            }).map_err(From::from)
+            .map(|result| HttpResponse::Ok().json(result)),
+    )
 }
 
 pub fn get_configuration(
