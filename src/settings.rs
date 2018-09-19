@@ -1,5 +1,9 @@
 //! Application settings objects and initialization
+
 use config::{Config, ConfigError, Environment, File};
+use serde::de::{Deserialize, Deserializer};
+
+use auth::hkdf_expand_32;
 
 static DEFAULT_PORT: u16 = 8000;
 
@@ -11,7 +15,7 @@ pub struct Settings {
     pub database_pool_max_size: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
-    pub master_token_secret: Vec<u8>,
+    pub master_secret: Secrets,
 }
 
 impl Default for Settings {
@@ -23,7 +27,7 @@ impl Default for Settings {
             database_pool_max_size: None,
             #[cfg(test)]
             database_use_test_transactions: false,
-            master_token_secret: vec![],
+            master_secret: Secrets::default(),
         }
     }
 }
@@ -38,7 +42,7 @@ impl Settings {
         s.set_default("port", DEFAULT_PORT as i64)?;
         #[cfg(test)]
         s.set_default("database_use_test_transactions", false)?;
-        s.set_default("master_token_secret", [0i64; 32].to_vec())?;
+        s.set_default("master_secret", "")?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -48,5 +52,45 @@ impl Settings {
         // Merge the environment overrides
         s.merge(Environment::with_prefix("sync"))?;
         s.try_into()
+    }
+}
+
+#[derive(Debug)]
+pub struct Secrets {
+    pub master_secret: Vec<u8>,
+    pub signing_secret: [u8; 32],
+}
+
+impl Secrets {
+    pub fn new(master_secret: &str) -> Secrets {
+        let master_secret = master_secret.as_bytes().to_vec();
+        let signing_secret = hkdf_expand_32(
+            b"services.mozilla.com/tokenlib/v1/signing",
+            None,
+            &master_secret,
+        );
+        Secrets {
+            master_secret,
+            signing_secret,
+        }
+    }
+}
+
+impl Default for Secrets {
+    fn default() -> Secrets {
+        Secrets {
+            master_secret: vec![],
+            signing_secret: [0u8; 32],
+        }
+    }
+}
+
+impl<'d> Deserialize<'d> for Secrets {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'d>,
+    {
+        let master_secret: String = Deserialize::deserialize(deserializer)?;
+        Ok(Secrets::new(&master_secret))
     }
 }

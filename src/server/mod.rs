@@ -12,7 +12,7 @@ use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 
 use db::{mock::MockDb, Db};
 use handlers;
-use settings::Settings;
+use settings::{Secrets, Settings};
 
 macro_rules! init_routes {
     ($app:expr) => {
@@ -54,7 +54,7 @@ mod test;
 /// HTTP API calls.
 pub struct ServerState {
     pub db: Box<Db>,
-    pub master_token_secret: Arc<Vec<u8>>,
+    pub secrets: Arc<Secrets>,
 }
 
 pub struct Server {}
@@ -62,14 +62,14 @@ pub struct Server {}
 impl Server {
     pub fn with_settings(settings: Settings) -> SystemRunner {
         let sys = System::new("syncserver");
-        let master_token_secret = Arc::new(settings.master_token_secret);
+        let secrets = Arc::new(settings.master_secret);
 
         HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
                 db: Box::new(MockDb::new()),
-                master_token_secret: master_token_secret.clone(),
+                secrets: secrets.clone(),
             };
 
             App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())

@@ -6,7 +6,7 @@ use db::mysql::{
 };
 use db::{params, util::ms_since_epoch, Sorting};
 use env_logger;
-use settings::Settings;
+use settings::{Secrets, Settings};
 
 use diesel::{
     mysql::MysqlConnection,
@@ -36,7 +36,7 @@ pub fn db() -> MysqlDb {
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
         database_use_test_transactions: true,
-        master_token_secret: vec![],
+        master_secret: Secrets::default(),
     };
 
     run_embedded_migrations(&settings).unwrap();
