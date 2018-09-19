@@ -239,8 +239,8 @@ fn get_bsos_limit_offset() {
     .. etc
     */
 
-    let bsos =
-        db.get_bsos_sync(
+    let bsos = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -256,8 +256,8 @@ fn get_bsos_limit_offset() {
     assert_eq!(bsos.bsos[0].id, "11");
     assert_eq!(bsos.bsos[4].id, "7");
 
-    let bsos2 =
-        db.get_bsos_sync(
+    let bsos2 = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -273,8 +273,8 @@ fn get_bsos_limit_offset() {
     assert_eq!(bsos2.bsos[0].id, "6");
     assert_eq!(bsos2.bsos[4].id, "2");
 
-    let bsos3 =
-        db.get_bsos_sync(
+    let bsos3 = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -314,8 +314,8 @@ fn get_bsos_newer() {
         db.put_bso_sync(&pbso).unwrap();
     }
 
-    let bsos =
-        db.get_bsos_sync(
+    let bsos = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -330,8 +330,8 @@ fn get_bsos_newer() {
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b2");
 
-    let bsos =
-        db.get_bsos_sync(
+    let bsos = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -345,8 +345,8 @@ fn get_bsos_newer() {
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
 
-    let bsos =
-        db.get_bsos_sync(
+    let bsos = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
@@ -359,8 +359,8 @@ fn get_bsos_newer() {
     assert_eq!(bsos.bsos.len(), 1);
     assert_eq!(bsos.bsos[0].id, "b0");
 
-    let bsos =
-        db.get_bsos_sync(
+    let bsos = db
+        .get_bsos_sync(
             uid,
             cid,
             &[],
