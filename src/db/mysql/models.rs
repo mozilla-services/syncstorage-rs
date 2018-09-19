@@ -103,8 +103,7 @@ impl MysqlDb {
             .map(|cr| {
                 self.get_collection_name(cr.id)
                     .map(|name| (name, cr.modified))
-            })
-            .collect()
+            }).collect()
     }
 
     pub fn create_collection_sync(&self, name: &str) -> Result<i32> {
@@ -175,8 +174,7 @@ impl MysqlDb {
                         bso::payload_size.eq(payload.len() as i32), // XXX:
                         bso::modified.eq(bso.modified),
                         bso::expiry.eq(bso.modified + ttl as i64),
-                    ))
-                    .execute(&self.conn)?;
+                    )).execute(&self.conn)?;
             }
             self.touch_collection(bso.user_id as i32, bso.collection_id, bso.modified)?;
             // XXX:
@@ -278,8 +276,7 @@ impl MysqlDb {
                     user_collections::user_id.eq(&user_id),
                     user_collections::collection_id.eq(&collection_id),
                     user_collections::modified.eq(&modified),
-                ))
-                .execute(&self.conn)?;
+                )).execute(&self.conn)?;
         }
         Ok(())
     }
