@@ -6,7 +6,7 @@ use db::mysql::{
 };
 use db::{params, util::ms_since_epoch, Sorting};
 use env_logger;
-use settings::{Secrets, Settings};
+use settings::Settings;
 
 use diesel::{
     mysql::MysqlConnection,
@@ -29,15 +29,10 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
 pub fn db() -> MysqlDb {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
-    let settings = Settings::with_env_and_config_file(&None).unwrap();
-    let settings = Settings {
-        debug: true,
-        port: 8000,
-        database_url: settings.database_url,
-        database_pool_max_size: Some(1),
-        database_use_test_transactions: true,
-        master_secret: Secrets::default(),
-    };
+    let mut settings = Settings::with_env_and_config_file(None).unwrap();
+    settings.debug = true;
+    settings.database_pool_max_size = Some(1);
+    settings.database_use_test_transactions = true;
 
     run_embedded_migrations(&settings).unwrap();
     let pool = MysqlDbPool::new(&settings).unwrap();

@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<Error>> {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
-    let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
+    let settings = settings::Settings::with_env_and_config_file(args.flag_config)?;
 
     // Setup and run the server
     let sys = server::Server::with_settings(settings);

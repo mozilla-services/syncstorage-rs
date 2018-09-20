@@ -425,6 +425,8 @@ mod tests {
 
     impl TestFixture {
         fn new() -> TestFixture {
+            let mut settings = Settings::with_env_and_config_file(None).unwrap();
+            settings.master_secret = Secrets::new("Ted Koppel is a robot");
             TestFixture {
                 header: HawkHeader::new(
                     "eyJub2RlIjogImh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsICJ1aWQiOiAxLCAiZXhwaXJlcyI6IDE1MzYxOTkyNzQsICJmeGFfdWlkIjogIjMxOWI5OGY5OTYxZmYxZGJkZDA3MzEzY2Q2YmE5MjVhIiwgInNhbHQiOiAiYjAyNjBlIiwgImRldmljZV9pZCI6ICJjMDlkMjZmYWYyYjQ5YWI2NGEyODgyOTA3MjA2ZDBiNSJ96drmQ_KNFOe7U3g1D8ZX5-he2Bv2aRvKZzBPrCjHKO4=",
@@ -438,14 +440,7 @@ mod tests {
                     "localhost",
                     5000,
                 ),
-                settings: Settings {
-                    debug: false,
-                    port: 0,
-                    database_url: "".to_string(),
-                    database_pool_max_size: None,
-                    database_use_test_transactions: false,
-                    master_secret: Secrets::new("Ted Koppel is a robot"),
-                },
+                settings,
                 expected: HawkPayload {
                     expires: 1536199274.0,
                     node: "http://localhost:5000".to_string(),

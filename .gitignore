@@ -30,3 +30,4 @@ autopush_rs/_native*
 target
 *.rs.bk
 .#*
+config/local.*

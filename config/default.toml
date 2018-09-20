@@ -1,0 +1,5 @@
+debug = false
+port = 8000
+database_url = "mysql://root@127.0.0.1/syncstorage"
+database_use_test_transactions = false
+master_secret = ""

@@ -1,11 +1,11 @@
 //! Application settings objects and initialization
 
+use std::env::var;
+
 use config::{Config, ConfigError, Environment, File};
 use serde::de::{Deserialize, Deserializer};
 
 use web::auth::hkdf_expand_32;
-
-static DEFAULT_PORT: u16 = 8000;
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
@@ -20,38 +20,45 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Settings {
-        Settings {
-            debug: false,
-            port: DEFAULT_PORT,
-            database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
-            database_pool_max_size: None,
-            #[cfg(test)]
-            database_use_test_transactions: false,
-            master_secret: Secrets::default(),
-        }
+        Settings::with_env_and_config_file(None).unwrap()
     }
 }
 
 impl Settings {
-    /// Load the settings from the config file if supplied, then the environment.
-    pub fn with_env_and_config_file(filename: &Option<String>) -> Result<Self, ConfigError> {
-        let mut s = Config::default();
-        // Set our defaults, this can be fixed up drastically later after:
-        // https://github.com/mehcode/config-rs/issues/60
-        s.set_default("debug", false)?;
-        s.set_default("port", DEFAULT_PORT as i64)?;
-        #[cfg(test)]
-        s.set_default("database_use_test_transactions", false)?;
-        s.set_default("master_secret", "")?;
+    /// Construct a `Settings` instance, populating it with data from the file
+    /// system and local environment.
+    ///
+    /// Precedence (earlier items override later ones):
+    ///
+    ///   1. Environment variables: `$SYNC_<UPPERCASE_KEY_NAME>`
+    ///   2. File: `filename` argument
+    ///   3. File: `config/local.toml`
+    ///   4. File: `config/<$SYNC_ENV>.toml`
+    ///   5. File: `config/default.toml`
+    pub fn with_env_and_config_file(filename: Option<String>) -> Result<Self, ConfigError> {
+        let mut config = Config::new();
 
-        // Merge the config file if supplied
+        config.merge(File::with_name("config/default"))?;
+
+        let env = var("SYNC_ENV").unwrap_or_else(|_| "dev".to_string());
+        config.merge(File::with_name(&format!("config/{}", env)).required(false))?;
+        config.set_default("env", "dev")?;
+
+        config.merge(File::with_name("config/local").required(false))?;
+
         if let Some(config_filename) = filename {
-            s.merge(File::with_name(config_filename))?;
+            config.merge(File::with_name(&config_filename))?;
         }
 
-        // Merge the environment overrides
-        s.merge(Environment::with_prefix("sync"))?;
-        s.try_into()
+        config.merge(Environment::with_prefix("sync"))?;
+
+        config.try_into().and_then(|settings: Settings| {
+            if env == "production" && settings.master_secret.master_secret.len() == 0 {
+                Err(ConfigError::NotFound("master_secret".to_string()))
+            } else {
+                Ok(settings)
+            }
+        })
     }
 }
 
