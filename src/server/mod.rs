@@ -9,6 +9,7 @@ use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 use db::{mock::MockDb, Db};
 use settings::{Secrets, Settings};
 use web::handlers;
+use web::middleware;
 
 macro_rules! init_routes {
     ($app:expr) => {
@@ -68,7 +69,9 @@ impl Server {
                 secrets: secrets.clone(),
             };
 
-            App::with_state(state).configure(|app| init_routes!(Cors::for_app(app)).register())
+            App::with_state(state)
+                .middleware(middleware::WeaveTimestamp)
+                .configure(|app| init_routes!(Cors::for_app(app)).register())
         }).bind(format!("127.0.0.1:{}", settings.port))
         .unwrap()
         .start();

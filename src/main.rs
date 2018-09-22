@@ -1,4 +1,4 @@
-//! Main application
+//! Sync Storage Server for Sync 1.6
 extern crate actix;
 extern crate actix_web;
 extern crate base64;
