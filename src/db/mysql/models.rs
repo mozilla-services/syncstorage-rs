@@ -1,16 +1,17 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use std::{self, collections::HashMap, ops::Deref};
+use std::{self, collections::HashMap, ops::Deref, sync::Arc};
 
 use diesel::{
     delete,
     dsl::max,
+    expression::sql_literal::sql,
     insert_into,
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
     sql_query,
     sql_types::{BigInt, Integer, Text},
-    update, Connection, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    update, Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
@@ -47,21 +48,21 @@ pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     Ok(embedded_migrations::run(&conn)?)
 }
 
-pub struct MysqlDb<'a> {
+pub struct MysqlDb {
     #[cfg(not(test))]
     pub(super) conn: Conn,
     #[cfg(test)]
     pub(super) conn: LoggingConnection<Conn>,
 
     /// Pool level cache of collection_ids and their names
-    coll_cache: &'a CollectionCache,
+    coll_cache: Arc<CollectionCache>,
 
     /// Per session cache of modified timestamps per (user_id, collection_id)
     coll_modified_cache: HashMap<(u32, i32), i64>,
 }
 
-impl<'a> MysqlDb<'a> {
-    pub fn new(conn: Conn, coll_cache: &'a CollectionCache) -> Self {
+impl MysqlDb {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>) -> Self {
         MysqlDb {
             #[cfg(not(test))]
             conn,
@@ -81,6 +82,16 @@ impl<'a> MysqlDb<'a> {
             collections::table.select(last_insert_id).first(&self.conn)
         })?;
         Ok(collection_id)
+    }
+
+    pub fn delete_storage_sync(&self, user_id: u32) -> Result<()> {
+        delete(bso::table)
+            .filter(bso::user_id.eq(user_id as i32))
+            .execute(&self.conn)?;
+        delete(user_collections::table)
+            .filter(user_collections::user_id.eq(user_id as i32))
+            .execute(&self.conn)?;
+        Ok(())
     }
 
     pub fn delete_collection_sync(&self, user_id: u32, collection_id: i32) -> Result<i64> {
@@ -104,7 +115,9 @@ impl<'a> MysqlDb<'a> {
         } else {
             sql_query("SELECT id FROM collections WHERE name = ?")
                 .bind::<Text, _>(name)
-                .get_result::<IdResult>(&self.conn)?
+                .get_result::<IdResult>(&self.conn)
+                .optional()?
+                .ok_or(DbErrorKind::CollectionNotFound)?
                 .id
         };
         Ok(id)
@@ -116,7 +129,9 @@ impl<'a> MysqlDb<'a> {
         } else {
             sql_query("SELECT name FROM collections where id = ?")
                 .bind::<Integer, _>(&id)
-                .get_result::<NameResult>(&self.conn)?
+                .get_result::<NameResult>(&self.conn)
+                .optional()?
+                .ok_or(DbErrorKind::CollectionNotFound)?
                 .name
         };
         Ok(name)
@@ -131,6 +146,7 @@ impl<'a> MysqlDb<'a> {
         }
         */
 
+        // XXX: this should auto create collections when they're not found
         let user_id: u64 = bso.user_id.legacy_id;
 
         // XXX: consider mysql ON DUPLICATE KEY UPDATE?
@@ -277,6 +293,44 @@ impl<'a> MysqlDb<'a> {
         Ok(modified)
     }
 
+    pub fn post_bsos_sync(
+        &self,
+        input: &params::PostCollection,
+    ) -> Result<results::PostCollection> {
+        let modified = ms_since_epoch();
+        let mut result = results::PostCollection {
+            modified: modified as u64,
+            success: Default::default(),
+            failed: Default::default(),
+        };
+
+        for pbso in &input.bsos {
+            let put_result = self.put_bso_sync(&params::PutBso {
+                user_id: input.user_id.clone(),
+                collection_id: input.collection_id,
+                id: pbso.id.clone(),
+                payload: pbso.payload.as_ref().map(Into::into),
+                sortindex: pbso.sortindex,
+                ttl: pbso.ttl,
+                modified,
+            });
+            // XXX: python version doesn't report failures from db layer..
+            // XXX: sanitize to.to_string()?
+            match put_result {
+                Ok(_) => result.success.push(pbso.id.clone()),
+                Err(e) => {
+                    result.failed.insert(pbso.id.clone(), e.to_string());
+                }
+            }
+        }
+        self.touch_collection(
+            input.user_id.legacy_id as u32,
+            input.collection_id,
+            modified,
+        )?;
+        Ok(result)
+    }
+
     pub fn get_storage_modified_sync(&self, user_id: u32) -> Result<i64> {
         Ok(user_collections::table
             .select(max(user_collections::modified))
@@ -318,31 +372,34 @@ impl<'a> MysqlDb<'a> {
         &self,
         params: &params::GetCollections,
     ) -> Result<results::GetCollections> {
-        let result: HashMap<_, _> =
+        let modifieds =
             sql_query("SELECT collection_id, modified FROM user_collections WHERE user_id = ?")
                 .bind::<Integer, _>(params.user_id.legacy_id as i32)
                 .load::<UserCollectionsResult>(&self.conn)?
                 .into_iter()
                 .map(|cr| (cr.collection_id, cr.modified))
                 .collect();
+        self.map_collection_names(modifieds)
+    }
 
-        let cnames = self.load_collection_names(&result.keys().cloned().collect::<Vec<_>>())?;
-        result
+    fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
+        let names = self.load_collection_names(&by_id.keys().cloned().collect::<Vec<_>>())?;
+        by_id
             .into_iter()
-            .map(|(id, modified)| {
-                cnames
+            .map(|(id, value)| {
+                names
                     .get(&id)
-                    .map(|name| (name.to_owned(), modified))
-                    .ok_or(DbError::internal("cnames get"))
+                    .map(|name| (name.to_owned(), value))
+                    .ok_or(DbError::internal("load_collection_names get"))
             }).collect()
     }
 
     fn load_collection_names(&self, collection_ids: &[i32]) -> Result<HashMap<i32, String>> {
         let mut names = HashMap::new();
         let mut uncached = Vec::new();
-        for id in collection_ids {
-            if let Some(name) = self.coll_cache.get_name(*id)? {
-                names.insert(*id, name);
+        for &id in collection_ids {
+            if let Some(name) = self.coll_cache.get_name(id)? {
+                names.insert(id, name);
             } else {
                 uncached.push(id);
             }
@@ -366,26 +423,46 @@ impl<'a> MysqlDb<'a> {
         collection_id: i32,
         modified: i64,
     ) -> Result<()> {
-        // The common case will be an UPDATE, so try that first
-        let affected_rows = update(user_collections::table)
-            .filter(user_collections::user_id.eq(user_id as i32))
-            .filter(user_collections::collection_id.eq(&collection_id))
-            .set(user_collections::modified.eq(&modified))
+        let upsert = r#"
+                INSERT INTO user_collections (user_id, collection_id, modified)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE modified = ?
+        "#;
+        sql_query(upsert)
+            .bind::<Integer, _>(user_id as i32)
+            .bind::<Integer, _>(&collection_id)
+            .bind::<BigInt, _>(&modified)
+            .bind::<BigInt, _>(&modified)
             .execute(&self.conn)?;
-        if affected_rows != 1 {
-            // XXX: (mysql) affected_rows could be 0 if the modified time was the same!
-            insert_into(user_collections::table)
-                .values((
-                    user_collections::user_id.eq(user_id as i32),
-                    user_collections::collection_id.eq(&collection_id),
-                    user_collections::modified.eq(&modified),
-                )).execute(&self.conn)?;
-        }
         Ok(())
+    }
+
+    pub fn get_collection_counts_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+        let counts = bso::table
+            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
+            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .group_by(bso::collection_id)
+            .load(&self.conn)?
+            .into_iter()
+            .collect();
+        self.map_collection_names(counts)
+    }
+
+    pub fn get_collection_sizes_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+        let counts = bso::table
+            .select((bso::collection_id, sql::<BigInt>("SUM(payload_size)")))
+            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .group_by(bso::collection_id)
+            .load(&self.conn)?
+            .into_iter()
+            .collect();
+        self.map_collection_names(counts)
     }
 }
 
-impl<'a> Db for MysqlDb<'a> {
+impl Db for MysqlDb {
     mock_db_method!(get_collection_id, GetCollectionId);
     mock_db_method!(get_collections, GetCollections);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
@@ -431,7 +508,7 @@ struct Count {
 #[table_name = "bso"]
 struct UpdateBSO<'a> {
     pub sortindex: Option<i32>,
-    pub payload: Option<&'a String>,
+    pub payload: Option<&'a str>,
     pub payload_size: Option<i32>,
     pub modified: Option<i64>,
     pub expiry: Option<i64>,
@@ -441,7 +518,7 @@ fn put_bso_as_changeset<'a>(bso: &'a params::PutBso) -> UpdateBSO<'a> {
     UpdateBSO {
         sortindex: bso.sortindex,
         expiry: bso.ttl.map(|ttl| bso.modified + ttl as i64),
-        payload: bso.payload.as_ref(),
+        payload: bso.payload.as_ref().map(|payload| &**payload),
         payload_size: bso.payload.as_ref().map(|payload| payload.len() as i32), // XXX:
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
             Some(bso.modified)

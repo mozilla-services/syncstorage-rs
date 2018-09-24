@@ -28,7 +28,7 @@ use settings::{Secrets, ServerLimits, Settings};
 ///
 /// This token should be adapted as needed for the storage system to store data
 /// for the user.
-#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct HawkIdentifier {
     /// For MySQL database backends as the primary key
     pub legacy_id: u64,

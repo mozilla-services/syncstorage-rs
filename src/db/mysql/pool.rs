@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::RwLock};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 use diesel::{
     mysql::MysqlConnection,
@@ -14,7 +17,7 @@ use settings::Settings;
 pub struct MysqlDbPool {
     pool: Pool<ConnectionManager<MysqlConnection>>,
     /// In-memory cache of collection_ids and their names
-    coll_cache: CollectionCache,
+    coll_cache: Arc<CollectionCache>,
 }
 
 // XXX: to become a db::DbPool trait
@@ -35,7 +38,7 @@ impl MysqlDbPool {
     }
 
     pub fn get(&self) -> Result<MysqlDb> {
-        Ok(MysqlDb::new(self.pool.get()?, &self.coll_cache))
+        Ok(MysqlDb::new(self.pool.get()?, Arc::clone(&self.coll_cache)))
     }
 }
 
@@ -46,6 +49,7 @@ pub struct CollectionCache {
 
 impl CollectionCache {
     pub fn put(&self, id: i32, name: String) -> Result<()> {
+        // XXX: should this emit a metric?
         // XXX: should probably either lock both simultaneously during
         // writes or use an RwLock alternative
         self.by_name
