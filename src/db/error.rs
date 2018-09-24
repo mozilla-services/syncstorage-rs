@@ -11,19 +11,32 @@ pub struct DbError {
 
 #[derive(Debug, Fail)]
 pub enum DbErrorKind {
-    #[fail(display = "A database error occurred")]
+    #[fail(display = "A database error occurred: {}", _0)]
     Query(#[cause] diesel::result::Error),
 
-    #[fail(display = "A database pool error occurred")]
+    #[fail(display = "A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
 
-    #[fail(display = "Error migrating the database")]
+    #[fail(display = "Error migrating the database: {}", _0)]
     Migration(diesel_migrations::RunMigrationsError),
+
+    #[fail(display = "Specified collection does not exist")]
+    CollectionNotFound,
+
+    #[fail(display = "Specified item does not exist")]
+    ItemNotFound,
+
+    #[fail(display = "Unexpected error: {}", _0)]
+    Internal(String),
 }
 
 impl DbError {
     pub fn kind(&self) -> &DbErrorKind {
         self.inner.get_context()
+    }
+
+    pub fn internal(msg: &str) -> Self {
+        DbErrorKind::Internal(msg.to_owned()).into()
     }
 }
 

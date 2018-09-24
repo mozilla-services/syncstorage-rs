@@ -8,7 +8,7 @@ pub mod params;
 pub mod results;
 pub mod util;
 
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use futures::future::Future;
 
@@ -34,14 +34,6 @@ lazy_static! {
     };
     static ref STD_COLLS_IDS: HashMap<&'static str, i32> =
         STD_COLLS.iter().map(|(k, v)| (*v, *k)).collect();
-}
-
-fn get_std_collection_name(id: i32) -> Option<&'static str> {
-    STD_COLLS.get(&id).map(Deref::deref)
-}
-
-fn get_std_collection_id(name: &str) -> Option<i32> {
-    STD_COLLS_IDS.get(&name).map(|i| *i)
 }
 
 type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;
