@@ -22,7 +22,7 @@ use sha2::Sha256;
 use time::Duration;
 
 use server::ServerState;
-use settings::{Secrets, Settings};
+use settings::{Secrets, ServerLimits, Settings};
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -195,7 +195,7 @@ from_error!(ToStrError);
 
 #[cfg(test)]
 mod tests {
-    use super::{HawkPayload, Secrets, Settings};
+    use super::{HawkPayload, Secrets, ServerLimits, Settings};
 
     #[test]
     fn valid_header() {
@@ -476,6 +476,7 @@ mod tests {
                     database_url: "".to_string(),
                     database_pool_max_size: None,
                     database_use_test_transactions: false,
+                    limits: ServerLimits::default(),
                     master_secret: Secrets::new("Ted Koppel is a robot"),
                 },
                 expected: HawkPayload {

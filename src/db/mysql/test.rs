@@ -7,7 +7,7 @@ use db::mysql::{
 };
 use db::{error::DbErrorKind, params, util::ms_since_epoch, Sorting};
 use env_logger;
-use settings::{Secrets, Settings};
+use settings::{Secrets, ServerLimits, Settings};
 
 use diesel::{
     mysql::MysqlConnection,
@@ -37,6 +37,7 @@ pub fn pool() -> MysqlDbPool {
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
         database_use_test_transactions: true,
+        limits: ServerLimits::default(),
         master_secret: Secrets::default(),
     };
 
