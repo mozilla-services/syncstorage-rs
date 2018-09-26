@@ -51,6 +51,8 @@ mod test;
 /// HTTP API calls.
 pub struct ServerState {
     pub db: Box<Db>,
+
+    /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
 }
 

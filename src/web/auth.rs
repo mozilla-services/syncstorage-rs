@@ -24,15 +24,33 @@ use time::Duration;
 use server::ServerState;
 use settings::{Secrets, Settings};
 
+/// A parsed and authenticated JSON payload
+/// extracted from the signed `id` property
+/// of a Hawk `Authorization` header.
+///
+/// Not included here are the `fxa_uid` and `device_id` properties,
+/// which may also be present in the JSON payload.
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct HawkPayload {
+    /// Expiry time for the payload, in seconds.
     pub expires: f64,
+
+    /// Base URI for the storage node.
     pub node: String,
+
+    /// Salt used during HKDF-expansion of the token secret.
     pub salt: String,
+
+    /// User identifier.
     pub uid: u64,
 }
 
 impl HawkPayload {
+    /// Parse and authenticate a payload
+    /// using the supplied arguments.
+    ///
+    /// Assumes that the header string
+    /// includes the `Hawk ` prefix.
     fn new(
         header: &str,
         method: &str,
@@ -72,6 +90,8 @@ impl HawkPayload {
         }
     }
 
+    /// Decode the `id` property of a Hawk header
+    /// and verify the payload part against the signature part.
     fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> AuthResult<HawkPayload> {
         let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
         if decoded_id.len() <= 32 {
@@ -95,10 +115,18 @@ impl HawkPayload {
 }
 
 impl FromRequest<ServerState> for HawkPayload {
+    /// Default [`Settings`](../../settings/struct.Settings.html) instance.
+    ///
+    /// Not hugely useful, all of the configurable settings
+    /// can be found on the [request state](../../server/struct.ServerState.html) instead.
     type Config = Settings;
+
+    /// Result-wrapped `HawkPayload` instance.
     type Result = AuthResult<HawkPayload>;
 
-    /// Extract and validate HAWK payload from an actix request object.
+    /// Parse and authenticate a Hawk payload
+    /// from the `Authorization` header
+    /// of an actix request object.
     fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         HawkPayload::new(
             request
@@ -116,6 +144,7 @@ impl FromRequest<ServerState> for HawkPayload {
     }
 }
 
+/// Helper function for [HKDF](https://tools.ietf.org/html/rfc5869) expansion to 32 bytes.
 pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
     let mut result = [0u8; 32];
     let hkdf: Hkdf<Sha256> = Hkdf::extract(salt, key);
@@ -124,14 +153,17 @@ pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] 
     result
 }
 
+/// Helper function for [HMAC](https://tools.ietf.org/html/rfc2104) verification.
 fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> AuthResult<()> {
     let mut hmac: Hmac<Sha256> = Hmac::new_varkey(key)?;
     hmac.input(info);
     hmac.verify(expected).map_err(From::from)
 }
 
+/// Common `Result` type for authentication methods.
 pub type AuthResult<T> = Result<T, AuthError>;
 
+/// Common `Error` type for authentication methods.
 #[derive(Debug)]
 pub struct AuthError;
 

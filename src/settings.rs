@@ -15,6 +15,10 @@ pub struct Settings {
     pub database_pool_max_size: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
+
+    /// The master secret, from which are derived
+    /// the signing secret and token secret
+    /// that are used during Hawk authentication.
     pub master_secret: Secrets,
 }
 
@@ -55,13 +59,21 @@ impl Settings {
     }
 }
 
+/// Secrets used during Hawk authentication.
 #[derive(Debug)]
 pub struct Secrets {
+    /// The master secret in byte array form.
+    ///
+    /// The signing secret and token secret are derived from this.
     pub master_secret: Vec<u8>,
+
+    /// The signing secret used during Hawk authentication.
     pub signing_secret: [u8; 32],
 }
 
 impl Secrets {
+    /// Decode the master secret to a byte array
+    /// and derive the signing secret from it.
     pub fn new(master_secret: &str) -> Secrets {
         let master_secret = master_secret.as_bytes().to_vec();
         let signing_secret = hkdf_expand_32(
@@ -77,6 +89,7 @@ impl Secrets {
 }
 
 impl Default for Secrets {
+    /// Create a (useless) default `Secrets` instance.
     fn default() -> Secrets {
         Secrets {
             master_secret: vec![],
@@ -86,6 +99,8 @@ impl Default for Secrets {
 }
 
 impl<'d> Deserialize<'d> for Secrets {
+    /// Deserialize the master secret and signing secret byte arrays
+    /// from a single master secret string.
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'d>,
