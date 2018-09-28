@@ -11,17 +11,19 @@ use sha2::Sha256;
 
 use super::*;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
-use settings::Secrets;
+use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
 use web::handlers::{BsoBody, PostCollectionBody};
 
 lazy_static! {
+    static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo"));
 }
 
 fn setup() -> TestServer {
     TestServer::build_with_state(|| ServerState {
         db: Box::new(MockDb::new()),
+        limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
     }).start(|app| {
         init_routes!(app);
@@ -138,7 +140,11 @@ fn collection_usage() {
 
 #[test]
 fn configuration() {
-    test_endpoint(http::Method::GET, "/42/info/configuration", "{}");
+    test_endpoint(
+        http::Method::GET,
+        "/42/info/configuration",
+        &serde_json::to_string(&ServerLimits::default()).unwrap(),
+    );
 }
 
 #[test]

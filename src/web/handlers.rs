@@ -241,28 +241,9 @@ pub fn put_bso(
 }
 
 pub fn get_configuration(
-    (_auth, _state): (HawkPayload, State<ServerState>),
+    (_auth, state): (HawkPayload, State<ServerState>),
 ) -> FutureResponse<HttpResponse> {
-    // TODO: populate from static config?
-    Box::new(future::result(Ok(
-        HttpResponse::Ok().json(Configuration::default())
-    )))
-}
-
-#[derive(Debug, Default, Serialize)]
-pub struct Configuration {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_post_bytes: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_post_records: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_request_bytes: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_total_bytes: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_total_records: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_record_payload_bytes: Option<u32>,
+    Box::new(future::result(Ok(HttpResponse::Ok().json(&*state.limits))))
 }
 
 impl ResponseError for DbError {}

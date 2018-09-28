@@ -7,7 +7,7 @@ use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 //use num_cpus;
 
 use db::{mock::MockDb, Db};
-use settings::{Secrets, Settings};
+use settings::{Secrets, ServerLimits, Settings};
 use web::handlers;
 use web::middleware;
 
@@ -52,6 +52,9 @@ mod test;
 pub struct ServerState {
     pub db: Box<Db>,
 
+    /// Server-enforced limits for request payloads.
+    pub limits: Arc<ServerLimits>,
+
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
 }
@@ -61,6 +64,7 @@ pub struct Server {}
 impl Server {
     pub fn with_settings(settings: Settings) -> SystemRunner {
         let sys = System::new("syncserver");
+        let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
 
         HttpServer::new(move || {
@@ -68,6 +72,7 @@ impl Server {
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
                 db: Box::new(MockDb::new()),
+                limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
             };
 
