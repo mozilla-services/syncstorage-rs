@@ -2,137 +2,73 @@
 
 use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, Query, State};
 use futures::future::{self, Future};
-use serde::de::{Deserialize, Deserializer};
 
 use db::{params, util::ms_since_epoch, DbError};
 use server::ServerState;
-use web::auth::HawkPayload;
+use web::auth::{HawkIdentifier, HawkPayload};
+use web::extractors::{
+    BsoBody, BsoParams, CollectionParams, DeleteCollectionQuery, GetCollectionRequest, MetaRequest,
+};
 
-#[derive(Deserialize)]
-pub struct UidParam {
-    uid: String,
-}
-
-#[derive(Deserialize)]
-pub struct DeleteCollectionQuery {
-    ids: Option<BsoIds>,
-}
-
-pub struct BsoIds(pub Vec<String>);
-
-impl<'d> Deserialize<'d> for BsoIds {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'d>,
-    {
-        let value: String = Deserialize::deserialize(deserializer)?;
-        Ok(BsoIds(value.split(",").map(|id| id.to_string()).collect()))
-    }
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct PostCollectionBody {
-    pub id: String,
-    pub sortindex: Option<i32>,
-    pub payload: Option<String>,
-    pub ttl: Option<u32>,
-}
-
-impl From<PostCollectionBody> for params::PostCollectionBso {
-    fn from(body: PostCollectionBody) -> params::PostCollectionBso {
-        params::PostCollectionBso {
-            id: body.id.clone(),
-            sortindex: body.sortindex,
-            payload: body.payload.as_ref().map(|payload| payload.clone()),
-            ttl: body.ttl,
-        }
-    }
-}
-
-#[derive(Deserialize)]
-pub struct CollectionParams {
-    uid: String,
-    collection: String,
-}
-
-#[derive(Deserialize)]
-pub struct BsoParams {
-    uid: String,
-    collection: String,
-    bso: String,
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct BsoBody {
-    pub sortindex: Option<i32>,
-    pub payload: Option<String>,
-    pub ttl: Option<u32>,
-}
-
-pub fn get_collections(
-    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        meta.state
             .db
-            .get_collections(&params::GetCollections { user_id: 1 })
-            .map_err(From::from)
+            .get_collections(&params::GetCollections {
+                user_id: meta.user_id,
+            }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn get_collection_counts(
-    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_collection_counts(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        meta.state
             .db
-            .get_collection_counts(&params::GetCollectionCounts { user_id: 1 })
-            .map_err(From::from)
+            .get_collection_counts(&params::GetCollectionCounts {
+                user_id: meta.user_id,
+            }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn get_collection_usage(
-    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_collection_usage(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        meta.state
             .db
-            .get_collection_usage(&params::GetCollectionUsage { user_id: 1 })
-            .map_err(From::from)
+            .get_collection_usage(&params::GetCollectionUsage {
+                user_id: meta.user_id,
+            }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn get_quota(
-    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_quota(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        meta.state
             .db
-            .get_quota(&params::GetQuota { user_id: 1 })
-            .map_err(From::from)
+            .get_quota(&params::GetQuota {
+                user_id: meta.user_id,
+            }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn delete_all(
-    (params, _auth, state): (Path<UidParam>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn delete_all(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        meta.state
             .db
-            .delete_all(&params::DeleteAll { user_id: 1 })
-            .map_err(From::from)
+            .delete_all(&params::DeleteAll {
+                user_id: meta.user_id,
+            }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
 pub fn delete_collection(
-    (params, _auth, state, query): (
+    (params, auth, state, query): (
         Path<CollectionParams>,
-        HawkPayload,
+        HawkIdentifier,
         State<ServerState>,
         Query<DeleteCollectionQuery>,
     ),
@@ -141,7 +77,7 @@ pub fn delete_collection(
         state
             .db
             .delete_collection(&params::DeleteCollection {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
                 bso_ids: query
                     .ids
@@ -152,14 +88,12 @@ pub fn delete_collection(
     )
 }
 
-pub fn get_collection(
-    (params, _auth, state): (Path<CollectionParams>, HawkPayload, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_collection((params, auth, state): GetCollectionRequest) -> FutureResponse<HttpResponse> {
     Box::new(
         state
             .db
             .get_collection(&params::GetCollection {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
@@ -167,18 +101,18 @@ pub fn get_collection(
 }
 
 pub fn post_collection(
-    (params, _auth, state, body): (
+    (params, auth, state, body): (
         Path<CollectionParams>,
-        HawkPayload,
+        HawkIdentifier,
         State<ServerState>,
-        Json<Vec<PostCollectionBody>>,
+        Json<Vec<params::PostCollectionBso>>,
     ),
 ) -> FutureResponse<HttpResponse> {
     Box::new(
         state
             .db
             .post_collection(&params::PostCollection {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
                 bsos: body.into_inner().into_iter().map(From::from).collect(),
             }).map_err(From::from)
@@ -187,13 +121,13 @@ pub fn post_collection(
 }
 
 pub fn delete_bso(
-    (params, _auth, state): (Path<BsoParams>, HawkPayload, State<ServerState>),
+    (params, auth, state): (Path<BsoParams>, HawkIdentifier, State<ServerState>),
 ) -> FutureResponse<HttpResponse> {
     Box::new(
         state
             .db
             .delete_bso(&params::DeleteBso {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
                 id: params.bso.clone(),
             }).map_err(From::from)
@@ -202,13 +136,13 @@ pub fn delete_bso(
 }
 
 pub fn get_bso(
-    (params, _auth, state): (Path<BsoParams>, HawkPayload, State<ServerState>),
+    (params, auth, state): (Path<BsoParams>, HawkIdentifier, State<ServerState>),
 ) -> FutureResponse<HttpResponse> {
     Box::new(
         state
             .db
             .get_bso(&params::GetBso {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
                 id: params.bso.clone(),
             }).map_err(From::from)
@@ -217,9 +151,9 @@ pub fn get_bso(
 }
 
 pub fn put_bso(
-    (params, _auth, state, body): (
+    (params, auth, state, body): (
         Path<BsoParams>,
-        HawkPayload,
+        HawkIdentifier,
         State<ServerState>,
         Json<BsoBody>,
     ),
@@ -228,7 +162,7 @@ pub fn put_bso(
         state
             .db
             .put_bso(&params::PutBso {
-                user_id: 1,
+                user_id: auth,
                 collection_id: 2,
                 id: params.bso.clone(),
                 modified: ms_since_epoch(),

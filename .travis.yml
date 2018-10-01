@@ -5,6 +5,7 @@ rust:
   - stable
 env:
   global:
+    - RUST_BACKTRACE=1
     # XXX: begin_test_transaction doesn't play nice over threaded tests
     - RUST_TEST_THREADS=1
     - SYNC_DATABASE_URL="mysql://travis@127.0.0.1/syncstorage"

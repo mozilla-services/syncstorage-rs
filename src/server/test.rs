@@ -10,10 +10,11 @@ use serde_json;
 use sha2::Sha256;
 
 use super::*;
+use db::params::PostCollectionBso;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
 use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
-use web::handlers::{BsoBody, PostCollectionBody};
+use web::extractors::BsoBody;
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
@@ -55,7 +56,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
         expires: (Utc::now().timestamp() + 5) as f64,
         node: "http://127.0.0.1:8000".to_string(),
         salt: "wibble".to_string(),
-        uid: 42,
+        user_id: 42,
     };
     let payload = serde_json::to_string(&payload).unwrap();
     let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret).unwrap();
@@ -183,7 +184,7 @@ fn get_collection() {
 #[test]
 fn post_collection() {
     test_endpoint_with_body! {
-        POST "/42/storage/bookmarks", vec![PostCollectionBody {
+        POST "/42/storage/bookmarks", vec![PostCollectionBso {
             id: "foo".to_string(),
             sortindex: Some(0),
             payload: Some("bar".to_string()),
