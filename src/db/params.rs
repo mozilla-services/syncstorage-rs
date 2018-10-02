@@ -1,4 +1,5 @@
 //! Parameter types for database methods.
+use web::auth::HawkIdentifier;
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {
@@ -13,7 +14,7 @@ macro_rules! uid_data {
     ($($name:ident,)+) => ($(
         data! {
             $name {
-                user_id: u32,
+                user_id: HawkIdentifier,
             }
         }
     )+)
@@ -23,7 +24,7 @@ macro_rules! collection_data {
     ($($name:ident {$($property:ident: $type:ty,)*},)+) => ($(
         data! {
             $name {
-                user_id: u32,
+                user_id: HawkIdentifier,
                 collection_id: i32,
                 $($property: $type,)*
             }
@@ -35,7 +36,7 @@ macro_rules! bso_data {
     ($($name:ident {$($property:ident: $type:ty,)*},)+) => ($(
         data! {
             $name {
-                user_id: u32,
+                user_id: HawkIdentifier,
                 collection_id: i32,
                 id: String,
                 $($property: $type,)*
@@ -75,7 +76,7 @@ bso_data! {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct PostCollectionBso {
     pub id: String,
     pub sortindex: Option<i32>,

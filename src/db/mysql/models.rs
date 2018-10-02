@@ -131,6 +131,8 @@ impl<'a> MysqlDb<'a> {
         }
         */
 
+        let user_id: u64 = bso.user_id.legacy_id;
+
         // XXX: consider mysql ON DUPLICATE KEY UPDATE?
         self.conn.transaction(|| {
             let q = r#"
@@ -138,7 +140,7 @@ impl<'a> MysqlDb<'a> {
                 WHERE user_id = ? AND collection_id = ? AND id = ?
             "#;
             let exists = sql_query(q)
-                .bind::<Integer, _>(bso.user_id as i32) // XXX:
+                .bind::<Integer, _>(user_id as i32) // XXX:
                 .bind::<Integer, _>(&bso.collection_id)
                 .bind::<Text, _>(&bso.id)
                 .get_result::<Count>(&self.conn)
@@ -147,7 +149,7 @@ impl<'a> MysqlDb<'a> {
 
             if exists {
                 update(bso::table)
-                    .filter(bso::user_id.eq(bso.user_id as i32)) // XXX:
+                    .filter(bso::user_id.eq(user_id as i32)) // XXX:
                     .filter(bso::collection_id.eq(&bso.collection_id))
                     .filter(bso::id.eq(&bso.id))
                     .set(put_bso_as_changeset(&bso))
@@ -158,7 +160,7 @@ impl<'a> MysqlDb<'a> {
                 let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
                 insert_into(bso::table)
                     .values((
-                        bso::user_id.eq(bso.user_id as i32), // XXX:
+                        bso::user_id.eq(user_id as i32), // XXX:
                         bso::collection_id.eq(&bso.collection_id),
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
@@ -168,7 +170,7 @@ impl<'a> MysqlDb<'a> {
                         bso::expiry.eq(bso.modified + ttl as i64),
                     )).execute(&self.conn)?;
             }
-            self.touch_collection(bso.user_id, bso.collection_id, bso.modified)?;
+            self.touch_collection(user_id as u32, bso.collection_id, bso.modified)?;
             // XXX:
             Ok(bso.modified as u64)
         })
@@ -242,11 +244,12 @@ impl<'a> MysqlDb<'a> {
     }
 
     pub fn get_bso_sync(&self, params: &params::GetBso) -> Result<Option<results::GetBso>> {
+        let user_id = params.user_id.legacy_id;
         Ok(sql_query(r#"
                SELECT id, modified, payload, sortindex, expiry FROM bso
                WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
            "#)
-           .bind::<Integer, _>(params.user_id as i32) // XXX:
+           .bind::<Integer, _>(user_id as i32) // XXX:
            .bind::<Integer, _>(&params.collection_id)
            .bind::<Text, _>(&params.id)
            .bind::<BigInt, _>(ms_since_epoch())
@@ -317,7 +320,7 @@ impl<'a> MysqlDb<'a> {
     ) -> Result<results::GetCollections> {
         let result: HashMap<_, _> =
             sql_query("SELECT collection_id, modified FROM user_collections WHERE user_id = ?")
-                .bind::<Integer, _>(params.user_id as i32)
+                .bind::<Integer, _>(params.user_id.legacy_id as i32)
                 .load::<UserCollectionsResult>(&self.conn)?
                 .into_iter()
                 .map(|cr| (cr.collection_id, cr.modified))

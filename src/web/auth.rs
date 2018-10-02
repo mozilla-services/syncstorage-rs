@@ -24,6 +24,42 @@ use time::Duration;
 use server::ServerState;
 use settings::{Secrets, ServerLimits, Settings};
 
+/// Represents a user-identifier that is extract from the authentication token
+///
+/// This token should be adapted as needed for the storage system to store data
+/// for the user.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct HawkIdentifier {
+    /// For MySQL database backends as the primary key
+    pub legacy_id: u64,
+    /// For NoSQL database backends that require randomly distributed primary keys
+    pub fxa_id: String,
+}
+
+impl FromRequest<ServerState> for HawkIdentifier {
+    type Config = Settings;
+    type Result = AuthResult<HawkIdentifier>;
+
+    /// Use HawkPayload extraction and format as HawkIdentifier.
+    fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let payload = HawkPayload::from_request(request, settings)?;
+        Ok(HawkIdentifier {
+            legacy_id: payload.user_id,
+            fxa_id: "".to_string(),
+        })
+    }
+}
+
+impl HawkIdentifier {
+    /// Create a new legacy id user identifier
+    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
+        HawkIdentifier {
+            legacy_id: user_id,
+            ..Default::default()
+        }
+    }
+}
+
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
 /// of a Hawk `Authorization` header.
@@ -42,7 +78,8 @@ pub struct HawkPayload {
     pub salt: String,
 
     /// User identifier.
-    pub uid: u64,
+    #[serde(rename = "uid")]
+    pub user_id: u64,
 }
 
 impl HawkPayload {
@@ -195,7 +232,7 @@ from_error!(ToStrError);
 
 #[cfg(test)]
 mod tests {
-    use super::{HawkPayload, Secrets, ServerLimits, Settings};
+    use super::{HawkIdentifier, HawkPayload, Secrets, ServerLimits, Settings};
 
     #[test]
     fn valid_header() {
@@ -483,7 +520,7 @@ mod tests {
                     expires: 1536199274.0,
                     node: "http://localhost:5000".to_string(),
                     salt: "b0260e".to_string(),
-                    uid: 1,
+                    user_id: 1,
                 },
             }
         }

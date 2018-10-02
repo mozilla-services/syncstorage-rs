@@ -15,6 +15,8 @@ use diesel::{
     Connection,
 };
 
+use web::auth::HawkIdentifier;
+
 // distant future (year 2099) timestamp for tests
 pub const MAX_TIMESTAMP: u64 = 4070937600000;
 
@@ -54,7 +56,7 @@ fn pbso(
     ttl: Option<u32>,
 ) -> params::PutBso {
     params::PutBso {
-        user_id,
+        user_id: HawkIdentifier::new_legacy(user_id as u64),
         collection_id: cid,
         id: bid.to_owned(),
         payload: payload.map(&str::to_owned),
@@ -66,7 +68,7 @@ fn pbso(
 
 fn gbso(user_id: u32, cid: i32, bid: &str) -> params::GetBso {
     params::GetBso {
-        user_id,
+        user_id: HawkIdentifier::new_legacy(user_id as u64),
         collection_id: cid,
         id: bid.to_owned(),
     }
@@ -530,8 +532,9 @@ fn get_collections_modified() {
     let modified = ms_since_epoch();
     db.touch_collection(uid, cid, modified).unwrap();
     let cols = db
-        .get_collections_modified_sync(&params::GetCollections { user_id: uid })
-        .unwrap();
+        .get_collections_modified_sync(&params::GetCollections {
+            user_id: HawkIdentifier::new_legacy(uid as u64),
+        }).unwrap();
     assert!(cols.contains_key(name));
     assert_eq!(cols.get(name), Some(&modified));
 

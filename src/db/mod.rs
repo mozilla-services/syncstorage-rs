@@ -38,8 +38,6 @@ lazy_static! {
 
 type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;
 
-// XXX: add a DbPool trait
-
 pub trait Db: Send {
     // XXX: add a generic fn transaction(&self, f)
 
