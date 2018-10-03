@@ -8,32 +8,32 @@ pub mod params;
 pub mod results;
 pub mod util;
 
-use std::collections::HashMap;
-
 use futures::future::Future;
 
 pub use self::error::DbError;
 
 lazy_static! {
-    static ref STD_COLLS: HashMap<i32, &'static str> = {
-        let mut m = HashMap::new();
-        m.insert(1, "clients");
-        m.insert(2, "crypto");
-        m.insert(3, "forms");
-        m.insert(4, "history");
-        m.insert(5, "keys");
-        m.insert(6, "meta");
-        m.insert(7, "bookmarks");
-        m.insert(8, "prefs");
-        m.insert(9, "tabs");
-        m.insert(10, "passwords");
-        m.insert(11, "addons");
-        m.insert(12, "addresses");
-        m.insert(13, "creditcards");
-        m
+    /// For efficiency, it's possible to use fixed pre-determined IDs for
+    /// common collection names.  This is the canonical list of such
+    /// names.  Non-standard collections will be allocated IDs starting
+    /// from the highest ID in this collection.
+    static ref STD_COLLS: Vec<(i32, &'static str)> = {
+        vec![
+        (1, "clients"),
+        (2, "crypto"),
+        (3, "forms"),
+        (4, "history"),
+        (5, "keys"),
+        (6, "meta"),
+        (7, "bookmarks"),
+        (8, "prefs"),
+        (9, "tabs"),
+        (10, "passwords"),
+        (11, "addons"),
+        (12, "addresses"),
+        (13, "creditcards"),
+        ]
     };
-    static ref STD_COLLS_IDS: HashMap<&'static str, i32> =
-        STD_COLLS.iter().map(|(k, v)| (*v, *k)).collect();
 }
 
 type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;

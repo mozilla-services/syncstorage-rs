@@ -8,7 +8,7 @@ use diesel::sql_types::{BigInt, Integer, Nullable, Text};
 
 pub type GetCollectionId = i32;
 pub type GetCollections = HashMap<String, i64>;
-pub type GetCollectionCounts = HashMap<String, u64>;
+pub type GetCollectionCounts = HashMap<String, i64>;
 pub type GetCollectionUsage = HashMap<String, u32>;
 pub type GetQuota = Vec<u32>;
 pub type DeleteAll = ();

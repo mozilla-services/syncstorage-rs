@@ -167,7 +167,7 @@ pub fn put_bso(
                 id: params.bso.clone(),
                 modified: ms_since_epoch(),
                 sortindex: body.sortindex,
-                payload: body.payload.as_ref().map(|payload| payload.clone()),
+                payload: body.payload.as_ref().map(|payload| payload.into()),
                 ttl: body.ttl,
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),

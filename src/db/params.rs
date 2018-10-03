@@ -1,4 +1,6 @@
 //! Parameter types for database methods.
+use std::borrow::Cow;
+
 use web::auth::HawkIdentifier;
 
 macro_rules! data {
@@ -68,12 +70,16 @@ collection_data! {
 bso_data! {
     DeleteBso {},
     GetBso {},
-    PutBso {
-        modified: i64,
-        sortindex: Option<i32>,
-        payload: Option<String>,
-        ttl: Option<u32>,
-    },
+}
+
+pub struct PutBso<'a> {
+    pub user_id: HawkIdentifier,
+    pub collection_id: i32,
+    pub id: String,
+    pub modified: i64,
+    pub sortindex: Option<i32>,
+    pub payload: Option<Cow<'a, str>>,
+    pub ttl: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
