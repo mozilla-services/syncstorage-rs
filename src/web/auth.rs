@@ -232,7 +232,7 @@ from_error!(ToStrError);
 
 #[cfg(test)]
 mod tests {
-    use super::{HawkIdentifier, HawkPayload, Secrets, ServerLimits, Settings};
+    use super::{HawkPayload, Secrets, ServerLimits, Settings};
 
     #[test]
     fn valid_header() {

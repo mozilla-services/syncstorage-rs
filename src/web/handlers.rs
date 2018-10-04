@@ -7,7 +7,7 @@ use db::{params, util::ms_since_epoch, DbError};
 use server::ServerState;
 use web::auth::{HawkIdentifier, HawkPayload};
 use web::extractors::{
-    BsoBody, BsoParams, CollectionParams, DeleteCollectionQuery, GetCollectionRequest, MetaRequest,
+    BsoBody, BsoParams, BsoQueryParams, CollectionParams, GetCollectionRequest, MetaRequest,
 };
 
 pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
@@ -66,11 +66,11 @@ pub fn delete_all(meta: MetaRequest) -> FutureResponse<HttpResponse> {
 }
 
 pub fn delete_collection(
-    (params, auth, state, query): (
+    (_params, auth, state, query): (
         Path<CollectionParams>,
         HawkIdentifier,
         State<ServerState>,
-        Query<DeleteCollectionQuery>,
+        Query<BsoQueryParams>,
     ),
 ) -> FutureResponse<HttpResponse> {
     Box::new(
@@ -82,13 +82,15 @@ pub fn delete_collection(
                 bso_ids: query
                     .ids
                     .as_ref()
-                    .map_or_else(|| Vec::new(), |ids| ids.0.clone()),
+                    .map_or_else(|| Vec::new(), |ids| ids.clone()),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn get_collection((params, auth, state): GetCollectionRequest) -> FutureResponse<HttpResponse> {
+pub fn get_collection(
+    (_params, auth, state): GetCollectionRequest,
+) -> FutureResponse<HttpResponse> {
     Box::new(
         state
             .db
@@ -101,7 +103,7 @@ pub fn get_collection((params, auth, state): GetCollectionRequest) -> FutureResp
 }
 
 pub fn post_collection(
-    (params, auth, state, body): (
+    (_params, auth, state, body): (
         Path<CollectionParams>,
         HawkIdentifier,
         State<ServerState>,
