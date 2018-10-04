@@ -123,7 +123,7 @@ impl MysqlDb {
         Ok(id)
     }
 
-    fn get_collection_name(&self, id: i32) -> Result<String> {
+    fn _get_collection_name(&self, id: i32) -> Result<String> {
         let name = if let Some(name) = self.coll_cache.get_name(id)? {
             name
         } else {
@@ -483,6 +483,7 @@ struct IdResult {
     id: i32,
 }
 
+#[allow(dead_code)] // Not really dead, Rust can't see the use above
 #[derive(Debug, QueryableByName)]
 struct NameResult {
     #[sql_type = "Text"]

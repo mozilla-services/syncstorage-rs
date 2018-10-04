@@ -21,8 +21,10 @@ extern crate hawk;
 extern crate hkdf;
 extern crate hmac;
 extern crate mozsvc_common;
+extern crate num;
 extern crate num_cpus;
 extern crate rand;
+extern crate regex;
 extern crate ring;
 extern crate serde;
 #[macro_use]
@@ -31,6 +33,9 @@ extern crate serde_json;
 extern crate sha2;
 extern crate time;
 extern crate uuid;
+#[macro_use]
+extern crate validator_derive;
+extern crate validator;
 
 use std::error::Error;
 
