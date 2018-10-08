@@ -11,7 +11,6 @@ CREATE TABLE `bso` (
     `sortindex` INT,
 
     `payload` MEDIUMTEXT                    NOT NULL,
-    `payload_size` INT DEFAULT '0'          NOT NULL,
 
     -- last modified time in milliseconds since epoch
     `modified` BIGINT                       NOT NULL,

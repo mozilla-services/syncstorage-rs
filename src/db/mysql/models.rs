@@ -182,7 +182,6 @@ impl MysqlDb {
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
-                        bso::payload_size.eq(payload.len() as i32), // XXX:
                         bso::modified.eq(bso.modified),
                         bso::expiry.eq(bso.modified + ttl as i64),
                     )).execute(&self.conn)?;
@@ -443,7 +442,7 @@ impl MysqlDb {
         user_id: HawkIdentifier,
     ) -> Result<results::GetStorageUsage> {
         let total_size = bso::table
-            .select(sql::<BigInt>("SUM(payload_size)"))
+            .select(sql::<BigInt>("SUM(LENGTH(payload))"))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .get_result::<i64>(&self.conn)?;
@@ -455,7 +454,7 @@ impl MysqlDb {
         user_id: HawkIdentifier,
     ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("SUM(payload_size)")))
+            .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .group_by(bso::collection_id)
@@ -529,7 +528,6 @@ struct Count {
 struct UpdateBSO<'a> {
     pub sortindex: Option<i32>,
     pub payload: Option<&'a str>,
-    pub payload_size: Option<i32>,
     pub modified: Option<i64>,
     pub expiry: Option<i64>,
 }
@@ -539,7 +537,6 @@ fn put_bso_as_changeset<'a>(bso: &'a params::PutBso) -> UpdateBSO<'a> {
         sortindex: bso.sortindex,
         expiry: bso.ttl.map(|ttl| bso.modified + ttl as i64),
         payload: bso.payload.as_ref().map(|payload| &**payload),
-        payload_size: bso.payload.as_ref().map(|payload| payload.len() as i32), // XXX:
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
             Some(bso.modified)
         } else {
