@@ -8,7 +8,7 @@ CREATE TABLE `bso` (
     `collection_id` INT                     NOT NULL,
     `id` VARCHAR(64)                        NOT NULL,
 
-    `sortindex` INT DEFAULT NULL,
+    `sortindex` INT,
 
     `payload` MEDIUMTEXT                    NOT NULL,
     `payload_size` INT DEFAULT '0'          NOT NULL,

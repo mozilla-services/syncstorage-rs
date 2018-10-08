@@ -28,6 +28,7 @@ use db::{
     Db, DbFuture, Sorting,
 };
 use settings::Settings;
+use web::auth::HawkIdentifier;
 
 embed_migrations!();
 
@@ -437,10 +438,25 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn get_collection_counts_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+    pub fn get_storage_size_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetStorageUsage> {
+        let total_size = bso::table
+            .select(sql::<BigInt>("SUM(payload_size)"))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
+            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .get_result::<i64>(&self.conn)?;
+        Ok(total_size as u64)
+    }
+
+    pub fn get_collection_sizes_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
-            .filter(bso::user_id.eq(user_id as i32))
+            .select((bso::collection_id, sql::<BigInt>("SUM(payload_size)")))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -449,10 +465,13 @@ impl MysqlDb {
         self.map_collection_names(counts)
     }
 
-    pub fn get_collection_sizes_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+    pub fn get_collection_counts_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("SUM(payload_size)")))
-            .filter(bso::user_id.eq(user_id as i32))
+            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -467,7 +486,7 @@ impl Db for MysqlDb {
     mock_db_method!(get_collections, GetCollections);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_quota, GetQuota);
+    mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(delete_all, DeleteAll);
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(get_collection, GetCollection);
