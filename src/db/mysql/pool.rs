@@ -24,13 +24,15 @@ pub struct MysqlDbPool {
 impl MysqlDbPool {
     pub fn new(settings: &Settings) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.as_ref());
-        let mut builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+
         #[cfg(test)]
-        {
-            if settings.database_use_test_transactions {
-                builder = builder.connection_customizer(Box::new(TestTransactionCustomizer));
-            }
-        }
+        let builder = if settings.database_use_test_transactions {
+            builder.connection_customizer(Box::new(TestTransactionCustomizer))
+        } else {
+            builder
+        };
+
         Ok(Self {
             pool: builder.build(manager)?,
             coll_cache: Default::default(),

@@ -76,7 +76,6 @@ pub struct PutBso<'a> {
     pub user_id: HawkIdentifier,
     pub collection_id: i32,
     pub id: String,
-    pub modified: i64,
     pub sortindex: Option<i32>,
     pub payload: Option<Cow<'a, str>>,
     pub ttl: Option<u32>,

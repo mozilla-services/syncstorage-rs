@@ -12,7 +12,7 @@ use db::mysql::{
     pool::MysqlDbPool,
     schema::collections,
 };
-use db::{error::DbErrorKind, params, util::ms_since_epoch, Sorting};
+use db::{error::DbErrorKind, params, Sorting};
 use env_logger;
 use settings::{Secrets, ServerLimits, Settings};
 use web::auth::HawkIdentifier;
@@ -63,7 +63,6 @@ fn pbso<'a>(
         payload: payload.map(|payload| payload.to_owned().into()),
         sortindex,
         ttl,
-        modified: ms_since_epoch(),
     }
 }
 
@@ -158,45 +157,48 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     db.put_bso_sync(&bso2)?;
 
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
-    assert_eq!(bso.modified, bso2.modified);
+    assert_eq!(bso.modified, db.session.timestamp);
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX: go version assumes ttl was updated here?
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, bso1.modified + ttl as i64);
+    assert_eq!(bso.expiry, db.session.timestamp + ttl as i64);
 
     let sortindex = 2;
     let bso2 = pbso(uid, cid, bid, None, Some(sortindex), None);
     db.put_bso_sync(&bso2)?;
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
-    assert_eq!(bso.modified, bso2.modified);
+    assert_eq!(bso.modified, db.session.timestamp);
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX:
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, bso1.modified + ttl as i64);
+    assert_eq!(bso.expiry, db.session.timestamp + ttl as i64);
     Ok(())
 }
 
 #[test]
 fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
     let bid = "testBSO";
+    let timestamp = db.session.timestamp;
 
-    let mut bso1 = pbso(uid, cid, bid, Some("hello"), Some(1), Some(10));
-    bso1.modified = ms_since_epoch() - 100;
+    let bso1 = pbso(uid, cid, bid, Some("hello"), Some(1), Some(10));
+    db.session.timestamp -= 100;
+    let modified1 = db.session.timestamp;
     db.put_bso_sync(&bso1)?;
+    db.session.timestamp = timestamp;
 
     let bso2 = pbso(uid, cid, bid, None, None, Some(15));
     db.put_bso_sync(&bso2)?;
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
     // ttl has changed
-    assert_eq!(bso.expiry, bso2.modified + 15);
+    assert_eq!(bso.expiry, timestamp + 15);
     // modified has not changed
-    assert_eq!(bso.modified, bso1.modified);
+    assert_eq!(bso.modified, modified1);
     Ok(())
 }
 
@@ -216,19 +218,20 @@ fn put_bso_updates() -> Result<()> {
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
     assert_eq!(Some(bso.payload.into()), bso2.payload);
     assert_eq!(bso.sortindex, bso2.sortindex);
-    assert_eq!(bso.modified, bso2.modified);
+    assert_eq!(bso.modified, db.session.timestamp);
     Ok(())
 }
 
 #[test]
 fn get_bsos_limit_offset() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
     let size = 12;
+    let timestamp = db.session.timestamp;
     for i in 0..size {
-        let mut bso = pbso(
+        let bso = pbso(
             uid,
             cid,
             &i.to_string(),
@@ -236,9 +239,10 @@ fn get_bsos_limit_offset() -> Result<()> {
             Some(i),
             Some(DEFAULT_BSO_TTL),
         );
-        bso.modified += i as i64 * 10;
+        db.session.timestamp = timestamp + i as i64 * 10;
         db.put_bso_sync(&bso)?;
     }
+    db.session.timestamp = timestamp;
 
     let bsos = db.get_bsos_sync(uid, cid, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)?;
     assert!(bsos.bsos.is_empty());
@@ -311,16 +315,16 @@ fn get_bsos_limit_offset() -> Result<()> {
 
 #[test]
 fn get_bsos_newer() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
-    let modified = ms_since_epoch();
+    let timestamp = db.session.timestamp;
     // XXX: validation
     //db.get_bsos_sync(uid, cid, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
 
     for i in (0..=2).rev() {
-        let mut pbso = pbso(
+        let pbso = pbso(
             uid,
             cid,
             &format!("b{}", i),
@@ -328,16 +332,17 @@ fn get_bsos_newer() -> Result<()> {
             Some(1),
             Some(DEFAULT_BSO_TTL),
         );
-        pbso.modified = modified - i;
+        db.session.timestamp = timestamp - i;
         db.put_bso_sync(&pbso)?;
     }
+    db.session.timestamp = timestamp;
 
     let bsos = db.get_bsos_sync(
         uid,
         cid,
         &[],
         MAX_TIMESTAMP,
-        modified as u64 - 3,
+        timestamp as u64 - 3,
         Sorting::Newest,
         10,
         0,
@@ -352,7 +357,7 @@ fn get_bsos_newer() -> Result<()> {
         cid,
         &[],
         MAX_TIMESTAMP,
-        modified as u64 - 2,
+        timestamp as u64 - 2,
         Sorting::Newest,
         10,
         0,
@@ -366,7 +371,7 @@ fn get_bsos_newer() -> Result<()> {
         cid,
         &[],
         MAX_TIMESTAMP,
-        modified as u64 - 1,
+        timestamp as u64 - 1,
         Sorting::Newest,
         10,
         0,
@@ -379,7 +384,7 @@ fn get_bsos_newer() -> Result<()> {
         cid,
         &[],
         MAX_TIMESTAMP,
-        modified as u64,
+        timestamp as u64,
         Sorting::Newest,
         10,
         0,
@@ -390,16 +395,16 @@ fn get_bsos_newer() -> Result<()> {
 
 #[test]
 fn get_bsos_sort() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
-    let modified = ms_since_epoch();
+    let timestamp = db.session.timestamp;
     // XXX: validation again
     //db.get_bsos_sync(uid, cid, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
 
     for (revi, sortindex) in [1, 0, 2].iter().enumerate().rev() {
-        let mut pbso = pbso(
+        let pbso = pbso(
             uid,
             cid,
             &format!("b{}", revi),
@@ -407,9 +412,10 @@ fn get_bsos_sort() -> Result<()> {
             Some(*sortindex),
             Some(DEFAULT_BSO_TTL),
         );
-        pbso.modified = modified - revi as i64;
+        db.session.timestamp = timestamp - revi as i64;
         db.put_bso_sync(&pbso)?;
     }
+    db.session.timestamp = timestamp;
 
     let bsos = db.get_bsos_sync(uid, cid, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)?;
     assert_eq!(bsos.bsos.len(), 3);
@@ -447,18 +453,18 @@ fn delete_bsos_in_correct_collection() -> Result<()> {
 
 #[test]
 fn get_storage_modified() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     db.create_collection("col1")?;
     let col2 = db.create_collection("col2")?;
     db.create_collection("col3")?;
 
-    let modified = ms_since_epoch() + 100000;
-    db.touch_collection(uid, col2, modified)?;
+    db.session.timestamp += 100000;
+    db.touch_collection(uid, col2)?;
 
     let m = db.get_storage_modified_sync(uid)?;
-    assert_eq!(m, modified);
+    assert_eq!(m, db.session.timestamp);
     Ok(())
 }
 
@@ -486,7 +492,7 @@ fn touch_collection() -> Result<()> {
     let db = db()?;
 
     let cid = db.create_collection("test")?;
-    db.touch_collection(1, cid, ms_since_epoch())?;
+    db.touch_collection(1, cid)?;
     Ok(())
 }
 
@@ -525,11 +531,10 @@ fn get_collections_modified() -> Result<()> {
     let uid = 1;
     let name = "test";
     let cid = db.create_collection(name)?;
-    let modified = ms_since_epoch();
-    db.touch_collection(uid, cid, modified)?;
+    db.touch_collection(uid, cid)?;
     let cols = db.get_collections_modified_sync(&params::GetCollections { user_id: hid(uid) })?;
     assert!(cols.contains_key(name));
-    assert_eq!(cols.get(name), Some(&modified));
+    assert_eq!(cols.get(name), Some(&db.session.timestamp));
 
     let modified = db.get_collection_modified_sync(uid, cid)?;
     assert_eq!(Some(&modified), cols.get(name));
@@ -596,7 +601,7 @@ fn get_collection_counts() -> Result<()> {
 
 #[test]
 fn put_bso() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
@@ -604,17 +609,17 @@ fn put_bso() -> Result<()> {
     let bso1 = pbso(uid, cid, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
     db.put_bso_sync(&bso1)?;
     let modified = db.get_collection_modified_sync(uid, cid)?;
-    assert_eq!(bso1.modified, modified);
+    assert_eq!(modified, db.session.timestamp);
 
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
     assert_eq!(&bso.payload, "foo");
     assert_eq!(bso.sortindex, Some(1));
 
-    let mut bso2 = pbso(uid, cid, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
-    bso2.modified += 19;
+    let bso2 = pbso(uid, cid, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
+    db.session.timestamp += 19;
     db.put_bso_sync(&bso2)?;
     let modified = db.get_collection_modified_sync(uid, cid)?;
-    assert_eq!(bso2.modified, modified);
+    assert_eq!(modified, db.session.timestamp);
 
     let bso = db.get_bso_sync(&gbso(uid, cid, bid))?.unwrap();
     assert_eq!(&bso.payload, "bar");
@@ -696,13 +701,14 @@ fn get_bso() -> Result<()> {
 
 #[test]
 fn get_bsos() -> Result<()> {
-    let db = db()?;
+    let mut db = db()?;
 
     let uid = 1;
     let cid = 1;
+    let timestamp = db.session.timestamp;
     let sortindexes = vec![1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
-        let mut bso = pbso(
+        let bso = pbso(
             uid,
             cid,
             // XXX: to_string?
@@ -711,9 +717,10 @@ fn get_bsos() -> Result<()> {
             Some(*sortindex),
             None,
         );
-        bso.modified += i as i64 * 10;
+        db.session.timestamp = timestamp + i as i64 * 10;
         db.put_bso_sync(&bso)?;
     }
+    db.session.timestamp = timestamp;
 
     let bsos = db.get_bsos_sync(
         uid,
@@ -749,7 +756,7 @@ fn get_bso_modified() -> Result<()> {
     let bso = pbso(uid, cid, bid, Some("a"), None, None);
     db.put_bso_sync(&bso)?;
     let modified = db.get_bso_modified_sync(uid, cid, bid)?;
-    assert_eq!(modified, bso.modified);
+    assert_eq!(modified, db.session.timestamp);
     Ok(())
 }
 
