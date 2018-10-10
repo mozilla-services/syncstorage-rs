@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "hawk"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "base64 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1750,7 +1750,7 @@ dependencies = [
  "env_logger 0.5.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
- "hawk 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "hawk 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "hkdf 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hmac 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2412,7 +2412,7 @@ dependencies = [
 "checksum futures-cpupool 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "ab90cde24b3319636588d0c35fe03b1333857621051837ed769faefb4c2162e4"
 "checksum generic-array 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ef25c5683767570c2bbd7deba372926a55eaae9982d7726ee2a1050239d45b9d"
 "checksum h2 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "6229ac66d3392dd83288fe04defd4b353354b15bbe07820d53dda063a736afcc"
-"checksum hawk 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "7c14503b9d63ecebb95313a05a8e89b7918cb296ef8038c0873f04e1d97a226b"
+"checksum hawk 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ee3eedeb1e09af351ffac13a16558fd07fd8bdca9ed13bbc8400836af83581dc"
 "checksum hkdf 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "20abbab77071d3a6562e459b0cf95799df1782a21a823bd8a485ff017ec2b02c"
 "checksum hmac 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "733e1b3ac906631ca01ebb577e9bb0f5e37a454032b9036b5eaea4013ed6f99a"
 "checksum hostname 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "21ceb46a83a85e824ef93669c8b390009623863b5c195d1ba747292c0c72f94e"

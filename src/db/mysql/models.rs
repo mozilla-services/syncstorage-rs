@@ -49,17 +49,33 @@ pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     Ok(embedded_migrations::run(&conn)?)
 }
 
+/// Per session Db metadata
+pub(super) struct MysqlDbSession {
+    /// The "current time" on the server used for this session's operations
+    pub(super) timestamp: i64,
+    /// Cache of collection modified timestamps per (user_id, collection_id)
+    coll_modified_cache: HashMap<(u32, i32), i64>,
+}
+
+impl Default for MysqlDbSession {
+    fn default() -> Self {
+        Self {
+            timestamp: ms_since_epoch(),
+            coll_modified_cache: Default::default(),
+        }
+    }
+}
+
 pub struct MysqlDb {
     #[cfg(not(test))]
     pub(super) conn: Conn,
     #[cfg(test)]
     pub(super) conn: LoggingConnection<Conn>,
 
+    pub(super) session: MysqlDbSession,
+
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
-
-    /// Per session cache of modified timestamps per (user_id, collection_id)
-    coll_modified_cache: HashMap<(u32, i32), i64>,
 }
 
 impl MysqlDb {
@@ -70,19 +86,20 @@ impl MysqlDb {
             #[cfg(test)]
             conn: LoggingConnection::new(conn),
             coll_cache,
-            coll_modified_cache: Default::default(),
+            session: Default::default(),
         }
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
         // XXX: handle concurrent attempts at inserts
-        let collection_id = self.conn.transaction(|| {
+        let id = self.conn.transaction(|| {
             sql_query("INSERT INTO collections (name) VALUES (?)")
                 .bind::<Text, _>(name)
                 .execute(&self.conn)?;
             collections::table.select(last_insert_id).first(&self.conn)
         })?;
-        Ok(collection_id)
+        self.coll_cache.put(id, name.to_owned())?;
+        Ok(id)
     }
 
     pub fn delete_storage_sync(&self, user_id: u32) -> Result<()> {
@@ -95,7 +112,8 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn delete_collection_sync(&self, user_id: u32, collection_id: i32) -> Result<i64> {
+    pub fn delete_collection_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         let mut count = delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
@@ -110,17 +128,25 @@ impl MysqlDb {
         self.get_storage_modified_sync(user_id)
     }
 
+    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
+        self.get_collection_id(name).or_else(|e| match e.kind() {
+            DbErrorKind::CollectionNotFound => self.create_collection(name),
+            _ => Err(e),
+        })
+    }
+
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
-        let id = if let Some(id) = self.coll_cache.get_id(name)? {
-            id
-        } else {
-            sql_query("SELECT id FROM collections WHERE name = ?")
-                .bind::<Text, _>(name)
-                .get_result::<IdResult>(&self.conn)
-                .optional()?
-                .ok_or(DbErrorKind::CollectionNotFound)?
-                .id
-        };
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        let id = sql_query("SELECT id FROM collections WHERE name = ?")
+            .bind::<Text, _>(name)
+            .get_result::<IdResult>(&self.conn)
+            .optional()?
+            .ok_or(DbErrorKind::CollectionNotFound)?
+            .id;
+        self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
 
@@ -147,7 +173,7 @@ impl MysqlDb {
         }
         */
 
-        // XXX: this should auto create collections when they're not found
+        let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
 
         // XXX: consider mysql ON DUPLICATE KEY UPDATE?
@@ -158,7 +184,7 @@ impl MysqlDb {
             "#;
             let exists = sql_query(q)
                 .bind::<Integer, _>(user_id as i32) // XXX:
-                .bind::<Integer, _>(&bso.collection_id)
+                .bind::<Integer, _>(&collection_id)
                 .bind::<Text, _>(&bso.id)
                 .get_result::<Count>(&self.conn)
                 .optional()?
@@ -167,9 +193,9 @@ impl MysqlDb {
             if exists {
                 update(bso::table)
                     .filter(bso::user_id.eq(user_id as i32)) // XXX:
-                    .filter(bso::collection_id.eq(&bso.collection_id))
+                    .filter(bso::collection_id.eq(&collection_id))
                     .filter(bso::id.eq(&bso.id))
-                    .set(put_bso_as_changeset(&bso))
+                    .set(put_bso_as_changeset(&bso, self.session.timestamp))
                     .execute(&self.conn)?;
             } else {
                 let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
@@ -178,17 +204,16 @@ impl MysqlDb {
                 insert_into(bso::table)
                     .values((
                         bso::user_id.eq(user_id as i32), // XXX:
-                        bso::collection_id.eq(&bso.collection_id),
+                        bso::collection_id.eq(&collection_id),
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
-                        bso::modified.eq(bso.modified),
-                        bso::expiry.eq(bso.modified + ttl as i64),
+                        bso::modified.eq(&self.session.timestamp),
+                        bso::expiry.eq(self.session.timestamp + ttl as i64),
                     )).execute(&self.conn)?;
             }
-            self.touch_collection(user_id as u32, bso.collection_id, bso.modified)?;
-            // XXX:
-            Ok(bso.modified as u64)
+            self.touch_collection(user_id as u32, collection_id)
+                .map(|timestamp| timestamp as u64)
         })
     }
 
@@ -196,7 +221,7 @@ impl MysqlDb {
     pub fn get_bsos_sync(
         &self,
         user_id: u32,
-        collection_id: i32,
+        collection: &str,
         mut ids: &[&str],
         older: u64,
         newer: u64,
@@ -204,6 +229,7 @@ impl MysqlDb {
         limit: i64,
         offset: i64,
     ) -> Result<results::BSOs> {
+        let collection_id = self.get_collection_id(collection)?;
         // XXX: ensure offset/limit/newer are valid
 
         // XXX: should error out (400 Bad Request) when more than 100
@@ -221,7 +247,7 @@ impl MysqlDb {
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::modified.lt(older as i64))
             .filter(bso::modified.gt(newer as i64))
-            .filter(bso::expiry.gt(ms_since_epoch()))
+            .filter(bso::expiry.gt(&self.session.timestamp))
             .into_boxed();
 
         if !ids.is_empty() {
@@ -260,46 +286,41 @@ impl MysqlDb {
     }
 
     pub fn get_bso_sync(&self, params: &params::GetBso) -> Result<Option<results::GetBso>> {
+        let collection_id = self.get_collection_id(&params.collection)?;
         let user_id = params.user_id.legacy_id;
         Ok(sql_query(r#"
                SELECT id, modified, payload, sortindex, expiry FROM bso
                WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
            "#)
            .bind::<Integer, _>(user_id as i32) // XXX:
-           .bind::<Integer, _>(&params.collection_id)
+           .bind::<Integer, _>(&collection_id)
            .bind::<Text, _>(&params.id)
-           .bind::<BigInt, _>(ms_since_epoch())
+           .bind::<BigInt, _>(&self.session.timestamp)
            .get_result::<results::GetBso>(&self.conn)
            .optional()?)
     }
 
-    pub fn delete_bso_sync(&self, user_id: u32, collection_id: i32, bso_id: &str) -> Result<i64> {
-        self.delete_bsos_sync(user_id, collection_id, &[bso_id])
+    pub fn delete_bso_sync(&self, user_id: u32, collection: &str, bso_id: &str) -> Result<i64> {
+        self.delete_bsos_sync(user_id, collection, &[bso_id])
     }
 
-    pub fn delete_bsos_sync(
-        &self,
-        user_id: u32,
-        collection_id: i32,
-        bso_id: &[&str],
-    ) -> Result<i64> {
+    pub fn delete_bsos_sync(&self, user_id: u32, collection: &str, bso_id: &[&str]) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq_any(bso_id))
             .execute(&self.conn)?;
-        let modified = ms_since_epoch();
-        self.touch_collection(user_id, collection_id, modified)?;
-        Ok(modified)
+        self.touch_collection(user_id, collection_id)
     }
 
     pub fn post_bsos_sync(
         &self,
         input: &params::PostCollection,
     ) -> Result<results::PostCollection> {
-        let modified = ms_since_epoch();
+        let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostCollection {
-            modified: modified as u64,
+            modified: self.session.timestamp as u64,
             success: Default::default(),
             failed: Default::default(),
         };
@@ -307,12 +328,11 @@ impl MysqlDb {
         for pbso in &input.bsos {
             let put_result = self.put_bso_sync(&params::PutBso {
                 user_id: input.user_id.clone(),
-                collection_id: input.collection_id,
+                collection: input.collection.clone(),
                 id: pbso.id.clone(),
                 payload: pbso.payload.as_ref().map(Into::into),
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
-                modified,
             });
             // XXX: python version doesn't report failures from db layer..
             // XXX: sanitize to.to_string()?
@@ -323,11 +343,7 @@ impl MysqlDb {
                 }
             }
         }
-        self.touch_collection(
-            input.user_id.legacy_id as u32,
-            input.collection_id,
-            modified,
-        )?;
+        self.touch_collection(input.user_id.legacy_id as u32, collection_id)?;
         Ok(result)
     }
 
@@ -339,8 +355,13 @@ impl MysqlDb {
             .unwrap_or_default())
     }
 
-    pub fn get_collection_modified_sync(&self, user_id: u32, collection_id: i32) -> Result<i64> {
-        if let Some(modified) = self.coll_modified_cache.get(&(user_id, collection_id)) {
+    pub fn get_collection_modified_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
+        if let Some(modified) = self
+            .session
+            .coll_modified_cache
+            .get(&(user_id, collection_id))
+        {
             return Ok(*modified);
         }
         user_collections::table
@@ -355,9 +376,10 @@ impl MysqlDb {
     pub fn get_bso_modified_sync(
         &self,
         user_id: u32,
-        collection_id: i32,
+        collection: &str,
         bso_id: &str,
     ) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         bso::table
             .select(bso::modified)
             .filter(bso::user_id.eq(user_id as i32))
@@ -417,12 +439,7 @@ impl MysqlDb {
         Ok(names)
     }
 
-    pub(super) fn touch_collection(
-        &self,
-        user_id: u32,
-        collection_id: i32,
-        modified: i64,
-    ) -> Result<()> {
+    pub(super) fn touch_collection(&self, user_id: u32, collection_id: i32) -> Result<i64> {
         let upsert = r#"
                 INSERT INTO user_collections (user_id, collection_id, modified)
                 VALUES (?, ?, ?)
@@ -431,10 +448,10 @@ impl MysqlDb {
         sql_query(upsert)
             .bind::<Integer, _>(user_id as i32)
             .bind::<Integer, _>(&collection_id)
-            .bind::<BigInt, _>(&modified)
-            .bind::<BigInt, _>(&modified)
+            .bind::<BigInt, _>(&self.session.timestamp)
+            .bind::<BigInt, _>(&self.session.timestamp)
             .execute(&self.conn)?;
-        Ok(())
+        Ok(self.session.timestamp)
     }
 
     pub fn get_storage_size_sync(
@@ -444,7 +461,7 @@ impl MysqlDb {
         let total_size = bso::table
             .select(sql::<BigInt>("SUM(LENGTH(payload))"))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .filter(bso::expiry.gt(&self.session.timestamp))
             .get_result::<i64>(&self.conn)?;
         Ok(total_size as u64)
     }
@@ -456,7 +473,7 @@ impl MysqlDb {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .filter(bso::expiry.gt(&self.session.timestamp))
             .group_by(bso::collection_id)
             .load(&self.conn)?
             .into_iter()
@@ -471,7 +488,7 @@ impl MysqlDb {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .filter(bso::expiry.gt(&self.session.timestamp))
             .group_by(bso::collection_id)
             .load(&self.conn)?
             .into_iter()
@@ -532,13 +549,13 @@ struct UpdateBSO<'a> {
     pub expiry: Option<i64>,
 }
 
-fn put_bso_as_changeset<'a>(bso: &'a params::PutBso) -> UpdateBSO<'a> {
+fn put_bso_as_changeset<'a>(bso: &'a params::PutBso, modified: i64) -> UpdateBSO<'a> {
     UpdateBSO {
         sortindex: bso.sortindex,
-        expiry: bso.ttl.map(|ttl| bso.modified + ttl as i64),
+        expiry: bso.ttl.map(|ttl| modified + ttl as i64),
         payload: bso.payload.as_ref().map(|payload| &**payload),
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
-            Some(bso.modified)
+            Some(modified)
         } else {
             None
         },
