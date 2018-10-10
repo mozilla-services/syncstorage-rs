@@ -47,7 +47,7 @@ pub fn get_quota(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
         meta.state
             .db
-            .get_quota(&params::GetQuota {
+            .get_storage_usage(&params::GetStorageUsage {
                 user_id: meta.user_id,
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),

@@ -28,6 +28,7 @@ use db::{
     Db, DbFuture, Sorting,
 };
 use settings::Settings;
+use web::auth::HawkIdentifier;
 
 embed_migrations!();
 
@@ -181,7 +182,6 @@ impl MysqlDb {
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
-                        bso::payload_size.eq(payload.len() as i32), // XXX:
                         bso::modified.eq(bso.modified),
                         bso::expiry.eq(bso.modified + ttl as i64),
                     )).execute(&self.conn)?;
@@ -437,10 +437,25 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn get_collection_counts_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+    pub fn get_storage_size_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetStorageUsage> {
+        let total_size = bso::table
+            .select(sql::<BigInt>("SUM(LENGTH(payload))"))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
+            .filter(bso::expiry.gt(&ms_since_epoch()))
+            .get_result::<i64>(&self.conn)?;
+        Ok(total_size as u64)
+    }
+
+    pub fn get_collection_sizes_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
-            .filter(bso::user_id.eq(user_id as i32))
+            .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -449,10 +464,13 @@ impl MysqlDb {
         self.map_collection_names(counts)
     }
 
-    pub fn get_collection_sizes_sync(&self, user_id: u32) -> Result<results::GetCollectionCounts> {
+    pub fn get_collection_counts_sync(
+        &self,
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("SUM(payload_size)")))
-            .filter(bso::user_id.eq(user_id as i32))
+            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
+            .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&ms_since_epoch()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -467,7 +485,7 @@ impl Db for MysqlDb {
     mock_db_method!(get_collections, GetCollections);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_quota, GetQuota);
+    mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(delete_all, DeleteAll);
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(get_collection, GetCollection);
@@ -510,7 +528,6 @@ struct Count {
 struct UpdateBSO<'a> {
     pub sortindex: Option<i32>,
     pub payload: Option<&'a str>,
-    pub payload_size: Option<i32>,
     pub modified: Option<i64>,
     pub expiry: Option<i64>,
 }
@@ -520,7 +537,6 @@ fn put_bso_as_changeset<'a>(bso: &'a params::PutBso) -> UpdateBSO<'a> {
         sortindex: bso.sortindex,
         expiry: bso.ttl.map(|ttl| bso.modified + ttl as i64),
         payload: bso.payload.as_ref().map(|payload| &**payload),
-        payload_size: bso.payload.as_ref().map(|payload| payload.len() as i32), // XXX:
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
             Some(bso.modified)
         } else {

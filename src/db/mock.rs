@@ -26,7 +26,7 @@ impl Db for MockDb {
     mock_db_method!(get_collections, GetCollections);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_quota, GetQuota);
+    mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(delete_all, DeleteAll);
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(get_collection, GetCollection);

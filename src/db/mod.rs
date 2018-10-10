@@ -59,7 +59,10 @@ pub trait Db: Send {
         params: &params::GetCollectionUsage,
     ) -> DbFuture<results::GetCollectionUsage>;
 
-    fn get_quota(&self, params: &params::GetQuota) -> DbFuture<results::GetQuota>;
+    fn get_storage_usage(
+        &self,
+        params: &params::GetStorageUsage,
+    ) -> DbFuture<results::GetStorageUsage>;
 
     fn delete_all(&self, params: &params::DeleteAll) -> DbFuture<results::DeleteAll>;
 

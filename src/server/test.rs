@@ -150,7 +150,7 @@ fn configuration() {
 
 #[test]
 fn quota() {
-    test_endpoint(http::Method::GET, "/42/info/quota", "[]");
+    test_endpoint(http::Method::GET, "/42/info/quota", "0");
 }
 
 #[test]

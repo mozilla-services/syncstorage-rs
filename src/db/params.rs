@@ -51,7 +51,7 @@ uid_data! {
     GetCollections,
     GetCollectionCounts,
     GetCollectionUsage,
-    GetQuota,
+    GetStorageUsage,
     DeleteAll,
 }
 

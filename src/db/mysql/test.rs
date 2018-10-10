@@ -89,6 +89,10 @@ fn gbso(user_id: u32, cid: i32, bid: &str) -> params::GetBso {
     }
 }
 
+fn hid(user_id: u32) -> HawkIdentifier {
+    HawkIdentifier::new_legacy(user_id as u64)
+}
+
 #[test]
 fn static_collection_id() -> Result<()> {
     let db = db()?;
@@ -523,9 +527,7 @@ fn get_collections_modified() -> Result<()> {
     let cid = db.create_collection(name)?;
     let modified = ms_since_epoch();
     db.touch_collection(uid, cid, modified)?;
-    let cols = db.get_collections_modified_sync(&params::GetCollections {
-        user_id: HawkIdentifier::new_legacy(uid as u64),
-    })?;
+    let cols = db.get_collections_modified_sync(&params::GetCollections { user_id: hid(uid) })?;
     assert!(cols.contains_key(name));
     assert_eq!(cols.get(name), Some(&modified));
 
@@ -563,8 +565,10 @@ fn get_collection_sizes() -> Result<()> {
         }
     }
 
-    let sizes = db.get_collection_sizes_sync(uid)?;
+    let sizes = db.get_collection_sizes_sync(hid(uid))?;
     assert_eq!(sizes, expected);
+    let total = db.get_storage_size_sync(hid(uid))?;
+    assert_eq!(total, expected.values().sum::<i64>() as u64);
     Ok(())
 }
 
@@ -585,7 +589,7 @@ fn get_collection_counts() -> Result<()> {
         }
     }
 
-    let counts = db.get_collection_counts_sync(uid)?;
+    let counts = db.get_collection_counts_sync(hid(uid))?;
     assert_eq!(counts, expected);
     Ok(())
 }
@@ -625,7 +629,7 @@ fn post_bsos() -> Result<()> {
     let uid = 1;
     let cid = 1;
     let result = db.post_bsos_sync(&params::PostCollection {
-        user_id: HawkIdentifier::new_legacy(uid as u64),
+        user_id: hid(uid),
         collection_id: cid,
         bsos: vec![
             postbso("b0", Some("payload 0"), Some(10), None),
@@ -646,7 +650,7 @@ fn post_bsos() -> Result<()> {
     assert_eq!(result.modified, modified as u64);
 
     let result2 = db.post_bsos_sync(&params::PostCollection {
-        user_id: HawkIdentifier::new_legacy(uid as u64),
+        user_id: hid(uid),
         collection_id: cid,
         bsos: vec![
             postbso("b0", Some("updated 0"), Some(11), Some(100000)),
