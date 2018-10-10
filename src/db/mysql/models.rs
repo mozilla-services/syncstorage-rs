@@ -92,13 +92,14 @@ impl MysqlDb {
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
         // XXX: handle concurrent attempts at inserts
-        let collection_id = self.conn.transaction(|| {
+        let id = self.conn.transaction(|| {
             sql_query("INSERT INTO collections (name) VALUES (?)")
                 .bind::<Text, _>(name)
                 .execute(&self.conn)?;
             collections::table.select(last_insert_id).first(&self.conn)
         })?;
-        Ok(collection_id)
+        self.coll_cache.put(id, name.to_owned())?;
+        Ok(id)
     }
 
     pub fn delete_storage_sync(&self, user_id: u32) -> Result<()> {
@@ -127,17 +128,25 @@ impl MysqlDb {
         self.get_storage_modified_sync(user_id)
     }
 
+    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
+        self.get_collection_id(name).or_else(|e| match e.kind() {
+            DbErrorKind::CollectionNotFound => self.create_collection(name),
+            _ => Err(e),
+        })
+    }
+
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
-        let id = if let Some(id) = self.coll_cache.get_id(name)? {
-            id
-        } else {
-            sql_query("SELECT id FROM collections WHERE name = ?")
-                .bind::<Text, _>(name)
-                .get_result::<IdResult>(&self.conn)
-                .optional()?
-                .ok_or(DbErrorKind::CollectionNotFound)?
-                .id
-        };
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        let id = sql_query("SELECT id FROM collections WHERE name = ?")
+            .bind::<Text, _>(name)
+            .get_result::<IdResult>(&self.conn)
+            .optional()?
+            .ok_or(DbErrorKind::CollectionNotFound)?
+            .id;
+        self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
 
@@ -164,8 +173,7 @@ impl MysqlDb {
         }
         */
 
-        let collection_id = self.get_collection_id(&bso.collection)?;
-        // XXX: this should auto create collections when they're not found
+        let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
 
         // XXX: consider mysql ON DUPLICATE KEY UPDATE?
@@ -310,7 +318,7 @@ impl MysqlDb {
         &self,
         input: &params::PostCollection,
     ) -> Result<results::PostCollection> {
-        let collection_id = self.get_collection_id(&input.collection)?;
+        let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostCollection {
             modified: self.session.timestamp as u64,
             success: Default::default(),

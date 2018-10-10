@@ -501,8 +501,7 @@ fn delete_collection() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
-    let coll = "NewConnection";
-    db.create_collection(coll)?;
+    let coll = "NewCollection";
     for bid in 1..=3 {
         db.put_bso_sync(&pbso(uid, coll, &bid.to_string(), Some("test"), None, None))?;
     }
@@ -601,7 +600,7 @@ fn put_bso() -> Result<()> {
     let mut db = db()?;
 
     let uid = 1;
-    let coll = "clients";
+    let coll = "NewCollection";
     let bid = "b0";
     let bso1 = pbso(uid, coll, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
     db.put_bso_sync(&bso1)?;
@@ -629,7 +628,7 @@ fn post_bsos() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
-    let coll = "clients";
+    let coll = "NewCollection";
     let result = db.post_bsos_sync(&params::PostCollection {
         user_id: hid(uid),
         collection: coll.to_owned(),

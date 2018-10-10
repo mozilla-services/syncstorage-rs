@@ -22,7 +22,7 @@ use sha2::Sha256;
 use time::Duration;
 
 use server::ServerState;
-use settings::{Secrets, ServerLimits, Settings};
+use settings::{Secrets, Settings};
 
 /// Represents a user-identifier that is extract from the authentication token
 ///
@@ -232,7 +232,7 @@ from_error!(ToStrError);
 
 #[cfg(test)]
 mod tests {
-    use super::{HawkPayload, Secrets, ServerLimits, Settings};
+    use super::{HawkPayload, Secrets, Settings};
 
     #[test]
     fn valid_header() {
@@ -513,7 +513,7 @@ mod tests {
                     database_url: "".to_string(),
                     database_pool_max_size: None,
                     database_use_test_transactions: false,
-                    limits: ServerLimits::default(),
+                    limits: Default::default(),
                     master_secret: Secrets::new("Ted Koppel is a robot"),
                 },
                 expected: HawkPayload {
