@@ -3,7 +3,7 @@
 use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, Query, State};
 use futures::future::{self, Future};
 
-use db::{params, util::ms_since_epoch, DbError};
+use db::{params, DbError};
 use server::ServerState;
 use web::auth::{HawkIdentifier, HawkPayload};
 use web::extractors::{
@@ -167,7 +167,6 @@ pub fn put_bso(
                 user_id: auth,
                 collection_id: 2,
                 id: params.bso.clone(),
-                modified: ms_since_epoch(),
                 sortindex: body.sortindex,
                 payload: body.payload.as_ref().map(|payload| payload.into()),
                 ttl: body.ttl,
