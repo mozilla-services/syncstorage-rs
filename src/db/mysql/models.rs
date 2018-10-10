@@ -111,7 +111,8 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn delete_collection_sync(&self, user_id: u32, collection_id: i32) -> Result<i64> {
+    pub fn delete_collection_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         let mut count = delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
@@ -163,6 +164,7 @@ impl MysqlDb {
         }
         */
 
+        let collection_id = self.get_collection_id(&bso.collection)?;
         // XXX: this should auto create collections when they're not found
         let user_id: u64 = bso.user_id.legacy_id;
 
@@ -174,7 +176,7 @@ impl MysqlDb {
             "#;
             let exists = sql_query(q)
                 .bind::<Integer, _>(user_id as i32) // XXX:
-                .bind::<Integer, _>(&bso.collection_id)
+                .bind::<Integer, _>(&collection_id)
                 .bind::<Text, _>(&bso.id)
                 .get_result::<Count>(&self.conn)
                 .optional()?
@@ -183,7 +185,7 @@ impl MysqlDb {
             if exists {
                 update(bso::table)
                     .filter(bso::user_id.eq(user_id as i32)) // XXX:
-                    .filter(bso::collection_id.eq(&bso.collection_id))
+                    .filter(bso::collection_id.eq(&collection_id))
                     .filter(bso::id.eq(&bso.id))
                     .set(put_bso_as_changeset(&bso, self.session.timestamp))
                     .execute(&self.conn)?;
@@ -194,7 +196,7 @@ impl MysqlDb {
                 insert_into(bso::table)
                     .values((
                         bso::user_id.eq(user_id as i32), // XXX:
-                        bso::collection_id.eq(&bso.collection_id),
+                        bso::collection_id.eq(&collection_id),
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
@@ -202,7 +204,7 @@ impl MysqlDb {
                         bso::expiry.eq(self.session.timestamp + ttl as i64),
                     )).execute(&self.conn)?;
             }
-            self.touch_collection(user_id as u32, bso.collection_id)
+            self.touch_collection(user_id as u32, collection_id)
                 .map(|timestamp| timestamp as u64)
         })
     }
@@ -211,7 +213,7 @@ impl MysqlDb {
     pub fn get_bsos_sync(
         &self,
         user_id: u32,
-        collection_id: i32,
+        collection: &str,
         mut ids: &[&str],
         older: u64,
         newer: u64,
@@ -219,6 +221,7 @@ impl MysqlDb {
         limit: i64,
         offset: i64,
     ) -> Result<results::BSOs> {
+        let collection_id = self.get_collection_id(collection)?;
         // XXX: ensure offset/limit/newer are valid
 
         // XXX: should error out (400 Bad Request) when more than 100
@@ -275,29 +278,26 @@ impl MysqlDb {
     }
 
     pub fn get_bso_sync(&self, params: &params::GetBso) -> Result<Option<results::GetBso>> {
+        let collection_id = self.get_collection_id(&params.collection)?;
         let user_id = params.user_id.legacy_id;
         Ok(sql_query(r#"
                SELECT id, modified, payload, sortindex, expiry FROM bso
                WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
            "#)
            .bind::<Integer, _>(user_id as i32) // XXX:
-           .bind::<Integer, _>(&params.collection_id)
+           .bind::<Integer, _>(&collection_id)
            .bind::<Text, _>(&params.id)
            .bind::<BigInt, _>(&self.session.timestamp)
            .get_result::<results::GetBso>(&self.conn)
            .optional()?)
     }
 
-    pub fn delete_bso_sync(&self, user_id: u32, collection_id: i32, bso_id: &str) -> Result<i64> {
-        self.delete_bsos_sync(user_id, collection_id, &[bso_id])
+    pub fn delete_bso_sync(&self, user_id: u32, collection: &str, bso_id: &str) -> Result<i64> {
+        self.delete_bsos_sync(user_id, collection, &[bso_id])
     }
 
-    pub fn delete_bsos_sync(
-        &self,
-        user_id: u32,
-        collection_id: i32,
-        bso_id: &[&str],
-    ) -> Result<i64> {
+    pub fn delete_bsos_sync(&self, user_id: u32, collection: &str, bso_id: &[&str]) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
@@ -310,6 +310,7 @@ impl MysqlDb {
         &self,
         input: &params::PostCollection,
     ) -> Result<results::PostCollection> {
+        let collection_id = self.get_collection_id(&input.collection)?;
         let mut result = results::PostCollection {
             modified: self.session.timestamp as u64,
             success: Default::default(),
@@ -319,7 +320,7 @@ impl MysqlDb {
         for pbso in &input.bsos {
             let put_result = self.put_bso_sync(&params::PutBso {
                 user_id: input.user_id.clone(),
-                collection_id: input.collection_id,
+                collection: input.collection.clone(),
                 id: pbso.id.clone(),
                 payload: pbso.payload.as_ref().map(Into::into),
                 sortindex: pbso.sortindex,
@@ -334,7 +335,7 @@ impl MysqlDb {
                 }
             }
         }
-        self.touch_collection(input.user_id.legacy_id as u32, input.collection_id)?;
+        self.touch_collection(input.user_id.legacy_id as u32, collection_id)?;
         Ok(result)
     }
 
@@ -346,7 +347,8 @@ impl MysqlDb {
             .unwrap_or_default())
     }
 
-    pub fn get_collection_modified_sync(&self, user_id: u32, collection_id: i32) -> Result<i64> {
+    pub fn get_collection_modified_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         if let Some(modified) = self
             .session
             .coll_modified_cache
@@ -366,9 +368,10 @@ impl MysqlDb {
     pub fn get_bso_modified_sync(
         &self,
         user_id: u32,
-        collection_id: i32,
+        collection: &str,
         bso_id: &str,
     ) -> Result<i64> {
+        let collection_id = self.get_collection_id(collection)?;
         bso::table
             .select(bso::modified)
             .filter(bso::user_id.eq(user_id as i32))

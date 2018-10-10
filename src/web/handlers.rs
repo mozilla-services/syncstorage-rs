@@ -78,7 +78,7 @@ pub fn delete_collection(
             .db
             .delete_collection(&params::DeleteCollection {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
                 bso_ids: query
                     .ids
                     .as_ref()
@@ -96,7 +96,7 @@ pub fn get_collection(
             .db
             .get_collection(&params::GetCollection {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
@@ -115,7 +115,7 @@ pub fn post_collection(
             .db
             .post_collection(&params::PostCollection {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
                 bsos: body.into_inner().into_iter().map(From::from).collect(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
@@ -130,7 +130,7 @@ pub fn delete_bso(
             .db
             .delete_bso(&params::DeleteBso {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
                 id: params.bso.clone(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
@@ -145,7 +145,7 @@ pub fn get_bso(
             .db
             .get_bso(&params::GetBso {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
                 id: params.bso.clone(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
@@ -165,7 +165,7 @@ pub fn put_bso(
             .db
             .put_bso(&params::PutBso {
                 user_id: auth,
-                collection_id: 2,
+                collection: "tabs".to_owned(),
                 id: params.bso.clone(),
                 sortindex: body.sortindex,
                 payload: body.payload.as_ref().map(|payload| payload.into()),

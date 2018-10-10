@@ -27,7 +27,7 @@ macro_rules! collection_data {
         data! {
             $name {
                 user_id: HawkIdentifier,
-                collection_id: i32,
+                collection: String,
                 $($property: $type,)*
             }
         }
@@ -39,7 +39,7 @@ macro_rules! bso_data {
         data! {
             $name {
                 user_id: HawkIdentifier,
-                collection_id: i32,
+                collection: String,
                 id: String,
                 $($property: $type,)*
             }
@@ -74,7 +74,7 @@ bso_data! {
 
 pub struct PutBso<'a> {
     pub user_id: HawkIdentifier,
-    pub collection_id: i32,
+    pub collection: String,
     pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<Cow<'a, str>>,
