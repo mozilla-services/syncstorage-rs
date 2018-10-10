@@ -1,6 +1,7 @@
 use std::{collections::HashMap, result::Result as StdResult};
 
 use diesel::{
+    connection::TransactionManager,
     mysql::MysqlConnection,
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, QueryDsl, RunQueryDsl,
@@ -835,5 +836,34 @@ fn delete_storage() -> Result<()> {
     // collection data sticks around
     let cid2 = db.get_collection_id("my_collection")?;
     assert_eq!(cid2, cid);
+    Ok(())
+}
+
+#[test]
+fn lock_for_read() -> Result<()> {
+    let mut db = db()?;
+
+    let uid = 1;
+    let coll = "clients";
+    db.conn.transaction_manager().begin_transaction(&db.conn)?;
+    db.lock_for_read(hid(uid), coll)?;
+    match db.get_collection_id("NewCollection").unwrap_err().kind() {
+        DbErrorKind::CollectionNotFound => assert!(true),
+        _ => assert!(false),
+    }
+    db.conn.transaction_manager().commit_transaction(&db.conn)?;
+    Ok(())
+}
+
+#[test]
+fn lock_for_write() -> Result<()> {
+    let mut db = db()?;
+
+    let uid = 1;
+    let coll = "clients";
+    db.conn.transaction_manager().begin_transaction(&db.conn)?;
+    db.lock_for_write(hid(uid), coll)?;
+    db.put_bso_sync(&pbso(uid, coll, "1", Some("foo"), None, None))?;
+    db.conn.transaction_manager().commit_transaction(&db.conn)?;
     Ok(())
 }

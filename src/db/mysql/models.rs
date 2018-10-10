@@ -18,6 +18,7 @@ use diesel_logger::LoggingConnection;
 use futures::future;
 
 use super::{
+    diesel_ext::LockInShareModeDsl,
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
 };
@@ -49,12 +50,19 @@ pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     Ok(embedded_migrations::run(&conn)?)
 }
 
+enum CollectionLock {
+    Read,
+    Write,
+}
+
 /// Per session Db metadata
 pub(super) struct MysqlDbSession {
     /// The "current time" on the server used for this session's operations
     pub(super) timestamp: i64,
     /// Cache of collection modified timestamps per (user_id, collection_id)
     coll_modified_cache: HashMap<(u32, i32), i64>,
+    /// Currently locked collections
+    coll_locks: HashMap<(u32, i32), CollectionLock>,
 }
 
 impl Default for MysqlDbSession {
@@ -62,6 +70,7 @@ impl Default for MysqlDbSession {
         Self {
             timestamp: ms_since_epoch(),
             coll_modified_cache: Default::default(),
+            coll_locks: Default::default(),
         }
     }
 }
@@ -90,16 +99,80 @@ impl MysqlDb {
         }
     }
 
-    pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
-        // XXX: handle concurrent attempts at inserts
-        let id = self.conn.transaction(|| {
-            sql_query("INSERT INTO collections (name) VALUES (?)")
-                .bind::<Text, _>(name)
-                .execute(&self.conn)?;
-            collections::table.select(last_insert_id).first(&self.conn)
-        })?;
-        self.coll_cache.put(id, name.to_owned())?;
-        Ok(id)
+    /// APIs for collection-level locking
+    ///
+    /// Explicitly lock the matching row in the user_collections table. Read
+    /// locks do SELECT ... LOCK IN SHARE MODE and write locks do SELECT
+    /// ... FOR UPDATE.
+    ///
+    /// In theory it would be possible to use serializable transactions rather
+    /// than explicit locking, but our ops team have expressed concerns about
+    /// the efficiency of that approach at scale.
+    pub fn lock_for_read(&mut self, user_id: HawkIdentifier, collection: &str) -> Result<()> {
+        let user_id = user_id.legacy_id as u32;
+        let collection_id = self
+            .get_collection_id(collection)
+            .or_else(|e| match e.kind() {
+                // If the collection doesn't exist, we still want to start a
+                // transaction so it will continue to not exist.
+                DbErrorKind::CollectionNotFound => Ok(0),
+                _ => Err(e),
+            })?;
+        // If we already have a read or write lock then it's safe to
+        // use it as-is.
+        if let Some(_) = self.session.coll_locks.get(&(user_id, collection_id)) {
+            return Ok(());
+        }
+
+        // XXX: begin transaction here like python?
+        // Lock the db
+        let modified = user_collections::table
+            .select(user_collections::modified)
+            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::collection_id.eq(collection_id))
+            .lock_in_share_mode()
+            .first(&self.conn)
+            .optional()?;
+        if let Some(modified) = modified {
+            self.session
+                .coll_modified_cache
+                .insert((user_id, collection_id), modified);
+        }
+        // XXX: who's responsible for unlocking
+        self.session
+            .coll_locks
+            .insert((user_id, collection_id), CollectionLock::Read);
+        Ok(())
+    }
+
+    pub fn lock_for_write(&mut self, user_id: HawkIdentifier, collection: &str) -> Result<()> {
+        let user_id = user_id.legacy_id as u32;
+        let collection_id = self.get_or_create_collection_id(collection)?;
+        if let Some(CollectionLock::Read) = self.session.coll_locks.get(&(user_id, collection_id)) {
+            Err(DbError::internal("Can't escalate read-lock to write-lock"))?
+        }
+
+        // Lock the db
+        let modified = user_collections::table
+            .select(user_collections::modified)
+            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::collection_id.eq(collection_id))
+            .for_update()
+            .first(&self.conn)
+            .optional()?;
+        if let Some(modified) = modified {
+            // Forbid the write if it would not properly incr the timestamp
+            if modified >= self.session.timestamp {
+                Err(DbErrorKind::Conflict)?
+            }
+            self.session
+                .coll_modified_cache
+                .insert((user_id, collection_id), modified);
+        }
+        self.session
+            .coll_locks
+            .insert((user_id, collection_id), CollectionLock::Write);
+        Ok(())
     }
 
     pub fn delete_storage_sync(&self, user_id: u32) -> Result<()> {
@@ -126,6 +199,18 @@ impl MysqlDb {
             Err(DbErrorKind::CollectionNotFound)?
         }
         self.get_storage_modified_sync(user_id)
+    }
+
+    pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
+        // XXX: handle concurrent attempts at inserts
+        let id = self.conn.transaction(|| {
+            sql_query("INSERT INTO collections (name) VALUES (?)")
+                .bind::<Text, _>(name)
+                .execute(&self.conn)?;
+            collections::table.select(last_insert_id).first(&self.conn)
+        })?;
+        self.coll_cache.put(id, name.to_owned())?;
+        Ok(id)
     }
 
     fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
