@@ -125,9 +125,77 @@ impl FromRequest<ServerState> for BsoQueryParams {
 
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        // TODO: serde deserialize the query ourselves to catch the serde error nicely
         let params = Query::<BsoQueryParams>::from_request(req, &())?.into_inner();
         params.validate().map_err(RequestValidationErrors)?;
         Ok(params)
+    }
+}
+
+/// PreCondition Header
+///
+/// It's valid to include a X-If-Modified-Since or X-If-Unmodified-Since header but not
+/// both.
+///
+/// Used with Option<PreConditionHeader> to extract a possible PreConditionHeader.
+#[derive(Debug, PartialEq)]
+pub enum PreConditionHeader {
+    IfModifiedSince(f64),
+    IfUnmodifiedSince(f64),
+}
+
+impl FromRequest<ServerState> for Option<PreConditionHeader> {
+    type Config = Settings;
+    type Result = Result<Option<PreConditionHeader>, Error>;
+
+    /// Extract and validate the precondition headers
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let mut errors = ValidationErrors::new();
+        let headers = req.headers();
+        let modified = headers.get("X-If-Modified-Since");
+        let unmodified = headers.get("X-If-Unmodified-Since");
+        if modified.is_some() && unmodified.is_some() {
+            errors.add(
+                "X-If-Unmodified-Since",
+                request_error(
+                    "Cannot specify both X-If-Modified-Since and X-If-Unmodified-Since on \
+                     a single request",
+                    RequestErrorLocation::Header,
+                ),
+            );
+            return Err(RequestValidationErrors(errors).into());
+        };
+        let (value, field_name) = if let Some(modified_value) = modified {
+            (modified_value, "X-If-Modified-Since")
+        } else if let Some(unmodified_value) = unmodified {
+            (unmodified_value, "X-If-Unmodified-Since")
+        } else {
+            return Ok(None);
+        };
+        value
+            .to_str()
+            .map_err(|_| request_error("Bad value", RequestErrorLocation::Header))
+            .and_then(|v| {
+                v.parse::<f64>()
+                    .map_err(|_| request_error("Bad value", RequestErrorLocation::Header))
+                    .and_then(|v| {
+                        // Don't allow negative values for the field
+                        if v < 0.0 {
+                            Err(request_error("Bad value", RequestErrorLocation::Header))
+                        } else {
+                            Ok(v)
+                        }
+                    })
+            }).map(|v| {
+                if field_name == "X-If-Modified-Since" {
+                    Some(PreConditionHeader::IfModifiedSince(v))
+                } else {
+                    Some(PreConditionHeader::IfUnmodifiedSince(v))
+                }
+            }).map_err(|e: ValidationError| {
+                errors.add(field_name, e);
+                RequestValidationErrors(errors).into()
+            })
     }
 }
 
@@ -384,5 +452,52 @@ mod tests {
         assert_eq!(result.sort.unwrap(), "index");
         assert_eq!(result.older.unwrap(), 2.43);
         assert_eq!(result.full, true);
+    }
+
+    #[test]
+    fn test_invalid_precondition_headers() {
+        fn assert_invalid_header(req: &HttpRequest<ServerState>) {
+            let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
+            assert!(result.is_err());
+            let response: HttpResponse = result.err().unwrap().into();
+            assert_eq!(response.status(), 400);
+            let body = extract_body_as_str(&response);
+            let err: ClientRequestError = serde_json::from_str(&body).unwrap();
+            assert_eq!(err.status, 400);
+            let errors = err.errors.unwrap();
+            assert_eq!(errors[0].location, RequestErrorLocation::Header);
+            assert_eq!(errors.len(), 1);
+        }
+        let req = TestRequest::with_state(make_state())
+            .header("X-If-Modified-Since", "32124.32")
+            .header("X-If-Unmodified-Since", "4212.12")
+            .uri("/")
+            .finish();
+        assert_invalid_header(&req);
+        let req = TestRequest::with_state(make_state())
+            .header("X-If-Modified-Since", "-32.1")
+            .uri("/")
+            .finish();
+        assert_invalid_header(&req);
+    }
+
+    #[test]
+    fn test_valid_precondition_headers() {
+        let req = TestRequest::with_state(make_state())
+            .header("X-If-Modified-Since", "32.1")
+            .uri("/")
+            .finish();
+        let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result, PreConditionHeader::IfModifiedSince(32.1));
+        let req = TestRequest::with_state(make_state())
+            .header("X-If-Unmodified-Since", "32.14")
+            .uri("/")
+            .finish();
+        let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result, PreConditionHeader::IfUnmodifiedSince(32.14));
     }
 }
