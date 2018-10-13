@@ -28,7 +28,7 @@ use db::{
     Db, DbFuture, Sorting,
 };
 use settings::Settings;
-use web::auth::HawkIdentifier;
+use web::extractors::HawkIdentifier;
 
 embed_migrations!();
 
