@@ -16,7 +16,7 @@ use time::Duration;
 use super::error::HawkErrorKind;
 use error::ApiResult;
 use server::ServerState;
-use settings::{Secrets, Settings};
+use settings::Secrets;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -124,7 +124,7 @@ impl FromRequest<ServerState> for HawkPayload {
     ///
     /// Not hugely useful, all of the configurable settings
     /// can be found on the [request state](../../server/struct.ServerState.html) instead.
-    type Config = Settings;
+    type Config = ();
 
     /// Result-wrapped `HawkPayload` instance.
     type Result = ApiResult<HawkPayload>;
@@ -132,7 +132,7 @@ impl FromRequest<ServerState> for HawkPayload {
     /// Parse and authenticate a Hawk payload
     /// from the `Authorization` header
     /// of an actix request object.
-    fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+    fn from_request(request: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         HawkPayload::new(
             request
                 .headers()
@@ -146,7 +146,7 @@ impl FromRequest<ServerState> for HawkPayload {
                 .ok_or(HawkErrorKind::MissingPath)?
                 .as_str(),
             request.uri().host().unwrap_or("127.0.0.1"),
-            request.uri().port().unwrap_or(settings.port),
+            request.uri().port().unwrap_or(request.state().port),
             &request.state().secrets,
             Utc::now().timestamp() as u64,
         )
@@ -171,7 +171,8 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{HawkPayload, Secrets, Settings};
+    use super::{HawkPayload, Secrets};
+    use settings::Settings;
 
     #[test]
     fn valid_header() {

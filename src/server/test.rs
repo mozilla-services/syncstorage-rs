@@ -10,8 +10,10 @@ use serde_json;
 use sha2::Sha256;
 
 use super::*;
+use db::mysql::pool::MysqlDbPool;
 use db::params::PostCollectionBso;
 use db::results::{GetBso, GetCollection, PostCollection, PutBso};
+use db::util::ms_since_epoch;
 use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
 use web::extractors::BsoBody;
@@ -22,12 +24,26 @@ lazy_static! {
 }
 
 fn setup() -> TestServer {
-    TestServer::build_with_state(|| ServerState {
-        db: Box::new(MockDb::new()),
-        limits: Arc::clone(&SERVER_LIMITS),
-        secrets: Arc::clone(&SECRETS),
-    }).start(|app| {
-        init_routes!(app);
+    TestServer::with_factory(|| {
+        let settings = Settings::with_env_and_config_file(&None).unwrap();
+        let settings = Settings {
+            debug: true,
+            port: 8000,
+            database_url: settings.database_url,
+            database_pool_max_size: Some(1),
+            database_use_test_transactions: true,
+            limits: ServerLimits::default(),
+            master_secret: Secrets::default(),
+        };
+
+        let state = ServerState {
+            db: Box::new(MockDb::new()),
+            db_pool: Box::new(MysqlDbPool::new(&settings).unwrap()),
+            limits: Arc::clone(&SERVER_LIMITS),
+            secrets: Arc::clone(&SECRETS),
+            port: 8000,
+        };
+        build_app(state)
     })
 }
 
@@ -219,6 +235,7 @@ fn get_bso() {
 
 #[test]
 fn put_bso() {
+    let now = ms_since_epoch() as u64;
     test_endpoint_with_body! {
         PUT "/42/storage/bookmarks/wibble", BsoBody {
             sortindex: Some(0),
@@ -226,7 +243,7 @@ fn put_bso() {
             ttl: Some(31536000),
         },
         result: PutBso {
-            assert_eq!(result, 0);
+            assert!(result > now);
         }
     };
 }

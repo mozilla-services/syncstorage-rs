@@ -1,6 +1,4 @@
 //! Parameter types for database methods.
-use std::borrow::Cow;
-
 use web::extractors::HawkIdentifier;
 
 macro_rules! data {
@@ -58,6 +56,7 @@ uid_data! {
 pub type GetCollectionId = str;
 
 collection_data! {
+    LockCollection {},
     DeleteCollection {
         bso_ids: Vec<String>,
     },
@@ -72,12 +71,12 @@ bso_data! {
     GetBso {},
 }
 
-pub struct PutBso<'a> {
+pub struct PutBso {
     pub user_id: HawkIdentifier,
     pub collection: String,
     pub id: String,
     pub sortindex: Option<i32>,
-    pub payload: Option<Cow<'a, str>>,
+    pub payload: Option<String>,
     pub ttl: Option<u32>,
 }
 
