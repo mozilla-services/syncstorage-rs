@@ -15,7 +15,7 @@ use db::mysql::{
 use db::{error::DbErrorKind, params, Sorting};
 use env_logger;
 use settings::{Secrets, ServerLimits, Settings};
-use web::auth::HawkIdentifier;
+use web::extractors::HawkIdentifier;
 
 // distant future (year 2099) timestamp for tests
 pub const MAX_TIMESTAMP: u64 = 4070937600000;

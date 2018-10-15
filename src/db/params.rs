@@ -1,7 +1,7 @@
 //! Parameter types for database methods.
 use std::borrow::Cow;
 
-use web::auth::HawkIdentifier;
+use web::extractors::HawkIdentifier;
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {

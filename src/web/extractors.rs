@@ -17,7 +17,7 @@ use validator::{Validate, ValidationError, ValidationErrors};
 
 use server::ServerState;
 use settings::Settings;
-use web::auth::HawkIdentifier;
+use web::auth::HawkPayload;
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -34,7 +34,7 @@ pub type BsoRequest = (Path<BsoParams>, HawkIdentifier, State<ServerState>);
 #[derive(Deserialize)]
 pub struct UidParam {
     #[allow(dead_code)] // Not really dead, but Rust can't see the deserialized use.
-    uid: String,
+    uid: u64,
 }
 
 #[derive(Deserialize)]
@@ -84,6 +84,63 @@ impl FromRequest<ServerState> for MetaRequest {
     }
 }
 
+/// Extract a user-identifier from the authentication token and validate against the URL
+///
+/// This token should be adapted as needed for the storage system to store data
+/// for the user.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct HawkIdentifier {
+    /// For MySQL database backends as the primary key
+    pub legacy_id: u64,
+    /// For NoSQL database backends that require randomly distributed primary keys
+    pub fxa_id: String,
+}
+
+impl FromRequest<ServerState> for HawkIdentifier {
+    type Config = Settings;
+    type Result = Result<HawkIdentifier, Error>;
+
+    /// Use HawkPayload extraction and format as HawkIdentifier.
+    fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let payload = HawkPayload::from_request(request, settings).map_err(|_| {
+            RequestValidationErrors::with_error(
+                "Authentication",
+                "Invalid authentication",
+                RequestErrorLocation::Header,
+            )
+        })?;
+        let path_uid = Path::<UidParam>::extract(request).map_err(|_| {
+            RequestValidationErrors::with_error(
+                "user-id",
+                "Invalid authentication",
+                RequestErrorLocation::Header,
+            )
+        })?;
+        if payload.user_id != path_uid.uid {
+            return Err(RequestValidationErrors::with_error(
+                "user-id",
+                "Invalid authentication",
+                RequestErrorLocation::Path,
+            ).into());
+        }
+
+        Ok(HawkIdentifier {
+            legacy_id: payload.user_id,
+            fxa_id: "".to_string(),
+        })
+    }
+}
+
+impl HawkIdentifier {
+    /// Create a new legacy id user identifier
+    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
+        HawkIdentifier {
+            legacy_id: user_id,
+            ..Default::default()
+        }
+    }
+}
+
 /// Validator to extract BSO search parameters from the query string.
 ///
 /// This validator will extract and validate the following search params used in
@@ -127,7 +184,9 @@ impl FromRequest<ServerState> for BsoQueryParams {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         // TODO: serde deserialize the query ourselves to catch the serde error nicely
         let params = Query::<BsoQueryParams>::from_request(req, &())?.into_inner();
-        params.validate().map_err(RequestValidationErrors)?;
+        params.validate().map_err(|e| {
+            RequestValidationErrors::with_location(e, RequestErrorLocation::QueryString)
+        })?;
         Ok(params)
     }
 }
@@ -255,6 +314,37 @@ enum RequestErrorLocation {
 /// be properly adapted to a ResponseError.
 #[derive(Debug)]
 pub struct RequestValidationErrors(ValidationErrors);
+
+impl RequestValidationErrors {
+    /// Map all the errors to a specific location
+    ///
+    /// This is useful for map_err to map the ValidationErrors from a single
+    /// location to include the appropriate `RequestErrorLocation`
+    fn with_location(errors: ValidationErrors, location: RequestErrorLocation) -> Self {
+        let mut new_errors = ValidationErrors::new();
+        let validation_errors = errors.field_errors();
+        for (ref field_name, errors) in validation_errors.iter() {
+            for error in errors {
+                let mut err = error.clone();
+                err.add_param("location".into(), &location);
+                new_errors.add(field_name.clone(), err);
+            }
+        }
+        RequestValidationErrors(new_errors)
+    }
+
+    /// Helper to quickly make a `RequestValidationErrors` with a single error
+    fn with_error(
+        field_name: &'static str,
+        message: &'static str,
+        location: RequestErrorLocation,
+    ) -> Self {
+        let err = request_error(message, location);
+        let mut errors = ValidationErrors::new();
+        errors.add(field_name, err);
+        RequestValidationErrors(errors)
+    }
+}
 
 impl error::Error for RequestValidationErrors {
     fn description(&self) -> &str {
@@ -393,16 +483,24 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::test::TestRequest;
-    use actix_web::{Binary, Body};
+    use actix_web::{http::Method, Binary, Body};
+    use base64;
+    use chrono::offset::Utc;
+    use hawk::{Credentials, Key, RequestBuilder};
+    use hmac::{Hmac, Mac};
+    use ring;
     use serde_json;
+    use sha2::Sha256;
 
     use db::mock::MockDb;
     use server::ServerState;
     use settings::{Secrets, ServerLimits};
 
+    use web::auth::{hkdf_expand_32, HawkPayload};
+
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
-        static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo"));
+        static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot"));
     }
 
     fn make_state() -> ServerState {
@@ -423,6 +521,38 @@ mod tests {
             },
             _ => panic!("Invalid body"),
         }
+    }
+
+    fn create_valid_hawk_header(
+        payload: &HawkPayload,
+        state: &ServerState,
+        method: &str,
+        path: &str,
+        host: &str,
+        port: u16,
+    ) -> String {
+        let salt = payload.salt.clone();
+        let payload = serde_json::to_string(payload).unwrap();
+        let mut hmac: Hmac<Sha256> = Hmac::new_varkey(&state.secrets.signing_secret).unwrap();
+        hmac.input(payload.as_bytes());
+        let payload_hash = hmac.result().code();
+        let mut id = payload.as_bytes().to_vec();
+        id.extend(payload_hash.to_vec());
+        let id = base64::encode_config(&id, base64::URL_SAFE);
+        let token_secret = hkdf_expand_32(
+            format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
+            Some(salt.as_bytes()),
+            &SECRETS.master_secret,
+        );
+        let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
+        let credentials = Credentials {
+            id,
+            key: Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
+        };
+        let request = RequestBuilder::new(method, host, port, path)
+            .hash(&payload_hash[..])
+            .request();
+        format!("Hawk {}", request.make_header(&credentials).unwrap())
     }
 
     #[test]
@@ -499,5 +629,66 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(result, PreConditionHeader::IfUnmodifiedSince(32.14));
+    }
+
+    #[test]
+    fn valid_header_with_valid_path() {
+        let payload = HawkPayload {
+            expires: Utc::now().timestamp() as f64 + 200000.0,
+            node: "friendly-node".to_string(),
+            salt: "saltysalt".to_string(),
+            user_id: 1,
+        };
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/1/storage/col2",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/1/storage/col2")
+            .param("uid", "1")
+            .finish();
+        let result = HawkIdentifier::extract(&req).unwrap();
+        assert_eq!(result.legacy_id, 1);
+    }
+
+    #[test]
+    fn valid_header_with_invalid_uid_in_path() {
+        let payload = HawkPayload {
+            expires: Utc::now().timestamp() as f64 + 200000.0,
+            node: "friendly-node".to_string(),
+            salt: "saltysalt".to_string(),
+            user_id: 1,
+        };
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/5/storage/col2",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/5/storage/col2")
+            .param("uid", "5")
+            .finish();
+        let result = HawkIdentifier::extract(&req);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
+        assert_eq!(err.status, 400);
+        let errors = err.errors.unwrap();
+        assert_eq!(errors[0].location, RequestErrorLocation::Path);
     }
 }

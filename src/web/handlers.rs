@@ -5,9 +5,10 @@ use futures::future::{self, Future};
 
 use db::{params, DbError};
 use server::ServerState;
-use web::auth::{HawkIdentifier, HawkPayload};
+use web::auth::HawkPayload;
 use web::extractors::{
-    BsoBody, BsoParams, BsoQueryParams, CollectionParams, GetCollectionRequest, MetaRequest,
+    BsoBody, BsoParams, BsoQueryParams, CollectionParams, GetCollectionRequest, HawkIdentifier,
+    MetaRequest,
 };
 
 pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
