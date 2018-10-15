@@ -50,7 +50,7 @@ pub fn get_quota(meta: MetaRequest) -> FutureResponse<HttpResponse> {
             .get_storage_usage(&params::GetStorageUsage {
                 user_id: meta.user_id,
             }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| HttpResponse::Ok().json(vec![Some(result), None])),
     )
 }
 
