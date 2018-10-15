@@ -21,6 +21,7 @@ script:
   - cargo fmt -- --check
   - cargo build
   - cargo test
+  - ./scripts/build-docs.sh
 
 notifications:
   email: false
