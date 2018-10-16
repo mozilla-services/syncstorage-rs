@@ -8,7 +8,7 @@ set -e
 
 echo "Branch: $TRAVIS_BRANCH    Pull request: $TRAVIS_PULL_REQUEST"
 
-if [ "$TRAVIS_BRANCH" == "master" -a "$TRAVIS_PULL_REQUEST" == "false" ]; then
+if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then
   echo "Building docs for deployment."
   cargo doc --document-private-items
 
