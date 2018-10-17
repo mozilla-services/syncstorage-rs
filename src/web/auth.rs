@@ -113,6 +113,16 @@ impl HawkPayload {
             Err(AuthError)
         }
     }
+
+    #[cfg(test)]
+    pub fn test_default() -> Self {
+        HawkPayload {
+            expires: Utc::now().timestamp() as f64 + 200000.0,
+            node: "friendly-node".to_string(),
+            salt: "saltysalt".to_string(),
+            user_id: 1,
+        }
+    }
 }
 
 impl FromRequest<ServerState> for HawkPayload {

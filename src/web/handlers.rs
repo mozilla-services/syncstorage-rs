@@ -1,13 +1,12 @@
 //! API Handlers
 
-use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, Query, State};
+use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, State};
 use futures::future::{self, Future};
 
 use db::{params, DbError};
 use server::ServerState;
-use web::auth::HawkPayload;
 use web::extractors::{
-    BsoBody, BsoParams, BsoQueryParams, CollectionParams, GetCollectionRequest, HawkIdentifier,
+    BsoBody, BsoParams, BsoRequest, CollectionParams, CollectionRequest, HawkIdentifier,
     MetaRequest,
 };
 
@@ -66,21 +65,15 @@ pub fn delete_all(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     )
 }
 
-pub fn delete_collection(
-    (_params, auth, state, query): (
-        Path<CollectionParams>,
-        HawkIdentifier,
-        State<ServerState>,
-        Query<BsoQueryParams>,
-    ),
-) -> FutureResponse<HttpResponse> {
+pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        coll.state
             .db
             .delete_collection(&params::DeleteCollection {
-                user_id: auth,
-                collection: "tabs".to_owned(),
-                bso_ids: query
+                user_id: coll.user_id,
+                collection: coll.collection,
+                bso_ids: coll
+                    .query
                     .ids
                     .as_ref()
                     .map_or_else(|| Vec::new(), |ids| ids.clone()),
@@ -89,15 +82,13 @@ pub fn delete_collection(
     )
 }
 
-pub fn get_collection(
-    (_params, auth, state): GetCollectionRequest,
-) -> FutureResponse<HttpResponse> {
+pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        coll.state
             .db
             .get_collection(&params::GetCollection {
-                user_id: auth,
-                collection: "tabs".to_owned(),
+                user_id: coll.user_id,
+                collection: coll.collection,
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
@@ -123,31 +114,29 @@ pub fn post_collection(
     )
 }
 
-pub fn delete_bso(
-    (params, auth, state): (Path<BsoParams>, HawkIdentifier, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn delete_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        bso_req
+            .state
             .db
             .delete_bso(&params::DeleteBso {
-                user_id: auth,
-                collection: "tabs".to_owned(),
-                id: params.bso.clone(),
+                user_id: bso_req.user_id,
+                collection: bso_req.collection,
+                id: bso_req.bso.clone(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 
-pub fn get_bso(
-    (params, auth, state): (Path<BsoParams>, HawkIdentifier, State<ServerState>),
-) -> FutureResponse<HttpResponse> {
+pub fn get_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        bso_req
+            .state
             .db
             .get_bso(&params::GetBso {
-                user_id: auth,
-                collection: "tabs".to_owned(),
-                id: params.bso.clone(),
+                user_id: bso_req.user_id,
+                collection: bso_req.collection,
+                id: bso_req.bso.clone(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
@@ -177,7 +166,7 @@ pub fn put_bso(
 }
 
 pub fn get_configuration(
-    (_auth, state): (HawkPayload, State<ServerState>),
+    (_auth, state): (HawkIdentifier, State<ServerState>),
 ) -> FutureResponse<HttpResponse> {
     Box::new(future::result(Ok(HttpResponse::Ok().json(&*state.limits))))
 }
