@@ -1,9 +1,9 @@
 //! API Handlers
 
-use actix_web::{error::ResponseError, FutureResponse, HttpResponse, Json, Path, State};
+use actix_web::{FutureResponse, HttpResponse, Json, Path, State};
 use futures::future::{self, Future};
 
-use db::{params, DbError};
+use db::params;
 use server::ServerState;
 use web::extractors::{
     BsoBody, BsoParams, BsoRequest, CollectionParams, CollectionRequest, HawkIdentifier,
@@ -170,5 +170,3 @@ pub fn get_configuration(
 ) -> FutureResponse<HttpResponse> {
     Box::new(future::result(Ok(HttpResponse::Ok().json(&*state.limits))))
 }
-
-impl ResponseError for DbError {}
