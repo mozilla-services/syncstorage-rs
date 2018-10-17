@@ -2,25 +2,18 @@
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
 
-use std::{
-    error::Error,
-    fmt::{self, Display, Formatter},
-};
-
-use actix_web::{error::ResponseError, http::header::ToStrError, FromRequest, HttpRequest};
-use base64::{self, DecodeError};
+use actix_web::{FromRequest, HttpRequest};
+use base64;
 use chrono::offset::Utc;
-use hawk::{Error as HawkError, Header as HawkHeader, Key, RequestBuilder};
+use hawk::{Header as HawkHeader, Key, RequestBuilder};
 use hkdf::Hkdf;
-use hmac::{
-    crypto_mac::{InvalidKeyLength, MacError},
-    Hmac, Mac,
-};
+use hmac::{Hmac, Mac};
 use ring;
-use serde_json::{self, Error as JsonError};
+use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
+use super::error::{ApiError, HawkErrorKind};
 use server::ServerState;
 use settings::{Secrets, Settings};
 
@@ -62,11 +55,14 @@ impl HawkPayload {
         expiry: u64,
     ) -> AuthResult<HawkPayload> {
         if &header[0..5] != "Hawk " {
-            return Err(AuthError);
+            return Err(HawkErrorKind::MissingPrefix.into());
         }
 
         let header: HawkHeader = header[5..].parse()?;
-        let id = header.id.as_ref().ok_or(AuthError)?;
+        let id = header.id.as_ref().ok_or_else(|| {
+            let error: ApiError = HawkErrorKind::MissingId.into();
+            error
+        })?;
 
         let payload = HawkPayload::extract_and_validate(id, secrets, expiry)?;
 
@@ -87,7 +83,7 @@ impl HawkPayload {
         ) {
             Ok(payload)
         } else {
-            Err(AuthError)
+            Err(HawkErrorKind::InvalidHeader.into())
         }
     }
 
@@ -96,7 +92,7 @@ impl HawkPayload {
     fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> AuthResult<HawkPayload> {
         let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
         if decoded_id.len() <= 32 {
-            return Err(AuthError);
+            return Err(HawkErrorKind::TruncatedId.into());
         }
 
         let payload_length = decoded_id.len() - 32;
@@ -110,7 +106,7 @@ impl HawkPayload {
         if (payload.expires.round() as u64) > expiry {
             Ok(payload)
         } else {
-            Err(AuthError)
+            Err(HawkErrorKind::Expired.into())
         }
     }
 }
@@ -133,10 +129,18 @@ impl FromRequest<ServerState> for HawkPayload {
             request
                 .headers()
                 .get("authorization")
-                .ok_or(AuthError)?
-                .to_str()?,
+                .ok_or_else(|| {
+                    let error: ApiError = HawkErrorKind::MissingHeader.into();
+                    error
+                })?.to_str()?,
             request.method().as_str(),
-            request.uri().path_and_query().ok_or(AuthError)?.as_str(),
+            request
+                .uri()
+                .path_and_query()
+                .ok_or_else(|| {
+                    let error: ApiError = HawkErrorKind::MissingPath.into();
+                    error
+                })?.as_str(),
             request.uri().host().unwrap_or("127.0.0.1"),
             request.uri().port().unwrap_or(settings.port),
             &request.state().secrets,
@@ -162,37 +166,7 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> AuthResult<()> {
 }
 
 /// Common `Result` type for authentication methods.
-pub type AuthResult<T> = Result<T, AuthError>;
-
-/// Common `Error` type for authentication methods.
-#[derive(Debug)]
-pub struct AuthError;
-
-impl Display for AuthError {
-    fn fmt(&self, formatter: &mut Formatter) -> fmt::Result {
-        write!(formatter, "invalid hawk header")
-    }
-}
-
-impl Error for AuthError {}
-impl ResponseError for AuthError {}
-
-macro_rules! from_error {
-    ($error:ty) => {
-        impl From<$error> for AuthError {
-            fn from(_error: $error) -> AuthError {
-                AuthError
-            }
-        }
-    };
-}
-
-from_error!(DecodeError);
-from_error!(HawkError);
-from_error!(InvalidKeyLength);
-from_error!(JsonError);
-from_error!(MacError);
-from_error!(ToStrError);
+pub type AuthResult<T> = Result<T, ApiError>;
 
 #[cfg(test)]
 mod tests {
