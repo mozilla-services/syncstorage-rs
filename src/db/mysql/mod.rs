@@ -1,3 +1,4 @@
+mod diesel_ext;
 pub mod models;
 pub mod pool;
 mod schema;

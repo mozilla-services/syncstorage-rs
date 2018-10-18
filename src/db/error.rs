@@ -26,6 +26,9 @@ pub enum DbErrorKind {
     #[fail(display = "Specified item does not exist")]
     ItemNotFound,
 
+    #[fail(display = "An attempt at a conflicting write")]
+    Conflict,
+
     #[fail(display = "Unexpected error: {}", _0)]
     Internal(String),
 }
