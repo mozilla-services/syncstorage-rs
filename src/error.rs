@@ -2,11 +2,12 @@
 
 use std::fmt;
 
-use actix_web::error::ResponseError;
+use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use failure::{Backtrace, Context, Fail};
+use serde::ser::{Serialize, SerializeMap, Serializer};
 
 use db::error::DbError;
-use web::error::HawkError;
+use web::error::{HawkError, ValidationError};
 
 /// Common `Result` type.
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -15,6 +16,7 @@ pub type ApiResult<T> = Result<T, ApiError>;
 #[derive(Debug)]
 pub struct ApiError {
     inner: Context<ApiErrorKind>,
+    status: StatusCode,
 }
 
 /// Top-level ErrorKind.
@@ -25,9 +27,70 @@ pub enum ApiErrorKind {
 
     #[fail(display = "HAWK authentication error: {}", _0)]
     Hawk(#[cause] HawkError),
+
+    #[fail(display = "{}", _0)]
+    Validation(#[cause] ValidationError),
 }
 
-impl ResponseError for ApiError {}
+impl From<ApiError> for HttpResponse {
+    fn from(inner: ApiError) -> Self {
+        ResponseError::error_response(&inner)
+    }
+}
+
+impl From<Context<ApiErrorKind>> for ApiError {
+    fn from(inner: Context<ApiErrorKind>) -> Self {
+        let status = match inner.get_context() {
+            ApiErrorKind::Db(error) => error.status,
+            ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
+            ApiErrorKind::Validation(_) => StatusCode::BAD_REQUEST,
+        };
+
+        Self { inner, status }
+    }
+}
+
+impl ResponseError for ApiError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status).json(self)
+    }
+}
+
+impl Serialize for ApiError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let size = if self.status == StatusCode::UNAUTHORIZED {
+            2
+        } else {
+            3
+        };
+
+        let mut map = serializer.serialize_map(Some(size))?;
+        map.serialize_entry("status", &self.status.as_u16())?;
+        map.serialize_entry("reason", self.status.canonical_reason().unwrap_or(""))?;
+
+        if self.status != StatusCode::UNAUTHORIZED {
+            map.serialize_entry("details", &self.inner.get_context())?;
+        }
+
+        map.end()
+    }
+}
+
+impl Serialize for ApiErrorKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match *self {
+            ApiErrorKind::Db(ref error) => serializer.serialize_str(&error.to_string()),
+            ApiErrorKind::Hawk(ref error) => serializer.serialize_str(&error.to_string()),
+            ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
+        }
+    }
+}
 
 // XXX: We can remove this if/when db methods return ApiError directly
 impl ResponseError for DbError {}
@@ -55,12 +118,6 @@ macro_rules! failure_boilerplate {
                 Context::new(kind).into()
             }
         }
-
-        impl From<Context<$kind>> for $error {
-            fn from(inner: Context<$kind>) -> Self {
-                Self { inner }
-            }
-        }
     };
 }
 
@@ -78,3 +135,4 @@ macro_rules! from_error {
 
 from_error!(DbError, ApiError, ApiErrorKind::Db);
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
+from_error!(ValidationError, ApiError, ApiErrorKind::Validation);

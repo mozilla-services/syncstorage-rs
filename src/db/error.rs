@@ -1,5 +1,6 @@
 use std::fmt;
 
+use actix_web::http::StatusCode;
 use diesel;
 use diesel_migrations;
 use failure::{Backtrace, Context, Fail};
@@ -7,6 +8,7 @@ use failure::{Backtrace, Context, Fail};
 #[derive(Debug)]
 pub struct DbError {
     inner: Context<DbErrorKind>,
+    pub status: StatusCode,
 }
 
 #[derive(Debug, Fail)]
@@ -40,6 +42,18 @@ impl DbError {
 
     pub fn internal(msg: &str) -> Self {
         DbErrorKind::Internal(msg.to_owned()).into()
+    }
+}
+
+impl From<Context<DbErrorKind>> for DbError {
+    fn from(inner: Context<DbErrorKind>) -> Self {
+        let status = match inner.get_context() {
+            DbErrorKind::CollectionNotFound => StatusCode::BAD_REQUEST,
+            DbErrorKind::ItemNotFound => StatusCode::BAD_REQUEST,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+
+        Self { inner, status }
     }
 }
 
