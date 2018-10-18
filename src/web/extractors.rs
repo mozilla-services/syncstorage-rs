@@ -25,11 +25,8 @@ lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
     static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
+    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
 }
-
-// XXX: Convert these to full extractors.
-pub type GetCollectionRequest = (Path<CollectionParams>, HawkIdentifier, State<ServerState>);
-pub type BsoRequest = (Path<BsoParams>, HawkIdentifier, State<ServerState>);
 
 #[derive(Deserialize)]
 pub struct UidParam {
@@ -57,7 +54,60 @@ pub struct BsoBody {
     pub ttl: Option<u32>,
 }
 
-/// Request arguments needed for Information Requests
+/// Bso id parameter extractor
+#[derive(Deserialize, Validate)]
+pub struct BsoParam {
+    #[validate(regex = "VALID_ID_REGEX")]
+    pub bso: String,
+}
+
+impl FromRequest<ServerState> for BsoParam {
+    type Config = Settings;
+    type Result = Result<BsoParam, Error>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let bso = Path::<BsoParam>::extract(req)
+            .map_err(|_| {
+                RequestValidationErrors::with_error(
+                    "bso",
+                    "Invalid bso id",
+                    RequestErrorLocation::Path,
+                )
+            })?.into_inner();
+        bso.validate()
+            .map_err(|e| RequestValidationErrors::with_location(e, RequestErrorLocation::Path))?;
+        Ok(bso)
+    }
+}
+
+/// Collection parameter extractor
+#[derive(Deserialize, Validate)]
+pub struct CollectionParam {
+    #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
+    pub collection: String,
+}
+
+impl FromRequest<ServerState> for CollectionParam {
+    type Config = Settings;
+    type Result = Result<CollectionParam, Error>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let collection = Path::<CollectionParam>::extract(req)
+            .map_err(|_| {
+                RequestValidationErrors::with_error(
+                    "collection",
+                    "Invalid collection name",
+                    RequestErrorLocation::Path,
+                )
+            })?.into_inner();
+        collection
+            .validate()
+            .map_err(|e| RequestValidationErrors::with_location(e, RequestErrorLocation::Path))?;
+        Ok(collection)
+    }
+}
+
+/// Information Requests extractor
 ///
 /// Only the database and user identifier is required for information
 /// requests: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html#general-info
@@ -84,6 +134,71 @@ impl FromRequest<ServerState> for MetaRequest {
     }
 }
 
+/// Collection Request Delete/Get extractor
+///
+/// Extracts/validates information needed for collection delete/get requests.
+pub struct CollectionRequest {
+    pub collection: String,
+    pub state: State<ServerState>,
+    pub user_id: HawkIdentifier,
+    pub query: BsoQueryParams,
+}
+
+impl FromRequest<ServerState> for CollectionRequest {
+    type Config = Settings;
+    type Result = Result<CollectionRequest, Error>;
+
+    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let user_id = HawkIdentifier::from_request(req, settings)?;
+        let state = <State<ServerState>>::from_request(req, &());
+        let query = BsoQueryParams::from_request(req, settings)?;
+        let collection = CollectionParam::from_request(req, settings)?
+            .collection
+            .clone();
+
+        Ok(CollectionRequest {
+            collection,
+            state,
+            user_id,
+            query,
+        })
+    }
+}
+
+/// BSO Request Delete/Get extractor
+///
+/// Extracts/validates information needed for BSO delete/get requests.
+pub struct BsoRequest {
+    pub collection: String,
+    pub state: State<ServerState>,
+    pub user_id: HawkIdentifier,
+    pub query: BsoQueryParams,
+    pub bso: String,
+}
+
+impl FromRequest<ServerState> for BsoRequest {
+    type Config = Settings;
+    type Result = Result<BsoRequest, Error>;
+
+    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let user_id = HawkIdentifier::from_request(req, settings)?;
+        let state = <State<ServerState>>::from_request(req, &());
+        let query = BsoQueryParams::from_request(req, settings)?;
+        let collection = CollectionParam::from_request(req, settings)?
+            .collection
+            .clone();
+        let bso = BsoParam::from_request(req, settings)?;
+
+        Ok(BsoRequest {
+            collection,
+            state,
+            user_id,
+            query,
+            bso: bso.bso.clone(),
+        })
+    }
+}
+
 /// Extract a user-identifier from the authentication token and validate against the URL
 ///
 /// This token should be adapted as needed for the storage system to store data
@@ -101,15 +216,15 @@ impl FromRequest<ServerState> for HawkIdentifier {
     type Result = Result<HawkIdentifier, Error>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
-    fn from_request(request: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
-        let payload = HawkPayload::from_request(request, settings).map_err(|_| {
+    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let payload = HawkPayload::from_request(req, settings).map_err(|_| {
             RequestValidationErrors::with_error(
                 "Authentication",
                 "Invalid authentication",
                 RequestErrorLocation::Header,
             )
         })?;
-        let path_uid = Path::<UidParam>::extract(request).map_err(|_| {
+        let path_uid = Path::<UidParam>::extract(req).map_err(|_| {
             RequestValidationErrors::with_error(
                 "user-id",
                 "Invalid authentication",
@@ -485,7 +600,6 @@ mod tests {
     use actix_web::test::TestRequest;
     use actix_web::{http::Method, Binary, Body};
     use base64;
-    use chrono::offset::Utc;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
     use ring;
@@ -502,6 +616,12 @@ mod tests {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot"));
     }
+
+    // String is too long for valid name
+    const INVALID_COLLECTION_NAME: &'static str =
+        "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+    const INVALID_BSO_NAME: &'static str =
+        "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
     fn make_state() -> ServerState {
         ServerState {
@@ -585,6 +705,117 @@ mod tests {
     }
 
     #[test]
+    fn test_valid_bso_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/1/storage/tabs/asdf",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .param("bso", "asdf")
+            .finish();
+        let result = BsoRequest::extract(&req).unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(&result.bso, "asdf");
+    }
+
+    #[test]
+    fn test_invalid_bso_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/1/storage/tabs",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .param("bso", INVALID_BSO_NAME)
+            .finish();
+        let result = BsoRequest::extract(&req);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
+        assert_eq!(err.status, 400);
+        let errors = err.errors.unwrap();
+        assert_eq!(errors[0].location, RequestErrorLocation::Path);
+    }
+
+    #[test]
+    fn test_valid_collection_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/1/storage/tabs",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .finish();
+        let result = CollectionRequest::extract(&req).unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+    }
+
+    #[test]
+    fn test_invalid_collection_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "GET",
+            "/storage/1.5/1/storage/tabs",
+            "localhost",
+            5000,
+        );
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .method(Method::GET)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
+            .param("uid", "1")
+            .param("collection", INVALID_COLLECTION_NAME)
+            .finish();
+        let result = CollectionRequest::extract(&req);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
+        assert_eq!(err.status, 400);
+        let errors = err.errors.unwrap();
+        assert_eq!(errors[0].location, RequestErrorLocation::Path);
+    }
+
+    #[test]
     fn test_invalid_precondition_headers() {
         fn assert_invalid_header(req: &HttpRequest<ServerState>) {
             let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
@@ -633,12 +864,7 @@ mod tests {
 
     #[test]
     fn valid_header_with_valid_path() {
-        let payload = HawkPayload {
-            expires: Utc::now().timestamp() as f64 + 200000.0,
-            node: "friendly-node".to_string(),
-            salt: "saltysalt".to_string(),
-            user_id: 1,
-        };
+        let payload = HawkPayload::test_default();
         let state = make_state();
         let header = create_valid_hawk_header(
             &payload,
@@ -660,12 +886,7 @@ mod tests {
 
     #[test]
     fn valid_header_with_invalid_uid_in_path() {
-        let payload = HawkPayload {
-            expires: Utc::now().timestamp() as f64 + 200000.0,
-            node: "friendly-node".to_string(),
-            salt: "saltysalt".to_string(),
-            user_id: 1,
-        };
+        let payload = HawkPayload::test_default();
         let state = make_state();
         let header = create_valid_hawk_header(
             &payload,
