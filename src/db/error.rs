@@ -43,48 +43,12 @@ impl DbError {
     }
 }
 
-impl Fail for DbError {
-    fn cause(&self) -> Option<&Fail> {
-        self.inner.cause()
-    }
+failure_boilerplate!(DbError, DbErrorKind);
 
-    fn backtrace(&self) -> Option<&Backtrace> {
-        self.inner.backtrace()
-    }
-}
-
-impl fmt::Display for DbError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.inner, f)
-    }
-}
-
-impl From<DbErrorKind> for DbError {
-    fn from(kind: DbErrorKind) -> DbError {
-        Context::new(kind).into()
-    }
-}
-
-impl From<Context<DbErrorKind>> for DbError {
-    fn from(inner: Context<DbErrorKind>) -> DbError {
-        DbError { inner }
-    }
-}
-
-impl From<diesel::result::Error> for DbError {
-    fn from(inner: diesel::result::Error) -> DbError {
-        DbErrorKind::Query(inner).into()
-    }
-}
-
-impl From<diesel::r2d2::PoolError> for DbError {
-    fn from(inner: diesel::r2d2::PoolError) -> DbError {
-        DbErrorKind::Pool(inner).into()
-    }
-}
-
-impl From<diesel_migrations::RunMigrationsError> for DbError {
-    fn from(inner: diesel_migrations::RunMigrationsError) -> DbError {
-        DbErrorKind::Migration(inner).into()
-    }
-}
+from_error!(diesel::result::Error, DbError, DbErrorKind::Query);
+from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
+from_error!(
+    diesel_migrations::RunMigrationsError,
+    DbError,
+    DbErrorKind::Migration
+);

@@ -41,6 +41,8 @@ use std::error::Error;
 
 use docopt::Docopt;
 
+#[macro_use]
+pub mod error;
 pub mod db;
 pub mod server;
 pub mod settings;
