@@ -2,13 +2,13 @@
 
 use std::fmt;
 
-use actix_web::{self, http::header::ToStrError};
+use actix_web::http::header::ToStrError;
 use base64::DecodeError;
 use failure::{Backtrace, Context, Fail, SyncFailure};
 use hawk::Error as ParseError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
-use serde::ser::{Serialize, SerializeMap, Serializer};
-use serde_json::Error as JsonError;
+use serde::ser::{Serialize, SerializeSeq, Serializer};
+use serde_json::{Error as JsonError, Value};
 use validator;
 
 use super::extractors::RequestErrorLocation;
@@ -73,25 +73,10 @@ pub struct ValidationError {
 #[derive(Debug, Fail)]
 pub enum ValidationErrorKind {
     #[fail(display = "{}", _0)]
-    WithLocation(#[cause] validator::ValidationErrors, RequestErrorLocation),
+    FromDetails(String, RequestErrorLocation, Option<String>),
 
-    #[fail(display = "Conflicting headers: {}, {}", _0, _1)]
-    HeaderConflict(String, String),
-
-    #[fail(display = "Invalid {} header: {}", _0, _1)]
-    InvalidHeader(String, String),
-
-    #[fail(display = "Invalid {} path component: {}", _0, _1)]
-    InvalidPathComponent(String, String),
-
-    #[fail(display = "Invalid query string: {}", _0)]
-    InvalidQueryString(String),
-
-    #[fail(display = "Invalid request: {}", _0)]
-    InvalidRequest(actix_web::Error),
-
-    #[fail(display = "User id in path does not match payload")]
-    MismatchedUserId,
+    #[fail(display = "{}", _0)]
+    FromValidationErrors(#[cause] validator::ValidationErrors, RequestErrorLocation),
 }
 
 failure_boilerplate!(HawkError, HawkErrorKind);
@@ -149,14 +134,40 @@ impl Serialize for ValidationErrorKind {
     where
         S: Serializer,
     {
+        let mut seq = serializer.serialize_seq(None)?;
+
         match *self {
-            ValidationErrorKind::WithLocation(ref errors, ref location) => {
-                let mut map = serializer.serialize_map(Some(2))?;
-                map.serialize_entry("location", &location)?;
-                map.serialize_entry("errors", &errors)?;
-                map.end()
+            ValidationErrorKind::FromDetails(ref description, ref location, ref name) => {
+                seq.serialize_element(&SerializedValidationError {
+                    description,
+                    location,
+                    name: name.as_ref().map(|name| &**name),
+                    value: None,
+                })?;
             }
-            _ => serializer.serialize_str(&self.to_string()),
+
+            ValidationErrorKind::FromValidationErrors(ref errors, ref location) => {
+                for (field, field_errors) in errors.clone().field_errors().iter() {
+                    for field_error in field_errors.iter() {
+                        seq.serialize_element(&SerializedValidationError {
+                            description: &field_error.code,
+                            location,
+                            name: Some(field),
+                            value: field_error.params.get("value"),
+                        })?;
+                    }
+                }
+            }
         }
+
+        seq.end()
     }
+}
+
+#[derive(Debug, Serialize)]
+struct SerializedValidationError<'e> {
+    pub description: &'e str,
+    pub location: &'e RequestErrorLocation,
+    pub name: Option<&'e str>,
+    pub value: Option<&'e Value>,
 }

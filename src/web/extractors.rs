@@ -65,10 +65,15 @@ impl FromRequest<ServerState> for BsoParam {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let bso = Path::<BsoParam>::extract(req)
             .map_err(|e| {
-                ValidationErrorKind::InvalidPathComponent("bso".to_owned(), e.to_string())
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::Path,
+                    Some("bso".to_owned()),
+                )
             })?.into_inner();
-        bso.validate()
-            .map_err(|e| ValidationErrorKind::WithLocation(e, RequestErrorLocation::Path))?;
+        bso.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+        })?;
         Ok(bso)
     }
 }
@@ -87,11 +92,15 @@ impl FromRequest<ServerState> for CollectionParam {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let collection = Path::<CollectionParam>::extract(req)
             .map_err(|e| {
-                ValidationErrorKind::InvalidPathComponent("collection".to_owned(), e.to_string())
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::Path,
+                    Some("collection".to_owned()),
+                )
             })?.into_inner();
-        collection
-            .validate()
-            .map_err(|e| ValidationErrorKind::WithLocation(e, RequestErrorLocation::Path))?;
+        collection.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+        })?;
         Ok(collection)
     }
 }
@@ -208,10 +217,18 @@ impl FromRequest<ServerState> for HawkIdentifier {
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         let payload = HawkPayload::from_request(req, settings)?;
         let path_uid = Path::<UidParam>::extract(req).map_err(|e| {
-            ValidationErrorKind::InvalidPathComponent("uid".to_owned(), e.to_string())
+            ValidationErrorKind::FromDetails(
+                e.to_string(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
+            )
         })?;
         if payload.user_id != path_uid.uid {
-            Err(ValidationErrorKind::MismatchedUserId)?;
+            Err(ValidationErrorKind::FromDetails(
+                "conflicts with payload".to_owned(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
+            ))?;
         }
 
         Ok(HawkIdentifier {
@@ -274,11 +291,16 @@ impl FromRequest<ServerState> for BsoQueryParams {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         // TODO: serde deserialize the query ourselves to catch the serde error nicely
         let params = Query::<BsoQueryParams>::from_request(req, &())
-            .map_err(|e| ValidationErrorKind::InvalidQueryString(e.to_string()))?
-            .into_inner();
-        params
-            .validate()
-            .map_err(|e| ValidationErrorKind::WithLocation(e, RequestErrorLocation::QueryString))?;
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?.into_inner();
+        params.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
+        })?;
         Ok(params)
     }
 }
@@ -305,9 +327,10 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
-            Err(ValidationErrorKind::HeaderConflict(
-                "X-If-Modified-Since".to_owned(),
-                "X-If-Unmodified-Since".to_owned(),
+            Err(ValidationErrorKind::FromDetails(
+                "conflicts with X-If-Modified-Since".to_owned(),
+                RequestErrorLocation::Header,
+                Some("X-If-Unmodified-Since".to_owned()),
             ))?;
         };
         let (value, field_name) = if let Some(modified_value) = modified {
@@ -320,18 +343,26 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
         value
             .to_str()
             .map_err(|e| {
-                ValidationErrorKind::InvalidHeader(field_name.to_owned(), e.to_string()).into()
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::Header,
+                    Some(field_name.to_owned()),
+                ).into()
             }).and_then(|v| {
                 v.parse::<f64>()
                     .map_err(|e| {
-                        ValidationErrorKind::InvalidHeader(field_name.to_owned(), e.to_string())
-                            .into()
+                        ValidationErrorKind::FromDetails(
+                            e.to_string(),
+                            RequestErrorLocation::Header,
+                            Some(field_name.to_owned()),
+                        ).into()
                     }).and_then(|v| {
                         // Don't allow negative values for the field
                         if v < 0.0 {
-                            Err(ValidationErrorKind::InvalidHeader(
-                                field_name.to_owned(),
-                                "value is negative".to_owned(),
+                            Err(ValidationErrorKind::FromDetails(
+                                "value is negative".to_string(),
+                                RequestErrorLocation::Header,
+                                Some(field_name.to_owned()),
                             ))?
                         } else {
                             Ok(v)
@@ -546,33 +577,23 @@ mod tests {
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
-        assert_eq!(err["details"]["location"], "querystring");
+        assert_eq!(err["reason"], "Bad Request");
 
-        assert_eq!(
-            err["details"]["errors"]["lower"][0]["code"],
-            "Invalid value"
-        );
-        assert_eq!(
-            err["details"]["errors"]["lower"][0]["params"]["location"],
-            "querystring"
-        );
-        assert_eq!(
-            err["details"]["errors"]["lower"][0]["params"]["value"],
-            -1.23
-        );
+        let (lower_error, sort_error) = if err["errors"][0]["name"] == "lower" {
+            (&err["errors"][0], &err["errors"][1])
+        } else {
+            (&err["errors"][1], &err["errors"][0])
+        };
 
-        assert_eq!(
-            err["details"]["errors"]["sort"][0]["code"],
-            "Invalid sort option"
-        );
-        assert_eq!(
-            err["details"]["errors"]["sort"][0]["params"]["location"],
-            "querystring"
-        );
-        assert_eq!(
-            err["details"]["errors"]["sort"][0]["params"]["value"],
-            "whatever"
-        );
+        assert_eq!(lower_error["description"], "Invalid value");
+        assert_eq!(lower_error["location"], "querystring");
+        assert_eq!(lower_error["name"], "lower");
+        assert_eq!(lower_error["value"], -1.23);
+
+        assert_eq!(sort_error["description"], "Invalid sort option");
+        assert_eq!(sort_error["location"], "querystring");
+        assert_eq!(sort_error["name"], "sort");
+        assert_eq!(sort_error["value"], "whatever");
     }
 
     #[test]
@@ -641,13 +662,11 @@ mod tests {
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
-        assert_eq!(err["details"]["location"], "path");
 
-        assert_eq!(err["details"]["errors"]["bso"][0]["code"], "regex");
-        assert_eq!(
-            err["details"]["errors"]["bso"][0]["params"]["value"],
-            INVALID_BSO_NAME
-        );
+        assert_eq!(err["errors"][0]["description"], "regex");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "bso");
+        assert_eq!(err["errors"][0]["value"], INVALID_BSO_NAME);
     }
 
     #[test]
@@ -701,18 +720,20 @@ mod tests {
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
-        assert_eq!(err["details"]["location"], "path");
 
-        assert_eq!(err["details"]["errors"]["collection"][0]["code"], "regex");
-        assert_eq!(
-            err["details"]["errors"]["collection"][0]["params"]["value"],
-            INVALID_COLLECTION_NAME
-        );
+        assert_eq!(err["errors"][0]["description"], "regex");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "collection");
+        assert_eq!(err["errors"][0]["value"], INVALID_COLLECTION_NAME);
     }
 
     #[test]
     fn test_invalid_precondition_headers() {
-        fn assert_invalid_header(req: &HttpRequest<ServerState>, error_message: &str) {
+        fn assert_invalid_header(
+            req: &HttpRequest<ServerState>,
+            error_header: &str,
+            error_message: &str,
+        ) {
             let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
@@ -721,7 +742,10 @@ mod tests {
 
             let err: serde_json::Value = serde_json::from_str(&body).unwrap();
             assert_eq!(err["status"], 400);
-            assert_eq!(err["details"], error_message);
+
+            assert_eq!(err["errors"][0]["description"], error_message);
+            assert_eq!(err["errors"][0]["location"], "header");
+            assert_eq!(err["errors"][0]["name"], error_header);
         }
         let req = TestRequest::with_state(make_state())
             .header("X-If-Modified-Since", "32124.32")
@@ -730,16 +754,14 @@ mod tests {
             .finish();
         assert_invalid_header(
             &req,
-            "Conflicting headers: X-If-Modified-Since, X-If-Unmodified-Since",
+            "X-If-Unmodified-Since",
+            "conflicts with X-If-Modified-Since",
         );
         let req = TestRequest::with_state(make_state())
             .header("X-If-Modified-Since", "-32.1")
             .uri("/")
             .finish();
-        assert_invalid_header(
-            &req,
-            "Invalid X-If-Modified-Since header: value is negative",
-        );
+        assert_invalid_header(&req, "X-If-Modified-Since", "value is negative");
     }
 
     #[test]
@@ -810,6 +832,9 @@ mod tests {
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
-        assert_eq!(err["details"], "User id in path does not match payload");
+
+        assert_eq!(err["errors"][0]["description"], "conflicts with payload");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "uid");
     }
 }

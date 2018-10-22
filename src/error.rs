@@ -4,7 +4,7 @@ use std::fmt;
 
 use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use failure::{Backtrace, Context, Fail};
-use serde::ser::{Serialize, SerializeMap, Serializer};
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 use db::error::DbError;
 use web::error::{HawkError, ValidationError};
@@ -72,7 +72,7 @@ impl Serialize for ApiError {
         map.serialize_entry("reason", self.status.canonical_reason().unwrap_or(""))?;
 
         if self.status != StatusCode::UNAUTHORIZED {
-            map.serialize_entry("details", &self.inner.get_context())?;
+            map.serialize_entry("errors", &self.inner.get_context())?;
         }
 
         map.end()
@@ -85,11 +85,21 @@ impl Serialize for ApiErrorKind {
         S: Serializer,
     {
         match *self {
-            ApiErrorKind::Db(ref error) => serializer.serialize_str(&error.to_string()),
-            ApiErrorKind::Hawk(ref error) => serializer.serialize_str(&error.to_string()),
+            ApiErrorKind::Db(ref error) => serialize_string_to_array(serializer, error),
+            ApiErrorKind::Hawk(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
         }
     }
+}
+
+fn serialize_string_to_array<S, V>(serializer: S, value: V) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+    V: fmt::Display,
+{
+    let mut seq = serializer.serialize_seq(Some(1))?;
+    seq.serialize_element(&value.to_string())?;
+    seq.end()
 }
 
 // XXX: We can remove this if/when db methods return ApiError directly
