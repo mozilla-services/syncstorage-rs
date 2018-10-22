@@ -2,22 +2,19 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::error;
-use std::fmt;
 use std::str::FromStr;
 
-use actix_web::http::StatusCode;
-use actix_web::{Error, FromRequest, HttpRequest, HttpResponse, Path, Query, ResponseError, State};
+use actix_web::{Error, FromRequest, HttpRequest, Path, Query, State};
 use futures::{future, Future};
 use num::Zero;
 use regex::Regex;
 use serde::de::{Deserialize, Deserializer, Error as SerdeError};
-use serde_json::from_value;
-use validator::{Validate, ValidationError, ValidationErrors};
+use validator::{Validate, ValidationError};
 
+use error::ApiResult;
 use server::ServerState;
 use settings::Settings;
-use web::auth::HawkPayload;
+use web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -63,19 +60,20 @@ pub struct BsoParam {
 
 impl FromRequest<ServerState> for BsoParam {
     type Config = Settings;
-    type Result = Result<BsoParam, Error>;
+    type Result = ApiResult<BsoParam>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let bso = Path::<BsoParam>::extract(req)
-            .map_err(|_| {
-                RequestValidationErrors::with_error(
-                    "bso",
-                    "Invalid bso id",
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
                     RequestErrorLocation::Path,
+                    Some("bso".to_owned()),
                 )
             })?.into_inner();
-        bso.validate()
-            .map_err(|e| RequestValidationErrors::with_location(e, RequestErrorLocation::Path))?;
+        bso.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+        })?;
         Ok(bso)
     }
 }
@@ -89,20 +87,20 @@ pub struct CollectionParam {
 
 impl FromRequest<ServerState> for CollectionParam {
     type Config = Settings;
-    type Result = Result<CollectionParam, Error>;
+    type Result = ApiResult<CollectionParam>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let collection = Path::<CollectionParam>::extract(req)
-            .map_err(|_| {
-                RequestValidationErrors::with_error(
-                    "collection",
-                    "Invalid collection name",
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
                     RequestErrorLocation::Path,
+                    Some("collection".to_owned()),
                 )
             })?.into_inner();
-        collection
-            .validate()
-            .map_err(|e| RequestValidationErrors::with_location(e, RequestErrorLocation::Path))?;
+        collection.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+        })?;
         Ok(collection)
     }
 }
@@ -213,30 +211,24 @@ pub struct HawkIdentifier {
 
 impl FromRequest<ServerState> for HawkIdentifier {
     type Config = Settings;
-    type Result = Result<HawkIdentifier, Error>;
+    type Result = ApiResult<HawkIdentifier>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
-        let payload = HawkPayload::from_request(req, settings).map_err(|_| {
-            RequestValidationErrors::with_error(
-                "Authentication",
-                "Invalid authentication",
-                RequestErrorLocation::Header,
-            )
-        })?;
-        let path_uid = Path::<UidParam>::extract(req).map_err(|_| {
-            RequestValidationErrors::with_error(
-                "user-id",
-                "Invalid authentication",
-                RequestErrorLocation::Header,
+        let payload = HawkPayload::from_request(req, settings)?;
+        let path_uid = Path::<UidParam>::extract(req).map_err(|e| {
+            ValidationErrorKind::FromDetails(
+                e.to_string(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
             )
         })?;
         if payload.user_id != path_uid.uid {
-            return Err(RequestValidationErrors::with_error(
-                "user-id",
-                "Invalid authentication",
+            Err(ValidationErrorKind::FromDetails(
+                "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
-            ).into());
+                Some("uid".to_owned()),
+            ))?;
         }
 
         Ok(HawkIdentifier {
@@ -293,14 +285,21 @@ pub struct BsoQueryParams {
 
 impl FromRequest<ServerState> for BsoQueryParams {
     type Config = Settings;
-    type Result = Result<BsoQueryParams, Error>;
+    type Result = ApiResult<BsoQueryParams>;
 
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         // TODO: serde deserialize the query ourselves to catch the serde error nicely
-        let params = Query::<BsoQueryParams>::from_request(req, &())?.into_inner();
+        let params = Query::<BsoQueryParams>::from_request(req, &())
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?.into_inner();
         params.validate().map_err(|e| {
-            RequestValidationErrors::with_location(e, RequestErrorLocation::QueryString)
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
         Ok(params)
     }
@@ -320,24 +319,19 @@ pub enum PreConditionHeader {
 
 impl FromRequest<ServerState> for Option<PreConditionHeader> {
     type Config = Settings;
-    type Result = Result<Option<PreConditionHeader>, Error>;
+    type Result = ApiResult<Option<PreConditionHeader>>;
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        let mut errors = ValidationErrors::new();
         let headers = req.headers();
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
-            errors.add(
-                "X-If-Unmodified-Since",
-                request_error(
-                    "Cannot specify both X-If-Modified-Since and X-If-Unmodified-Since on \
-                     a single request",
-                    RequestErrorLocation::Header,
-                ),
-            );
-            return Err(RequestValidationErrors(errors).into());
+            Err(ValidationErrorKind::FromDetails(
+                "conflicts with X-If-Modified-Since".to_owned(),
+                RequestErrorLocation::Header,
+                Some("X-If-Unmodified-Since".to_owned()),
+            ))?;
         };
         let (value, field_name) = if let Some(modified_value) = modified {
             (modified_value, "X-If-Modified-Since")
@@ -348,14 +342,28 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
         };
         value
             .to_str()
-            .map_err(|_| request_error("Bad value", RequestErrorLocation::Header))
-            .and_then(|v| {
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::Header,
+                    Some(field_name.to_owned()),
+                ).into()
+            }).and_then(|v| {
                 v.parse::<f64>()
-                    .map_err(|_| request_error("Bad value", RequestErrorLocation::Header))
-                    .and_then(|v| {
+                    .map_err(|e| {
+                        ValidationErrorKind::FromDetails(
+                            e.to_string(),
+                            RequestErrorLocation::Header,
+                            Some(field_name.to_owned()),
+                        ).into()
+                    }).and_then(|v| {
                         // Don't allow negative values for the field
                         if v < 0.0 {
-                            Err(request_error("Bad value", RequestErrorLocation::Header))
+                            Err(ValidationErrorKind::FromDetails(
+                                "value is negative".to_string(),
+                                RequestErrorLocation::Header,
+                                Some(field_name.to_owned()),
+                            ))?
                         } else {
                             Ok(v)
                         }
@@ -366,53 +374,14 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                 } else {
                     Some(PreConditionHeader::IfUnmodifiedSince(v))
                 }
-            }).map_err(|e: ValidationError| {
-                errors.add(field_name, e);
-                RequestValidationErrors(errors).into()
             })
-    }
-}
-
-/// Client Request Error
-///
-/// Represents errors returned when a client makes an error in its request.
-#[derive(Debug, Default, Deserialize, Serialize)]
-struct ClientRequestError {
-    status: u32,
-    errors: Option<Vec<RequestValidationError>>,
-}
-
-/// Request Validation errors
-///
-/// Represents a single error from validating the request.
-#[derive(Debug, Deserialize, Serialize)]
-struct RequestValidationError {
-    location: RequestErrorLocation,
-    name: String,
-    description: String,
-}
-
-impl RequestValidationError {
-    fn with_name_and_error(name: &str, error: &ValidationError) -> RequestValidationError {
-        let location = if let Some(loc) = error.params.get("location") {
-            // In the event a bad location is given
-            from_value(loc.clone()).unwrap_or(RequestErrorLocation::Unknown)
-        } else {
-            // This ideally never happens, but just in case the location wasn't supplied
-            RequestErrorLocation::Unknown
-        };
-        RequestValidationError {
-            location,
-            name: name.to_string(),
-            description: format!("{}", error),
-        }
     }
 }
 
 /// Validation Error Location in the request
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-enum RequestErrorLocation {
+pub enum RequestErrorLocation {
     Body,
     QueryString,
     Url,
@@ -421,87 +390,6 @@ enum RequestErrorLocation {
     Cookies,
     Method,
     Unknown,
-}
-
-/// Request Validation Errors
-///
-/// This is a wrapper on validator's ValidationErrors so that the error can
-/// be properly adapted to a ResponseError.
-#[derive(Debug)]
-pub struct RequestValidationErrors(ValidationErrors);
-
-impl RequestValidationErrors {
-    /// Map all the errors to a specific location
-    ///
-    /// This is useful for map_err to map the ValidationErrors from a single
-    /// location to include the appropriate `RequestErrorLocation`
-    fn with_location(errors: ValidationErrors, location: RequestErrorLocation) -> Self {
-        let mut new_errors = ValidationErrors::new();
-        let validation_errors = errors.field_errors();
-        for (ref field_name, errors) in validation_errors.iter() {
-            for error in errors {
-                let mut err = error.clone();
-                err.add_param("location".into(), &location);
-                new_errors.add(field_name.clone(), err);
-            }
-        }
-        RequestValidationErrors(new_errors)
-    }
-
-    /// Helper to quickly make a `RequestValidationErrors` with a single error
-    fn with_error(
-        field_name: &'static str,
-        message: &'static str,
-        location: RequestErrorLocation,
-    ) -> Self {
-        let err = request_error(message, location);
-        let mut errors = ValidationErrors::new();
-        errors.add(field_name, err);
-        RequestValidationErrors(errors)
-    }
-}
-
-impl error::Error for RequestValidationErrors {
-    fn description(&self) -> &str {
-        self.0.description()
-    }
-
-    fn cause(&self) -> Option<&error::Error> {
-        self.0.cause()
-    }
-}
-
-impl fmt::Display for RequestValidationErrors {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl ResponseError for RequestValidationErrors {
-    fn error_response(&self) -> HttpResponse {
-        let error: ClientRequestError = self.into();
-        HttpResponse::build(StatusCode::BAD_REQUEST).json(error)
-    }
-}
-
-impl<'a> From<&'a RequestValidationErrors> for ClientRequestError {
-    fn from(errors: &RequestValidationErrors) -> Self {
-        let mut sync_error = ClientRequestError::default();
-        sync_error.status = 400;
-        let mut client_errors = Vec::new();
-        let validation_errors = errors.0.clone().field_errors();
-        for (ref field_name, error_kind) in validation_errors.iter() {
-            for error in error_kind {
-                client_errors.push(RequestValidationError::with_name_and_error(
-                    field_name, error,
-                ))
-            }
-        }
-        if !client_errors.is_empty() {
-            sync_error.errors = Some(client_errors)
-        }
-        sync_error
-    }
 }
 
 /// Convenience function to create a `ValidationError` with additional context
@@ -598,6 +486,7 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::test::TestRequest;
+    use actix_web::HttpResponse;
     use actix_web::{http::Method, Binary, Body};
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
@@ -685,11 +574,26 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
-        assert_eq!(err.status, 400);
-        let errors = err.errors.unwrap();
-        assert_eq!(errors[0].location, RequestErrorLocation::QueryString);
-        assert_eq!(errors.len(), 2);
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+        assert_eq!(err["reason"], "Bad Request");
+
+        let (lower_error, sort_error) = if err["errors"][0]["name"] == "lower" {
+            (&err["errors"][0], &err["errors"][1])
+        } else {
+            (&err["errors"][1], &err["errors"][0])
+        };
+
+        assert_eq!(lower_error["description"], "Invalid value");
+        assert_eq!(lower_error["location"], "querystring");
+        assert_eq!(lower_error["name"], "lower");
+        assert_eq!(lower_error["value"], -1.23);
+
+        assert_eq!(sort_error["description"], "Invalid sort option");
+        assert_eq!(sort_error["location"], "querystring");
+        assert_eq!(sort_error["name"], "sort");
+        assert_eq!(sort_error["value"], "whatever");
     }
 
     #[test]
@@ -755,10 +659,14 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
-        assert_eq!(err.status, 400);
-        let errors = err.errors.unwrap();
-        assert_eq!(errors[0].location, RequestErrorLocation::Path);
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+
+        assert_eq!(err["errors"][0]["description"], "regex");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "bso");
+        assert_eq!(err["errors"][0]["value"], INVALID_BSO_NAME);
     }
 
     #[test]
@@ -809,37 +717,51 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
-        assert_eq!(err.status, 400);
-        let errors = err.errors.unwrap();
-        assert_eq!(errors[0].location, RequestErrorLocation::Path);
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+
+        assert_eq!(err["errors"][0]["description"], "regex");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "collection");
+        assert_eq!(err["errors"][0]["value"], INVALID_COLLECTION_NAME);
     }
 
     #[test]
     fn test_invalid_precondition_headers() {
-        fn assert_invalid_header(req: &HttpRequest<ServerState>) {
+        fn assert_invalid_header(
+            req: &HttpRequest<ServerState>,
+            error_header: &str,
+            error_message: &str,
+        ) {
             let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
             assert_eq!(response.status(), 400);
             let body = extract_body_as_str(&response);
-            let err: ClientRequestError = serde_json::from_str(&body).unwrap();
-            assert_eq!(err.status, 400);
-            let errors = err.errors.unwrap();
-            assert_eq!(errors[0].location, RequestErrorLocation::Header);
-            assert_eq!(errors.len(), 1);
+
+            let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(err["status"], 400);
+
+            assert_eq!(err["errors"][0]["description"], error_message);
+            assert_eq!(err["errors"][0]["location"], "header");
+            assert_eq!(err["errors"][0]["name"], error_header);
         }
         let req = TestRequest::with_state(make_state())
             .header("X-If-Modified-Since", "32124.32")
             .header("X-If-Unmodified-Since", "4212.12")
             .uri("/")
             .finish();
-        assert_invalid_header(&req);
+        assert_invalid_header(
+            &req,
+            "X-If-Unmodified-Since",
+            "conflicts with X-If-Modified-Since",
+        );
         let req = TestRequest::with_state(make_state())
             .header("X-If-Modified-Since", "-32.1")
             .uri("/")
             .finish();
-        assert_invalid_header(&req);
+        assert_invalid_header(&req, "X-If-Modified-Since", "value is negative");
     }
 
     #[test]
@@ -907,9 +829,12 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        let err: ClientRequestError = serde_json::from_str(&body).unwrap();
-        assert_eq!(err.status, 400);
-        let errors = err.errors.unwrap();
-        assert_eq!(errors[0].location, RequestErrorLocation::Path);
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+
+        assert_eq!(err["errors"][0]["description"], "conflicts with payload");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "uid");
     }
 }
