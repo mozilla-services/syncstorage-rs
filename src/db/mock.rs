@@ -30,20 +30,14 @@ impl MockDb {
 
 macro_rules! mock_db_method {
     ($name:ident, $type:ident) => {
-        fn $name(&self, _params: &params::$type) -> DbFuture<results::$type> {
-            Box::new(future::ok(results::$type::default()))
+        mock_db_method!($name, $type, results::$type);
+    };
+    ($name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, _params: params::$type) -> DbFuture<$result> {
+            let result: $result = Default::default();
+            Box::new(future::ok(result))
         }
-    }
-}
-
-// XXX: temporary: takes ownership of params vs mock_db_method taking
-// a reference
-macro_rules! mock_db_method2 {
-    ($name:ident, $type:ident) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<results::$type> {
-            Box::new(future::ok(results::$type::default()))
-        }
-    }
+    };
 }
 
 impl Db for MockDb {
@@ -55,22 +49,20 @@ impl Db for MockDb {
         Box::new(future::ok(()))
     }
 
-    mock_db_method2!(lock_for_read, LockCollection);
-    mock_db_method2!(lock_for_write, LockCollection);
-
-    mock_db_method!(get_collection_id, GetCollectionId);
-    mock_db_method!(get_collections, GetCollections);
+    mock_db_method!(lock_for_read, LockCollection);
+    mock_db_method!(lock_for_write, LockCollection);
+    mock_db_method!(get_collection_modifieds, GetCollectionModifieds);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
     mock_db_method!(get_storage_usage, GetStorageUsage);
-    mock_db_method!(delete_all, DeleteAll);
+    mock_db_method!(delete_storage, DeleteStorage);
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(get_collection, GetCollection);
     mock_db_method!(post_collection, PostCollection);
+    mock_db_method!(delete_bsos, DeleteBsos);
     mock_db_method!(delete_bso, DeleteBso);
-    mock_db_method!(get_bso, GetBso);
-
-    mock_db_method2!(put_bso, PutBso);
+    mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
+    mock_db_method!(put_bso, PutBso);
 }
 
 unsafe impl Send for MockDb {}

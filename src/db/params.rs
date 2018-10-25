@@ -12,11 +12,7 @@ macro_rules! data {
 
 macro_rules! uid_data {
     ($($name:ident,)+) => ($(
-        data! {
-            $name {
-                user_id: HawkIdentifier,
-            }
-        }
+        pub type $name = HawkIdentifier;
     )+)
 }
 
@@ -46,19 +42,18 @@ macro_rules! bso_data {
 }
 
 uid_data! {
-    GetCollections,
+    GetCollectionModifieds,
     GetCollectionCounts,
     GetCollectionUsage,
     GetStorageUsage,
-    DeleteAll,
+    DeleteStorage,
 }
-
-pub type GetCollectionId = str;
 
 collection_data! {
     LockCollection {},
-    DeleteCollection {
-        bso_ids: Vec<String>,
+    DeleteCollection {},
+    DeleteBsos {
+        ids: Vec<String>,
     },
     GetCollection {},
     PostCollection {

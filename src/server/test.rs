@@ -177,13 +177,9 @@ fn delete_all() {
 
 #[test]
 fn delete_collection() {
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks", "null");
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks?ids=1,", "null");
-    test_endpoint(
-        http::Method::DELETE,
-        "/42/storage/bookmarks?ids=1,2,3",
-        "null",
-    );
+    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks", "0");
+    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks?ids=1,", "0");
+    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks?ids=1,2,3", "0");
 }
 
 #[test]
@@ -216,7 +212,7 @@ fn post_collection() {
 
 #[test]
 fn delete_bso() {
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks/wibble", "null");
+    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks/wibble", "0");
 }
 
 #[test]
