@@ -1,9 +1,11 @@
 //! API Handlers
 
+use std::rc::Rc;
+
 use actix_web::{FutureResponse, HttpResponse, Json, Path, State};
 use futures::future::{self, Future};
 
-use db::params;
+use db::{params, Db};
 use server::ServerState;
 use web::extractors::{
     BsoBody, BsoParams, BsoRequest, CollectionParams, CollectionRequest, HawkIdentifier,
@@ -143,25 +145,23 @@ pub fn get_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
 }
 
 pub fn put_bso(
-    (params, auth, state, body): (
+    (db, params, auth, body): (
+        Rc<Box<dyn Db>>,
         Path<BsoParams>,
         HawkIdentifier,
-        State<ServerState>,
         Json<BsoBody>,
     ),
 ) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
-            .db
-            .put_bso(&params::PutBso {
-                user_id: auth,
-                collection: "tabs".to_owned(),
-                id: params.bso.clone(),
-                sortindex: body.sortindex,
-                payload: body.payload.as_ref().map(|payload| payload.into()),
-                ttl: body.ttl,
-            }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+        db.put_bso(params::PutBso {
+            user_id: auth,
+            collection: "tabs".to_owned(),
+            id: params.bso.clone(),
+            sortindex: body.sortindex,
+            payload: body.payload.clone(), // XXX: need clone here from body, sigh
+            ttl: body.ttl,
+        }).map_err(From::from)
+        .map(|result| HttpResponse::Ok().json(result)),
     )
 }
 

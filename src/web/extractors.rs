@@ -2,18 +2,20 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::str::FromStr;
+use std::{rc::Rc, str::FromStr};
 
-use actix_web::{Error, FromRequest, HttpRequest, Path, Query, State};
+use actix_web::{
+    error::ErrorInternalServerError, Error, FromRequest, HttpRequest, Path, Query, State,
+};
 use futures::{future, Future};
 use num::Zero;
 use regex::Regex;
 use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use validator::{Validate, ValidationError};
 
+use db::Db;
 use error::ApiResult;
 use server::ServerState;
-use settings::Settings;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
@@ -59,7 +61,7 @@ pub struct BsoParam {
 }
 
 impl FromRequest<ServerState> for BsoParam {
-    type Config = Settings;
+    type Config = ();
     type Result = ApiResult<BsoParam>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
@@ -79,17 +81,21 @@ impl FromRequest<ServerState> for BsoParam {
 }
 
 /// Collection parameter extractor
-#[derive(Deserialize, Validate)]
+#[derive(Clone, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
     pub collection: String,
 }
 
 impl FromRequest<ServerState> for CollectionParam {
-    type Config = Settings;
+    type Config = ();
     type Result = ApiResult<CollectionParam>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        if let Some(collection) = req.extensions().get::<CollectionParam>() {
+            return Ok(collection.clone());
+        }
+
         let collection = Path::<CollectionParam>::extract(req)
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(
@@ -101,6 +107,7 @@ impl FromRequest<ServerState> for CollectionParam {
         collection.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
+        req.extensions_mut().insert(collection.clone());
         Ok(collection)
     }
 }
@@ -115,7 +122,7 @@ pub struct MetaRequest {
 }
 
 impl FromRequest<ServerState> for MetaRequest {
-    type Config = Settings;
+    type Config = ();
     type Result = Box<Future<Item = MetaRequest, Error = Error>>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
@@ -143,16 +150,14 @@ pub struct CollectionRequest {
 }
 
 impl FromRequest<ServerState> for CollectionRequest {
-    type Config = Settings;
+    type Config = ();
     type Result = Result<CollectionRequest, Error>;
 
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         let user_id = HawkIdentifier::from_request(req, settings)?;
         let state = <State<ServerState>>::from_request(req, &());
         let query = BsoQueryParams::from_request(req, settings)?;
-        let collection = CollectionParam::from_request(req, settings)?
-            .collection
-            .clone();
+        let collection = CollectionParam::from_request(req, settings)?.collection;
 
         Ok(CollectionRequest {
             collection,
@@ -175,7 +180,7 @@ pub struct BsoRequest {
 }
 
 impl FromRequest<ServerState> for BsoRequest {
-    type Config = Settings;
+    type Config = ();
     type Result = Result<BsoRequest, Error>;
 
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
@@ -210,11 +215,15 @@ pub struct HawkIdentifier {
 }
 
 impl FromRequest<ServerState> for HawkIdentifier {
-    type Config = Settings;
+    type Config = ();
     type Result = ApiResult<HawkIdentifier>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+            return Ok(user_id.clone());
+        }
+
         let payload = HawkPayload::from_request(req, settings)?;
         let path_uid = Path::<UidParam>::extract(req).map_err(|e| {
             ValidationErrorKind::FromDetails(
@@ -231,10 +240,12 @@ impl FromRequest<ServerState> for HawkIdentifier {
             ))?;
         }
 
-        Ok(HawkIdentifier {
+        let user_id = HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_id: "".to_string(),
-        })
+        };
+        req.extensions_mut().insert(user_id.clone());
+        Ok(user_id)
     }
 }
 
@@ -245,6 +256,18 @@ impl HawkIdentifier {
             legacy_id: user_id,
             ..Default::default()
         }
+    }
+}
+
+impl FromRequest<ServerState> for Rc<Box<dyn Db>> {
+    type Config = ();
+    type Result = Result<Self, Error>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        req.extensions()
+            .get::<Rc<Box<dyn Db>>>()
+            .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
+            .map(Clone::clone)
     }
 }
 
@@ -284,7 +307,7 @@ pub struct BsoQueryParams {
 }
 
 impl FromRequest<ServerState> for BsoQueryParams {
-    type Config = Settings;
+    type Config = ();
     type Result = ApiResult<BsoQueryParams>;
 
     /// Extract and validate the query parameters
@@ -318,7 +341,7 @@ pub enum PreConditionHeader {
 }
 
 impl FromRequest<ServerState> for Option<PreConditionHeader> {
-    type Config = Settings;
+    type Config = ();
     type Result = ApiResult<Option<PreConditionHeader>>;
 
     /// Extract and validate the precondition headers
@@ -495,7 +518,7 @@ mod tests {
     use serde_json;
     use sha2::Sha256;
 
-    use db::mock::MockDb;
+    use db::mock::{MockDb, MockDbPool};
     use server::ServerState;
     use settings::{Secrets, ServerLimits};
 
@@ -515,8 +538,10 @@ mod tests {
     fn make_state() -> ServerState {
         ServerState {
             db: Box::new(MockDb::new()),
+            db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             secrets: Arc::clone(&SECRETS),
+            port: 8000,
         }
     }
 

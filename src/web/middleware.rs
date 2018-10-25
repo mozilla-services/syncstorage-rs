@@ -1,9 +1,20 @@
 //! # Web Middleware
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
-use actix_web::middleware::{Middleware, Response, Started};
-use actix_web::{error::ErrorInternalServerError, http::header, HttpRequest, HttpResponse, Result};
+use std::rc::Rc;
+
+use actix_web::{
+    error::ErrorInternalServerError,
+    http::{header, Method},
+    middleware::{Middleware, Response, Started},
+    FromRequest, HttpRequest, HttpResponse, Result,
+};
 use chrono::Utc;
+use futures::{future, Future};
+
+use db::{params, Db};
+use server::ServerState;
+use web::extractors::{CollectionParam, HawkIdentifier};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
 struct DefaultWeaveTimestamp(f64);
@@ -49,6 +60,60 @@ impl<S> Middleware<S> for WeaveTimestamp {
                 .map_err(|_| ErrorInternalServerError("Invalid header value"))?,
         );
         Ok(Response::Done(resp))
+    }
+}
+
+#[derive(Debug)]
+pub struct DbTransaction;
+
+impl Middleware<ServerState> for DbTransaction {
+    /// Initialize the database
+    fn start(&self, req: &HttpRequest<ServerState>) -> Result<Started> {
+        let req = req.clone();
+        // We may or may not be operating on a collection
+        let collection = CollectionParam::from_request(&req, &())
+            .map(|param| param.collection.clone())
+            .ok();
+        let user_id = HawkIdentifier::from_request(&req, &())?;
+
+        let fut = req
+            .state()
+            .db_pool
+            .get()
+            .and_then(move |db| {
+                let fut = if let Some(collection) = collection {
+                    // Take a read or write lock depending on request method
+                    let lc = params::LockCollection {
+                        user_id,
+                        collection,
+                    };
+                    match *req.method() {
+                        Method::GET | Method::HEAD => db.lock_for_read(lc),
+                        _ => db.lock_for_write(lc),
+                    }
+                } else {
+                    // If we're not operating on a collection, don't take a lock
+                    Box::new(future::ok(()))
+                };
+                fut.and_then(move |_| {
+                    req.extensions_mut().insert(Rc::new(db));
+                    future::ok(None)
+                })
+            }).map_err(Into::into);
+        Ok(Started::Future(Box::new(fut)))
+    }
+
+    fn response(&self, req: &HttpRequest<ServerState>, resp: HttpResponse) -> Result<Response> {
+        if let Some(db) = req.extensions().get::<Rc<Box<dyn Db>>>() {
+            let fut = match resp.error() {
+                None => db.commit(),
+                Some(_) => db.rollback(),
+            };
+            let fut = fut.and_then(|_| Ok(resp)).map_err(Into::into);
+            Ok(Response::Future(Box::new(fut)))
+        } else {
+            Ok(Response::Done(resp))
+        }
     }
 }
 

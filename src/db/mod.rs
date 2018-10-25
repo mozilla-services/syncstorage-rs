@@ -38,8 +38,18 @@ lazy_static! {
 
 type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;
 
+pub trait DbPool: Sync {
+    fn get(&self) -> DbFuture<Box<dyn Db>>;
+}
+
 pub trait Db: Send {
-    // XXX: add a generic fn transaction(&self, f)
+    fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<()>;
+
+    fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<()>;
+
+    fn commit(&self) -> DbFuture<()>;
+
+    fn rollback(&self) -> DbFuture<()>;
 
     fn get_collection_id(
         &self,
@@ -80,7 +90,7 @@ pub trait Db: Send {
 
     fn get_bso(&self, params: &params::GetBso) -> DbFuture<results::GetBso>;
 
-    fn put_bso(&self, params: &params::PutBso) -> DbFuture<results::PutBso>;
+    fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
 }
 
 #[derive(Debug)]

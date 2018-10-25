@@ -1,7 +1,6 @@
 use std::{collections::HashMap, result::Result as StdResult};
 
 use diesel::{
-    connection::TransactionManager,
     mysql::MysqlConnection,
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, QueryDsl, RunQueryDsl,
@@ -46,7 +45,7 @@ pub fn db() -> Result<MysqlDb> {
 
     run_embedded_migrations(&settings)?;
     let pool = MysqlDbPool::new(&settings)?;
-    pool.get()
+    pool.get_sync()
 }
 
 fn pbso<'a>(
@@ -56,12 +55,12 @@ fn pbso<'a>(
     payload: Option<&str>,
     sortindex: Option<i32>,
     ttl: Option<u32>,
-) -> params::PutBso<'a> {
+) -> params::PutBso {
     params::PutBso {
         user_id: HawkIdentifier::new_legacy(user_id as u64),
         collection: coll.to_owned(),
         id: bid.to_owned(),
-        payload: payload.map(|payload| payload.to_owned().into()),
+        payload: payload.map(|payload| payload.to_owned()),
         sortindex,
         ttl,
     }
@@ -116,7 +115,7 @@ fn static_collection_id() -> Result<()> {
 
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
-        .load(&db.conn)?
+        .load(&db.inner.conn)?
         .into_iter()
         .collect();
     assert_eq!(results.len(), cols.len());
@@ -151,50 +150,50 @@ fn bso_successfully_updates_single_values() -> Result<()> {
         Some(sortindex),
         Some(ttl),
     );
-    db.put_bso_sync(&bso1)?;
+    db.put_bso_sync(bso1)?;
 
     let payload = "Updated payload";
     let bso2 = pbso(uid, coll, bid, Some(payload), None, None);
-    db.put_bso_sync(&bso2)?;
+    db.put_bso_sync(bso2)?;
 
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
-    assert_eq!(bso.modified, db.session.timestamp);
+    assert_eq!(bso.modified, db.timestamp());
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX: go version assumes ttl was updated here?
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.session.timestamp + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp() + ttl as i64);
 
     let sortindex = 2;
     let bso2 = pbso(uid, coll, bid, None, Some(sortindex), None);
-    db.put_bso_sync(&bso2)?;
+    db.put_bso_sync(bso2)?;
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
-    assert_eq!(bso.modified, db.session.timestamp);
+    assert_eq!(bso.modified, db.timestamp());
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX:
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.session.timestamp + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp() + ttl as i64);
     Ok(())
 }
 
 #[test]
 fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
     let bid = "testBSO";
-    let timestamp = db.session.timestamp;
+    let timestamp = db.timestamp();
 
     let bso1 = pbso(uid, coll, bid, Some("hello"), Some(1), Some(10));
-    db.session.timestamp -= 100;
-    let modified1 = db.session.timestamp;
-    db.put_bso_sync(&bso1)?;
-    db.session.timestamp = timestamp;
+    db.set_timestamp(timestamp - 100);
+    let modified1 = db.timestamp();
+    db.put_bso_sync(bso1)?;
+    db.set_timestamp(timestamp);
 
     let bso2 = pbso(uid, coll, bid, None, None, Some(15));
-    db.put_bso_sync(&bso2)?;
+    db.put_bso_sync(bso2)?;
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
     // ttl has changed
     assert_eq!(bso.expiry, timestamp + 15);
@@ -211,26 +210,28 @@ fn put_bso_updates() -> Result<()> {
     let coll = "clients";
     let bid = "1";
     let bso1 = pbso(uid, coll, bid, Some("initial"), None, None);
-    db.put_bso_sync(&bso1)?;
+    db.put_bso_sync(bso1)?;
 
-    let bso2 = pbso(uid, coll, bid, Some("Updated"), Some(100), None);
-    db.put_bso_sync(&bso2)?;
+    let payload = "Updated";
+    let sortindex = 200;
+    let bso2 = pbso(uid, coll, bid, Some(payload), Some(sortindex), None);
+    db.put_bso_sync(bso2)?;
 
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
-    assert_eq!(Some(bso.payload.into()), bso2.payload);
-    assert_eq!(bso.sortindex, bso2.sortindex);
-    assert_eq!(bso.modified, db.session.timestamp);
+    assert_eq!(Some(bso.payload), Some(payload.to_owned()));
+    assert_eq!(bso.sortindex, Some(sortindex));
+    assert_eq!(bso.modified, db.timestamp());
     Ok(())
 }
 
 #[test]
 fn get_bsos_limit_offset() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
     let size = 12;
-    let timestamp = db.session.timestamp;
+    let timestamp = db.timestamp();
     for i in 0..size {
         let bso = pbso(
             uid,
@@ -240,10 +241,10 @@ fn get_bsos_limit_offset() -> Result<()> {
             Some(i),
             Some(DEFAULT_BSO_TTL),
         );
-        db.session.timestamp = timestamp + i as i64 * 10;
-        db.put_bso_sync(&bso)?;
+        db.set_timestamp(timestamp + i as i64 * 10);
+        db.put_bso_sync(bso)?;
     }
-    db.session.timestamp = timestamp;
+    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)?;
     assert!(bsos.bsos.is_empty());
@@ -316,11 +317,11 @@ fn get_bsos_limit_offset() -> Result<()> {
 
 #[test]
 fn get_bsos_newer() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.session.timestamp;
+    let timestamp = db.timestamp();
     // XXX: validation
     //db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
 
@@ -333,10 +334,10 @@ fn get_bsos_newer() -> Result<()> {
             Some(1),
             Some(DEFAULT_BSO_TTL),
         );
-        db.session.timestamp = timestamp - i;
-        db.put_bso_sync(&pbso)?;
+        db.set_timestamp(timestamp - i);
+        db.put_bso_sync(pbso)?;
     }
-    db.session.timestamp = timestamp;
+    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(
         uid,
@@ -396,11 +397,11 @@ fn get_bsos_newer() -> Result<()> {
 
 #[test]
 fn get_bsos_sort() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.session.timestamp;
+    let timestamp = db.timestamp();
     // XXX: validation again
     //db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
 
@@ -413,10 +414,10 @@ fn get_bsos_sort() -> Result<()> {
             Some(*sortindex),
             Some(DEFAULT_BSO_TTL),
         );
-        db.session.timestamp = timestamp - revi as i64;
-        db.put_bso_sync(&pbso)?;
+        db.set_timestamp(timestamp - revi as i64);
+        db.put_bso_sync(pbso)?;
     }
-    db.session.timestamp = timestamp;
+    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)?;
     assert_eq!(bsos.bsos.len(), 3);
@@ -444,8 +445,8 @@ fn delete_bsos_in_correct_collection() -> Result<()> {
 
     let uid = 1;
     let payload = "data";
-    db.put_bso_sync(&pbso(uid, "clients", "b1", Some(payload), None, None))?;
-    db.put_bso_sync(&pbso(uid, "crypto", "b1", Some(payload), None, None))?;
+    db.put_bso_sync(pbso(uid, "clients", "b1", Some(payload), None, None))?;
+    db.put_bso_sync(pbso(uid, "crypto", "b1", Some(payload), None, None))?;
     db.delete_bsos_sync(uid, "clients", &["b1"])?;
     let bso = db.get_bso_sync(&gbso(uid, "crypto", "b1"))?;
     assert!(bso.is_some());
@@ -454,18 +455,18 @@ fn delete_bsos_in_correct_collection() -> Result<()> {
 
 #[test]
 fn get_storage_modified() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     db.create_collection("col1")?;
     let col2 = db.create_collection("col2")?;
     db.create_collection("col3")?;
 
-    db.session.timestamp += 100000;
+    db.set_timestamp(db.timestamp() + 100000);
     db.touch_collection(uid, col2)?;
 
     let m = db.get_storage_modified_sync(uid)?;
-    assert_eq!(m, db.session.timestamp);
+    assert_eq!(m, db.timestamp());
     Ok(())
 }
 
@@ -504,7 +505,7 @@ fn delete_collection() -> Result<()> {
     let uid = 1;
     let coll = "NewCollection";
     for bid in 1..=3 {
-        db.put_bso_sync(&pbso(uid, coll, &bid.to_string(), Some("test"), None, None))?;
+        db.put_bso_sync(pbso(uid, coll, &bid.to_string(), Some("test"), None, None))?;
     }
     let modified = db.delete_collection_sync(uid, coll)?;
     let modified2 = db.get_storage_modified_sync(uid)?;
@@ -534,7 +535,7 @@ fn get_collections_modified() -> Result<()> {
     db.touch_collection(uid, cid)?;
     let cols = db.get_collections_modified_sync(&params::GetCollections { user_id: hid(uid) })?;
     assert!(cols.contains_key(coll));
-    assert_eq!(cols.get(coll), Some(&db.session.timestamp));
+    assert_eq!(cols.get(coll), Some(&db.timestamp()));
 
     let modified = db.get_collection_modified_sync(uid, coll)?;
     assert_eq!(Some(&modified), cols.get(coll));
@@ -556,7 +557,7 @@ fn get_collection_sizes() -> Result<()> {
                 .sample_iter(&Alphanumeric)
                 .take(size)
                 .collect::<String>();
-            db.put_bso_sync(&pbso(
+            db.put_bso_sync(pbso(
                 uid,
                 coll,
                 &format!("b{}", i),
@@ -587,7 +588,7 @@ fn get_collection_counts() -> Result<()> {
         let count = 5 + rng.gen_range(0, 99);
         expected.insert(coll.to_owned(), count);
         for i in 0..count {
-            db.put_bso_sync(&pbso(uid, coll, &format!("b{}", i), Some("x"), None, None))?;
+            db.put_bso_sync(pbso(uid, coll, &format!("b{}", i), Some("x"), None, None))?;
         }
     }
 
@@ -598,25 +599,25 @@ fn get_collection_counts() -> Result<()> {
 
 #[test]
 fn put_bso() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "NewCollection";
     let bid = "b0";
     let bso1 = pbso(uid, coll, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
-    db.put_bso_sync(&bso1)?;
+    db.put_bso_sync(bso1)?;
     let modified = db.get_collection_modified_sync(uid, coll)?;
-    assert_eq!(modified, db.session.timestamp);
+    assert_eq!(modified, db.timestamp());
 
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
     assert_eq!(&bso.payload, "foo");
     assert_eq!(bso.sortindex, Some(1));
 
     let bso2 = pbso(uid, coll, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
-    db.session.timestamp += 19;
-    db.put_bso_sync(&bso2)?;
+    db.set_timestamp(db.timestamp() + 19);
+    db.put_bso_sync(bso2)?;
     let modified = db.get_collection_modified_sync(uid, coll)?;
-    assert_eq!(modified, db.session.timestamp);
+    assert_eq!(modified, db.timestamp());
 
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
     assert_eq!(&bso.payload, "bar");
@@ -685,7 +686,7 @@ fn get_bso() -> Result<()> {
     let coll = "clients";
     let bid = "b0";
     let payload = "a";
-    db.put_bso_sync(&pbso(uid, coll, bid, Some(payload), None, None))?;
+    db.put_bso_sync(pbso(uid, coll, bid, Some(payload), None, None))?;
 
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?.unwrap();
     assert_eq!(bso.id, bid);
@@ -698,11 +699,11 @@ fn get_bso() -> Result<()> {
 
 #[test]
 fn get_bsos() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.session.timestamp;
+    let timestamp = db.timestamp();
     let sortindexes = vec![1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
@@ -714,10 +715,10 @@ fn get_bsos() -> Result<()> {
             Some(*sortindex),
             None,
         );
-        db.session.timestamp = timestamp + i as i64 * 10;
-        db.put_bso_sync(&bso)?;
+        db.set_timestamp(timestamp + i as i64 * 10);
+        db.put_bso_sync(bso)?;
     }
-    db.session.timestamp = timestamp;
+    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(
         uid,
@@ -751,9 +752,9 @@ fn get_bso_modified() -> Result<()> {
     let coll = "clients";
     let bid = "b0";
     let bso = pbso(uid, coll, bid, Some("a"), None, None);
-    db.put_bso_sync(&bso)?;
+    db.put_bso_sync(bso)?;
     let modified = db.get_bso_modified_sync(uid, coll, bid)?;
-    assert_eq!(modified, db.session.timestamp);
+    assert_eq!(modified, db.timestamp());
     Ok(())
 }
 
@@ -764,7 +765,7 @@ fn delete_bso() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let bid = "b0";
-    db.put_bso_sync(&pbso(uid, coll, bid, Some("a"), None, None))?;
+    db.put_bso_sync(pbso(uid, coll, bid, Some("a"), None, None))?;
     db.delete_bso_sync(uid, coll, bid)?;
     let bso = db.get_bso_sync(&gbso(uid, coll, bid))?;
     assert!(bso.is_none());
@@ -779,7 +780,7 @@ fn delete_bsos() -> Result<()> {
     let coll = "clients";
     let bids = (0..=2).map(|i| format!("b{}", i));
     for bid in bids.clone() {
-        db.put_bso_sync(&pbso(
+        db.put_bso_sync(pbso(
             uid,
             coll,
             &bid,
@@ -827,7 +828,7 @@ fn delete_storage() -> Result<()> {
     let bid = "test";
     let coll = "my_collection";
     let cid = db.create_collection(coll)?;
-    db.put_bso_sync(&pbso(uid, coll, bid, Some("test"), None, None))?;
+    db.put_bso_sync(pbso(uid, coll, bid, Some("test"), None, None))?;
 
     db.delete_storage_sync(uid)?;
     let result = db.get_bso_sync(&gbso(uid, coll, bid))?;
@@ -841,29 +842,33 @@ fn delete_storage() -> Result<()> {
 
 #[test]
 fn lock_for_read() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
-    db.conn.transaction_manager().begin_transaction(&db.conn)?;
-    db.lock_for_read(hid(uid), coll)?;
+    db.lock_for_read_sync(params::LockCollection {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+    })?;
     match db.get_collection_id("NewCollection").unwrap_err().kind() {
         DbErrorKind::CollectionNotFound => assert!(true),
         _ => assert!(false),
     }
-    db.conn.transaction_manager().commit_transaction(&db.conn)?;
+    db.commit_sync()?;
     Ok(())
 }
 
 #[test]
 fn lock_for_write() -> Result<()> {
-    let mut db = db()?;
+    let db = db()?;
 
     let uid = 1;
     let coll = "clients";
-    db.conn.transaction_manager().begin_transaction(&db.conn)?;
-    db.lock_for_write(hid(uid), coll)?;
-    db.put_bso_sync(&pbso(uid, coll, "1", Some("foo"), None, None))?;
-    db.conn.transaction_manager().commit_transaction(&db.conn)?;
+    db.lock_for_write_sync(params::LockCollection {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+    })?;
+    db.put_bso_sync(pbso(uid, coll, "1", Some("foo"), None, None))?;
+    db.commit_sync()?;
     Ok(())
 }

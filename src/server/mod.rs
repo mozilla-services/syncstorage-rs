@@ -6,7 +6,10 @@ use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 //use num_cpus;
 
-use db::{mock::MockDb, Db};
+use db::{
+    mock::{MockDb, MockDbPool},
+    Db, DbPool,
+};
 use settings::{Secrets, ServerLimits, Settings};
 use web::handlers;
 use web::middleware;
@@ -50,13 +53,24 @@ mod test;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db: Box<Db>,
+    // XXX:
+    pub db: Box<dyn Db>,
+    pub db_pool: Box<dyn DbPool>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
 
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
+
+    pub port: u16,
+}
+
+pub fn build_app(state: ServerState) -> App<ServerState> {
+    App::with_state(state)
+        .middleware(middleware::WeaveTimestamp)
+        .middleware(middleware::DbTransaction)
+        .configure(|app| init_routes!(Cors::for_app(app)).register())
 }
 
 pub struct Server {}
@@ -66,19 +80,20 @@ impl Server {
         let sys = System::new("syncserver");
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
+        let port = settings.port;
 
         HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 // TODO: replace MockDb with a real implementation
                 db: Box::new(MockDb::new()),
+                db_pool: Box::new(MockDbPool::new()),
                 limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
+                port: port,
             };
 
-            App::with_state(state)
-                .middleware(middleware::WeaveTimestamp)
-                .configure(|app| init_routes!(Cors::for_app(app)).register())
+            build_app(state)
         }).bind(format!("127.0.0.1:{}", settings.port))
         .unwrap()
         .start();

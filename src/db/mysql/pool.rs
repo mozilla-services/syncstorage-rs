@@ -7,22 +7,29 @@ use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
+use futures::future::lazy;
+use tokio_threadpool::ThreadPool;
 
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use db::{error::DbError, STD_COLLS};
+use db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use settings::Settings;
 
+#[derive(Clone)]
 pub struct MysqlDbPool {
+    /// Pool of db connections
     pool: Pool<ConnectionManager<MysqlConnection>>,
+    /// Thread Pool for running synchronous db calls
+    thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 }
 
-// XXX: to become a db::DbPool trait
 impl MysqlDbPool {
     pub fn new(settings: &Settings) -> Result<Self> {
+        // XXX: run_embedded_migrations
+        // and warn so in docstring for MysqlDbPool (that it blocks)
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.as_ref());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
@@ -33,14 +40,33 @@ impl MysqlDbPool {
             builder
         };
 
+        // XXX: tokio_threadpool:ThreadPool probably not the best option: db
+        // calls are longerish running/blocking, so should likely run on
+        // ThreadPool's "backup threads", but it defaults scheduling to its
+        // "worker threads"
+        // XXX: allow configuring the ThreadPool size
         Ok(Self {
             pool: builder.build(manager)?,
+            thread_pool: Arc::new(ThreadPool::new()),
             coll_cache: Default::default(),
         })
     }
 
-    pub fn get(&self) -> Result<MysqlDb> {
-        Ok(MysqlDb::new(self.pool.get()?, Arc::clone(&self.coll_cache)))
+    pub fn get_sync(&self) -> Result<MysqlDb> {
+        Ok(MysqlDb::new(
+            self.pool.get()?,
+            Arc::clone(&self.thread_pool),
+            Arc::clone(&self.coll_cache),
+        ))
+    }
+}
+
+impl DbPool for MysqlDbPool {
+    fn get(&self) -> DbFuture<Box<dyn Db>> {
+        let pool = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            pool.get_sync().map(|db| Box::new(db) as Box<dyn Db>)
+        })))
     }
 }
 
