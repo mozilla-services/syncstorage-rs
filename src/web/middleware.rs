@@ -4,7 +4,6 @@
 use std::rc::Rc;
 
 use actix_web::{
-    error::ErrorInternalServerError,
     http::{header, Method},
     middleware::{Middleware, Response, Started},
     FromRequest, HttpRequest, HttpResponse, Result,
@@ -13,6 +12,7 @@ use chrono::Utc;
 use futures::{future, Future};
 
 use db::{params, Db};
+use error::{ApiError, ApiErrorKind};
 use server::ServerState;
 use web::extractors::{CollectionParam, HawkIdentifier};
 
@@ -43,9 +43,20 @@ impl<S> Middleware<S> for WeaveTimestamp {
         let weave_ts = if let Some(val) = resp.headers().get("X-Last-Modified") {
             let resp_ts = val
                 .to_str()
-                .map_err(|_| ErrorInternalServerError("Unable to extract header value"))?
-                .parse::<f64>()
-                .map_err(|_| ErrorInternalServerError("Invalid last-modified set"))?;
+                .map_err(|e| {
+                    let error: ApiError = ApiErrorKind::Internal(format!(
+                        "Invalid X-Last-Modified response header: {}",
+                        e
+                    )).into();
+                    error
+                })?.parse::<f64>()
+                .map_err(|e| {
+                    let error: ApiError = ApiErrorKind::Internal(format!(
+                        "Invalid X-Last-Modified response header: {}",
+                        e
+                    )).into();
+                    error
+                })?;
             if resp_ts > ts.0 {
                 resp_ts
             } else {
@@ -56,8 +67,13 @@ impl<S> Middleware<S> for WeaveTimestamp {
         };
         resp.headers_mut().insert(
             "x-weave-timestamp",
-            header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts))
-                .map_err(|_| ErrorInternalServerError("Invalid header value"))?,
+            header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts)).map_err(|e| {
+                let error: ApiError = ApiErrorKind::Internal(format!(
+                    "Invalid X-Weave-Timestamp response header: {}",
+                    e
+                )).into();
+                error
+            })?,
         );
         Ok(Response::Done(resp))
     }
