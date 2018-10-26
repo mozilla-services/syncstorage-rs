@@ -249,7 +249,8 @@ impl MysqlDb {
             .rollback_transaction(&self.conn)?)
     }
 
-    pub fn delete_storage_sync(&self, user_id: u32) -> Result<()> {
+    pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
+        let user_id = user_id.legacy_id;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .execute(&self.conn)?;
@@ -259,8 +260,9 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn delete_collection_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
-        let collection_id = self.get_collection_id(collection)?;
+    pub fn delete_collection_sync(&self, params: params::DeleteCollection) -> Result<i64> {
+        let user_id = params.user_id.legacy_id;
+        let collection_id = self.get_collection_id(&params.collection)?;
         let mut count = delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
@@ -272,7 +274,7 @@ impl MysqlDb {
         if count == 0 {
             Err(DbErrorKind::CollectionNotFound)?
         }
-        self.get_storage_modified_sync(user_id)
+        self.get_storage_modified_sync(user_id as u32)
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
@@ -401,8 +403,13 @@ impl MysqlDb {
         // XXX: convert to raw SQL for use by other backends
         let mut query = bso::table
             //.select(bso::table::all_columns())
-            .select((bso::id, bso::modified, bso::payload, bso::sortindex, bso::expiry))
-            .filter(bso::user_id.eq(user_id as i32)) // XXX:
+            .select((
+                bso::id,
+                bso::modified,
+                bso::payload,
+                bso::sortindex,
+                bso::expiry,
+            )).filter(bso::user_id.eq(user_id as i32)) // XXX:
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::modified.lt(older as i64))
             .filter(bso::modified.gt(newer as i64))
@@ -444,33 +451,39 @@ impl MysqlDb {
         })
     }
 
-    pub fn get_bso_sync(&self, params: &params::GetBso) -> Result<Option<results::GetBso>> {
-        let collection_id = self.get_collection_id(&params.collection)?;
+    pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id;
-        Ok(sql_query(r#"
-               SELECT id, modified, payload, sortindex, expiry FROM bso
-               WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
-           "#)
-           .bind::<Integer, _>(user_id as i32) // XXX:
-           .bind::<Integer, _>(&collection_id)
-           .bind::<Text, _>(&params.id)
-           .bind::<BigInt, _>(&self.timestamp())
-           .get_result::<results::GetBso>(&self.conn)
-           .optional()?)
+        let collection_id = self.get_collection_id(&params.collection)?;
+        let q = r#"
+            SELECT id, modified, payload, sortindex, expiry FROM bso
+            WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
+        "#;
+        Ok(sql_query(q)
+            .bind::<Integer, _>(user_id as i32) // XXX:
+            .bind::<Integer, _>(&collection_id)
+            .bind::<Text, _>(&params.id)
+            .bind::<BigInt, _>(&self.timestamp())
+            .get_result::<results::GetBso>(&self.conn)
+            .optional()?)
     }
 
-    pub fn delete_bso_sync(&self, user_id: u32, collection: &str, bso_id: &str) -> Result<i64> {
-        self.delete_bsos_sync(user_id, collection, &[bso_id])
+    pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
+        self.delete_bsos_sync(params::DeleteBsos {
+            user_id: params.user_id,
+            collection: params.collection,
+            ids: vec![params.id],
+        })
     }
 
-    pub fn delete_bsos_sync(&self, user_id: u32, collection: &str, bso_id: &[&str]) -> Result<i64> {
-        let collection_id = self.get_collection_id(collection)?;
+    pub fn delete_bsos_sync(&self, params: params::DeleteBsos) -> Result<results::DeleteBsos> {
+        let user_id = params.user_id.legacy_id;
+        let collection_id = self.get_collection_id(&params.collection)?;
         delete(bso::table)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
-            .filter(bso::id.eq_any(bso_id))
+            .filter(bso::id.eq_any(params.ids))
             .execute(&self.conn)?;
-        self.touch_collection(user_id, collection_id)
+        self.touch_collection(user_id as u32, collection_id)
     }
 
     pub fn post_bsos_sync(
@@ -551,13 +564,13 @@ impl MysqlDb {
             .ok_or(DbErrorKind::ItemNotFound.into())
     }
 
-    pub fn get_collections_modified_sync(
+    pub fn get_collection_modifieds_sync(
         &self,
-        params: &params::GetCollections,
-    ) -> Result<results::GetCollections> {
+        user_id: HawkIdentifier,
+    ) -> Result<results::GetCollectionModifieds> {
         let modifieds =
             sql_query("SELECT collection_id, modified FROM user_collections WHERE user_id = ?")
-                .bind::<Integer, _>(params.user_id.legacy_id as i32)
+                .bind::<Integer, _>(user_id.legacy_id as i32)
                 .load::<UserCollectionsResult>(&self.conn)?
                 .into_iter()
                 .map(|cr| (cr.collection_id, cr.modified))
@@ -566,7 +579,7 @@ impl MysqlDb {
     }
 
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
-        let names = self.load_collection_names(&by_id.keys().cloned().collect::<Vec<_>>())?;
+        let names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
             .map(|(id, value)| {
@@ -577,7 +590,10 @@ impl MysqlDb {
             }).collect()
     }
 
-    fn load_collection_names(&self, collection_ids: &[i32]) -> Result<HashMap<i32, String>> {
+    fn load_collection_names<'a>(
+        &self,
+        collection_ids: impl Iterator<Item = &'a i32>,
+    ) -> Result<HashMap<i32, String>> {
         let mut names = HashMap::new();
         let mut uncached = Vec::new();
         for &id in collection_ids {
@@ -615,7 +631,7 @@ impl MysqlDb {
         Ok(self.timestamp())
     }
 
-    pub fn get_storage_size_sync(
+    pub fn get_storage_usage_sync(
         &self,
         user_id: HawkIdentifier,
     ) -> Result<results::GetStorageUsage> {
@@ -627,10 +643,10 @@ impl MysqlDb {
         Ok(total_size as u64)
     }
 
-    pub fn get_collection_sizes_sync(
+    pub fn get_collection_usage_sync(
         &self,
         user_id: HawkIdentifier,
-    ) -> Result<results::GetCollectionCounts> {
+    ) -> Result<results::GetCollectionUsage> {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
@@ -669,14 +685,17 @@ impl MysqlDb {
 
 macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident) => {
-        fn $name(&self, params: params::$type) -> DbFuture<results::$type> {
+        sync_db_method!($name, $sync_name, $type, results::$type);
+    };
+    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
             Box::new(
                 self.thread_pool
                     .spawn_handle(lazy(move || future::result(db.$sync_name(params)))),
             )
         }
-    }
+    };
 }
 
 impl Db for MysqlDb {
@@ -698,19 +717,31 @@ impl Db for MysqlDb {
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
     sync_db_method!(lock_for_write, lock_for_write_sync, LockCollection);
+    sync_db_method!(
+        get_collection_modifieds,
+        get_collection_modifieds_sync,
+        GetCollectionModifieds
+    );
+    sync_db_method!(
+        get_collection_counts,
+        get_collection_counts_sync,
+        GetCollectionCounts
+    );
+    sync_db_method!(
+        get_collection_usage,
+        get_collection_usage_sync,
+        GetCollectionUsage
+    );
+    sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
+    sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
+    sync_db_method!(delete_collection, delete_collection_sync, DeleteCollection);
 
-    mock_db_method!(get_collection_id, GetCollectionId);
-    mock_db_method!(get_collections, GetCollections);
-    mock_db_method!(get_collection_counts, GetCollectionCounts);
-    mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_storage_usage, GetStorageUsage);
-    mock_db_method!(delete_all, DeleteAll);
-    mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(get_collection, GetCollection);
     mock_db_method!(post_collection, PostCollection);
-    mock_db_method!(delete_bso, DeleteBso);
-    mock_db_method!(get_bso, GetBso);
 
+    sync_db_method!(delete_bsos, delete_bsos_sync, DeleteBsos);
+    sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
+    sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
     sync_db_method!(put_bso, put_bso_sync, PutBso);
 }
 

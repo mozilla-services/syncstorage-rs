@@ -51,44 +51,42 @@ pub trait Db: Send {
 
     fn rollback(&self) -> DbFuture<()>;
 
-    fn get_collection_id(
+    fn get_collection_modifieds(
         &self,
-        params: &params::GetCollectionId,
-    ) -> DbFuture<results::GetCollectionId>;
-
-    fn get_collections(&self, params: &params::GetCollections)
-        -> DbFuture<results::GetCollections>;
+        params: params::GetCollectionModifieds,
+    ) -> DbFuture<results::GetCollectionModifieds>;
 
     fn get_collection_counts(
         &self,
-        params: &params::GetCollectionCounts,
+        params: params::GetCollectionCounts,
     ) -> DbFuture<results::GetCollectionCounts>;
 
     fn get_collection_usage(
         &self,
-        params: &params::GetCollectionUsage,
+        params: params::GetCollectionUsage,
     ) -> DbFuture<results::GetCollectionUsage>;
 
     fn get_storage_usage(
         &self,
-        params: &params::GetStorageUsage,
+        params: params::GetStorageUsage,
     ) -> DbFuture<results::GetStorageUsage>;
 
-    fn delete_all(&self, params: &params::DeleteAll) -> DbFuture<results::DeleteAll>;
+    fn delete_storage(&self, params: params::DeleteStorage) -> DbFuture<results::DeleteStorage>;
 
     fn delete_collection(
         &self,
-        params: &params::DeleteCollection,
+        params: params::DeleteCollection,
     ) -> DbFuture<results::DeleteCollection>;
 
-    fn get_collection(&self, params: &params::GetCollection) -> DbFuture<results::GetCollection>;
+    fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<results::DeleteBsos>;
 
-    fn post_collection(&self, params: &params::PostCollection)
-        -> DbFuture<results::PostCollection>;
+    fn delete_bso(&self, params: params::DeleteBso) -> DbFuture<results::DeleteBso>;
 
-    fn delete_bso(&self, params: &params::DeleteBso) -> DbFuture<results::DeleteBso>;
+    fn get_collection(&self, params: params::GetCollection) -> DbFuture<results::GetCollection>;
 
-    fn get_bso(&self, params: &params::GetBso) -> DbFuture<results::GetBso>;
+    fn post_collection(&self, params: params::PostCollection) -> DbFuture<results::PostCollection>;
+
+    fn get_bso(&self, params: params::GetBso) -> DbFuture<Option<results::GetBso>>;
 
     fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
 }

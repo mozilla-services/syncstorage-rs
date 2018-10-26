@@ -7,15 +7,15 @@ use std::collections::HashMap;
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
 
 pub type LockCollection = ();
-pub type GetCollectionId = i32;
-pub type GetCollections = HashMap<String, i64>;
+pub type GetCollectionModifieds = HashMap<String, i64>;
 pub type GetCollectionCounts = HashMap<String, i64>;
-pub type GetCollectionUsage = HashMap<String, u32>;
+pub type GetCollectionUsage = HashMap<String, i64>;
 pub type GetStorageUsage = u64;
-pub type DeleteAll = ();
+pub type DeleteStorage = ();
 pub type GetCollection = Vec<GetCollectionItem>;
-pub type DeleteCollection = Option<DeleteBsos>;
-pub type DeleteBso = ();
+pub type DeleteCollection = i64;
+pub type DeleteBsos = i64;
+pub type DeleteBso = i64;
 pub type PutBso = u64;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -49,10 +49,13 @@ pub struct BSOs {
     pub offset: i64, // XXX: i64?
 }
 
-#[derive(Debug, Serialize)]
-pub struct DeleteBsos {
+// XXX: ideally only used by the handlers (could use json! instead?)
+/*
+#[derive(Debug, Default, Serialize)]
+pub struct DeleteBso {
     modified: u64,
 }
+*/
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PostCollection {
