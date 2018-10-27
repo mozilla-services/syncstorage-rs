@@ -1,5 +1,5 @@
 //! Parameter types for database methods.
-use web::extractors::HawkIdentifier;
+use web::extractors::{BatchBsoBody, HawkIdentifier};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {
@@ -81,4 +81,15 @@ pub struct PostCollectionBso {
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
     pub ttl: Option<u32>,
+}
+
+impl From<BatchBsoBody> for PostCollectionBso {
+    fn from(b: BatchBsoBody) -> PostCollectionBso {
+        PostCollectionBso {
+            id: b.id,
+            sortindex: b.sortindex,
+            payload: b.payload,
+            ttl: b.ttl,
+        }
+    }
 }

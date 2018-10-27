@@ -4,21 +4,35 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{rc::Rc, str::FromStr};
 
+use actix_web::http::header::{HeaderValue, CONTENT_TYPE};
 use actix_web::{
-    error::ErrorInternalServerError, Error, FromRequest, HttpRequest, Path, Query, State,
+    dev::{JsonConfig, PayloadConfig},
+    error::ErrorInternalServerError,
+    Error, FromRequest, HttpRequest, Json, Path, Query, State,
 };
 use futures::{future, Future};
 use num::Zero;
 use regex::Regex;
 use serde::de::{Deserialize, Deserializer, Error as SerdeError};
+use serde_json;
 use validator::{Validate, ValidationError};
 
 use db::Db;
-use error::ApiResult;
+use error::{ApiError, ApiResult};
 use server::ServerState;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
+
+// BSO const restrictions
+const BSO_MAX_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
+const BSO_MAX_TTL: u32 = 31536000;
+const BSO_MAX_SORTINDEX_VALUE: i32 = 999999999;
+const BSO_MIN_SORTINDEX_VALUE: i32 = -999999999;
+
+// TODO: These should come from config using actix with_config
+const BATCH_MAX_RECORDS: usize = 100;
+const BATCH_MAX_BYTES: usize = BSO_MAX_PAYLOAD_SIZE * 150;
 
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
@@ -33,24 +47,193 @@ pub struct UidParam {
     uid: u64,
 }
 
-#[derive(Deserialize)]
-pub struct CollectionParams {
-    pub uid: String,
-    pub collection: String,
-}
-
-#[derive(Deserialize)]
-pub struct BsoParams {
-    pub uid: String,
-    pub collection: String,
-    pub bso: String,
-}
-
-#[derive(Deserialize, Serialize)]
-pub struct BsoBody {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BatchBsoBody {
+    pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
     pub ttl: Option<u32>,
+}
+
+#[derive(Default, Deserialize)]
+pub struct BsoBodies {
+    pub valid: Vec<BatchBsoBody>,
+    pub invalid: Vec<BsoBody>,
+}
+
+impl FromRequest<ServerState> for BsoBodies {
+    type Config = ();
+    type Result = Box<Future<Item = BsoBodies, Error = Error>>;
+
+    /// Extract the BSO Bodies from the request
+    ///
+    /// This extraction ensures the following conditions:
+    ///   - Total payload size does not exceed `BATCH_MAX_BYTES`
+    ///   - All BSO's deserialize from the request correctly
+    ///   - Request content-type is a valid value
+    ///   - Valid BSO's include a BSO id
+    ///
+    /// No collection id is used, so payload checks are not done here.
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        // Only try and parse the body if its a valid content-type
+        let headers = req.headers();
+        let default = HeaderValue::from_static("");
+        let content_type = headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes();
+
+        match content_type {
+            b"application/json" | b"text/plain" | b"application/newlines" | b"" => (),
+            _ => {
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Invalid content-type".to_owned(),
+                        RequestErrorLocation::Header,
+                        Some("content-type".to_owned()),
+                    ).into(),
+                ));
+            }
+        }
+
+        // Load the entire request into a String
+        let mut config = PayloadConfig::default();
+        config.limit(BATCH_MAX_BYTES);
+        let fut = if let Ok(result) = <String>::from_request(req, &config) {
+            result
+        } else {
+            return Box::new(future::err(
+                ValidationErrorKind::FromDetails(
+                    "Mimetype/encoding/content-length error".to_owned(),
+                    RequestErrorLocation::Header,
+                    None,
+                ).into(),
+            ));
+        };
+
+        // Avoid duplicating by defining our error func now, doesn't need the box wrapper
+        fn make_error() -> Error {
+            ValidationErrorKind::FromDetails(
+                "Invalid JSON in request body".to_owned(),
+                RequestErrorLocation::Body,
+                Some("bsos".to_owned()),
+            ).into()
+        }
+
+        // Define a new bool to check from a static closure to release the reference on the
+        // content_type header
+        let newlines: bool = content_type == b"application/newlines";
+
+        let fut = fut.and_then(move |body| {
+            // Parse out the body per the content type
+            let bsos: Vec<BsoBody> = if newlines {
+                let mut bsos = Vec::new();
+                for item in body.lines() {
+                    // Skip any blanks
+                    if item == "" {
+                        continue;
+                    }
+                    if let Ok(item) = serde_json::from_str(&item) {
+                        bsos.push(item);
+                    } else {
+                        // Per Python version, all BSO's must parse or we error out
+                        return future::err(make_error());
+                    }
+                }
+                bsos
+            } else {
+                if let Ok(bsos) = serde_json::from_str(&body) {
+                    bsos
+                } else {
+                    return future::err(make_error());
+                }
+            };
+
+            // Validate all the BSO's, move invalid to our other list. Assume they'll all make
+            // it with our pre-allocation
+            let mut valid: Vec<BatchBsoBody> = Vec::with_capacity(bsos.len());
+            let mut invalid: Vec<BsoBody> = Vec::new();
+            for mut bso in bsos {
+                if bso.validate().is_ok() {
+                    // They're only valid if they include an id.
+                    // XXX: Verify the id is optional, this may be a legacy thing
+                    match bso {
+                        BsoBody {
+                            id: Some(id),
+                            sortindex,
+                            payload,
+                            ttl,
+                        } => valid.push(BatchBsoBody {
+                            id,
+                            sortindex,
+                            payload,
+                            ttl,
+                        }),
+                        bso => invalid.push(bso),
+                    }
+                } else {
+                    invalid.push(bso);
+                }
+            }
+            future::ok(BsoBodies { valid, invalid })
+        });
+
+        Box::new(fut)
+    }
+}
+
+#[derive(Default, Deserialize, Serialize, Validate)]
+pub struct BsoBody {
+    #[validate(custom = "validate_body_bso_id")]
+    pub id: Option<String>,
+    #[validate(custom = "validate_body_bso_sortindex")]
+    pub sortindex: Option<i32>,
+    #[validate(custom = "validate_body_bso_payload")]
+    pub payload: Option<String>,
+    #[validate(custom = "validate_body_bso_ttl")]
+    pub ttl: Option<u32>,
+}
+
+impl FromRequest<ServerState> for BsoBody {
+    type Config = ();
+    type Result = Box<Future<Item = BsoBody, Error = Error>>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        // Only try and parse the body if its a valid content-type
+        let headers = req.headers();
+        let default = HeaderValue::from_static("");
+        match headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes() {
+            b"application/json" | b"text/plain" | b"" => (),
+            _ => {
+                // TODO: This is supposed to return a 415 status for unknown content-type
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Invalid content-type".to_owned(),
+                        RequestErrorLocation::Header,
+                        Some("content-type".to_owned()),
+                    ).into(),
+                ));
+            }
+        }
+        let mut config = JsonConfig::default();
+        config.limit(BSO_MAX_PAYLOAD_SIZE);
+        let fut = <Json<BsoBody>>::from_request(req, &config)
+            .map_err(|e| {
+                let err: ApiError = ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::Body,
+                    Some("bso".to_owned()),
+                ).into();
+                err.into()
+            }).and_then(|bso: Json<BsoBody>| {
+                if let Err(e) = bso.validate() {
+                    let err: ApiError =
+                        ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Body)
+                            .into();
+                    return future::err(err.into());
+                }
+                future::ok(bso.into_inner())
+            });
+
+        Box::new(fut)
+    }
 }
 
 /// Bso id parameter extractor
@@ -127,14 +310,12 @@ impl FromRequest<ServerState> for MetaRequest {
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         Box::new(
-            <(Path<UidParam>, HawkIdentifier, State<ServerState>)>::extract(req).and_then(
-                |(_path, auth, state)| {
-                    future::ok(MetaRequest {
-                        state,
-                        user_id: auth,
-                    })
-                },
-            ),
+            <(HawkIdentifier, State<ServerState>)>::extract(req).and_then(|(auth, state)| {
+                future::ok(MetaRequest {
+                    state,
+                    user_id: auth,
+                })
+            }),
         )
     }
 }
@@ -165,6 +346,81 @@ impl FromRequest<ServerState> for CollectionRequest {
             user_id,
             query,
         })
+    }
+}
+
+/// Collection Request Post extractor
+///
+/// Extracts/validates information needed for batch collection POST requests.
+pub struct CollectionPostRequest {
+    pub collection: String,
+    pub state: State<ServerState>,
+    pub user_id: HawkIdentifier,
+    pub query: BsoQueryParams,
+    pub bsos: BsoBodies,
+}
+
+impl FromRequest<ServerState> for CollectionPostRequest {
+    type Config = ();
+    type Result = Box<Future<Item = CollectionPostRequest, Error = Error>>;
+
+    /// Extractor for Collection Posts (Batch BSO upload)
+    ///
+    /// Utilizes the `BsoBodies` for parsing, and add's two validation steps not
+    /// done previously:
+    ///   - If the collection is 'crypto', known bad payloads are checked for
+    ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let fut = <(
+            HawkIdentifier,
+            State<ServerState>,
+            CollectionParam,
+            BsoQueryParams,
+            BsoBodies,
+        )>::extract(req).and_then(|(user_id, state, collection, query, mut bsos)| {
+            let collection = collection.collection.clone();
+            if collection == "crypto" {
+                // Verify the client didn't mess up the crypto if we have a payload
+                for bso in &bsos.valid {
+                    if let Some(ref data) = bso.payload {
+                        if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
+                            return future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "Known-bad BSO payload".to_owned(),
+                                    RequestErrorLocation::Body,
+                                    Some("bsos".to_owned()),
+                                ).into(),
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Trim the excess BSO's to be under the batch size
+            let overage: i64 = (bsos.valid.len() as i64) - (BATCH_MAX_RECORDS as i64);
+            if overage > 0 {
+                for _ in 1..=overage {
+                    if let Some(last) = bsos.valid.pop() {
+                        bsos.invalid.push(BsoBody {
+                            id: Some(last.id),
+                            sortindex: last.sortindex,
+                            payload: last.payload,
+                            ttl: last.ttl,
+                        });
+                    }
+                }
+            }
+
+            future::ok(CollectionPostRequest {
+                collection,
+                state,
+                user_id,
+                query,
+                bsos,
+            })
+        });
+
+        Box::new(fut)
     }
 }
 
@@ -199,6 +455,61 @@ impl FromRequest<ServerState> for BsoRequest {
             query,
             bso: bso.bso.clone(),
         })
+    }
+}
+
+/// BSO Request Put extractor
+///
+/// Extracts/validates information needed for BSO put requests.
+pub struct BsoPutRequest {
+    pub collection: String,
+    pub state: State<ServerState>,
+    pub user_id: HawkIdentifier,
+    pub query: BsoQueryParams,
+    pub bso: String,
+    pub body: BsoBody,
+}
+
+impl FromRequest<ServerState> for BsoPutRequest {
+    type Config = ();
+    type Result = Box<Future<Item = BsoPutRequest, Error = Error>>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let fut = <(
+            HawkIdentifier,
+            State<ServerState>,
+            CollectionParam,
+            BsoQueryParams,
+            BsoParam,
+            BsoBody,
+        )>::extract(req).and_then(|(user_id, state, collection, query, bso, body)| {
+            let collection = collection.collection.clone();
+            if collection == "crypto" {
+                // Verify the client didn't mess up the crypto if we have a payload
+                if let Some(ref data) = body.payload {
+                    if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
+                        return future::err(
+                            ValidationErrorKind::FromDetails(
+                                "Known-bad BSO payload".to_owned(),
+                                RequestErrorLocation::Body,
+                                Some("bsos".to_owned()),
+                            ).into(),
+                        );
+                    }
+                }
+            }
+
+            future::ok(BsoPutRequest {
+                collection,
+                state,
+                user_id,
+                query,
+                bso: bso.bso.clone(),
+                body,
+            })
+        });
+
+        Box::new(fut)
     }
 }
 
@@ -461,6 +772,39 @@ fn validate_qs_ids(ids: &Vec<String>) -> Result<(), ValidationError> {
                 RequestErrorLocation::QueryString,
             ));
         }
+    }
+    Ok(())
+}
+
+/// Verifies the BSO sortindex is in the valid range
+fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
+    if BSO_MIN_SORTINDEX_VALUE <= sort && sort <= BSO_MAX_SORTINDEX_VALUE {
+        Ok(())
+    } else {
+        Err(request_error("invalid value", RequestErrorLocation::Body))
+    }
+}
+
+/// Verifies the BSO payload size is valid
+fn validate_body_bso_payload(payload: &str) -> Result<(), ValidationError> {
+    if payload.len() > BSO_MAX_PAYLOAD_SIZE {
+        return Err(request_error("invalid size", RequestErrorLocation::Body));
+    }
+    Ok(())
+}
+
+/// Verifies the BSO id string is valid
+fn validate_body_bso_id(id: &String) -> Result<(), ValidationError> {
+    if !VALID_ID_REGEX.is_match(id) {
+        return Err(request_error("Invalid id", RequestErrorLocation::Body));
+    }
+    Ok(())
+}
+
+/// Verifies the BSO ttl is valid
+fn validate_body_bso_ttl(ttl: u32) -> Result<(), ValidationError> {
+    if ttl > BSO_MAX_TTL {
+        return Err(request_error("Invalid TTL", RequestErrorLocation::Body));
     }
     Ok(())
 }
