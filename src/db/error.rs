@@ -16,6 +16,12 @@ pub enum DbErrorKind {
     #[fail(display = "A database error occurred: {}", _0)]
     Query(#[cause] diesel::result::Error),
 
+    #[fail(
+        display = "An error occurred while establishing a db connection: {}",
+        _0
+    )]
+    Connection(#[cause] diesel::result::ConnectionError),
+
     #[fail(display = "A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
 
@@ -60,6 +66,11 @@ impl From<Context<DbErrorKind>> for DbError {
 failure_boilerplate!(DbError, DbErrorKind);
 
 from_error!(diesel::result::Error, DbError, DbErrorKind::Query);
+from_error!(
+    diesel::result::ConnectionError,
+    DbError,
+    DbErrorKind::Connection
+);
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
 from_error!(
     diesel_migrations::RunMigrationsError,

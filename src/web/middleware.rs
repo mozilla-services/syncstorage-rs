@@ -1,8 +1,6 @@
 //! # Web Middleware
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
-use std::rc::Rc;
-
 use actix_web::{
     http::{header, Method},
     middleware::{Middleware, Response, Started},
@@ -112,7 +110,7 @@ impl Middleware<ServerState> for DbTransaction {
                     Box::new(future::ok(()))
                 };
                 fut.and_then(move |_| {
-                    req.extensions_mut().insert(Rc::new(db));
+                    req.extensions_mut().insert(db);
                     future::ok(None)
                 })
             }).map_err(Into::into);
@@ -120,7 +118,7 @@ impl Middleware<ServerState> for DbTransaction {
     }
 
     fn response(&self, req: &HttpRequest<ServerState>, resp: HttpResponse) -> Result<Response> {
-        if let Some(db) = req.extensions().get::<Rc<Box<dyn Db>>>() {
+        if let Some(db) = req.extensions().get::<Box<dyn Db>>() {
             let fut = match resp.error() {
                 None => db.commit(),
                 Some(_) => db.rollback(),

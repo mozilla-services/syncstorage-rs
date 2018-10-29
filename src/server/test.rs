@@ -12,7 +12,7 @@ use sha2::Sha256;
 use super::*;
 use db::mysql::pool::MysqlDbPool;
 use db::params::PostCollectionBso;
-use db::results::{GetBso, GetCollection, PostCollection, PutBso};
+use db::results::{GetBso, PostBsos, PutBso};
 use db::util::ms_since_epoch;
 use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
@@ -37,7 +37,6 @@ fn setup() -> TestServer {
         };
 
         let state = ServerState {
-            db: Box::new(MockDb::new()),
             db_pool: Box::new(MysqlDbPool::new(&settings).unwrap()),
             limits: Arc::clone(&SERVER_LIMITS),
             secrets: Arc::clone(&SECRETS),
@@ -187,7 +186,7 @@ fn get_collection() {
     test_endpoint_with_response(
         http::Method::GET,
         "/42/storage/bookmarks",
-        &move |collection: GetCollection| {
+        &move |collection: Vec<GetBso>| {
             assert_eq!(collection.len(), 0);
         },
     );
@@ -195,6 +194,7 @@ fn get_collection() {
 
 #[test]
 fn post_collection() {
+    let start = ms_since_epoch() as u64;
     test_endpoint_with_body! {
         POST "/42/storage/bookmarks", vec![PostCollectionBso {
             id: "foo".to_string(),
@@ -202,9 +202,9 @@ fn post_collection() {
             payload: Some("bar".to_string()),
             ttl: Some(31536000),
         }],
-        result: PostCollection {
-            assert_eq!(result.modified, 0);
-            assert_eq!(result.success.len(), 0);
+        result: PostBsos {
+            assert!(result.modified > start);
+            assert_eq!(result.success.len(), 1);
             assert_eq!(result.failed.len(), 0);
         }
     };
@@ -212,7 +212,18 @@ fn post_collection() {
 
 #[test]
 fn delete_bso() {
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks/wibble", "0");
+    #[derive(Debug, Default, Deserialize)]
+    pub struct DeleteBso {
+        modified: u64,
+    }
+    let start = ms_since_epoch() as u64;
+    test_endpoint_with_response(
+        http::Method::DELETE,
+        "/42/storage/bookmarks/wibble",
+        &move |dbso: DeleteBso| {
+            assert!(dbso.modified > start);
+        },
+    );
 }
 
 #[test]
@@ -231,7 +242,7 @@ fn get_bso() {
 
 #[test]
 fn put_bso() {
-    let now = ms_since_epoch() as u64;
+    let start = ms_since_epoch() as u64;
     test_endpoint_with_body! {
         PUT "/42/storage/bookmarks/wibble", BsoBody {
             id: Some("wibble".to_string()),
@@ -240,7 +251,7 @@ fn put_bso() {
             ttl: Some(31536000),
         },
         result: PutBso {
-            assert!(result > now);
+            assert!(result > start);
         }
     };
 }

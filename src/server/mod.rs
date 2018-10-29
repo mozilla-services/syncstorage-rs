@@ -6,10 +6,7 @@ use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
 //use num_cpus;
 
-use db::{
-    mock::{MockDb, MockDbPool},
-    Db, DbPool,
-};
+use db::{mysql::MysqlDbPool, DbError, DbPool};
 use settings::{Secrets, ServerLimits, Settings};
 use web::handlers;
 use web::middleware;
@@ -53,8 +50,6 @@ mod test;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    // XXX:
-    pub db: Box<dyn Db>,
     pub db_pool: Box<dyn DbPool>,
 
     /// Server-enforced limits for request payloads.
@@ -76,8 +71,9 @@ pub fn build_app(state: ServerState) -> App<ServerState> {
 pub struct Server {}
 
 impl Server {
-    pub fn with_settings(settings: Settings) -> SystemRunner {
+    pub fn with_settings(settings: Settings) -> Result<SystemRunner, DbError> {
         let sys = System::new("syncserver");
+        let db_pool = Box::new(MysqlDbPool::new(&settings)?);
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
@@ -85,9 +81,7 @@ impl Server {
         HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
-                // TODO: replace MockDb with a real implementation
-                db: Box::new(MockDb::new()),
-                db_pool: Box::new(MockDbPool::new()),
+                db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
                 port: port,
@@ -97,6 +91,6 @@ impl Server {
         }).bind(format!("127.0.0.1:{}", settings.port))
         .unwrap()
         .start();
-        sys
+        Ok(sys)
     }
 }

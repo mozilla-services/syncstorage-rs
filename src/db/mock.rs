@@ -19,7 +19,7 @@ impl DbPool for MockDbPool {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MockDb;
 
 impl MockDb {
@@ -49,17 +49,22 @@ impl Db for MockDb {
         Box::new(future::ok(()))
     }
 
+    fn box_clone(&self) -> Box<dyn Db> {
+        Box::new(self.clone())
+    }
+
     mock_db_method!(lock_for_read, LockCollection);
     mock_db_method!(lock_for_write, LockCollection);
     mock_db_method!(get_collection_modifieds, GetCollectionModifieds);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
+    mock_db_method!(get_storage_modified, GetStorageModified);
     mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(delete_storage, DeleteStorage);
     mock_db_method!(delete_collection, DeleteCollection);
-    mock_db_method!(get_collection, GetCollection);
-    mock_db_method!(post_collection, PostCollection);
     mock_db_method!(delete_bsos, DeleteBsos);
+    mock_db_method!(get_bsos, GetBsos);
+    mock_db_method!(post_bsos, PostBsos);
     mock_db_method!(delete_bso, DeleteBso);
     mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
     mock_db_method!(put_bso, PutBso);

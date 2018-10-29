@@ -29,6 +29,7 @@ extern crate ring;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
 extern crate sha2;
 extern crate time;
@@ -70,7 +71,7 @@ fn main() -> Result<(), Box<Error>> {
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
 
     // Setup and run the server
-    let sys = server::Server::with_settings(settings);
+    let sys = server::Server::with_settings(settings).unwrap();
     println!("Server running");
     let _ = sys.run();
 

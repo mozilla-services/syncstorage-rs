@@ -1,7 +1,6 @@
 //! Generic db abstration.
 
 pub mod error;
-#[macro_use]
 pub mod mock;
 pub mod mysql;
 pub mod params;
@@ -10,7 +9,7 @@ pub mod util;
 
 use futures::future::Future;
 
-pub use self::error::DbError;
+pub use self::error::{DbError, DbErrorKind};
 
 lazy_static! {
     /// For efficiency, it's possible to use fixed pre-determined IDs for
@@ -66,6 +65,11 @@ pub trait Db: Send {
         params: params::GetCollectionUsage,
     ) -> DbFuture<results::GetCollectionUsage>;
 
+    fn get_storage_modified(
+        &self,
+        params: params::GetStorageModified,
+    ) -> DbFuture<results::GetStorageModified>;
+
     fn get_storage_usage(
         &self,
         params: params::GetStorageUsage,
@@ -80,15 +84,23 @@ pub trait Db: Send {
 
     fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<results::DeleteBsos>;
 
+    fn get_bsos(&self, params: params::GetBsos) -> DbFuture<results::GetBsos>;
+
+    fn post_bsos(&self, params: params::PostBsos) -> DbFuture<results::PostBsos>;
+
     fn delete_bso(&self, params: params::DeleteBso) -> DbFuture<results::DeleteBso>;
-
-    fn get_collection(&self, params: params::GetCollection) -> DbFuture<results::GetCollection>;
-
-    fn post_collection(&self, params: params::PostCollection) -> DbFuture<results::PostCollection>;
 
     fn get_bso(&self, params: params::GetBso) -> DbFuture<Option<results::GetBso>>;
 
     fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
+
+    fn box_clone(&self) -> Box<dyn Db>;
+}
+
+impl Clone for Box<dyn Db> {
+    fn clone(&self) -> Box<dyn Db> {
+        self.box_clone()
+    }
 }
 
 #[derive(Debug)]
