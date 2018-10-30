@@ -234,6 +234,7 @@ fn put_bso() {
     let now = ms_since_epoch() as u64;
     test_endpoint_with_body! {
         PUT "/42/storage/bookmarks/wibble", BsoBody {
+            id: Some("wibble".to_string()),
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31536000),

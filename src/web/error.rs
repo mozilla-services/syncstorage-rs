@@ -3,6 +3,7 @@
 use std::fmt;
 
 use actix_web::http::header::ToStrError;
+use actix_web::Error as ActixError;
 use base64::DecodeError;
 use failure::{Backtrace, Context, Fail, SyncFailure};
 use hawk::Error as ParseError;
@@ -117,6 +118,13 @@ impl From<ValidationErrorKind> for ApiError {
     fn from(kind: ValidationErrorKind) -> Self {
         let validation_error: ValidationError = Context::new(kind).into();
         validation_error.into()
+    }
+}
+
+impl From<ValidationErrorKind> for ActixError {
+    fn from(kind: ValidationErrorKind) -> Self {
+        let api_error: ApiError = kind.into();
+        api_error.into()
     }
 }
 

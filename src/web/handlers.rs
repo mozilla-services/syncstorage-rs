@@ -1,14 +1,13 @@
 //! API Handlers
-
 use std::rc::Rc;
 
-use actix_web::{FutureResponse, HttpResponse, Json, Path, State};
+use actix_web::{FutureResponse, HttpResponse, State};
 use futures::future::{self, Future};
 
 use db::{params, Db};
 use server::ServerState;
 use web::extractors::{
-    BsoBody, BsoParams, BsoRequest, CollectionParams, CollectionRequest, HawkIdentifier,
+    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
     MetaRequest,
 };
 
@@ -94,21 +93,14 @@ pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
     )
 }
 
-pub fn post_collection(
-    (_params, auth, state, body): (
-        Path<CollectionParams>,
-        HawkIdentifier,
-        State<ServerState>,
-        Json<Vec<params::PostCollectionBso>>,
-    ),
-) -> FutureResponse<HttpResponse> {
+pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpResponse> {
     Box::new(
-        state
+        coll.state
             .db
             .post_collection(params::PostCollection {
-                user_id: auth,
-                collection: "tabs".to_owned(),
-                bsos: body.into_inner().into_iter().map(From::from).collect(),
+                user_id: coll.user_id,
+                collection: coll.collection,
+                bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
             }).map_err(From::from)
             .map(|result| HttpResponse::Ok().json(result)),
     )
@@ -142,22 +134,15 @@ pub fn get_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
     )
 }
 
-pub fn put_bso(
-    (db, params, auth, body): (
-        Rc<Box<dyn Db>>,
-        Path<BsoParams>,
-        HawkIdentifier,
-        Json<BsoBody>,
-    ),
-) -> FutureResponse<HttpResponse> {
+pub fn put_bso((db, bso_req): (Rc<Box<dyn Db>>, BsoPutRequest)) -> FutureResponse<HttpResponse> {
     Box::new(
         db.put_bso(params::PutBso {
-            user_id: auth,
-            collection: "tabs".to_owned(),
-            id: params.bso.clone(),
-            sortindex: body.sortindex,
-            payload: body.payload.clone(), // XXX: need clone here from body, sigh
-            ttl: body.ttl,
+            user_id: bso_req.user_id,
+            collection: bso_req.collection,
+            id: bso_req.bso,
+            sortindex: bso_req.body.sortindex,
+            payload: bso_req.body.payload,
+            ttl: bso_req.body.ttl,
         }).map_err(From::from)
         .map(|result| HttpResponse::Ok().json(result)),
     )
