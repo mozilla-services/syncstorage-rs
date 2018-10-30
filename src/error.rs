@@ -29,6 +29,9 @@ pub enum ApiErrorKind {
     Hawk(#[cause] HawkError),
 
     #[fail(display = "{}", _0)]
+    Internal(String),
+
+    #[fail(display = "{}", _0)]
     Validation(#[cause] ValidationError),
 }
 
@@ -43,6 +46,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
         let status = match inner.get_context() {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
+            ApiErrorKind::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             ApiErrorKind::Validation(_) => StatusCode::BAD_REQUEST,
         };
 
@@ -87,6 +91,9 @@ impl Serialize for ApiErrorKind {
         match *self {
             ApiErrorKind::Db(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Hawk(ref error) => serialize_string_to_array(serializer, error),
+            ApiErrorKind::Internal(ref description) => {
+                serialize_string_to_array(serializer, description)
+            }
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
         }
     }
