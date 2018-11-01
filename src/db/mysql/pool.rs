@@ -6,6 +6,7 @@ use std::{
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
+    Connection,
 };
 use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
@@ -15,6 +16,17 @@ use super::models::{MysqlDb, Result};
 use super::test::TestTransactionCustomizer;
 use db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use settings::Settings;
+
+embed_migrations!();
+
+/// Run the diesel embedded migrations
+///
+/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
+/// begin_test_transaction during tests. So this runs on its own separate conn.
+pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
+    let conn = MysqlConnection::establish(&settings.database_url)?;
+    Ok(embedded_migrations::run(&conn)?)
+}
 
 #[derive(Clone)]
 pub struct MysqlDbPool {
@@ -27,9 +39,15 @@ pub struct MysqlDbPool {
 }
 
 impl MysqlDbPool {
+    /// Creates a new pool of Mysql db connections.
+    ///
+    /// Also initializes the Mysql db, ensuring all migrations are ran.
     pub fn new(settings: &Settings) -> Result<Self> {
-        // XXX: run_embedded_migrations
-        // and warn so in docstring for MysqlDbPool (that it blocks)
+        run_embedded_migrations(settings)?;
+        Self::new_without_migrations(settings)
+    }
+
+    pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.as_ref());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 

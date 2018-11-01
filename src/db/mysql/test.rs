@@ -8,11 +8,11 @@ use diesel::{
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use db::mysql::{
-    models::{run_embedded_migrations, MysqlDb, Result, DEFAULT_BSO_TTL},
+    models::{MysqlDb, Result, DEFAULT_BSO_TTL},
     pool::MysqlDbPool,
     schema::collections,
 };
-use db::{error::DbErrorKind, params, Sorting};
+use db::{params, DbErrorKind, Sorting};
 use env_logger;
 use settings::{Secrets, ServerLimits, Settings};
 use web::extractors::HawkIdentifier;
@@ -43,7 +43,6 @@ pub fn db() -> Result<MysqlDb> {
         master_secret: Secrets::default(),
     };
 
-    run_embedded_migrations(&settings)?;
     let pool = MysqlDbPool::new(&settings)?;
     pool.get_sync()
 }
@@ -85,6 +84,28 @@ fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
         user_id: HawkIdentifier::new_legacy(user_id as u64),
         collection: coll.to_owned(),
         id: bid.to_owned(),
+    }
+}
+
+fn gbsos(
+    user_id: u32,
+    coll: &str,
+    bids: &[&str],
+    older: u64,
+    newer: u64,
+    sort: Sorting,
+    limit: i64,
+    offset: i64,
+) -> params::GetBsos {
+    params::GetBsos {
+        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        collection: coll.to_owned(),
+        ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
+        older,
+        newer,
+        sort,
+        limit,
+        offset,
     }
 }
 
@@ -262,12 +283,30 @@ fn get_bsos_limit_offset() -> Result<()> {
     }
     db.set_timestamp(timestamp);
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, 0, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Index,
+        0,
+        0,
+    ))?;
     assert!(bsos.bsos.is_empty());
     assert!(bsos.more);
     assert_eq!(bsos.offset, 0);
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Index,
+        -1,
+        0,
+    ))?;
     assert_eq!(bsos.bsos.len(), size as usize);
     assert!(!bsos.more);
     assert_eq!(bsos.offset, 0);
@@ -277,11 +316,11 @@ fn get_bsos_limit_offset() -> Result<()> {
     let offset = 0;
     // XXX: validation?
     /*
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0))?;
     .. etc
     */
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -290,14 +329,14 @@ fn get_bsos_limit_offset() -> Result<()> {
         Sorting::Newest,
         limit,
         offset,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 5 as usize);
     assert!(bsos.more);
     assert_eq!(bsos.offset, 5);
     assert_eq!(bsos.bsos[0].id, "11");
     assert_eq!(bsos.bsos[4].id, "7");
 
-    let bsos2 = db.get_bsos_sync(
+    let bsos2 = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -306,14 +345,14 @@ fn get_bsos_limit_offset() -> Result<()> {
         Sorting::Index,
         limit,
         bsos.offset,
-    )?;
+    ))?;
     assert_eq!(bsos2.bsos.len(), 5 as usize);
     assert!(bsos2.more);
     assert_eq!(bsos2.offset, 10);
     assert_eq!(bsos2.bsos[0].id, "6");
     assert_eq!(bsos2.bsos[4].id, "2");
 
-    let bsos3 = db.get_bsos_sync(
+    let bsos3 = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -322,7 +361,7 @@ fn get_bsos_limit_offset() -> Result<()> {
         Sorting::Index,
         limit,
         bsos2.offset,
-    )?;
+    ))?;
     assert_eq!(bsos3.bsos.len(), 2 as usize);
     assert!(!bsos3.more);
     assert_eq!(bsos3.offset, 0);
@@ -339,7 +378,7 @@ fn get_bsos_newer() -> Result<()> {
     let coll = "clients";
     let timestamp = db.timestamp();
     // XXX: validation
-    //db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
+    //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
     for i in (0..=2).rev() {
         let pbso = pbso(
@@ -355,7 +394,7 @@ fn get_bsos_newer() -> Result<()> {
     }
     db.set_timestamp(timestamp);
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -364,13 +403,13 @@ fn get_bsos_newer() -> Result<()> {
         Sorting::Newest,
         10,
         0,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b2");
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -379,12 +418,12 @@ fn get_bsos_newer() -> Result<()> {
         Sorting::Newest,
         10,
         0,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 2);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -393,11 +432,11 @@ fn get_bsos_newer() -> Result<()> {
         Sorting::Newest,
         10,
         0,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 1);
     assert_eq!(bsos.bsos[0].id, "b0");
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &[],
@@ -406,7 +445,7 @@ fn get_bsos_newer() -> Result<()> {
         Sorting::Newest,
         10,
         0,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 0);
     Ok(())
 }
@@ -419,7 +458,7 @@ fn get_bsos_sort() -> Result<()> {
     let coll = "clients";
     let timestamp = db.timestamp();
     // XXX: validation again
-    //db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0).is_err()
+    //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
     for (revi, sortindex) in [1, 0, 2].iter().enumerate().rev() {
         let pbso = pbso(
@@ -435,19 +474,46 @@ fn get_bsos_sort() -> Result<()> {
     }
     db.set_timestamp(timestamp);
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Newest, 10, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Newest,
+        10,
+        0,
+    ))?;
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b2");
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Oldest, 10, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Oldest,
+        10,
+        0,
+    ))?;
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b2");
     assert_eq!(bsos.bsos[1].id, "b1");
     assert_eq!(bsos.bsos[2].id, "b0");
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, 10, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Index,
+        10,
+        0,
+    ))?;
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b2");
     assert_eq!(bsos.bsos[1].id, "b0");
@@ -481,7 +547,7 @@ fn get_storage_modified() -> Result<()> {
     db.set_timestamp(db.timestamp() + 100000);
     db.touch_collection(uid, col2)?;
 
-    let m = db.get_storage_modified_sync(uid)?;
+    let m = db.get_storage_modified_sync(hid(uid))?;
     assert_eq!(m, db.timestamp());
     Ok(())
 }
@@ -527,7 +593,7 @@ fn delete_collection() -> Result<()> {
         user_id: hid(uid),
         collection: coll.to_owned(),
     })?;
-    let modified2 = db.get_storage_modified_sync(uid)?;
+    let modified2 = db.get_storage_modified_sync(hid(uid))?;
     assert_eq!(modified2, modified);
 
     // make sure BSOs are deleted
@@ -545,7 +611,7 @@ fn delete_collection() -> Result<()> {
 }
 
 #[test]
-fn get_collections_modified() -> Result<()> {
+fn get_collection_modifieds() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
@@ -650,7 +716,7 @@ fn post_bsos() -> Result<()> {
 
     let uid = 1;
     let coll = "NewCollection";
-    let result = db.post_bsos_sync(&params::PostCollection {
+    let result = db.post_bsos_sync(params::PostBsos {
         user_id: hid(uid),
         collection: coll.to_owned(),
         bsos: vec![
@@ -671,7 +737,7 @@ fn post_bsos() -> Result<()> {
     // XXX: casts
     assert_eq!(result.modified, modified as u64);
 
-    let result2 = db.post_bsos_sync(&params::PostCollection {
+    let result2 = db.post_bsos_sync(params::PostBsos {
         user_id: hid(uid),
         collection: coll.to_owned(),
         bsos: vec![
@@ -739,7 +805,7 @@ fn get_bsos() -> Result<()> {
     }
     db.set_timestamp(timestamp);
 
-    let bsos = db.get_bsos_sync(
+    let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
         &vec!["b0", "b2", "b4"],
@@ -748,13 +814,22 @@ fn get_bsos() -> Result<()> {
         Sorting::Newest,
         10,
         0,
-    )?;
+    ))?;
     assert_eq!(bsos.bsos.len(), 3);
     assert_eq!(bsos.bsos[0].id, "b0");
     assert_eq!(bsos.bsos[1].id, "b2");
     assert_eq!(bsos.bsos[2].id, "b4");
 
-    let bsos = db.get_bsos_sync(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, 2, 0)?;
+    let bsos = db.get_bsos_sync(gbsos(
+        uid,
+        coll,
+        &[],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Index,
+        2,
+        0,
+    ))?;
     assert_eq!(bsos.bsos.len(), 2);
     assert_eq!(bsos.offset, 2);
     assert!(bsos.more);

@@ -1,4 +1,5 @@
 //! Parameter types for database methods.
+use db::Sorting;
 use web::extractors::{BatchBsoBody, HawkIdentifier};
 
 macro_rules! data {
@@ -45,6 +46,7 @@ uid_data! {
     GetCollectionModifieds,
     GetCollectionCounts,
     GetCollectionUsage,
+    GetStorageModified,
     GetStorageUsage,
     DeleteStorage,
 }
@@ -55,8 +57,15 @@ collection_data! {
     DeleteBsos {
         ids: Vec<String>,
     },
-    GetCollection {},
-    PostCollection {
+    GetBsos {
+        ids: Vec<String>,
+        older: u64,
+        newer: u64,
+        sort: Sorting,
+        limit: i64,  // XXX: limit/offset i64?
+        offset: i64,
+    },
+    PostBsos {
         bsos: Vec<PostCollectionBso>,
     },
 }

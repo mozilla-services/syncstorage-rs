@@ -2,7 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{rc::Rc, str::FromStr};
+use std::str::FromStr;
 
 use actix_web::http::header::{HeaderValue, CONTENT_TYPE};
 use actix_web::{
@@ -570,13 +570,13 @@ impl HawkIdentifier {
     }
 }
 
-impl FromRequest<ServerState> for Rc<Box<dyn Db>> {
+impl FromRequest<ServerState> for Box<dyn Db> {
     type Config = ();
     type Result = Result<Self, Error>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         req.extensions()
-            .get::<Rc<Box<dyn Db>>>()
+            .get::<Box<dyn Db>>()
             .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
             .map(Clone::clone)
     }
@@ -862,7 +862,7 @@ mod tests {
     use serde_json;
     use sha2::Sha256;
 
-    use db::mock::{MockDb, MockDbPool};
+    use db::mock::MockDbPool;
     use server::ServerState;
     use settings::{Secrets, ServerLimits};
 
@@ -881,7 +881,6 @@ mod tests {
 
     fn make_state() -> ServerState {
         ServerState {
-            db: Box::new(MockDb::new()),
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             secrets: Arc::clone(&SECRETS),

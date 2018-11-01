@@ -11,7 +11,7 @@ use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
     sql_query,
-    sql_types::{BigInt, Integer, Text},
+    sql_types::{BigInt, Integer, Nullable, Text},
     update, Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 #[cfg(test)]
@@ -29,10 +29,7 @@ use db::{
     util::ms_since_epoch,
     Db, DbFuture, Sorting,
 };
-use settings::Settings;
 use web::extractors::HawkIdentifier;
-
-embed_migrations!();
 
 no_arg_sql_function!(last_insert_id, Integer);
 
@@ -41,15 +38,6 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 // The ttl to use for rows that are never supposed to expire (in seconds)
 pub const DEFAULT_BSO_TTL: u32 = 2100000000;
-
-/// Run the diesel embedded migrations
-///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
-    let conn = MysqlConnection::establish(&settings.database_url).unwrap();
-    Ok(embedded_migrations::run(&conn)?)
-}
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -274,7 +262,7 @@ impl MysqlDb {
         if count == 0 {
             Err(DbErrorKind::CollectionNotFound)?
         }
-        self.get_storage_modified_sync(user_id as u32)
+        self.get_storage_modified_sync(params.user_id)
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
@@ -378,38 +366,36 @@ impl MysqlDb {
         })
     }
 
-    // XXX: limit/offset i64?
-    pub fn get_bsos_sync(
-        &self,
-        user_id: u32,
-        collection: &str,
-        mut ids: &[&str],
-        older: u64,
-        newer: u64,
-        sort: Sorting,
-        limit: i64,
-        offset: i64,
-    ) -> Result<results::BSOs> {
-        let collection_id = self.get_collection_id(collection)?;
+    pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
+        let user_id = params.user_id.legacy_id as i32;
+        let collection_id = self.get_collection_id(&params.collection)?;
         // XXX: ensure offset/limit/newer are valid
+        let params::GetBsos {
+            mut ids,
+            older,
+            newer,
+            sort,
+            limit,
+            offset,
+            ..
+        } = params;
 
         // XXX: should error out (400 Bad Request) when more than 100
         // are provided (move to validation layer)
         if ids.len() > 100 {
             // spec says only 100 ids at a time
-            ids = &ids[0..100];
+            ids.truncate(100);
         }
 
-        // XXX: convert to raw SQL for use by other backends
+        // XXX: convert to raw SQL for use by other backends?
         let mut query = bso::table
-            //.select(bso::table::all_columns())
             .select((
                 bso::id,
                 bso::modified,
                 bso::payload,
                 bso::sortindex,
                 bso::expiry,
-            )).filter(bso::user_id.eq(user_id as i32)) // XXX:
+            )).filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::modified.lt(older as i64))
             .filter(bso::modified.gt(newer as i64))
@@ -437,6 +423,11 @@ impl MysqlDb {
         }
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
+        // XXX: an additional get_collection_modified is done here in
+        // python to trigger potential CollectionNotFoundErrors
+        //if bsos.len() == 0 {
+        //}
+
         let (more, next_offset) = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
             (true, limit + offset)
@@ -444,7 +435,7 @@ impl MysqlDb {
             (false, 0)
         };
 
-        Ok(results::BSOs {
+        Ok(results::GetBsos {
             bsos,
             more,
             offset: next_offset,
@@ -486,33 +477,30 @@ impl MysqlDb {
         self.touch_collection(user_id as u32, collection_id)
     }
 
-    pub fn post_bsos_sync(
-        &self,
-        input: &params::PostCollection,
-    ) -> Result<results::PostCollection> {
+    pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
-        let mut result = results::PostCollection {
+        let mut result = results::PostBsos {
             modified: self.timestamp() as u64,
             success: Default::default(),
             failed: Default::default(),
         };
 
-        for pbso in &input.bsos {
-            // XXX: fix input (to take ownership) to remove the payload clone
+        for pbso in input.bsos {
+            let id = pbso.id;
             let put_result = self.put_bso_sync(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
-                id: pbso.id.clone(),
-                payload: pbso.payload.clone(),
+                id: id.clone(),
+                payload: pbso.payload,
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
             });
             // XXX: python version doesn't report failures from db layer..
             // XXX: sanitize to.to_string()?
             match put_result {
-                Ok(_) => result.success.push(pbso.id.clone()),
+                Ok(_) => result.success.push(id),
                 Err(e) => {
-                    result.failed.insert(pbso.id.clone(), e.to_string());
+                    result.failed.insert(id, e.to_string());
                 }
             }
         }
@@ -520,10 +508,11 @@ impl MysqlDb {
         Ok(result)
     }
 
-    pub fn get_storage_modified_sync(&self, user_id: u32) -> Result<i64> {
+    pub fn get_storage_modified_sync(&self, user_id: HawkIdentifier) -> Result<i64> {
+        let user_id = user_id.legacy_id as i32;
         Ok(user_collections::table
             .select(max(user_collections::modified))
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id))
             .first::<Option<i64>>(&self.conn)?
             .unwrap_or_default())
     }
@@ -636,11 +625,11 @@ impl MysqlDb {
         user_id: HawkIdentifier,
     ) -> Result<results::GetStorageUsage> {
         let total_size = bso::table
-            .select(sql::<BigInt>("SUM(LENGTH(payload))"))
+            .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&self.timestamp()))
-            .get_result::<i64>(&self.conn)?;
-        Ok(total_size as u64)
+            .get_result::<Option<i64>>(&self.conn)?;
+        Ok(total_size.unwrap_or_default() as u64)
     }
 
     pub fn get_collection_usage_sync(
@@ -715,6 +704,10 @@ impl Db for MysqlDb {
         )
     }
 
+    fn box_clone(&self) -> Box<dyn Db> {
+        Box::new(self.clone())
+    }
+
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
     sync_db_method!(lock_for_write, lock_for_write_sync, LockCollection);
     sync_db_method!(
@@ -732,14 +725,17 @@ impl Db for MysqlDb {
         get_collection_usage_sync,
         GetCollectionUsage
     );
+    sync_db_method!(
+        get_storage_modified,
+        get_storage_modified_sync,
+        GetStorageModified
+    );
     sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
     sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
     sync_db_method!(delete_collection, delete_collection_sync, DeleteCollection);
-
-    mock_db_method!(get_collection, GetCollection);
-    mock_db_method!(post_collection, PostCollection);
-
     sync_db_method!(delete_bsos, delete_bsos_sync, DeleteBsos);
+    sync_db_method!(get_bsos, get_bsos_sync, GetBsos);
+    sync_db_method!(post_bsos, post_bsos_sync, PostBsos);
     sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
     sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
     sync_db_method!(put_bso, put_bso_sync, PutBso);
