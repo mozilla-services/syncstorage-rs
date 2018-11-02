@@ -8,7 +8,7 @@ use actix_web::http::header::{HeaderValue, CONTENT_TYPE};
 use actix_web::{
     dev::{JsonConfig, PayloadConfig},
     error::ErrorInternalServerError,
-    Error, FromRequest, HttpRequest, Json, Path, Query, State,
+    Error, FromRequest, HttpRequest, Json, Path, Query,
 };
 use futures::{future, Future};
 use num::Zero;
@@ -300,23 +300,18 @@ impl FromRequest<ServerState> for CollectionParam {
 /// Only the database and user identifier is required for information
 /// requests: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html#general-info
 pub struct MetaRequest {
-    pub state: State<ServerState>,
     pub user_id: HawkIdentifier,
+    pub db: Box<dyn Db>,
 }
 
 impl FromRequest<ServerState> for MetaRequest {
     type Config = ();
-    type Result = Box<Future<Item = MetaRequest, Error = Error>>;
+    type Result = Result<MetaRequest, Error>;
 
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        Box::new(
-            <(HawkIdentifier, State<ServerState>)>::extract(req).and_then(|(auth, state)| {
-                future::ok(MetaRequest {
-                    state,
-                    user_id: auth,
-                })
-            }),
-        )
+    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+        let user_id = HawkIdentifier::from_request(req, settings)?;
+        let db = <Box<dyn Db>>::from_request(req, settings)?;
+        Ok({ MetaRequest { user_id, db } })
     }
 }
 
@@ -325,7 +320,7 @@ impl FromRequest<ServerState> for MetaRequest {
 /// Extracts/validates information needed for collection delete/get requests.
 pub struct CollectionRequest {
     pub collection: String,
-    pub state: State<ServerState>,
+    pub db: Box<dyn Db>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
 }
@@ -336,13 +331,13 @@ impl FromRequest<ServerState> for CollectionRequest {
 
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         let user_id = HawkIdentifier::from_request(req, settings)?;
-        let state = <State<ServerState>>::from_request(req, &());
+        let db = <Box<dyn Db>>::from_request(req, settings)?;
         let query = BsoQueryParams::from_request(req, settings)?;
         let collection = CollectionParam::from_request(req, settings)?.collection;
 
         Ok(CollectionRequest {
             collection,
-            state,
+            db,
             user_id,
             query,
         })
@@ -354,7 +349,7 @@ impl FromRequest<ServerState> for CollectionRequest {
 /// Extracts/validates information needed for batch collection POST requests.
 pub struct CollectionPostRequest {
     pub collection: String,
-    pub state: State<ServerState>,
+    pub db: Box<dyn Db>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
@@ -373,11 +368,11 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let fut = <(
             HawkIdentifier,
-            State<ServerState>,
+            Box<dyn Db>,
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(req).and_then(|(user_id, state, collection, query, mut bsos)| {
+        )>::extract(req).and_then(|(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -413,7 +408,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
 
             future::ok(CollectionPostRequest {
                 collection,
-                state,
+                db,
                 user_id,
                 query,
                 bsos,
@@ -429,7 +424,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
 /// Extracts/validates information needed for BSO delete/get requests.
 pub struct BsoRequest {
     pub collection: String,
-    pub state: State<ServerState>,
+    pub db: Box<dyn Db>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -441,7 +436,7 @@ impl FromRequest<ServerState> for BsoRequest {
 
     fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
         let user_id = HawkIdentifier::from_request(req, settings)?;
-        let state = <State<ServerState>>::from_request(req, &());
+        let db = <Box<dyn Db>>::from_request(req, settings)?;
         let query = BsoQueryParams::from_request(req, settings)?;
         let collection = CollectionParam::from_request(req, settings)?
             .collection
@@ -450,7 +445,7 @@ impl FromRequest<ServerState> for BsoRequest {
 
         Ok(BsoRequest {
             collection,
-            state,
+            db,
             user_id,
             query,
             bso: bso.bso.clone(),
@@ -463,7 +458,7 @@ impl FromRequest<ServerState> for BsoRequest {
 /// Extracts/validates information needed for BSO put requests.
 pub struct BsoPutRequest {
     pub collection: String,
-    pub state: State<ServerState>,
+    pub db: Box<dyn Db>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -477,12 +472,12 @@ impl FromRequest<ServerState> for BsoPutRequest {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let fut = <(
             HawkIdentifier,
-            State<ServerState>,
+            Box<dyn Db>,
             CollectionParam,
             BsoQueryParams,
             BsoParam,
             BsoBody,
-        )>::extract(req).and_then(|(user_id, state, collection, query, bso, body)| {
+        )>::extract(req).and_then(|(user_id, db, collection, query, bso, body)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -501,7 +496,7 @@ impl FromRequest<ServerState> for BsoPutRequest {
 
             future::ok(BsoPutRequest {
                 collection,
-                state,
+                db,
                 user_id,
                 query,
                 bso: bso.bso.clone(),
@@ -862,7 +857,7 @@ mod tests {
     use serde_json;
     use sha2::Sha256;
 
-    use db::mock::MockDbPool;
+    use db::mock::{MockDb, MockDbPool};
     use server::ServerState;
     use settings::{Secrets, ServerLimits};
 
@@ -878,6 +873,10 @@ mod tests {
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
     const INVALID_BSO_NAME: &'static str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+
+    fn make_db() -> Box<dyn Db> {
+        Box::new(MockDb::new())
+    }
 
     fn make_state() -> ServerState {
         ServerState {
@@ -996,6 +995,7 @@ mod tests {
             .param("collection", "tabs")
             .param("bso", "asdf")
             .finish();
+        req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
@@ -1022,6 +1022,7 @@ mod tests {
             .param("collection", "tabs")
             .param("bso", INVALID_BSO_NAME)
             .finish();
+        req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
@@ -1035,6 +1036,79 @@ mod tests {
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "bso");
         assert_eq!(err["errors"][0]["value"], INVALID_BSO_NAME);
+    }
+
+    #[test]
+    fn test_valid_bso_post_body() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "POST",
+            "/storage/1.5/1/storage/tabs/asdf",
+            "localhost",
+            5000,
+        );
+        let bso_body = json!({
+            "id": "128", "payload": "x"
+        });
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
+            .set_payload(bso_body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .param("bso", "asdf")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        let result = BsoPutRequest::extract(&req).wait().unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(&result.bso, "asdf");
+        assert_eq!(result.body.payload, Some("x".to_string()));
+    }
+
+    #[test]
+    fn test_invalid_bso_post_body() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "POST",
+            "/storage/1.5/1/storage/tabs/asdf",
+            "localhost",
+            5000,
+        );
+        let bso_body = json!({
+            "payload": "xxx", "sortindex": -9999999999,
+        });
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
+            .set_payload(bso_body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .param("bso", "asdf")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        let result = BsoPutRequest::extract(&req).wait();
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+
+        assert_eq!(err["errors"][0]["description"], "invalid value");
+        assert_eq!(err["errors"][0]["location"], "body");
+        assert_eq!(err["errors"][0]["name"], "sortindex");
+        assert_eq!(err["errors"][0]["value"], -9999999999);
     }
 
     #[test]
@@ -1056,6 +1130,7 @@ mod tests {
             .param("uid", "1")
             .param("collection", "tabs")
             .finish();
+        req.extensions_mut().insert(make_db());
         let result = CollectionRequest::extract(&req).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
@@ -1080,6 +1155,7 @@ mod tests {
             .param("uid", "1")
             .param("collection", INVALID_COLLECTION_NAME)
             .finish();
+        req.extensions_mut().insert(make_db());
         let result = CollectionRequest::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
