@@ -13,29 +13,29 @@ use web::middleware;
 
 macro_rules! init_routes {
     ($app:expr) => {
-        $app.resource("/{uid}/info/collections", |r| {
+        $app.resource("/1.5/{uid}/info/collections", |r| {
             r.method(http::Method::GET).with(handlers::get_collections);
-        }).resource("/{uid}/info/collection_counts", |r| {
+        }).resource("/1.5/{uid}/info/collection_counts", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_counts);
-        }).resource("/{uid}/info/collection_usage", |r| {
+        }).resource("/1.5/{uid}/info/collection_usage", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_usage);
-        }).resource("/{uid}/info/configuration", |r| {
+        }).resource("/1.5/{uid}/info/configuration", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_configuration);
-        }).resource("/{uid}/info/quota", |r| {
+        }).resource("/1.5/{uid}/info/quota", |r| {
             r.method(http::Method::GET).with(handlers::get_quota);
-        }).resource("/{uid}", |r| {
+        }).resource("/1.5/{uid}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
-        }).resource("/{uid}/storage", |r| {
+        }).resource("/1.5/{uid}/storage", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
-        }).resource("/{uid}/storage/{collection}", |r| {
+        }).resource("/1.5/{uid}/storage/{collection}", |r| {
             r.method(http::Method::DELETE)
                 .with(handlers::delete_collection);
             r.method(http::Method::GET).with(handlers::get_collection);
             r.method(http::Method::POST).with(handlers::post_collection);
-        }).resource("/{uid}/storage/{collection}/{bso}", |r| {
+        }).resource("/1.5/{uid}/storage/{collection}/{bso}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_bso);
             r.method(http::Method::GET).with(handlers::get_bso);
             r.method(http::Method::PUT).with(handlers::put_bso);

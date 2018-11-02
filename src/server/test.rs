@@ -61,15 +61,20 @@ fn test_endpoint(method: http::Method, path: &str, expected_body: &str) {
 fn create_request(server: &TestServer, method: http::Method, path: &str) -> ClientRequest {
     server
         .client(method.clone(), path)
-        .set_header("Authorization", create_hawk_header(method.as_str(), path))
-        .finish()
+        .set_header(
+            "Authorization",
+            create_hawk_header(method.as_str(), server.addr().port(), path),
+        ).finish()
         .unwrap()
 }
 
-fn create_hawk_header(method: &str, path: &str) -> String {
+fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
+    // TestServer hardcodes its hostname to localhost and binds to a random
+    // port
+    let host = "localhost";
     let payload = HawkPayload {
         expires: (Utc::now().timestamp() + 5) as f64,
-        node: "http://127.0.0.1:8000".to_string(),
+        node: format!("http://{}:{}", host, port).to_string(),
         salt: "wibble".to_string(),
         user_id: 42,
     };
@@ -87,7 +92,7 @@ fn create_hawk_header(method: &str, path: &str) -> String {
         &SECRETS.master_secret,
     );
     let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
-    let request = RequestBuilder::new(method, "127.0.0.1", 8000, path).request();
+    let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
         key: Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
@@ -126,8 +131,10 @@ macro_rules! test_endpoint_with_body {
         let method = http::Method::$method;
         let request = server
             .client(method.clone(), $path)
-            .set_header("Authorization", create_hawk_header(method.as_str(), $path))
-            .json($body)
+            .set_header(
+                "Authorization",
+                create_hawk_header(method.as_str(), server.addr().port(), $path),
+            ).json($body)
             .unwrap();
 
         let response = server.execute(request.send()).unwrap();
@@ -141,51 +148,59 @@ macro_rules! test_endpoint_with_body {
 
 #[test]
 fn collections() {
-    test_endpoint(http::Method::GET, "/42/info/collections", "{}");
+    test_endpoint(http::Method::GET, "/1.5/42/info/collections", "{}");
 }
 
 #[test]
 fn collection_counts() {
-    test_endpoint(http::Method::GET, "/42/info/collection_counts", "{}");
+    test_endpoint(http::Method::GET, "/1.5/42/info/collection_counts", "{}");
 }
 
 #[test]
 fn collection_usage() {
-    test_endpoint(http::Method::GET, "/42/info/collection_usage", "{}");
+    test_endpoint(http::Method::GET, "/1.5/42/info/collection_usage", "{}");
 }
 
 #[test]
 fn configuration() {
     test_endpoint(
         http::Method::GET,
-        "/42/info/configuration",
+        "/1.5/42/info/configuration",
         &serde_json::to_string(&ServerLimits::default()).unwrap(),
     );
 }
 
 #[test]
 fn quota() {
-    test_endpoint(http::Method::GET, "/42/info/quota", "[0,null]");
+    test_endpoint(http::Method::GET, "/1.5/42/info/quota", "[0,null]");
 }
 
 #[test]
 fn delete_all() {
-    test_endpoint(http::Method::DELETE, "/42", "null");
-    test_endpoint(http::Method::DELETE, "/42/storage", "null");
+    test_endpoint(http::Method::DELETE, "/1.5/42", "null");
+    test_endpoint(http::Method::DELETE, "/1.5/42/storage", "null");
 }
 
 #[test]
 fn delete_collection() {
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks", "0");
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks?ids=1,", "0");
-    test_endpoint(http::Method::DELETE, "/42/storage/bookmarks?ids=1,2,3", "0");
+    test_endpoint(http::Method::DELETE, "/1.5/42/storage/bookmarks", "0");
+    test_endpoint(
+        http::Method::DELETE,
+        "/1.5/42/storage/bookmarks?ids=1,",
+        "0",
+    );
+    test_endpoint(
+        http::Method::DELETE,
+        "/1.5/42/storage/bookmarks?ids=1,2,3",
+        "0",
+    );
 }
 
 #[test]
 fn get_collection() {
     test_endpoint_with_response(
         http::Method::GET,
-        "/42/storage/bookmarks",
+        "/1.5/42/storage/bookmarks",
         &move |collection: Vec<GetBso>| {
             assert_eq!(collection.len(), 0);
         },
@@ -196,7 +211,7 @@ fn get_collection() {
 fn post_collection() {
     let start = ms_since_epoch() as u64;
     test_endpoint_with_body! {
-        POST "/42/storage/bookmarks", vec![PostCollectionBso {
+        POST "/1.5/42/storage/bookmarks", vec![PostCollectionBso {
             id: "foo".to_string(),
             sortindex: Some(0),
             payload: Some("bar".to_string()),
@@ -219,7 +234,7 @@ fn delete_bso() {
     let start = ms_since_epoch() as u64;
     test_endpoint_with_response(
         http::Method::DELETE,
-        "/42/storage/bookmarks/wibble",
+        "/1.5/42/storage/bookmarks/wibble",
         &move |dbso: DeleteBso| {
             assert!(dbso.modified > start);
         },
@@ -230,7 +245,7 @@ fn delete_bso() {
 fn get_bso() {
     test_endpoint_with_response(
         http::Method::GET,
-        "/42/storage/bookmarks/wibble",
+        "/1.5/42/storage/bookmarks/wibble",
         &move |bso: GetBso| {
             assert_eq!(bso.id, "");
             assert_eq!(bso.modified, 0);
@@ -244,7 +259,7 @@ fn get_bso() {
 fn put_bso() {
     let start = ms_since_epoch() as u64;
     test_endpoint_with_body! {
-        PUT "/42/storage/bookmarks/wibble", BsoBody {
+        PUT "/1.5/42/storage/bookmarks/wibble", BsoBody {
             id: Some("wibble".to_string()),
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
