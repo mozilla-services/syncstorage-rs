@@ -13,7 +13,10 @@ use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
-use super::error::HawkErrorKind;
+use super::{
+    error::{HawkErrorKind, ValidationErrorKind},
+    extractors::RequestErrorLocation,
+};
 use error::ApiResult;
 use server::ServerState;
 use settings::Secrets;
@@ -133,6 +136,25 @@ impl FromRequest<ServerState> for HawkPayload {
     /// from the `Authorization` header
     /// of an actix request object.
     fn from_request(request: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let ci = request.connection_info();
+        let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
+        let host = host_port[0];
+        let port = if host_port.len() == 2 {
+            host_port[1].parse().map_err(|_| {
+                ValidationErrorKind::FromDetails(
+                    "Invalid port (hostname:port) specified".to_owned(),
+                    RequestErrorLocation::Header,
+                    None,
+                )
+            })?
+        } else {
+            if ci.scheme() == "https" {
+                443
+            } else {
+                80
+            }
+        };
+
         HawkPayload::new(
             request
                 .headers()
@@ -145,8 +167,8 @@ impl FromRequest<ServerState> for HawkPayload {
                 .path_and_query()
                 .ok_or(HawkErrorKind::MissingPath)?
                 .as_str(),
-            request.uri().host().unwrap_or("127.0.0.1"),
-            request.uri().port().unwrap_or(request.state().port),
+            host,
+            port,
             &request.state().secrets,
             Utc::now().timestamp() as u64,
         )
