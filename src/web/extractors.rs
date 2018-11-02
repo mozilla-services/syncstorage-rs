@@ -1084,7 +1084,7 @@ mod tests {
             5000,
         );
         let bso_body = json!({
-            "payload": "xxx", "sortindex": -9999999999,
+            "payload": "xxx", "sortindex": -9999999999 as i64,
         });
         let req = TestRequest::with_state(state)
             .header("authorization", header)
@@ -1105,10 +1105,8 @@ mod tests {
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
 
-        assert_eq!(err["errors"][0]["description"], "invalid value");
         assert_eq!(err["errors"][0]["location"], "body");
-        assert_eq!(err["errors"][0]["name"], "sortindex");
-        assert_eq!(err["errors"][0]["value"], -9999999999);
+        assert_eq!(&err["errors"][0]["name"], "bso");
     }
 
     #[test]
@@ -1169,6 +1167,72 @@ mod tests {
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "collection");
         assert_eq!(err["errors"][0]["value"], INVALID_COLLECTION_NAME);
+    }
+
+    #[test]
+    fn test_valid_collection_post_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "POST",
+            "/storage/1.5/1/storage/tabs",
+            "localhost",
+            5000,
+        );
+        // Batch requests require id's on each BSO
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
+            .set_payload(bso_body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+    }
+
+    #[test]
+    fn test_invalid_collection_post_request() {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let header = create_valid_hawk_header(
+            &payload,
+            &state,
+            "POST",
+            "/storage/1.5/1/storage/tabs",
+            "localhost",
+            5000,
+        );
+        // Leave off id's, these will be invalid
+        let bso_body = json!([
+            {"payload": "xxx", "sortindex": 23},
+            {"payload": "xxx", "sortindex": -99}
+        ]);
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
+            .set_payload(bso_body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.invalid.len(), 2);
     }
 
     #[test]
