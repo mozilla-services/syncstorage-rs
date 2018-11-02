@@ -68,8 +68,13 @@ impl Db for MockDb {
     mock_db_method!(post_bsos, PostBsos);
     mock_db_method!(delete_bso, DeleteBso);
     mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
-    mock_db_method!(get_bso_modified, GetBsoModified, results::GetBsoModified);
+    mock_db_method!(get_bso_modified, GetBsoModified);
     mock_db_method!(put_bso, PutBso);
+    mock_db_method!(create_batch, CreateBatch);
+    mock_db_method!(validate_batch, ValidateBatch);
+    mock_db_method!(append_to_batch, AppendToBatch);
+    mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
+    mock_db_method!(delete_batch, DeleteBatch);
 }
 
 unsafe impl Send for MockDb {}

@@ -48,7 +48,7 @@ pub fn db() -> Result<MysqlDb> {
     pool.get_sync()
 }
 
-fn pbso<'a>(
+fn pbso(
     user_id: u32,
     coll: &str,
     bid: &str,
@@ -66,7 +66,7 @@ fn pbso<'a>(
     }
 }
 
-fn postbso(
+pub fn postbso(
     bid: &str,
     payload: Option<&str>,
     sortindex: Option<i32>,
@@ -80,9 +80,9 @@ fn postbso(
     }
 }
 
-fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
+pub fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
     params::GetBso {
-        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        user_id: hid(user_id),
         collection: coll.to_owned(),
         id: bid.to_owned(),
     }
@@ -99,7 +99,7 @@ fn gbsos(
     offset: i64,
 ) -> params::GetBsos {
     params::GetBsos {
-        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        user_id: hid(user_id),
         collection: coll.to_owned(),
         params: BsoQueryParams {
             ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
@@ -115,7 +115,7 @@ fn gbsos(
 
 fn dbso(user_id: u32, coll: &str, bid: &str) -> params::DeleteBso {
     params::DeleteBso {
-        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        user_id: hid(user_id),
         collection: coll.to_owned(),
         id: bid.to_owned(),
     }
@@ -123,13 +123,13 @@ fn dbso(user_id: u32, coll: &str, bid: &str) -> params::DeleteBso {
 
 fn dbsos(user_id: u32, coll: &str, bids: &[&str]) -> params::DeleteBsos {
     params::DeleteBsos {
-        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        user_id: hid(user_id),
         collection: coll.to_owned(),
         ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
     }
 }
 
-fn hid(user_id: u32) -> HawkIdentifier {
+pub fn hid(user_id: u32) -> HawkIdentifier {
     HawkIdentifier::new_legacy(user_id as u64)
 }
 
@@ -228,10 +228,7 @@ fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
     let timestamp = db.timestamp().as_i64();
 
     let bso1 = pbso(uid, coll, bid, Some("hello"), Some(1), Some(10));
-    db.set_timestamp(timestamp - 100);
-    let modified1 = db.timestamp();
-    db.put_bso_sync(bso1)?;
-    db.set_timestamp(timestamp);
+    db.with_delta(-100, |db| db.put_bso_sync(bso1))?;
 
     let bso2 = pbso(uid, coll, bid, None, None, Some(15));
     db.put_bso_sync(bso2)?;
@@ -239,7 +236,7 @@ fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
     // ttl has changed
     assert_eq!(bso.expiry, timestamp + 15);
     // modified has not changed
-    assert_eq!(bso.modified, modified1);
+    assert_eq!(bso.modified.as_i64(), timestamp - 100);
     Ok(())
 }
 
@@ -272,7 +269,6 @@ fn get_bsos_limit_offset() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let size = 12;
-    let timestamp = db.timestamp().as_i64();
     for i in 0..size {
         let bso = pbso(
             uid,
@@ -282,10 +278,8 @@ fn get_bsos_limit_offset() -> Result<()> {
             Some(i),
             Some(DEFAULT_BSO_TTL),
         );
-        db.set_timestamp(timestamp + i as i64 * 10);
-        db.put_bso_sync(bso)?;
+        db.with_delta(i as i64 * 10, |db| db.put_bso_sync(bso))?;
     }
-    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -393,10 +387,8 @@ fn get_bsos_newer() -> Result<()> {
             Some(1),
             Some(DEFAULT_BSO_TTL),
         );
-        db.set_timestamp(timestamp - (i * 10));
-        db.put_bso_sync(pbso)?;
+        db.with_delta(-i * 10, |db| db.put_bso_sync(pbso))?;
     }
-    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -460,7 +452,6 @@ fn get_bsos_sort() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.timestamp().as_i64();
     // XXX: validation again
     //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
@@ -473,10 +464,8 @@ fn get_bsos_sort() -> Result<()> {
             Some(*sortindex),
             Some(DEFAULT_BSO_TTL),
         );
-        db.set_timestamp(timestamp - (revi as i64 * 10));
-        db.put_bso_sync(pbso)?;
+        db.with_delta(-(revi as i64) * 10, |db| db.put_bso_sync(pbso))?;
     }
-    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -548,12 +537,12 @@ fn get_storage_modified() -> Result<()> {
     let col2 = db.create_collection("col2")?;
     db.create_collection("col3")?;
 
-    db.set_timestamp(db.timestamp().as_i64() + 100000);
-    db.touch_collection(uid, col2)?;
-
-    let m = db.get_storage_modified_sync(hid(uid))?;
-    assert_eq!(m, db.timestamp());
-    Ok(())
+    db.with_delta(100000, |db| {
+        db.touch_collection(uid, col2)?;
+        let m = db.get_storage_modified_sync(hid(uid))?;
+        assert_eq!(m, db.timestamp());
+        Ok(())
+    })
 }
 
 #[test]
@@ -611,7 +600,7 @@ fn delete_collection() -> Result<()> {
         collection: coll.to_string(),
     });
     match result.unwrap_err().kind() {
-        DbErrorKind::CollectionNotFound => assert!(true),
+        DbErrorKind::CollectionNotFound => (),
         _ => assert!(false),
     };
     Ok(())
@@ -712,18 +701,19 @@ fn put_bso() -> Result<()> {
     assert_eq!(bso.sortindex, Some(1));
 
     let bso2 = pbso(uid, coll, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
-    db.set_timestamp(db.timestamp().as_i64() + 19);
-    db.put_bso_sync(bso2)?;
-    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
-        user_id: uid.into(),
-        collection: coll.to_string(),
-    })?;
-    assert_eq!(modified, db.timestamp());
+    db.with_delta(19, |db| {
+        db.put_bso_sync(bso2)?;
+        let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+            user_id: uid.into(),
+            collection: coll.to_string(),
+        })?;
+        assert_eq!(modified, db.timestamp());
 
-    let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
-    assert_eq!(&bso.payload, "bar");
-    assert_eq!(bso.sortindex, Some(2));
-    Ok(())
+        let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
+        assert_eq!(&bso.payload, "bar");
+        assert_eq!(bso.sortindex, Some(2));
+        Ok(())
+    })
 }
 
 #[test]
@@ -810,7 +800,6 @@ fn get_bsos() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.timestamp().as_i64();
     let sortindexes = vec![1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
@@ -822,10 +811,8 @@ fn get_bsos() -> Result<()> {
             Some(*sortindex),
             None,
         );
-        db.set_timestamp(timestamp + i as i64 * 10);
-        db.put_bso_sync(bso)?;
+        db.with_delta(i as i64 * 10, |db| db.put_bso_sync(bso))?;
     }
-    db.set_timestamp(timestamp);
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -971,7 +958,7 @@ fn lock_for_read() -> Result<()> {
         collection: coll.to_owned(),
     })?;
     match db.get_collection_id("NewCollection").unwrap_err().kind() {
-        DbErrorKind::CollectionNotFound => assert!(true),
+        DbErrorKind::CollectionNotFound => (),
         _ => assert!(false),
     }
     db.commit_sync()?;

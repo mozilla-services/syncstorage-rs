@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
 
+use super::params;
 use db::util::SyncTimestamp;
 
 pub type LockCollection = ();
@@ -21,6 +22,13 @@ pub type DeleteCollection = SyncTimestamp;
 pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
+
+pub type CreateBatch = i64;
+pub type ValidateBatch = bool;
+pub type AppendToBatch = ();
+pub type GetBatch = params::Batch;
+pub type DeleteBatch = ();
+pub type CommitBatch = PostBsos;
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {

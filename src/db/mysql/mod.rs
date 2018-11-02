@@ -1,3 +1,5 @@
+#[macro_use]
+mod batch;
 mod diesel_ext;
 pub mod models;
 pub mod pool;
