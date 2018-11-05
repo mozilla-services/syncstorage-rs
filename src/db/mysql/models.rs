@@ -26,7 +26,7 @@ use super::{
 use db::{
     error::{DbError, DbErrorKind},
     params, results,
-    util::ms_since_epoch,
+    util::SyncTimestamp,
     Db, DbFuture, Sorting,
 };
 use web::extractors::HawkIdentifier;
@@ -46,24 +46,14 @@ pub enum CollectionLock {
 }
 
 /// Per session Db metadata
-#[derive(Debug)]
-pub(super) struct MysqlDbSession {
+#[derive(Debug, Default)]
+struct MysqlDbSession {
     /// The "current time" on the server used for this session's operations
-    pub(super) timestamp: i64,
+    timestamp: SyncTimestamp,
     /// Cache of collection modified timestamps per (user_id, collection_id)
-    coll_modified_cache: HashMap<(u32, i32), i64>,
+    coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
-}
-
-impl Default for MysqlDbSession {
-    fn default() -> Self {
-        Self {
-            timestamp: ms_since_epoch(),
-            coll_modified_cache: Default::default(),
-            coll_locks: Default::default(),
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -165,6 +155,7 @@ impl MysqlDb {
             .first(&self.conn)
             .optional()?;
         if let Some(modified) = modified {
+            let modified = SyncTimestamp::from_i64(modified)?;
             self.session
                 .borrow_mut()
                 .coll_modified_cache
@@ -200,6 +191,7 @@ impl MysqlDb {
             .first(&self.conn)
             .optional()?;
         if let Some(modified) = modified {
+            let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
             if modified >= self.timestamp() {
                 Err(DbErrorKind::Conflict)?
@@ -248,7 +240,10 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub fn delete_collection_sync(&self, params: params::DeleteCollection) -> Result<i64> {
+    pub fn delete_collection_sync(
+        &self,
+        params: params::DeleteCollection,
+    ) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection)?;
         let mut count = delete(bso::table)
@@ -344,12 +339,13 @@ impl MysqlDb {
                     .filter(bso::user_id.eq(user_id as i32)) // XXX:
                     .filter(bso::collection_id.eq(&collection_id))
                     .filter(bso::id.eq(&bso.id))
-                    .set(put_bso_as_changeset(&bso, self.timestamp()))
+                    .set(put_bso_as_changeset(&bso, self.timestamp().as_i64()))
                     .execute(&self.conn)?;
             } else {
                 let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
                 let sortindex = bso.sortindex;
                 let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+                let timestamp = self.timestamp().as_i64();
                 insert_into(bso::table)
                     .values((
                         bso::user_id.eq(user_id as i32), // XXX:
@@ -357,12 +353,11 @@ impl MysqlDb {
                         bso::id.eq(&bso.id),
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
-                        bso::modified.eq(&self.timestamp()),
-                        bso::expiry.eq(self.timestamp() + ttl as i64),
+                        bso::modified.eq(timestamp),
+                        bso::expiry.eq(timestamp + ttl as i64),
                     )).execute(&self.conn)?;
             }
             self.touch_collection(user_id as u32, collection_id)
-                .map(|timestamp| timestamp as u64)
         })
     }
 
@@ -399,7 +394,7 @@ impl MysqlDb {
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::modified.lt(older as i64))
             .filter(bso::modified.gt(newer as i64))
-            .filter(bso::expiry.gt(self.timestamp()))
+            .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .into_boxed();
 
         if !ids.is_empty() {
@@ -445,15 +440,17 @@ impl MysqlDb {
     pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection)?;
-        let q = r#"
-            SELECT id, modified, payload, sortindex, expiry FROM bso
-            WHERE user_id = ? AND collection_id = ? AND id = ? AND expiry >= ?
-        "#;
-        Ok(sql_query(q)
-            .bind::<Integer, _>(user_id as i32) // XXX:
-            .bind::<Integer, _>(&collection_id)
-            .bind::<Text, _>(&params.id)
-            .bind::<BigInt, _>(&self.timestamp())
+        Ok(bso::table
+            .select((
+                bso::id,
+                bso::modified,
+                bso::payload,
+                bso::sortindex,
+                bso::expiry,
+            )).filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::collection_id.eq(&collection_id))
+            .filter(bso::id.eq(&params.id))
+            .filter(bso::expiry.ge(self.timestamp().as_i64()))
             .get_result::<results::GetBso>(&self.conn)
             .optional()?)
     }
@@ -480,7 +477,7 @@ impl MysqlDb {
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostBsos {
-            modified: self.timestamp() as u64,
+            modified: self.timestamp(),
             success: Default::default(),
             failed: Default::default(),
         };
@@ -508,16 +505,21 @@ impl MysqlDb {
         Ok(result)
     }
 
-    pub fn get_storage_modified_sync(&self, user_id: HawkIdentifier) -> Result<i64> {
+    pub fn get_storage_modified_sync(&self, user_id: HawkIdentifier) -> Result<SyncTimestamp> {
         let user_id = user_id.legacy_id as i32;
-        Ok(user_collections::table
+        let modified = user_collections::table
             .select(max(user_collections::modified))
             .filter(user_collections::user_id.eq(user_id))
             .first::<Option<i64>>(&self.conn)?
-            .unwrap_or_default())
+            .unwrap_or_default();
+        Ok(SyncTimestamp::from_i64(modified)?)
     }
 
-    pub fn get_collection_modified_sync(&self, user_id: u32, collection: &str) -> Result<i64> {
+    pub fn get_collection_modified_sync(
+        &self,
+        user_id: u32,
+        collection: &str,
+    ) -> Result<SyncTimestamp> {
         let collection_id = self.get_collection_id(collection)?;
         if let Some(modified) = self
             .session
@@ -541,7 +543,7 @@ impl MysqlDb {
         user_id: u32,
         collection: &str,
         bso_id: &str,
-    ) -> Result<i64> {
+    ) -> Result<SyncTimestamp> {
         let collection_id = self.get_collection_id(collection)?;
         bso::table
             .select(bso::modified)
@@ -562,8 +564,9 @@ impl MysqlDb {
                 .bind::<Integer, _>(user_id.legacy_id as i32)
                 .load::<UserCollectionsResult>(&self.conn)?
                 .into_iter()
-                .map(|cr| (cr.collection_id, cr.modified))
-                .collect();
+                .map(|cr| {
+                    SyncTimestamp::from_i64(cr.modified).and_then(|ts| Ok((cr.collection_id, ts)))
+                }).collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
 
@@ -605,7 +608,11 @@ impl MysqlDb {
         Ok(names)
     }
 
-    pub(super) fn touch_collection(&self, user_id: u32, collection_id: i32) -> Result<i64> {
+    pub(super) fn touch_collection(
+        &self,
+        user_id: u32,
+        collection_id: i32,
+    ) -> Result<SyncTimestamp> {
         let upsert = r#"
                 INSERT INTO user_collections (user_id, collection_id, modified)
                 VALUES (?, ?, ?)
@@ -614,8 +621,8 @@ impl MysqlDb {
         sql_query(upsert)
             .bind::<Integer, _>(user_id as i32)
             .bind::<Integer, _>(&collection_id)
-            .bind::<BigInt, _>(&self.timestamp())
-            .bind::<BigInt, _>(&self.timestamp())
+            .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .bind::<BigInt, _>(&self.timestamp().as_i64())
             .execute(&self.conn)?;
         Ok(self.timestamp())
     }
@@ -627,7 +634,7 @@ impl MysqlDb {
         let total_size = bso::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&self.timestamp()))
+            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .get_result::<Option<i64>>(&self.conn)?;
         Ok(total_size.unwrap_or_default() as u64)
     }
@@ -639,7 +646,7 @@ impl MysqlDb {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&self.timestamp()))
+            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
             .into_iter()
@@ -654,7 +661,7 @@ impl MysqlDb {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
-            .filter(bso::expiry.gt(&self.timestamp()))
+            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
             .into_iter()
@@ -662,13 +669,13 @@ impl MysqlDb {
         self.map_collection_names(counts)
     }
 
-    pub fn timestamp(&self) -> i64 {
+    pub fn timestamp(&self) -> SyncTimestamp {
         self.session.borrow().timestamp
     }
 
     #[cfg(test)]
     pub(super) fn set_timestamp(&self, timestamp: i64) {
-        self.session.borrow_mut().timestamp = timestamp;
+        self.session.borrow_mut().timestamp = SyncTimestamp::from_i64(timestamp).unwrap();
     }
 }
 

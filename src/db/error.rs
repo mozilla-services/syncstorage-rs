@@ -37,6 +37,9 @@ pub enum DbErrorKind {
     #[fail(display = "An attempt at a conflicting write")]
     Conflict,
 
+    #[fail(display = "Database integrity error: {}", _0)]
+    Integrity(String),
+
     #[fail(display = "Unexpected error: {}", _0)]
     Internal(String),
 }

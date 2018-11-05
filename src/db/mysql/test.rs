@@ -199,7 +199,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX: go version assumes ttl was updated here?
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp() + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + ttl as i64);
 
     let sortindex = 2;
     let bso2 = pbso(uid, coll, bid, None, Some(sortindex), None);
@@ -210,7 +210,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX:
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp() + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + ttl as i64);
     Ok(())
 }
 
@@ -221,7 +221,7 @@ fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let bid = "testBSO";
-    let timestamp = db.timestamp();
+    let timestamp = db.timestamp().as_i64();
 
     let bso1 = pbso(uid, coll, bid, Some("hello"), Some(1), Some(10));
     db.set_timestamp(timestamp - 100);
@@ -268,7 +268,7 @@ fn get_bsos_limit_offset() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let size = 12;
-    let timestamp = db.timestamp();
+    let timestamp = db.timestamp().as_i64();
     for i in 0..size {
         let bso = pbso(
             uid,
@@ -376,7 +376,7 @@ fn get_bsos_newer() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.timestamp();
+    let timestamp = db.timestamp().as_i64();
     // XXX: validation
     //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
@@ -389,7 +389,7 @@ fn get_bsos_newer() -> Result<()> {
             Some(1),
             Some(DEFAULT_BSO_TTL),
         );
-        db.set_timestamp(timestamp - i);
+        db.set_timestamp(timestamp - (i * 10));
         db.put_bso_sync(pbso)?;
     }
     db.set_timestamp(timestamp);
@@ -399,7 +399,7 @@ fn get_bsos_newer() -> Result<()> {
         coll,
         &[],
         MAX_TIMESTAMP,
-        timestamp as u64 - 3,
+        timestamp as u64 - 30,
         Sorting::Newest,
         10,
         0,
@@ -414,7 +414,7 @@ fn get_bsos_newer() -> Result<()> {
         coll,
         &[],
         MAX_TIMESTAMP,
-        timestamp as u64 - 2,
+        timestamp as u64 - 20,
         Sorting::Newest,
         10,
         0,
@@ -428,7 +428,7 @@ fn get_bsos_newer() -> Result<()> {
         coll,
         &[],
         MAX_TIMESTAMP,
-        timestamp as u64 - 1,
+        timestamp as u64 - 10,
         Sorting::Newest,
         10,
         0,
@@ -456,7 +456,7 @@ fn get_bsos_sort() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.timestamp();
+    let timestamp = db.timestamp().as_i64();
     // XXX: validation again
     //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
@@ -469,7 +469,7 @@ fn get_bsos_sort() -> Result<()> {
             Some(*sortindex),
             Some(DEFAULT_BSO_TTL),
         );
-        db.set_timestamp(timestamp - revi as i64);
+        db.set_timestamp(timestamp - (revi as i64 * 10));
         db.put_bso_sync(pbso)?;
     }
     db.set_timestamp(timestamp);
@@ -544,7 +544,7 @@ fn get_storage_modified() -> Result<()> {
     let col2 = db.create_collection("col2")?;
     db.create_collection("col3")?;
 
-    db.set_timestamp(db.timestamp() + 100000);
+    db.set_timestamp(db.timestamp().as_i64() + 100000);
     db.touch_collection(uid, col2)?;
 
     let m = db.get_storage_modified_sync(hid(uid))?;
@@ -699,7 +699,7 @@ fn put_bso() -> Result<()> {
     assert_eq!(bso.sortindex, Some(1));
 
     let bso2 = pbso(uid, coll, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
-    db.set_timestamp(db.timestamp() + 19);
+    db.set_timestamp(db.timestamp().as_i64() + 19);
     db.put_bso_sync(bso2)?;
     let modified = db.get_collection_modified_sync(uid, coll)?;
     assert_eq!(modified, db.timestamp());
@@ -735,7 +735,7 @@ fn post_bsos() -> Result<()> {
 
     let modified = db.get_collection_modified_sync(uid, coll)?;
     // XXX: casts
-    assert_eq!(result.modified, modified as u64);
+    assert_eq!(result.modified, modified);
 
     let result2 = db.post_bsos_sync(params::PostBsos {
         user_id: hid(uid),
@@ -759,7 +759,7 @@ fn post_bsos() -> Result<()> {
     assert_eq!(bso.payload, "updated 2");
 
     let modified = db.get_collection_modified_sync(uid, coll)?;
-    assert_eq!(result2.modified, modified as u64);
+    assert_eq!(result2.modified, modified);
     Ok(())
 }
 
@@ -788,7 +788,7 @@ fn get_bsos() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let timestamp = db.timestamp();
+    let timestamp = db.timestamp().as_i64();
     let sortindexes = vec![1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
