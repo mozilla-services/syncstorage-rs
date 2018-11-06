@@ -132,7 +132,9 @@ macro_rules! failure_boilerplate {
 
         impl From<$kind> for $error {
             fn from(kind: $kind) -> Self {
-                Context::new(kind).into()
+                let error = Context::new(kind).into();
+                sentry::integrations::failure::capture_fail(&error);
+                error
             }
         }
     };

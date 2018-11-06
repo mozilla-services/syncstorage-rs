@@ -26,6 +26,7 @@ extern crate num_cpus;
 extern crate rand;
 extern crate regex;
 extern crate ring;
+extern crate sentry;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
@@ -65,6 +66,12 @@ struct Args {
 
 // XXX: failure for Error types
 fn main() -> Result<(), Box<Error>> {
+    // Set SENTRY_DSN environment variable to enable Sentry
+    let sentry = sentry::init(sentry::ClientOptions::default());
+    if sentry.is_enabled() {
+        sentry::integrations::panic::register_panic_handler();
+    }
+
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
