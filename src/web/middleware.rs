@@ -2,7 +2,7 @@
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 use actix_web::{
-    http::{header, Method},
+    http::{header, Method, StatusCode},
     middleware::{Middleware, Response, Started},
     FromRequest, HttpRequest, HttpResponse, Result,
 };
@@ -12,7 +12,7 @@ use futures::{future, Future};
 use db::{params, Db};
 use error::{ApiError, ApiErrorKind};
 use server::ServerState;
-use web::extractors::{CollectionParam, HawkIdentifier};
+use web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
 struct DefaultWeaveTimestamp(f64);
@@ -128,6 +128,50 @@ impl Middleware<ServerState> for DbTransaction {
         } else {
             Ok(Response::Done(resp))
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct PreConditionCheck;
+
+impl Middleware<ServerState> for PreConditionCheck {
+    /// This middleware must be wrapped by the `DbTransaction` middleware to ensure a Db object
+    /// is available.
+    fn start(&self, req: &HttpRequest<ServerState>) -> Result<Started> {
+        let precondition =
+            match <Option<PreConditionHeader> as FromRequest<ServerState>>::from_request(&req, &())
+            {
+                Ok(Some(precondition)) => precondition,
+                Ok(None) | Err(_) => return Ok(Started::Done),
+            };
+        let user_id = HawkIdentifier::from_request(&req, &())?;
+        let db = <Box<dyn Db>>::from_request(&req, &())?;
+        let collection = CollectionParam::from_request(&req, &())
+            .ok()
+            .map(|v| v.collection);
+        let bso = BsoParam::from_request(&req, &()).ok().map(|v| v.bso);
+        let fut = db
+            .extract_resource(user_id, collection, bso)
+            .and_then(move |resource_ts| {
+                let status = match precondition {
+                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
+                        StatusCode::NOT_MODIFIED
+                    }
+                    PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
+                        StatusCode::PRECONDITION_FAILED
+                    }
+                    _ => return future::ok(None),
+                };
+                let resp = HttpResponse::build(status)
+                    .header("X-Last-Modified", resource_ts.as_header())
+                    .body("{}"); // XXX: Does this need more content?
+                future::ok(Some(resp))
+            }).map_err(Into::into);
+        Ok(Started::Future(Box::new(fut)))
+    }
+
+    fn response(&self, _req: &HttpRequest<ServerState>, resp: HttpResponse) -> Result<Response> {
+        Ok(Response::Done(resp))
     }
 }
 

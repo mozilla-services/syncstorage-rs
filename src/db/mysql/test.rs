@@ -12,10 +12,11 @@ use db::mysql::{
     pool::MysqlDbPool,
     schema::collections,
 };
+use db::util::SyncTimestamp;
 use db::{params, DbErrorKind, Sorting};
 use env_logger;
 use settings::{Secrets, ServerLimits, Settings};
-use web::extractors::HawkIdentifier;
+use web::extractors::{BsoQueryParams, HawkIdentifier};
 
 // distant future (year 2099) timestamp for tests
 pub const MAX_TIMESTAMP: u64 = 4070937600000;
@@ -100,12 +101,15 @@ fn gbsos(
     params::GetBsos {
         user_id: HawkIdentifier::new_legacy(user_id as u64),
         collection: coll.to_owned(),
-        ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
-        older,
-        newer,
-        sort,
-        limit,
-        offset,
+        params: BsoQueryParams {
+            ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
+            older: Some(SyncTimestamp::from_milliseconds(older)),
+            newer: Some(SyncTimestamp::from_milliseconds(newer)),
+            sort,
+            limit: Some(limit as u32),
+            offset: Some(offset as u64),
+            full: true,
+        },
     }
 }
 
@@ -602,7 +606,10 @@ fn delete_collection() -> Result<()> {
         assert!(result.is_none());
     }
 
-    let result = db.get_collection_modified_sync(uid, coll);
+    let result = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    });
     match result.unwrap_err().kind() {
         DbErrorKind::CollectionNotFound => assert!(true),
         _ => assert!(false),
@@ -622,7 +629,10 @@ fn get_collection_modifieds() -> Result<()> {
     assert!(cols.contains_key(coll));
     assert_eq!(cols.get(coll), Some(&db.timestamp()));
 
-    let modified = db.get_collection_modified_sync(uid, coll)?;
+    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    })?;
     assert_eq!(Some(&modified), cols.get(coll));
     Ok(())
 }
@@ -691,7 +701,10 @@ fn put_bso() -> Result<()> {
     let bid = "b0";
     let bso1 = pbso(uid, coll, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
     db.put_bso_sync(bso1)?;
-    let modified = db.get_collection_modified_sync(uid, coll)?;
+    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    })?;
     assert_eq!(modified, db.timestamp());
 
     let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
@@ -701,7 +714,10 @@ fn put_bso() -> Result<()> {
     let bso2 = pbso(uid, coll, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
     db.set_timestamp(db.timestamp().as_i64() + 19);
     db.put_bso_sync(bso2)?;
-    let modified = db.get_collection_modified_sync(uid, coll)?;
+    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    })?;
     assert_eq!(modified, db.timestamp());
 
     let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
@@ -733,7 +749,10 @@ fn post_bsos() -> Result<()> {
     //assert!(!result.failed.contains_key("b1"));
     //assert!(!result.failed.contains_key("b1"));
 
-    let modified = db.get_collection_modified_sync(uid, coll)?;
+    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    })?;
     // XXX: casts
     assert_eq!(result.modified, modified);
 
@@ -758,7 +777,10 @@ fn post_bsos() -> Result<()> {
     assert_eq!(bso.sortindex, Some(22));
     assert_eq!(bso.payload, "updated 2");
 
-    let modified = db.get_collection_modified_sync(uid, coll)?;
+    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+    })?;
     assert_eq!(result2.modified, modified);
     Ok(())
 }
@@ -847,7 +869,11 @@ fn get_bso_modified() -> Result<()> {
     let bid = "b0";
     let bso = pbso(uid, coll, bid, Some("a"), None, None);
     db.put_bso_sync(bso)?;
-    let modified = db.get_bso_modified_sync(uid, coll, bid)?;
+    let modified = db.get_bso_modified_sync(params::GetBsoModified {
+        user_id: uid.into(),
+        collection: coll.to_string(),
+        id: bid.to_string(),
+    })?;
     assert_eq!(modified, db.timestamp());
     Ok(())
 }

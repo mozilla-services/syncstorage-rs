@@ -29,7 +29,7 @@ use db::{
     util::SyncTimestamp,
     Db, DbFuture, Sorting,
 };
-use web::extractors::HawkIdentifier;
+use web::extractors::{BsoQueryParams, HawkIdentifier};
 
 no_arg_sql_function!(last_insert_id, Integer);
 
@@ -364,25 +364,17 @@ impl MysqlDb {
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i32;
         let collection_id = self.get_collection_id(&params.collection)?;
-        // XXX: ensure offset/limit/newer are valid
-        let params::GetBsos {
-            mut ids,
-            older,
+        let BsoQueryParams {
             newer,
+            older,
             sort,
             limit,
             offset,
-            ..
-        } = params;
+            ids,
+            // XXX: Do the appropriate thing depending on if full is true/false
+            full: _full,
+        } = params.params;
 
-        // XXX: should error out (400 Bad Request) when more than 100
-        // are provided (move to validation layer)
-        if ids.len() > 100 {
-            // spec says only 100 ids at a time
-            ids.truncate(100);
-        }
-
-        // XXX: convert to raw SQL for use by other backends?
         let mut query = bso::table
             .select((
                 bso::id,
@@ -392,10 +384,15 @@ impl MysqlDb {
                 bso::expiry,
             )).filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
-            .filter(bso::modified.lt(older as i64))
-            .filter(bso::modified.gt(newer as i64))
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .into_boxed();
+
+        if let Some(older) = older {
+            query = query.filter(bso::modified.lt(older.as_i64()));
+        }
+        if let Some(newer) = newer {
+            query = query.filter(bso::modified.gt(newer.as_i64()));
+        }
 
         if !ids.is_empty() {
             query = query.filter(bso::id.eq_any(ids));
@@ -410,6 +407,8 @@ impl MysqlDb {
 
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
+        let limit = limit.unwrap_or(0) as i64;
+        let offset = offset.unwrap_or(0) as i64;
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
         if offset != 0 {
             // XXX: copy over this optimization:
@@ -517,10 +516,10 @@ impl MysqlDb {
 
     pub fn get_collection_modified_sync(
         &self,
-        user_id: u32,
-        collection: &str,
+        params: params::GetCollectionModified,
     ) -> Result<SyncTimestamp> {
-        let collection_id = self.get_collection_id(collection)?;
+        let user_id = params.user_id.legacy_id as u32;
+        let collection_id = self.get_collection_id(&params.collection)?;
         if let Some(modified) = self
             .session
             .borrow()
@@ -538,21 +537,18 @@ impl MysqlDb {
             .ok_or(DbErrorKind::CollectionNotFound.into())
     }
 
-    pub fn get_bso_modified_sync(
-        &self,
-        user_id: u32,
-        collection: &str,
-        bso_id: &str,
-    ) -> Result<SyncTimestamp> {
-        let collection_id = self.get_collection_id(collection)?;
-        bso::table
+    pub fn get_bso_modified_sync(&self, params: params::GetBsoModified) -> Result<SyncTimestamp> {
+        let user_id = params.user_id.legacy_id;
+        let collection_id = self.get_collection_id(&params.collection)?;
+        let modified = bso::table
             .select(bso::modified)
             .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
-            .filter(bso::id.eq(&bso_id))
-            .first(&self.conn)
+            .filter(bso::id.eq(&params.id))
+            .first::<i64>(&self.conn)
             .optional()?
-            .ok_or(DbErrorKind::ItemNotFound.into())
+            .unwrap_or_default();
+        Ok(SyncTimestamp::from_i64(modified)?)
     }
 
     pub fn get_collection_modifieds_sync(
@@ -723,6 +719,11 @@ impl Db for MysqlDb {
         GetCollectionModifieds
     );
     sync_db_method!(
+        get_collection_modified,
+        get_collection_modified_sync,
+        GetCollectionModified
+    );
+    sync_db_method!(
         get_collection_counts,
         get_collection_counts_sync,
         GetCollectionCounts
@@ -745,6 +746,12 @@ impl Db for MysqlDb {
     sync_db_method!(post_bsos, post_bsos_sync, PostBsos);
     sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
     sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
+    sync_db_method!(
+        get_bso_modified,
+        get_bso_modified_sync,
+        GetBsoModified,
+        results::GetBsoModified
+    );
     sync_db_method!(put_bso, put_bso_sync, PutBso);
 }
 

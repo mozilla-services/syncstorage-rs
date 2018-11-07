@@ -1,4 +1,5 @@
 #![allow(proc_macro_derive_resolution_fallback)]
+use std::u64;
 
 use chrono::offset::Utc;
 use diesel::{
@@ -35,7 +36,7 @@ impl SyncTimestamp {
         val.parse::<f64>()
             .map_err(|_| "Invalid value")
             .and_then(|v| {
-                if v < 0f64 {
+                if v < 0f64 || v > ((u64::MAX / 1_000u64) as f64) || v.is_nan() {
                     Err("Invalid value")
                 } else {
                     Ok(v)

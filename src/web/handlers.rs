@@ -1,8 +1,8 @@
 //! API Handlers
-use actix_web::{FutureResponse, HttpResponse, State};
+use actix_web::{http::StatusCode, FutureResponse, HttpResponse, State};
 use futures::future::{self, Future};
 
-use db::{params, DbErrorKind, Sorting};
+use db::{params, DbErrorKind};
 use server::ServerState;
 use web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
@@ -14,7 +14,11 @@ pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
         meta.db
             .get_collection_modifieds(meta.user_id)
             .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Weave-Records", result.len().to_string())
+                    .json(result)
+            }),
     )
 }
 
@@ -23,7 +27,11 @@ pub fn get_collection_counts(meta: MetaRequest) -> FutureResponse<HttpResponse> 
         meta.db
             .get_collection_counts(meta.user_id)
             .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Weave-Records", result.len().to_string())
+                    .json(result)
+            }),
     )
 }
 
@@ -32,7 +40,11 @@ pub fn get_collection_usage(meta: MetaRequest) -> FutureResponse<HttpResponse> {
         meta.db
             .get_collection_usage(meta.user_id)
             .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Weave-Records", result.len().to_string())
+                    .json(result)
+            }),
     )
 }
 
@@ -61,6 +73,7 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
                 user_id: coll.user_id.clone(),
                 collection: coll.collection.clone(),
                 // XXX: handle both cases (delete_collection & delete_bsos also)
+                // XXX: If we are passed id's to delete bso's, also set X-Last-Modified
                 /*
                 ids: coll
                     .query
@@ -80,19 +93,24 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
 
 pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
     // XXX: it may make more sense for Db to take BsoQuery params as Options
+    // XXX: Pagination will require setting the X-Weave-Next-Offset header
     Box::new(
         coll.db
             .get_bsos(params::GetBsos {
-                user_id: coll.user_id,
-                collection: coll.collection,
-                ids: vec!["foo".to_owned()],
-                older: 0,
-                newer: 0,
-                sort: Sorting::Newest,
-                limit: 3,
-                offset: 0,
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                params: coll.query.clone(),
             }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result.bsos)),
+            .and_then(|result| {
+                coll.db
+                    .extract_resource(coll.user_id, Some(coll.collection), None)
+                    .map_err(From::from)
+                    .map(move |ts| (result, ts))
+            }).map(|(result, ts)| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Last-Modified", ts.as_header())
+                    .json(result.bsos)
+            }),
     )
 }
 
@@ -104,7 +122,11 @@ pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpRespon
                 collection: coll.collection,
                 bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
             }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Last-Modified", result.modified.as_header())
+                    .json(result)
+            }),
     )
 }
 
@@ -146,7 +168,11 @@ pub fn put_bso(bso_req: BsoPutRequest) -> FutureResponse<HttpResponse> {
                 payload: bso_req.body.payload,
                 ttl: bso_req.body.ttl,
             }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|result| {
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Last-Modified", result.as_header())
+                    .json(result)
+            }),
     )
 }
 
