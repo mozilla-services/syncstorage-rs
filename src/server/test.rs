@@ -13,7 +13,7 @@ use super::*;
 use db::mysql::pool::MysqlDbPool;
 use db::params::PostCollectionBso;
 use db::results::{GetBso, PostBsos, PutBso};
-use db::util::ms_since_epoch;
+use db::util::SyncTimestamp;
 use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
 use web::extractors::BsoBody;
@@ -209,7 +209,7 @@ fn get_collection() {
 
 #[test]
 fn post_collection() {
-    let start = ms_since_epoch() as u64;
+    let start = SyncTimestamp::default();
     test_endpoint_with_body! {
         POST "/1.5/42/storage/bookmarks", vec![PostCollectionBso {
             id: "foo".to_string(),
@@ -218,7 +218,7 @@ fn post_collection() {
             ttl: Some(31536000),
         }],
         result: PostBsos {
-            assert!(result.modified > start);
+            assert!(result.modified >= start);
             assert_eq!(result.success.len(), 1);
             assert_eq!(result.failed.len(), 0);
         }
@@ -229,9 +229,9 @@ fn post_collection() {
 fn delete_bso() {
     #[derive(Debug, Default, Deserialize)]
     pub struct DeleteBso {
-        modified: u64,
+        modified: SyncTimestamp,
     }
-    let start = ms_since_epoch() as u64;
+    let start = SyncTimestamp::default();
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks/wibble",
@@ -243,12 +243,13 @@ fn delete_bso() {
 
 #[test]
 fn get_bso() {
+    let start = SyncTimestamp::default();
     test_endpoint_with_response(
         http::Method::GET,
         "/1.5/42/storage/bookmarks/wibble",
         &move |bso: GetBso| {
             assert_eq!(bso.id, "");
-            assert_eq!(bso.modified, 0);
+            assert!(bso.modified >= start);
             assert_eq!(bso.payload, "");
             assert!(bso.sortindex.is_none());
         },
@@ -257,7 +258,7 @@ fn get_bso() {
 
 #[test]
 fn put_bso() {
-    let start = ms_since_epoch() as u64;
+    let start = SyncTimestamp::default();
     test_endpoint_with_body! {
         PUT "/1.5/42/storage/bookmarks/wibble", BsoBody {
             id: Some("wibble".to_string()),
@@ -266,7 +267,7 @@ fn put_bso() {
             ttl: Some(31536000),
         },
         result: PutBso {
-            assert!(result > start);
+            assert!(result >= start);
         }
     };
 }

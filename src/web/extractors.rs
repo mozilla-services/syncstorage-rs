@@ -11,13 +11,12 @@ use actix_web::{
     Error, FromRequest, HttpRequest, Json, Path, Query,
 };
 use futures::{future, Future};
-use num::Zero;
 use regex::Regex;
 use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use serde_json;
 use validator::{Validate, ValidationError};
 
-use db::Db;
+use db::{util::SyncTimestamp, Db};
 use error::{ApiError, ApiResult};
 use server::ServerState;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
@@ -584,13 +583,13 @@ impl FromRequest<ServerState> for Box<dyn Db> {
 #[derive(Debug, Default, Deserialize, Validate)]
 #[serde(default)]
 pub struct BsoQueryParams {
-    /// lower-bound on last-modified time (float timestamp)
-    #[validate(custom = "validate_qs_positive_value")]
-    pub lower: Option<f64>,
+    /// lower-bound on last-modified time
+    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    pub lower: Option<SyncTimestamp>,
 
-    /// upper-bound on last-modified time (float timestamp)
-    #[validate(custom = "validate_qs_positive_value")]
-    pub older: Option<f64>,
+    /// upper-bound on last-modified time
+    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
     #[validate(custom = "validate_qs_sort_option")]
@@ -642,8 +641,8 @@ impl FromRequest<ServerState> for BsoQueryParams {
 /// Used with Option<PreConditionHeader> to extract a possible PreConditionHeader.
 #[derive(Debug, PartialEq)]
 pub enum PreConditionHeader {
-    IfModifiedSince(f64),
-    IfUnmodifiedSince(f64),
+    IfModifiedSince(SyncTimestamp),
+    IfUnmodifiedSince(SyncTimestamp),
 }
 
 impl FromRequest<ServerState> for Option<PreConditionHeader> {
@@ -678,25 +677,13 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                     Some(field_name.to_owned()),
                 ).into()
             }).and_then(|v| {
-                v.parse::<f64>()
-                    .map_err(|e| {
-                        ValidationErrorKind::FromDetails(
-                            e.to_string(),
-                            RequestErrorLocation::Header,
-                            Some(field_name.to_owned()),
-                        ).into()
-                    }).and_then(|v| {
-                        // Don't allow negative values for the field
-                        if v < 0.0 {
-                            Err(ValidationErrorKind::FromDetails(
-                                "value is negative".to_string(),
-                                RequestErrorLocation::Header,
-                                Some(field_name.to_owned()),
-                            ))?
-                        } else {
-                            Ok(v)
-                        }
-                    })
+                SyncTimestamp::from_header(v).map_err(|e| {
+                    ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::Header,
+                        Some(field_name.to_owned()),
+                    ).into()
+                })
             }).map(|v| {
                 if field_name == "X-If-Modified-Since" {
                     Some(PreConditionHeader::IfModifiedSince(v))
@@ -726,18 +713,6 @@ fn request_error(message: &'static str, location: RequestErrorLocation) -> Valid
     let mut err = ValidationError::new(message);
     err.add_param("location".into(), &location);
     err
-}
-
-/// Verifies that the supplied value is >= 0
-fn validate_qs_positive_value<T: PartialOrd + Zero>(ts: T) -> Result<(), ValidationError> {
-    if ts < Zero::zero() {
-        Err(request_error(
-            "Invalid value",
-            RequestErrorLocation::QueryString,
-        ))
-    } else {
-        Ok(())
-    }
 }
 
 /// Verifies that the supplied sort is supported
@@ -838,6 +813,21 @@ where
 {
     let maybe_str: Option<String> = Option::deserialize(deserializer).unwrap_or(None);
     Ok(maybe_str.is_some())
+}
+
+/// Deserialize a header string value (epoch seconds with 2 decimal places) as SyncTimestamp
+fn deserialize_sync_timestamp<'de, D>(deserializer: D) -> Result<Option<SyncTimestamp>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
+    if let Some(val) = maybe_str {
+        let result =
+            SyncTimestamp::from_header(&val).map_err(|_| SerdeError::custom("Invalid value"))?;
+        Ok(Some(result))
+    } else {
+        Ok(None)
+    }
 }
 
 #[cfg(test)]
@@ -946,21 +936,14 @@ mod tests {
         assert_eq!(err["status"], 400);
         assert_eq!(err["reason"], "Bad Request");
 
-        let (lower_error, sort_error) = if err["errors"][0]["name"] == "lower" {
+        let (_lower_error, sort_error) = if err["errors"][0]["name"] == "lower" {
             (&err["errors"][0], &err["errors"][1])
         } else {
             (&err["errors"][1], &err["errors"][0])
         };
 
-        assert_eq!(lower_error["description"], "Invalid value");
-        assert_eq!(lower_error["location"], "querystring");
-        assert_eq!(lower_error["name"], "lower");
-        assert_eq!(lower_error["value"], -1.23);
-
-        assert_eq!(sort_error["description"], "Invalid sort option");
+        assert_eq!(sort_error["description"], "Invalid value");
         assert_eq!(sort_error["location"], "querystring");
-        assert_eq!(sort_error["name"], "sort");
-        assert_eq!(sort_error["value"], "whatever");
     }
 
     #[test]
@@ -971,7 +954,7 @@ mod tests {
         let result = BsoQueryParams::extract(&req).unwrap();
         assert_eq!(result.ids.unwrap(), vec!["1", "2"]);
         assert_eq!(result.sort.unwrap(), "index");
-        assert_eq!(result.older.unwrap(), 2.43);
+        assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
         assert_eq!(result.full, true);
     }
 
@@ -1269,7 +1252,7 @@ mod tests {
             .header("X-If-Modified-Since", "-32.1")
             .uri("/")
             .finish();
-        assert_invalid_header(&req, "X-If-Modified-Since", "value is negative");
+        assert_invalid_header(&req, "X-If-Modified-Since", "Invalid value");
     }
 
     #[test]
@@ -1281,7 +1264,10 @@ mod tests {
         let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
             .unwrap()
             .unwrap();
-        assert_eq!(result, PreConditionHeader::IfModifiedSince(32.1));
+        assert_eq!(
+            result,
+            PreConditionHeader::IfModifiedSince(SyncTimestamp::from_seconds(32.1))
+        );
         let req = TestRequest::with_state(make_state())
             .header("X-If-Unmodified-Since", "32.14")
             .uri("/")
@@ -1289,7 +1275,10 @@ mod tests {
         let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
             .unwrap()
             .unwrap();
-        assert_eq!(result, PreConditionHeader::IfUnmodifiedSince(32.14));
+        assert_eq!(
+            result,
+            PreConditionHeader::IfUnmodifiedSince(SyncTimestamp::from_seconds(32.14))
+        );
     }
 
     #[test]

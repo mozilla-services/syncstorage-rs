@@ -6,24 +6,28 @@ use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
 
+use db::util::SyncTimestamp;
+
 pub type LockCollection = ();
-pub type GetCollectionModifieds = HashMap<String, i64>;
+pub type GetBsoModified = SyncTimestamp;
+pub type GetCollectionModifieds = HashMap<String, SyncTimestamp>;
+pub type GetCollectionModified = SyncTimestamp;
 pub type GetCollectionCounts = HashMap<String, i64>;
 pub type GetCollectionUsage = HashMap<String, i64>;
-pub type GetStorageModified = i64;
+pub type GetStorageModified = SyncTimestamp;
 pub type GetStorageUsage = u64;
 pub type DeleteStorage = ();
-pub type DeleteCollection = i64;
-pub type DeleteBsos = i64;
-pub type DeleteBso = i64;
-pub type PutBso = u64;
+pub type DeleteCollection = SyncTimestamp;
+pub type DeleteBsos = SyncTimestamp;
+pub type DeleteBso = SyncTimestamp;
+pub type PutBso = SyncTimestamp;
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {
     #[sql_type = "Text"]
     pub id: String,
     #[sql_type = "BigInt"]
-    pub modified: i64,
+    pub modified: SyncTimestamp,
     #[sql_type = "Text"]
     pub payload: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,7 +48,7 @@ pub struct GetBsos {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PostBsos {
-    pub modified: u64,
+    pub modified: SyncTimestamp,
     pub success: Vec<String>,
     pub failed: HashMap<String, String>,
 }
