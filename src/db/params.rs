@@ -1,6 +1,5 @@
 //! Parameter types for database methods.
-use db::Sorting;
-use web::extractors::{BatchBsoBody, HawkIdentifier};
+use web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {
@@ -54,16 +53,12 @@ uid_data! {
 collection_data! {
     LockCollection {},
     DeleteCollection {},
+    GetCollectionModified {},
     DeleteBsos {
         ids: Vec<String>,
     },
     GetBsos {
-        ids: Vec<String>,
-        older: u64,
-        newer: u64,
-        sort: Sorting,
-        limit: i64,  // XXX: limit/offset i64?
-        offset: i64,
+        params: BsoQueryParams,
     },
     PostBsos {
         bsos: Vec<PostCollectionBso>,
@@ -73,6 +68,7 @@ collection_data! {
 bso_data! {
     DeleteBso {},
     GetBso {},
+    GetBsoModified {},
 }
 
 pub struct PutBso {

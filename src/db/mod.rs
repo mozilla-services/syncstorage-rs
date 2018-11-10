@@ -10,6 +10,8 @@ pub mod util;
 use futures::future::Future;
 
 pub use self::error::{DbError, DbErrorKind};
+use self::util::SyncTimestamp;
+use web::extractors::HawkIdentifier;
 
 lazy_static! {
     /// For efficiency, it's possible to use fixed pre-determined IDs for
@@ -55,6 +57,11 @@ pub trait Db: Send {
         params: params::GetCollectionModifieds,
     ) -> DbFuture<results::GetCollectionModifieds>;
 
+    fn get_collection_modified(
+        &self,
+        params: params::GetCollectionModified,
+    ) -> DbFuture<results::GetCollectionModified>;
+
     fn get_collection_counts(
         &self,
         params: params::GetCollectionCounts,
@@ -92,9 +99,61 @@ pub trait Db: Send {
 
     fn get_bso(&self, params: params::GetBso) -> DbFuture<Option<results::GetBso>>;
 
+    fn get_bso_modified(&self, params: params::GetBsoModified)
+        -> DbFuture<results::GetBsoModified>;
+
     fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
 
     fn box_clone(&self) -> Box<dyn Db>;
+
+    /// Retrieve the timestamp for an item/collection
+    ///
+    /// Modeled on the Python `get_resource_timestamp` function.
+    fn extract_resource(
+        &self,
+        user_id: HawkIdentifier,
+        collection: Option<String>,
+        bso: Option<String>,
+    ) -> DbFuture<SyncTimestamp> {
+        // If there's no collection, we return the overall storage timestamp
+        let collection = match collection {
+            Some(collection) => collection,
+            None => return Box::new(self.get_storage_modified(user_id)),
+        };
+        // If there's no bso, return the collection
+        let bso = match bso {
+            Some(bso) => bso,
+            None => {
+                return Box::new(
+                    self.get_collection_modified(params::GetCollectionModified {
+                        user_id,
+                        collection,
+                    }).then(|v| match v {
+                        Ok(v) => Ok(v),
+                        Err(e) => match e.kind() {
+                            DbErrorKind::CollectionNotFound => {
+                                Ok(SyncTimestamp::from_seconds(0f64))
+                            }
+                            _ => Err(e),
+                        },
+                    }),
+                )
+            }
+        };
+        Box::new(
+            self.get_bso_modified(params::GetBsoModified {
+                user_id,
+                collection,
+                id: bso,
+            }).then(|v| match v {
+                Ok(v) => Ok(v),
+                Err(e) => match e.kind() {
+                    DbErrorKind::CollectionNotFound => Ok(SyncTimestamp::from_seconds(0f64)),
+                    _ => Err(e),
+                },
+            }),
+        )
+    }
 }
 
 impl Clone for Box<dyn Db> {
@@ -103,10 +162,17 @@ impl Clone for Box<dyn Db> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,
     Newest,
     Oldest,
     Index,
+}
+
+impl Default for Sorting {
+    fn default() -> Self {
+        Sorting::None
+    }
 }

@@ -16,7 +16,7 @@ use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use serde_json;
 use validator::{Validate, ValidationError};
 
-use db::{util::SyncTimestamp, Db};
+use db::{util::SyncTimestamp, Db, Sorting};
 use error::{ApiError, ApiResult};
 use server::ServerState;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
@@ -236,7 +236,7 @@ impl FromRequest<ServerState> for BsoBody {
 }
 
 /// Bso id parameter extractor
-#[derive(Deserialize, Validate)]
+#[derive(Clone, Deserialize, Validate)]
 pub struct BsoParam {
     #[validate(regex = "VALID_ID_REGEX")]
     pub bso: String,
@@ -247,6 +247,10 @@ impl FromRequest<ServerState> for BsoParam {
     type Result = ApiResult<BsoParam>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        if let Some(bso) = req.extensions().get::<BsoParam>() {
+            return Ok(bso.clone());
+        }
+
         let bso = Path::<BsoParam>::extract(req)
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(
@@ -258,6 +262,7 @@ impl FromRequest<ServerState> for BsoParam {
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
+        req.extensions_mut().insert(bso.clone());
         Ok(bso)
     }
 }
@@ -564,6 +569,15 @@ impl HawkIdentifier {
     }
 }
 
+impl From<u32> for HawkIdentifier {
+    fn from(val: u32) -> Self {
+        HawkIdentifier {
+            legacy_id: val.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FromRequest<ServerState> for Box<dyn Db> {
     type Config = ();
     type Result = Result<Self, Error>;
@@ -580,31 +594,31 @@ impl FromRequest<ServerState> for Box<dyn Db> {
 ///
 /// This validator will extract and validate the following search params used in
 /// multiple handler functions. Not all query params are used in each handler.
-#[derive(Debug, Default, Deserialize, Validate)]
+#[derive(Debug, Default, Clone, Deserialize, Validate)]
 #[serde(default)]
 pub struct BsoQueryParams {
     /// lower-bound on last-modified time
     #[serde(deserialize_with = "deserialize_sync_timestamp",)]
-    pub lower: Option<SyncTimestamp>,
+    pub newer: Option<SyncTimestamp>,
 
     /// upper-bound on last-modified time
     #[serde(deserialize_with = "deserialize_sync_timestamp",)]
     pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
-    #[validate(custom = "validate_qs_sort_option")]
-    pub sort: Option<String>,
+    #[serde(default)]
+    pub sort: Sorting,
 
     /// maximum number of items to return (integer)
     pub limit: Option<u32>,
 
     /// position at which to restart search (string)
-    pub offset: Option<String>,
+    pub offset: Option<u64>,
 
     /// a comma-separated list of BSO ids (list of strings)
     #[validate(custom = "validate_qs_ids")]
-    #[serde(deserialize_with = "deserialize_comma_sep_string",)]
-    pub ids: Option<Vec<String>>,
+    #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
+    pub ids: Vec<String>,
 
     // flag, whether to include full bodies (bool)
     #[serde(deserialize_with = "deserialize_present_value",)]
@@ -639,7 +653,7 @@ impl FromRequest<ServerState> for BsoQueryParams {
 /// both.
 ///
 /// Used with Option<PreConditionHeader> to extract a possible PreConditionHeader.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PreConditionHeader {
     IfModifiedSince(SyncTimestamp),
     IfUnmodifiedSince(SyncTimestamp),
@@ -651,6 +665,10 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        if let Some(precondition) = req.extensions().get::<Option<PreConditionHeader>>() {
+            return Ok(precondition.clone());
+        }
+
         let headers = req.headers();
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
@@ -685,11 +703,13 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                     ).into()
                 })
             }).map(|v| {
-                if field_name == "X-If-Modified-Since" {
-                    Some(PreConditionHeader::IfModifiedSince(v))
+                let header = if field_name == "X-If-Modified-Since" {
+                    PreConditionHeader::IfModifiedSince(v)
                 } else {
-                    Some(PreConditionHeader::IfUnmodifiedSince(v))
-                }
+                    PreConditionHeader::IfUnmodifiedSince(v)
+                };
+                req.extensions_mut().insert(header.clone());
+                Some(header)
             })
     }
 }
@@ -713,18 +733,6 @@ fn request_error(message: &'static str, location: RequestErrorLocation) -> Valid
     let mut err = ValidationError::new(message);
     err.add_param("location".into(), &location);
     err
-}
-
-/// Verifies that the supplied sort is supported
-fn validate_qs_sort_option(sort: &str) -> Result<(), ValidationError> {
-    if sort == "newest" || sort == "oldest" || sort == "index" {
-        Ok(())
-    } else {
-        Err(request_error(
-            "Invalid sort option",
-            RequestErrorLocation::QueryString,
-        ))
-    }
 }
 
 /// Verifies that the list of id's is not too long and that the ids are valid
@@ -780,30 +788,25 @@ fn validate_body_bso_ttl(ttl: u32) -> Result<(), ValidationError> {
 }
 
 /// Deserialize a comma separated string
-fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Option<Vec<E>>, D::Error>
+fn deserialize_comma_sep_string<'de, D, E>(deserializer: D) -> Result<Vec<E>, D::Error>
 where
     D: Deserializer<'de>,
     E: FromStr,
 {
-    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
-    let maybe_lst: Option<Vec<String>> = maybe_str.map(|s| {
-        s.split(",")
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect()
-    });
-    if let Some(lst) = maybe_lst {
-        let mut parsed_lst: Vec<E> = Vec::new();
-        for item in lst {
-            parsed_lst.push(
-                item.parse::<E>()
-                    .map_err(|_| SerdeError::custom("Invalid value in list"))?,
-            );
-        }
-        Ok(Some(parsed_lst))
-    } else {
-        Ok(None)
+    let str: String = Deserialize::deserialize(deserializer)?;
+    let lst: Vec<String> = str
+        .split(",")
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let mut parsed_lst: Vec<E> = Vec::new();
+    for item in lst {
+        parsed_lst.push(
+            item.parse::<E>()
+                .map_err(|_| SerdeError::custom("Invalid value in list"))?,
+        );
     }
+    Ok(parsed_lst)
 }
 
 /// Deserialize a value as True if it exists, False otherwise
@@ -942,7 +945,6 @@ mod tests {
             (&err["errors"][1], &err["errors"][0])
         };
 
-        assert_eq!(sort_error["description"], "Invalid value");
         assert_eq!(sort_error["location"], "querystring");
     }
 
@@ -952,8 +954,8 @@ mod tests {
             .uri("/?ids=1,2,&full=&sort=index&older=2.43")
             .finish();
         let result = BsoQueryParams::extract(&req).unwrap();
-        assert_eq!(result.ids.unwrap(), vec!["1", "2"]);
-        assert_eq!(result.sort.unwrap(), "index");
+        assert_eq!(result.ids, vec!["1", "2"]);
+        assert_eq!(result.sort, Sorting::Index);
         assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
         assert_eq!(result.full, true);
     }
