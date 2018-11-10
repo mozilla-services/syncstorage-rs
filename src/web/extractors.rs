@@ -584,9 +584,9 @@ impl FromRequest<ServerState> for Box<dyn Db> {
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         req.extensions()
-            .get::<Box<dyn Db>>()
+            .get::<(Box<dyn Db>, bool)>()
             .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
-            .map(Clone::clone)
+            .map(|(db, _)| db.clone())
     }
 }
 
@@ -867,8 +867,8 @@ mod tests {
     const INVALID_BSO_NAME: &'static str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db> {
-        Box::new(MockDb::new())
+    fn make_db() -> (Box<dyn Db>, bool) {
+        (Box::new(MockDb::new()), false)
     }
 
     fn make_state() -> ServerState {

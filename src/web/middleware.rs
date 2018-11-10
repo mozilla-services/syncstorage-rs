@@ -89,6 +89,7 @@ impl Middleware<ServerState> for DbTransaction {
             .map(|param| param.collection.clone())
             .ok();
         let user_id = HawkIdentifier::from_request(&req, &())?;
+        let in_transaction = collection.is_some();
 
         let fut = req
             .state()
@@ -110,7 +111,9 @@ impl Middleware<ServerState> for DbTransaction {
                     Box::new(future::ok(()))
                 };
                 fut.and_then(move |_| {
-                    req.extensions_mut().insert(db);
+                    // track whether a transaction was started above via the
+                    // lock methods
+                    req.extensions_mut().insert((db, in_transaction));
                     future::ok(None)
                 })
             }).map_err(Into::into);
@@ -118,16 +121,17 @@ impl Middleware<ServerState> for DbTransaction {
     }
 
     fn response(&self, req: &HttpRequest<ServerState>, resp: HttpResponse) -> Result<Response> {
-        if let Some(db) = req.extensions().get::<Box<dyn Db>>() {
-            let fut = match resp.error() {
-                None => db.commit(),
-                Some(_) => db.rollback(),
-            };
-            let fut = fut.and_then(|_| Ok(resp)).map_err(Into::into);
-            Ok(Response::Future(Box::new(fut)))
-        } else {
-            Ok(Response::Done(resp))
+        if let Some((db, in_transaction)) = req.extensions().get::<(Box<dyn Db>, bool)>() {
+            if *in_transaction {
+                let fut = match resp.error() {
+                    None => db.commit(),
+                    Some(_) => db.rollback(),
+                };
+                let fut = fut.and_then(|_| Ok(resp)).map_err(Into::into);
+                return Ok(Response::Future(Box::new(fut)));
+            }
         }
+        Ok(Response::Done(resp))
     }
 }
 
