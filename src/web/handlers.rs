@@ -82,7 +82,7 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
                     .map_or_else(|| Vec::new(), |ids| ids.clone()),
                 */
             }).or_else(move |e| match e.kind() {
-                DbErrorKind::CollectionNotFound | DbErrorKind::ItemNotFound => {
+                DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => {
                     coll.db.get_storage_modified(coll.user_id)
                 }
                 _ => Box::new(future::err(e)),

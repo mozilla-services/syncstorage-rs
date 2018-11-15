@@ -3,6 +3,7 @@ CREATE DATABASE IF NOT EXISTS `syncstorage` /*!40100 DEFAULT CHARACTER SET latin
 USE `syncstorage`;
 
 -- DROP TABLE IF EXISTS `bso`;
+-- XXX: bsov1, etc
 CREATE TABLE `bso` (
     `user_id` INT                           NOT NULL,
     `collection_id` INT                     NOT NULL,
@@ -14,7 +15,7 @@ CREATE TABLE `bso` (
 
     -- last modified time in milliseconds since epoch
     `modified` BIGINT                       NOT NULL,
-    -- expiration in seconds milliseconds since epoch
+    -- expiration in milliseconds since epoch
     `expiry` BIGINT DEFAULT '3153600000000' NOT NULL,
 
     PRIMARY KEY (`user_id`, `collection_id`, `id`),
@@ -57,14 +58,14 @@ CREATE TABLE `user_collections` (
 -- XXX: based on the go version (bsos is a concatenated blob of BSO jsons separated by newlines)
 -- DROP TABLE IF EXISTS `batches`;
 CREATE TABLE `batches` (
-    `user_id` INT       NOT NULL,
-    `collection_id` INT NOT NULL,
-    `id` varchar(64)    NOT NULL,
+    `user_id` INT                           NOT NULL,
+    `collection_id` INT                     NOT NULL,
+    `id` BIGINT                             NOT NULL,
 
-    `modified` BIGINT   NOT NULL,
+    `bsos` LONGTEXT                         NOT NULL,
 
-    -- XXX: possibly largetext?
-    `bsos` MEDIUMTEXT   NOT NULL,
+    -- expiration in milliseconds since epoch
+    `expiry` BIGINT DEFAULT '3153600000000' NOT NULL,
 
     PRIMARY KEY (`user_id`, `collection_id`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;

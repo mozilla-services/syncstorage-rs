@@ -31,8 +31,11 @@ pub enum DbErrorKind {
     #[fail(display = "Specified collection does not exist")]
     CollectionNotFound,
 
-    #[fail(display = "Specified item does not exist")]
-    ItemNotFound,
+    #[fail(display = "Specified bso does not exist")]
+    BsoNotFound,
+
+    #[fail(display = "Specified batch does not exist")]
+    BatchNotFound,
 
     #[fail(display = "An attempt at a conflicting write")]
     Conflict,
@@ -58,7 +61,7 @@ impl From<Context<DbErrorKind>> for DbError {
     fn from(inner: Context<DbErrorKind>) -> Self {
         let status = match inner.get_context() {
             DbErrorKind::CollectionNotFound => StatusCode::BAD_REQUEST,
-            DbErrorKind::ItemNotFound => StatusCode::BAD_REQUEST,
+            DbErrorKind::BsoNotFound => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

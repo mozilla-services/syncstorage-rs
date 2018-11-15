@@ -4,9 +4,9 @@ table! {
     batches (user_id, collection_id, id) {
         user_id -> Integer,
         collection_id -> Integer,
-        id -> Varchar,
-        modified -> Bigint,
-        bsos -> Mediumtext,
+        id -> Bigint,
+        bsos -> Longtext,
+        expiry -> Bigint,
     }
 }
 
@@ -17,7 +17,6 @@ table! {
         id -> Varchar,
         sortindex -> Nullable<Integer>,
         payload -> Mediumtext,
-        payload_size -> Integer,
         modified -> Bigint,
         expiry -> Bigint,
     }

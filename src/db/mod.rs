@@ -104,6 +104,16 @@ pub trait Db: Send {
 
     fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
 
+    fn create_batch(&self, params: params::CreateBatch) -> DbFuture<results::CreateBatch>;
+
+    fn validate_batch(&self, params: params::ValidateBatch) -> DbFuture<results::ValidateBatch>;
+
+    fn append_to_batch(&self, params: params::AppendToBatch) -> DbFuture<results::AppendToBatch>;
+
+    fn get_batch(&self, params: params::GetBatch) -> DbFuture<Option<results::GetBatch>>;
+
+    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<results::DeleteBatch>;
+
     fn box_clone(&self) -> Box<dyn Db>;
 
     /// Retrieve the timestamp for an item/collection

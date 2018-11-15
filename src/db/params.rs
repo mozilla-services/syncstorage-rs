@@ -1,4 +1,7 @@
 //! Parameter types for database methods.
+
+#![allow(proc_macro_derive_resolution_fallback)]
+
 use web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
@@ -63,12 +66,39 @@ collection_data! {
     PostBsos {
         bsos: Vec<PostCollectionBso>,
     },
+
+    CreateBatch {
+        bsos: Vec<PostCollectionBso>,
+    },
+    ValidateBatch {
+        id: i64,
+    },
+    AppendToBatch {
+        id: i64,
+        bsos: Vec<PostCollectionBso>,
+    },
+    CommitBatch {
+        batch: Batch,
+    },
+    GetBatch {
+        id: i64,
+    },
+    DeleteBatch {
+        id: i64,
+    },
 }
 
 bso_data! {
     DeleteBso {},
     GetBso {},
     GetBsoModified {},
+}
+
+#[derive(Debug, Default, Queryable)]
+pub struct Batch {
+    pub id: i64,
+    pub bsos: String,
+    pub expiry: i64,
 }
 
 pub struct PutBso {

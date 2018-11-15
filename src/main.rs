@@ -66,6 +66,7 @@ struct Args {
 
 // XXX: failure for Error types
 fn main() -> Result<(), Box<Error>> {
+    env_logger::init();
     // Set SENTRY_DSN environment variable to enable Sentry
     let sentry = sentry::init(sentry::ClientOptions::default());
     if sentry.is_enabled() {

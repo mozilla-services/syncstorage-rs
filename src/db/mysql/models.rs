@@ -19,6 +19,7 @@ use diesel_logger::LoggingConnection;
 use futures::{future, lazy};
 
 use super::{
+    batch,
     diesel_ext::LockInShareModeDsl,
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
@@ -36,7 +37,7 @@ no_arg_sql_function!(last_insert_id, Integer);
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
-// The ttl to use for rows that are never supposed to expire (in seconds)
+/// The ttl to use for rows that are never supposed to expire (in seconds)
 pub const DEFAULT_BSO_TTL: u32 = 2100000000;
 
 #[derive(Debug)]
@@ -319,6 +320,7 @@ impl MysqlDb {
 
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
+        let timestamp = self.timestamp().as_i64();
 
         // XXX: consider mysql ON DUPLICATE KEY UPDATE?
         self.conn.transaction(|| {
@@ -339,13 +341,12 @@ impl MysqlDb {
                     .filter(bso::user_id.eq(user_id as i32)) // XXX:
                     .filter(bso::collection_id.eq(&collection_id))
                     .filter(bso::id.eq(&bso.id))
-                    .set(put_bso_as_changeset(&bso, self.timestamp().as_i64()))
+                    .set(put_bso_as_changeset(&bso, timestamp))
                     .execute(&self.conn)?;
             } else {
                 let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
                 let sortindex = bso.sortindex;
                 let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
-                let timestamp = self.timestamp().as_i64();
                 insert_into(bso::table)
                     .values((
                         bso::user_id.eq(user_id as i32), // XXX:
@@ -405,11 +406,12 @@ impl MysqlDb {
             _ => query,
         };
 
+        let limit = limit.map(|limit| limit as i64).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
-        let limit = limit.unwrap_or(0) as i64;
-        let offset = offset.unwrap_or(0) as i64;
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
+
+        let offset = offset.unwrap_or(0) as i64;
         if offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
@@ -567,14 +569,14 @@ impl MysqlDb {
     }
 
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
-        let names = self.load_collection_names(by_id.keys())?;
+        let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
             .map(|(id, value)| {
                 names
-                    .get(&id)
-                    .map(|name| (name.to_owned(), value))
-                    .ok_or(DbError::internal("load_collection_names get"))
+                    .remove(&id)
+                    .map(|name| (name, value))
+                    .ok_or_else(|| DbError::internal("load_collection_names get"))
             }).collect()
     }
 
@@ -592,15 +594,18 @@ impl MysqlDb {
             }
         }
 
-        let result = collections::table
-            .select((collections::id, collections::name))
-            .filter(collections::id.eq_any(uncached))
-            .load::<(i32, String)>(&self.conn)?;
+        if !uncached.is_empty() {
+            let result = collections::table
+                .select((collections::id, collections::name))
+                .filter(collections::id.eq_any(uncached))
+                .load::<(i32, String)>(&self.conn)?;
 
-        for (id, name) in result {
-            names.insert(id, name.clone());
-            self.coll_cache.put(id, name)?;
+            for (id, name) in result {
+                names.insert(id, name.clone());
+                self.coll_cache.put(id, name)?;
+            }
         }
+
         Ok(names)
     }
 
@@ -665,13 +670,31 @@ impl MysqlDb {
         self.map_collection_names(counts)
     }
 
+    batch_db_method!(create_batch_sync, create, CreateBatch);
+    batch_db_method!(validate_batch_sync, validate, ValidateBatch);
+    batch_db_method!(append_to_batch_sync, append, AppendToBatch);
+    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
+    batch_db_method!(commit_batch_sync, commit, CommitBatch);
+
+    pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
+        batch::get(&self, params)
+    }
+
     pub fn timestamp(&self) -> SyncTimestamp {
         self.session.borrow().timestamp
     }
 
     #[cfg(test)]
-    pub(super) fn set_timestamp(&self, timestamp: i64) {
-        self.session.borrow_mut().timestamp = SyncTimestamp::from_i64(timestamp).unwrap();
+    pub(super) fn with_delta<T, E, F>(&self, delta: i64, f: F) -> std::result::Result<T, E>
+    where
+        F: FnOnce(&Self) -> std::result::Result<T, E>,
+    {
+        let set = |ts| self.session.borrow_mut().timestamp = SyncTimestamp::from_i64(ts).unwrap();
+        let ts = self.timestamp().as_i64();
+        set(ts + delta);
+        let result = f(&self);
+        set(ts);
+        result
     }
 }
 
@@ -753,6 +776,16 @@ impl Db for MysqlDb {
         results::GetBsoModified
     );
     sync_db_method!(put_bso, put_bso_sync, PutBso);
+    sync_db_method!(create_batch, create_batch_sync, CreateBatch);
+    sync_db_method!(validate_batch, validate_batch_sync, ValidateBatch);
+    sync_db_method!(append_to_batch, append_to_batch_sync, AppendToBatch);
+    sync_db_method!(
+        get_batch,
+        get_batch_sync,
+        GetBatch,
+        Option<results::GetBatch>
+    );
+    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 }
 
 #[derive(Debug, QueryableByName)]

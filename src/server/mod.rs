@@ -73,7 +73,6 @@ pub struct Server {}
 
 impl Server {
     pub fn with_settings(settings: Settings) -> Result<SystemRunner, DbError> {
-        env_logger::init();
         let sys = System::new("syncserver");
         let db_pool = Box::new(MysqlDbPool::new(&settings)?);
         let limits = Arc::new(settings.limits);
