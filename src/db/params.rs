@@ -88,6 +88,8 @@ collection_data! {
     },
 }
 
+pub type GetBsoIds = GetBsos;
+
 bso_data! {
     DeleteBso {},
     GetBso {},
@@ -107,6 +109,7 @@ pub struct PutBso {
     pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
+    // ttl in seconds
     pub ttl: Option<u32>,
 }
 
@@ -115,6 +118,7 @@ pub struct PostCollectionBso {
     pub id: String,
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
+    // ttl in seconds
     pub ttl: Option<u32>,
 }
 

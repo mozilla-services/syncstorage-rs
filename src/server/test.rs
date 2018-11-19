@@ -1,4 +1,4 @@
-use actix_web::{client::ClientRequest, test::TestServer, HttpMessage};
+use actix_web::{client::ClientRequest, http::StatusCode, test::TestServer, HttpMessage};
 use base64;
 use chrono::offset::Utc;
 use hawk::{Credentials, Key, RequestBuilder};
@@ -11,7 +11,7 @@ use sha2::Sha256;
 
 use super::*;
 use db::mysql::pool::MysqlDbPool;
-use db::params::PostCollectionBso;
+use db::params;
 use db::results::{GetBso, PostBsos, PutBso};
 use db::util::SyncTimestamp;
 use settings::{Secrets, ServerLimits};
@@ -172,7 +172,7 @@ fn configuration() {
 
 #[test]
 fn quota() {
-    test_endpoint(http::Method::GET, "/1.5/42/info/quota", "[0,null]");
+    test_endpoint(http::Method::GET, "/1.5/42/info/quota", "[0.0,null]");
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn get_collection() {
 fn post_collection() {
     let start = SyncTimestamp::default();
     test_endpoint_with_body! {
-        POST "/1.5/42/storage/bookmarks", vec![PostCollectionBso {
+        POST "/1.5/42/storage/bookmarks", vec![params::PostCollectionBso {
             id: "foo".to_string(),
             sortindex: Some(0),
             payload: Some("bar".to_string()),
@@ -243,17 +243,15 @@ fn delete_bso() {
 
 #[test]
 fn get_bso() {
-    let start = SyncTimestamp::default();
-    test_endpoint_with_response(
+    let mut server = setup();
+
+    let request = create_request(
+        &server,
         http::Method::GET,
         "/1.5/42/storage/bookmarks/wibble",
-        &move |bso: GetBso| {
-            assert_eq!(bso.id, "");
-            assert!(bso.modified >= start);
-            assert_eq!(bso.payload, "");
-            assert!(bso.sortindex.is_none());
-        },
     );
+    let response = server.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[test]

@@ -1,4 +1,6 @@
 //! API Handlers
+use std::collections::HashMap;
+
 use actix_web::{http::StatusCode, FutureResponse, HttpResponse, State};
 use futures::future::{self, Future};
 
@@ -8,6 +10,8 @@ use web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
     MetaRequest,
 };
+
+pub const ONE_KB: f64 = 1024.0;
 
 pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
@@ -40,10 +44,14 @@ pub fn get_collection_usage(meta: MetaRequest) -> FutureResponse<HttpResponse> {
         meta.db
             .get_collection_usage(meta.user_id)
             .map_err(From::from)
-            .map(|result| {
+            .map(|usage| {
+                let usage: HashMap<_, _> = usage
+                    .into_iter()
+                    .map(|(coll, size)| (coll, size as f64 / ONE_KB))
+                    .collect();
                 HttpResponse::build(StatusCode::OK)
-                    .header("X-Weave-Records", result.len().to_string())
-                    .json(result)
+                    .header("X-Weave-Records", usage.len().to_string())
+                    .json(usage)
             }),
     )
 }
@@ -53,7 +61,7 @@ pub fn get_quota(meta: MetaRequest) -> FutureResponse<HttpResponse> {
         meta.db
             .get_storage_usage(meta.user_id)
             .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(vec![Some(result), None])),
+            .map(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None])),
     )
 }
 
@@ -92,8 +100,6 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
 }
 
 pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
-    // XXX: it may make more sense for Db to take BsoQuery params as Options
-    // XXX: Pagination will require setting the X-Weave-Next-Offset header
     Box::new(
         coll.db
             .get_bsos(params::GetBsos {
@@ -109,7 +115,9 @@ pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
             }).map(|(result, ts)| {
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Last-Modified", ts.as_header())
-                    .json(result.bsos)
+                    .if_some(result.offset, |offset, resp| {
+                        resp.header("X-Weave-Next-Offset", offset.to_string());
+                    }).json(result.items)
             }),
     )
 }
@@ -152,7 +160,12 @@ pub fn get_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
                 collection: bso_req.collection,
                 id: bso_req.bso,
             }).map_err(From::from)
-            .map(|_result| HttpResponse::Ok().json(::db::results::GetBso::default())),
+            .map(|result| {
+                result.map_or_else(
+                    || HttpResponse::NotFound().finish(),
+                    |bso| HttpResponse::Ok().json(bso),
+                )
+            }),
     )
 }
 

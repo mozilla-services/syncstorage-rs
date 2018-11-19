@@ -203,7 +203,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX: go version assumes ttl was updated here?
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp().as_i64() + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + (ttl * 1000) as i64);
 
     let sortindex = 2;
     let bso2 = pbso(uid, coll, bid, None, Some(sortindex), None);
@@ -214,7 +214,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX:
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp().as_i64() + ttl as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + (ttl * 1000) as i64);
     Ok(())
 }
 
@@ -234,7 +234,7 @@ fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
     db.put_bso_sync(bso2)?;
     let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
     // ttl has changed
-    assert_eq!(bso.expiry, timestamp + 15);
+    assert_eq!(bso.expiry, timestamp + (15 * 1000));
     // modified has not changed
     assert_eq!(bso.modified.as_i64(), timestamp - 100);
     Ok(())
@@ -291,9 +291,8 @@ fn get_bsos_limit_offset() -> Result<()> {
         0,
         0,
     ))?;
-    assert!(bsos.bsos.is_empty());
-    assert!(bsos.more);
-    assert_eq!(bsos.offset, 0);
+    assert!(bsos.items.is_empty());
+    assert_eq!(bsos.offset, Some(0));
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -305,9 +304,8 @@ fn get_bsos_limit_offset() -> Result<()> {
         -1,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), size as usize);
-    assert!(!bsos.more);
-    assert_eq!(bsos.offset, 0);
+    assert_eq!(bsos.items.len(), size as usize);
+    assert_eq!(bsos.offset, None);
 
     let newer = 0;
     let limit = 5;
@@ -328,11 +326,10 @@ fn get_bsos_limit_offset() -> Result<()> {
         limit,
         offset,
     ))?;
-    assert_eq!(bsos.bsos.len(), 5 as usize);
-    assert!(bsos.more);
-    assert_eq!(bsos.offset, 5);
-    assert_eq!(bsos.bsos[0].id, "11");
-    assert_eq!(bsos.bsos[4].id, "7");
+    assert_eq!(bsos.items.len(), 5 as usize);
+    assert_eq!(bsos.offset, Some(5));
+    assert_eq!(bsos.items[0].id, "11");
+    assert_eq!(bsos.items[4].id, "7");
 
     let bsos2 = db.get_bsos_sync(gbsos(
         uid,
@@ -342,13 +339,12 @@ fn get_bsos_limit_offset() -> Result<()> {
         newer,
         Sorting::Index,
         limit,
-        bsos.offset,
+        bsos.offset.unwrap(),
     ))?;
-    assert_eq!(bsos2.bsos.len(), 5 as usize);
-    assert!(bsos2.more);
-    assert_eq!(bsos2.offset, 10);
-    assert_eq!(bsos2.bsos[0].id, "6");
-    assert_eq!(bsos2.bsos[4].id, "2");
+    assert_eq!(bsos2.items.len(), 5 as usize);
+    assert_eq!(bsos2.offset, Some(10));
+    assert_eq!(bsos2.items[0].id, "6");
+    assert_eq!(bsos2.items[4].id, "2");
 
     let bsos3 = db.get_bsos_sync(gbsos(
         uid,
@@ -358,13 +354,12 @@ fn get_bsos_limit_offset() -> Result<()> {
         newer,
         Sorting::Index,
         limit,
-        bsos2.offset,
+        bsos2.offset.unwrap(),
     ))?;
-    assert_eq!(bsos3.bsos.len(), 2 as usize);
-    assert!(!bsos3.more);
-    assert_eq!(bsos3.offset, 0);
-    assert_eq!(bsos3.bsos[0].id, "1");
-    assert_eq!(bsos3.bsos[1].id, "0");
+    assert_eq!(bsos3.items.len(), 2 as usize);
+    assert_eq!(bsos3.offset, None);
+    assert_eq!(bsos3.items[0].id, "1");
+    assert_eq!(bsos3.items[1].id, "0");
     Ok(())
 }
 
@@ -400,10 +395,10 @@ fn get_bsos_newer() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(bsos.bsos[0].id, "b0");
-    assert_eq!(bsos.bsos[1].id, "b1");
-    assert_eq!(bsos.bsos[2].id, "b2");
+    assert_eq!(bsos.items.len(), 3);
+    assert_eq!(bsos.items[0].id, "b0");
+    assert_eq!(bsos.items[1].id, "b1");
+    assert_eq!(bsos.items[2].id, "b2");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -415,9 +410,9 @@ fn get_bsos_newer() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 2);
-    assert_eq!(bsos.bsos[0].id, "b0");
-    assert_eq!(bsos.bsos[1].id, "b1");
+    assert_eq!(bsos.items.len(), 2);
+    assert_eq!(bsos.items[0].id, "b0");
+    assert_eq!(bsos.items[1].id, "b1");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -429,8 +424,8 @@ fn get_bsos_newer() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 1);
-    assert_eq!(bsos.bsos[0].id, "b0");
+    assert_eq!(bsos.items.len(), 1);
+    assert_eq!(bsos.items[0].id, "b0");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -442,7 +437,7 @@ fn get_bsos_newer() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 0);
+    assert_eq!(bsos.items.len(), 0);
     Ok(())
 }
 
@@ -477,10 +472,10 @@ fn get_bsos_sort() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(bsos.bsos[0].id, "b0");
-    assert_eq!(bsos.bsos[1].id, "b1");
-    assert_eq!(bsos.bsos[2].id, "b2");
+    assert_eq!(bsos.items.len(), 3);
+    assert_eq!(bsos.items[0].id, "b0");
+    assert_eq!(bsos.items[1].id, "b1");
+    assert_eq!(bsos.items[2].id, "b2");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -492,10 +487,10 @@ fn get_bsos_sort() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(bsos.bsos[0].id, "b2");
-    assert_eq!(bsos.bsos[1].id, "b1");
-    assert_eq!(bsos.bsos[2].id, "b0");
+    assert_eq!(bsos.items.len(), 3);
+    assert_eq!(bsos.items[0].id, "b2");
+    assert_eq!(bsos.items[1].id, "b1");
+    assert_eq!(bsos.items[2].id, "b0");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -507,10 +502,10 @@ fn get_bsos_sort() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(bsos.bsos[0].id, "b2");
-    assert_eq!(bsos.bsos[1].id, "b0");
-    assert_eq!(bsos.bsos[2].id, "b1");
+    assert_eq!(bsos.items.len(), 3);
+    assert_eq!(bsos.items[0].id, "b2");
+    assert_eq!(bsos.items[1].id, "b0");
+    assert_eq!(bsos.items[2].id, "b1");
     Ok(())
 }
 
@@ -814,6 +809,18 @@ fn get_bsos() -> Result<()> {
         db.with_delta(i as i64 * 10, |db| db.put_bso_sync(bso))?;
     }
 
+    let ids = db.get_bso_ids_sync(gbsos(
+        uid,
+        coll,
+        &vec![],
+        MAX_TIMESTAMP,
+        0,
+        Sorting::Newest,
+        10,
+        0,
+    ))?;
+    assert_eq!(ids.items, vec!["b0", "b1", "b2", "b3", "b4"]);
+
     let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
@@ -824,10 +831,10 @@ fn get_bsos() -> Result<()> {
         10,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 3);
-    assert_eq!(bsos.bsos[0].id, "b0");
-    assert_eq!(bsos.bsos[1].id, "b2");
-    assert_eq!(bsos.bsos[2].id, "b4");
+    assert_eq!(bsos.items.len(), 3);
+    assert_eq!(bsos.items[0].id, "b0");
+    assert_eq!(bsos.items[1].id, "b2");
+    assert_eq!(bsos.items[2].id, "b4");
 
     let bsos = db.get_bsos_sync(gbsos(
         uid,
@@ -839,11 +846,10 @@ fn get_bsos() -> Result<()> {
         2,
         0,
     ))?;
-    assert_eq!(bsos.bsos.len(), 2);
-    assert_eq!(bsos.offset, 2);
-    assert!(bsos.more);
-    assert_eq!(bsos.bsos[0].id, "b2");
-    assert_eq!(bsos.bsos[1].id, "b1");
+    assert_eq!(bsos.items.len(), 2);
+    assert_eq!(bsos.offset, Some(2));
+    assert_eq!(bsos.items[0].id, "b2");
+    assert_eq!(bsos.items[1].id, "b1");
     Ok(())
 }
 

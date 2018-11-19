@@ -48,11 +48,13 @@ pub struct GetBso {
 }
 
 #[derive(Debug, Default)]
-pub struct GetBsos {
-    pub bsos: Vec<GetBso>,
-    pub more: bool,
-    pub offset: i64, // XXX: i64?
+pub struct Paginated<T> {
+    pub items: Vec<T>,
+    pub offset: Option<i64>, // XXX: i64?
 }
+
+pub type GetBsos = Paginated<GetBso>;
+pub type GetBsoIds = Paginated<String>;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct PostBsos {
