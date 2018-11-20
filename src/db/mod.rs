@@ -7,6 +7,8 @@ pub mod params;
 pub mod results;
 pub mod util;
 
+use std::fmt::Debug;
+
 use futures::future::Future;
 
 pub use self::error::{DbError, DbErrorKind};
@@ -39,11 +41,11 @@ lazy_static! {
 
 type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;
 
-pub trait DbPool: Sync {
+pub trait DbPool: Sync + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
 }
 
-pub trait Db: Send {
+pub trait Db: Send + Debug {
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<()>;
 
     fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<()>;
@@ -92,6 +94,8 @@ pub trait Db: Send {
     fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<results::DeleteBsos>;
 
     fn get_bsos(&self, params: params::GetBsos) -> DbFuture<results::GetBsos>;
+
+    fn get_bso_ids(&self, params: params::GetBsos) -> DbFuture<results::GetBsoIds>;
 
     fn post_bsos(&self, params: params::PostBsos) -> DbFuture<results::PostBsos>;
 

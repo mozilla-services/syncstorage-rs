@@ -7,7 +7,10 @@ use actix_web::{
     FromRequest, HttpRequest, HttpResponse, Result,
 };
 use chrono::Utc;
-use futures::{future, Future};
+use futures::{
+    future::{self, Either},
+    Future,
+};
 
 use db::{params, Db};
 use error::{ApiError, ApiErrorKind};
@@ -96,19 +99,25 @@ impl Middleware<ServerState> for DbTransaction {
             .db_pool
             .get()
             .and_then(move |db| {
+                let db2 = db.clone();
                 let fut = if let Some(collection) = collection {
                     // Take a read or write lock depending on request method
                     let lc = params::LockCollection {
                         user_id,
                         collection,
                     };
-                    match *req.method() {
-                        Method::GET | Method::HEAD => db.lock_for_read(lc),
-                        _ => db.lock_for_write(lc),
-                    }
+                    Either::A(
+                        match *req.method() {
+                            Method::GET | Method::HEAD => db.lock_for_read(lc),
+                            _ => db.lock_for_write(lc),
+                        }.or_else(move |e| {
+                            // Middleware::response won't be called: rollback immediately
+                            db2.rollback().and_then(|_| future::err(e))
+                        }),
+                    )
                 } else {
                     // If we're not operating on a collection, don't take a lock
-                    Box::new(future::ok(()))
+                    Either::B(future::ok(()))
                 };
                 fut.and_then(move |_| {
                     // track whether a transaction was started above via the

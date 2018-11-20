@@ -426,6 +426,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
 /// BSO Request Delete/Get extractor
 ///
 /// Extracts/validates information needed for BSO delete/get requests.
+#[derive(Debug)]
 pub struct BsoRequest {
     pub collection: String,
     pub db: Box<dyn Db>,
@@ -825,8 +826,7 @@ where
 {
     let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
     if let Some(val) = maybe_str {
-        let result =
-            SyncTimestamp::from_header(&val).map_err(|_| SerdeError::custom("Invalid value"))?;
+        let result = SyncTimestamp::from_header(&val).map_err(|e| SerdeError::custom(e))?;
         Ok(Some(result))
     } else {
         Ok(None)

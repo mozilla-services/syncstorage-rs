@@ -1,6 +1,6 @@
 #![allow(proc_macro_derive_resolution_fallback)]
 
-use std::{self, cell::RefCell, collections::HashMap, ops::Deref, sync::Arc};
+use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{
     connection::TransactionManager,
@@ -57,7 +57,7 @@ struct MysqlDbSession {
     coll_locks: HashMap<(u32, i32), CollectionLock>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MysqlDb {
     /// Synchronous Diesel calls are executed in a tokio ThreadPool to satisfy
     /// the Db trait's asynchronous interface.
@@ -86,6 +86,12 @@ pub struct MysqlDbInner {
     session: RefCell<MysqlDbSession>,
 
     thread_pool: Arc<::tokio_threadpool::ThreadPool>,
+}
+
+impl fmt::Debug for MysqlDbInner {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MysqlDbInner {{ session: {:?} }}", self.session)
+    }
 }
 
 impl Deref for MysqlDb {
@@ -355,7 +361,7 @@ impl MysqlDb {
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
                         bso::modified.eq(timestamp),
-                        bso::expiry.eq(timestamp + ttl as i64),
+                        bso::expiry.eq(timestamp + (ttl as i64 * 1000)),
                     )).execute(&self.conn)?;
             }
             self.touch_collection(user_id as u32, collection_id)
@@ -372,8 +378,7 @@ impl MysqlDb {
             limit,
             offset,
             ids,
-            // XXX: Do the appropriate thing depending on if full is true/false
-            full: _full,
+            ..
         } = params.params;
 
         let mut query = bso::table
@@ -424,17 +429,25 @@ impl MysqlDb {
         //if bsos.len() == 0 {
         //}
 
-        let (more, next_offset) = if limit >= 0 && bsos.len() > limit as usize {
+        let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            (true, limit + offset)
+            Some(limit + offset)
         } else {
-            (false, 0)
+            None
         };
 
         Ok(results::GetBsos {
-            bsos,
-            more,
+            items: bsos,
             offset: next_offset,
+        })
+    }
+
+    pub fn get_bso_ids_sync(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
+        // XXX: should be a more efficient select of only the id column
+        let result = self.get_bsos_sync(params)?;
+        Ok(results::GetBsoIds {
+            items: result.items.into_iter().map(|bso| bso.id).collect(),
+            offset: result.offset,
         })
     }
 
@@ -766,6 +779,7 @@ impl Db for MysqlDb {
     sync_db_method!(delete_collection, delete_collection_sync, DeleteCollection);
     sync_db_method!(delete_bsos, delete_bsos_sync, DeleteBsos);
     sync_db_method!(get_bsos, get_bsos_sync, GetBsos);
+    sync_db_method!(get_bso_ids, get_bso_ids_sync, GetBsoIds);
     sync_db_method!(post_bsos, post_bsos_sync, PostBsos);
     sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
     sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
@@ -828,7 +842,7 @@ struct UpdateBSO<'a> {
 fn put_bso_as_changeset<'a>(bso: &'a params::PutBso, modified: i64) -> UpdateBSO<'a> {
     UpdateBSO {
         sortindex: bso.sortindex,
-        expiry: bso.ttl.map(|ttl| modified + ttl as i64),
+        expiry: bso.ttl.map(|ttl| modified + (ttl as i64 * 1000)),
         payload: bso.payload.as_ref().map(|payload| &**payload),
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
             Some(modified)

@@ -65,6 +65,7 @@ impl Db for MockDb {
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(delete_bsos, DeleteBsos);
     mock_db_method!(get_bsos, GetBsos);
+    mock_db_method!(get_bso_ids, GetBsoIds);
     mock_db_method!(post_bsos, PostBsos);
     mock_db_method!(delete_bso, DeleteBso);
     mock_db_method!(get_bso, GetBso, Option<results::GetBso>);

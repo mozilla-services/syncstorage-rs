@@ -69,7 +69,7 @@ impl SyncTimestamp {
         SyncTimestamp(val - (val % 10))
     }
 
-    /// Return the timestamp as an i64
+    /// Return the timestamp as an i64 milliseconds
     pub fn as_i64(&self) -> i64 {
         self.0 as i64
     }
