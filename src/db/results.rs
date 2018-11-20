@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
+use serde::Serialize;
 
 use super::params;
 use db::util::SyncTimestamp;
@@ -48,7 +49,10 @@ pub struct GetBso {
 }
 
 #[derive(Debug, Default)]
-pub struct Paginated<T> {
+pub struct Paginated<T>
+where
+    T: Serialize,
+{
     pub items: Vec<T>,
     pub offset: Option<i64>, // XXX: i64?
 }

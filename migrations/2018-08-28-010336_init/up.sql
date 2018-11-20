@@ -1,6 +1,4 @@
-CREATE DATABASE IF NOT EXISTS `syncstorage` /*!40100 DEFAULT CHARACTER SET latin1 */;
-
-USE `syncstorage`;
+-- /*!40100 DEFAULT CHARACTER SET latin1 */
 
 -- DROP TABLE IF EXISTS `bso`;
 -- XXX: bsov1, etc
