@@ -60,8 +60,9 @@ impl DbError {
 impl From<Context<DbErrorKind>> for DbError {
     fn from(inner: Context<DbErrorKind>) -> Self {
         let status = match inner.get_context() {
-            DbErrorKind::CollectionNotFound => StatusCode::BAD_REQUEST,
-            DbErrorKind::BsoNotFound => StatusCode::BAD_REQUEST,
+            DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
+            // Matching the Python code here (a 400 vs 404)
+            DbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

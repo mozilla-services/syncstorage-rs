@@ -470,11 +470,18 @@ impl MysqlDb {
     }
 
     pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
-        self.delete_bsos_sync(params::DeleteBsos {
-            user_id: params.user_id,
-            collection: params.collection,
-            ids: vec![params.id],
-        })
+        let user_id = params.user_id.legacy_id;
+        let collection_id = self.get_collection_id(&params.collection)?;
+        let affected_rows = delete(bso::table)
+            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::collection_id.eq(&collection_id))
+            .filter(bso::id.eq(params.id))
+            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
+            .execute(&self.conn)?;
+        if affected_rows == 0 {
+            Err(DbErrorKind::BsoNotFound)?
+        }
+        self.touch_collection(user_id as u32, collection_id)
     }
 
     pub fn delete_bsos_sync(&self, params: params::DeleteBsos) -> Result<results::DeleteBsos> {
@@ -718,10 +725,9 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::new(
-                self.thread_pool
-                    .spawn_handle(lazy(move || future::result(db.$sync_name(params)))),
-            )
+            Box::new(self.thread_pool.spawn_handle(lazy(move || {
+                future::result(db.$sync_name(params).map_err(Into::into))
+            })))
         }
     };
 }
@@ -729,18 +735,16 @@ macro_rules! sync_db_method {
 impl Db for MysqlDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(
-            self.thread_pool
-                .spawn_handle(lazy(move || future::result(db.commit_sync()))),
-        )
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.commit_sync().map_err(Into::into))
+        })))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(
-            self.thread_pool
-                .spawn_handle(lazy(move || future::result(db.rollback_sync()))),
-        )
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.rollback_sync().map_err(Into::into))
+        })))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {

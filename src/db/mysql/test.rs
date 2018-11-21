@@ -903,8 +903,15 @@ fn delete_bsos() -> Result<()> {
         ))?;
     }
     db.delete_bso_sync(dbso(uid, coll, "b0"))?;
-    // deleting non existant bid returns no errors
-    db.delete_bso_sync(dbso(uid, coll, "bxi0"))?;
+    // deleting non existant bid errors
+    match db
+        .delete_bso_sync(dbso(uid, coll, "bxi0"))
+        .unwrap_err()
+        .kind()
+    {
+        DbErrorKind::BsoNotFound => (),
+        _ => assert!(false),
+    }
     db.delete_bsos_sync(dbsos(uid, coll, &["b1", "b2"]))?;
     for bid in bids {
         let bso = db.get_bso_sync(gbso(uid, coll, &bid))?;

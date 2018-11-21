@@ -13,6 +13,7 @@ use futures::future::Future;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;
+use error::ApiError;
 use web::extractors::HawkIdentifier;
 
 lazy_static! {
@@ -39,7 +40,7 @@ lazy_static! {
     };
 }
 
-type DbFuture<T> = Box<Future<Item = T, Error = DbError>>;
+type DbFuture<T> = Box<Future<Item = T, Error = ApiError>>;
 
 pub trait DbPool: Sync + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
@@ -144,14 +145,12 @@ pub trait Db: Send + Debug {
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
-                    }).then(|v| match v {
-                        Ok(v) => Ok(v),
-                        Err(e) => match e.kind() {
-                            DbErrorKind::CollectionNotFound => {
-                                Ok(SyncTimestamp::from_seconds(0f64))
-                            }
-                            _ => Err(e),
-                        },
+                    }).or_else(|e| {
+                        if e.is_colllection_not_found() {
+                            Ok(SyncTimestamp::from_seconds(0f64))
+                        } else {
+                            Err(e)
+                        }
                     }),
                 )
             }
@@ -161,12 +160,12 @@ pub trait Db: Send + Debug {
                 user_id,
                 collection,
                 id: bso,
-            }).then(|v| match v {
-                Ok(v) => Ok(v),
-                Err(e) => match e.kind() {
-                    DbErrorKind::CollectionNotFound => Ok(SyncTimestamp::from_seconds(0f64)),
-                    _ => Err(e),
-                },
+            }).or_else(|e| {
+                if e.is_colllection_not_found() {
+                    Ok(SyncTimestamp::from_seconds(0f64))
+                } else {
+                    Err(e)
+                }
             }),
         )
     }

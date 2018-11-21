@@ -10,11 +10,17 @@ API docs: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.htm
 Code docs: https://mozilla-services.github.io/syncstorage-rs/syncstorage/
 
 Functional tests live in https://github.com/mozilla-services/server-syncstorage/
-and can be run against a local server like this:
+and can be run against a local server, e.g.:
 
+Local server:
+```apple js
+SYNC_MASTER_SECRET=<SOMESECRET> SYNC_DATABASE_URL=mysql://scott:tiger@localhost/syncstorage cargo run
+```
+
+Test runner:
 ```apple js
 git clone https://github.com/mozilla-services/server-syncstorage/
 cd server-syncstorage
 make build
-./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000
+./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000#<SOMESECRET>
 ```

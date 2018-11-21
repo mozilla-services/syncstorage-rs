@@ -84,7 +84,9 @@ impl DbPool for MysqlDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            pool.get_sync().map(|db| Box::new(db) as Box<dyn Db>)
+            pool.get_sync()
+                .map(|db| Box::new(db) as Box<dyn Db>)
+                .map_err(Into::into)
         })))
     }
 }
