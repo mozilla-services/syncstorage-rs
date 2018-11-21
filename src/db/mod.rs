@@ -54,15 +54,15 @@ pub trait Db: Send + Debug {
 
     fn rollback(&self) -> DbFuture<()>;
 
-    fn get_collection_modifieds(
+    fn get_collection_timestamps(
         &self,
-        params: params::GetCollectionModifieds,
-    ) -> DbFuture<results::GetCollectionModifieds>;
+        params: params::GetCollectionTimestamps,
+    ) -> DbFuture<results::GetCollectionTimestamps>;
 
-    fn get_collection_modified(
+    fn get_collection_timestamp(
         &self,
-        params: params::GetCollectionModified,
-    ) -> DbFuture<results::GetCollectionModified>;
+        params: params::GetCollectionTimestamp,
+    ) -> DbFuture<results::GetCollectionTimestamp>;
 
     fn get_collection_counts(
         &self,
@@ -74,10 +74,10 @@ pub trait Db: Send + Debug {
         params: params::GetCollectionUsage,
     ) -> DbFuture<results::GetCollectionUsage>;
 
-    fn get_storage_modified(
+    fn get_storage_timestamp(
         &self,
-        params: params::GetStorageModified,
-    ) -> DbFuture<results::GetStorageModified>;
+        params: params::GetStorageTimestamp,
+    ) -> DbFuture<results::GetStorageTimestamp>;
 
     fn get_storage_usage(
         &self,
@@ -103,8 +103,10 @@ pub trait Db: Send + Debug {
 
     fn get_bso(&self, params: params::GetBso) -> DbFuture<Option<results::GetBso>>;
 
-    fn get_bso_modified(&self, params: params::GetBsoModified)
-        -> DbFuture<results::GetBsoModified>;
+    fn get_bso_timestamp(
+        &self,
+        params: params::GetBsoTimestamp,
+    ) -> DbFuture<results::GetBsoTimestamp>;
 
     fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
 
@@ -132,14 +134,14 @@ pub trait Db: Send + Debug {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::new(self.get_storage_modified(user_id)),
+            None => return Box::new(self.get_storage_timestamp(user_id)),
         };
         // If there's no bso, return the collection
         let bso = match bso {
             Some(bso) => bso,
             None => {
                 return Box::new(
-                    self.get_collection_modified(params::GetCollectionModified {
+                    self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
                     }).then(|v| match v {
@@ -155,7 +157,7 @@ pub trait Db: Send + Debug {
             }
         };
         Box::new(
-            self.get_bso_modified(params::GetBsoModified {
+            self.get_bso_timestamp(params::GetBsoTimestamp {
                 user_id,
                 collection,
                 id: bso,

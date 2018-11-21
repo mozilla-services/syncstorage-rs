@@ -264,7 +264,7 @@ impl MysqlDb {
         if count == 0 {
             Err(DbErrorKind::CollectionNotFound)?
         }
-        self.get_storage_modified_sync(params.user_id)
+        self.get_storage_timestamp_sync(params.user_id)
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
@@ -424,7 +424,7 @@ impl MysqlDb {
         }
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
-        // XXX: an additional get_collection_modified is done here in
+        // XXX: an additional get_collection_timestamp is done here in
         // python to trigger potential CollectionNotFoundErrors
         //if bsos.len() == 0 {
         //}
@@ -519,7 +519,7 @@ impl MysqlDb {
         Ok(result)
     }
 
-    pub fn get_storage_modified_sync(&self, user_id: HawkIdentifier) -> Result<SyncTimestamp> {
+    pub fn get_storage_timestamp_sync(&self, user_id: HawkIdentifier) -> Result<SyncTimestamp> {
         let user_id = user_id.legacy_id as i32;
         let modified = user_collections::table
             .select(max(user_collections::modified))
@@ -529,9 +529,9 @@ impl MysqlDb {
         Ok(SyncTimestamp::from_i64(modified)?)
     }
 
-    pub fn get_collection_modified_sync(
+    pub fn get_collection_timestamp_sync(
         &self,
-        params: params::GetCollectionModified,
+        params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
         let collection_id = self.get_collection_id(&params.collection)?;
@@ -552,7 +552,7 @@ impl MysqlDb {
             .ok_or(DbErrorKind::CollectionNotFound.into())
     }
 
-    pub fn get_bso_modified_sync(&self, params: params::GetBsoModified) -> Result<SyncTimestamp> {
+    pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection)?;
         let modified = bso::table
@@ -566,10 +566,10 @@ impl MysqlDb {
         Ok(SyncTimestamp::from_i64(modified)?)
     }
 
-    pub fn get_collection_modifieds_sync(
+    pub fn get_collection_timestamps_sync(
         &self,
         user_id: HawkIdentifier,
-    ) -> Result<results::GetCollectionModifieds> {
+    ) -> Result<results::GetCollectionTimestamps> {
         let modifieds =
             sql_query("SELECT collection_id, modified FROM user_collections WHERE user_id = ?")
                 .bind::<Integer, _>(user_id.legacy_id as i32)
@@ -750,14 +750,14 @@ impl Db for MysqlDb {
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
     sync_db_method!(lock_for_write, lock_for_write_sync, LockCollection);
     sync_db_method!(
-        get_collection_modifieds,
-        get_collection_modifieds_sync,
-        GetCollectionModifieds
+        get_collection_timestamps,
+        get_collection_timestamps_sync,
+        GetCollectionTimestamps
     );
     sync_db_method!(
-        get_collection_modified,
-        get_collection_modified_sync,
-        GetCollectionModified
+        get_collection_timestamp,
+        get_collection_timestamp_sync,
+        GetCollectionTimestamp
     );
     sync_db_method!(
         get_collection_counts,
@@ -770,9 +770,9 @@ impl Db for MysqlDb {
         GetCollectionUsage
     );
     sync_db_method!(
-        get_storage_modified,
-        get_storage_modified_sync,
-        GetStorageModified
+        get_storage_timestamp,
+        get_storage_timestamp_sync,
+        GetStorageTimestamp
     );
     sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
     sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
@@ -784,10 +784,10 @@ impl Db for MysqlDb {
     sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
     sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
     sync_db_method!(
-        get_bso_modified,
-        get_bso_modified_sync,
-        GetBsoModified,
-        results::GetBsoModified
+        get_bso_timestamp,
+        get_bso_timestamp_sync,
+        GetBsoTimestamp,
+        results::GetBsoTimestamp
     );
     sync_db_method!(put_bso, put_bso_sync, PutBso);
     sync_db_method!(create_batch, create_batch_sync, CreateBatch);

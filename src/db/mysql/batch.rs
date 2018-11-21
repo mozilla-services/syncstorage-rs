@@ -282,11 +282,11 @@ mod test {
         assert!(result.success.contains(&"b0".to_owned()));
         assert!(result.success.contains(&"b2".to_owned()));
 
-        let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
             user_id: hid(uid),
             collection: coll.to_owned(),
         })?;
-        assert_eq!(result.modified, modified);
+        assert_eq!(result.modified, ts);
 
         let bso = db.get_bso_sync(gbso(uid, coll, "b1"))?.unwrap();
         assert_eq!(bso.sortindex, Some(1000000000));

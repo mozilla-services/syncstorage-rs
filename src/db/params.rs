@@ -45,10 +45,10 @@ macro_rules! bso_data {
 }
 
 uid_data! {
-    GetCollectionModifieds,
+    GetCollectionTimestamps,
     GetCollectionCounts,
     GetCollectionUsage,
-    GetStorageModified,
+    GetStorageTimestamp,
     GetStorageUsage,
     DeleteStorage,
 }
@@ -56,7 +56,7 @@ uid_data! {
 collection_data! {
     LockCollection {},
     DeleteCollection {},
-    GetCollectionModified {},
+    GetCollectionTimestamp {},
     DeleteBsos {
         ids: Vec<String>,
     },
@@ -93,7 +93,7 @@ pub type GetBsoIds = GetBsos;
 bso_data! {
     DeleteBso {},
     GetBso {},
-    GetBsoModified {},
+    GetBsoTimestamp {},
 }
 
 #[derive(Debug, Default, Queryable)]

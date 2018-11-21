@@ -55,11 +55,11 @@ impl Db for MockDb {
 
     mock_db_method!(lock_for_read, LockCollection);
     mock_db_method!(lock_for_write, LockCollection);
-    mock_db_method!(get_collection_modifieds, GetCollectionModifieds);
-    mock_db_method!(get_collection_modified, GetCollectionModified);
+    mock_db_method!(get_collection_timestamps, GetCollectionTimestamps);
+    mock_db_method!(get_collection_timestamp, GetCollectionTimestamp);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_storage_modified, GetStorageModified);
+    mock_db_method!(get_storage_timestamp, GetStorageTimestamp);
     mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(delete_storage, DeleteStorage);
     mock_db_method!(delete_collection, DeleteCollection);
@@ -69,7 +69,7 @@ impl Db for MockDb {
     mock_db_method!(post_bsos, PostBsos);
     mock_db_method!(delete_bso, DeleteBso);
     mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
-    mock_db_method!(get_bso_modified, GetBsoModified);
+    mock_db_method!(get_bso_timestamp, GetBsoTimestamp);
     mock_db_method!(put_bso, PutBso);
     mock_db_method!(create_batch, CreateBatch);
     mock_db_method!(validate_batch, ValidateBatch);

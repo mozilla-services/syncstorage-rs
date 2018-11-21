@@ -524,7 +524,7 @@ fn delete_bsos_in_correct_collection() -> Result<()> {
 }
 
 #[test]
-fn get_storage_modified() -> Result<()> {
+fn get_storage_timestamp() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
@@ -534,7 +534,7 @@ fn get_storage_modified() -> Result<()> {
 
     db.with_delta(100000, |db| {
         db.touch_collection(uid, col2)?;
-        let m = db.get_storage_modified_sync(hid(uid))?;
+        let m = db.get_storage_timestamp_sync(hid(uid))?;
         assert_eq!(m, db.timestamp());
         Ok(())
     })
@@ -577,12 +577,12 @@ fn delete_collection() -> Result<()> {
     for bid in 1..=3 {
         db.put_bso_sync(pbso(uid, coll, &bid.to_string(), Some("test"), None, None))?;
     }
-    let modified = db.delete_collection_sync(params::DeleteCollection {
+    let ts = db.delete_collection_sync(params::DeleteCollection {
         user_id: hid(uid),
         collection: coll.to_owned(),
     })?;
-    let modified2 = db.get_storage_modified_sync(hid(uid))?;
-    assert_eq!(modified2, modified);
+    let ts2 = db.get_storage_timestamp_sync(hid(uid))?;
+    assert_eq!(ts2, ts);
 
     // make sure BSOs are deleted
     for bid in 1..=3 {
@@ -590,7 +590,7 @@ fn delete_collection() -> Result<()> {
         assert!(result.is_none());
     }
 
-    let result = db.get_collection_modified_sync(params::GetCollectionModified {
+    let result = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
     });
@@ -602,22 +602,22 @@ fn delete_collection() -> Result<()> {
 }
 
 #[test]
-fn get_collection_modifieds() -> Result<()> {
+fn get_collection_timestamps() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
     let coll = "test";
     let cid = db.create_collection(coll)?;
     db.touch_collection(uid, cid)?;
-    let cols = db.get_collection_modifieds_sync(hid(uid))?;
+    let cols = db.get_collection_timestamps_sync(hid(uid))?;
     assert!(cols.contains_key(coll));
     assert_eq!(cols.get(coll), Some(&db.timestamp()));
 
-    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+    let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
     })?;
-    assert_eq!(Some(&modified), cols.get(coll));
+    assert_eq!(Some(&ts), cols.get(coll));
     Ok(())
 }
 
@@ -685,11 +685,11 @@ fn put_bso() -> Result<()> {
     let bid = "b0";
     let bso1 = pbso(uid, coll, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
     db.put_bso_sync(bso1)?;
-    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+    let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
     })?;
-    assert_eq!(modified, db.timestamp());
+    assert_eq!(ts, db.timestamp());
 
     let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
     assert_eq!(&bso.payload, "foo");
@@ -698,11 +698,11 @@ fn put_bso() -> Result<()> {
     let bso2 = pbso(uid, coll, bid, Some("bar"), Some(2), Some(DEFAULT_BSO_TTL));
     db.with_delta(19, |db| {
         db.put_bso_sync(bso2)?;
-        let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+        let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
             user_id: uid.into(),
             collection: coll.to_string(),
         })?;
-        assert_eq!(modified, db.timestamp());
+        assert_eq!(ts, db.timestamp());
 
         let bso = db.get_bso_sync(gbso(uid, coll, bid))?.unwrap();
         assert_eq!(&bso.payload, "bar");
@@ -734,12 +734,12 @@ fn post_bsos() -> Result<()> {
     //assert!(!result.failed.contains_key("b1"));
     //assert!(!result.failed.contains_key("b1"));
 
-    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+    let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
     })?;
     // XXX: casts
-    assert_eq!(result.modified, modified);
+    assert_eq!(result.modified, ts);
 
     let result2 = db.post_bsos_sync(params::PostBsos {
         user_id: hid(uid),
@@ -762,11 +762,11 @@ fn post_bsos() -> Result<()> {
     assert_eq!(bso.sortindex, Some(22));
     assert_eq!(bso.payload, "updated 2");
 
-    let modified = db.get_collection_modified_sync(params::GetCollectionModified {
+    let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
     })?;
-    assert_eq!(result2.modified, modified);
+    assert_eq!(result2.modified, ts);
     Ok(())
 }
 
@@ -854,7 +854,7 @@ fn get_bsos() -> Result<()> {
 }
 
 #[test]
-fn get_bso_modified() -> Result<()> {
+fn get_bso_timestamp() -> Result<()> {
     let db = db()?;
 
     let uid = 1;
@@ -862,12 +862,12 @@ fn get_bso_modified() -> Result<()> {
     let bid = "b0";
     let bso = pbso(uid, coll, bid, Some("a"), None, None);
     db.put_bso_sync(bso)?;
-    let modified = db.get_bso_modified_sync(params::GetBsoModified {
+    let ts = db.get_bso_timestamp_sync(params::GetBsoTimestamp {
         user_id: uid.into(),
         collection: coll.to_string(),
         id: bid.to_string(),
     })?;
-    assert_eq!(modified, db.timestamp());
+    assert_eq!(ts, db.timestamp());
     Ok(())
 }
 
