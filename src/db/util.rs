@@ -7,6 +7,7 @@ use diesel::{
     deserialize::{self, FromSql},
     sql_types::BigInt,
 };
+use serde::{Deserialize, Deserializer, Serializer};
 
 use super::{DbError, DbErrorKind};
 
@@ -19,14 +20,20 @@ pub fn ms_since_epoch() -> i64 {
 ///
 /// Internally represents a Sync timestamp as a u64 representing milliseconds since the epoch.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Deserialize, Serialize, FromSqlRow)]
-pub struct SyncTimestamp(u64);
+pub struct SyncTimestamp(
+    #[serde(
+        deserialize_with = "deserialize_ts",
+        serialize_with = "serialize_ts"
+    )]
+    u64,
+);
 
 impl SyncTimestamp {
     /// Create a string value compatible with existing Sync Timestamp headers
     ///
     /// Represents the timestamp as second since epoch with two decimal places of precision.
     pub fn as_header(&self) -> String {
-        format!("{:.*}", 2, &self.0)
+        format!("{:.*}", 2, self.0 as f64 / 1000.0)
     }
 
     /// Create a `SyncTimestamp` from a string header
@@ -43,7 +50,6 @@ impl SyncTimestamp {
                 }
             }).map(|v: f64| (v * 1_000f64) as u64)
             .map(SyncTimestamp::from_milliseconds)
-            .map_err(|_| "Invalid value")
     }
 
     /// Create a `SyncTimestamp` from an i64
@@ -103,4 +109,18 @@ where
         SyncTimestamp::from_i64(i64_value)
             .map_err(|e| format!("Invalid SyncTimestamp i64 {}", e).into())
     }
+}
+
+pub fn deserialize_ts<'de, D>(d: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Deserialize::deserialize(d).map(|result: f64| (result * 1_000f64) as u64)
+}
+
+fn serialize_ts<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    s.serialize_f64(*x as f64 / 1000.0)
 }

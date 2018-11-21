@@ -12,7 +12,7 @@ use sha2::Sha256;
 use super::*;
 use db::mysql::pool::MysqlDbPool;
 use db::params;
-use db::results::{GetBso, PostBsos, PutBso};
+use db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use db::util::SyncTimestamp;
 use settings::{Secrets, ServerLimits};
 use web::auth::HawkPayload;
@@ -183,16 +183,21 @@ fn delete_all() {
 
 #[test]
 fn delete_collection() {
-    test_endpoint(http::Method::DELETE, "/1.5/42/storage/bookmarks", "0");
-    test_endpoint(
+    let start = SyncTimestamp::default();
+    test_endpoint(http::Method::DELETE, "/1.5/42/storage/bookmarks", "0.0");
+    test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,",
-        "0",
+        &move |result: DeleteBso| {
+            assert!(result > start);
+        },
     );
-    test_endpoint(
+    test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,2,3",
-        "0",
+        &move |result: DeleteBso| {
+            assert!(result > start);
+        },
     );
 }
 

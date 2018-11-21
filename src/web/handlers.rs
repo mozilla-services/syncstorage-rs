@@ -3,8 +3,9 @@ use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, FutureResponse, HttpResponse, State};
 use futures::future::{self, Future};
+use serde::Serialize;
 
-use db::{params, DbErrorKind};
+use db::{params, results::Paginated, DbError, DbErrorKind};
 use server::ServerState;
 use web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
@@ -75,38 +76,58 @@ pub fn delete_all(meta: MetaRequest) -> FutureResponse<HttpResponse> {
 }
 
 pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
+    let delete_bsos = !coll.query.ids.is_empty();
+    let fut = if delete_bsos {
+        coll.db.delete_bsos(params::DeleteBsos {
+            user_id: coll.user_id.clone(),
+            collection: coll.collection.clone(),
+            ids: coll.query.ids.clone(),
+        })
+    } else {
+        coll.db.delete_collection(params::DeleteCollection {
+            user_id: coll.user_id.clone(),
+            collection: coll.collection.clone(),
+        })
+    };
+
     Box::new(
-        coll.db
-            .delete_collection(params::DeleteCollection {
-                user_id: coll.user_id.clone(),
-                collection: coll.collection.clone(),
-                // XXX: handle both cases (delete_collection & delete_bsos also)
-                // XXX: If we are passed id's to delete bso's, also set X-Last-Modified
-                /*
-                ids: coll
-                    .query
-                    .ids
-                    .as_ref()
-                    .map_or_else(|| Vec::new(), |ids| ids.clone()),
-                */
-            }).or_else(move |e| match e.kind() {
-                DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => {
-                    coll.db.get_storage_modified(coll.user_id)
-                }
-                _ => Box::new(future::err(e)),
-            }).map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+        fut.or_else(move |e| match e.kind() {
+            DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => {
+                coll.db.get_storage_modified(coll.user_id)
+            }
+            _ => Box::new(future::err(e)),
+        }).map_err(From::from)
+        .map(move |result| {
+            HttpResponse::Ok()
+                .if_true(delete_bsos, |resp| {
+                    resp.header("X-Last-Modified", result.as_header());
+                }).json(result)
+        }),
     )
 }
 
 pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
+    let params = params::GetBsos {
+        user_id: coll.user_id.clone(),
+        collection: coll.collection.clone(),
+        params: coll.query.clone(),
+    };
+    if coll.query.full {
+        let fut = coll.db.get_bsos(params);
+        finish_get_collection(coll, fut)
+    } else {
+        let fut = coll.db.get_bso_ids(params);
+        finish_get_collection(coll, fut)
+    }
+}
+
+fn finish_get_collection<F, T>(coll: CollectionRequest, fut: F) -> FutureResponse<HttpResponse>
+where
+    F: Future<Item = Paginated<T>, Error = DbError> + 'static,
+    T: Serialize + 'static,
+{
     Box::new(
-        coll.db
-            .get_bsos(params::GetBsos {
-                user_id: coll.user_id.clone(),
-                collection: coll.collection.clone(),
-                params: coll.query.clone(),
-            }).map_err(From::from)
+        fut.map_err(From::from)
             .and_then(|result| {
                 coll.db
                     .extract_resource(coll.user_id, Some(coll.collection), None)
