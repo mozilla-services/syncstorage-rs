@@ -11,12 +11,12 @@ use super::params;
 use db::util::SyncTimestamp;
 
 pub type LockCollection = ();
-pub type GetBsoModified = SyncTimestamp;
-pub type GetCollectionModifieds = HashMap<String, SyncTimestamp>;
-pub type GetCollectionModified = SyncTimestamp;
+pub type GetBsoTimestamp = SyncTimestamp;
+pub type GetCollectionTimestamps = HashMap<String, SyncTimestamp>;
+pub type GetCollectionTimestamp = SyncTimestamp;
 pub type GetCollectionCounts = HashMap<String, i64>;
 pub type GetCollectionUsage = HashMap<String, i64>;
-pub type GetStorageModified = SyncTimestamp;
+pub type GetStorageTimestamp = SyncTimestamp;
 pub type GetStorageUsage = u64;
 pub type DeleteStorage = ();
 pub type DeleteCollection = SyncTimestamp;

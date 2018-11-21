@@ -17,7 +17,7 @@ pub const ONE_KB: f64 = 1024.0;
 pub fn get_collections(meta: MetaRequest) -> FutureResponse<HttpResponse> {
     Box::new(
         meta.db
-            .get_collection_modifieds(meta.user_id)
+            .get_collection_timestamps(meta.user_id)
             .map_err(From::from)
             .map(|result| {
                 HttpResponse::build(StatusCode::OK)
@@ -93,7 +93,7 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
     Box::new(
         fut.or_else(move |e| match e.kind() {
             DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => {
-                coll.db.get_storage_modified(coll.user_id)
+                coll.db.get_storage_timestamp(coll.user_id)
             }
             _ => Box::new(future::err(e)),
         }).map_err(From::from)

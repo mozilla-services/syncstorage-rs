@@ -21,8 +21,7 @@ script:
   - cargo fmt -- --check
   - cargo build
   - cargo test
-  - # XXX: 1.3.0 rustdoc breakage https://github.com/rust-lang/rust/issues/54524
-  - ./scripts/build-docs.sh | true
+  - ./scripts/build-docs.sh
 
 notifications:
   email: false
