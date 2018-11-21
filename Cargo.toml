@@ -7,6 +7,10 @@ authors = [
   "Phil Jenvey <pjenvey@underboss.org>",
 ]
 
+[profile.release]
+# Enables line numbers in Sentry
+debug = 1
+
 [dependencies]
 actix = "0.7"
 actix-web = "0.7.7"
