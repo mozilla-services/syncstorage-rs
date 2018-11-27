@@ -271,3 +271,27 @@ fn put_bso() {
         }
     };
 }
+
+#[test]
+fn invalid_content_type() {
+    let mut server = setup();
+    let request = server
+        .client(http::Method::PUT, "/1.5/42/storage/bookmarks/wibble")
+        .set_header(
+            "Authorization",
+            create_hawk_header(
+                "PUT",
+                server.addr().port(),
+                "/1.5/42/storage/bookmarks/wibble",
+            ),
+        ).set_header("Content-Type", "application/javascript")
+        .json(BsoBody {
+            id: Some("wibble".to_string()),
+            sortindex: Some(0),
+            payload: Some("wibble".to_string()),
+            ttl: Some(31536000),
+        }).unwrap();
+
+    let response = server.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
