@@ -75,7 +75,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
             ApiErrorKind::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            ApiErrorKind::Validation(_) => StatusCode::BAD_REQUEST,
+            ApiErrorKind::Validation(error) => error.status,
         };
 
         Self { inner, status }

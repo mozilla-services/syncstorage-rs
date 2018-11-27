@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use actix_web::http::header::ToStrError;
+use actix_web::http::{header::ToStrError, StatusCode};
 use actix_web::Error as ActixError;
 use base64::DecodeError;
 use failure::{Backtrace, Context, Fail, SyncFailure};
@@ -68,6 +68,7 @@ pub enum HawkErrorKind {
 #[derive(Debug)]
 pub struct ValidationError {
     inner: Context<ValidationErrorKind>,
+    pub status: StatusCode,
 }
 
 /// Causes of extractor errors.
@@ -97,7 +98,20 @@ impl From<Context<HawkErrorKind>> for HawkError {
 
 impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
-        Self { inner }
+        let status = match inner.get_context() {
+            ValidationErrorKind::FromDetails(ref _description, ref location, ref name) => {
+                if *location == RequestErrorLocation::Header
+                    && *name == Some("Content-Type".to_owned())
+                {
+                    StatusCode::UNSUPPORTED_MEDIA_TYPE
+                } else {
+                    StatusCode::BAD_REQUEST
+                }
+            }
+            _ => StatusCode::BAD_REQUEST,
+        };
+
+        Self { inner, status }
     }
 }
 

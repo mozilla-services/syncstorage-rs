@@ -201,12 +201,11 @@ impl FromRequest<ServerState> for BsoBody {
         match headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes() {
             b"application/json" | b"text/plain" | b"" => (),
             _ => {
-                // TODO: This is supposed to return a 415 status for unknown content-type
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
                         "Invalid content-type".to_owned(),
                         RequestErrorLocation::Header,
-                        Some("content-type".to_owned()),
+                        Some("Content-Type".to_owned()),
                     ).into(),
                 ));
             }
