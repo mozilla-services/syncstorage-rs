@@ -232,18 +232,15 @@ fn post_collection() {
 
 #[test]
 fn delete_bso() {
-    #[derive(Debug, Default, Deserialize)]
-    pub struct DeleteBso {
-        modified: SyncTimestamp,
-    }
-    let start = SyncTimestamp::default();
-    test_endpoint_with_response(
+    let mut server = setup();
+
+    let request = create_request(
+        &server,
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks/wibble",
-        &move |dbso: DeleteBso| {
-            assert!(dbso.modified > start);
-        },
     );
+    let response = server.execute(request.send()).unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[test]

@@ -6,7 +6,7 @@ use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use failure::{Backtrace, Context, Fail};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
-use db::error::DbError;
+use db::error::{DbError, DbErrorKind};
 use web::error::{HawkError, ValidationError};
 
 /// Common `Result` type.
@@ -33,6 +33,34 @@ pub enum ApiErrorKind {
 
     #[fail(display = "{}", _0)]
     Validation(#[cause] ValidationError),
+}
+
+impl ApiError {
+    pub fn kind(&self) -> &ApiErrorKind {
+        self.inner.get_context()
+    }
+
+    pub fn is_colllection_not_found(&self) -> bool {
+        match self.kind() {
+            ApiErrorKind::Db(dbe) => match dbe.kind() {
+                DbErrorKind::CollectionNotFound => return true,
+                _ => (),
+            },
+            _ => (),
+        }
+        false
+    }
+
+    pub fn is_bso_not_found(&self) -> bool {
+        match self.kind() {
+            ApiErrorKind::Db(dbe) => match dbe.kind() {
+                DbErrorKind::BsoNotFound => return true,
+                _ => (),
+            },
+            _ => (),
+        }
+        false
+    }
 }
 
 impl From<ApiError> for HttpResponse {
@@ -108,9 +136,6 @@ where
     seq.serialize_element(&value.to_string())?;
     seq.end()
 }
-
-// XXX: We can remove this if/when db methods return ApiError directly
-impl ResponseError for DbError {}
 
 macro_rules! failure_boilerplate {
     ($error:ty, $kind:ty) => {

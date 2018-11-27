@@ -5,7 +5,8 @@ use actix_web::{http::StatusCode, FutureResponse, HttpResponse, State};
 use futures::future::{self, Future};
 use serde::Serialize;
 
-use db::{params, results::Paginated, DbError, DbErrorKind};
+use db::{params, results::Paginated};
+use error::ApiError;
 use server::ServerState;
 use web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
@@ -91,11 +92,12 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
     };
 
     Box::new(
-        fut.or_else(move |e| match e.kind() {
-            DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => {
+        fut.or_else(move |e| {
+            if e.is_colllection_not_found() || e.is_bso_not_found() {
                 coll.db.get_storage_timestamp(coll.user_id)
+            } else {
+                Box::new(future::err(e))
             }
-            _ => Box::new(future::err(e)),
         }).map_err(From::from)
         .map(move |result| {
             HttpResponse::Ok()
@@ -123,7 +125,7 @@ pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
 
 fn finish_get_collection<F, T>(coll: CollectionRequest, fut: F) -> FutureResponse<HttpResponse>
 where
-    F: Future<Item = Paginated<T>, Error = DbError> + 'static,
+    F: Future<Item = Paginated<T>, Error = ApiError> + 'static,
     T: Serialize + 'static,
 {
     Box::new(
