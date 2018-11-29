@@ -12,7 +12,7 @@ use futures::{
     Future,
 };
 
-use db::{params, Db};
+use db::{params, util::SyncTimestamp, Db};
 use error::{ApiError, ApiErrorKind};
 use server::ServerState;
 use web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader};
@@ -163,9 +163,13 @@ impl Middleware<ServerState> for PreConditionCheck {
             .ok()
             .map(|v| v.collection);
         let bso = BsoParam::from_request(&req, &()).ok().map(|v| v.bso);
+        let req = req.clone(); // Clone for the move to set the timestamp we get
         let fut = db
             .extract_resource(user_id, collection, bso)
-            .and_then(move |resource_ts| {
+            .and_then(move |resource_ts: SyncTimestamp| {
+                // Ensure we stash the extracted resource timestamp on the request in case its
+                // requested elsewhere
+                req.extensions_mut().insert(resource_ts.clone());
                 let status = match precondition {
                     PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
                         StatusCode::NOT_MODIFIED
@@ -177,14 +181,42 @@ impl Middleware<ServerState> for PreConditionCheck {
                 };
                 let resp = HttpResponse::build(status)
                     .header("X-Last-Modified", resource_ts.as_header())
-                    .body("{}"); // XXX: Does this need more content?
+                    .body(""); // 304 can't return any content
                 future::ok(Some(resp))
             }).map_err(Into::into);
         Ok(Started::Future(Box::new(fut)))
     }
 
-    fn response(&self, _req: &HttpRequest<ServerState>, resp: HttpResponse) -> Result<Response> {
-        Ok(Response::Done(resp))
+    fn response(&self, req: &HttpRequest<ServerState>, mut resp: HttpResponse) -> Result<Response> {
+        // Ensure all outgoing requests from here have a X-Last-Modified
+        if resp.headers().contains_key("X-Last-Modified") {
+            return Ok(Response::Done(resp));
+        }
+
+        // See if we already extracted one and use that if possible
+        if let Some(ts) = req.extensions().get::<SyncTimestamp>() {
+            if let Ok(ts_header) = header::HeaderValue::from_str(&ts.as_header()) {
+                resp.headers_mut().insert("X-Last-Modified", ts_header);
+            }
+            return Ok(Response::Done(resp));
+        }
+
+        // Do the work needed to generate a timestamp otherwise
+        let user_id = HawkIdentifier::from_request(&req, &())?;
+        let db = <Box<dyn Db>>::from_request(&req, &())?;
+        let collection = CollectionParam::from_request(&req, &())
+            .ok()
+            .map(|v| v.collection);
+        let bso = BsoParam::from_request(&req, &()).ok().map(|v| v.bso);
+        let fut = db
+            .extract_resource(user_id, collection, bso)
+            .and_then(move |resource_ts: SyncTimestamp| {
+                if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                    resp.headers_mut().insert("X-Last-Modified", ts_header);
+                }
+                future::ok(resp)
+            }).map_err(Into::into);
+        Ok(Response::Future(Box::new(fut)))
     }
 }
 
