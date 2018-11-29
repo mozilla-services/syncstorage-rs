@@ -7,7 +7,26 @@ use failure::{Backtrace, Context, Fail};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 
 use db::error::{DbError, DbErrorKind};
-use web::error::{HawkError, ValidationError};
+use web::error::{HawkError, ValidationError, ValidationErrorKind};
+use web::extractors::RequestErrorLocation;
+
+/// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
+/// information and replacing it with one of these error codes.
+#[derive(Serialize)]
+enum WeaveError {
+    /// Unknown error
+    UnknownError = 0,
+    /// Illegal method/protocol
+    IllegalMethod = 1,
+    /// Json parse failure
+    MalformedJson = 6,
+    /// Invalid Weave Basic Object
+    InvalidWbo = 8,
+    /// User over quota
+    OverQuota = 14,
+    /// Size limit exceeded
+    SizeLimitExceeded = 17,
+}
 
 /// Common `Result` type.
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -75,6 +94,24 @@ impl ApiError {
         }
         false
     }
+
+    fn weave_error_code(&self) -> WeaveError {
+        match self.kind() {
+            ApiErrorKind::Validation(ver) => match ver.kind() {
+                ValidationErrorKind::FromDetails(ref _description, ref location, name) => {
+                    let name = name.clone().unwrap_or("".to_owned());
+                    if *location == RequestErrorLocation::Body
+                        && ["bso", "bsos"].contains(&name.as_str())
+                    {
+                        return WeaveError::InvalidWbo;
+                    }
+                    WeaveError::UnknownError
+                }
+                _ => WeaveError::UnknownError,
+            },
+            _ => WeaveError::UnknownError,
+        }
+    }
 }
 
 impl From<ApiError> for HttpResponse {
@@ -98,10 +135,16 @@ impl From<Context<ApiErrorKind>> for ApiError {
 
 impl ResponseError for ApiError {
     fn error_response(&self) -> HttpResponse {
+        // To return a descriptive error response, this would work. We do not
+        // unfortunately do that so that we can retain Sync 1.1 backwards compatibility
+        // as the Python one does.
+        // HttpResponse::build(self.status).json(self)
+        //
+        // So instead we translate our error to a backwards compatible one
         HttpResponse::build(self.status)
             .if_true(self.is_conflict(), |resp| {
                 resp.header("Retry-After", RETRY_AFTER.to_string());
-            }).json(self)
+            }).json(self.weave_error_code() as i32)
     }
 }
 

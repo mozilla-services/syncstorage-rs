@@ -155,7 +155,8 @@ impl Middleware<ServerState> for PreConditionCheck {
             match <Option<PreConditionHeader> as FromRequest<ServerState>>::from_request(&req, &())
             {
                 Ok(Some(precondition)) => precondition,
-                Ok(None) | Err(_) => return Ok(Started::Done),
+                Ok(None) => return Ok(Started::Done),
+                Err(e) => return Ok(Started::Response(e.into())),
             };
         let user_id = HawkIdentifier::from_request(&req, &())?;
         let db = <Box<dyn Db>>::from_request(&req, &())?;

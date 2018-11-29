@@ -1,6 +1,7 @@
 //! Parameter types for database methods.
 
 #![allow(proc_macro_derive_resolution_fallback)]
+use std::collections::HashMap;
 
 use web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
@@ -65,6 +66,7 @@ collection_data! {
     },
     PostBsos {
         bsos: Vec<PostCollectionBso>,
+        failed: HashMap<String, String>,
     },
 
     CreateBatch {
