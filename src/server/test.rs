@@ -210,6 +210,13 @@ fn get_collection() {
             assert_eq!(collection.len(), 0);
         },
     );
+    test_endpoint_with_response(
+        http::Method::GET,
+        "/1.5/42/storage/nonexistent",
+        &move |collection: Vec<GetBso>| {
+            assert_eq!(collection.len(), 0);
+        },
+    );
 }
 
 #[test]
