@@ -84,9 +84,9 @@ impl FromRequest<ServerState> for BsoBodies {
             _ => {
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
-                        "Invalid content-type".to_owned(),
+                        "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
-                        Some("content-type".to_owned()),
+                        Some("Content-Type".to_owned()),
                     ).into(),
                 ));
             }
@@ -203,7 +203,7 @@ impl FromRequest<ServerState> for BsoBody {
             _ => {
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
-                        "Invalid content-type".to_owned(),
+                        "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                     ).into(),

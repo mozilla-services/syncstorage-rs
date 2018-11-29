@@ -99,14 +99,11 @@ impl From<Context<HawkErrorKind>> for HawkError {
 impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
         let status = match inner.get_context() {
-            ValidationErrorKind::FromDetails(ref _description, ref location, ref name) => {
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
                 if *location == RequestErrorLocation::Header
-                    && *name == Some("Content-Type".to_owned())
-                {
-                    StatusCode::UNSUPPORTED_MEDIA_TYPE
-                } else {
-                    StatusCode::BAD_REQUEST
-                }
+                    && name.eq_ignore_ascii_case("Content-Type") =>
+            {
+                StatusCode::UNSUPPORTED_MEDIA_TYPE
             }
             _ => StatusCode::BAD_REQUEST,
         };
