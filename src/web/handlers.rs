@@ -126,22 +126,31 @@ pub fn get_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse> {
 fn finish_get_collection<F, T>(coll: CollectionRequest, fut: F) -> FutureResponse<HttpResponse>
 where
     F: Future<Item = Paginated<T>, Error = ApiError> + 'static,
-    T: Serialize + 'static,
+    T: Serialize + Default + 'static,
 {
     Box::new(
-        fut.map_err(From::from)
-            .and_then(|result| {
-                coll.db
-                    .extract_resource(coll.user_id, Some(coll.collection), None)
-                    .map_err(From::from)
-                    .map(move |ts| (result, ts))
-            }).map(|(result, ts)| {
-                HttpResponse::build(StatusCode::OK)
-                    .header("X-Last-Modified", ts.as_header())
-                    .if_some(result.offset, |offset, resp| {
-                        resp.header("X-Weave-Next-Offset", offset.to_string());
-                    }).json(result.items)
-            }),
+        fut.or_else(move |e| {
+            if e.is_colllection_not_found() {
+                // For b/w compat, non-existent collections must return an
+                // empty list
+                Ok(Paginated::default())
+            } else {
+                Err(e)
+            }
+        }).map_err(From::from)
+        .and_then(|result| {
+            coll.db
+                .extract_resource(coll.user_id, Some(coll.collection), None)
+                .map_err(From::from)
+                .map(move |ts| (result, ts))
+        }).map(|(result, ts)| {
+            HttpResponse::build(StatusCode::OK)
+                .header("X-Last-Modified", ts.as_header())
+                .header("X-Weave-Records", result.items.len().to_string())
+                .if_some(result.offset, |offset, resp| {
+                    resp.header("X-Weave-Next-Offset", offset.to_string());
+                }).json(result.items)
+        }),
     )
 }
 

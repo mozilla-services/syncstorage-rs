@@ -12,6 +12,9 @@ use web::error::{HawkError, ValidationError};
 /// Common `Result` type.
 pub type ApiResult<T> = Result<T, ApiError>;
 
+/// How long the client should wait before retrying a conflicting write.
+pub const RETRY_AFTER: u8 = 10;
+
 /// Top-level error type.
 #[derive(Debug)]
 pub struct ApiError {
@@ -61,6 +64,17 @@ impl ApiError {
         }
         false
     }
+
+    fn is_conflict(&self) -> bool {
+        match self.kind() {
+            ApiErrorKind::Db(dbe) => match dbe.kind() {
+                DbErrorKind::Conflict => return true,
+                _ => (),
+            },
+            _ => (),
+        }
+        false
+    }
 }
 
 impl From<ApiError> for HttpResponse {
@@ -84,7 +98,10 @@ impl From<Context<ApiErrorKind>> for ApiError {
 
 impl ResponseError for ApiError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.status).json(self)
+        HttpResponse::build(self.status)
+            .if_true(self.is_conflict(), |resp| {
+                resp.header("Retry-After", RETRY_AFTER.to_string());
+            }).json(self)
     }
 }
 

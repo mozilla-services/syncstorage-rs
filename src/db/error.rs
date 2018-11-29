@@ -63,6 +63,12 @@ impl From<Context<DbErrorKind>> for DbError {
             DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
             // Matching the Python code here (a 400 vs 404)
             DbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
+            // NOTE: the protocol specification states that we should return a
+            // "409 Conflict" response here, but clients currently do not
+            // handle these respones very well:
+            //  * desktop bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959034
+            //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
+            DbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
