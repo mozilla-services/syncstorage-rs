@@ -94,6 +94,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         user_id: params.user_id.clone(),
         collection: params.collection.clone(),
         bsos,
+        failed: Default::default(),
     });
     delete(
         db,

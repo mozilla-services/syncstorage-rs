@@ -71,6 +71,12 @@ pub struct ValidationError {
     pub status: StatusCode,
 }
 
+impl ValidationError {
+    pub fn kind(&self) -> &ValidationErrorKind {
+        self.inner.get_context()
+    }
+}
+
 /// Causes of extractor errors.
 #[derive(Debug, Fail)]
 pub enum ValidationErrorKind {

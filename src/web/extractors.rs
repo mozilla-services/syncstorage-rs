@@ -2,6 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use actix_web::http::header::{HeaderValue, CONTENT_TYPE};
@@ -13,7 +14,7 @@ use actix_web::{
 use futures::{future, Future};
 use regex::Regex;
 use serde::de::{Deserialize, Deserializer, Error as SerdeError};
-use serde_json;
+use serde_json::Value;
 use validator::{Validate, ValidationError};
 
 use db::{util::SyncTimestamp, Db, Sorting};
@@ -24,14 +25,9 @@ use web::{auth::HawkPayload, error::ValidationErrorKind};
 const BATCH_MAX_IDS: usize = 100;
 
 // BSO const restrictions
-const BSO_MAX_PAYLOAD_SIZE: usize = 2 * 1024 * 1024;
 const BSO_MAX_TTL: u32 = 31536000;
 const BSO_MAX_SORTINDEX_VALUE: i32 = 999999999;
 const BSO_MIN_SORTINDEX_VALUE: i32 = -999999999;
-
-// TODO: These should come from config using actix with_config
-const BATCH_MAX_RECORDS: usize = 100;
-const BATCH_MAX_BYTES: usize = BSO_MAX_PAYLOAD_SIZE * 150;
 
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
@@ -46,18 +42,41 @@ pub struct UidParam {
     uid: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Validate)]
 pub struct BatchBsoBody {
+    #[validate(custom = "validate_body_bso_id")]
     pub id: String,
+    #[validate(custom = "validate_body_bso_sortindex")]
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
+    #[validate(custom = "validate_body_bso_ttl")]
     pub ttl: Option<u32>,
+}
+
+impl BatchBsoBody {
+    /// Function to convert valid raw JSON BSO body to a BatchBsoBody
+    fn from_raw_bso(val: &Value) -> Result<BatchBsoBody, String> {
+        let map = val.as_object().ok_or("invalid json")?;
+        // Verify all the keys are valid
+        let valid_keys = ["id", "sortindex", "payload", "ttl"];
+        for key_name in map.keys() {
+            if !valid_keys.contains(&key_name.as_str()) {
+                return Err(format!("unknown field {}", key_name));
+            }
+        }
+        serde_json::from_value(val.clone())
+            .map_err(|_| "invalid json".to_string())
+            .and_then(|v: BatchBsoBody| match v.validate() {
+                Ok(()) => Ok(v),
+                Err(e) => Err(format!("invalid bso: {}", e)),
+            })
+    }
 }
 
 #[derive(Default, Deserialize)]
 pub struct BsoBodies {
     pub valid: Vec<BatchBsoBody>,
-    pub invalid: Vec<BsoBody>,
+    pub invalid: HashMap<String, String>,
 }
 
 impl FromRequest<ServerState> for BsoBodies {
@@ -92,9 +111,12 @@ impl FromRequest<ServerState> for BsoBodies {
             }
         }
 
+        // Get the max request size we'll parse
+        let max_request_bytes = req.state().limits.max_request_bytes;
+
         // Load the entire request into a String
         let mut config = PayloadConfig::default();
-        config.limit(BATCH_MAX_BYTES);
+        config.limit(max_request_bytes as usize);
         let fut = if let Ok(result) = <String>::from_request(req, &config) {
             result
         } else {
@@ -120,27 +142,33 @@ impl FromRequest<ServerState> for BsoBodies {
         // content_type header
         let newlines: bool = content_type == b"application/newlines";
 
+        // Grab the max sizes
+        let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
+        let max_post_bytes = req.state().limits.max_post_bytes as usize;
+
         let fut = fut.and_then(move |body| {
-            // Parse out the body per the content type
-            let bsos: Vec<BsoBody> = if newlines {
+            // Get all the raw JSON values
+            let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
                     // Skip any blanks
                     if item == "" {
                         continue;
                     }
-                    if let Ok(item) = serde_json::from_str(&item) {
-                        bsos.push(item);
+                    // Check that its a valid JSON map like we expect
+                    if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
+                        bsos.push(raw_json);
                     } else {
-                        // Per Python version, all BSO's must parse or we error out
+                        // Per Python version, BSO's must json deserialize
                         return future::err(make_error());
                     }
                 }
                 bsos
             } else {
-                if let Ok(bsos) = serde_json::from_str(&body) {
-                    bsos
+                if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
+                    json_vals
                 } else {
+                    // Per Python version, BSO's must json deserialize
                     return future::err(make_error());
                 }
             };
@@ -148,27 +176,61 @@ impl FromRequest<ServerState> for BsoBodies {
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
             // it with our pre-allocation
             let mut valid: Vec<BatchBsoBody> = Vec::with_capacity(bsos.len());
-            let mut invalid: Vec<BsoBody> = Vec::new();
-            for mut bso in bsos {
-                if bso.validate().is_ok() {
-                    // They're only valid if they include an id.
-                    // XXX: Verify the id is optional, this may be a legacy thing
-                    match bso {
-                        BsoBody {
-                            id: Some(id),
-                            sortindex,
-                            payload,
-                            ttl,
-                        } => valid.push(BatchBsoBody {
-                            id,
-                            sortindex,
-                            payload,
-                            ttl,
-                        }),
-                        bso => invalid.push(bso),
+
+            // Invalid BSO's are any BSO that can deserialize despite how wrong the contents are
+            // per the way the Python version works.
+            let mut invalid: HashMap<String, String> = HashMap::new();
+
+            // Keep track of our total payload size
+            let mut total_payload_size = 0;
+
+            // Temporarily track the bso id's for dupe detection
+            let mut bso_ids: Vec<String> = Vec::with_capacity(bsos.len());
+
+            for bso in bsos {
+                // Error out if its not a JSON mapping type
+                if !bso.is_object() {
+                    return future::err(make_error());
+                }
+                // Save all id's we get, check for missing id, or duplicate.
+                let bso_id = if let Some(id) = bso.get("id").and_then(|s| s.as_str()) {
+                    let id = id.to_string();
+                    if bso_ids.contains(&id) {
+                        return future::err(
+                            ValidationErrorKind::FromDetails(
+                                "Input BSO has duplicate ID".to_owned(),
+                                RequestErrorLocation::Body,
+                                Some("bsos".to_owned()),
+                            ).into(),
+                        );
+                    } else {
+                        bso_ids.push(id.clone());
+                        id
                     }
                 } else {
-                    invalid.push(bso);
+                    return future::err(
+                        ValidationErrorKind::FromDetails(
+                            "Input BSO has no ID".to_owned(),
+                            RequestErrorLocation::Body,
+                            Some("bsos".to_owned()),
+                        ).into(),
+                    );
+                };
+                match BatchBsoBody::from_raw_bso(&bso) {
+                    Ok(b) => {
+                        // Is this record too large? Deny if it is.
+                        let payload_size = b.payload.as_ref().map(|v| v.len()).unwrap_or_default();
+                        total_payload_size += payload_size;
+                        if payload_size <= max_payload_size && total_payload_size <= max_post_bytes
+                        {
+                            valid.push(b);
+                        } else {
+                            invalid.insert(b.id, "retry bytes".to_string());
+                        }
+                    }
+                    Err(e) => {
+                        invalid.insert(bso_id, e);
+                    }
                 }
             }
             future::ok(BsoBodies { valid, invalid })
@@ -184,7 +246,6 @@ pub struct BsoBody {
     pub id: Option<String>,
     #[validate(custom = "validate_body_bso_sortindex")]
     pub sortindex: Option<i32>,
-    #[validate(custom = "validate_body_bso_payload")]
     pub payload: Option<String>,
     #[validate(custom = "validate_body_bso_ttl")]
     pub ttl: Option<u32>,
@@ -211,7 +272,10 @@ impl FromRequest<ServerState> for BsoBody {
             }
         }
         let mut config = JsonConfig::default();
-        config.limit(BSO_MAX_PAYLOAD_SIZE);
+        let max_request_size = req.state().limits.max_request_bytes as usize;
+        config.limit(max_request_size);
+
+        let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
         let fut = <Json<BsoBody>>::from_request(req, &config)
             .map_err(|e| {
                 let err: ApiError = ValidationErrorKind::FromDetails(
@@ -220,7 +284,16 @@ impl FromRequest<ServerState> for BsoBody {
                     Some("bso".to_owned()),
                 ).into();
                 err.into()
-            }).and_then(|bso: Json<BsoBody>| {
+            }).and_then(move |bso: Json<BsoBody>| {
+                // Check the max payload size manually with our desired limit
+                if bso.payload.as_ref().map(|s| s.len()).unwrap_or_default() > max_payload_size {
+                    let err: ApiError = ValidationErrorKind::FromDetails(
+                        "payload too large".to_owned(),
+                        RequestErrorLocation::Body,
+                        Some("bso".to_owned()),
+                    ).into();
+                    return future::err(err.into());
+                }
                 if let Err(e) = bso.validate() {
                     let err: ApiError =
                         ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Body)
@@ -369,13 +442,14 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let max_post_records = req.state().limits.max_post_records as i64;
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(req).and_then(|(user_id, db, collection, query, mut bsos)| {
+        )>::extract(req).and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -395,16 +469,11 @@ impl FromRequest<ServerState> for CollectionPostRequest {
             }
 
             // Trim the excess BSO's to be under the batch size
-            let overage: i64 = (bsos.valid.len() as i64) - (BATCH_MAX_RECORDS as i64);
+            let overage: i64 = (bsos.valid.len() as i64) - max_post_records;
             if overage > 0 {
                 for _ in 1..=overage {
                     if let Some(last) = bsos.valid.pop() {
-                        bsos.invalid.push(BsoBody {
-                            id: Some(last.id),
-                            sortindex: last.sortindex,
-                            payload: last.payload,
-                            ttl: last.ttl,
-                        });
+                        bsos.invalid.insert(last.id, "retry bso".to_string());
                     }
                 }
             }
@@ -763,14 +832,6 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
     }
 }
 
-/// Verifies the BSO payload size is valid
-fn validate_body_bso_payload(payload: &str) -> Result<(), ValidationError> {
-    if payload.len() > BSO_MAX_PAYLOAD_SIZE {
-        return Err(request_error("invalid size", RequestErrorLocation::Body));
-    }
-    Ok(())
-}
-
 /// Verifies the BSO id string is valid
 fn validate_body_bso_id(id: &String) -> Result<(), ValidationError> {
     if !VALID_ID_REGEX.is_match(id) {
@@ -933,7 +994,9 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
 
+        /* New tests for when we can use descriptive errors
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
         assert_eq!(err["reason"], "Bad Request");
@@ -945,6 +1008,7 @@ mod tests {
         };
 
         assert_eq!(sort_error["location"], "querystring");
+        */
     }
 
     #[test]
@@ -1012,7 +1076,9 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
 
+        /* New tests for when we can use descriptive errors
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
 
@@ -1020,6 +1086,7 @@ mod tests {
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "bso");
         assert_eq!(err["errors"][0]["value"], INVALID_BSO_NAME);
+        */
     }
 
     #[test]
@@ -1085,12 +1152,15 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
+        assert_eq!(body, "8")
 
+        /* New tests for when we can use descriptive errors
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
 
         assert_eq!(err["errors"][0]["location"], "body");
         assert_eq!(&err["errors"][0]["name"], "bso");
+        */
     }
 
     #[test]
@@ -1143,6 +1213,9 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
+
+        /* New tests for when we can use descriptive errors
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
@@ -1151,6 +1224,7 @@ mod tests {
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "collection");
         assert_eq!(err["errors"][0]["value"], INVALID_COLLECTION_NAME);
+        */
     }
 
     #[test]
@@ -1198,10 +1272,10 @@ mod tests {
             "localhost",
             5000,
         );
-        // Leave off id's, these will be invalid
+        // Add extra fields, these will be invalid
         let bso_body = json!([
-            {"payload": "xxx", "sortindex": 23},
-            {"payload": "xxx", "sortindex": -99}
+            {"id": "1", "sortindex": 23, "jump": 1},
+            {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
         let req = TestRequest::with_state(state)
             .header("authorization", header)
@@ -1223,8 +1297,8 @@ mod tests {
     fn test_invalid_precondition_headers() {
         fn assert_invalid_header(
             req: &HttpRequest<ServerState>,
-            error_header: &str,
-            error_message: &str,
+            _error_header: &str,
+            _error_message: &str,
         ) {
             let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
             assert!(result.is_err());
@@ -1232,12 +1306,16 @@ mod tests {
             assert_eq!(response.status(), 400);
             let body = extract_body_as_str(&response);
 
+            assert_eq!(body, "0");
+
+            /* New tests for when we can use descriptive errors
             let err: serde_json::Value = serde_json::from_str(&body).unwrap();
             assert_eq!(err["status"], 400);
 
             assert_eq!(err["errors"][0]["description"], error_message);
             assert_eq!(err["errors"][0]["location"], "header");
             assert_eq!(err["errors"][0]["name"], error_header);
+            */
         }
         let req = TestRequest::with_state(make_state())
             .header("X-If-Modified-Since", "32124.32")
@@ -1327,6 +1405,9 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
+
+        /* New tests for when we can use descriptive errors
 
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
         assert_eq!(err["status"], 400);
@@ -1334,5 +1415,6 @@ mod tests {
         assert_eq!(err["errors"][0]["description"], "conflicts with payload");
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "uid");
+        */
     }
 }

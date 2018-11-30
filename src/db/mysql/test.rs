@@ -725,6 +725,7 @@ fn post_bsos() -> Result<()> {
             postbso("b1", Some("payload 1"), Some(1000000000), None),
             postbso("b2", Some("payload 2"), Some(100), None),
         ],
+        failed: Default::default(),
     })?;
 
     assert!(result.success.contains(&"b0".to_owned()));
@@ -748,6 +749,7 @@ fn post_bsos() -> Result<()> {
             postbso("b0", Some("updated 0"), Some(11), Some(100000)),
             postbso("b2", Some("updated 2"), Some(22), Some(10000)),
         ],
+        failed: Default::default(),
     })?;
 
     assert_eq!(result2.success.len(), 2);

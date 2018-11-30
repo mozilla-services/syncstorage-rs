@@ -161,6 +161,7 @@ pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpRespon
                 user_id: coll.user_id,
                 collection: coll.collection,
                 bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                failed: coll.bsos.invalid,
             }).map_err(From::from)
             .map(|result| {
                 HttpResponse::build(StatusCode::OK)

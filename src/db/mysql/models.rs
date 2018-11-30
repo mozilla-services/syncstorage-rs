@@ -500,7 +500,7 @@ impl MysqlDb {
         let mut result = results::PostBsos {
             modified: self.timestamp(),
             success: Default::default(),
-            failed: Default::default(),
+            failed: input.failed,
         };
 
         for pbso in input.bsos {
