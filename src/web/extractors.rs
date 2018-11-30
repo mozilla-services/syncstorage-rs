@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use actix_web::http::header::{HeaderValue, CONTENT_TYPE};
+use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::{
     dev::{JsonConfig, PayloadConfig},
     error::ErrorInternalServerError,
@@ -391,6 +391,13 @@ impl FromRequest<ServerState> for MetaRequest {
     }
 }
 
+/// Desired reply format for a Collection Get request
+#[derive(Copy, Clone, Debug)]
+pub enum ReplyFormat {
+    Json,
+    Newlines,
+}
+
 /// Collection Request Delete/Get extractor
 ///
 /// Extracts/validates information needed for collection delete/get requests.
@@ -399,6 +406,7 @@ pub struct CollectionRequest {
     pub db: Box<dyn Db>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
+    pub reply: ReplyFormat,
 }
 
 impl FromRequest<ServerState> for CollectionRequest {
@@ -410,12 +418,25 @@ impl FromRequest<ServerState> for CollectionRequest {
         let db = <Box<dyn Db>>::from_request(req, settings)?;
         let query = BsoQueryParams::from_request(req, settings)?;
         let collection = CollectionParam::from_request(req, settings)?.collection;
+        let reply = match req.headers().get(ACCEPT) {
+            Some(v) if v.as_bytes() == b"application/newlines" => ReplyFormat::Newlines,
+            Some(v) if v.as_bytes() == b"application/json" => ReplyFormat::Json,
+            Some(_) => {
+                return Err(ValidationErrorKind::FromDetails(
+                    "Invalid accept".to_string(),
+                    RequestErrorLocation::Header,
+                    Some("accept".to_string()),
+                ).into());
+            }
+            None => ReplyFormat::Json,
+        };
 
         Ok(CollectionRequest {
             collection,
             db,
             user_id,
             query,
+            reply,
         })
     }
 }

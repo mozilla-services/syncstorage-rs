@@ -12,6 +12,7 @@ use web::extractors::RequestErrorLocation;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
 /// information and replacing it with one of these error codes.
+#[allow(dead_code)]
 #[derive(Serialize)]
 enum WeaveError {
     /// Unknown error
