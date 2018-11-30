@@ -10,7 +10,7 @@ use error::ApiError;
 use server::ServerState;
 use web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
-    MetaRequest,
+    MetaRequest, ReplyFormat,
 };
 
 pub const ONE_KB: f64 = 1024.0;
@@ -128,6 +128,7 @@ where
     F: Future<Item = Paginated<T>, Error = ApiError> + 'static,
     T: Serialize + Default + 'static,
 {
+    let reply_format = coll.reply;
     Box::new(
         fut.or_else(move |e| {
             if e.is_colllection_not_found() {
@@ -143,13 +144,29 @@ where
                 .extract_resource(coll.user_id, Some(coll.collection), None)
                 .map_err(From::from)
                 .map(move |ts| (result, ts))
-        }).map(|(result, ts)| {
-            HttpResponse::build(StatusCode::OK)
+        }).map(move |(result, ts)| {
+            let mut builder = HttpResponse::build(StatusCode::OK);
+            let resp = builder
                 .header("X-Last-Modified", ts.as_header())
                 .header("X-Weave-Records", result.items.len().to_string())
                 .if_some(result.offset, |offset, resp| {
                     resp.header("X-Weave-Next-Offset", offset.to_string());
-                }).json(result.items)
+                });
+            match reply_format {
+                ReplyFormat::Json => resp.json(result.items),
+                ReplyFormat::Newlines => {
+                    let items: String = result
+                        .items
+                        .into_iter()
+                        .map(|v| serde_json::to_string(&v).unwrap_or("".to_string()))
+                        .filter(|v| !v.is_empty())
+                        .map(|v| v.replace("\n", "\\u000a") + "\n")
+                        .collect();
+                    resp.header("Content-Type", "application/newlines")
+                        .header("Content-Length", format!("{}", items.len()))
+                        .body(items)
+                }
+            }
         }),
     )
 }

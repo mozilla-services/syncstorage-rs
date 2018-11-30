@@ -106,10 +106,13 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
         let status = match inner.get_context() {
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
-                if *location == RequestErrorLocation::Header
-                    && name.eq_ignore_ascii_case("Content-Type") =>
+                if *location == RequestErrorLocation::Header =>
             {
-                StatusCode::UNSUPPORTED_MEDIA_TYPE
+                match name.to_ascii_lowercase().as_str() {
+                    "accept" => StatusCode::NOT_ACCEPTABLE,
+                    "content-type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                    _ => StatusCode::BAD_REQUEST,
+                }
             }
             _ => StatusCode::BAD_REQUEST,
         };
