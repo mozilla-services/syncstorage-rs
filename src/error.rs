@@ -85,7 +85,7 @@ impl ApiError {
         false
     }
 
-    fn is_conflict(&self) -> bool {
+    pub fn is_conflict(&self) -> bool {
         match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::Conflict => return true,
@@ -99,7 +99,10 @@ impl ApiError {
     fn weave_error_code(&self) -> WeaveError {
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
-                ValidationErrorKind::FromDetails(ref _description, ref location, name) => {
+                ValidationErrorKind::FromDetails(ref description, ref location, name) => {
+                    if description == "size-limit-exceeded" {
+                        return WeaveError::SizeLimitExceeded;
+                    }
                     let name = name.clone().unwrap_or("".to_owned());
                     if *location == RequestErrorLocation::Body
                         && ["bso", "bsos"].contains(&name.as_str())

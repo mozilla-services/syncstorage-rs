@@ -2,8 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{self, collections::HashMap, str::FromStr};
 
 use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::{
@@ -17,7 +16,7 @@ use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use db::{util::SyncTimestamp, Db, Sorting};
+use db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
 use error::{ApiError, ApiResult};
 use server::ServerState;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
@@ -34,6 +33,7 @@ lazy_static! {
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
     static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
     static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
+    static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
 #[derive(Deserialize)]
@@ -450,6 +450,7 @@ pub struct CollectionPostRequest {
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
+    pub batch: Option<BatchRequest>,
 }
 
 impl FromRequest<ServerState> for CollectionPostRequest {
@@ -463,6 +464,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let req = req.clone();
         let max_post_records = req.state().limits.max_post_records as i64;
         let fut = <(
             HawkIdentifier,
@@ -470,7 +472,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(req).and_then(move |(user_id, db, collection, query, mut bsos)| {
+        )>::extract(&req).and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -499,12 +501,18 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                 }
             }
 
+            let batch = match <Option<BatchRequest>>::extract(&req) {
+                Ok(batch) => batch,
+                Err(e) => return future::err(e.into()),
+            };
+
             future::ok(CollectionPostRequest {
                 collection,
                 db,
                 user_id,
                 query,
                 bsos,
+                batch,
             })
         });
 
@@ -706,8 +714,8 @@ pub struct BsoQueryParams {
     pub offset: Option<u64>,
 
     /// a comma-separated list of BSO ids (list of strings)
-    #[validate(custom = "validate_qs_ids")]
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
+    #[validate(custom = "validate_qs_ids")]
     pub ids: Vec<String>,
 
     // flag, whether to include full bodies (bool)
@@ -734,6 +742,107 @@ impl FromRequest<ServerState> for BsoQueryParams {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
         Ok(params)
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Validate)]
+#[serde(default)]
+pub struct BatchParams {
+    pub batch: Option<String>,
+    #[validate(custom = "validate_qs_commit")]
+    pub commit: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct BatchRequest {
+    pub id: Option<i64>,
+    pub commit: bool,
+}
+
+impl FromRequest<ServerState> for Option<BatchRequest> {
+    type Config = ();
+    type Result = ApiResult<Option<BatchRequest>>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let params = Query::<BatchParams>::from_request(req, &())
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?
+            .into_inner();
+
+        let limits = &req.state().limits;
+        let checks = [
+            ("X-Weave-Records", limits.max_post_records),
+            ("X-Weave-Bytes", limits.max_post_bytes),
+            ("X-Weave-Total-Records", limits.max_total_records),
+            ("X-Weave-Total-Bytes", limits.max_total_bytes),
+        ];
+        for (header, limit) in &checks {
+            let value = match req.headers().get(*header) {
+                Some(value) => value.to_str().map_err(|e| {
+                    let err: ApiError = ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::Header,
+                        Some((*header).to_owned()),
+                    ).into();
+                    err
+                })?,
+                None => continue,
+            };
+            let count = value.parse::<(u32)>().map_err(|_| {
+                    let err: ApiError = ValidationErrorKind::FromDetails(
+                        format!("Invalid integer value: {}", value),
+                        RequestErrorLocation::Header,
+                        Some((*header).to_owned()),
+                    ).into();
+                    err
+                })?;
+            if count > *limit {
+                return Err(ValidationErrorKind::FromDetails(
+                    "size-limit-exceeded".to_owned(),
+                    RequestErrorLocation::Header,
+                    None,
+                ).into())
+            }
+        }
+
+        if params.batch.is_none() && params.commit.is_none() {
+            // No batch options requested
+            return Ok(None);
+        } else if params.batch.is_none() {
+            // commit w/ no batch ID is an error
+            let err: DbError = DbErrorKind::BatchNotFound.into();
+            return Err(err.into());
+        }
+
+        params.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
+        })?;
+
+        let id = match params.batch {
+            None => None,
+            Some(ref batch) if batch == "" || TRUE_REGEX.is_match(batch) => None,
+            Some(ref batch) => {
+                let bytes = base64::decode(batch).unwrap_or(batch.as_bytes().to_vec());
+                let decoded = std::str::from_utf8(&bytes).unwrap_or(batch);
+                Some(decoded.parse::<i64>().map_err(|_| {
+                    ValidationErrorKind::FromDetails(
+                        format!(r#"Invalid batch ID: "{}""#, batch),
+                        RequestErrorLocation::QueryString,
+                        Some("batch".to_owned()),
+                    )
+                })?)
+            }
+        };
+
+        Ok(Some(BatchRequest {
+            id,
+            commit: params.commit.is_some(),
+        }))
     }
 }
 
@@ -844,6 +953,17 @@ fn validate_qs_ids(ids: &Vec<String>) -> Result<(), ValidationError> {
     Ok(())
 }
 
+/// Verifies the batch commit field is valid
+fn validate_qs_commit(commit: &String) -> Result<(), ValidationError> {
+    if !TRUE_REGEX.is_match(commit) {
+        return Err(request_error(
+            r#"commit parameter must be "true" to apply batches"#,
+            RequestErrorLocation::QueryString,
+        ));
+    }
+    Ok(())
+}
+
 /// Verifies the BSO sortindex is in the valid range
 fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
     if BSO_MIN_SORTINDEX_VALUE <= sort && sort <= BSO_MAX_SORTINDEX_VALUE {
@@ -922,8 +1042,8 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::test::TestRequest;
-    use actix_web::HttpResponse;
     use actix_web::{http::Method, Binary, Body};
+    use actix_web::{Error, HttpResponse};
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
@@ -1003,6 +1123,28 @@ mod tests {
             .hash(&payload_hash[..])
             .request();
         format!("Hawk {}", request.make_header(&credentials).unwrap())
+    }
+
+    fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let path = format!(
+            "/storage/1.5/1/storage/tabs{}{}",
+            if !qs.is_empty() { "?" } else { "" },
+            qs
+        );
+        let header = create_valid_hawk_header(&payload, &state, "POST", &path, "localhost", 5000);
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri(&format!("http://localhost:5000{}", path))
+            .set_payload(body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        CollectionPostRequest::extract(&req).wait()
     }
 
     #[test]
@@ -1250,68 +1392,77 @@ mod tests {
 
     #[test]
     fn test_valid_collection_post_request() {
-        let payload = HawkPayload::test_default();
-        let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
         // Batch requests require id's on each BSO
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let req = TestRequest::with_state(state)
-            .header("authorization", header)
-            .header("content-type", "application/json")
-            .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .set_payload(bso_body.to_string())
-            .param("uid", "1")
-            .param("collection", "tabs")
-            .finish();
-        req.extensions_mut().insert(make_db());
-        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        let result = post_collection("", &bso_body).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
+        assert!(result.batch.is_none());
     }
 
     #[test]
     fn test_invalid_collection_post_request() {
-        let payload = HawkPayload::test_default();
-        let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
         // Add extra fields, these will be invalid
         let bso_body = json!([
             {"id": "1", "sortindex": 23, "jump": 1},
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
-        let req = TestRequest::with_state(state)
-            .header("authorization", header)
-            .header("content-type", "application/json")
-            .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .set_payload(bso_body.to_string())
-            .param("uid", "1")
-            .param("collection", "tabs")
-            .finish();
-        req.extensions_mut().insert(make_db());
-        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        let result = post_collection("", &bso_body).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
+    }
+
+    #[test]
+    fn test_valid_collection_batch_post_request() {
+        // If the "batch" parameter is has no value or has a value of "true"
+        // then a new batch will be created.
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("batch=True", &bso_body).unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, None);
+        assert_eq!(batch.commit, false);
+
+        let result = post_collection("batch", &bso_body).unwrap();
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, None);
+        assert_eq!(batch.commit, false);
+
+        let result = post_collection("batch=MTI%3D&commit=true", &bso_body).unwrap();
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, Some(12));
+        assert_eq!(batch.commit, true);
+    }
+
+    #[test]
+    fn test_invalid_collection_batch_post_request() {
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("batch=sammich", &bso_body);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
+
+        let result = post_collection("commit=true", &bso_body);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
     }
 
     #[test]

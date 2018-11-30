@@ -2,10 +2,10 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, FutureResponse, HttpResponse, State};
-use futures::future::{self, Future};
+use futures::future::{self, Either, Future};
 use serde::Serialize;
 
-use db::{params, results::Paginated};
+use db::{params, results::Paginated, DbError, DbErrorKind};
 use error::ApiError;
 use server::ServerState;
 use web::extractors::{
@@ -172,6 +172,9 @@ where
 }
 
 pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpResponse> {
+    if coll.batch.is_some() {
+        return post_collection_batch(coll);
+    }
     Box::new(
         coll.db
             .post_bsos(params::PostBsos {
@@ -186,6 +189,118 @@ pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpRespon
                     .json(result)
             }),
     )
+}
+
+pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<HttpResponse> {
+    // Bail early if we have nonsensical arguments
+    let breq = match coll.batch.clone() {
+        Some(breq) => breq,
+        None => {
+            let err: DbError = DbErrorKind::BatchNotFound.into();
+            let err: ApiError = err.into();
+            return Box::new(future::err(err.into()))
+        },
+    };
+
+    let fut = if let Some(id) = breq.id {
+        // Validate the batch before attempting a full append (for efficiency)
+        Either::A(
+            coll.db
+                .validate_batch(params::ValidateBatch {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    id,
+                }).and_then(move |is_valid| {
+                    if is_valid {
+                        Box::new(future::ok(id))
+                    } else {
+                        let err: DbError = DbErrorKind::BatchNotFound.into();
+                        Box::new(future::err(err.into()))
+                    }
+                }),
+        )
+    } else {
+        Either::B(coll.db.create_batch(params::CreateBatch {
+            user_id: coll.user_id.clone(),
+            collection: coll.collection.clone(),
+            bsos: vec![],
+        })
+        )
+    };
+
+    let db = coll.db.clone();
+    let user_id = coll.user_id.clone();
+    let collection = coll.collection.clone();
+
+    let fut = fut
+        .and_then(move |id| {
+            let mut success = vec![];
+            let mut failed = coll.bsos.invalid.clone();
+            let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
+
+            coll.db
+                .append_to_batch(params::AppendToBatch {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    id,
+                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                })
+                .then(move |result| {
+                    match result {
+                        Ok(_) => success.extend(bso_ids),
+                        Err(e) => {
+                            // NLL: not a guard as: (E0008) "moves value into
+                            // pattern guard"
+                            if e.is_conflict() {
+                                return future::err(e);
+                            }
+                            failed.extend(
+                                bso_ids.into_iter().map(|id| (id, "db error".to_owned())),
+                            )
+                        }
+                    };
+                    future::ok((id, success, failed))
+                })
+        }).map_err(From::from);
+
+    Box::new(fut.and_then(move |(id, success, failed)| {
+        let mut resp = json!({
+            "success": success,
+            "failed": failed,
+        });
+
+        if !breq.commit {
+            resp["batch"] = json!(base64::encode(&id.to_string()));
+            return Either::A(future::ok(HttpResponse::Accepted().json(resp)));
+        }
+
+        let fut = db
+            .get_batch(params::GetBatch {
+                user_id: user_id.clone(),
+                collection: collection.clone(),
+                id,
+            }).and_then(move |batch| {
+                // TODO: validate *actual* sizes of the batch items
+                // (max_total_records, max_total_bytes)
+                if let Some(batch) = batch {
+                    db.commit_batch(params::CommitBatch {
+                        user_id: user_id.clone(),
+                        collection: collection.clone(),
+                        batch,
+                    })
+                } else {
+                    let err: DbError = DbErrorKind::BatchNotFound.into();
+                    Box::new(future::err(err.into()))
+                }
+            }).map_err(From::from)
+            .map(|result| {
+                resp["modified"] = json!(result.modified);
+                HttpResponse::build(StatusCode::OK)
+                    .header("X-Last-Modified", result.modified.as_header())
+                    .json(resp)
+            });
+        Either::B(fut)
+    }))
 }
 
 pub fn delete_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {

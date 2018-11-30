@@ -75,7 +75,7 @@ impl Db for MockDb {
     mock_db_method!(validate_batch, ValidateBatch);
     mock_db_method!(append_to_batch, AppendToBatch);
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
-    mock_db_method!(delete_batch, DeleteBatch);
+    mock_db_method!(commit_batch, CommitBatch);
 }
 
 unsafe impl Send for MockDb {}

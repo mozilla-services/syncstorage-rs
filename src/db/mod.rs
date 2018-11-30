@@ -119,7 +119,7 @@ pub trait Db: Send + Debug {
 
     fn get_batch(&self, params: params::GetBatch) -> DbFuture<Option<results::GetBatch>>;
 
-    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<results::DeleteBatch>;
+    fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<results::CommitBatch>;
 
     fn box_clone(&self) -> Box<dyn Db>;
 

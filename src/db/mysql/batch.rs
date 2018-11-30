@@ -76,7 +76,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
         .optional()?)
 }
 
-pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
+fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     diesel::delete(batches::table)

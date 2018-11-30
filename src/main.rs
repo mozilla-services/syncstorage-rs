@@ -12,7 +12,6 @@ extern crate diesel_logger;
 extern crate diesel_migrations;
 extern crate docopt;
 extern crate env_logger;
-#[macro_use]
 extern crate failure;
 extern crate futures;
 #[macro_use]

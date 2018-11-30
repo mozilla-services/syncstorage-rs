@@ -693,7 +693,6 @@ impl MysqlDb {
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
-    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
@@ -803,7 +802,7 @@ impl Db for MysqlDb {
         GetBatch,
         Option<results::GetBatch>
     );
-    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+    sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 }
 
 #[derive(Debug, QueryableByName)]
