@@ -75,9 +75,14 @@ impl SyncTimestamp {
         SyncTimestamp(val - (val % 10))
     }
 
-    /// Return the timestamp as an i64 milliseconds
+    /// Return the timestamp as an i64 milliseconds since epoch
     pub fn as_i64(&self) -> i64 {
         self.0 as i64
+    }
+
+    /// Return the timestamp as an f64 seconds since epoch
+    pub fn as_seconds(&self) -> f64 {
+        self.0 as f64 / 1000.0
     }
 }
 

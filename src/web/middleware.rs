@@ -6,7 +6,6 @@ use actix_web::{
     middleware::{Middleware, Response, Started},
     FromRequest, HttpRequest, HttpResponse, Result,
 };
-use chrono::Utc;
 use futures::{
     future::{self, Either},
     Future,
@@ -18,7 +17,8 @@ use server::ServerState;
 use web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
-struct DefaultWeaveTimestamp(f64);
+#[derive(Default)]
+struct DefaultWeaveTimestamp(SyncTimestamp);
 
 /// Middleware to set the X-Weave-Timestamp header on all responses.
 pub struct WeaveTimestamp;
@@ -26,18 +26,16 @@ pub struct WeaveTimestamp;
 impl<S> Middleware<S> for WeaveTimestamp {
     /// Set the `DefaultWeaveTimestamp` and attach to the `HttpRequest`
     fn start(&self, req: &HttpRequest<S>) -> Result<Started> {
-        // Get millisecond resolution and convert to seconds
-        let ts = Utc::now().timestamp_millis() as f64 / 1_000.0;
-        req.extensions_mut().insert(DefaultWeaveTimestamp(ts));
+        req.extensions_mut()
+            .insert(DefaultWeaveTimestamp::default());
         Ok(Started::Done)
     }
 
     /// Method is called when handler returns response,
     /// but before sending http message to peer.
     fn response(&self, req: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
-        let extensions = req.extensions();
-        let ts = match extensions.get::<DefaultWeaveTimestamp>() {
-            Some(ts) => ts,
+        let ts = match req.extensions().get::<DefaultWeaveTimestamp>() {
+            Some(ts) => ts.0.as_seconds(),
             None => return Ok(Response::Done(resp)),
         };
 
@@ -58,13 +56,13 @@ impl<S> Middleware<S> for WeaveTimestamp {
                     )).into();
                     error
                 })?;
-            if resp_ts > ts.0 {
+            if resp_ts > ts {
                 resp_ts
             } else {
-                ts.0
+                ts
             }
         } else {
-            ts.0
+            ts
         };
         resp.headers_mut().insert(
             "x-weave-timestamp",
@@ -144,6 +142,9 @@ impl Middleware<ServerState> for DbTransaction {
     }
 }
 
+/// The resource in question's Timestamp
+pub struct ResourceTimestamp(SyncTimestamp);
+
 #[derive(Debug)]
 pub struct PreConditionCheck;
 
@@ -170,7 +171,7 @@ impl Middleware<ServerState> for PreConditionCheck {
             .and_then(move |resource_ts: SyncTimestamp| {
                 // Ensure we stash the extracted resource timestamp on the request in case its
                 // requested elsewhere
-                req.extensions_mut().insert(resource_ts.clone());
+                req.extensions_mut().insert(ResourceTimestamp(resource_ts));
                 let status = match precondition {
                     PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
                         StatusCode::NOT_MODIFIED
@@ -195,7 +196,8 @@ impl Middleware<ServerState> for PreConditionCheck {
         }
 
         // See if we already extracted one and use that if possible
-        if let Some(ts) = req.extensions().get::<SyncTimestamp>() {
+        if let Some(resource_ts) = req.extensions().get::<ResourceTimestamp>() {
+            let ts = resource_ts.0;
             if let Ok(ts_header) = header::HeaderValue::from_str(&ts.as_header()) {
                 resp.headers_mut().insert("X-Last-Modified", ts_header);
             }
@@ -226,6 +228,7 @@ mod tests {
     use super::*;
     use actix_web::http;
     use actix_web::test::TestRequest;
+    use chrono::Utc;
 
     #[test]
     fn test_no_modified_header() {
