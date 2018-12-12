@@ -27,7 +27,8 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             batches::id.eq(&timestamp),
             batches::bsos.eq(&bsos),
             batches::expiry.eq(timestamp + BATCH_LIFETIME),
-        )).execute(&db.conn)?;
+        ))
+        .execute(&db.conn)?;
     Ok(timestamp)
 }
 
@@ -114,7 +115,8 @@ fn batch_string_to_bsos(bsos: &str) -> Result<Vec<params::PostCollectionBso>> {
             serde_json::from_str(line).map_err(|e| {
                 DbError::internal(&format!("Couldn't deserialize batch::load_bsos bso: {}", e))
             })
-        }).collect()
+        })
+        .collect()
 }
 
 /// Serialize bsos into strings separated by newlines
@@ -125,7 +127,8 @@ fn bsos_to_batch_string(bsos: &[params::PostCollectionBso]) -> Result<String> {
             serde_json::to_string(bso).map_err(|e| {
                 DbError::internal(&format!("Couldn't serialize batch::create bso: {}", e))
             })
-        }).collect();
+        })
+        .collect();
     batch_strings.map(|bs| {
         format!(
             "{}{}",

@@ -145,7 +145,8 @@ pub trait Db: Send + Debug {
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
-                    }).or_else(|e| {
+                    })
+                    .or_else(|e| {
                         if e.is_colllection_not_found() {
                             Ok(SyncTimestamp::from_seconds(0f64))
                         } else {
@@ -160,7 +161,8 @@ pub trait Db: Send + Debug {
                 user_id,
                 collection,
                 id: bso,
-            }).or_else(|e| {
+            })
+            .or_else(|e| {
                 if e.is_colllection_not_found() {
                     Ok(SyncTimestamp::from_seconds(0f64))
                 } else {

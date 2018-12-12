@@ -98,12 +98,14 @@ pub fn delete_collection(coll: CollectionRequest) -> FutureResponse<HttpResponse
             } else {
                 Box::new(future::err(e))
             }
-        }).map_err(From::from)
+        })
+        .map_err(From::from)
         .map(move |result| {
             HttpResponse::Ok()
                 .if_true(delete_bsos, |resp| {
                     resp.header("X-Last-Modified", result.as_header());
-                }).json(result)
+                })
+                .json(result)
         }),
     )
 }
@@ -138,13 +140,15 @@ where
             } else {
                 Err(e)
             }
-        }).map_err(From::from)
+        })
+        .map_err(From::from)
         .and_then(|result| {
             coll.db
                 .extract_resource(coll.user_id, Some(coll.collection), None)
                 .map_err(From::from)
                 .map(move |ts| (result, ts))
-        }).map(move |(result, ts)| {
+        })
+        .map(move |(result, ts)| {
             let mut builder = HttpResponse::build(StatusCode::OK);
             let resp = builder
                 .header("X-Last-Modified", ts.as_header())
@@ -182,7 +186,8 @@ pub fn post_collection(coll: CollectionPostRequest) -> FutureResponse<HttpRespon
                 collection: coll.collection,
                 bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
                 failed: coll.bsos.invalid,
-            }).map_err(From::from)
+            })
+            .map_err(From::from)
             .map(|result| {
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Last-Modified", result.modified.as_header())
@@ -198,8 +203,8 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
         None => {
             let err: DbError = DbErrorKind::BatchNotFound.into();
             let err: ApiError = err.into();
-            return Box::new(future::err(err.into()))
-        },
+            return Box::new(future::err(err.into()));
+        }
     };
 
     let fut = if let Some(id) = breq.id {
@@ -210,7 +215,8 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
                     id,
-                }).and_then(move |is_valid| {
+                })
+                .and_then(move |is_valid| {
                     if is_valid {
                         Box::new(future::ok(id))
                     } else {
@@ -224,8 +230,7 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
             bsos: vec![],
-        })
-        )
+        }))
     };
 
     let db = coll.db.clone();
@@ -254,14 +259,13 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
                             if e.is_conflict() {
                                 return future::err(e);
                             }
-                            failed.extend(
-                                bso_ids.into_iter().map(|id| (id, "db error".to_owned())),
-                            )
+                            failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
                         }
                     };
                     future::ok((id, success, failed))
                 })
-        }).map_err(From::from);
+        })
+        .map_err(From::from);
 
     Box::new(fut.and_then(move |(id, success, failed)| {
         let mut resp = json!({
@@ -279,7 +283,8 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
                 user_id: user_id.clone(),
                 collection: collection.clone(),
                 id,
-            }).and_then(move |batch| {
+            })
+            .and_then(move |batch| {
                 // TODO: validate *actual* sizes of the batch items
                 // (max_total_records, max_total_bytes)
                 if let Some(batch) = batch {
@@ -292,7 +297,8 @@ pub fn post_collection_batch(coll: CollectionPostRequest) -> FutureResponse<Http
                     let err: DbError = DbErrorKind::BatchNotFound.into();
                     Box::new(future::err(err.into()))
                 }
-            }).map_err(From::from)
+            })
+            .map_err(From::from)
             .map(|result| {
                 resp["modified"] = json!(result.modified);
                 HttpResponse::build(StatusCode::OK)
@@ -311,7 +317,8 @@ pub fn delete_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
                 user_id: bso_req.user_id,
                 collection: bso_req.collection,
                 id: bso_req.bso,
-            }).map_err(From::from)
+            })
+            .map_err(From::from)
             .map(|result| HttpResponse::Ok().json(json!({ "modified": result }))),
     )
 }
@@ -324,7 +331,8 @@ pub fn get_bso(bso_req: BsoRequest) -> FutureResponse<HttpResponse> {
                 user_id: bso_req.user_id,
                 collection: bso_req.collection,
                 id: bso_req.bso,
-            }).map_err(From::from)
+            })
+            .map_err(From::from)
             .map(|result| {
                 result.map_or_else(
                     || HttpResponse::NotFound().finish(),
@@ -345,7 +353,8 @@ pub fn put_bso(bso_req: BsoPutRequest) -> FutureResponse<HttpResponse> {
                 sortindex: bso_req.body.sortindex,
                 payload: bso_req.body.payload,
                 ttl: bso_req.body.ttl,
-            }).map_err(From::from)
+            })
+            .map_err(From::from)
             .map(|result| {
                 HttpResponse::build(StatusCode::OK)
                     .header("X-Last-Modified", result.as_header())

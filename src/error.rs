@@ -148,7 +148,8 @@ impl ResponseError for ApiError {
         HttpResponse::build(self.status)
             .if_true(self.is_conflict(), |resp| {
                 resp.header("Retry-After", RETRY_AFTER.to_string());
-            }).json(self.weave_error_code() as i32)
+            })
+            .json(self.weave_error_code() as i32)
     }
 }
 

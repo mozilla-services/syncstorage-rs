@@ -106,7 +106,8 @@ impl FromRequest<ServerState> for BsoBodies {
                         "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                    ).into(),
+                    )
+                    .into(),
                 ));
             }
         }
@@ -125,7 +126,8 @@ impl FromRequest<ServerState> for BsoBodies {
                     "Mimetype/encoding/content-length error".to_owned(),
                     RequestErrorLocation::Header,
                     None,
-                ).into(),
+                )
+                .into(),
             ));
         };
 
@@ -135,7 +137,8 @@ impl FromRequest<ServerState> for BsoBodies {
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
                 Some("bsos".to_owned()),
-            ).into()
+            )
+            .into()
         }
 
         // Define a new bool to check from a static closure to release the reference on the
@@ -201,7 +204,8 @@ impl FromRequest<ServerState> for BsoBodies {
                                 "Input BSO has duplicate ID".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                            ).into(),
+                            )
+                            .into(),
                         );
                     } else {
                         bso_ids.push(id.clone());
@@ -213,7 +217,8 @@ impl FromRequest<ServerState> for BsoBodies {
                             "Input BSO has no ID".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                        ).into(),
+                        )
+                        .into(),
                     );
                 };
                 match BatchBsoBody::from_raw_bso(&bso) {
@@ -267,7 +272,8 @@ impl FromRequest<ServerState> for BsoBody {
                         "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                    ).into(),
+                    )
+                    .into(),
                 ));
             }
         }
@@ -282,16 +288,19 @@ impl FromRequest<ServerState> for BsoBody {
                     e.to_string(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
-                ).into();
+                )
+                .into();
                 err.into()
-            }).and_then(move |bso: Json<BsoBody>| {
+            })
+            .and_then(move |bso: Json<BsoBody>| {
                 // Check the max payload size manually with our desired limit
                 if bso.payload.as_ref().map(|s| s.len()).unwrap_or_default() > max_payload_size {
                     let err: ApiError = ValidationErrorKind::FromDetails(
                         "payload too large".to_owned(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                    ).into();
+                    )
+                    .into();
                     return future::err(err.into());
                 }
                 if let Err(e) = bso.validate() {
@@ -330,7 +339,8 @@ impl FromRequest<ServerState> for BsoParam {
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
@@ -362,7 +372,8 @@ impl FromRequest<ServerState> for CollectionParam {
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         collection.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
@@ -426,7 +437,8 @@ impl FromRequest<ServerState> for CollectionRequest {
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
                     Some("accept".to_string()),
-                ).into());
+                )
+                .into());
             }
             None => ReplyFormat::Json,
         };
@@ -472,7 +484,8 @@ impl FromRequest<ServerState> for CollectionPostRequest {
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(&req).and_then(move |(user_id, db, collection, query, mut bsos)| {
+        )>::extract(&req)
+        .and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -484,7 +497,8 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                                     "Known-bad BSO payload".to_owned(),
                                     RequestErrorLocation::Body,
                                     Some("bsos".to_owned()),
-                                ).into(),
+                                )
+                                .into(),
                             );
                         }
                     }
@@ -579,7 +593,8 @@ impl FromRequest<ServerState> for BsoPutRequest {
             BsoQueryParams,
             BsoParam,
             BsoBody,
-        )>::extract(req).and_then(|(user_id, db, collection, query, bso, body)| {
+        )>::extract(req)
+        .and_then(|(user_id, db, collection, query, bso, body)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -590,7 +605,8 @@ impl FromRequest<ServerState> for BsoPutRequest {
                                 "Known-bad BSO payload".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                            ).into(),
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -696,11 +712,11 @@ impl FromRequest<ServerState> for Box<dyn Db> {
 #[serde(default)]
 pub struct BsoQueryParams {
     /// lower-bound on last-modified time
-    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    #[serde(deserialize_with = "deserialize_sync_timestamp")]
     pub newer: Option<SyncTimestamp>,
 
     /// upper-bound on last-modified time
-    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    #[serde(deserialize_with = "deserialize_sync_timestamp")]
     pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
@@ -719,7 +735,7 @@ pub struct BsoQueryParams {
     pub ids: Vec<String>,
 
     // flag, whether to include full bodies (bool)
-    #[serde(deserialize_with = "deserialize_present_value",)]
+    #[serde(deserialize_with = "deserialize_present_value")]
     pub full: bool,
 }
 
@@ -737,7 +753,8 @@ impl FromRequest<ServerState> for BsoQueryParams {
                     RequestErrorLocation::QueryString,
                     None,
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         params.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
@@ -788,25 +805,28 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
                         e.to_string(),
                         RequestErrorLocation::Header,
                         Some((*header).to_owned()),
-                    ).into();
+                    )
+                    .into();
                     err
                 })?,
                 None => continue,
             };
             let count = value.parse::<(u32)>().map_err(|_| {
-                    let err: ApiError = ValidationErrorKind::FromDetails(
-                        format!("Invalid integer value: {}", value),
-                        RequestErrorLocation::Header,
-                        Some((*header).to_owned()),
-                    ).into();
-                    err
-                })?;
+                let err: ApiError = ValidationErrorKind::FromDetails(
+                    format!("Invalid integer value: {}", value),
+                    RequestErrorLocation::Header,
+                    Some((*header).to_owned()),
+                )
+                .into();
+                err
+            })?;
             if count > *limit {
                 return Err(ValidationErrorKind::FromDetails(
                     "size-limit-exceeded".to_owned(),
                     RequestErrorLocation::Header,
                     None,
-                ).into())
+                )
+                .into());
             }
         }
 
@@ -892,16 +912,20 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                     e.to_string(),
                     RequestErrorLocation::Header,
                     Some(field_name.to_owned()),
-                ).into()
-            }).and_then(|v| {
+                )
+                .into()
+            })
+            .and_then(|v| {
                 SyncTimestamp::from_header(v).map_err(|e| {
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::Header,
                         Some(field_name.to_owned()),
-                    ).into()
+                    )
+                    .into()
                 })
-            }).map(|v| {
+            })
+            .map(|v| {
                 let header = if field_name == "X-If-Modified-Since" {
                     PreConditionHeader::IfModifiedSince(v)
                 } else {

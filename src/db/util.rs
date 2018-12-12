@@ -21,11 +21,7 @@ pub fn ms_since_epoch() -> i64 {
 /// Internally represents a Sync timestamp as a u64 representing milliseconds since the epoch.
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Deserialize, Serialize, FromSqlRow)]
 pub struct SyncTimestamp(
-    #[serde(
-        deserialize_with = "deserialize_ts",
-        serialize_with = "serialize_ts"
-    )]
-    u64,
+    #[serde(deserialize_with = "deserialize_ts", serialize_with = "serialize_ts")] u64,
 );
 
 impl SyncTimestamp {
@@ -48,7 +44,8 @@ impl SyncTimestamp {
                 } else {
                     Ok(v)
                 }
-            }).map(|v: f64| (v * 1_000f64) as u64)
+            })
+            .map(|v: f64| (v * 1_000f64) as u64)
             .map(SyncTimestamp::from_milliseconds)
     }
 

@@ -15,27 +15,35 @@ macro_rules! init_routes {
     ($app:expr) => {
         $app.resource("/1.5/{uid}/info/collections", |r| {
             r.method(http::Method::GET).with(handlers::get_collections);
-        }).resource("/1.5/{uid}/info/collection_counts", |r| {
+        })
+        .resource("/1.5/{uid}/info/collection_counts", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_counts);
-        }).resource("/1.5/{uid}/info/collection_usage", |r| {
+        })
+        .resource("/1.5/{uid}/info/collection_usage", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_usage);
-        }).resource("/1.5/{uid}/info/configuration", |r| {
+        })
+        .resource("/1.5/{uid}/info/configuration", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_configuration);
-        }).resource("/1.5/{uid}/info/quota", |r| {
+        })
+        .resource("/1.5/{uid}/info/quota", |r| {
             r.method(http::Method::GET).with(handlers::get_quota);
-        }).resource("/1.5/{uid}", |r| {
+        })
+        .resource("/1.5/{uid}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
-        }).resource("/1.5/{uid}/storage", |r| {
+        })
+        .resource("/1.5/{uid}/storage", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
-        }).resource("/1.5/{uid}/storage/{collection}", |r| {
+        })
+        .resource("/1.5/{uid}/storage/{collection}", |r| {
             r.method(http::Method::DELETE)
                 .with(handlers::delete_collection);
             r.method(http::Method::GET).with(handlers::get_collection);
             r.method(http::Method::POST).with(handlers::post_collection);
-        }).resource("/1.5/{uid}/storage/{collection}/{bso}", |r| {
+        })
+        .resource("/1.5/{uid}/storage/{collection}/{bso}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_bso);
             r.method(http::Method::GET).with(handlers::get_bso);
             r.method(http::Method::PUT).with(handlers::put_bso);
@@ -89,7 +97,8 @@ impl Server {
             };
 
             build_app(state)
-        }).bind(format!("127.0.0.1:{}", settings.port))
+        })
+        .bind(format!("127.0.0.1:{}", settings.port))
         .unwrap()
         .start();
         Ok(sys)
