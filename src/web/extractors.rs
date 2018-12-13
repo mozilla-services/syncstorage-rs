@@ -2,8 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::collections::HashMap;
-use std::str::FromStr;
+use std::{self, collections::HashMap, str::FromStr};
 
 use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::{
@@ -17,7 +16,7 @@ use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use db::{util::SyncTimestamp, Db, Sorting};
+use db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
 use error::{ApiError, ApiResult};
 use server::ServerState;
 use web::{auth::HawkPayload, error::ValidationErrorKind};
@@ -34,6 +33,7 @@ lazy_static! {
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
     static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
     static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
+    static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
 #[derive(Deserialize)]
@@ -106,7 +106,8 @@ impl FromRequest<ServerState> for BsoBodies {
                         "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                    ).into(),
+                    )
+                    .into(),
                 ));
             }
         }
@@ -125,7 +126,8 @@ impl FromRequest<ServerState> for BsoBodies {
                     "Mimetype/encoding/content-length error".to_owned(),
                     RequestErrorLocation::Header,
                     None,
-                ).into(),
+                )
+                .into(),
             ));
         };
 
@@ -135,7 +137,8 @@ impl FromRequest<ServerState> for BsoBodies {
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
                 Some("bsos".to_owned()),
-            ).into()
+            )
+            .into()
         }
 
         // Define a new bool to check from a static closure to release the reference on the
@@ -201,7 +204,8 @@ impl FromRequest<ServerState> for BsoBodies {
                                 "Input BSO has duplicate ID".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                            ).into(),
+                            )
+                            .into(),
                         );
                     } else {
                         bso_ids.push(id.clone());
@@ -213,7 +217,8 @@ impl FromRequest<ServerState> for BsoBodies {
                             "Input BSO has no ID".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                        ).into(),
+                        )
+                        .into(),
                     );
                 };
                 match BatchBsoBody::from_raw_bso(&bso) {
@@ -267,7 +272,8 @@ impl FromRequest<ServerState> for BsoBody {
                         "Invalid Content-Type".to_owned(),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                    ).into(),
+                    )
+                    .into(),
                 ));
             }
         }
@@ -282,16 +288,19 @@ impl FromRequest<ServerState> for BsoBody {
                     e.to_string(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
-                ).into();
+                )
+                .into();
                 err.into()
-            }).and_then(move |bso: Json<BsoBody>| {
+            })
+            .and_then(move |bso: Json<BsoBody>| {
                 // Check the max payload size manually with our desired limit
                 if bso.payload.as_ref().map(|s| s.len()).unwrap_or_default() > max_payload_size {
                     let err: ApiError = ValidationErrorKind::FromDetails(
                         "payload too large".to_owned(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                    ).into();
+                    )
+                    .into();
                     return future::err(err.into());
                 }
                 if let Err(e) = bso.validate() {
@@ -330,7 +339,8 @@ impl FromRequest<ServerState> for BsoParam {
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
@@ -362,7 +372,8 @@ impl FromRequest<ServerState> for CollectionParam {
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         collection.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
@@ -426,7 +437,8 @@ impl FromRequest<ServerState> for CollectionRequest {
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
                     Some("accept".to_string()),
-                ).into());
+                )
+                .into());
             }
             None => ReplyFormat::Json,
         };
@@ -450,6 +462,7 @@ pub struct CollectionPostRequest {
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
+    pub batch: Option<BatchRequest>,
 }
 
 impl FromRequest<ServerState> for CollectionPostRequest {
@@ -463,6 +476,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let req = req.clone();
         let max_post_records = req.state().limits.max_post_records as i64;
         let fut = <(
             HawkIdentifier,
@@ -470,7 +484,8 @@ impl FromRequest<ServerState> for CollectionPostRequest {
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(req).and_then(move |(user_id, db, collection, query, mut bsos)| {
+        )>::extract(&req)
+        .and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -482,7 +497,8 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                                     "Known-bad BSO payload".to_owned(),
                                     RequestErrorLocation::Body,
                                     Some("bsos".to_owned()),
-                                ).into(),
+                                )
+                                .into(),
                             );
                         }
                     }
@@ -499,12 +515,18 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                 }
             }
 
+            let batch = match <Option<BatchRequest>>::extract(&req) {
+                Ok(batch) => batch,
+                Err(e) => return future::err(e.into()),
+            };
+
             future::ok(CollectionPostRequest {
                 collection,
                 db,
                 user_id,
                 query,
                 bsos,
+                batch,
             })
         });
 
@@ -571,7 +593,8 @@ impl FromRequest<ServerState> for BsoPutRequest {
             BsoQueryParams,
             BsoParam,
             BsoBody,
-        )>::extract(req).and_then(|(user_id, db, collection, query, bso, body)| {
+        )>::extract(req)
+        .and_then(|(user_id, db, collection, query, bso, body)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -582,7 +605,8 @@ impl FromRequest<ServerState> for BsoPutRequest {
                                 "Known-bad BSO payload".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                            ).into(),
+                            )
+                            .into(),
                         );
                     }
                 }
@@ -688,11 +712,11 @@ impl FromRequest<ServerState> for Box<dyn Db> {
 #[serde(default)]
 pub struct BsoQueryParams {
     /// lower-bound on last-modified time
-    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    #[serde(deserialize_with = "deserialize_sync_timestamp")]
     pub newer: Option<SyncTimestamp>,
 
     /// upper-bound on last-modified time
-    #[serde(deserialize_with = "deserialize_sync_timestamp",)]
+    #[serde(deserialize_with = "deserialize_sync_timestamp")]
     pub older: Option<SyncTimestamp>,
 
     /// order in which to return results (string)
@@ -706,12 +730,12 @@ pub struct BsoQueryParams {
     pub offset: Option<u64>,
 
     /// a comma-separated list of BSO ids (list of strings)
-    #[validate(custom = "validate_qs_ids")]
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
+    #[validate(custom = "validate_qs_ids")]
     pub ids: Vec<String>,
 
     // flag, whether to include full bodies (bool)
-    #[serde(deserialize_with = "deserialize_present_value",)]
+    #[serde(deserialize_with = "deserialize_present_value")]
     pub full: bool,
 }
 
@@ -729,11 +753,116 @@ impl FromRequest<ServerState> for BsoQueryParams {
                     RequestErrorLocation::QueryString,
                     None,
                 )
-            })?.into_inner();
+            })?
+            .into_inner();
         params.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
         Ok(params)
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Validate)]
+#[serde(default)]
+pub struct BatchParams {
+    pub batch: Option<String>,
+    #[validate(custom = "validate_qs_commit")]
+    pub commit: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct BatchRequest {
+    pub id: Option<i64>,
+    pub commit: bool,
+}
+
+impl FromRequest<ServerState> for Option<BatchRequest> {
+    type Config = ();
+    type Result = ApiResult<Option<BatchRequest>>;
+
+    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+        let params = Query::<BatchParams>::from_request(req, &())
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?
+            .into_inner();
+
+        let limits = &req.state().limits;
+        let checks = [
+            ("X-Weave-Records", limits.max_post_records),
+            ("X-Weave-Bytes", limits.max_post_bytes),
+            ("X-Weave-Total-Records", limits.max_total_records),
+            ("X-Weave-Total-Bytes", limits.max_total_bytes),
+        ];
+        for (header, limit) in &checks {
+            let value = match req.headers().get(*header) {
+                Some(value) => value.to_str().map_err(|e| {
+                    let err: ApiError = ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::Header,
+                        Some((*header).to_owned()),
+                    )
+                    .into();
+                    err
+                })?,
+                None => continue,
+            };
+            let count = value.parse::<(u32)>().map_err(|_| {
+                let err: ApiError = ValidationErrorKind::FromDetails(
+                    format!("Invalid integer value: {}", value),
+                    RequestErrorLocation::Header,
+                    Some((*header).to_owned()),
+                )
+                .into();
+                err
+            })?;
+            if count > *limit {
+                return Err(ValidationErrorKind::FromDetails(
+                    "size-limit-exceeded".to_owned(),
+                    RequestErrorLocation::Header,
+                    None,
+                )
+                .into());
+            }
+        }
+
+        if params.batch.is_none() && params.commit.is_none() {
+            // No batch options requested
+            return Ok(None);
+        } else if params.batch.is_none() {
+            // commit w/ no batch ID is an error
+            let err: DbError = DbErrorKind::BatchNotFound.into();
+            return Err(err.into());
+        }
+
+        params.validate().map_err(|e| {
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
+        })?;
+
+        let id = match params.batch {
+            None => None,
+            Some(ref batch) if batch == "" || TRUE_REGEX.is_match(batch) => None,
+            Some(ref batch) => {
+                let bytes = base64::decode(batch).unwrap_or(batch.as_bytes().to_vec());
+                let decoded = std::str::from_utf8(&bytes).unwrap_or(batch);
+                Some(decoded.parse::<i64>().map_err(|_| {
+                    ValidationErrorKind::FromDetails(
+                        format!(r#"Invalid batch ID: "{}""#, batch),
+                        RequestErrorLocation::QueryString,
+                        Some("batch".to_owned()),
+                    )
+                })?)
+            }
+        };
+
+        Ok(Some(BatchRequest {
+            id,
+            commit: params.commit.is_some(),
+        }))
     }
 }
 
@@ -783,16 +912,20 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                     e.to_string(),
                     RequestErrorLocation::Header,
                     Some(field_name.to_owned()),
-                ).into()
-            }).and_then(|v| {
+                )
+                .into()
+            })
+            .and_then(|v| {
                 SyncTimestamp::from_header(v).map_err(|e| {
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::Header,
                         Some(field_name.to_owned()),
-                    ).into()
+                    )
+                    .into()
                 })
-            }).map(|v| {
+            })
+            .map(|v| {
                 let header = if field_name == "X-If-Modified-Since" {
                     PreConditionHeader::IfModifiedSince(v)
                 } else {
@@ -840,6 +973,17 @@ fn validate_qs_ids(ids: &Vec<String>) -> Result<(), ValidationError> {
                 RequestErrorLocation::QueryString,
             ));
         }
+    }
+    Ok(())
+}
+
+/// Verifies the batch commit field is valid
+fn validate_qs_commit(commit: &String) -> Result<(), ValidationError> {
+    if !TRUE_REGEX.is_match(commit) {
+        return Err(request_error(
+            r#"commit parameter must be "true" to apply batches"#,
+            RequestErrorLocation::QueryString,
+        ));
     }
     Ok(())
 }
@@ -922,8 +1066,8 @@ mod tests {
     use std::sync::Arc;
 
     use actix_web::test::TestRequest;
-    use actix_web::HttpResponse;
     use actix_web::{http::Method, Binary, Body};
+    use actix_web::{Error, HttpResponse};
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
@@ -1003,6 +1147,28 @@ mod tests {
             .hash(&payload_hash[..])
             .request();
         format!("Hawk {}", request.make_header(&credentials).unwrap())
+    }
+
+    fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
+        let payload = HawkPayload::test_default();
+        let state = make_state();
+        let path = format!(
+            "/storage/1.5/1/storage/tabs{}{}",
+            if !qs.is_empty() { "?" } else { "" },
+            qs
+        );
+        let header = create_valid_hawk_header(&payload, &state, "POST", &path, "localhost", 5000);
+        let req = TestRequest::with_state(state)
+            .header("authorization", header)
+            .header("content-type", "application/json")
+            .method(Method::POST)
+            .uri(&format!("http://localhost:5000{}", path))
+            .set_payload(body.to_string())
+            .param("uid", "1")
+            .param("collection", "tabs")
+            .finish();
+        req.extensions_mut().insert(make_db());
+        CollectionPostRequest::extract(&req).wait()
     }
 
     #[test]
@@ -1250,68 +1416,77 @@ mod tests {
 
     #[test]
     fn test_valid_collection_post_request() {
-        let payload = HawkPayload::test_default();
-        let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
         // Batch requests require id's on each BSO
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let req = TestRequest::with_state(state)
-            .header("authorization", header)
-            .header("content-type", "application/json")
-            .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .set_payload(bso_body.to_string())
-            .param("uid", "1")
-            .param("collection", "tabs")
-            .finish();
-        req.extensions_mut().insert(make_db());
-        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        let result = post_collection("", &bso_body).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
+        assert!(result.batch.is_none());
     }
 
     #[test]
     fn test_invalid_collection_post_request() {
-        let payload = HawkPayload::test_default();
-        let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
         // Add extra fields, these will be invalid
         let bso_body = json!([
             {"id": "1", "sortindex": 23, "jump": 1},
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
-        let req = TestRequest::with_state(state)
-            .header("authorization", header)
-            .header("content-type", "application/json")
-            .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .set_payload(bso_body.to_string())
-            .param("uid", "1")
-            .param("collection", "tabs")
-            .finish();
-        req.extensions_mut().insert(make_db());
-        let result = CollectionPostRequest::extract(&req).wait().unwrap();
+        let result = post_collection("", &bso_body).unwrap();
         assert_eq!(result.user_id.legacy_id, 1);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
+    }
+
+    #[test]
+    fn test_valid_collection_batch_post_request() {
+        // If the "batch" parameter is has no value or has a value of "true"
+        // then a new batch will be created.
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("batch=True", &bso_body).unwrap();
+        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, None);
+        assert_eq!(batch.commit, false);
+
+        let result = post_collection("batch", &bso_body).unwrap();
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, None);
+        assert_eq!(batch.commit, false);
+
+        let result = post_collection("batch=MTI%3D&commit=true", &bso_body).unwrap();
+        let batch = result.batch.unwrap();
+        assert_eq!(batch.id, Some(12));
+        assert_eq!(batch.commit, true);
+    }
+
+    #[test]
+    fn test_invalid_collection_batch_post_request() {
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("batch=sammich", &bso_body);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
+
+        let result = post_collection("commit=true", &bso_body);
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(&response);
+        assert_eq!(body, "0");
     }
 
     #[test]

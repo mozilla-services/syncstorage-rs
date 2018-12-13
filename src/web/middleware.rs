@@ -46,14 +46,17 @@ impl<S> Middleware<S> for WeaveTimestamp {
                     let error: ApiError = ApiErrorKind::Internal(format!(
                         "Invalid X-Last-Modified response header: {}",
                         e
-                    )).into();
+                    ))
+                    .into();
                     error
-                })?.parse::<f64>()
+                })?
+                .parse::<f64>()
                 .map_err(|e| {
                     let error: ApiError = ApiErrorKind::Internal(format!(
                         "Invalid X-Last-Modified response header: {}",
                         e
-                    )).into();
+                    ))
+                    .into();
                     error
                 })?;
             if resp_ts > ts {
@@ -70,7 +73,8 @@ impl<S> Middleware<S> for WeaveTimestamp {
                 let error: ApiError = ApiErrorKind::Internal(format!(
                     "Invalid X-Weave-Timestamp response header: {}",
                     e
-                )).into();
+                ))
+                .into();
                 error
             })?,
         );
@@ -108,7 +112,8 @@ impl Middleware<ServerState> for DbTransaction {
                         match *req.method() {
                             Method::GET | Method::HEAD => db.lock_for_read(lc),
                             _ => db.lock_for_write(lc),
-                        }.or_else(move |e| {
+                        }
+                        .or_else(move |e| {
                             // Middleware::response won't be called: rollback immediately
                             db2.rollback().and_then(|_| future::err(e))
                         }),
@@ -123,7 +128,8 @@ impl Middleware<ServerState> for DbTransaction {
                     req.extensions_mut().insert((db, in_transaction));
                     future::ok(None)
                 })
-            }).map_err(Into::into);
+            })
+            .map_err(Into::into);
         Ok(Started::Future(Box::new(fut)))
     }
 
@@ -185,7 +191,8 @@ impl Middleware<ServerState> for PreConditionCheck {
                     .header("X-Last-Modified", resource_ts.as_header())
                     .body(""); // 304 can't return any content
                 future::ok(Some(resp))
-            }).map_err(Into::into);
+            })
+            .map_err(Into::into);
         Ok(Started::Future(Box::new(fut)))
     }
 
@@ -218,7 +225,8 @@ impl Middleware<ServerState> for PreConditionCheck {
                     resp.headers_mut().insert("X-Last-Modified", ts_header);
                 }
                 future::ok(resp)
-            }).map_err(Into::into);
+            })
+            .map_err(Into::into);
         Ok(Response::Future(Box::new(fut)))
     }
 }

@@ -362,7 +362,8 @@ impl MysqlDb {
                         bso::payload.eq(payload),
                         bso::modified.eq(timestamp),
                         bso::expiry.eq(timestamp + (ttl as i64 * 1000)),
-                    )).execute(&self.conn)?;
+                    ))
+                    .execute(&self.conn)?;
             }
             self.touch_collection(user_id as u32, collection_id)
         })
@@ -388,7 +389,8 @@ impl MysqlDb {
                 bso::payload,
                 bso::sortindex,
                 bso::expiry,
-            )).filter(bso::user_id.eq(user_id))
+            ))
+            .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .into_boxed();
@@ -461,7 +463,8 @@ impl MysqlDb {
                 bso::payload,
                 bso::sortindex,
                 bso::expiry,
-            )).filter(bso::user_id.eq(user_id as i32))
+            ))
+            .filter(bso::user_id.eq(user_id as i32))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&params.id))
             .filter(bso::expiry.ge(self.timestamp().as_i64()))
@@ -584,7 +587,8 @@ impl MysqlDb {
                 .into_iter()
                 .map(|cr| {
                     SyncTimestamp::from_i64(cr.modified).and_then(|ts| Ok((cr.collection_id, ts)))
-                }).collect::<Result<HashMap<_, _>>>()?;
+                })
+                .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
 
@@ -597,7 +601,8 @@ impl MysqlDb {
                     .remove(&id)
                     .map(|name| (name, value))
                     .ok_or_else(|| DbError::internal("load_collection_names get"))
-            }).collect()
+            })
+            .collect()
     }
 
     fn load_collection_names<'a>(
@@ -693,7 +698,6 @@ impl MysqlDb {
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
-    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
@@ -803,7 +807,7 @@ impl Db for MysqlDb {
         GetBatch,
         Option<results::GetBatch>
     );
-    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+    sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 }
 
 #[derive(Debug, QueryableByName)]

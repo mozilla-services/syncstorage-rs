@@ -64,7 +64,8 @@ fn create_request(server: &TestServer, method: http::Method, path: &str) -> Clie
         .set_header(
             "Authorization",
             create_hawk_header(method.as_str(), server.addr().port(), path),
-        ).finish()
+        )
+        .finish()
         .unwrap()
 }
 
@@ -291,13 +292,15 @@ fn invalid_content_type() {
                 server.addr().port(),
                 "/1.5/42/storage/bookmarks/wibble",
             ),
-        ).set_header("Content-Type", "application/javascript")
+        )
+        .set_header("Content-Type", "application/javascript")
         .json(BsoBody {
             id: Some("wibble".to_string()),
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31536000),
-        }).unwrap();
+        })
+        .unwrap();
 
     let response = server.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
@@ -307,13 +310,15 @@ fn invalid_content_type() {
         .set_header(
             "Authorization",
             create_hawk_header("POST", server.addr().port(), "/1.5/42/storage/bookmarks"),
-        ).set_header("Content-Type", "application/javascript")
+        )
+        .set_header("Content-Type", "application/javascript")
         .json(json!([BsoBody {
             id: Some("wibble".to_string()),
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31536000),
-        }])).unwrap();
+        }]))
+        .unwrap();
 
     let response = server.execute(request.send()).unwrap();
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
