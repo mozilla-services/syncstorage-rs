@@ -1,5 +1,5 @@
 //! Error types for `web` modules.
-
+#![allow(clippy::single_match)]
 use std::fmt;
 
 use actix_web::http::{header::ToStrError, StatusCode};

@@ -49,7 +49,7 @@ impl MysqlDbPool {
     }
 
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.as_ref());
+        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
         #[cfg(test)]

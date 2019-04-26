@@ -93,7 +93,7 @@ impl Server {
                 db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
-                port: port,
+                port,
             };
 
             build_app(state)

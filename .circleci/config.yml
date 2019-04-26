@@ -1,0 +1,142 @@
+# These environment variables must be set in CircleCI UI
+#
+# DOCKERHUB_REPO - docker hub repo, format: <username>/<repo>
+# DOCKER_USER    - login info for docker hub
+# DOCKER_PASS
+#
+version: 2.1
+commands:
+  rust-setup:
+    steps:
+      - run:
+          name: Setup Rust
+          command: |
+            rustup install stable
+            rustup default stable
+            rustup update
+            rustup component add rustfmt
+            cargo install cargo-audit
+            rustc --version
+  rust-check:
+    steps:
+      - run:
+          name: Check rust core
+          command: |
+            cargo audit
+            cargo fmt -- --check
+  rust-clippy:
+    steps:
+      - run:
+          name: Rust Clippy
+          command: |
+            rustup component add clippy
+            cargo clippy --all -- -D warnings
+  build-version:
+    steps:
+      - run:
+          name: Create a version.json
+          command: |
+            # create a version.json per https://github.com/mozilla-services/Dockerflow/blob/master/docs/version_object.md
+            printf '{"commit":"%s","version":"%s","source":"https://github.com/%s/%s","build":"%s"}\n' \
+            "$CIRCLE_SHA1" \
+            "$CIRCLE_TAG" \
+            "$CIRCLE_PROJECT_USERNAME" \
+            "$CIRCLE_PROJECT_REPONAME" \
+            "$CIRCLE_BUILD_URL" > channelserver/version.json
+jobs:
+  test:
+    docker:
+      - image: circleci/rust:latest
+    steps:
+      - checkout
+      - rust-setup
+      - rust-check
+  build:
+    docker:
+      - image: docker:18.02.0-ce
+    working_directory: /dockerflow
+    steps:
+      # workaround circleci's fallback git's "object not found" error w/ tag
+      # builds
+      - run:
+          name: Install Docker build dependencies
+          command: apk add --no-cache openssh-client git
+
+      - checkout
+      - setup_remote_docker
+      - build-version
+
+      - run:
+          name: Build Docker image
+          command: docker build -t app:build .
+
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: mkdir -p /cache; docker save -o /cache/docker.tar "app:build"
+      - save_cache:
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          paths:
+            - /cache/docker.tar
+
+
+  deploy:
+    docker:
+      - image: docker:18.02.0-ce
+    steps:
+      - setup_remote_docker
+      - restore_cache:
+          key: v1-{{.Branch}}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /cache/docker.tar
+
+      - run:
+          name: Deploy to Dockerhub
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              DOCKER_TAG="latest"
+            fi
+
+            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+              DOCKER_TAG="${CIRCLE_BRANCH}"
+            fi
+
+            if [ -n "${CIRCLE_TAG}" ]; then
+              DOCKER_TAG="$CIRCLE_TAG"
+            fi
+
+            if [ -n "${DOCKER_TAG}" ]; then
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker images
+              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
+            else
+              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+            fi
+
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /.*/
+      # Build a docker deploy image
+      #- build:
+      #    filters:
+      #      tags:
+      #        only: /.*/
+
+      # Need to update https://circleci.com/gh/mozilla-services/syncstorage-rs/edit#env-vars
+      # with docker hub credentials. before enabling this.
+      #- deploy:
+      #    requires:
+      #      - build
+      #    filters:
+      #      tags:
+      #        only: /.*/
+

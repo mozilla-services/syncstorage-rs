@@ -56,19 +56,28 @@ impl Settings {
         // Set our defaults, this can be fixed up drastically later after:
         // https://github.com/mehcode/config-rs/issues/60
         s.set_default("debug", false)?;
-        s.set_default("port", DEFAULT_PORT as i64)?;
+        s.set_default("port", i64::from(DEFAULT_PORT))?;
         #[cfg(test)]
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
-        s.set_default("limits.max_post_bytes", DEFAULT_MAX_POST_BYTES as i64)?;
-        s.set_default("limits.max_post_records", DEFAULT_MAX_POST_RECORDS as i64)?;
+        s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
+        s.set_default(
+            "limits.max_post_records",
+            i64::from(DEFAULT_MAX_POST_RECORDS),
+        )?;
         s.set_default(
             "limits.max_record_payload_bytes",
-            DEFAULT_MAX_RECORD_PAYLOAD_BYTES as i64,
+            i64::from(DEFAULT_MAX_RECORD_PAYLOAD_BYTES),
         )?;
-        s.set_default("limits.max_request_bytes", DEFAULT_MAX_REQUEST_BYTES as i64)?;
-        s.set_default("limits.max_total_bytes", DEFAULT_MAX_TOTAL_BYTES as i64)?;
-        s.set_default("limits.max_total_records", DEFAULT_MAX_TOTAL_RECORDS as i64)?;
+        s.set_default(
+            "limits.max_request_bytes",
+            i64::from(DEFAULT_MAX_REQUEST_BYTES),
+        )?;
+        s.set_default("limits.max_total_bytes", i64::from(DEFAULT_MAX_TOTAL_BYTES))?;
+        s.set_default(
+            "limits.max_total_records",
+            i64::from(DEFAULT_MAX_TOTAL_RECORDS),
+        )?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
