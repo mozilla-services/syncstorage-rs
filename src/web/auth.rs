@@ -147,12 +147,10 @@ impl FromRequest<ServerState> for HawkPayload {
                     None,
                 )
             })?
+        } else if ci.scheme() == "https" {
+            443
         } else {
-            if ci.scheme() == "https" {
-                443
-            } else {
-                80
-            }
+            80
         };
 
         HawkPayload::new(

@@ -50,7 +50,7 @@ pub mod server;
 pub mod settings;
 pub mod web;
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 Usage: syncstorage [options]
 
 Options:

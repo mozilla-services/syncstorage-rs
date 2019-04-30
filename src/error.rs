@@ -1,5 +1,5 @@
 //! Error types and macros.
-
+#![allow(clippy::single_match)]
 use std::fmt;
 
 use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
@@ -103,7 +103,7 @@ impl ApiError {
                     if description == "size-limit-exceeded" {
                         return WeaveError::SizeLimitExceeded;
                     }
-                    let name = name.clone().unwrap_or("".to_owned());
+                    let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if *location == RequestErrorLocation::Body
                         && ["bso", "bsos"].contains(&name.as_str())
                     {

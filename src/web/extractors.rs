@@ -24,9 +24,9 @@ use web::{auth::HawkPayload, error::ValidationErrorKind};
 const BATCH_MAX_IDS: usize = 100;
 
 // BSO const restrictions
-const BSO_MAX_TTL: u32 = 31536000;
-const BSO_MAX_SORTINDEX_VALUE: i32 = 999999999;
-const BSO_MIN_SORTINDEX_VALUE: i32 = -999999999;
+const BSO_MAX_TTL: u32 = 31_536_000;
+const BSO_MAX_SORTINDEX_VALUE: i32 = 999_999_999;
+const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
@@ -167,13 +167,11 @@ impl FromRequest<ServerState> for BsoBodies {
                     }
                 }
                 bsos
+            } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
+                json_vals
             } else {
-                if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
-                    json_vals
-                } else {
-                    // Per Python version, BSO's must json deserialize
-                    return future::err(make_error());
-                }
+                // Per Python version, BSO's must json deserialize
+                return future::err(make_error());
             };
 
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
@@ -196,7 +194,7 @@ impl FromRequest<ServerState> for BsoBodies {
                     return future::err(make_error());
                 }
                 // Save all id's we get, check for missing id, or duplicate.
-                let bso_id = if let Some(id) = bso.get("id").and_then(|s| s.as_str()) {
+                let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
                     let id = id.to_string();
                     if bso_ids.contains(&id) {
                         return future::err(
@@ -224,7 +222,11 @@ impl FromRequest<ServerState> for BsoBodies {
                 match BatchBsoBody::from_raw_bso(&bso) {
                     Ok(b) => {
                         // Is this record too large? Deny if it is.
-                        let payload_size = b.payload.as_ref().map(|v| v.len()).unwrap_or_default();
+                        let payload_size = b
+                            .payload
+                            .as_ref()
+                            .map(std::string::String::len)
+                            .unwrap_or_default();
                         total_payload_size += payload_size;
                         if payload_size <= max_payload_size && total_payload_size <= max_post_bytes
                         {
@@ -294,7 +296,13 @@ impl FromRequest<ServerState> for BsoBody {
             })
             .and_then(move |bso: Json<BsoBody>| {
                 // Check the max payload size manually with our desired limit
-                if bso.payload.as_ref().map(|s| s.len()).unwrap_or_default() > max_payload_size {
+                if bso
+                    .payload
+                    .as_ref()
+                    .map(std::string::String::len)
+                    .unwrap_or_default()
+                    > max_payload_size
+                {
                     let err: ApiError = ValidationErrorKind::FromDetails(
                         "payload too large".to_owned(),
                         RequestErrorLocation::Body,
@@ -477,7 +485,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         let req = req.clone();
-        let max_post_records = req.state().limits.max_post_records as i64;
+        let max_post_records = i64::from(req.state().limits.max_post_records);
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
@@ -746,15 +754,16 @@ impl FromRequest<ServerState> for BsoQueryParams {
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         // TODO: serde deserialize the query ourselves to catch the serde error nicely
-        let params = Query::<BsoQueryParams>::from_request(req, &())
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::QueryString,
-                    None,
-                )
-            })?
-            .into_inner();
+        let params =
+            Query::<BsoQueryParams>::from_request(req, &actix_web::dev::QueryConfig::default())
+                .map_err(|e| {
+                    ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::QueryString,
+                        None,
+                    )
+                })?
+                .into_inner();
         params.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
@@ -781,15 +790,16 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
     type Result = ApiResult<Option<BatchRequest>>;
 
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        let params = Query::<BatchParams>::from_request(req, &())
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::QueryString,
-                    None,
-                )
-            })?
-            .into_inner();
+        let params =
+            Query::<BatchParams>::from_request(req, &actix_web::dev::QueryConfig::default())
+                .map_err(|e| {
+                    ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::QueryString,
+                        None,
+                    )
+                })?
+                .into_inner();
 
         let limits = &req.state().limits;
         let checks = [
@@ -847,7 +857,7 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
             None => None,
             Some(ref batch) if batch == "" || TRUE_REGEX.is_match(batch) => None,
             Some(ref batch) => {
-                let bytes = base64::decode(batch).unwrap_or(batch.as_bytes().to_vec());
+                let bytes = base64::decode(batch).unwrap_or_else(|_| batch.as_bytes().to_vec());
                 let decoded = std::str::from_utf8(&bytes).unwrap_or(batch);
                 Some(decoded.parse::<i64>().map_err(|_| {
                     ValidationErrorKind::FromDetails(
@@ -959,15 +969,15 @@ fn request_error(message: &'static str, location: RequestErrorLocation) -> Valid
 }
 
 /// Verifies that the list of id's is not too long and that the ids are valid
-fn validate_qs_ids(ids: &Vec<String>) -> Result<(), ValidationError> {
+fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
     if ids.len() > BATCH_MAX_IDS {
         return Err(request_error(
             "Too many ids provided",
             RequestErrorLocation::QueryString,
         ));
     }
-    for ref id in ids {
-        if !VALID_ID_REGEX.is_match(id) {
+    for id in ids {
+        if !VALID_ID_REGEX.is_match(&id) {
             return Err(request_error(
                 "Invalid id in ids",
                 RequestErrorLocation::QueryString,
@@ -978,7 +988,7 @@ fn validate_qs_ids(ids: &Vec<String>) -> Result<(), ValidationError> {
 }
 
 /// Verifies the batch commit field is valid
-fn validate_qs_commit(commit: &String) -> Result<(), ValidationError> {
+fn validate_qs_commit(commit: &str) -> Result<(), ValidationError> {
     if !TRUE_REGEX.is_match(commit) {
         return Err(request_error(
             r#"commit parameter must be "true" to apply batches"#,
@@ -998,7 +1008,7 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
 }
 
 /// Verifies the BSO id string is valid
-fn validate_body_bso_id(id: &String) -> Result<(), ValidationError> {
+fn validate_body_bso_id(id: &str) -> Result<(), ValidationError> {
     if !VALID_ID_REGEX.is_match(id) {
         return Err(request_error("Invalid id", RequestErrorLocation::Body));
     }
@@ -1021,7 +1031,7 @@ where
 {
     let str: String = Deserialize::deserialize(deserializer)?;
     let lst: Vec<String> = str
-        .split(",")
+        .split(',')
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
@@ -1051,7 +1061,7 @@ where
 {
     let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
     if let Some(val) = maybe_str {
-        let result = SyncTimestamp::from_header(&val).map_err(|e| SerdeError::custom(e))?;
+        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom)?;
         Ok(Some(result))
     } else {
         Ok(None)

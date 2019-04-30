@@ -38,7 +38,7 @@ pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
-pub const DEFAULT_BSO_TTL: u32 = 2100000000;
+pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -143,11 +143,12 @@ impl MysqlDb {
                 })?;
         // If we already have a read or write lock then it's safe to
         // use it as-is.
-        if let Some(_) = self
+        if self
             .session
             .borrow()
             .coll_locks
             .get(&(user_id, collection_id))
+            .is_some()
         {
             return Ok(());
         }
@@ -413,7 +414,7 @@ impl MysqlDb {
             _ => query,
         };
 
-        let limit = limit.map(|limit| limit as i64).unwrap_or(-1);
+        let limit = limit.map(|limit| i64::from(limit)).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
@@ -559,7 +560,7 @@ impl MysqlDb {
             .filter(user_collections::collection_id.eq(collection_id))
             .first(&self.conn)
             .optional()?
-            .ok_or(DbErrorKind::CollectionNotFound.into())
+            .ok_or_else(|| DbErrorKind::CollectionNotFound.into())
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
@@ -847,7 +848,7 @@ struct UpdateBSO<'a> {
     pub expiry: Option<i64>,
 }
 
-fn put_bso_as_changeset<'a>(bso: &'a params::PutBso, modified: i64) -> UpdateBSO<'a> {
+fn put_bso_as_changeset(bso: &params::PutBso, modified: i64) -> UpdateBSO {
     UpdateBSO {
         sortindex: bso.sortindex,
         expiry: bso.ttl.map(|ttl| modified + (ttl as i64 * 1000)),

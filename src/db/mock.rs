@@ -1,5 +1,5 @@
 //! Mock db implementation with methods stubbed to return default values.
-
+#![allow(clippy::new_without_default)]
 use futures::future;
 
 use super::*;
