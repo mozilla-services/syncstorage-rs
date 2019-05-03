@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use actix::{System, SystemRunner};
-use actix_web::{http, middleware::cors::Cors, server::HttpServer, App};
+use actix_web::{http, middleware::cors::Cors, server::HttpServer, App, HttpResponse};
 //use num_cpus;
 
 use db::{mysql::MysqlDbPool, DbError, DbPool};
@@ -13,37 +13,37 @@ use web::middleware;
 
 macro_rules! init_routes {
     ($app:expr) => {
-        $app.resource("/1.5/{uid}/info/collections", |r| {
+        $app.resource("/{uid}/info/collections", |r| {
             r.method(http::Method::GET).with(handlers::get_collections);
         })
-        .resource("/1.5/{uid}/info/collection_counts", |r| {
+        .resource("/{uid}/info/collection_counts", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_counts);
         })
-        .resource("/1.5/{uid}/info/collection_usage", |r| {
+        .resource("/{uid}/info/collection_usage", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_collection_usage);
         })
-        .resource("/1.5/{uid}/info/configuration", |r| {
+        .resource("/{uid}/info/configuration", |r| {
             r.method(http::Method::GET)
                 .with(handlers::get_configuration);
         })
-        .resource("/1.5/{uid}/info/quota", |r| {
+        .resource("/{uid}/info/quota", |r| {
             r.method(http::Method::GET).with(handlers::get_quota);
         })
-        .resource("/1.5/{uid}", |r| {
+        .resource("/{uid}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
         })
-        .resource("/1.5/{uid}/storage", |r| {
+        .resource("/{uid}/storage", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_all);
         })
-        .resource("/1.5/{uid}/storage/{collection}", |r| {
+        .resource("/{uid}/storage/{collection}", |r| {
             r.method(http::Method::DELETE)
                 .with(handlers::delete_collection);
             r.method(http::Method::GET).with(handlers::get_collection);
             r.method(http::Method::POST).with(handlers::post_collection);
         })
-        .resource("/1.5/{uid}/storage/{collection}/{bso}", |r| {
+        .resource("/{uid}/storage/{collection}/{bso}", |r| {
             r.method(http::Method::DELETE).with(handlers::delete_bso);
             r.method(http::Method::GET).with(handlers::get_bso);
             r.method(http::Method::PUT).with(handlers::put_bso);
@@ -71,10 +71,41 @@ pub struct ServerState {
 
 pub fn build_app(state: ServerState) -> App<ServerState> {
     App::with_state(state)
+        .prefix("/1.5")
         .middleware(middleware::WeaveTimestamp)
         .middleware(middleware::DbTransaction)
         .middleware(middleware::PreConditionCheck)
         .configure(|app| init_routes!(Cors::for_app(app)).register())
+}
+
+pub fn build_dockerflow(state: ServerState) -> App<ServerState> {
+    App::with_state(state)
+        // Handle the resource that don't need to go through middleware
+        .resource("/__heartbeat__", |r| {
+            // if addidtional information is desired, point to an appropriate handler.
+            r.method(http::Method::GET).f(|_| {
+                let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body(body.to_string())
+            });
+        })
+        .resource("/__lbheartbeat__", |r| {
+            // used by the load balancers, just return OK.
+            r.method(http::Method::GET).f(|_| {
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body("{}")
+            });
+        })
+        .resource("/__version__", |r| {
+            // return the contents of the version.json file created by circleci and stored in the docker root
+            r.method(http::Method::GET).f(|_| {
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body(include_str!("../../version.json"))
+            });
+        })
 }
 
 pub struct Server {}
@@ -96,7 +127,14 @@ impl Server {
                 port,
             };
 
-            build_app(state)
+            let dfstate = ServerState {
+                db_pool: db_pool.clone(),
+                limits: Arc::clone(&limits),
+                secrets: Arc::clone(&secrets),
+                port,
+            };
+
+            vec![build_app(state), build_dockerflow(dfstate)]
         })
         .bind(format!("127.0.0.1:{}", settings.port))
         .unwrap()
