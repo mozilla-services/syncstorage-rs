@@ -6,7 +6,7 @@
 #
 version: 2.1
 commands:
-  rust-setup:
+  setup-rust:
     steps:
       - run:
           name: Setup Rust
@@ -14,13 +14,19 @@ commands:
             rustup install stable
             rustup default stable
             rustup update
+            rustc --version
+  setup-rust-check:
+    steps:
+      - run:
+          name: Setup Rust checks
+          command: |
             rustup component add rustfmt
             cargo install cargo-audit
-            rustc --version
+            #rustup component add clippy
   rust-check:
     steps:
       - run:
-          name: Check rust core
+          name: Core Rust Checks
           command: |
             cargo audit
             cargo fmt -- --check
@@ -29,9 +35,14 @@ commands:
       - run:
           name: Rust Clippy
           command: |
-            rustup component add clippy
             cargo clippy --all -- -D warnings
-  build-version:
+  cargo-build:
+    steps:
+      - run:
+          name: cargo build
+          command: cargo build
+
+  write-version:
     steps:
       - run:
           name: Create a version.json
@@ -42,44 +53,120 @@ commands:
             "$CIRCLE_TAG" \
             "$CIRCLE_PROJECT_USERNAME" \
             "$CIRCLE_PROJECT_REPONAME" \
-            "$CIRCLE_BUILD_URL" > channelserver/version.json
+            "$CIRCLE_BUILD_URL" > version.json
+
+  run-tests:
+    steps:
+      - run:
+          name: cargo test
+          command: cargo test --all --verbose
+
+  run-e2e-tests:
+    steps:
+      - run:
+          name: e2e tests
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.yaml
+               -f docker-compose.e2e.yaml
+               up
+               --exit-code-from server-syncstorage
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
+
+  setup-sccache:
+    steps:
+      - run:
+          name: Install sccache
+          command: |
+            cargo install sccache
+            # This configures Rust to use sccache.
+            echo 'export "RUSTC_WRAPPER"="sccache"' >> $BASH_ENV
+            # This is the maximum space sccache cache will use on disk.
+            echo 'export "SCCACHE_CACHE_SIZE"="1G"' >> $BASH_ENV
+            sccache --version
+  restore-sccache-cache:
+    steps:
+      - restore_cache:
+          name: Restore sccache cache
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+  save-sccache-cache:
+    steps:
+      - save_cache:
+          name: Save sccache cache
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          paths:
+            - "~/.cache/sccache"
 jobs:
-  test:
+  checks:
     docker:
       - image: circleci/rust:latest
     steps:
       - checkout
-      - rust-setup
+      - setup-rust
+      - setup-rust-check
       - rust-check
-  build:
+      # TODO:
+      #- rust-clippy
+
+  build-and-test:
     docker:
-      - image: docker:18.02.0-ce
-    working_directory: /dockerflow
+      - image: circleci/rust:latest
+        environment:
+            SYNC_DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+            RUST_BACKTRACE: 1
+            # XXX: begin_test_transaction doesn't play nice over threaded tests
+            RUST_TEST_THREADS: 1
+      - image: circleci/mysql:5.7-ram
+        environment:
+            MYSQL_ROOT_PASSWORD: random
+            MYSQL_USER: test
+            MYSQL_PASSWORD: test
+            MYSQL_DATABASE: syncstorage
     steps:
-      # workaround circleci's fallback git's "object not found" error w/ tag
-      # builds
-      - run:
-          name: Install Docker build dependencies
-          command: apk add --no-cache openssh-client git
-
       - checkout
+      - setup-rust
+      # XXX: currently the time needed to setup-sccache negates its savings
+      #- setup-sccache
+      #- restore-sccache-cache
+      - write-version
+      - cargo-build
+      - run-tests
+      #- save-sccache-cache
       - setup_remote_docker
-      - build-version
-
       - run:
           name: Build Docker image
           command: docker build -t app:build .
-
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
           name: docker save app:build
-          command: mkdir -p /cache; docker save -o /cache/docker.tar "app:build"
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*.yaml /home/circleci/cache
       - save_cache:
           key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
           paths:
-            - /cache/docker.tar
+            - /home/circleci/cache
 
+  e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+    steps:
+      - setup_remote_docker
+      - restore_cache:
+          key: v1-{{.Branch}}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
+      - run-e2e-tests
 
   deploy:
     docker:
@@ -90,7 +177,7 @@ jobs:
           key: v1-{{.Branch}}
       - run:
           name: Restore Docker image cache
-          command: docker load -i /cache/docker.tar
+          command: docker load -i /home/circleci/cache/docker.tar
 
       - run:
           name: Deploy to Dockerhub
@@ -121,15 +208,20 @@ workflows:
   version: 2
   build-deploy:
     jobs:
-      - test:
+      - checks:
           filters:
             tags:
               only: /.*/
-      # Build a docker deploy image
-      #- build:
-      #    filters:
-      #      tags:
-      #        only: /.*/
+      - build-and-test:
+          filters:
+            tags:
+              only: /.*/
+      - e2e-tests:
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /.*/
 
       # Need to update https://circleci.com/gh/mozilla-services/syncstorage-rs/edit#env-vars
       # with docker hub credentials. before enabling this.
