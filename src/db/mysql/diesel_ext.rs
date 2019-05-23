@@ -1,5 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use diesel::{
     mysql::Mysql,
     query_builder::{AstPass, QueryFragment},

@@ -1,5 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{

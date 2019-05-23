@@ -5,7 +5,7 @@ use std::fmt;
 use actix_web::http::{header::ToStrError, StatusCode};
 use actix_web::Error as ActixError;
 use base64::DecodeError;
-use failure::{Backtrace, Context, Fail, SyncFailure};
+use failure::{Backtrace, Context, Fail};
 use hawk::Error as ParseError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use serde::ser::{Serialize, SerializeSeq, Serializer};
@@ -58,7 +58,7 @@ pub enum HawkErrorKind {
     MissingPrefix,
 
     #[fail(display = "{}", _0)]
-    Parse(SyncFailure<ParseError>),
+    Parse(ParseError),
 
     #[fail(display = "id property is too short")]
     TruncatedId,
@@ -130,7 +130,7 @@ impl From<HawkErrorKind> for ApiError {
 
 impl From<ParseError> for ApiError {
     fn from(inner: ParseError) -> Self {
-        HawkErrorKind::Parse(SyncFailure::new(inner)).into()
+        HawkErrorKind::Parse(inner).into()
     }
 }
 

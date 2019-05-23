@@ -1,10 +1,9 @@
 use actix_web::{client::ClientRequest, http::StatusCode, test::TestServer, HttpMessage};
 use base64;
 use chrono::offset::Utc;
-use hawk::{Credentials, Key, RequestBuilder};
+use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use ring;
 use serde::de::DeserializeOwned;
 use serde_json;
 use sha2::Sha256;
@@ -96,7 +95,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
-        key: Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
+        key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),
     };
     let header = request.make_header(&credentials).unwrap();
     format!("Hawk {}", header)

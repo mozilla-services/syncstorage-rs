@@ -1081,7 +1081,6 @@ mod tests {
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
-    use ring;
     use serde_json;
     use sha2::Sha256;
 
@@ -1151,7 +1150,7 @@ mod tests {
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
         let credentials = Credentials {
             id,
-            key: Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
+            key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),
         };
         let request = RequestBuilder::new(method, host, port, path)
             .hash(&payload_hash[..])

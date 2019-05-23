@@ -1,4 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
 use std::u64;
 
 use chrono::offset::Utc;

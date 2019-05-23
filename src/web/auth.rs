@@ -5,10 +5,9 @@
 use actix_web::{FromRequest, HttpRequest};
 use base64;
 use chrono::offset::Utc;
-use hawk::{Header as HawkHeader, Key, RequestBuilder};
+use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use ring;
 use serde_json;
 use sha2::Sha256;
 use time::Duration;
@@ -17,7 +16,7 @@ use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
-use error::ApiResult;
+use error::{ApiErrorKind, ApiResult};
 use server::ServerState;
 use settings::Secrets;
 
@@ -77,10 +76,12 @@ impl HawkPayload {
         let request = RequestBuilder::new(method, host, port, path).request();
         if request.validate_header(
             &header,
-            &Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
+            &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
             // Allow plenty of leeway for clock skew, because
             // client timestamps tend to be all over the shop
-            Duration::weeks(52),
+            Duration::weeks(52)
+                .to_std()
+                .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?,
         ) {
             Ok(payload)
         } else {

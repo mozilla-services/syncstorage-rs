@@ -1,5 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use diesel::{
     self, dsl::sql, insert_into, sql_types::Integer, update, ExpressionMethods, OptionalExtension,
     QueryDsl, RunQueryDsl, TextExpressionMethods,

@@ -24,7 +24,6 @@ extern crate num;
 extern crate num_cpus;
 extern crate rand;
 extern crate regex;
-extern crate ring;
 extern crate sentry;
 extern crate serde;
 #[macro_use]
