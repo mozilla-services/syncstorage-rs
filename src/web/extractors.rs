@@ -16,10 +16,10 @@ use serde::de::{Deserialize, Deserializer, Error as SerdeError};
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
-use error::{ApiError, ApiResult};
-use server::ServerState;
-use web::{auth::HawkPayload, error::ValidationErrorKind};
+use crate::db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
+use crate::error::{ApiError, ApiResult};
+use crate::server::ServerState;
+use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -1084,11 +1084,11 @@ mod tests {
     use serde_json;
     use sha2::Sha256;
 
-    use db::mock::{MockDb, MockDbPool};
-    use server::ServerState;
-    use settings::{Secrets, ServerLimits};
+    use crate::db::mock::{MockDb, MockDbPool};
+    use crate::server::ServerState;
+    use crate::settings::{Secrets, ServerLimits};
 
-    use web::auth::{hkdf_expand_32, HawkPayload};
+    use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());

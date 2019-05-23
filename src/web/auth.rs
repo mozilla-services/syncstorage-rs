@@ -16,9 +16,9 @@ use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
-use error::{ApiErrorKind, ApiResult};
-use server::ServerState;
-use settings::Secrets;
+use crate::error::{ApiErrorKind, ApiResult};
+use crate::server::ServerState;
+use crate::settings::Secrets;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -193,7 +193,7 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
 #[cfg(test)]
 mod tests {
     use super::{HawkPayload, Secrets};
-    use settings::Settings;
+    use crate::settings::Settings;
 
     #[test]
     fn valid_header() {

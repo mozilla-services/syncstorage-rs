@@ -13,7 +13,7 @@ use serde_json::{Error as JsonError, Value};
 use validator;
 
 use super::extractors::RequestErrorLocation;
-use error::ApiError;
+use crate::error::ApiError;
 
 /// An error occurred during HAWK authentication.
 #[derive(Debug)]

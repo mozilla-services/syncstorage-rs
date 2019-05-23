@@ -1,7 +1,7 @@
 //! Parameter types for database methods.
 use std::collections::HashMap;
 
-use web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
+use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {

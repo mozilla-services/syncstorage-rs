@@ -3,7 +3,7 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::de::{Deserialize, Deserializer};
 
-use web::auth::hkdf_expand_32;
+use crate::web::auth::hkdf_expand_32;
 
 static DEFAULT_PORT: u16 = 8000;
 

@@ -6,10 +6,10 @@ use actix::{System, SystemRunner};
 use actix_web::{http, middleware::cors::Cors, server::HttpServer, App, HttpResponse};
 //use num_cpus;
 
-use db::{mysql::MysqlDbPool, DbError, DbPool};
-use settings::{Secrets, ServerLimits, Settings};
-use web::handlers;
-use web::middleware;
+use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
+use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::web::handlers;
+use crate::web::middleware;
 
 macro_rules! init_routes {
     ($app:expr) => {
