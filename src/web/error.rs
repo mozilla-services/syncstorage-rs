@@ -8,7 +8,10 @@ use base64::DecodeError;
 use failure::{Backtrace, Context, Fail};
 use hawk::Error as ParseError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
-use serde::ser::{Serialize, SerializeSeq, Serializer};
+use serde::{
+    ser::{SerializeSeq, Serializer},
+    Serialize,
+};
 use serde_json::{Error as JsonError, Value};
 use validator;
 

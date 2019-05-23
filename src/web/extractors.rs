@@ -11,8 +11,12 @@ use actix_web::{
     Error, FromRequest, HttpRequest, Json, Path, Query,
 };
 use futures::{future, Future};
+use lazy_static::lazy_static;
 use regex::Regex;
-use serde::de::{Deserialize, Deserializer, Error as SerdeError};
+use serde::{
+    de::{Deserializer, Error as SerdeError},
+    Deserialize, Serialize,
+};
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
@@ -1081,7 +1085,7 @@ mod tests {
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
-    use serde_json;
+    use serde_json::{self, json};
     use sha2::Sha256;
 
     use crate::db::mock::{MockDb, MockDbPool};

@@ -1,6 +1,8 @@
 //! Parameter types for database methods.
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {

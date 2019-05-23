@@ -10,6 +10,8 @@ pub mod util;
 use std::fmt::Debug;
 
 use futures::future::Future;
+use lazy_static::lazy_static;
+use serde::Deserialize;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;

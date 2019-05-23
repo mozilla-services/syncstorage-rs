@@ -5,6 +5,7 @@ use diesel::{
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, QueryDsl, RunQueryDsl,
 };
+use env_logger;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use crate::db::mysql::{
@@ -14,7 +15,6 @@ use crate::db::mysql::{
 };
 use crate::db::util::SyncTimestamp;
 use crate::db::{params, DbErrorKind, Sorting};
-use env_logger;
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 

@@ -4,7 +4,10 @@ use std::fmt;
 
 use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use failure::{Backtrace, Context, Fail};
-use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde::{
+    ser::{SerializeMap, SerializeSeq, Serializer},
+    Serialize,
+};
 
 use crate::db::error::{DbError, DbErrorKind};
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};

@@ -6,7 +6,7 @@ use diesel::{
     deserialize::{self, FromSql},
     sql_types::BigInt,
 };
-use serde::{Deserialize, Deserializer, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{DbError, DbErrorKind};
 

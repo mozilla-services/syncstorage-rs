@@ -4,6 +4,7 @@ use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
+use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_json;
 use sha2::Sha256;

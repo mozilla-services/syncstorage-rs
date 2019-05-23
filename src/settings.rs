@@ -1,7 +1,7 @@
 //! Application settings objects and initialization
 
 use config::{Config, ConfigError, Environment, File};
-use serde::de::{Deserialize, Deserializer};
+use serde::{de::Deserializer, Deserialize, Serialize};
 
 use crate::web::auth::hkdf_expand_32;
 

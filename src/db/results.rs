@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::params;
 use crate::db::util::SyncTimestamp;
