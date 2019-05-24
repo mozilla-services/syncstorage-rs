@@ -1,5 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{
@@ -24,13 +22,13 @@ use super::{
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
 };
-use db::{
+use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
     util::SyncTimestamp,
     Db, DbFuture, Sorting,
 };
-use web::extractors::{BsoQueryParams, HawkIdentifier};
+use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 no_arg_sql_function!(last_insert_id, Integer);
 

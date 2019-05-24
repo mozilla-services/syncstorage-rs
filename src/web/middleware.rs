@@ -11,10 +11,10 @@ use futures::{
     Future,
 };
 
-use db::{params, util::SyncTimestamp, Db};
-use error::{ApiError, ApiErrorKind};
-use server::ServerState;
-use web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader};
+use crate::db::{params, util::SyncTimestamp, Db};
+use crate::error::{ApiError, ApiErrorKind};
+use crate::server::ServerState;
+use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
 #[derive(Default)]

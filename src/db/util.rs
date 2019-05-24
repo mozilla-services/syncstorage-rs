@@ -1,4 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
 use std::u64;
 
 use chrono::offset::Utc;
@@ -7,7 +6,7 @@ use diesel::{
     deserialize::{self, FromSql},
     sql_types::BigInt,
 };
-use serde::{Deserialize, Deserializer, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{DbError, DbErrorKind};
 

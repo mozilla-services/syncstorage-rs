@@ -4,11 +4,14 @@ use std::fmt;
 
 use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use failure::{Backtrace, Context, Fail};
-use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde::{
+    ser::{SerializeMap, SerializeSeq, Serializer},
+    Serialize,
+};
 
-use db::error::{DbError, DbErrorKind};
-use web::error::{HawkError, ValidationError, ValidationErrorKind};
-use web::extractors::RequestErrorLocation;
+use crate::db::error::{DbError, DbErrorKind};
+use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
+use crate::web::extractors::RequestErrorLocation;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
 /// information and replacing it with one of these error codes.

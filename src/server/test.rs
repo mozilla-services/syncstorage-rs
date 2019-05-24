@@ -1,22 +1,22 @@
 use actix_web::{client::ClientRequest, http::StatusCode, test::TestServer, HttpMessage};
 use base64;
 use chrono::offset::Utc;
-use hawk::{Credentials, Key, RequestBuilder};
+use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
-use ring;
+use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_json;
 use sha2::Sha256;
 
 use super::*;
-use db::mysql::pool::MysqlDbPool;
-use db::params;
-use db::results::{DeleteBso, GetBso, PostBsos, PutBso};
-use db::util::SyncTimestamp;
-use settings::{Secrets, ServerLimits};
-use web::auth::HawkPayload;
-use web::extractors::BsoBody;
+use crate::db::mysql::pool::MysqlDbPool;
+use crate::db::params;
+use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
+use crate::db::util::SyncTimestamp;
+use crate::settings::{Secrets, ServerLimits};
+use crate::web::auth::HawkPayload;
+use crate::web::extractors::BsoBody;
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
@@ -96,7 +96,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
-        key: Key::new(token_secret.as_bytes(), &ring::digest::SHA256),
+        key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),
     };
     let header = request.make_header(&credentials).unwrap();
     format!("Hawk {}", header)

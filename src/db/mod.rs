@@ -10,11 +10,13 @@ pub mod util;
 use std::fmt::Debug;
 
 use futures::future::Future;
+use lazy_static::lazy_static;
+use serde::Deserialize;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;
-use error::ApiError;
-use web::extractors::HawkIdentifier;
+use crate::error::ApiError;
+use crate::web::extractors::HawkIdentifier;
 
 lazy_static! {
     /// For efficiency, it's possible to use fixed pre-determined IDs for

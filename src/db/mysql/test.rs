@@ -5,18 +5,18 @@ use diesel::{
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, QueryDsl, RunQueryDsl,
 };
+use env_logger;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use db::mysql::{
+use crate::db::mysql::{
     models::{MysqlDb, Result, DEFAULT_BSO_TTL},
     pool::MysqlDbPool,
     schema::collections,
 };
-use db::util::SyncTimestamp;
-use db::{params, DbErrorKind, Sorting};
-use env_logger;
-use settings::{Secrets, ServerLimits, Settings};
-use web::extractors::{BsoQueryParams, HawkIdentifier};
+use crate::db::util::SyncTimestamp;
+use crate::db::{params, DbErrorKind, Sorting};
+use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 // distant future (year 2099) timestamp for tests
 pub const MAX_TIMESTAMP: u64 = 4070937600000;

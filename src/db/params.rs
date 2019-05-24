@@ -1,9 +1,9 @@
 //! Parameter types for database methods.
-
-#![allow(proc_macro_derive_resolution_fallback)]
 use std::collections::HashMap;
 
-use web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
+use serde::{Deserialize, Serialize};
+
+use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {

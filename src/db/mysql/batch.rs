@@ -1,5 +1,3 @@
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use diesel::{
     self, dsl::sql, insert_into, sql_types::Integer, update, ExpressionMethods, OptionalExtension,
     QueryDsl, RunQueryDsl, TextExpressionMethods,
@@ -10,7 +8,7 @@ use super::{
     models::{MysqlDb, Result},
     schema::batches,
 };
-use db::{params, results, DbError, DbErrorKind};
+use crate::db::{params, results, DbError, DbErrorKind};
 
 /// Rough guesstimate of the maximum reasonable life span of a batch.
 pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
@@ -153,7 +151,7 @@ mod test {
         super::test::{db, gbso, hid, postbso},
         *,
     };
-    use db::params;
+    use crate::db::params;
 
     fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
         params::CreateBatch {

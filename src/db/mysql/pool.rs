@@ -15,8 +15,8 @@ use tokio_threadpool::ThreadPool;
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
-use settings::Settings;
+use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
+use crate::settings::Settings;
 
 embed_migrations!();
 

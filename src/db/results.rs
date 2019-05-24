@@ -1,14 +1,11 @@
 //! Result types for database methods.
-
-#![allow(proc_macro_derive_resolution_fallback)]
-
 use std::collections::HashMap;
 
 use diesel::sql_types::{BigInt, Integer, Nullable, Text};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::params;
-use db::util::SyncTimestamp;
+use crate::db::util::SyncTimestamp;
 
 pub type LockCollection = ();
 pub type GetBsoTimestamp = SyncTimestamp;
