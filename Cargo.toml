@@ -13,7 +13,15 @@ edition = "2018"
 debug = 1
 
 [dependencies]
-actix = "0.8.2"
+# ### NOTE ###
+# !! make sure that `actix` is compliant with `actix-web` !!
+# else you will get a 'Server is not running' error when trying
+# to run the main application. (Unit tests will pass.)
+#
+# actix-web imports it's own version of actix, unfortunately it may not
+# expose that version of actix fully.
+#
+actix = "0.7.9"
 actix-web = "0.7.19"
 base64 = "0.10.1"
 cadence = "0.17.1"

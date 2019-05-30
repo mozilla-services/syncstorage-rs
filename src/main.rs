@@ -47,8 +47,9 @@ fn main() -> Result<(), Box<Error>> {
 
     // Setup and run the server
     let sys = server::Server::with_settings(settings).unwrap();
-    println!("Server running");
-    let _ = sys.run();
+    println!("Server running...");
+    sys.run();
+    println!("Server closing");
 
     Ok(())
 }
