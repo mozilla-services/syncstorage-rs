@@ -472,6 +472,7 @@ mod tests {
                 settings: Settings {
                     debug: false,
                     port: 0,
+                    host: "127.0.0.1".to_string(),
                     database_url: "".to_string(),
                     database_pool_max_size: None,
                     database_use_test_transactions: false,

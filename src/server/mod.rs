@@ -137,7 +137,7 @@ impl Server {
 
             vec![build_app(state), build_dockerflow(dfstate)]
         })
-        .bind(format!("127.0.0.1:{}", settings.port))
+        .bind(format!("0.0.0.0:{}", settings.port))
         .unwrap()
         .start();
         Ok(sys)
