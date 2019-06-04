@@ -20,6 +20,7 @@ static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 pub struct Settings {
     pub debug: bool,
     pub port: u16,
+    pub host: String,
     pub database_url: String,
     pub database_pool_max_size: Option<u32>,
     #[cfg(test)]
@@ -39,6 +40,7 @@ impl Default for Settings {
         Settings {
             debug: false,
             port: DEFAULT_PORT,
+            host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
             database_pool_max_size: None,
             #[cfg(test)]
@@ -57,6 +59,7 @@ impl Settings {
         // https://github.com/mehcode/config-rs/issues/60
         s.set_default("debug", false)?;
         s.set_default("port", i64::from(DEFAULT_PORT))?;
+        s.set_default("host", "127.0.0.1")?;
         #[cfg(test)]
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;

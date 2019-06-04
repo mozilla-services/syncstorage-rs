@@ -1,0 +1,34 @@
+version: '3'
+services:
+    db:
+        image: mysql:latest
+        volumes:
+            - db_data:/var/lib/mysql
+        restart: always
+        ports:
+            - "3306:3306"
+            - "5567:5567"
+            - "5568:5568"
+        environment:
+            #MYSQL_RANDOM_ROOT_PASSWORD: yes
+            MYSQL_ROOT_PASSWORD: random
+            MYSQL_DATABASE: syncstorage
+            MYSQL_USER: test
+            MYSQL_PASSWORD: test
+
+    app:
+        build: .
+        restart: always
+        ports:
+          - "8000:8000"
+        depends_on:
+          - db
+        environment:
+          SYNC_DATABASE_URL: mysql://test:test@db:3306/syncstorage
+
+volumes:
+    db_data:
+
+# Applicaiton runs off of port 8000.
+# you can test if it's available with
+# curl "http://localhost:8000/__heartbeat__"

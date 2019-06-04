@@ -37,6 +37,7 @@ pub fn db() -> Result<MysqlDb> {
     let settings = Settings {
         debug: true,
         port: 8000,
+        host: settings.host,
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
         database_use_test_transactions: true,
