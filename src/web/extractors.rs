@@ -12,6 +12,7 @@ use actix_web::{
 };
 use futures::{future, Future};
 use lazy_static::lazy_static;
+use mime;
 use regex::Regex;
 use serde::{
     de::{Deserializer, Error as SerdeError},
@@ -285,7 +286,9 @@ impl FromRequest<ServerState> for BsoBody {
         }
         let mut config = JsonConfig::default();
         let max_request_size = req.state().limits.max_request_bytes as usize;
-        config.limit(max_request_size);
+        config
+            .limit(max_request_size)
+            .content_type(|ct| ct == mime::TEXT_PLAIN);
 
         let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
         let fut = <Json<BsoBody>>::from_request(req, &config)
