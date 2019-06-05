@@ -286,11 +286,9 @@ impl FromRequest<ServerState> for BsoBody {
         }
         let mut config = JsonConfig::default();
         let max_request_size = req.state().limits.max_request_bytes as usize;
-        config.limit(max_request_size).content_type(|ct| {
-            ct.to_string() == "".to_owned()
-                || ct == mime::TEXT_PLAIN
-                || ct == mime::APPLICATION_JSON
-        });
+        config
+            .limit(max_request_size)
+            .content_type(|ct| ct == mime::TEXT_PLAIN);
 
         let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
         let fut = <Json<BsoBody>>::from_request(req, &config)
