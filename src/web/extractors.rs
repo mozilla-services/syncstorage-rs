@@ -18,7 +18,7 @@ use serde::{
     de::{Deserializer, Error as SerdeError},
     Deserialize, Serialize,
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use validator::{Validate, ValidationError};
 
 use crate::db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
@@ -158,11 +158,8 @@ impl FromRequest<ServerState> for BsoBodies {
             // Get all the raw JSON values
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
-                if body.len() < 3 {
-                    match body.clone().as_str() {
-                        "\n" | "{}" | "[]" => return future::err(make_error()),
-                        _ => (),
-                    };
+                if body.len() < 2 && body.as_str() == "\n" {
+                    return future::err(make_error());
                 }
                 for item in body.lines() {
                     // Skip any blanks
@@ -171,6 +168,10 @@ impl FromRequest<ServerState> for BsoBodies {
                     }
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
+                        println!("### Raw json: {:?}: {:?}", raw_json, raw_json == json!([]));
+                        if raw_json == json!([]) || raw_json == json!({}) {
+                            return future::err(make_error());
+                        }
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize

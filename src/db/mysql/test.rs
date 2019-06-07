@@ -160,7 +160,7 @@ fn static_collection_id() -> Result<()> {
         .load(&db.inner.conn)?
         .into_iter()
         .collect();
-    assert_eq!(results.len(), cols.len());
+    assert_eq!(results.len(), cols.len(), "mismatched columns");
     for (id, name) in &cols {
         assert_eq!(results.get(id).unwrap(), name);
     }
