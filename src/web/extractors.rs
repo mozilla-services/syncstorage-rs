@@ -158,6 +158,12 @@ impl FromRequest<ServerState> for BsoBodies {
             // Get all the raw JSON values
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
+                if body.len() < 3 {
+                    match body.clone().as_str() {
+                        "\n" | "{}" | "[]" => return future::err(make_error()),
+                        _ => (),
+                    };
+                }
                 for item in body.lines() {
                     // Skip any blanks
                     if item == "" {
