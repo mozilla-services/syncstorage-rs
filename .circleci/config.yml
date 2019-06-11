@@ -22,7 +22,7 @@ commands:
           command: |
             rustup component add rustfmt
             cargo install cargo-audit
-            #rustup component add clippy
+            rustup component add clippy
   rust-check:
     steps:
       - run:
@@ -35,7 +35,7 @@ commands:
       - run:
           name: Rust Clippy
           command: |
-            cargo clippy --all -- -D warnings
+            cargo clippy --all --all-targets --all-features -- -D warnings
   cargo-build:
     steps:
       - run:
@@ -107,8 +107,7 @@ jobs:
       - setup-rust
       - setup-rust-check
       - rust-check
-      # TODO:
-      #- rust-clippy
+      - rust-clippy
 
   build-and-test:
     docker:

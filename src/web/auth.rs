@@ -117,7 +117,7 @@ impl HawkPayload {
     #[cfg(test)]
     pub fn test_default() -> Self {
         HawkPayload {
-            expires: Utc::now().timestamp() as f64 + 200000.0,
+            expires: Utc::now().timestamp() as f64 + 200_000.0,
             node: "friendly-node".to_string(),
             salt: "saltysalt".to_string(),
             user_id: 1,
@@ -222,7 +222,7 @@ mod tests {
         let mut fixture = TestFixture::new();
         fixture.header.mac = "xRVjP7607eZUWCBxJKwTo1CsLcNf4TZwUUNrLPUqkdQ=".to_string();
         fixture.header.nonce = "1d4mRs0=".to_string();
-        fixture.header.ts = 1536198978;
+        fixture.header.ts = 1_536_198_978;
         fixture.request.method = "POST".to_string();
         fixture
             .request
@@ -357,7 +357,7 @@ mod tests {
     #[test]
     fn bad_ts() {
         let mut fixture = TestFixture::new();
-        fixture.header.ts = 1536198978;
+        fixture.header.ts = 1_536_198_978;
 
         let result = HawkPayload::new(
             &fixture.header.to_string(),
@@ -462,7 +462,7 @@ mod tests {
                     "eyJub2RlIjogImh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsICJ1aWQiOiAxLCAiZXhwaXJlcyI6IDE1MzYxOTkyNzQsICJmeGFfdWlkIjogIjMxOWI5OGY5OTYxZmYxZGJkZDA3MzEzY2Q2YmE5MjVhIiwgInNhbHQiOiAiYjAyNjBlIiwgImRldmljZV9pZCI6ICJjMDlkMjZmYWYyYjQ5YWI2NGEyODgyOTA3MjA2ZDBiNSJ96drmQ_KNFOe7U3g1D8ZX5-he2Bv2aRvKZzBPrCjHKO4=",
                     "+1oGdzqpxYndK5ejQLdnZpXgGSt/IlxNh5MvcR6j7t4=",
                     "omxLZWE=",
-                    1536198980,
+                    1_536_198_980,
                 ),
                 request: Request::new(
                     "GET",
@@ -481,7 +481,7 @@ mod tests {
                     master_secret: Secrets::new("Ted Koppel is a robot"),
                 },
                 expected: HawkPayload {
-                    expires: 1536199274.0,
+                    expires: 1_536_199_274.0,
                     node: "http://localhost:5000".to_string(),
                     salt: "b0260e".to_string(),
                     user_id: 1,
