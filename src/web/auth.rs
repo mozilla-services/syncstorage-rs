@@ -76,10 +76,6 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
-        /*
-         Ok(payload)
-        // */
-        //*
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
@@ -93,7 +89,6 @@ impl HawkPayload {
         } else {
             Err(HawkErrorKind::InvalidHeader)?
         }
-        // */
     }
 
     /// Decode the `id` property of a Hawk header
@@ -108,9 +103,8 @@ impl HawkPayload {
         let payload = &decoded_id[0..payload_length];
         let signature = &decoded_id[payload_length..];
 
-        //*
         verify_hmac(payload, &secrets.signing_secret, signature)?;
-        // */
+
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
         if (payload.expires.round() as u64) > expiry {

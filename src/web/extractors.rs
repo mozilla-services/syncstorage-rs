@@ -159,10 +159,6 @@ impl FromRequest<ServerState> for BsoBodies {
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
-                    if item == "" {
-                        // return an error if the line is blank (the body = "\n" case)
-                        return future::err(make_error());
-                    }
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
                         dbg!(format!("### Raw json: {:?}", raw_json));
