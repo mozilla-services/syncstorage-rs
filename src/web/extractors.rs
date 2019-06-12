@@ -158,17 +158,14 @@ impl FromRequest<ServerState> for BsoBodies {
             // Get all the raw JSON values
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
-                if body.len() < 2 && body.as_str() == "\n" {
-                    return future::err(make_error());
-                }
                 for item in body.lines() {
-                    // Skip any blanks
                     if item == "" {
-                        continue;
+                        // return an error if the line is blank (the body = "\n" case)
+                        return future::err(make_error());
                     }
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
-                        println!("### Raw json: {:?}: {:?}", raw_json, raw_json == json!([]));
+                        dbg!(format!("### Raw json: {:?}", raw_json));
                         if raw_json == json!([]) || raw_json == json!({}) {
                             return future::err(make_error());
                         }
