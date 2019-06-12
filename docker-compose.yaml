@@ -1,14 +1,12 @@
 version: '3'
 services:
     db:
-        image: mysql:latest
+        image: mysql:5.7
         volumes:
             - db_data:/var/lib/mysql
         restart: always
         ports:
-            - "3306:3306"
-            - "5567:5567"
-            - "5568:5568"
+            - "3306"
         environment:
             #MYSQL_RANDOM_ROOT_PASSWORD: yes
             MYSQL_ROOT_PASSWORD: random
@@ -16,14 +14,16 @@ services:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
 
-    app:
-        build: .
+    syncstorage-rs:
+        image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always
         ports:
           - "8000:8000"
         depends_on:
           - db
         environment:
+          SYNC_HOST: 0.0.0.0
+          SYNC_MASTER_SECRET: secret0
           SYNC_DATABASE_URL: mysql://test:test@db:3306/syncstorage
 
 volumes:

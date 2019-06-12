@@ -1,0 +1,22 @@
+version: '3'
+services:
+    db:
+    syncstorage-rs:
+        # TODO: either syncstorage-rs should retry the db connection
+        # itself a few times or should include a wait-for-it.sh script
+        # inside its docker that would do this for us. Same (probably
+        # the latter solution) for server-syncstorage below
+        command: >
+          /bin/sh -c "
+            sleep 15;
+            /app/bin/syncstorage;
+          "
+    server-syncstorage:
+        image: mozilla/server-syncstorage:1.6.14
+        depends_on:
+          - syncstorage-rs
+        entrypoint: >
+          /bin/ash -c "
+            sleep 18;
+            /app/docker-entrypoint.sh test_endpoint http://syncstorage-rs:8000#secret0;
+          "
