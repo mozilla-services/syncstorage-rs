@@ -75,6 +75,7 @@ impl HawkPayload {
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
 
         let request = RequestBuilder::new(method, host, port, path).request();
+
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,

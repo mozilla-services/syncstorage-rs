@@ -159,12 +159,9 @@ impl FromRequest<ServerState> for BsoBodies {
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
-                    // Skip any blanks
-                    if item == "" {
-                        continue;
-                    }
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
+                        dbg!(format!("### Raw json: {:?}", raw_json));
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
