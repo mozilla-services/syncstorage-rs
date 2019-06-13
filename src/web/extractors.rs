@@ -18,7 +18,7 @@ use serde::{
     de::{Deserializer, Error as SerdeError},
     Deserialize, Serialize,
 };
-use serde_json::{json, Value};
+use serde_json::Value;
 use validator::{Validate, ValidationError};
 
 use crate::db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
@@ -162,9 +162,6 @@ impl FromRequest<ServerState> for BsoBodies {
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
                         dbg!(format!("### Raw json: {:?}", raw_json));
-                        if raw_json == json!([]) || raw_json == json!({}) {
-                            return future::err(make_error());
-                        }
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
