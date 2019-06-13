@@ -711,7 +711,10 @@ impl FromRequest<ServerState> for Box<dyn Db> {
     fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
         req.extensions()
             .get::<(Box<dyn Db>, bool)>()
-            .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
+            .ok_or_else(|| {
+                dbg!("No database handle associated with request, Did the lock attempt fail?");
+                ErrorInternalServerError("Unexpected DB error")
+            })
             .map(|(db, _)| db.clone())
     }
 }
