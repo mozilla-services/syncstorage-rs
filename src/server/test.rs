@@ -274,6 +274,7 @@ fn put_bso() {
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31_536_000),
+            ..Default::default()
         },
         result: PutBso {
             assert!(result >= start);
@@ -300,6 +301,7 @@ fn invalid_content_type() {
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31_536_000),
+            ..Default::default()
         })
         .unwrap();
 
@@ -318,6 +320,7 @@ fn invalid_content_type() {
             sortindex: Some(0),
             payload: Some("wibble".to_string()),
             ttl: Some(31_536_000),
+            ..Default::default()
         }]))
         .unwrap();
 
