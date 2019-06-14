@@ -129,7 +129,6 @@ impl Middleware<ServerState> for DbTransaction {
                     req.extensions_mut().insert((db, in_transaction));
                     future::ok(None)
                 })
-                .map_err(Into::into)
             })
             .map_err(Into::into);
         Ok(Started::Future(Box::new(fut)))
