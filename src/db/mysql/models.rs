@@ -360,7 +360,7 @@ impl MysqlDb {
                         bso::sortindex.eq(sortindex),
                         bso::payload.eq(payload),
                         bso::modified.eq(timestamp),
-                        bso::expiry.eq(timestamp + (ttl as i64 * 1000)),
+                        bso::expiry.eq(timestamp + (i64::from(ttl) * 1000)),
                     ))
                     .execute(&self.conn)?;
             }
@@ -412,7 +412,7 @@ impl MysqlDb {
             _ => query,
         };
 
-        let limit = limit.map(|limit| i64::from(limit)).unwrap_or(-1);
+        let limit = limit.map(i64::from).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
@@ -849,7 +849,7 @@ struct UpdateBSO<'a> {
 fn put_bso_as_changeset(bso: &params::PutBso, modified: i64) -> UpdateBSO {
     UpdateBSO {
         sortindex: bso.sortindex,
-        expiry: bso.ttl.map(|ttl| modified + (ttl as i64 * 1000)),
+        expiry: bso.ttl.map(|ttl| modified + (i64::from(ttl) * 1000)),
         payload: bso.payload.as_ref().map(|payload| &**payload),
         modified: if bso.payload.is_some() || bso.sortindex.is_some() {
             Some(modified)

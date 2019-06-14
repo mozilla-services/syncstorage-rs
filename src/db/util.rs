@@ -27,7 +27,7 @@ impl SyncTimestamp {
     /// Create a string value compatible with existing Sync Timestamp headers
     ///
     /// Represents the timestamp as second since epoch with two decimal places of precision.
-    pub fn as_header(&self) -> String {
+    pub fn as_header(self) -> String {
         format!("{:.*}", 2, self.0 as f64 / 1000.0)
     }
 
@@ -72,7 +72,7 @@ impl SyncTimestamp {
     }
 
     /// Return the timestamp as an i64 milliseconds since epoch
-    pub fn as_i64(&self) -> i64 {
+    pub fn as_i64(self) -> i64 {
         self.0 as i64
     }
 
@@ -119,6 +119,7 @@ where
     Deserialize::deserialize(d).map(|result: f64| (result * 1_000f64) as u64)
 }
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_ts<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

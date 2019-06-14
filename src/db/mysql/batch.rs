@@ -230,7 +230,7 @@ mod test {
         let result = append(&db, ab(uid, coll, id, bsos));
         match result.unwrap_err().kind() {
             DbErrorKind::BatchNotFound => (),
-            _ => assert!(false),
+            _ => panic!("Expected BatchNotFound"),
         }
         Ok(())
     }
@@ -247,7 +247,7 @@ mod test {
 
         let bsos = vec![
             postbso("b0", Some("payload 0"), Some(10), None),
-            postbso("b1", Some("payload 1"), Some(1000000000), None),
+            postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
         ];
         append(&db, ab(uid, coll, id, bsos))?;
 
@@ -264,7 +264,7 @@ mod test {
         let coll = "clients";
         let bsos1 = vec![
             postbso("b0", Some("payload 0"), Some(10), None),
-            postbso("b1", Some("payload 1"), Some(1000000000), None),
+            postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
         ];
         let id = create(&db, cb(uid, coll, bsos1))?;
 
@@ -291,7 +291,7 @@ mod test {
         assert_eq!(result.modified, ts);
 
         let bso = db.get_bso_sync(gbso(uid, coll, "b1"))?.unwrap();
-        assert_eq!(bso.sortindex, Some(1000000000));
+        assert_eq!(bso.sortindex, Some(1_000_000_000));
         assert_eq!(bso.payload, "payload 1");
         Ok(())
     }

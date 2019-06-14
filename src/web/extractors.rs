@@ -1100,9 +1100,8 @@ mod tests {
     }
 
     // String is too long for valid name
-    const INVALID_COLLECTION_NAME: &'static str =
-        "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
-    const INVALID_BSO_NAME: &'static str =
+    const INVALID_COLLECTION_NAME: &str = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
+    const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
     fn make_db() -> (Box<dyn Db>, bool) {
@@ -1335,7 +1334,7 @@ mod tests {
             5000,
         );
         let bso_body = json!({
-            "payload": "xxx", "sortindex": -9999999999 as i64,
+            "payload": "xxx", "sortindex": -9_999_999_999 as i64,
         });
         let req = TestRequest::with_state(state)
             .header("authorization", header)

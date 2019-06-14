@@ -19,7 +19,7 @@ use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 // distant future (year 2099) timestamp for tests
-pub const MAX_TIMESTAMP: u64 = 4070937600000;
+pub const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
 
 #[derive(Debug)]
 pub struct TestTransactionCustomizer;
@@ -58,7 +58,7 @@ fn pbso(
     ttl: Option<u32>,
 ) -> params::PutBso {
     params::PutBso {
-        user_id: HawkIdentifier::new_legacy(user_id as u64),
+        user_id: HawkIdentifier::new_legacy(u64::from(user_id)),
         collection: coll.to_owned(),
         id: bid.to_owned(),
         payload: payload.map(|payload| payload.to_owned()),
@@ -89,6 +89,7 @@ pub fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn gbsos(
     user_id: u32,
     coll: &str,
@@ -103,7 +104,7 @@ fn gbsos(
         user_id: hid(user_id),
         collection: coll.to_owned(),
         params: BsoQueryParams {
-            ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
+            ids: bids.iter().map(|id| id.to_owned().into()).collect(),
             older: Some(SyncTimestamp::from_milliseconds(older)),
             newer: Some(SyncTimestamp::from_milliseconds(newer)),
             sort,
@@ -126,12 +127,12 @@ fn dbsos(user_id: u32, coll: &str, bids: &[&str]) -> params::DeleteBsos {
     params::DeleteBsos {
         user_id: hid(user_id),
         collection: coll.to_owned(),
-        ids: bids.into_iter().map(|id| id.to_owned().into()).collect(),
+        ids: bids.iter().map(|id| id.to_owned().into()).collect(),
     }
 }
 
 pub fn hid(user_id: u32) -> HawkIdentifier {
-    HawkIdentifier::new_legacy(user_id as u64)
+    HawkIdentifier::new_legacy(u64::from(user_id))
 }
 
 #[test]
@@ -204,7 +205,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX: go version assumes ttl was updated here?
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp().as_i64() + (ttl * 1000) as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + i64::from(ttl * 1000));
 
     let sortindex = 2;
     let bso2 = pbso(uid, coll, bid, None, Some(sortindex), None);
@@ -215,7 +216,7 @@ fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.sortindex, Some(sortindex));
     // XXX:
     //assert_eq!(bso.expiry, modified + ttl);
-    assert_eq!(bso.expiry, db.timestamp().as_i64() + (ttl * 1000) as i64);
+    assert_eq!(bso.expiry, db.timestamp().as_i64() + i64::from(ttl * 1000));
     Ok(())
 }
 
@@ -279,7 +280,7 @@ fn get_bsos_limit_offset() -> Result<()> {
             Some(i),
             Some(DEFAULT_BSO_TTL),
         );
-        db.with_delta(i as i64 * 10, |db| db.put_bso_sync(bso))?;
+        db.with_delta(i64::from(i) * 10, |db| db.put_bso_sync(bso))?;
     }
 
     let bsos = db.get_bsos_sync(gbsos(
@@ -533,7 +534,7 @@ fn get_storage_timestamp() -> Result<()> {
     let col2 = db.create_collection("col2")?;
     db.create_collection("col3")?;
 
-    db.with_delta(100000, |db| {
+    db.with_delta(100_000, |db| {
         db.touch_collection(uid, col2)?;
         let m = db.get_storage_timestamp_sync(hid(uid))?;
         assert_eq!(m, db.timestamp());
@@ -597,7 +598,7 @@ fn delete_collection() -> Result<()> {
     });
     match result.unwrap_err().kind() {
         DbErrorKind::CollectionNotFound => (),
-        _ => assert!(false),
+        _ => panic!("Expected CollectionNotFound"),
     };
     Ok(())
 }
@@ -723,7 +724,7 @@ fn post_bsos() -> Result<()> {
         collection: coll.to_owned(),
         bsos: vec![
             postbso("b0", Some("payload 0"), Some(10), None),
-            postbso("b1", Some("payload 1"), Some(1000000000), None),
+            postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
             postbso("b2", Some("payload 2"), Some(100), None),
         ],
         failed: Default::default(),
@@ -747,7 +748,7 @@ fn post_bsos() -> Result<()> {
         user_id: hid(uid),
         collection: coll.to_owned(),
         bsos: vec![
-            postbso("b0", Some("updated 0"), Some(11), Some(100000)),
+            postbso("b0", Some("updated 0"), Some(11), Some(100_000)),
             postbso("b2", Some("updated 2"), Some(22), Some(10000)),
         ],
         failed: Default::default(),
@@ -815,7 +816,7 @@ fn get_bsos() -> Result<()> {
     let ids = db.get_bso_ids_sync(gbsos(
         uid,
         coll,
-        &vec![],
+        &[],
         MAX_TIMESTAMP,
         0,
         Sorting::Newest,
@@ -827,7 +828,7 @@ fn get_bsos() -> Result<()> {
     let bsos = db.get_bsos_sync(gbsos(
         uid,
         coll,
-        &vec!["b0", "b2", "b4"],
+        &["b0", "b2", "b4"],
         MAX_TIMESTAMP,
         0,
         Sorting::Newest,
@@ -913,7 +914,7 @@ fn delete_bsos() -> Result<()> {
         .kind()
     {
         DbErrorKind::BsoNotFound => (),
-        _ => assert!(false),
+        _ => panic!("Expected BsoNotFound"),
     }
     db.delete_bsos_sync(dbsos(uid, coll, &["b1", "b2"]))?;
     for bid in bids {
@@ -975,7 +976,7 @@ fn lock_for_read() -> Result<()> {
     })?;
     match db.get_collection_id("NewCollection").unwrap_err().kind() {
         DbErrorKind::CollectionNotFound => (),
-        _ => assert!(false),
+        _ => panic!("Expected CollectionNotFound"),
     }
     db.commit_sync()?;
     Ok(())

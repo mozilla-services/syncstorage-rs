@@ -73,7 +73,7 @@ pub fn delete_all(meta: MetaRequest) -> FutureResponse<HttpResponse> {
         meta.db
             .delete_storage(meta.user_id)
             .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
+            .map(|_| HttpResponse::Ok().json(())),
     )
 }
 
