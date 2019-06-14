@@ -6,7 +6,7 @@ use diesel::{
     deserialize::{self, FromSql},
     sql_types::BigInt,
 };
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{DbError, DbErrorKind};
 
@@ -28,7 +28,7 @@ impl SyncTimestamp {
     ///
     /// Represents the timestamp as second since epoch with two decimal places of precision.
     pub fn as_header(self) -> String {
-        format!("{:.*}", 2, self.0 as f64 / 1000.0)
+        format_ts(self.0)
     }
 
     /// Create a `SyncTimestamp` from a string header
@@ -112,6 +112,11 @@ where
     }
 }
 
+/// Format a timestamp as second since epoch with two decimal places of precision.
+fn format_ts(val: u64) -> String {
+    format!("{:.*}", 2, val as f64 / 1000.0)
+}
+
 pub fn deserialize_ts<'de, D>(d: D) -> Result<u64, D::Error>
 where
     D: Deserializer<'de>,
@@ -124,5 +129,10 @@ fn serialize_ts<S>(x: &u64, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    s.serialize_f64(*x as f64 / 1000.0)
+    // Using serde_json::Number w/ the arbitrary_precision feature enabled to
+    // persist the two decimal places of precision (vs serialize_f64 which
+    // renders e.g. 0.00 as 0.0)
+    let precise: serde_json::Number =
+        serde_json::from_str(&format_ts(*x)).map_err(ser::Error::custom)?;
+    precise.serialize(s)
 }

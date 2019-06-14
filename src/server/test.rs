@@ -186,7 +186,7 @@ fn delete_all() {
 #[test]
 fn delete_collection() {
     let start = SyncTimestamp::default();
-    test_endpoint(http::Method::DELETE, "/1.5/42/storage/bookmarks", "0.0");
+    test_endpoint(http::Method::DELETE, "/1.5/42/storage/bookmarks", "0.00");
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,",
