@@ -115,6 +115,7 @@ impl Middleware<ServerState> for DbTransaction {
                         }
                         .or_else(move |e| {
                             // Middleware::response won't be called: rollback immediately
+                            dbg!(format!("Failed to get database lock: {:?}", e));
                             db2.rollback().and_then(|_| future::err(e))
                         }),
                     )
