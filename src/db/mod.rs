@@ -3,6 +3,7 @@
 pub mod error;
 pub mod mock;
 pub mod mysql;
+pub mod spanner;
 pub mod params;
 pub mod results;
 pub mod util;
