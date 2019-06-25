@@ -1,26 +1,30 @@
+extern crate google_spanner1 as spanner1;
+extern crate yup_oauth2 as oauth2;
+
 use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, RwLock},
 };
 
-use diesel::{
-    r2d2::{ Pool },
-    Connection,
-};
 use diesel::r2d2;
+use diesel::{r2d2::Pool, Connection};
 
 use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
 
-use super::models::{Result};
-#[cfg(test)]
-use super::test::TestTransactionCustomizer;
+use super::models::Result;
+//#[cfg(test)]
+//use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::settings::Settings;
 
+use super::models::SpannerDb;
 use super::spanner::SpannerConnectionManager;
 use crate::db::mock::MockDb;
+
+use oauth2::ServiceAccountAccess;
+use spanner1::Spanner;
 
 embed_migrations!();
 
@@ -55,15 +59,15 @@ impl SpannerDbPool {
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
         let m = SpannerConnectionManager {};
         let pool = r2d2::Pool::builder().build(m).unwrap();
-//        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-//        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        //        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
+        //        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
-//        #[cfg(test)]
-//        let builder = if settings.database_use_test_transactions {
-//            builder.connection_customizer(Box::new(TestTransactionCustomizer))
-//        } else {
-//            builder
-//        };
+        //        #[cfg(test)]
+        //        let builder = if settings.database_use_test_transactions {
+        //            builder.connection_customizer(Box::new(TestTransactionCustomizer))
+        //        } else {
+        //            builder
+        //        };
 
         // XXX: tokio_threadpool:ThreadPool probably not the best option: db
         // calls are longerish running/blocking, so should likely run on
@@ -77,8 +81,12 @@ impl SpannerDbPool {
         })
     }
 
-    pub fn get_sync(&self) -> Result<MockDb> {
-        Ok(MockDb)
+    pub fn get_sync(&self) -> Result<SpannerDb> {
+        Ok(SpannerDb::new(
+            self.pool.get()?,
+            Arc::clone(&self.thread_pool),
+            Arc::clone(&self.coll_cache),
+        ))
     }
 }
 
