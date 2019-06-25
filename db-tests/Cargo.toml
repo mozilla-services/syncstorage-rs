@@ -1,0 +1,10 @@
+[package]
+name = "db-tests"
+version = "0.1.0"
+authors = ["Philip Jenvey <pjenvey@underboss.org>"]
+edition = "2018"
+
+[dependencies]
+env_logger = "0.6.1"
+rand = "0.6.5"
+syncstorage = { version = "0.1.0", path = "../", features = ["db_test"] }

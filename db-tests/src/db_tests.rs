@@ -1,36 +1,21 @@
-use std::{collections::HashMap, result::Result as StdResult};
+use std::collections::HashMap;
 
-use diesel::{
-    mysql::MysqlConnection,
-    r2d2::{CustomizeConnection, Error as PoolError},
-    Connection, QueryDsl, RunQueryDsl,
-};
 use env_logger;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use crate::db::mysql::{
-    models::{MysqlDb, Result, DEFAULT_BSO_TTL},
+use syncstorage::db::mysql::{
+    models::{Result, DEFAULT_BSO_TTL},
     pool::MysqlDbPool,
-    schema::collections,
 };
-use crate::db::util::SyncTimestamp;
-use crate::db::{params, DbErrorKind, Sorting};
-use crate::settings::{Secrets, ServerLimits, Settings};
-use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+use syncstorage::db::util::SyncTimestamp;
+use syncstorage::db::{Db, DbPool, params, DbErrorKind, Sorting};
+use syncstorage::settings::{Secrets, ServerLimits, Settings};
+use syncstorage::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 // distant future (year 2099) timestamp for tests
 pub const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
 
-#[derive(Debug)]
-pub struct TestTransactionCustomizer;
-
-impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomizer {
-    fn on_acquire(&self, conn: &mut MysqlConnection) -> StdResult<(), PoolError> {
-        conn.begin_test_transaction().map_err(PoolError::QueryError)
-    }
-}
-
-pub fn db() -> Result<MysqlDb> {
+pub fn db() -> Result<Box<dyn Db>> {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
     let settings = Settings::with_env_and_config_file(&None).unwrap();
@@ -46,7 +31,7 @@ pub fn db() -> Result<MysqlDb> {
     };
 
     let pool = MysqlDbPool::new(&settings)?;
-    pool.get_sync()
+    pool.get()
 }
 
 fn pbso(
@@ -133,47 +118,6 @@ fn dbsos(user_id: u32, coll: &str, bids: &[&str]) -> params::DeleteBsos {
 
 pub fn hid(user_id: u32) -> HawkIdentifier {
     HawkIdentifier::new_legacy(u64::from(user_id))
-}
-
-#[test]
-fn static_collection_id() -> Result<()> {
-    let db = db()?;
-
-    // ensure DB actually has predefined common collections
-    let cols: Vec<(i32, _)> = vec![
-        (1, "clients"),
-        (2, "crypto"),
-        (3, "forms"),
-        (4, "history"),
-        (5, "keys"),
-        (6, "meta"),
-        (7, "bookmarks"),
-        (8, "prefs"),
-        (9, "tabs"),
-        (10, "passwords"),
-        (11, "addons"),
-        (12, "addresses"),
-        (13, "creditcards"),
-    ];
-
-    let results: HashMap<i32, String> = collections::table
-        .select((collections::id, collections::name))
-        .load(&db.inner.conn)?
-        .into_iter()
-        .collect();
-    assert_eq!(results.len(), cols.len(), "mismatched columns");
-    for (id, name) in &cols {
-        assert_eq!(results.get(id).unwrap(), name);
-    }
-
-    for (id, name) in &cols {
-        let result = db.get_collection_id(name)?;
-        assert_eq!(result, *id);
-    }
-
-    let cid = db.create_collection("col1")?;
-    assert!(cid >= 100);
-    Ok(())
 }
 
 #[test]

@@ -173,6 +173,20 @@ pub trait Db: Send + Debug {
             }),
         )
     }
+
+    /// Internal methods used by the db tests
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn get_collection_id(&self, name: String) -> DbFuture<i32>;
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn create_collection(&self, name: String) -> DbFuture<i32>;
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn touch_collection(
+        &self,
+        params: params::TouchCollection,
+    ) -> DbFuture<SyncTimestamp>;
 }
 
 impl Clone for Box<dyn Db> {
