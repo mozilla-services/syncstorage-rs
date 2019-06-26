@@ -1,6 +1,3 @@
-extern crate google_spanner1 as spanner1;
-extern crate yup_oauth2 as oauth2;
-
 use std::{
     collections::HashMap,
     fmt,
@@ -8,7 +5,7 @@ use std::{
 };
 
 use diesel::r2d2;
-use diesel::{r2d2::Pool, Connection};
+use diesel::r2d2::Pool;
 
 use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
@@ -21,10 +18,6 @@ use crate::settings::Settings;
 
 use super::models::SpannerDb;
 use super::spanner::SpannerConnectionManager;
-use crate::db::mock::MockDb;
-
-use oauth2::ServiceAccountAccess;
-use spanner1::Spanner;
 
 embed_migrations!();
 
