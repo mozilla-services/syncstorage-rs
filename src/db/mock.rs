@@ -83,6 +83,14 @@ impl Db for MockDb {
     mock_db_method!(create_collection, CreateCollection);
     #[cfg(any(test, feature = "db_test"))]
     mock_db_method!(touch_collection, TouchCollection);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn timestamp(&self) -> SyncTimestamp {
+        Default::default()
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn set_timestamp(&self, _: SyncTimestamp) {}
 }
 
 unsafe impl Send for MockDb {}

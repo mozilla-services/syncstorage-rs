@@ -828,8 +828,21 @@ impl Db for MysqlDb {
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.touch_collection(param.user_id.legacy_id as u32, param.collection_id).map_err(Into::into))
+            future::result(
+                db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
+                    .map_err(Into::into),
+            )
         })))
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn timestamp(&self) -> SyncTimestamp {
+        self.timestamp()
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn set_timestamp(&self, timestamp: SyncTimestamp) {
+        self.session.borrow_mut().timestamp = timestamp;
     }
 }
 

@@ -183,10 +183,13 @@ pub trait Db: Send + Debug {
     fn create_collection(&self, name: String) -> DbFuture<i32>;
 
     #[cfg(any(test, feature = "db_test"))]
-    fn touch_collection(
-        &self,
-        params: params::TouchCollection,
-    ) -> DbFuture<SyncTimestamp>;
+    fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<SyncTimestamp>;
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn timestamp(&self) -> SyncTimestamp;
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn set_timestamp(&self, timestamp: SyncTimestamp);
 }
 
 impl Clone for Box<dyn Db> {
