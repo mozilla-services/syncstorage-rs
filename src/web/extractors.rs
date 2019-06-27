@@ -1281,7 +1281,7 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        assert_eq!(body, "0");
+        assert_eq!(body, "8");
 
         /* New tests for when we can use descriptive errors
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -1418,7 +1418,7 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        assert_eq!(body, "0");
+        assert_eq!(body, "8");
 
         /* New tests for when we can use descriptive errors
 
@@ -1617,7 +1617,7 @@ mod tests {
         let result = HawkIdentifier::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
-        assert_eq!(response.status(), 400);
+        assert_eq!(response.status(), 404);
         let body = extract_body_as_str(&response);
         assert_eq!(body, "0");
 

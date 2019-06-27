@@ -107,8 +107,7 @@ impl From<Context<HawkErrorKind>> for HawkError {
 
 impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
-        let c = inner.get_context();
-        let status = match c {
+        let status = match inner.get_context() {
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
                 if *location == RequestErrorLocation::Header =>
             {
