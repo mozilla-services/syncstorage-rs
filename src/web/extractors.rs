@@ -37,7 +37,7 @@ lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
     static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
-    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
+    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9\._\-]{1,32}$").unwrap();
     static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
@@ -366,7 +366,7 @@ impl FromRequest<ServerState> for BsoParam {
 }
 
 /// Collection parameter extractor
-#[derive(Clone, Deserialize, Validate)]
+#[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
     pub collection: String,
@@ -380,7 +380,6 @@ impl FromRequest<ServerState> for CollectionParam {
         if let Some(collection) = req.extensions().get::<CollectionParam>() {
             return Ok(collection.clone());
         }
-
         let collection = Path::<CollectionParam>::extract(req)
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(

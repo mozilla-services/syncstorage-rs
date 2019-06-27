@@ -107,7 +107,8 @@ impl From<Context<HawkErrorKind>> for HawkError {
 
 impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
-        let status = match inner.get_context() {
+        let c = inner.get_context();
+        let status = match c {
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
                 if *location == RequestErrorLocation::Header =>
             {
@@ -116,6 +117,11 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
                     "content-type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
                     _ => StatusCode::BAD_REQUEST,
                 }
+            }
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref _name))
+                if *location == RequestErrorLocation::Path =>
+            {
+                StatusCode::NOT_FOUND
             }
             _ => StatusCode::BAD_REQUEST,
         };
