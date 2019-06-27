@@ -2,6 +2,7 @@ use futures::future;
 
 use diesel::r2d2::PooledConnection;
 
+use std::fmt;
 use std::sync::Arc;
 
 use super::pool::CollectionCache;
@@ -13,7 +14,24 @@ type Conn = PooledConnection<SpannerConnectionManager>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
 #[derive(Clone, Debug)]
-pub struct SpannerDb {}
+pub struct SpannerDb {
+    pub(super) inner: Arc<SpannerDbInner>,
+
+    /// Pool level cache of collection_ids and their names
+    coll_cache: Arc<CollectionCache>,
+}
+
+pub struct SpannerDbInner {
+    pub(super) conn: Conn,
+
+    thread_pool: Arc<::tokio_threadpool::ThreadPool>,
+}
+
+impl fmt::Debug for SpannerDbInner {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SpannerDbInner")
+    }
+}
 
 impl SpannerDb {
     pub fn new(
@@ -21,9 +39,15 @@ impl SpannerDb {
         thread_pool: Arc<::tokio_threadpool::ThreadPool>,
         coll_cache: Arc<CollectionCache>,
     ) -> Self {
-        SpannerDb {}
+        let inner = SpannerDbInner { conn, thread_pool };
+        SpannerDb {
+            inner: Arc::new(inner),
+            coll_cache,
+        }
     }
 }
+
+unsafe impl Send for SpannerDb {}
 
 macro_rules! mock_db_method {
     ($name:ident, $type:ident) => {
