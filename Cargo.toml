@@ -55,3 +55,6 @@ tokio-threadpool = "0.1.14"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
 validator = "0.8.0"
 validator_derive = "0.8.0"
+
+[features]
+db_test = []

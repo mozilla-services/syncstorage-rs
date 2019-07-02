@@ -23,7 +23,7 @@ pub struct Settings {
     pub host: String,
     pub database_url: String,
     pub database_pool_max_size: Option<u32>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "db_test"))]
     pub database_use_test_transactions: bool,
 
     /// Server-enforced limits for request payloads.
@@ -43,7 +43,7 @@ impl Default for Settings {
             host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
             database_pool_max_size: None,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "db_test"))]
             database_use_test_transactions: false,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
@@ -60,7 +60,7 @@ impl Settings {
         s.set_default("debug", false)?;
         s.set_default("port", i64::from(DEFAULT_PORT))?;
         s.set_default("host", "127.0.0.1")?;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "db_test"))]
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
         s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
