@@ -13,7 +13,7 @@ use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
 
 use super::models::{MysqlDb, Result};
-#[cfg(test)]
+#[cfg(any(test, feature = "db_test"))]
 use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::settings::Settings;
@@ -52,7 +52,7 @@ impl MysqlDbPool {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "db_test"))]
         let builder = if settings.database_use_test_transactions {
             builder.connection_customizer(Box::new(TestTransactionCustomizer))
         } else {

@@ -134,3 +134,17 @@ impl From<BatchBsoBody> for PostCollectionBso {
         }
     }
 }
+
+#[cfg(any(test, feature = "db_test"))]
+pub type GetCollectionId = String;
+
+#[cfg(any(test, feature = "db_test"))]
+pub type CreateCollection = String;
+
+#[cfg(any(test, feature = "db_test"))]
+data! {
+    TouchCollection {
+        user_id: HawkIdentifier,
+        collection_id: i32,
+    }
+}
