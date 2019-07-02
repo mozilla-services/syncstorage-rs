@@ -2,55 +2,20 @@
 
 use std::sync::Arc;
 
-use actix::{System, SystemRunner};
-use actix_web::{http, middleware::cors::Cors, server::HttpServer, App, HttpResponse};
-//use num_cpus;
-use serde_json::json;
+//use actix::{System, SystemRunner};
+use actix_http::body::{MessageBody, Body};
+use actix_service::{NewService};
+use actix_cors::Cors;
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, dev::ServiceRequest, dev::ServiceResponse};
+use actix_web::error::Error;
+use actix_rt::{System, SystemRunner};
+// use num_cpus;
+use serde_json::{json};
 
-use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
-use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
-
-macro_rules! init_routes {
-    ($app:expr) => {
-        $app.resource("/{uid}/info/collections", |r| {
-            r.method(http::Method::GET).with(handlers::get_collections);
-        })
-        .resource("/{uid}/info/collection_counts", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_collection_counts);
-        })
-        .resource("/{uid}/info/collection_usage", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_collection_usage);
-        })
-        .resource("/{uid}/info/configuration", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_configuration);
-        })
-        .resource("/{uid}/info/quota", |r| {
-            r.method(http::Method::GET).with(handlers::get_quota);
-        })
-        .resource("/{uid}", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_all);
-        })
-        .resource("/{uid}/storage", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_all);
-        })
-        .resource("/{uid}/storage/{collection}", |r| {
-            r.method(http::Method::DELETE)
-                .with(handlers::delete_collection);
-            r.method(http::Method::GET).with(handlers::get_collection);
-            r.method(http::Method::POST).with(handlers::post_collection);
-        })
-        .resource("/{uid}/storage/{collection}/{bso}", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_bso);
-            r.method(http::Method::GET).with(handlers::get_bso);
-            r.method(http::Method::PUT).with(handlers::put_bso);
-        })
-    };
-}
+use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
+use crate::settings::{Secrets, ServerLimits, Settings};
 
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
@@ -70,45 +35,6 @@ pub struct ServerState {
     pub port: u16,
 }
 
-pub fn build_app(state: ServerState) -> App<ServerState> {
-    App::with_state(state)
-        .prefix("/1.5")
-        .middleware(middleware::WeaveTimestamp)
-        .middleware(middleware::DbTransaction)
-        .middleware(middleware::PreConditionCheck)
-        .configure(|app| init_routes!(Cors::for_app(app)).register())
-}
-
-pub fn build_dockerflow(state: ServerState) -> App<ServerState> {
-    App::with_state(state)
-        // Handle the resource that don't need to go through middleware
-        .resource("/__heartbeat__", |r| {
-            // if addidtional information is desired, point to an appropriate handler.
-            r.method(http::Method::GET).f(|_| {
-                let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                HttpResponse::Ok()
-                    .content_type("application/json")
-                    .body(body.to_string())
-            });
-        })
-        .resource("/__lbheartbeat__", |r| {
-            // used by the load balancers, just return OK.
-            r.method(http::Method::GET).f(|_| {
-                HttpResponse::Ok()
-                    .content_type("application/json")
-                    .body("{}")
-            });
-        })
-        .resource("/__version__", |r| {
-            // return the contents of the version.json file created by circleci and stored in the docker root
-            r.method(http::Method::GET).f(|_| {
-                HttpResponse::Ok()
-                    .content_type("application/json")
-                    .body(include_str!("../../version.json"))
-            });
-        })
-}
-
 pub struct Server {}
 
 impl Server {
@@ -119,7 +45,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
-        HttpServer::new(move || {
+        HttpServer::new( move || {
             // Setup the server state
             let state = ServerState {
                 db_pool: db_pool.clone(),
@@ -134,8 +60,67 @@ impl Server {
                 secrets: Arc::clone(&secrets),
                 port,
             };
-
-            vec![build_app(state), build_dockerflow(dfstate)]
+            App::new()
+                .data(state)
+                /*
+                .wrap(middleware::WeaveTimestamp::new())
+                .wrap(middleware::DbTransaction::new())
+                .wrap(middleware::PreConditionCheck::new())
+                */
+                .wrap(Cors::default())
+                        .service(
+                    web::resource("/1.5/{uid}/info/collections")
+                        .route(web::get().to_async(handlers::get_collections)),
+                )
+                .service(
+                    web::resource("/1.5/{uid}/info/collection_counts")
+                        .route(web::get().to_async(handlers::get_collection_counts)),
+                )
+                .service(
+                    web::resource("/1.5/{uid}/info/collection_usage")
+                        .route(web::get().to_async(handlers::get_collection_usage)),
+                )
+                /* TODO:  Needs FromRequest for get_configuration
+                .service(
+                    web::resource("/1.5/{uid}/info/configuration")
+                        .route(web::get().to(handlers::get_configuration)),
+                )
+                */
+                .service(web::resource("/1.5/{uid}/info/quota").route(web::get().to_async(handlers::get_quota)))
+                .service(web::resource("/1.5/{uid}").route(web::delete().to_async(handlers::delete_all)))
+                .service(web::resource("/1.5/{uid}/storage").route(web::delete().to_async(handlers::delete_all)))
+                .service(
+                    web::resource("/1.5/{uid}/storage/{collection}")
+                        .route(web::delete().to_async(handlers::delete_collection))
+                        .route(web::get().to_async(handlers::get_collection))
+                        .route(web::post().to_async(handlers::post_collection)),
+                )
+                .service(
+                    web::resource("/1.5/{uid}/storage/{collection}/{bso}")
+                        .route(web::delete().to_async(handlers::delete_bso))
+                        .route(web::get().to_async(handlers::get_bso))
+                        .route(web::put().to_async(handlers::put_bso)),
+                )
+                // Dockerflow
+                .service(web::resource("/__heartbeat__").route(web::get().to(|_:HttpRequest| {
+                    // if addidtional information is desired, point to an appropriate handler.
+                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(body.to_string())
+                })))
+                .service(web::resource("/__lbheartbeat__").route(web::get().to(|_:HttpRequest| {
+                    // used by the load balancers, just return OK.
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body("{}")
+                })))
+                .service(web::resource("/__version__").route(web::get().to(|_:HttpRequest| {
+                    // return the contents of the version.json file created by circleci and stored in the docker root
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(include_str!("../../version.json"))
+                })))
         })
         .bind(format!("{}:{}", settings.host, settings.port))
         .unwrap()

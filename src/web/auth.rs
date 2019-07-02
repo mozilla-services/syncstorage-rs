@@ -2,7 +2,8 @@
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
 
-use actix_web::{FromRequest, HttpRequest};
+use actix_web::{FromRequest, HttpRequest, HttpMessage};
+use actix_web::dev::{Payload, ServiceRequest, ServiceResponse};
 use base64;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
@@ -17,7 +18,7 @@ use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
-use crate::error::{ApiErrorKind, ApiResult};
+use crate::error::{ApiErrorKind, ApiError, ApiResult};
 use crate::server::ServerState;
 use crate::settings::Secrets;
 
@@ -75,7 +76,6 @@ impl HawkPayload {
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
 
         let request = RequestBuilder::new(method, host, port, path).request();
-
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
@@ -125,20 +125,10 @@ impl HawkPayload {
     }
 }
 
-impl FromRequest<ServerState> for HawkPayload {
-    /// Default [`Settings`](../../settings/struct.Settings.html) instance.
-    ///
-    /// Not hugely useful, all of the configurable settings
-    /// can be found on the [request state](../../server/struct.ServerState.html) instead.
-    type Config = ();
 
-    /// Result-wrapped `HawkPayload` instance.
-    type Result = ApiResult<HawkPayload>;
 
-    /// Parse and authenticate a Hawk payload
-    /// from the `Authorization` header
-    /// of an actix request object.
-    fn from_request(request: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+impl HawkPayload {
+    pub fn xtract(request: &ServiceRequest) -> ApiResult<Self>{
         let ci = request.connection_info();
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
@@ -155,7 +145,7 @@ impl FromRequest<ServerState> for HawkPayload {
         } else {
             80
         };
-
+        let secrets = request.app_data().clone().unwrap();
         HawkPayload::new(
             request
                 .headers()
@@ -170,9 +160,32 @@ impl FromRequest<ServerState> for HawkPayload {
                 .as_str(),
             host,
             port,
-            &request.state().secrets,
+            &secrets,
             Utc::now().timestamp() as u64,
         )
+    }
+}
+
+impl FromRequest for HawkPayload {
+    /// Default [`Settings`](../../settings/struct.Settings.html) instance.
+    ///
+    /// Not hugely useful, all of the configurable settings
+    /// can be found on the [request state](../../server/struct.ServerState.html) instead.
+    type Config = ();
+
+    /// Result-wrapped `HawkPayload` instance.
+    //type Result = ApiResult<HawkPayload>;
+    type Future = ApiResult<HawkPayload>;
+
+    type Error = ApiError;
+
+    /// Parse and authenticate a Hawk payload
+    /// from the `Authorization` header
+    /// of an actix request object.
+    fn from_request(request: &HttpRequest, _: &mut Payload) -> Self::Future {
+        //Self::extract(request)
+        println!("!!! HawkPayload from_request" );
+        Err(ApiErrorKind::Internal("crapsticks".to_owned()).into())
     }
 }
 

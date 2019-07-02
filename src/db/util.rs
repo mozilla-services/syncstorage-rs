@@ -27,7 +27,7 @@ impl SyncTimestamp {
     /// Create a string value compatible with existing Sync Timestamp headers
     ///
     /// Represents the timestamp as second since epoch with two decimal places of precision.
-    pub fn as_header(self) -> String {
+    pub fn as_header(&self) -> String {
         format_ts(self.0)
     }
 
@@ -115,6 +115,12 @@ where
 /// Format a timestamp as second since epoch with two decimal places of precision.
 fn format_ts(val: u64) -> String {
     format!("{:.*}", 2, val as f64 / 1000.0)
+}
+
+impl Into<f64> for SyncTimestamp {
+    fn into(self) -> f64 {
+        self.0 as f64
+    }
 }
 
 pub fn deserialize_ts<'de, D>(d: D) -> Result<u64, D::Error>
