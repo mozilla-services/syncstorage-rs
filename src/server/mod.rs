@@ -12,47 +12,6 @@ use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
 
-macro_rules! init_routes {
-    ($app:expr) => {
-        $app.resource("/{uid}/info/collections", |r| {
-            r.method(http::Method::GET).with(handlers::get_collections);
-        })
-        .resource("/{uid}/info/collection_counts", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_collection_counts);
-        })
-        .resource("/{uid}/info/collection_usage", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_collection_usage);
-        })
-        .resource("/{uid}/info/configuration", |r| {
-            r.method(http::Method::GET)
-                .with(handlers::get_configuration);
-        })
-        .resource("/{uid}/info/quota", |r| {
-            r.method(http::Method::GET).with(handlers::get_quota);
-        })
-        .resource("/{uid}", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_all);
-        })
-        .resource("/{uid}/storage", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_all);
-        })
-        .resource("/{uid}/storage/{collection}", |r| {
-            r.method(http::Method::DELETE)
-                .with(handlers::delete_collection);
-            r.method(http::Method::GET).with(handlers::get_collection);
-            r.method(http::Method::POST).with(handlers::post_collection);
-        })
-        .resource("/{uid}/storage/{collection}/{bso}", |r| {
-            r.method(http::Method::DELETE).with(handlers::delete_bso);
-            r.method(http::Method::GET).with(handlers::get_bso);
-            r.method(http::Method::PUT).with(handlers::put_bso);
-        })
-    };
-}
-
-// The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
 mod test;
 
@@ -76,7 +35,45 @@ pub fn build_app(state: ServerState) -> App<ServerState> {
         .middleware(middleware::WeaveTimestamp)
         .middleware(middleware::DbTransaction)
         .middleware(middleware::PreConditionCheck)
-        .configure(|app| init_routes!(Cors::for_app(app)).register())
+        .configure(|app| {
+            Cors::for_app(app)
+                .resource("/{uid}/info/collections", |r| {
+                    r.method(http::Method::GET).with(handlers::get_collections);
+                })
+                .resource("/{uid}/info/collection_counts", |r| {
+                    r.method(http::Method::GET)
+                        .with(handlers::get_collection_counts);
+                })
+                .resource("/{uid}/info/collection_usage", |r| {
+                    r.method(http::Method::GET)
+                        .with(handlers::get_collection_usage);
+                })
+                .resource("/{uid}/info/configuration", |r| {
+                    r.method(http::Method::GET)
+                        .with(handlers::get_configuration);
+                })
+                .resource("/{uid}/info/quota", |r| {
+                    r.method(http::Method::GET).with(handlers::get_quota);
+                })
+                .resource("/{uid}", |r| {
+                    r.method(http::Method::DELETE).with(handlers::delete_all);
+                })
+                .resource("/{uid}/storage", |r| {
+                    r.method(http::Method::DELETE).with(handlers::delete_all);
+                })
+                .resource("/{uid}/storage/{collection}", |r| {
+                    r.method(http::Method::DELETE)
+                        .with(handlers::delete_collection);
+                    r.method(http::Method::GET).with(handlers::get_collection);
+                    r.method(http::Method::POST).with(handlers::post_collection);
+                })
+                .resource("/{uid}/storage/{collection}/{bso}", |r| {
+                    r.method(http::Method::DELETE).with(handlers::delete_bso);
+                    r.method(http::Method::GET).with(handlers::get_bso);
+                    r.method(http::Method::PUT).with(handlers::put_bso);
+                })
+                .register()
+        })
 }
 
 pub fn build_dockerflow(state: ServerState) -> App<ServerState> {
