@@ -40,7 +40,7 @@ hawk = { version = "3.0.0", default_features = false, features = ["use_openssl"]
 hkdf = "0.7.0"
 hmac = "0.7.0"
 mime = "0.3"
-mozsvc-common = "0.1.0"
+mozsvc-common = "0.1.1"
 num = "0.2.0"
 num_cpus = "1.10.0"
 rand = "0.6.5"
