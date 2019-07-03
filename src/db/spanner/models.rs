@@ -45,6 +45,25 @@ impl SpannerDb {
             coll_cache,
         }
     }
+
+    pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+        //let id = sql_query("SELECT id FROM collections WHERE name = ?")
+        //    .bind::<Text, _>(name)
+        //    .get_result::<IdResult>(&self.conn)
+        //    .optional()?
+        //    .ok_or(DbErrorKind::CollectionNotFound)?
+        //    .id;
+        //self.coll_cache.put(id, name.to_owned())?;
+        Ok(42)
+    }
+
+    pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
+        let user_id = params.user_id.legacy_id as u32;
+        Ok(())
+    }
 }
 
 unsafe impl Send for SpannerDb {}

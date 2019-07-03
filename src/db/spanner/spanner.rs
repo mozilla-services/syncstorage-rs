@@ -1,21 +1,27 @@
-
 extern crate google_spanner1 as spanner1;
 extern crate hyper;
 extern crate hyper_rustls;
 extern crate yup_oauth2 as oauth2;
 use diesel::r2d2;
 use oauth2::ServiceAccountAccess;
-use yup_oauth2::service_account_key_from_file;
+use spanner1::CreateSessionRequest;
 use spanner1::Error;
+use spanner1::Session;
 use spanner1::Spanner;
+use yup_oauth2::service_account_key_from_file;
 
-
-const DATABASE_INSTANCE: &'static str = "projects/lustrous-center-242019/instances/testing1";
+const DATABASE_NAME: &'static str =
+    "projects/sync-spanner-dev-225401/instances/spanner-test/databases/sync";
 
 pub struct SpannerConnectionManager;
 
+pub struct SpannerSession {
+    hub: Spanner<hyper::Client, ServiceAccountAccess<hyper::Client>>,
+    session: Session,
+}
+
 impl r2d2::ManageConnection for SpannerConnectionManager {
-    type Connection = Spanner<hyper::Client, ServiceAccountAccess<hyper::Client>>;
+    type Connection = SpannerSession;
     type Error = Error;
 
     fn connect(&self) -> std::result::Result<Self::Connection, Error> {
@@ -26,13 +32,21 @@ impl r2d2::ManageConnection for SpannerConnectionManager {
         let mut access = ServiceAccountAccess::new(secret, client);
         use yup_oauth2::GetToken;
         let _token = access
-                .token(&vec!["https://www.googleapis.com/auth/spanner.data"])
-                .unwrap();
+            .token(&vec!["https://www.googleapis.com/auth/spanner.data"])
+            .unwrap();
         // println!("{:?}", token);
         let client2 = hyper::Client::with_connector(hyper::net::HttpsConnector::new(
             hyper_rustls::TlsClient::new(),
         ));
-        Ok(Spanner::new(client2, access))
+        let hub = Spanner::new(client2, access);
+        let req = CreateSessionRequest::default();
+        let session = hub
+            .projects()
+            .instances_databases_sessions_create(req, DATABASE_NAME)
+            .doit()
+            .unwrap()
+            .1;
+        Ok(SpannerSession { hub, session })
     }
 
     fn is_valid(&self, _conn: &mut Self::Connection) -> std::result::Result<(), Error> {
