@@ -1204,7 +1204,7 @@ mod tests {
     }
 
     fn extract_body_as_str(response: &HttpResponse) -> String {
-        response.body().into_body().into()
+        response.body().into_body()
     }
 
     fn create_valid_hawk_header(

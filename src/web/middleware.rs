@@ -2,14 +2,14 @@
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 use actix_web::{
-    http::{header, Method, StatusCode},
-    FromRequest, HttpResponse,
+    http::{header, Method},
+    HttpResponse,
     Error, web::Data, HttpMessage,
 };
 
 use actix_http::Response;
-use actix_web::dev::{Body, MessageBody, HttpResponseBuilder, Path, ServiceRequest, ServiceResponse};
-use actix_router::PathDeserializer;
+use actix_web::dev::{MessageBody, ServiceRequest, ServiceResponse};
+// use actix_router::PathDeserializer;
 use actix_service::{Service, Transform};
 
 use futures::{
@@ -17,13 +17,10 @@ use futures::{
     Future,
     Poll
 };
-use serde::de;
 
 use crate::db::{params, util::SyncTimestamp, Db};
-use crate::error::{ApiError, ApiErrorKind};
-use crate::web::extractors::xtract_db;
 use crate::server::ServerState;
-use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt};
+use crate::web::extractors::{CollectionParam, HawkIdentifier};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
 #[derive(Default)]
@@ -394,7 +391,7 @@ mod tests {
     #[test]
     fn test_no_modified_header() {
         let weave_timestamp = WeaveTimestamp {};
-        let req = TestRequest::default().finish();
+        let req = TestRequest::default().to_http_request();
         let resp = HttpResponse::build(http::StatusCode::OK).finish();
         match weave_timestamp.start(&req) {
             Ok(Started::Done) => (),
