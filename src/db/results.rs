@@ -63,3 +63,12 @@ pub struct PostBsos {
     pub success: Vec<String>,
     pub failed: HashMap<String, String>,
 }
+
+#[cfg(any(test, feature = "db_test"))]
+pub type GetCollectionId = i32;
+
+#[cfg(any(test, feature = "db_test"))]
+pub type CreateCollection = i32;
+
+#[cfg(any(test, feature = "db_test"))]
+pub type TouchCollection = SyncTimestamp;

@@ -1,22 +1,10 @@
 //! Sync Storage Server for Sync 1.6
-#[macro_use]
-extern crate diesel;
-#[macro_use]
-extern crate diesel_migrations;
-#[macro_use]
-extern crate validator_derive;
-
 use std::error::Error;
 
 use docopt::Docopt;
 use serde_derive::Deserialize;
 
-#[macro_use]
-pub mod error;
-pub mod db;
-pub mod server;
-pub mod settings;
-pub mod web;
+use syncstorage::{server, settings};
 
 const USAGE: &str = "
 Usage: syncstorage [options]
