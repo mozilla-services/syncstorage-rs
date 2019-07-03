@@ -50,6 +50,7 @@ serde = "1.0.91"
 serde_derive = "1.0.91"
 serde_json = { version = "1.0.39", features = ["arbitrary_precision"] }
 sha2 = "0.8.0"
+smallvec = "^0.6.10"
 time = "0.1.42"
 tokio-threadpool = "0.1.14"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
