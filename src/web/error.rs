@@ -117,8 +117,9 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
                     _ => StatusCode::BAD_REQUEST,
                 }
             }
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref _name))
-                if *location == RequestErrorLocation::Path =>
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
+                if *location == RequestErrorLocation::Path
+                    && ["bso", "collection"].contains(&name.as_ref()) =>
             {
                 StatusCode::NOT_FOUND
             }

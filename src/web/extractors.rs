@@ -37,7 +37,7 @@ lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
     static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
-    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9\._\-]{1,32}$").unwrap();
+    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
     static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
@@ -161,7 +161,6 @@ impl FromRequest<ServerState> for BsoBodies {
                 for item in body.lines() {
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
-                        dbg!(format!("### Raw json: {:?}", raw_json));
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
@@ -380,6 +379,7 @@ impl FromRequest<ServerState> for CollectionParam {
         if let Some(collection) = req.extensions().get::<CollectionParam>() {
             return Ok(collection.clone());
         }
+
         let collection = Path::<CollectionParam>::extract(req)
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(
@@ -1281,7 +1281,7 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        assert_eq!(body, "8");
+        assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors
         let err: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -1418,7 +1418,7 @@ mod tests {
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
-        assert_eq!(body, "8");
+        assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors
 
@@ -1617,7 +1617,7 @@ mod tests {
         let result = HawkIdentifier::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
-        assert_eq!(response.status(), 404);
+        assert_eq!(response.status(), 400);
         let body = extract_body_as_str(&response);
         assert_eq!(body, "0");
 
