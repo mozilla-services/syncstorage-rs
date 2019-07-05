@@ -2,20 +2,15 @@
 
 use std::sync::Arc;
 
-//use actix::{System, SystemRunner};
-use actix_http::body::{MessageBody, Body};
-use actix_service::{NewService};
 use actix_cors::Cors;
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, dev::ServiceRequest, dev::ServiceResponse};
-use actix_web::error::Error;
 use actix_rt::{System, SystemRunner};
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 // use num_cpus;
-use serde_json::{json};
+use serde_json::json;
 
-use crate::web::handlers;
-use crate::web::middleware;
 use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
 use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::web::handlers;
 
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
@@ -45,7 +40,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
-        HttpServer::new( move || {
+        HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 db_pool: db_pool.clone(),
@@ -68,7 +63,7 @@ impl Server {
                 .wrap(middleware::PreConditionCheck::new())
                 */
                 .wrap(Cors::default())
-                        .service(
+                .service(
                     web::resource("/1.5/{uid}/info/collections")
                         .route(web::get().to_async(handlers::get_collections)),
                 )
@@ -86,9 +81,17 @@ impl Server {
                         .route(web::get().to(handlers::get_configuration)),
                 )
                 */
-                .service(web::resource("/1.5/{uid}/info/quota").route(web::get().to_async(handlers::get_quota)))
-                .service(web::resource("/1.5/{uid}").route(web::delete().to_async(handlers::delete_all)))
-                .service(web::resource("/1.5/{uid}/storage").route(web::delete().to_async(handlers::delete_all)))
+                .service(
+                    web::resource("/1.5/{uid}/info/quota")
+                        .route(web::get().to_async(handlers::get_quota)),
+                )
+                .service(
+                    web::resource("/1.5/{uid}").route(web::delete().to_async(handlers::delete_all)),
+                )
+                .service(
+                    web::resource("/1.5/{uid}/storage")
+                        .route(web::delete().to_async(handlers::delete_all)),
+                )
                 .service(
                     web::resource("/1.5/{uid}/storage/{collection}")
                         .route(web::delete().to_async(handlers::delete_collection))
@@ -102,25 +105,31 @@ impl Server {
                         .route(web::put().to_async(handlers::put_bso)),
                 )
                 // Dockerflow
-                .service(web::resource("/__heartbeat__").route(web::get().to(|_:HttpRequest| {
-                    // if addidtional information is desired, point to an appropriate handler.
-                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body.to_string())
-                })))
-                .service(web::resource("/__lbheartbeat__").route(web::get().to(|_:HttpRequest| {
-                    // used by the load balancers, just return OK.
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body("{}")
-                })))
-                .service(web::resource("/__version__").route(web::get().to(|_:HttpRequest| {
-                    // return the contents of the version.json file created by circleci and stored in the docker root
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(include_str!("../../version.json"))
-                })))
+                .service(
+                    web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
+                        // if addidtional information is desired, point to an appropriate handler.
+                        let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body(body.to_string())
+                    })),
+                )
+                .service(web::resource("/__lbheartbeat__").route(web::get().to(
+                    |_: HttpRequest| {
+                        // used by the load balancers, just return OK.
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body("{}")
+                    },
+                )))
+                .service(
+                    web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                        // return the contents of the version.json file created by circleci and stored in the docker root
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body(include_str!("../../version.json"))
+                    })),
+                )
         })
         .bind(format!("{}:{}", settings.host, settings.port))
         .unwrap()

@@ -2,13 +2,15 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
+use std::cell::RefMut;
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_http::RequestHead;
-use actix_web::dev::{Payload, ServiceRequest, ServiceResponse};
+use actix_http::Extensions;
+use actix_web::dev::{Payload, ServiceRequest};
 use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
+use actix_web::http::Uri;
 use actix_web::web::{Json, JsonConfig, Query};
-use actix_web::{http, error::ErrorInternalServerError, Error, FromRequest, HttpRequest, HttpMessage};
+use actix_web::{error::ErrorInternalServerError, Error, FromRequest, HttpMessage, HttpRequest};
 use futures::{future, Future};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -20,8 +22,8 @@ use serde_json::Value;
 use serde_urlencoded;
 use validator::{Validate, ValidationError};
 
-use crate::db::{util::SyncTimestamp, Db, DbError, DbPool, DbErrorKind, Sorting};
-use crate::error::{ApiError, ApiResult};
+use crate::db::{util::SyncTimestamp, Db, Sorting};
+use crate::error::ApiError;
 use crate::server::ServerState;
 use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
 
@@ -279,7 +281,7 @@ impl FromRequest for BsoBody {
                 ));
             }
         }
-        let mut config = JsonConfig::default();
+        let config = JsonConfig::default();
         let state = req.app_data::<ServerState>().clone().unwrap();
         let max_request_size = state.limits.max_request_bytes as usize;
         config.limit(max_request_size);
@@ -333,8 +335,8 @@ pub struct BsoParam {
 }
 
 impl BsoParam {
-    pub fn xtract(req: &ServiceRequest) -> Result<Self, Error> {
-        if let Some(bso) = req.extensions().get::<BsoParam>() {
+    pub fn xtract(extensions: &RefMut<Extensions>, uri: &Uri) -> Result<Self, Error> {
+        if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
         }
         /*
@@ -349,12 +351,11 @@ impl BsoParam {
             .into_inner();
         */
 
-        let bso = serde_urlencoded::from_str::<Self>(req.uri().query().unwrap())
-            .unwrap();
+        let bso = serde_urlencoded::from_str::<Self>(uri.query().unwrap()).unwrap();
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
-        req.extensions_mut().insert(bso.clone());
+        extensions.insert(bso.clone());
         Ok(bso)
     }
 }
@@ -367,8 +368,7 @@ impl FromRequest for BsoParam {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         println!("BsoParam from_request");
-        Ok(BsoParam{bso: "bso".to_owned()})
-        //Self::extract(req)
+        Self::xtract(&req.extensions_mut(), req.uri())
     }
 }
 
@@ -380,28 +380,27 @@ pub struct CollectionParam {
 }
 
 impl CollectionParam {
-    pub fn xtract(req: &ServiceRequest) -> Result<Self, Error> {
-        if let Some(query) = req.uri().query() {
+    pub fn xtract(uri: &Uri) -> Result<Self, Error> {
+        if let Some(query) = uri.query() {
             return Ok(Query::<CollectionParam>::from_query(query)?.clone());
         }
         // TODO: What does `extract` extract?
         // It pulls the args from the path. actix wants to do this with the .to(fn) see
         // https://docs.rs/actix-web/1.0.0-beta.3/actix_web/dev/struct.Path.html#method.get
         //https://docs.rs/actix-web/1.0.0-beta.3/actix_web/struct.Route.html#method.to
-        let collection = Query::<CollectionParam>::from_query(req.uri().path())
+        let collection = Query::<CollectionParam>::from_query(uri.path())
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(
                     e.to_string(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                 )
-            }).unwrap()
+            })
+            .unwrap()
             .into_inner();
         collection.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
-        req.extensions_mut().insert(collection.clone());
-        println!("### Insert collection");
         Ok(collection)
     }
 }
@@ -413,9 +412,12 @@ impl FromRequest for CollectionParam {
     type Error = Error;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        
-        // Self::extract(req)
-        Ok(CollectionParam{collection: "col1".to_string()})
+        let collection = Self::xtract(&req.uri())?;
+        req.extensions_mut().insert(collection.clone());
+        println!("### Insert collection");
+        Ok(CollectionParam {
+            collection: "col1".to_string(),
+        })
     }
 }
 
@@ -693,14 +695,13 @@ impl HawkIdentifier {
         }
 
         let payload = HawkPayload::xtract(&req)?;
-        let path_uid = Query::<UidParam>::from_query(req.uri().path())
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::Path,
-                    Some("uid".to_owned()),
-                )
-            })?;
+        let path_uid = Query::<UidParam>::from_query(req.uri().path()).map_err(|e| {
+            ValidationErrorKind::FromDetails(
+                e.to_string(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
+            )
+        })?;
         if payload.user_id != path_uid.uid {
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
@@ -750,9 +751,10 @@ impl From<u32> for HawkIdentifier {
 }
 
 pub fn xtract_db(req: &ServiceRequest) -> Result<Box<dyn Db>, Error> {
-    req.extensions().get::<(Box<dyn Db>, bool)>()
-    .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
-    .map(|(db, _)| db.clone())
+    req.extensions()
+        .get::<(Box<dyn Db>, bool)>()
+        .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
+        .map(|(db, _)| db.clone())
 }
 
 impl FromRequest for Box<dyn Db> {
@@ -917,7 +919,12 @@ impl FromRequest for BatchRequestOpt {
         } else if params.batch.is_none() {
             // commit w/ no batch ID is an error
             // let err: DbError = DbErrorKind::BatchNotFound.into();
-            return Err(ValidationErrorKind::FromDetails("db error".to_string(), RequestErrorLocation::Header, None).into());
+            return Err(ValidationErrorKind::FromDetails(
+                "db error".to_string(),
+                RequestErrorLocation::Header,
+                None,
+            )
+            .into());
         }
 
         params.validate().map_err(|e| {
@@ -1164,6 +1171,7 @@ mod tests {
     use std::str::from_utf8;
     use std::sync::Arc;
 
+    use actix_http::Extensions;
     use actix_web::dev::Body;
     use actix_web::test::TestRequest;
     use actix_web::{http::Method, Error, HttpResponse};
@@ -1248,7 +1256,7 @@ mod tests {
             qs
         );
         let header = create_valid_hawk_header(&payload, &state, "POST", &path, "localhost", 5000);
-        let req = TestRequest::with_state(state)
+        let req = TestRequest(state)
             .header("authorization", header)
             .header("content-type", "application/json")
             .method(Method::POST)

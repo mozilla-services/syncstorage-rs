@@ -2,8 +2,8 @@
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
 
-use actix_web::{FromRequest, HttpRequest, HttpMessage};
-use actix_web::dev::{Payload, ServiceRequest, ServiceResponse};
+use actix_web::dev::ServiceRequest;
+use actix_web::FromRequest;
 use base64;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
@@ -18,8 +18,7 @@ use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
-use crate::error::{ApiErrorKind, ApiError, ApiResult};
-use crate::server::ServerState;
+use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Secrets;
 
 /// A parsed and authenticated JSON payload
@@ -125,10 +124,8 @@ impl HawkPayload {
     }
 }
 
-
-
 impl HawkPayload {
-    pub fn xtract(request: &ServiceRequest) -> ApiResult<Self>{
+    pub fn xtract(request: &ServiceRequest) -> ApiResult<Self> {
         let ci = request.connection_info();
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
@@ -166,6 +163,7 @@ impl HawkPayload {
     }
 }
 
+/*
 impl FromRequest for HawkPayload {
     /// Default [`Settings`](../../settings/struct.Settings.html) instance.
     ///
@@ -184,10 +182,11 @@ impl FromRequest for HawkPayload {
     /// of an actix request object.
     fn from_request(request: &HttpRequest, _: &mut Payload) -> Self::Future {
         //Self::extract(request)
-        println!("!!! HawkPayload from_request" );
+        println!("!!! HawkPayload from_request");
         Err(ApiErrorKind::Internal("crapsticks".to_owned()).into())
     }
 }
+*/
 
 /// Helper function for [HKDF](https://tools.ietf.org/html/rfc5869) expansion to 32 bytes.
 pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {

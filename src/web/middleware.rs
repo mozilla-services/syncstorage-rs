@@ -3,8 +3,8 @@
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 use actix_web::{
     http::{header, Method},
-    HttpResponse,
-    Error, web::Data, HttpMessage,
+    web::Data,
+    Error, HttpMessage, HttpResponse,
 };
 
 use actix_http::Response;
@@ -13,9 +13,8 @@ use actix_web::dev::{MessageBody, ServiceRequest, ServiceResponse};
 use actix_service::{Service, Transform};
 
 use futures::{
-    future::{self, FutureResult,Either},
-    Future,
-    Poll
+    future::{self, Either, FutureResult},
+    Future, Poll,
 };
 
 use crate::db::{params, util::SyncTimestamp, Db};
@@ -32,9 +31,9 @@ pub struct WeaveTimestampMiddleware<S> {
 
 impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
-B: MessageBody,
-S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error= Error>,
-S::Future: 'static,
+    B: MessageBody,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
@@ -42,7 +41,7 @@ S::Future: 'static,
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     // call super poll_ready()
-    fn poll_ready(&mut self) -> Poll<(), Self::Error>{
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
@@ -70,8 +69,8 @@ S::Future: 'static,
                 resp.headers_mut().insert(
                     header::HeaderName::from_static("x-weave-timestamp"),
                     header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts))
-                    // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
-                    .unwrap()
+                        // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
+                        .unwrap(),
                 )
             };
             resp
@@ -96,35 +95,33 @@ impl Default for WeaveTimestamp {
 
 impl<S, B> Transform<S> for WeaveTimestamp
 where
-S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error= Error>,
-S::Future: 'static,
-B: MessageBody,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: MessageBody,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type InitError=();
+    type InitError = ();
     type Transform = WeaveTimestampMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
     //type Transform = WeaveTimestampMiddleware<S>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(WeaveTimestampMiddleware{
-            service
-        })
+        future::ok(WeaveTimestampMiddleware { service })
     }
 }
 
 #[derive(Debug)]
-pub struct DbTransactionMiddleware<S>{
+pub struct DbTransactionMiddleware<S> {
     service: S,
 }
 
-impl<S,B> Service for DbTransactionMiddleware<S>
+impl<S, B> Service for DbTransactionMiddleware<S>
 where
-B: 'static,
-S: Service<Request = ServiceRequest, Response = Response<B>, Error=Error>,
-S::Future: 'static,
+    B: 'static,
+    S: Service<Request = ServiceRequest, Response = Response<B>, Error = Error>,
+    S::Future: 'static,
 {
     type Request = ServiceRequest;
     type Response = HttpResponse<B>;
@@ -138,7 +135,7 @@ S::Future: 'static,
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // `into_parts()` consumes the service request.
         // that's bad.
-        // so, let's see if we can hack around that. 
+        // so, let's see if we can hack around that.
         // let (req, mut payload) = sreq.clone().into_parts();
         //let items = de::Deserialize::deserialize(PathDeserializer::new(sreq.match_info()));
         let items = sreq.match_info();
@@ -157,37 +154,39 @@ S::Future: 'static,
             .ok();
         let user_id = HawkIdentifier::xtract(&sreq).unwrap();
         let in_transaction = collection.is_some();
-        let data:Data<ServerState> = sreq.app_data().unwrap();
+        let data: Data<ServerState> = sreq.app_data().unwrap();
         let method = sreq.method();
         let mut exts = sreq.extensions_mut();
 
         // TODO: actually make this future used async.
-        data.db_pool.get().and_then(move |db| {
-            let db2 = db.clone();
-            let fut = if let Some(collection) = collection {
-                let lc = params::LockCollection{
-                    user_id,
-                    collection,
+        data.db_pool
+            .get()
+            .and_then(move |db| {
+                let db2 = db.clone();
+                let fut = if let Some(collection) = collection {
+                    let lc = params::LockCollection {
+                        user_id,
+                        collection,
+                    };
+                    Either::A(
+                        match *method {
+                            Method::GET | Method::HEAD => db.lock_for_read(lc),
+                            _ => db.lock_for_write(lc),
+                        }
+                        .or_else(move |e| db2.rollback().and_then(|_| future::err(e))),
+                    )
+                } else {
+                    Either::B(future::ok(()))
                 };
-                Either::A(
-                    match *method {
-                        Method::GET | Method::HEAD => db.lock_for_read(lc),
-                        _ => db.lock_for_write(lc)
-                    }
-                    .or_else(move|e| {
-                        db2.rollback().and_then(|_| future::err(e))
-                    }),
-                )
-            }else {
-                Either::B(future::ok(()))
-            };
-            fut.and_then(move |_| {
-                // track whether a transaction was started above via the
-                // lock methods
-                exts.insert((db, in_transaction));
-                future::ok(())
+                fut.and_then(move |_| {
+                    // track whether a transaction was started above via the
+                    // lock methods
+                    exts.insert((db, in_transaction));
+                    future::ok(())
+                })
             })
-        }).wait().unwrap();
+            .wait()
+            .unwrap();
         Box::new(self.service.call(sreq).map(move |resp| {
             if let Some((db, in_transaction)) = resp.extensions().get::<(Box<dyn Db>, bool)>() {
                 if *in_transaction {
@@ -203,7 +202,6 @@ S::Future: 'static,
     }
 }
 
-
 pub struct DbTransaction;
 
 impl DbTransaction {
@@ -217,29 +215,6 @@ impl Default for DbTransaction {
         Self
     }
 }
-
-
-/*
-impl<S, B> Transform<S> for DbTransaction
-where
-B: MessageBody,
-S: Service<Request =ServiceRequest, Response=ServiceResponse<B>, Error= Error>,
-S::Future: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError=();
-    type Transform = DbTransactionMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(DbTransactionMiddleware{
-            service
-        })
-    }
-}
-*/
 
 /// The resource in question's Timestamp
 pub struct ResourceTimestamp(SyncTimestamp);
@@ -258,32 +233,13 @@ impl Default for PreConditionCheck {
         Self
     }
 }
-/*
-impl<S, B> Transform<S> for PreConditionCheck
-where
-B: 'static,
-S: Service<Request =ServiceRequest, Response=ServiceResponse<B>, Error= Error>,
-S::Future: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError=();
-    type Transform = PreConditionCheckMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(PreConditionCheckMiddleware{
-            service
-        })
-    }
-}
-*/
 
 pub struct PreConditionCheckMiddleware<S> {
     service: S,
 }
+
 /*
+// TODO: Extract this to it's own function (if it's actually needed?)
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
 B: 'static,
@@ -326,7 +282,7 @@ S::Future: 'static,
             .extract_resource(user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
             //.map_err(Into::into)
             .wait().unwrap();
-        
+
         sreq.extensions_mut().insert(ResourceTimestamp(resource_ts));
         let status = match precondition {
             PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
@@ -371,7 +327,7 @@ S::Future: 'static,
                     .wait()
                     .unwrap();
                 if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-                    
+
                     resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
                 }
             }
