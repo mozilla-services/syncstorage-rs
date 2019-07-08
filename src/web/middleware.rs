@@ -141,15 +141,8 @@ where
         let items = sreq.match_info();
 
         println!(" ### items: {:?}", items);
-        /*
-        Box::new(
-                future::ok(
-                    HttpResponse::Ok().finish().into_body()
-                )
-            )
-        */
 
-        let collection = CollectionParam::xtract(&sreq)
+        let collection = CollectionParam::xtract(&sreq.uri())
             .map(|param| param.collection.clone())
             .ok();
         let user_id = HawkIdentifier::xtract(&sreq).unwrap();

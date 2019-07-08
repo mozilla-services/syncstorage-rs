@@ -25,6 +25,7 @@ use validator::{Validate, ValidationError};
 use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
 use crate::server::ServerState;
+use crate::settings::ServerLimits;
 use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
@@ -335,7 +336,7 @@ pub struct BsoParam {
 }
 
 impl BsoParam {
-    pub fn xtract(extensions: &RefMut<Extensions>, uri: &Uri) -> Result<Self, Error> {
+    pub fn xtract(extensions: &mut RefMut<'_, Extensions>, uri: &Uri) -> Result<Self, Error> {
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
         }
@@ -368,12 +369,12 @@ impl FromRequest for BsoParam {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         println!("BsoParam from_request");
-        Self::xtract(&req.extensions_mut(), req.uri())
+        Self::xtract(&mut req.extensions_mut(), req.uri())
     }
 }
 
 /// Collection parameter extractor
-#[derive(Clone, Deserialize, Validate)]
+#[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
     pub collection: String,

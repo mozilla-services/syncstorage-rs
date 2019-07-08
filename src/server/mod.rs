@@ -48,13 +48,6 @@ impl Server {
                 secrets: Arc::clone(&secrets),
                 port,
             };
-
-            let dfstate = ServerState {
-                db_pool: db_pool.clone(),
-                limits: Arc::clone(&limits),
-                secrets: Arc::clone(&secrets),
-                port,
-            };
             App::new()
                 .data(state)
                 /*
@@ -75,10 +68,10 @@ impl Server {
                     web::resource("/1.5/{uid}/info/collection_usage")
                         .route(web::get().to_async(handlers::get_collection_usage)),
                 )
-                /* TODO:  Needs FromRequest for get_configuration
+                /*
                 .service(
                     web::resource("/1.5/{uid}/info/configuration")
-                        .route(web::get().to(handlers::get_configuration)),
+                        .route(web::get().to_async(handlers::get_configuration)),
                 )
                 */
                 .service(

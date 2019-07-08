@@ -106,7 +106,7 @@ impl HawkPayload {
 
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
-        if (payload.expires.round() as u64) > expiry {
+        if expiry == 0 || (payload.expires.round() as u64) > expiry {
             Ok(payload)
         } else {
             Err(HawkErrorKind::Expired)?
@@ -143,6 +143,17 @@ impl HawkPayload {
             80
         };
         let secrets = request.app_data().clone().unwrap();
+
+        let path = request
+            .uri()
+            .path_and_query()
+            .ok_or(HawkErrorKind::MissingPath)?;
+        let expiry = if path.path().ends_with("/info/collections") {
+            0
+        } else {
+            Utc::now().timestamp() as u64
+        };
+
         HawkPayload::new(
             request
                 .headers()
@@ -150,15 +161,11 @@ impl HawkPayload {
                 .ok_or(HawkErrorKind::MissingHeader)?
                 .to_str()?,
             request.method().as_str(),
-            request
-                .uri()
-                .path_and_query()
-                .ok_or(HawkErrorKind::MissingPath)?
-                .as_str(),
+            path.as_str(),
             host,
             port,
             &secrets,
-            Utc::now().timestamp() as u64,
+            expiry,
         )
     }
 }

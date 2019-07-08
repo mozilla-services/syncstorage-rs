@@ -364,8 +364,8 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
         })
 }
 
-pub fn get_configuration(
-    (_auth, state): (HawkIdentifier, ServerState),
-) -> impl Future<Item = HttpResponse, Error = Error> {
-    future::result(Ok(HttpResponse::Ok().json(&*state.limits)))
+/*
+pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+    future::result(Ok(HttpResponse::Ok().json(creq.limits)))
 }
+*/
