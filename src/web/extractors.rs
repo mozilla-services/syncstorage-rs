@@ -161,7 +161,6 @@ impl FromRequest<ServerState> for BsoBodies {
                 for item in body.lines() {
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
-                        dbg!(format!("### Raw json: {:?}", raw_json));
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
@@ -366,7 +365,7 @@ impl FromRequest<ServerState> for BsoParam {
 }
 
 /// Collection parameter extractor
-#[derive(Clone, Deserialize, Validate)]
+#[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
     pub collection: String,
