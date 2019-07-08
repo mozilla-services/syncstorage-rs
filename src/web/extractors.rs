@@ -336,7 +336,7 @@ pub struct BsoParam {
 }
 
 impl BsoParam {
-    pub fn xtract(extensions: &mut RefMut<'_, Extensions>, uri: &Uri) -> Result<Self, Error> {
+    pub fn extrude(extensions: &mut RefMut<'_, Extensions>, uri: &Uri) -> Result<Self, Error> {
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
         }
@@ -369,11 +369,11 @@ impl FromRequest for BsoParam {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         println!("BsoParam from_request");
-        Self::xtract(&mut req.extensions_mut(), req.uri())
+        Self::extrude(&mut req.extensions_mut(), req.uri())
     }
 }
 
-/// Collection parameter extractor
+/// Collection parameter or
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
@@ -381,7 +381,7 @@ pub struct CollectionParam {
 }
 
 impl CollectionParam {
-    pub fn xtract(uri: &Uri) -> Result<Self, Error> {
+    pub fn extrude(uri: &Uri) -> Result<Self, Error> {
         if let Some(query) = uri.query() {
             return Ok(Query::<CollectionParam>::from_query(query)?.clone());
         }
@@ -413,7 +413,7 @@ impl FromRequest for CollectionParam {
     type Error = Error;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let collection = Self::xtract(&req.uri())?;
+        let collection = Self::extrude(&req.uri())?;
         req.extensions_mut().insert(collection.clone());
         println!("### Insert collection");
         Ok(CollectionParam {
@@ -636,7 +636,7 @@ impl FromRequest for BsoPutRequest {
     type Future = Box<Future<Item = BsoPutRequest, Error = Error>>;
     type Error = Error;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
@@ -677,6 +677,25 @@ impl FromRequest for BsoPutRequest {
     }
 }
 
+#[derive(Debug, Default, Serialize)]
+pub struct ConfigRequest {
+    pub limits: ServerLimits,
+}
+
+impl FromRequest for ConfigRequest {
+    type Config = ();
+    type Future = Result<Self, Error>;
+    type Error = Error;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        // TODO: Fetch real values from ARC
+        // req.app_data::<ServerState>().clone().unwrap().*
+        Ok(Self {
+            limits: ServerLimits::default(),
+        })
+    }
+}
+
 /// Extract a user-identifier from the authentication token and validate against the URL
 ///
 /// This token should be adapted as needed for the storage system to store data
@@ -690,12 +709,12 @@ pub struct HawkIdentifier {
 }
 
 impl HawkIdentifier {
-    pub fn xtract(req: &ServiceRequest) -> Result<Self, Error> {
+    pub fn extrude(req: &ServiceRequest) -> Result<Self, Error> {
         if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
             return Ok(user_id.clone());
         }
 
-        let payload = HawkPayload::xtract(&req)?;
+        let payload = HawkPayload::extrude(&req)?;
         let path_uid = Query::<UidParam>::from_query(req.uri().path()).map_err(|e| {
             ValidationErrorKind::FromDetails(
                 e.to_string(),
@@ -751,7 +770,7 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-pub fn xtract_db(req: &ServiceRequest) -> Result<Box<dyn Db>, Error> {
+pub fn extrude_db(req: &ServiceRequest) -> Result<Box<dyn Db>, Error> {
     req.extensions()
         .get::<(Box<dyn Db>, bool)>()
         .ok_or_else(|| ErrorInternalServerError("Unexpected Db error"))
@@ -975,7 +994,7 @@ pub struct PreConditionHeaderOpt {
 }
 
 impl PreConditionHeaderOpt {
-    pub fn xtract(req: &ServiceRequest) -> Result<Self, Error> {
+    pub fn extrude(req: &ServiceRequest) -> Result<Self, Error> {
         if let Some(precondition) = req.extensions().get::<Option<PreConditionHeader>>() {
             return Ok(Self {
                 opt: precondition.clone(),

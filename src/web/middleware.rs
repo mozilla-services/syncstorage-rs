@@ -142,10 +142,10 @@ where
 
         println!(" ### items: {:?}", items);
 
-        let collection = CollectionParam::xtract(&sreq.uri())
+        let collection = CollectionParam::extrude(&sreq.uri())
             .map(|param| param.collection.clone())
             .ok();
-        let user_id = HawkIdentifier::xtract(&sreq).unwrap();
+        let user_id = HawkIdentifier::extrude(&sreq).unwrap();
         let in_transaction = collection.is_some();
         let data: Data<ServerState> = sreq.app_data().unwrap();
         let method = sreq.method();
@@ -227,11 +227,11 @@ impl Default for PreConditionCheck {
     }
 }
 
+/*
 pub struct PreConditionCheckMiddleware<S> {
     service: S,
 }
 
-/*
 // TODO: Extract this to it's own function (if it's actually needed?)
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
@@ -252,7 +252,7 @@ S::Future: 'static,
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // let (req, mut payload) = sreq.into_parts();
         // Pre check
-        let precondition = match PreConditionHeaderOpt::xtract(&sreq) {
+        let precondition = match PreConditionHeaderOpt::extrude(&sreq) {
             Ok(precond) =>
                 match precond.opt {
                     Some(p) => p,
@@ -265,11 +265,11 @@ S::Future: 'static,
             }
         };
 
-        let user_id = HawkIdentifier::xtract(&sreq).unwrap();
+        let user_id = HawkIdentifier::extrude(&sreq).unwrap();
         //let db = <Box<dyn Db>>::from_request(&sreq, &mut payload).unwrap();
-        let db = xtract_db(&sreq).unwrap();
-        let collection = CollectionParam::xtract(&sreq).ok().map(|v| v.collection);
-        let bso = BsoParam::xtract(&sreq).ok();
+        let db =  extrude_db(&sreq).unwrap();
+        let collection = CollectionParam::extrude(&sreq).ok().map(|v| v.collection);
+        let bso = BsoParam::extrude(&sreq).ok();
 
         let resource_ts = db
             .extract_resource(user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))

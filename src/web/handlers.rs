@@ -6,21 +6,17 @@ use futures::future::{self, Either, Future};
 use serde::Serialize;
 use serde_json::json;
 
-use crate::db::{params, results::Paginated, Db, DbError, DbErrorKind};
+use crate::db::{params, results::Paginated, DbError, DbErrorKind};
 use crate::error::ApiError;
-use crate::server::ServerState;
+// use crate::server::ServerState;
 use crate::web::extractors::{
-    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HawkIdentifier,
+    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
     MetaRequest, ReplyFormat,
 };
 
 pub const ONE_KB: f64 = 1024.0;
 
 pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    println!("### User ID: {:?}", meta.user_id);
-    //.header("X-Weave-Records", result.len().to_string())
-    // .json(result)
-    //req.extensions().
     meta.db
         .get_collection_timestamps(meta.user_id)
         .map_err(From::from)
@@ -179,11 +175,9 @@ where
 pub fn post_collection(
     coll: CollectionPostRequest,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
-    // TODO
     if coll.batch.is_some() {
         return Either::A(post_collection_batch(coll));
     }
-    //Box::new(
     Either::B(
         coll.db
             .post_bsos(params::PostBsos {
@@ -364,8 +358,6 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
         })
 }
 
-/*
 pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse, Error = Error> {
     future::result(Ok(HttpResponse::Ok().json(creq.limits)))
 }
-*/
