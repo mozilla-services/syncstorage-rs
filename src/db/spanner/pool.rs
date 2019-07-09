@@ -52,21 +52,6 @@ impl SpannerDbPool {
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
         let m = SpannerConnectionManager {};
         let pool = r2d2::Pool::builder().build(m).unwrap();
-        //        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        //        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
-
-        //        #[cfg(test)]
-        //        let builder = if settings.database_use_test_transactions {
-        //            builder.connection_customizer(Box::new(TestTransactionCustomizer))
-        //        } else {
-        //            builder
-        //        };
-
-        // XXX: tokio_threadpool:ThreadPool probably not the best option: db
-        // calls are longerish running/blocking, so should likely run on
-        // ThreadPool's "backup threads", but it defaults scheduling to its
-        // "worker threads"
-        // XXX: allow configuring the ThreadPool size
         Ok(Self {
             pool: pool,
             thread_pool: Arc::new(ThreadPool::new()),

@@ -16,8 +16,8 @@ const DATABASE_NAME: &'static str =
 pub struct SpannerConnectionManager;
 
 pub struct SpannerSession {
-    hub: Spanner<hyper::Client, ServiceAccountAccess<hyper::Client>>,
-    session: Session,
+    pub hub: Spanner<hyper::Client, ServiceAccountAccess<hyper::Client>>,
+    pub session: Session,
 }
 
 impl r2d2::ManageConnection for SpannerConnectionManager {
