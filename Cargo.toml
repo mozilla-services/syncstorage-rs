@@ -29,6 +29,7 @@ actix-http = "0.2"
 actix-service = "0.4"
 actix-router = "0.1"
 base64 = "0.10.1"
+bytes = "0.4"
 cadence = "0.17.1"
 chrono = "0.4"
 config = "0.9.3"
@@ -62,6 +63,7 @@ tokio-threadpool = "0.1.14"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
 validator = "0.8.0"
 validator_derive = "0.8.0"
+json = "0.11"
 
 [features]
 db_test = []

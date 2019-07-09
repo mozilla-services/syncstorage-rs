@@ -1,6 +1,8 @@
 //! # Web Middleware
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
+use std::borrow::BorrowMut;
+
 use actix_web::{
     http::{header, Method},
     web::Data,
@@ -140,9 +142,6 @@ where
         // let (req, mut payload) = sreq.clone().into_parts();
         //let items = de::Deserialize::deserialize(PathDeserializer::new(sreq.match_info()));
         let items = sreq.match_info();
-
-        println!(" ### items: {:?}", items);
-
         let method = sreq.method();
         let mut exts = sreq.extensions_mut();
         let data: Data<ServerState> = sreq.app_data().unwrap();
@@ -151,13 +150,12 @@ where
             .ok();
         let secrets = sreq.app_data::<Secrets>().unwrap();
         let hawk_user_id = HawkIdentifier::extrude(
-            &sreq.extensions(),
             &secrets,
             sreq.method().as_str(),
             sreq.headers().get("authentication").unwrap().to_str().unwrap(),
             &sreq.connection_info(),
             &sreq.uri()).unwrap();
-        sreq.extensions_mut().insert(hawk_user_id.clone());
+        exts.insert(hawk_user_id.clone());
         let in_transaction = collection.is_some();
 
         // TODO: actually make this future used async.
