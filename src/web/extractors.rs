@@ -2,11 +2,11 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::cell::RefMut;
+use std::cell::{Ref, RefMut};
 use std::{self, collections::HashMap, str::FromStr};
 
 use actix_http::Extensions;
-use actix_web::dev::{Payload, ServiceRequest};
+use actix_web::dev::{Payload, ServiceRequest, ConnectionInfo};
 use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::http::Uri;
 use actix_web::web::{Json, JsonConfig, Query};
@@ -22,10 +22,14 @@ use serde_json::Value;
 use serde_urlencoded;
 use validator::{Validate, ValidationError};
 
+use super:: {
+    error::{HawkErrorKind},
+};
+
 use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
 use crate::server::ServerState;
-use crate::settings::ServerLimits;
+use crate::settings::{ServerLimits, Secrets};
 use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
 
 const BATCH_MAX_IDS: usize = 100;
@@ -709,20 +713,41 @@ pub struct HawkIdentifier {
 }
 
 impl HawkIdentifier {
-    pub fn extrude(req: &ServiceRequest) -> Result<Self, Error> {
-        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+    pub fn extrude(exts:&Ref<'_, Extensions>, secrets: &Secrets, method: &str, header: &str, connection_info: &ConnectionInfo, uri: &Uri) -> Result<Self, Error> {
+        if let Some(user_id) = exts.get::<HawkIdentifier>() {
             return Ok(user_id.clone());
         }
 
-        let payload = HawkPayload::extrude(&req)?;
-        let path_uid = Query::<UidParam>::from_query(req.uri().path()).map_err(|e| {
-            ValidationErrorKind::FromDetails(
-                e.to_string(),
-                RequestErrorLocation::Path,
-                Some("uid".to_owned()),
-            )
-        })?;
-        if payload.user_id != path_uid.uid {
+        let payload = HawkPayload::extrude(
+            header,
+            method,
+            secrets, 
+            connection_info, 
+            uri)?;
+        
+        // To get the user_ID from the path using the extractor, you need
+        // the HTTPRequest, which isn't available from ServiceRequest,
+
+        let elements: Vec<&str> = uri.path().split('/').collect();
+        let path_uid: u64 = match elements.get(2) {
+            None => {
+                return Err(ValidationErrorKind::FromDetails(
+                    "Missing UID".to_owned(), 
+                    RequestErrorLocation::Path, 
+                    Some("uid".to_owned())).into())
+            },
+            Some(v) => match u64::from_str(v) {
+                Ok(iv) => iv,
+                Err(_e) => {
+                    println!("!!! {:?} {:?}", v, _e);
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid UID".to_owned(), 
+                        RequestErrorLocation::Path, 
+                        Some("uid".to_owned())).into())
+                    }
+                },
+            };
+        if payload.user_id != path_uid {
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
@@ -734,7 +759,6 @@ impl HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_id: "".to_string(),
         };
-        req.extensions_mut().insert(user_id.clone());
         Ok(user_id)
     }
 }
@@ -747,7 +771,20 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extract(req)
+        let secrets = req.get_app_data::<ServerState>();
+        let connection_info = req.connection_info();
+        let method = req.method().as_str();
+        let uri = req.uri();
+        let auth_header = req.headers().get("authorization").unwrap().to_str().unwrap();
+        let identifier = Self::extrude(
+            &req.extensions(), 
+            &secrets.unwrap().secrets,
+            method, 
+            auth_header, 
+            &connection_info, 
+            uri)?;
+        req.extensions_mut().insert(identifier.clone());
+        Ok(identifier)
     }
 }
 

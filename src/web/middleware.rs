@@ -19,6 +19,7 @@ use futures::{
 
 use crate::db::{params, util::SyncTimestamp, Db};
 use crate::server::ServerState;
+use crate::settings::Secrets;
 use crate::web::extractors::{CollectionParam, HawkIdentifier};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
@@ -142,14 +143,22 @@ where
 
         println!(" ### items: {:?}", items);
 
+        let method = sreq.method();
+        let mut exts = sreq.extensions_mut();
+        let data: Data<ServerState> = sreq.app_data().unwrap();
         let collection = CollectionParam::extrude(&sreq.uri())
             .map(|param| param.collection.clone())
             .ok();
-        let user_id = HawkIdentifier::extrude(&sreq).unwrap();
+        let secrets = sreq.app_data::<Secrets>().unwrap();
+        let hawk_user_id = HawkIdentifier::extrude(
+            &sreq.extensions(),
+            &secrets,
+            sreq.method().as_str(),
+            sreq.headers().get("authentication").unwrap().to_str().unwrap(),
+            &sreq.connection_info(),
+            &sreq.uri()).unwrap();
+        sreq.extensions_mut().insert(hawk_user_id.clone());
         let in_transaction = collection.is_some();
-        let data: Data<ServerState> = sreq.app_data().unwrap();
-        let method = sreq.method();
-        let mut exts = sreq.extensions_mut();
 
         // TODO: actually make this future used async.
         data.db_pool
@@ -158,7 +167,7 @@ where
                 let db2 = db.clone();
                 let fut = if let Some(collection) = collection {
                     let lc = params::LockCollection {
-                        user_id,
+                        user_id: hawk_user_id,
                         collection,
                     };
                     Either::A(

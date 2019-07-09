@@ -123,7 +123,10 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
             {
                 StatusCode::NOT_FOUND
             }
-            _ => StatusCode::BAD_REQUEST,
+            _ => {
+                println!("!!! Bad Request: {:?}", inner.get_context());
+                StatusCode::BAD_REQUEST
+            },
         };
 
         Self { inner, status }
