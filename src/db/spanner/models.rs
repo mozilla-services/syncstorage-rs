@@ -3,6 +3,7 @@ use futures::future;
 use diesel::r2d2::PooledConnection;
 
 use std::cell::RefCell;
+use std::cmp;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -17,7 +18,9 @@ use crate::db::{
     Db, DbFuture,
 };
 
+use google_spanner1::BeginTransactionRequest;
 use google_spanner1::ExecuteSqlRequest;
+use google_spanner1::TransactionOptions;
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -86,7 +89,8 @@ impl SpannerDb {
         let mut sql = ExecuteSqlRequest::default();
         sql.sql = Some("SELECT id FROM collections WHERE name = @name;".to_string());
         let mut params = HashMap::new();
-        params.insert("name".to_string(), name);
+        params.insert("name".to_string(), name.to_string());
+        sql.params = Some(params);
 
         let session = spanner.session.name.as_ref().unwrap();
         let result = spanner
@@ -121,6 +125,82 @@ impl SpannerDb {
         //self.coll_cache.put(id, name.to_owned())?;
     }
 
+    pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
+        // XXX: handle concurrent attempts at inserts
+        let spanner = &self.inner.conn;
+        let session = spanner.session.name.as_ref().unwrap();
+
+        let mut sql = ExecuteSqlRequest::default();
+        sql.sql = Some("SELECT MAX(collectionid) from collections".to_string());
+        let result = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_execute_sql(sql, session)
+            .doit();
+        let id = match result {
+            Err(e) => {
+                println!("err {}", e);
+                // TODO Return error
+                Ok(0)
+            }
+            Ok(res) => {
+                println!("ok {:?}", res.1);
+                match res.1.rows {
+                    Some(row) => Ok(row[0][0].parse::<i32>().unwrap() + 1),
+                    None => Ok(1),
+                }
+            }
+        };
+        if let Ok(id) = id {
+            let mut sql = ExecuteSqlRequest::default();
+            sql.sql = Some(
+                "INSERT INTO collections (collectionid, name) VALUES (@id, @name)".to_string(),
+            );
+            let mut params = HashMap::new();
+            params.insert("name".to_string(), name.to_string());
+            params.insert("id".to_string(), cmp::max(id, 100).to_string());
+            sql.params = Some(params);
+
+            let result = spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_execute_sql(sql, session)
+                .doit();
+            let rv: Result<i32> = match result {
+                Err(e) => {
+                    println!("err {}", e);
+                    // TODO Return error
+                    Ok(0)
+                }
+                Ok(res) => {
+                    println!("ok {:?}", res.1);
+                    match res.1.rows {
+                        Some(row) => Ok(row[0][0].parse().unwrap()),
+                        None => Ok(0),
+                    }
+                }
+            };
+            if let Ok(val) = rv {
+                self.coll_cache.put(val, name.to_owned())?;
+            };
+        };
+        // let id = self.conn.transaction(|| {
+        //     sql_query("INSERT INTO collections (name) VALUES (?)")
+        //         .bind::<Text, _>(name)
+        //         .execute(&self.conn)?;
+        //     collections::table.select(last_insert_id).first(&self.conn)
+        // })?;
+        // self.coll_cache.put(id, name.to_owned())?;
+        id
+    }
+
+    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
+        self.get_collection_id(name).or_else(|e| match e.kind() {
+            DbErrorKind::CollectionNotFound => self.create_collection(name),
+            _ => Err(e),
+        })
+    }
+
     pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
         let user_id = params.user_id.legacy_id as u32;
         let collection_id =
@@ -144,8 +224,38 @@ impl SpannerDb {
             return Ok(());
         }
 
-        // // Lock the db
-        // self.begin()?;
+        // Lock the db
+        self.begin()?;
+        let spanner = &self.inner.conn;
+        let session = spanner.session.name.as_ref().unwrap();
+        let mut sql = ExecuteSqlRequest::default();
+        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid LOCK IN SHARE MODE".to_string());
+        let mut params = HashMap::new();
+        params.insert("userid".to_string(), user_id.to_string());
+        params.insert("collection".to_string(), collection_id.to_string());
+        sql.params = Some(params);
+
+        let results = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_execute_sql(sql, session)
+            .doit();
+        if let Ok(results) = results {
+            if let Some(rows) = results.1.rows {
+                let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                self.inner
+                    .session
+                    .borrow_mut()
+                    .coll_modified_cache
+                    .insert((user_id, collection_id), modified);
+            }
+        }
+        self.inner
+            .session
+            .borrow_mut()
+            .coll_locks
+            .insert((user_id, collection_id), CollectionLock::Read);
+
         // let modified = user_collections::table
         //     .select(user_collections::modified)
         //     .filter(user_collections::user_id.eq(user_id as i32))
@@ -166,6 +276,99 @@ impl SpannerDb {
         //     .coll_locks
         //     .insert((user_id, collection_id), CollectionLock::Read);
         Ok(())
+    }
+
+    pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
+        let user_id = params.user_id.legacy_id as u32;
+        let collection_id = self.get_or_create_collection_id(&params.collection)?;
+        if let Some(CollectionLock::Read) = self
+            .inner
+            .session
+            .borrow()
+            .coll_locks
+            .get(&(user_id, collection_id))
+        {
+            Err(DbError::internal("Can't escalate read-lock to write-lock"))?
+        }
+
+        // Lock the db
+        self.begin()?;
+        let spanner = &self.inner.conn;
+        let session = spanner.session.name.as_ref().unwrap();
+        let mut sql = ExecuteSqlRequest::default();
+        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid FOR UPDATE".to_string());
+        let mut params = HashMap::new();
+        params.insert("userid".to_string(), user_id.to_string());
+        params.insert("collection".to_string(), collection_id.to_string());
+        sql.params = Some(params);
+
+        let results = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_execute_sql(sql, session)
+            .doit();
+        if let Ok(results) = results {
+            if let Some(rows) = results.1.rows {
+                let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                self.inner
+                    .session
+                    .borrow_mut()
+                    .coll_modified_cache
+                    .insert((user_id, collection_id), modified);
+            }
+        }
+        self.inner
+            .session
+            .borrow_mut()
+            .coll_locks
+            .insert((user_id, collection_id), CollectionLock::Write);
+
+        // let modified = user_collections::table
+        //     .select(user_collections::modified)
+        //     .filter(user_collections::user_id.eq(user_id as i32))
+        //     .filter(user_collections::collection_id.eq(collection_id))
+        //     .for_update()
+        //     .first(&self.conn)
+        //     .optional()?;
+        // if let Some(modified) = modified {
+        //     let modified = SyncTimestamp::from_i64(modified)?;
+        //     // Forbid the write if it would not properly incr the timestamp
+        //     if modified >= self.timestamp() {
+        //         Err(DbErrorKind::Conflict)?
+        //     }
+        //     self.session
+        //         .borrow_mut()
+        //         .coll_modified_cache
+        //         .insert((user_id, collection_id), modified);
+        // }
+        // self.session
+        //     .borrow_mut()
+        //     .coll_locks
+        //     .insert((user_id, collection_id), CollectionLock::Write);
+        Ok(())
+    }
+
+    pub(super) fn begin(&self) -> Result<()> {
+        let spanner = &self.inner.conn;
+        let session = spanner.session.name.as_ref().unwrap();
+        let options = Some(TransactionOptions::default());
+        let req = BeginTransactionRequest { options };
+        let result = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_begin_transaction(req, session)
+            .doit();
+        match result {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                // TODO Handle error
+                Ok(())
+            }
+        }
+        // Ok(self
+        //     .conn
+        //     .transaction_manager()
+        //     .begin_transaction(&self.conn)?)
     }
 }
 
