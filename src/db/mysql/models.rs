@@ -12,7 +12,7 @@ use diesel::{
     sql_types::{BigInt, Integer, Nullable, Text},
     update, Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "db_test"))]
 use diesel_logger::LoggingConnection;
 use futures::{future, lazy};
 
@@ -76,9 +76,9 @@ pub struct MysqlDb {
 unsafe impl Send for MysqlDb {}
 
 pub struct MysqlDbInner {
-    #[cfg(not(test))]
+    #[cfg(not(any(test, feature = "db_test")))]
     pub(super) conn: Conn,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "db_test"))]
     pub(super) conn: LoggingConnection<Conn>,
 
     session: RefCell<MysqlDbSession>,
@@ -107,9 +107,9 @@ impl MysqlDb {
         coll_cache: Arc<CollectionCache>,
     ) -> Self {
         let inner = MysqlDbInner {
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "db_test")))]
             conn,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "db_test"))]
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
             thread_pool,
@@ -807,6 +807,43 @@ impl Db for MysqlDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn get_collection_id(&self, name: String) -> DbFuture<i32> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.get_collection_id(&name).map_err(Into::into))
+        })))
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn create_collection(&self, name: String) -> DbFuture<i32> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.create_collection(&name).map_err(Into::into))
+        })))
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(
+                db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
+                    .map_err(Into::into),
+            )
+        })))
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn timestamp(&self) -> SyncTimestamp {
+        self.timestamp()
+    }
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn set_timestamp(&self, timestamp: SyncTimestamp) {
+        self.session.borrow_mut().timestamp = timestamp;
+    }
 }
 
 #[derive(Debug, QueryableByName)]

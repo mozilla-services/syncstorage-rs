@@ -40,7 +40,7 @@ hawk = { version = "3.0.0", default_features = false, features = ["use_openssl"]
 hkdf = "0.7.0"
 hmac = "0.7.0"
 mime = "0.3"
-mozsvc-common = "0.1.0"
+mozsvc-common = "0.1.1"
 num = "0.2.0"
 num_cpus = "1.10.0"
 rand = "0.6.5"
@@ -50,6 +50,7 @@ serde = "1.0.91"
 serde_derive = "1.0.91"
 serde_json = { version = "1.0.39", features = ["arbitrary_precision"] }
 sha2 = "0.8.0"
+smallvec = "^0.6.10"
 time = "0.1.42"
 tokio-threadpool = "0.1.14"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
@@ -64,3 +65,5 @@ hyper = "^0.10"
 hyper-rustls = "^0.6"
 yup-oauth2 = "^1.0"
 
+[features]
+db_test = []

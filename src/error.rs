@@ -114,7 +114,13 @@ impl ApiError {
                     }
                     WeaveError::UnknownError
                 }
-                _ => WeaveError::UnknownError,
+                ValidationErrorKind::FromValidationErrors(ref _err, ref location) => {
+                    if *location == RequestErrorLocation::Body {
+                        WeaveError::InvalidWbo
+                    } else {
+                        WeaveError::UnknownError
+                    }
+                }
             },
             _ => WeaveError::UnknownError,
         }
