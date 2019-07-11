@@ -50,7 +50,7 @@ impl SpannerDbPool {
     }
 
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
-        let m = SpannerConnectionManager {};
+        let m = SpannerConnectionManager::new(settings)?;
         let pool = r2d2::Pool::builder().build(m).unwrap();
         Ok(Self {
             pool: pool,

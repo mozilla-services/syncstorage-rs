@@ -10,10 +10,25 @@ use spanner1::Session;
 use spanner1::Spanner;
 use yup_oauth2::service_account_key_from_file;
 
-const DATABASE_NAME: &'static str =
-    "projects/sync-spanner-dev-225401/instances/spanner-test/databases/sync";
+use crate::{
+    db::error::{DbError, DbErrorKind},
+    settings::Settings,
+};
 
-pub struct SpannerConnectionManager;
+pub struct SpannerConnectionManager {
+    database_name: String,
+}
+
+impl SpannerConnectionManager {
+    pub fn new(settings: &Settings) -> Result<Self, DbError> {
+        let url = &settings.database_url;
+        if !url.starts_with("spanner://") {
+            Err(DbErrorKind::InvalidUrl(url.to_owned()))?;
+        }
+        let database_name = url["spanner://".len()..].to_owned();
+        Ok(SpannerConnectionManager { database_name })
+    }
+}
 
 pub struct SpannerSession {
     pub hub: Spanner<hyper::Client, ServiceAccountAccess<hyper::Client>>,
@@ -42,7 +57,7 @@ impl r2d2::ManageConnection for SpannerConnectionManager {
         let req = CreateSessionRequest::default();
         let session = hub
             .projects()
-            .instances_databases_sessions_create(req, DATABASE_NAME)
+            .instances_databases_sessions_create(req, &self.database_name)
             .doit()
             .unwrap()
             .1;
