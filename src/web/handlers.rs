@@ -1,15 +1,13 @@
 //! API Handlers
 use std::collections::HashMap;
 
-use actix_web::{http::StatusCode, Error, HttpResponse, web::Payload};
-use bytes::BytesMut;
+use actix_web::{http::StatusCode, Error, HttpResponse};
 use futures::future::{self, Either, Future};
-use futures::Stream;
 use serde::Serialize;
 use serde_json::json;
 
 use crate::db::{params, results::Paginated, DbError, DbErrorKind};
-use crate::error::{ApiError, ApiErrorKind};
+use crate::error::ApiError;
 // use crate::server::ServerState;
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
@@ -144,7 +142,7 @@ where
     .map_err(From::from)
     .and_then(|result| {
         coll.db
-            .extract_resource(coll.user_id, Some(coll.collection), None)
+            .extract_resource(&coll.user_id, Some(coll.collection), None)
             .map_err(From::from)
             .map(move |ts| (result, ts))
     })

@@ -11,6 +11,7 @@ use serde_json::json;
 use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
+use crate::web::middleware;
 
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
@@ -48,10 +49,14 @@ impl Server {
                 secrets: Arc::clone(&secrets),
                 port,
             };
+
+            //TOOD: limit incoming request sizes
+            // See: https://actix.rs/actix-web/actix_web/web/struct.JsonConfig.html
+            // Do I need to specify the holding structure or can I be more generic?
             App::new()
                 .data(state)
-                /*
                 .wrap(middleware::WeaveTimestamp::new())
+                /*
                 .wrap(middleware::DbTransaction::new())
                 .wrap(middleware::PreConditionCheck::new())
                 */
@@ -68,12 +73,10 @@ impl Server {
                     web::resource("/1.5/{uid}/info/collection_usage")
                         .route(web::get().to_async(handlers::get_collection_usage)),
                 )
-                /*
                 .service(
                     web::resource("/1.5/{uid}/info/configuration")
                         .route(web::get().to_async(handlers::get_configuration)),
                 )
-                */
                 .service(
                     web::resource("/1.5/{uid}/info/quota")
                         .route(web::get().to_async(handlers::get_quota)),
@@ -87,6 +90,8 @@ impl Server {
                 )
                 .service(
                     web::resource("/1.5/{uid}/storage/{collection}")
+                        // TODO:  
+                        // .data(Bytes::configure(|cfg| {cfg.limit(settings.limits.max_request_bytes)}))
                         .route(web::delete().to_async(handlers::delete_collection))
                         .route(web::get().to_async(handlers::get_collection))
                         .route(web::post().to_async(handlers::post_collection)),

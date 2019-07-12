@@ -94,7 +94,7 @@ impl Settings {
 }
 
 /// Server-enforced limits for request payloads.
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ServerLimits {
     /// Maximum combined size of BSO payloads for a single request, in bytes.
     pub max_post_bytes: u32,

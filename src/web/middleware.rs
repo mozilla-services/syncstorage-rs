@@ -1,7 +1,6 @@
 //! # Web Middleware
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
-use std::borrow::BorrowMut;
 
 use actix_web::{
     http::{header, Method},
@@ -114,7 +113,7 @@ where
         future::ok(WeaveTimestampMiddleware { service })
     }
 }
-
+/*
 #[derive(Debug)]
 pub struct DbTransactionMiddleware<S> {
     service: S,
@@ -138,10 +137,8 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // `into_parts()` consumes the service request.
         // that's bad.
-        // so, let's see if we can hack around that.
-        // let (req, mut payload) = sreq.clone().into_parts();
-        //let items = de::Deserialize::deserialize(PathDeserializer::new(sreq.match_info()));
-        let items = sreq.match_info();
+        // let items = sreq.match_info();
+        println!("### >> DbTransactionMiddleware wrapper");
         let method = sreq.method();
         let mut exts = sreq.extensions_mut();
         let data: Data<ServerState> = sreq.app_data().unwrap();
@@ -152,9 +149,15 @@ where
         let hawk_user_id = HawkIdentifier::extrude(
             &secrets,
             sreq.method().as_str(),
-            sreq.headers().get("authentication").unwrap().to_str().unwrap(),
+            sreq.headers()
+                .get("authentication")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             &sreq.connection_info(),
-            &sreq.uri()).unwrap();
+            &sreq.uri(),
+        )
+        .unwrap();
         exts.insert(hawk_user_id.clone());
         let in_transaction = collection.is_some();
 
@@ -198,9 +201,9 @@ where
             };
             resp
         }))
-        // */
-    }
+       }
 }
+*/
 
 pub struct DbTransaction;
 
@@ -235,6 +238,10 @@ impl Default for PreConditionCheck {
 }
 
 /*
+
+// TODO: 
+// Move this to extractors and make it part of MetaRequest or the various Request handlers. (e.g. BsoPutRequest)?
+
 pub struct PreConditionCheckMiddleware<S> {
     service: S,
 }

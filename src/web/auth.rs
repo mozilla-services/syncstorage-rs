@@ -2,7 +2,6 @@
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
 
-use actix_web::dev::ServiceRequest;
 use base64;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
@@ -20,7 +19,7 @@ use super::{
 use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Secrets;
 
-use actix_http::{Extensions, http::Uri};
+use actix_http::http::Uri;
 use actix_web::dev::ConnectionInfo;
 
 /// A parsed and authenticated JSON payload
@@ -78,8 +77,8 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
-        Ok(payload)
-        /*
+        // Ok(payload)
+        //*
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
@@ -93,7 +92,7 @@ impl HawkPayload {
         } else {
             Err(HawkErrorKind::InvalidHeader)?
         }
-        */
+        // */
     }
 
     /// Decode the `id` property of a Hawk header
@@ -108,7 +107,7 @@ impl HawkPayload {
         let payload = &decoded_id[0..payload_length];
         let signature = &decoded_id[payload_length..];
 
-       // verify_hmac(payload, &secrets.signing_secret, signature)?;
+        verify_hmac(payload, &secrets.signing_secret, signature)?;
 
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
@@ -131,7 +130,13 @@ impl HawkPayload {
 }
 
 impl HawkPayload {
-    pub fn extrude(header: &str, method: &str, secrets: &Secrets, ci: &ConnectionInfo, uri: &Uri) -> ApiResult<Self> {
+    pub fn extrude(
+        header: &str,
+        method: &str,
+        secrets: &Secrets,
+        ci: &ConnectionInfo,
+        uri: &Uri,
+    ) -> ApiResult<Self> {
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
         let port = if host_port.len() == 2 {
@@ -147,24 +152,14 @@ impl HawkPayload {
         } else {
             80
         };
-        let path = uri
-            .path_and_query()
-            .ok_or(HawkErrorKind::MissingPath)?;
+        let path = uri.path_and_query().ok_or(HawkErrorKind::MissingPath)?;
         let expiry = if path.path().ends_with("/info/collections") {
             0
         } else {
             Utc::now().timestamp() as u64
         };
 
-        HawkPayload::new(
-            header,
-            method,
-            path.as_str(),
-            host,
-            port,
-            &secrets,
-            expiry,
-        )
+        HawkPayload::new(header, method, path.as_str(), host, port, &secrets, expiry)
     }
 }
 
