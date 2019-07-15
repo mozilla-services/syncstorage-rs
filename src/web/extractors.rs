@@ -4,8 +4,8 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_web::dev::{ConnectionInfo, Payload, ServiceRequest};
-use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
+use actix_web::dev::{ConnectionInfo, Payload, ServiceRequest, Extensions};
+use actix_web::http::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::http::Uri;
 use actix_web::web::{Json, Query}; // JsonConfig
 use actix_web::{error::ErrorInternalServerError, Error, FromRequest, HttpMessage, HttpRequest};
@@ -359,16 +359,8 @@ impl BsoParam {
             },
         })
     }
-}
 
-impl FromRequest for BsoParam {
-    type Config = ();
-    //type Result = ApiResult<BsoParam>;
-    type Future = Result<Self, Error>;
-    type Error = Error;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let mut extensions = req.extensions_mut();
+    pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Self, Error> {
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
         }
@@ -384,13 +376,24 @@ impl FromRequest for BsoParam {
             .into_inner();
         */
 
-        let bso = Self::bsoparam_from_path(req.uri())?;
+        let bso = Self::bsoparam_from_path(uri)?;
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
         extensions.insert(bso.clone());
         Ok(bso)
 
+    }
+}
+
+impl FromRequest for BsoParam {
+    type Config = ();
+    //type Result = ApiResult<BsoParam>;
+    type Future = Result<Self, Error>;
+    type Error = Error;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Self::extrude(&req.uri(), &mut req.extensions_mut())
     }
 }
 
@@ -752,6 +755,14 @@ pub struct HawkIdentifier {
 }
 
 impl HawkIdentifier {
+    /// Create a new legacy id user identifier
+    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
+        HawkIdentifier {
+            legacy_id: user_id,
+            ..Default::default()
+        }
+    }
+
     fn uid_from_path(uri: &Uri) -> Result<u64, Error> {
         // TODO: replace with better request path parser.
         // path: "/1.5/{uid}"
@@ -816,7 +827,7 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let secrets = req.get_app_data::<ServerState>();
+        let state = req.get_app_data::<ServerState>();
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
         let connection_info = req.connection_info().clone();
         let method = req.method().as_str();
@@ -831,7 +842,7 @@ impl FromRequest for HawkIdentifier {
             .extensions()
             .get::<HawkIdentifier>()
             .unwrap_or(&Self::extrude(
-                &secrets.unwrap().secrets,
+                &state.unwrap().secrets,
                 method,
                 auth_header,
                 &connection_info,
@@ -845,13 +856,6 @@ impl FromRequest for HawkIdentifier {
 }
 
 impl HawkIdentifier {
-    /// Create a new legacy id user identifier
-    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
-        HawkIdentifier {
-            legacy_id: user_id,
-            ..Default::default()
-        }
-    }
 }
 
 impl From<u32> for HawkIdentifier {
@@ -1086,21 +1090,15 @@ pub struct PreConditionHeaderOpt {
     pub opt: Option<PreConditionHeader>,
 }
 
-impl FromRequest for PreConditionHeaderOpt {
-    type Config = ();
-    //type Result = ApiResult<Option<PreConditionHeader>>;
-    type Future = Result<Self, Error>;
-    type Error = Error;
-
-    /// Extract and validate the precondition headers
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(precondition) = req.extensions().get::<Option<PreConditionHeader>>() {
+impl PreConditionHeaderOpt {
+    pub fn extrude(headers: &HeaderMap, extensions: &mut Extensions) -> Result<Self, Error> {
+    
+        if let Some(precondition) = extensions.get::<Option<PreConditionHeader>>() {
             return Ok(Self {
                 opt: precondition.clone(),
             });
         }
 
-        let headers = req.headers();
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
@@ -1143,9 +1141,21 @@ impl FromRequest for PreConditionHeaderOpt {
                 } else {
                     PreConditionHeader::IfUnmodifiedSince(v)
                 };
-                req.extensions_mut().insert(header.clone());
+                extensions.insert(header.clone());
                 Self { opt: Some(header) }
             })
+    }
+}
+
+impl FromRequest for PreConditionHeaderOpt {
+    type Config = ();
+    //type Result = ApiResult<Option<PreConditionHeader>>;
+    type Future = Result<Self, Error>;
+    type Error = Error;
+
+    /// Extract and validate the precondition headers
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Self::extrude(req.headers(), &mut req.extensions_mut())
     }
 }
 

@@ -3,13 +3,13 @@
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
 use actix_web::{
-    http::{header, Method},
-    web::Data,
+    http::{header, Method, StatusCode},
+    web::Data, 
     Error, HttpMessage, HttpResponse,
 };
 
-use actix_http::Response;
-use actix_web::dev::{MessageBody, ServiceRequest, ServiceResponse};
+use actix_http::{Response};
+use actix_web::dev::{JsonBody, MessageBody, ServiceRequest, ServiceResponse};
 // use actix_router::PathDeserializer;
 use actix_service::{Service, Transform};
 
@@ -21,7 +21,7 @@ use futures::{
 use crate::db::{params, util::SyncTimestamp, Db};
 use crate::server::ServerState;
 use crate::settings::Secrets;
-use crate::web::extractors::{CollectionParam, HawkIdentifier};
+use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt, extrude_db};
 
 /// Default Timestamp used for WeaveTimestamp middleware.
 #[derive(Default)]
@@ -237,7 +237,7 @@ impl Default for PreConditionCheck {
     }
 }
 
-/*
+//*
 
 // TODO: 
 // Move this to extractors and make it part of MetaRequest or the various Request handlers. (e.g. BsoPutRequest)?
@@ -249,12 +249,12 @@ pub struct PreConditionCheckMiddleware<S> {
 // TODO: Extract this to it's own function (if it's actually needed?)
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
-B: 'static,
-S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error= Error>,
+B: MessageBody,
+S: Service<Request = ServiceRequest, Response = Response<B>, Error= Error>,
 S::Future: 'static,
 {
     type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
+    type Response = Response;
     type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
@@ -266,27 +266,49 @@ S::Future: 'static,
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // let (req, mut payload) = sreq.into_parts();
         // Pre check
-        let precondition = match PreConditionHeaderOpt::extrude(&sreq) {
+        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers(), &mut sreq.extensions_mut()) {
             Ok(precond) =>
                 match precond.opt {
                     Some(p) => p,
                     None => {
-                        return Box::new(future::ok(sreq.into_response(HttpResponse::Ok().finish().into_body())))
+                        return Box::new(future::ok(HttpResponse::Ok().finish()))
                     }
                 },
             Err(e) => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body())))
+                return Box::new(future::ok(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body()))
             }
         };
 
-        let user_id = HawkIdentifier::extrude(&sreq).unwrap();
+        let secrets = match  &sreq.app_data::<ServerState>() {
+            Some(v) => v,
+            None => {
+                return Box::new(future::ok(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body()))
+            }
+        }.secrets.clone();
+
+        let ci = &sreq.connection_info().clone();
+        let headers = &sreq.headers().clone();
+        let auth = match headers.get("authorization") {
+            Some(a) => a,
+            None => {
+                return Box::new(future::ok(HttpResponse::InternalServerError().body("Err: missing auth".to_owned()).into_body()))
+            }
+        };
+        let uri = &sreq.uri();
+        let user_id = HawkIdentifier::extrude(
+            &secrets,
+            &sreq.method().as_str(),
+            auth.to_str().unwrap(),
+            &ci,
+            &uri
+        ).unwrap();
         //let db = <Box<dyn Db>>::from_request(&sreq, &mut payload).unwrap();
         let db =  extrude_db(&sreq).unwrap();
-        let collection = CollectionParam::extrude(&sreq).ok().map(|v| v.collection);
-        let bso = BsoParam::extrude(&sreq).ok();
+        let collection = CollectionParam::extrude(&uri).ok().map(|v| v.collection);
+        let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
 
         let resource_ts = db
-            .extract_resource(user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
+            .extract_resource(&user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
             //.map_err(Into::into)
             .wait().unwrap();
 
@@ -301,23 +323,19 @@ S::Future: 'static,
             _ => StatusCode::OK,
         };
         if status != StatusCode::OK {
-            return Box::new(
-                future::ok(
-                        sreq.into_response(
-                        HttpResponse::Ok()
+            return Box::new(future::ok(HttpResponse::Ok()
                         .header("X-Last-Modified", resource_ts.as_header())
                         .body("".to_owned())
-                        .into_body())
-                )
-            );
+                        .into_body()
+                        ));
         };
-        let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
+        let rs_ts = &sreq.extensions().get::<ResourceTimestamp>().clone();
 
         // Make the call, then do all the post-processing steps.
         Box::new(self.service.call(sreq).map(move |mut resp| {
             if resp.headers().contains_key("X-Last-Modified") {
                 //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
-                return resp;
+                return HttpResponse::build_from(resp).finish();
             }
 
             // See if we already extracted one and use that if possible
@@ -330,7 +348,7 @@ S::Future: 'static,
             } else {
                 // Do the work needed to generate a timestamp otherwise
                 let resource_ts = db
-                    .extract_resource(user_id, collection, Some(bso.unwrap().bso))
+                    .extract_resource(&user_id, collection, Some(bso.unwrap().bso))
                     .wait()
                     .unwrap();
                 if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
@@ -338,11 +356,11 @@ S::Future: 'static,
                     resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
                 }
             }
-            return resp
+            return HttpResponse::build_from(resp).finish();
         }))
     }
 }
-*/
+// */
 
 #[cfg(test)]
 mod tests {
