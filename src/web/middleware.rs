@@ -249,12 +249,13 @@ pub struct PreConditionCheckMiddleware<S> {
 // TODO: Extract this to it's own function (if it's actually needed?)
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
-B: MessageBody,
-S: Service<Request = ServiceRequest, Response = Response<B>, Error= Error>,
+S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
 S::Future: 'static,
+B: 'static,
+//B: MessageBody,
 {
     type Request = ServiceRequest;
-    type Response = Response;
+    type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
@@ -271,18 +272,21 @@ S::Future: 'static,
                 match precond.opt {
                     Some(p) => p,
                     None => {
-                        return Box::new(future::ok(HttpResponse::Ok().finish()))
+                        //return Box::new(future::ok(HttpResponse::Ok().finish()))
+                        return Box::new(future::ok(sreq.into_response(HttpResponse::Ok().finish().into_body())))
                     }
                 },
             Err(e) => {
-                return Box::new(future::ok(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body()))
+                //return Box::new(future::ok(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body()))
+                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body())))
             }
         };
 
         let secrets = match  &sreq.app_data::<ServerState>() {
             Some(v) => v,
             None => {
-                return Box::new(future::ok(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body()))
+                //return Box::new(future::ok(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body()))
+                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body())))
             }
         }.secrets.clone();
 
@@ -291,7 +295,7 @@ S::Future: 'static,
         let auth = match headers.get("authorization") {
             Some(a) => a,
             None => {
-                return Box::new(future::ok(HttpResponse::InternalServerError().body("Err: missing auth".to_owned()).into_body()))
+                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: missing auth".to_owned()).into_body())))
             }
         };
         let uri = &sreq.uri();
@@ -321,11 +325,11 @@ S::Future: 'static,
                     _ => StatusCode::OK,
                 };
                 if status != StatusCode::OK {
-                    return Either::A(future::ok(HttpResponse::Ok()
+                    return Either::A(future::ok(sreq.into_response(HttpResponse::Ok()
                                 .header("X-Last-Modified", resource_ts.as_header())
                                 .body("".to_owned())
                                 .into_body()
-                                ));
+                                )));
                 };
                 //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
 
@@ -333,7 +337,8 @@ S::Future: 'static,
                 Either::B(self.service.call(sreq).map(move |mut resp| {
                     if resp.headers().contains_key("X-Last-Modified") {
                         //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
-                        return HttpResponse::build_from(resp).finish();
+                        //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
+                        return resp;
                     }
 
                     // See if we already extracted one and use that if possible
@@ -356,7 +361,8 @@ S::Future: 'static,
                         }
                     }
                     */
-                    return HttpResponse::build_from(resp).finish();
+                    //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
+                    return resp;
                 })/*.map_err(Into::into)*/)
             })/*.map_err(Into::into)*/
             )
