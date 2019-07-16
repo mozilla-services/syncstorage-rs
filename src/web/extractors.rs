@@ -1091,13 +1091,14 @@ pub struct PreConditionHeaderOpt {
 }
 
 impl PreConditionHeaderOpt {
-    pub fn extrude(headers: &HeaderMap, extensions: &mut Extensions) -> Result<Self, Error> {
-    
+    //pub fn extrude(headers: &HeaderMap, extensions: &mut Extensions) -> Result<Self, Error> {
+    pub fn extrude(headers: &HeaderMap) -> Result<Self, Error> {
+        /*
         if let Some(precondition) = extensions.get::<Option<PreConditionHeader>>() {
             return Ok(Self {
                 opt: precondition.clone(),
             });
-        }
+        }*/
 
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
@@ -1141,7 +1142,7 @@ impl PreConditionHeaderOpt {
                 } else {
                     PreConditionHeader::IfUnmodifiedSince(v)
                 };
-                extensions.insert(header.clone());
+                //extensions.insert(header.clone());
                 Self { opt: Some(header) }
             })
     }
@@ -1155,7 +1156,7 @@ impl FromRequest for PreConditionHeaderOpt {
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extrude(req.headers(), &mut req.extensions_mut())
+        Self::extrude(req.headers())
     }
 }
 

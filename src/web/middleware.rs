@@ -243,13 +243,14 @@ impl Default for PreConditionCheck {
 // Move this to extractors and make it part of MetaRequest or the various Request handlers. (e.g. BsoPutRequest)?
 
 pub struct PreConditionCheckMiddleware<S> {
-    service: S,
+    service: std::rc::Rc<std::cell::RefCell<S>>,
 }
 
 // TODO: Extract this to it's own function (if it's actually needed?)
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
 S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+S: 'static,
 S::Future: 'static,
 B: 'static,
 //B: MessageBody,
@@ -267,7 +268,8 @@ B: 'static,
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // let (req, mut payload) = sreq.into_parts();
         // Pre check
-        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers(), &mut sreq.extensions_mut()) {
+        //let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers(), &mut sreq.extensions_mut()) {
+        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers()) {
             Ok(precond) =>
                 match precond.opt {
                     Some(p) => p,
@@ -311,10 +313,11 @@ B: 'static,
         let collection = CollectionParam::extrude(&uri).ok().map(|v| v.collection);
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
 
+        let mut service = self.service.clone();
         Box::new(db
             .extract_resource(&user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
             .map_err(Into::into)
-            .and_then(|resource_ts|{
+            .and_then(move |resource_ts|{
                 let status = match precondition {
                     PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
                         StatusCode::NOT_MODIFIED
@@ -334,7 +337,7 @@ B: 'static,
                 //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
 
                 // Make the call, then do all the post-processing steps.
-                Either::B(self.service.call(sreq).map(move |mut resp| {
+                Either::B(service.call(sreq).map(|mut resp| {
                     if resp.headers().contains_key("X-Last-Modified") {
                         //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
                         //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
