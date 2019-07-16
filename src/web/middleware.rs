@@ -337,7 +337,7 @@ B: 'static,
                 //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
 
                 // Make the call, then do all the post-processing steps.
-                Either::B(service.call(sreq).map(|mut resp| {
+                Either::B(service.call(sreq).map(move |mut resp| {
                     if resp.headers().contains_key("X-Last-Modified") {
                         //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
                         //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
@@ -363,7 +363,10 @@ B: 'static,
                             resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
                         }
                     }
-                    */
+                     */
+                    if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                        resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
+                    }
                     //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
                     return resp;
                 })/*.map_err(Into::into)*/)
