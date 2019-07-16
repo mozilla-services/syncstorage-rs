@@ -309,7 +309,7 @@ S::Future: 'static,
 
         Box::new(db
             .extract_resource(&user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
-//            .map_err(Into::into)
+            .map_err(Into::into)
             .and_then(|resource_ts|{
                 let status = match precondition {
                     PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
@@ -357,8 +357,8 @@ S::Future: 'static,
                     }
                     */
                     return HttpResponse::build_from(resp).finish();
-                }))   
-            }).map_err(Into::into)
+                })/*.map_err(Into::into)*/)
+            })/*.map_err(Into::into)*/
             )
             //.map_err(Into::into)
             //.wait().unwrap();
