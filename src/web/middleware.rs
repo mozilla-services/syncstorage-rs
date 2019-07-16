@@ -307,57 +307,64 @@ S::Future: 'static,
         let collection = CollectionParam::extrude(&uri).ok().map(|v| v.collection);
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
 
-        let resource_ts = db
+        Box::new(db
             .extract_resource(&user_id.clone(), collection.clone(), Some(bso.clone().unwrap().bso))
+//            .map_err(Into::into)
+            .and_then(|resource_ts|{
+                let status = match precondition {
+                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
+                        StatusCode::NOT_MODIFIED
+                    }
+                    PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
+                        StatusCode::PRECONDITION_FAILED
+                    }
+                    _ => StatusCode::OK,
+                };
+                if status != StatusCode::OK {
+                    return Either::A(future::ok(HttpResponse::Ok()
+                                .header("X-Last-Modified", resource_ts.as_header())
+                                .body("".to_owned())
+                                .into_body()
+                                ));
+                };
+                //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
+
+                // Make the call, then do all the post-processing steps.
+                Either::B(self.service.call(sreq).map(move |mut resp| {
+                    if resp.headers().contains_key("X-Last-Modified") {
+                        //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
+                        return HttpResponse::build_from(resp).finish();
+                    }
+
+                    // See if we already extracted one and use that if possible
+                    /*
+                    if let Some(resource_ts) = rs_ts {
+                        let ts = resource_ts.0;
+                        if let Ok(ts_header) = header::HeaderValue::from_str(&ts.as_header()) {
+                            resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
+                            //headers.insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
+                        }
+                    } else {
+                        // Do the work needed to generate a timestamp otherwise
+                        let resource_ts = db
+                            .extract_resource(&user_id, collection, Some(bso.unwrap().bso))
+                            .wait()
+                            .unwrap();
+                        if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+
+                            resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
+                        }
+                    }
+                    */
+                    return HttpResponse::build_from(resp).finish();
+                }))   
+            }).map_err(Into::into)
+            )
             //.map_err(Into::into)
-            .wait().unwrap();
+            //.wait().unwrap();
 
-        sreq.extensions_mut().insert(ResourceTimestamp(resource_ts));
-        let status = match precondition {
-            PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
-                StatusCode::NOT_MODIFIED
-            }
-            PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
-                StatusCode::PRECONDITION_FAILED
-            }
-            _ => StatusCode::OK,
-        };
-        if status != StatusCode::OK {
-            return Box::new(future::ok(HttpResponse::Ok()
-                        .header("X-Last-Modified", resource_ts.as_header())
-                        .body("".to_owned())
-                        .into_body()
-                        ));
-        };
-        let rs_ts = &sreq.extensions().get::<ResourceTimestamp>().clone();
-
-        // Make the call, then do all the post-processing steps.
-        Box::new(self.service.call(sreq).map(move |mut resp| {
-            if resp.headers().contains_key("X-Last-Modified") {
-                //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
-                return HttpResponse::build_from(resp).finish();
-            }
-
-            // See if we already extracted one and use that if possible
-            if let Some(resource_ts) = rs_ts {
-                let ts = resource_ts.0;
-                if let Ok(ts_header) = header::HeaderValue::from_str(&ts.as_header()) {
-                    resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
-                    //headers.insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
-                }
-            } else {
-                // Do the work needed to generate a timestamp otherwise
-                let resource_ts = db
-                    .extract_resource(&user_id, collection, Some(bso.unwrap().bso))
-                    .wait()
-                    .unwrap();
-                if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-
-                    resp.headers_mut().insert(header::HeaderName::from_static("X-Last-Modified"), ts_header);
-                }
-            }
-            return HttpResponse::build_from(resp).finish();
-        }))
+        //sreq.extensions_mut().insert(ResourceTimestamp(resource_ts));
+        //let rs_ts = 
     }
 }
 // */
