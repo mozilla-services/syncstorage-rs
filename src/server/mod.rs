@@ -56,10 +56,8 @@ impl Server {
             App::new()
                 .data(state)
                 .wrap(middleware::WeaveTimestamp::new())
-                /*
                 .wrap(middleware::DbTransaction::new())
                 .wrap(middleware::PreConditionCheck::new())
-                */
                 .wrap(Cors::default())
                 .service(
                     web::resource("/1.5/{uid}/info/collections")
