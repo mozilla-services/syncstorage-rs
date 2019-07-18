@@ -210,7 +210,7 @@ where
         }
         let in_transaction = collection.is_some();
 
-        let mut service = self.service.clone();
+        let mut service = Rc::clone(&self.service);
         let fut = state
             .db_pool
             .get()
@@ -223,7 +223,7 @@ where
                 if let Some(collection) = collection {
                 
                     let db3 = db2.clone();
-                    let mut service2 = service.clone();
+                    let mut service2 = Rc::clone(&service);
                 
                     let lc = params::LockCollection {
                         user_id: hawk_user_id,
@@ -251,7 +251,6 @@ where
         Box::new(fut)
        }
 }
-// */
 
 /// The resource in question's Timestamp
 pub struct ResourceTimestamp(SyncTimestamp);
