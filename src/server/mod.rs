@@ -55,9 +55,10 @@ impl Server {
             // Do I need to specify the holding structure or can I be more generic?
             App::new()
                 .data(state)
+                // Middleware is applied LIFO 
                 .wrap(middleware::WeaveTimestamp::new())
-                .wrap(middleware::DbTransaction::new())
                 .wrap(middleware::PreConditionCheck::new())
+                .wrap(middleware::DbTransaction::new())
                 .wrap(Cors::default())
                 .service(
                     web::resource("/1.5/{uid}/info/collections")

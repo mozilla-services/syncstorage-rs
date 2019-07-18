@@ -478,8 +478,7 @@ impl FromRequest for MetaRequest {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Call the precondition stuff to init database handles and what-not
         let user_id = HawkIdentifier::from_request(req, payload)?;
-        let state = req.app_data::<ServerState>().clone().unwrap();
-        let db = state.db_pool.get().wait().unwrap();
+        let db = extrude_db(&req.extensions()).unwrap();
         // TODO: Is it possible to put all of the precondition header info in here?
         Ok({ MetaRequest { user_id, db } })
     }
@@ -867,8 +866,7 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-pub fn extrude_db(req: &ServiceRequest) -> Result<Box<dyn Db>, Error> {
-    let exts = req.extensions();
+pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     match exts.get::<(Box<dyn Db>, bool)>() {
         Some((db, _)) => Ok(db.clone()),
         None => {
@@ -887,11 +885,7 @@ impl FromRequest for Box<dyn Db> {
     type Error = Error;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let state = req.app_data::<ServerState>().clone().unwrap();
-        Ok(state.db_pool.get().wait().map_err(|e| {
-            dbg!(format!("!!! Db FromRequest error: {:?}", e));
-            ErrorInternalServerError("Unexpected Db error")
-        })?)
+        extrude_db(&req.extensions())
     }
 }
 
@@ -1083,6 +1077,7 @@ impl FromRequest for BatchRequestOpt {
 pub enum PreConditionHeader {
     IfModifiedSince(SyncTimestamp),
     IfUnmodifiedSince(SyncTimestamp),
+    NoHeader,
 }
 
 #[derive(Debug, Clone, PartialEq)]
