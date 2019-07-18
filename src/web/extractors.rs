@@ -23,7 +23,7 @@ use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
 use crate::server::ServerState;
 use crate::settings::{Secrets, ServerLimits};
-use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
+use crate::web::{auth::HawkPayload, error::ValidationErrorKind, X_WEAVE_RECORDS};
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -363,20 +363,7 @@ impl BsoParam {
     pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Self, Error> {
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
-        }
-        /*
-        let bso = Query::<BsoParam>::extract(req)
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::Path,
-                    Some("bso".to_owned()),
-                )
-            })?
-            .into_inner();
-        */
-
-        let bso = Self::bsoparam_from_path(uri)?;
+        }        let bso = Self::bsoparam_from_path(uri)?;
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
@@ -409,6 +396,7 @@ impl CollectionParam {
         // TODO: replace with better request path parser.
         // path: "/1.5/{uid}/storage/{collection}"
         let elements: Vec<&str> = uri.path().split('/').collect();
+        if elements.get(3) == ""
         Ok(match elements.get(4) {
             None => {
                 return Err(ValidationErrorKind::FromDetails(
@@ -434,9 +422,11 @@ impl CollectionParam {
     }
 
     pub fn extrude(uri: &Uri) -> Result<Self, Error> {
+        /*
         if let Some(query) = uri.query() {
             return Ok(Query::<CollectionParam>::from_query(query)?.clone());
         }
+        */
         let collection = Self::col_from_path(&uri)?;
         collection.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
@@ -454,9 +444,7 @@ impl FromRequest for CollectionParam {
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let collection = Self::extrude(&req.uri())?;
         req.extensions_mut().insert(collection.clone());
-        Ok(CollectionParam {
-            collection: "col1".to_string(),
-        })
+        Ok(collection)
     }
 }
 
@@ -561,7 +549,7 @@ impl FromRequest for CollectionPostRequest {
     /// done previously:
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let state = req.app_data::<ServerState>().clone().unwrap();
         let max_post_records = i64::from(state.limits.max_post_records);
@@ -571,7 +559,7 @@ impl FromRequest for CollectionPostRequest {
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(&req)
+        )>::from_request(&req, payload)
         .and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
@@ -602,6 +590,7 @@ impl FromRequest for CollectionPostRequest {
                 }
             }
 
+            // XXX: let's not use extract here (maybe convert to extrude?)
             let batch = match BatchRequestOpt::extract(&req) {
                 Ok(batch) => batch,
                 Err(e) => return future::err(e.into()),
@@ -987,7 +976,7 @@ impl FromRequest for BatchRequestOpt {
 
         let limits = &req.app_data::<ServerState>().clone().unwrap().limits;
         let checks = [
-            ("X-Weave-Records", limits.max_post_records),
+            (X_WEAVE_RECORDS, limits.max_post_records),
             ("X-Weave-Bytes", limits.max_post_bytes),
             ("X-Weave-Total-Records", limits.max_total_records),
             ("X-Weave-Total-Bytes", limits.max_total_bytes),

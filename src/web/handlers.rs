@@ -13,6 +13,7 @@ use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
     MetaRequest, ReplyFormat,
 };
+use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS, X_WEAVE_TIMESTAMP};
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -22,7 +23,7 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Er
         .map_err(From::from)
         .map(|result| {
             HttpResponse::build(StatusCode::OK)
-                .header("X-Weave-Records", result.len().to_string())
+                .header(X_WEAVE_RECORDS, result.len().to_string())
                 .json(result)
         })
 }
@@ -33,7 +34,7 @@ pub fn get_collection_counts(meta: MetaRequest) -> impl Future<Item = HttpRespon
         .map_err(From::from)
         .map(|result| {
             HttpResponse::build(StatusCode::OK)
-                .header("X-Weave-Records", result.len().to_string())
+                .header(X_WEAVE_RECORDS, result.len().to_string())
                 .json(result)
         })
 }
@@ -48,7 +49,7 @@ pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpRespons
                 .map(|(coll, size)| (coll, size as f64 / ONE_KB))
                 .collect();
             HttpResponse::build(StatusCode::OK)
-                .header("X-Weave-Records", usage.len().to_string())
+                .header(X_WEAVE_RECORDS, usage.len().to_string())
                 .json(usage)
         })
 }
@@ -99,7 +100,7 @@ pub fn delete_collection(
     .map(move |result| {
         HttpResponse::Ok()
             .if_true(delete_bsos, |resp| {
-                resp.header("X-Last-Modified", result.as_header());
+                resp.header(X_LAST_MODIFIED, result.as_header());
             })
             .json(result)
     })
@@ -149,10 +150,10 @@ where
     .map(move |(result, ts)| {
         let mut builder = HttpResponse::build(StatusCode::OK);
         let resp = builder
-            .header("X-Last-Modified", ts.as_header())
-            .header("X-Weave-Records", result.items.len().to_string())
+            .header(X_LAST_MODIFIED, ts.as_header())
+            .header(X_WEAVE_RECORDS, result.items.len().to_string())
             .if_some(result.offset, |offset, resp| {
-                resp.header("X-Weave-Next-Offset", offset.to_string());
+                resp.header(X_WEAVE_NEXT_OFFSET, offset.to_string());
             });
         match reply_format {
             ReplyFormat::Json => resp.json(result.items),
@@ -189,7 +190,7 @@ pub fn post_collection(
             .map_err(From::from)
             .map(|result| {
                 HttpResponse::build(StatusCode::OK)
-                    .header("X-Last-Modified", result.modified.as_header())
+                    .header(X_LAST_MODIFIED, result.modified.as_header())
                     .json(result)
             }),
     )
@@ -302,7 +303,7 @@ pub fn post_collection_batch(
                 .map(|result| {
                     resp["modified"] = json!(result.modified);
                     HttpResponse::build(StatusCode::OK)
-                        .header("X-Last-Modified", result.modified.as_header())
+                        .header(X_LAST_MODIFIED, result.modified.as_header())
                         .json(resp)
                 });
             return Either::B(fut);
@@ -353,7 +354,7 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
         .map_err(From::from)
         .map(|result| {
             HttpResponse::build(StatusCode::OK)
-                .header("X-Last-Modified", result.as_header())
+                .header(X_LAST_MODIFIED, result.as_header())
                 .json(result)
         })
 }

@@ -24,14 +24,11 @@ use crate::db::{params, util::SyncTimestamp, Db};
 use crate::server::ServerState;
 use crate::settings::Secrets;
 use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt, extrude_db};
+use crate::web::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
-// header statics must be lower case, numbers and symbols per the RFC spec. This reduces chance of error.
-pub static X_LAST_MODIFIED:&str = "x-last-modified";
-pub static X_WEAVE_TIMESTAMP:&str = "x-weave-timestamp";
-
-/// Default Timestamp used for WeaveTimestamp middleware.
-#[derive(Default)]
-struct DefaultWeaveTimestamp(SyncTimestamp);
+///// Default Timestamp used for WeaveTimestamp middleware.
+//#[derive(Default)]
+//struct DefaultWeaveTimestamp(SyncTimestamp);
 
 pub struct WeaveTimestampMiddleware<S> {
     service: S,
@@ -55,32 +52,30 @@ where
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
         Box::new(self.service.call(req).map(move |mut resp| {
-            // let (req, _payload) = req.into_parts();
-            let req = resp.request().clone();
-            if let Some(ts) = req.extensions().get::<DefaultWeaveTimestamp>() {
-                let weave_ts = if let Some(val) = resp.headers().get(X_LAST_MODIFIED) {
-                    let resp_ts = val
-                        .to_str()
-                        // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modfied response header: {}", e)).into())
-                        .unwrap()
-                        .parse::<f64>()
-                        // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into())
-                        .unwrap();
-                    if resp_ts > ts.0.into() {
-                        resp_ts
-                    } else {
-                        ts.0.into()
-                    }
+            //let ts = DefaultWeaveTimestamp::default();
+            let ts = SyncTimestamp::default().as_seconds();
+            let weave_ts = if let Some(val) = resp.headers().get(X_LAST_MODIFIED) {
+                let resp_ts = val
+                    .to_str()
+                    // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modfied response header: {}", e)).into())
+                    .unwrap()
+                    .parse::<f64>()
+                    // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into())
+                    .unwrap();
+                if resp_ts > ts {
+                    resp_ts
                 } else {
-                    ts.0.into()
-                };
-                resp.headers_mut().insert(
-                    header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-                    header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts))
-                        // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
-                        .unwrap(),
-                )
+                    ts
+                }
+            } else {
+                ts
             };
+            dbg!(format!("@@@ Adding timestamp {:?}", weave_ts));
+            resp.headers_mut().insert(
+                header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
+                header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts)).unwrap(),
+                    // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
+            );
             resp
         }))
     }
@@ -236,12 +231,13 @@ where
                         .or_else(move |e| db2.rollback().and_then(|_| return future::err(e)))
                         .map_err(Into::into)
                         .and_then(move |_| {
-                            service2.call(sreq).map(move |resp| {
+                            service2.call(sreq).and_then(move |resp| {
                                 match resp.response().error() {
                                     None => db3.commit(),
                                     Some(_) => db3.rollback()
-                                };
-                                resp
+                                }
+                                .map_err(Into::into)
+                                .and_then(|_| { resp })
                             })
                         }))
                 } else {
@@ -387,6 +383,7 @@ B: 'static,
 
                     // See if we already extracted one and use that if possible
                     if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                        // dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
                         resp.headers_mut().insert(
                             header::HeaderName::from_static(X_LAST_MODIFIED), 
                             ts_header);
