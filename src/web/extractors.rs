@@ -336,6 +336,14 @@ impl BsoParam {
         // TODO: replace with proper path parser
         // path: "/1.5/{uid}/storage/{collection}/{bso}"
         let elements: Vec<&str> = uri.path().split('/').collect();
+        let elem = elements.get(3);
+        if elem.is_none() || elem != Some(&"storage") || elements.len() != 6 {
+            return Err(ValidationErrorKind::FromDetails(
+                "Invalid BSO".to_owned(),
+                RequestErrorLocation::Path,
+                Some("bso".to_owned()),
+            ).into());
+        }
         Ok(match elements.get(5) {
             None => {
                 return Err(ValidationErrorKind::FromDetails(
@@ -396,7 +404,14 @@ impl CollectionParam {
         // TODO: replace with better request path parser.
         // path: "/1.5/{uid}/storage/{collection}"
         let elements: Vec<&str> = uri.path().split('/').collect();
-        if elements.get(3) == ""
+        let elem = elements.get(3);
+        if elem.is_none() || elem != Some(&"storage") || !(5..=6).contains(&elements.len()) {
+            return Err(ValidationErrorKind::FromDetails(
+                "Invalid Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+            ).into());
+        }
         Ok(match elements.get(4) {
             None => {
                 return Err(ValidationErrorKind::FromDetails(
