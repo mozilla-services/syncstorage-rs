@@ -70,10 +70,9 @@ where
             } else {
                 ts
             };
-            dbg!(format!("@@@ Adding timestamp {:?}", weave_ts));
             resp.headers_mut().insert(
                 header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-                header::HeaderValue::from_str(&format!("{:.*}", 2, &weave_ts)).unwrap(),
+                header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
                     // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
             );
             resp
@@ -242,7 +241,7 @@ where
                         }))
                 } else {
                     Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
-                }
+
             });
         Box::new(fut)
        }
@@ -346,7 +345,13 @@ B: 'static,
             &uri
         ).unwrap();
         let db =  extrude_db(&sreq.extensions()).unwrap();
-        let collection = CollectionParam::extrude(&uri).ok().map(|v| v.collection);
+        let collection = match CollectionParam::extrude(&uri){
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("!!! Collection Error: ", e);
+                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: bad collection".to_owned()).into_body())))
+            } 
+        }.map(|v| v.collection);
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
         let bso_opt = bso.clone().map(|b| b.bso);
 
