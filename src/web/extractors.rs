@@ -164,6 +164,11 @@ impl FromRequest for BsoBodies {
                         return future::err(make_error());
                     }
                 }
+                // body.lines() treats a body of "\n" == "". "" succeeds, "\n" should fail.
+                // if sent a body of nothing but "\n", that should be invalid.
+                if bsos.len() == 0 && body.len() != 0 {
+                    return future::err(make_error());
+                }
                 bsos
             } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
                 json_vals
@@ -1101,11 +1106,12 @@ impl PreConditionHeaderOpt {
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
-            Err(ValidationErrorKind::FromDetails(
+            // TODO: See following error, 
+            return Err(ValidationErrorKind::FromDetails(
                 "conflicts with X-If-Modified-Since".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
-            ))?;
+            ).into());
         };
         let (value, field_name) = if let Some(modified_value) = modified {
             (modified_value, "X-If-Modified-Since")
@@ -1114,6 +1120,14 @@ impl PreConditionHeaderOpt {
         } else {
             return Ok(Self { opt: None });
         };
+        if value.to_str().unwrap_or("0.0").parse::<f64>().unwrap_or(0.0) < 0.0 {
+            //TODO: This is the right error, but it's not being returned correctly.
+            return Err(ValidationErrorKind::FromDetails(
+                "value is negative".to_owned(),
+                RequestErrorLocation::Header,
+                Some("X-If-Modified-Since".to_owned())
+            ).into());
+        }
         value
             .to_str()
             .map_err(|e| {

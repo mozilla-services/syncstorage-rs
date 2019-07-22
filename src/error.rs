@@ -2,7 +2,8 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use actix_web::{dev::ServiceResponse, error::ResponseError, http::{HeaderValue, header, StatusCode}, HttpResponse, dev::HttpResponseBuilder, Result};
+use actix_web::middleware::errhandlers::{ErrorHandlers, ErrorHandlerResponse};
 use failure::{Backtrace, Context, Fail};
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
@@ -124,6 +125,11 @@ impl ApiError {
             },
             _ => WeaveError::UnknownError,
         }
+    }
+
+    pub fn render_404<B>(res: ServiceResponse<B>)-> Result<ErrorHandlerResponse<B>> {
+        let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(0);
+        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(res.request().clone(), resp.into_body())))
     }
 }
 

@@ -5,6 +5,8 @@ use std::sync::Arc;
 use actix_cors::Cors;
 use actix_rt::{System, SystemRunner};
 use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::http::StatusCode;
+use actix_web::middleware::errhandlers::ErrorHandlers;
 // use num_cpus;
 use serde_json::json;
 
@@ -12,6 +14,7 @@ use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
+use crate::error::ApiError;
 
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
@@ -60,6 +63,7 @@ impl Server {
                 .wrap(middleware::PreConditionCheck::new())
                 .wrap(middleware::DbTransaction::new())
                 .wrap(Cors::default())
+                .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
                 .service(
                     web::resource("/1.5/{uid}/info/collections")
                         .route(web::get().to_async(handlers::get_collections)),

@@ -21,6 +21,7 @@ use futures::{
 };
 
 use crate::db::{params, util::SyncTimestamp, Db};
+use crate::error::ApiErrorKind;
 use crate::server::ServerState;
 use crate::settings::Secrets;
 use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt, extrude_db};
@@ -70,7 +71,16 @@ where
             } else {
                 ts
             };
-            resp.headers_mut().insert(
+            let success = &resp.status().is_success();
+            let headers = resp.headers_mut();
+            if ! success && ! headers.contains_key("content-type") {
+                headers.insert(
+                    header::HeaderName::from_static("content-type"), 
+                    header::HeaderValue::from_str("application/json").unwrap()
+                );
+            }
+            dbg!("### Content type", &headers, success);
+            headers.insert(
                 header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
                 header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
                     // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
@@ -375,6 +385,7 @@ B: 'static,
                 if status != StatusCode::OK {
                     return Either::A(future::ok(sreq.into_response(HttpResponse::Ok()
                                 .header(X_LAST_MODIFIED, resource_ts.as_header())
+                                .status(status)
                                 .body("".to_owned())
                                 .into_body()
                                 )));
