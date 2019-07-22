@@ -172,9 +172,12 @@ where
         // `into_parts()` consumes the service request.
         println!("### >> DbTransactionMiddleware wrapper");
         let method = sreq.method().clone();
-        let collection = CollectionParam::extrude(&sreq.uri())
-            .map(|param| param.collection.clone())
-            .ok();
+        let collection = match CollectionParam::extrude(&sreq.uri()) {
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("!!! err: {:?}", e);
+                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: invalid collection".to_owned()).into_body())))
+            }};
         let ci = &sreq.connection_info().clone();
         let headers = &sreq.headers().clone();
         let auth = match headers.get("authorization") {
@@ -221,7 +224,7 @@ where
                 
                     let lc = params::LockCollection {
                         user_id: hawk_user_id,
-                        collection,
+                        collection: collection.collection,
                     };
                     Either::A(match method {
                         Method::GET | Method::HEAD => db2.lock_for_read(lc),
@@ -241,7 +244,7 @@ where
                         }))
                 } else {
                     Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
-
+                }
             });
         Box::new(fut)
        }
@@ -346,18 +349,18 @@ B: 'static,
         ).unwrap();
         let db =  extrude_db(&sreq.extensions()).unwrap();
         let collection = match CollectionParam::extrude(&uri){
-            Ok(v) => v,
+            Ok(v) => v.map(|c| c.collection),
             Err(e) => {
                 dbg!("!!! Collection Error: ", e);
                 return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: bad collection".to_owned()).into_body())))
             } 
-        }.map(|v| v.collection);
+        };
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
         let bso_opt = bso.clone().map(|b| b.bso);
 
         let mut service = self.service.clone();
         Box::new(db
-            .extract_resource(&user_id.clone(), collection.clone(), bso_opt)
+            .extract_resource(&user_id.clone(), collection, bso_opt)
             .map_err(Into::into)
             .and_then(move |resource_ts|{
                 let status = match precondition {

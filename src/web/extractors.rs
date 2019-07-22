@@ -400,17 +400,13 @@ pub struct CollectionParam {
 }
 
 impl CollectionParam {
-    fn col_from_path(uri: &Uri) -> Result<CollectionParam, Error> {
+    fn col_from_path(uri: &Uri) -> Result<Option<CollectionParam>, Error> {
         // TODO: replace with better request path parser.
         // path: "/1.5/{uid}/storage/{collection}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
         if elem.is_none() || elem != Some(&"storage") || !(5..=6).contains(&elements.len()) {
-            return Err(ValidationErrorKind::FromDetails(
-                "Invalid Collection".to_owned(),
-                RequestErrorLocation::Path,
-                Some("collection".to_owned()),
-            ).into());
+            return Ok(None)
         }
         Ok(match elements.get(4) {
             None => {
@@ -422,7 +418,7 @@ impl CollectionParam {
                 .into())
             }
             Some(v) => match String::from_str(v) {
-                Ok(sv) => Self { collection: sv },
+                Ok(sv) => Some(Self { collection: sv }),
                 Err(_e) => {
                     dbg!("!!! Invalid Collection Error {:?} {:?}", v, _e);
                     return Err(ValidationErrorKind::FromDetails(
@@ -436,14 +432,17 @@ impl CollectionParam {
         })
     }
 
-    pub fn extrude(uri: &Uri) -> Result<Self, Error> {
+    pub fn extrude(uri: &Uri) -> Result<Option<Self>, Error> {
         /*
         if let Some(query) = uri.query() {
             return Ok(Query::<CollectionParam>::from_query(query)?.clone());
         }
         */
         let collection = Self::col_from_path(&uri)?;
-        collection.validate().map_err(|e| {
+        if collection.is_none(){
+            return Ok(None)
+        }
+        collection.clone().unwrap().validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
         Ok(collection)
@@ -457,7 +456,7 @@ impl FromRequest for CollectionParam {
     type Error = Error;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let collection = Self::extrude(&req.uri())?;
+        let collection = Self::extrude(&req.uri())?.unwrap();
         req.extensions_mut().insert(collection.clone());
         Ok(collection)
     }
@@ -874,7 +873,7 @@ pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     match exts.get::<(Box<dyn Db>, bool)>() {
         Some((db, _)) => Ok(db.clone()),
         None => {
-            dbg!("--- DB Error: No db");
+            dbg!("!!! DB Error: No db");
             return Err(ErrorInternalServerError(format!(
                 "Unexpected Db error: No DB"
             )));
