@@ -70,11 +70,6 @@ where
         } else {
             ts
         };
-        headers.insert(
-            header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-            header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
-            // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
-        );
 
         Box::new(self.service.call(sreq).map(move |mut resp| {
             let success = &resp.status().is_success();
