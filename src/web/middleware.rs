@@ -2,17 +2,17 @@
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
+use actix_http::Response;
+use actix_service::{Service, Transform};
+use actix_web::dev::{JsonBody, MessageBody, ServiceRequest, ServiceResponse};
 use actix_web::{
     http::{header, Method, StatusCode},
-    web::Data, 
+    web::Data,
     Error, HttpMessage, HttpResponse,
 };
-use actix_service::{Service, Transform};
-use actix_http::{Response};
-use actix_web::dev::{JsonBody, MessageBody, ServiceRequest, ServiceResponse};
 // use actix_router::PathDeserializer;
 
 use futures::{
@@ -24,7 +24,10 @@ use crate::db::{params, util::SyncTimestamp, Db};
 use crate::error::ApiErrorKind;
 use crate::server::ServerState;
 use crate::settings::Secrets;
-use crate::web::extractors::{BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt, extrude_db};
+use crate::web::extractors::{
+    extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
+    PreConditionHeaderOpt,
+};
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
 ///// Default Timestamp used for WeaveTimestamp middleware.
@@ -73,17 +76,16 @@ where
             };
             let success = &resp.status().is_success();
             let headers = resp.headers_mut();
-            if ! success && ! headers.contains_key("content-type") {
+            if !success && !headers.contains_key("content-type") {
                 headers.insert(
-                    header::HeaderName::from_static("content-type"), 
-                    header::HeaderValue::from_str("application/json").unwrap()
+                    header::HeaderName::from_static("content-type"),
+                    header::HeaderValue::from_str("application/json").unwrap(),
                 );
             }
-            dbg!("### Content type", &headers, success);
             headers.insert(
                 header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
                 header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
-                    // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
+                // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
             );
             resp
         }))
@@ -138,7 +140,7 @@ impl Default for DbTransaction {
     }
 }
 
-impl <S, B> Transform<S> for DbTransaction
+impl<S, B> Transform<S> for DbTransaction
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S: 'static,
@@ -153,7 +155,9 @@ where
     type Future = FutureResult<Self::Transform, Self::InitError>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(DbTransactionMiddleware{service: Rc::new(RefCell::new(service))})
+        future::ok(DbTransactionMiddleware {
+            service: Rc::new(RefCell::new(service)),
+        })
     }
 }
 
@@ -186,31 +190,48 @@ where
             Ok(v) => v,
             Err(e) => {
                 dbg!("!!! err: {:?}", e);
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: invalid collection".to_owned()).into_body())))
-            }};
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: invalid collection".to_owned())
+                            .into_body(),
+                    ),
+                ));
+            }
+        };
         let ci = &sreq.connection_info().clone();
         let headers = &sreq.headers().clone();
         let auth = match headers.get("authorization") {
             Some(a) => a.to_str().unwrap(),
             None => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: missing auth".to_owned()).into_body())))
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: missing auth".to_owned())
+                            .into_body(),
+                    ),
+                ))
             }
         };
-        let state =  match &sreq.app_data::<ServerState>() {
+        let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body())))
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: No State".to_owned())
+                            .into_body(),
+                    ),
+                ))
             }
         };
         let secrets = &state.secrets.clone();
         let uri = &sreq.uri();
-        let hawk_user_id = HawkIdentifier::extrude(
-            &secrets,
-            &method.as_str(),
-            &auth,
-            &ci,
-            &uri,
-        ).unwrap();
+        let hawk_user_id =
+            HawkIdentifier::extrude(&secrets, &method.as_str(), &auth, &ci, &uri).unwrap();
         {
             let mut exts = sreq.extensions_mut();
             exts.insert(hawk_user_id.clone());
@@ -218,46 +239,42 @@ where
         let in_transaction = collection.is_some();
 
         let mut service = Rc::clone(&self.service);
-        let fut = state
-            .db_pool
-            .get()
-            .map_err(Into::into)
-            .and_then(move |db| {
-                
-                let db2 = db.clone();
+        let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
+            let db2 = db.clone();
 
-                sreq.extensions_mut().insert((db, in_transaction));
-                if let Some(collection) = collection {
-                
-                    let db3 = db2.clone();
-                    let mut service2 = Rc::clone(&service);
-                
-                    let lc = params::LockCollection {
-                        user_id: hawk_user_id,
-                        collection: collection.collection,
-                    };
-                    Either::A(match method {
+            sreq.extensions_mut().insert((db, in_transaction));
+            if let Some(collection) = collection {
+                let db3 = db2.clone();
+                let mut service2 = Rc::clone(&service);
+
+                let lc = params::LockCollection {
+                    user_id: hawk_user_id,
+                    collection: collection.collection,
+                };
+                Either::A(
+                    match method {
                         Method::GET | Method::HEAD => db2.lock_for_read(lc),
-                            _ => db2.lock_for_write(lc),
-                        }
-                        .or_else(move |e| db2.rollback().and_then(|_| return future::err(e)))
-                        .map_err(Into::into)
-                        .and_then(move |_| {
-                            service2.call(sreq).and_then(move |resp| {
-                                match resp.response().error() {
-                                    None => db3.commit(),
-                                    Some(_) => db3.rollback()
-                                }
-                                .map_err(Into::into)
-                                .and_then(|_| { resp })
-                            })
-                        }))
-                } else {
-                    Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
-                }
-            });
+                        _ => db2.lock_for_write(lc),
+                    }
+                    .or_else(move |e| db2.rollback().and_then(|_| return future::err(e)))
+                    .map_err(Into::into)
+                    .and_then(move |_| {
+                        service2.call(sreq).and_then(move |resp| {
+                            match resp.response().error() {
+                                None => db3.commit(),
+                                Some(_) => db3.rollback(),
+                            }
+                            .map_err(Into::into)
+                            .and_then(|_| resp)
+                        })
+                    }),
+                )
+            } else {
+                Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
+            }
+        });
         Box::new(fut)
-       }
+    }
 }
 
 /// The resource in question's Timestamp
@@ -278,7 +295,7 @@ impl Default for PreConditionCheck {
     }
 }
 
-impl <S, B> Transform<S> for PreConditionCheck
+impl<S, B> Transform<S> for PreConditionCheck
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S: 'static,
@@ -293,7 +310,9 @@ where
     type Future = FutureResult<Self::Transform, Self::InitError>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(PreConditionCheckMiddleware{service: Rc::new(RefCell::new(service))})
+        future::ok(PreConditionCheckMiddleware {
+            service: Rc::new(RefCell::new(service)),
+        })
     }
 }
 
@@ -303,10 +322,10 @@ pub struct PreConditionCheckMiddleware<S> {
 
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
-S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-S: 'static,
-S::Future: 'static,
-B: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S: 'static,
+    S::Future: 'static,
+    B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
@@ -314,7 +333,7 @@ B: 'static,
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
     // call super poll_ready()
-    fn poll_ready(&mut self) -> Poll<(), Self::Error>{
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
@@ -322,100 +341,130 @@ B: 'static,
         // Pre check
         let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers()) {
             Ok(precond) => match precond.opt {
-                    Some(p) => {
-                        p
-                    },
-                    None => {
-                        PreConditionHeader::NoHeader
-                    }
-                },
+                Some(p) => p,
+                None => PreConditionHeader::NoHeader,
+            },
             Err(e) => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body(format!("Err: {:?}", e)).into_body())))
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::BadRequest()
+                            .content_type("application/json")
+                            .body(format!("Err: {:?}", e))
+                            .into_body(),
+                    ),
+                ))
             }
         };
 
-        let secrets = match  &sreq.app_data::<ServerState>() {
+        let secrets = match &sreq.app_data::<ServerState>() {
             Some(v) => v,
             None => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: No State".to_owned()).into_body())))
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: No State".to_owned())
+                            .into_body(),
+                    ),
+                ))
             }
-        }.secrets.clone();
+        }
+        .secrets
+        .clone();
 
         let ci = &sreq.connection_info().clone();
         let headers = &sreq.headers().clone();
         let auth = match headers.get("authorization") {
             Some(a) => a.to_str().unwrap(),
             None => {
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: missing auth".to_owned()).into_body())))
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: missing auth".to_owned())
+                            .into_body(),
+                    ),
+                ))
             }
         };
         let uri = &sreq.uri();
-        let user_id = HawkIdentifier::extrude(
-            &secrets,
-            &sreq.method().as_str(),
-            &auth,
-            &ci,
-            &uri
-        ).unwrap();
-        let db =  extrude_db(&sreq.extensions()).unwrap();
-        let collection = match CollectionParam::extrude(&uri){
+        let user_id =
+            HawkIdentifier::extrude(&secrets, &sreq.method().as_str(), &auth, &ci, &uri).unwrap();
+        let db = extrude_db(&sreq.extensions()).unwrap();
+        let collection = match CollectionParam::extrude(&uri) {
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
                 dbg!("!!! Collection Error: ", e);
-                return Box::new(future::ok(sreq.into_response(HttpResponse::InternalServerError().body("Err: bad collection".to_owned()).into_body())))
-            } 
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: bad collection".to_owned())
+                            .into_body(),
+                    ),
+                ));
+            }
         };
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
         let bso_opt = bso.clone().map(|b| b.bso);
 
         let mut service = self.service.clone();
-        Box::new(db
-            .extract_resource(&user_id.clone(), collection, bso_opt)
-            .map_err(Into::into)
-            .and_then(move |resource_ts|{
-                let status = match precondition {
-                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
-                        StatusCode::NOT_MODIFIED
-                    }
-                    PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
-                        StatusCode::PRECONDITION_FAILED
-                    }
-                    _ => StatusCode::OK,
-                };
-                if status != StatusCode::OK {
-                    return Either::A(future::ok(sreq.into_response(HttpResponse::Ok()
-                                .header(X_LAST_MODIFIED, resource_ts.as_header())
-                                .status(status)
-                                .body("".to_owned())
-                                .into_body()
-                                )));
-                };
-                //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
+        Box::new(
+            db.extract_resource(&user_id.clone(), collection, bso_opt)
+                .map_err(Into::into)
+                .and_then(move |resource_ts| {
+                    let status = match precondition {
+                        PreConditionHeader::IfModifiedSince(header_ts)
+                            if resource_ts <= header_ts =>
+                        {
+                            StatusCode::NOT_MODIFIED
+                        }
+                        PreConditionHeader::IfUnmodifiedSince(header_ts)
+                            if resource_ts > header_ts =>
+                        {
+                            StatusCode::PRECONDITION_FAILED
+                        }
+                        _ => StatusCode::OK,
+                    };
+                    if status != StatusCode::OK {
+                        return Either::A(future::ok(
+                            sreq.into_response(
+                                HttpResponse::Ok()
+                                    .content_type("application/json")
+                                    .header(X_LAST_MODIFIED, resource_ts.as_header())
+                                    .status(status)
+                                    .body("".to_owned())
+                                    .into_body(),
+                            ),
+                        ));
+                    };
+                    //let rs_ts = sreq.extensions().get::<ResourceTimestamp>().clone();
 
-                // Make the call, then do all the post-processing steps.
-                Either::B(service.call(sreq).map(move |mut resp| {
-                    if resp.headers().contains_key(X_LAST_MODIFIED) {
-                        //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
-                        //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
+                    // Make the call, then do all the post-processing steps.
+                    Either::B(service.call(sreq).map(move |mut resp| {
+                        if resp.headers().contains_key(X_LAST_MODIFIED) {
+                            //return ServiceResponse::new(req, HttpResponse::build(StatusCode::OK).body("".to_owned()).into_body());
+                            //return resp.into_response(HttpResponse::build_from(resp).finish().into_body());
+                            return resp;
+                        }
+
+                        // See if we already extracted one and use that if possible
+                        if let Ok(ts_header) =
+                            header::HeaderValue::from_str(&resource_ts.as_header())
+                        {
+                            // dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
+                            resp.headers_mut().insert(
+                                header::HeaderName::from_static(X_LAST_MODIFIED),
+                                ts_header,
+                            );
+                        }
                         return resp;
-                    }
-
-                    // See if we already extracted one and use that if possible
-                    if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-                        // dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
-                        resp.headers_mut().insert(
-                            header::HeaderName::from_static(X_LAST_MODIFIED), 
-                            ts_header);
-                    }
-                    return resp;
-                }))
-            })
-            )
-
+                    }))
+                }),
+        )
     }
 }
 // */
-
 #[cfg(test)]
 mod tests {
     use super::*;

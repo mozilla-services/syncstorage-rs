@@ -4,7 +4,7 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_web::dev::{ConnectionInfo, Payload, ServiceRequest, Extensions};
+use actix_web::dev::{ConnectionInfo, Extensions, Payload, ServiceRequest};
 use actix_web::http::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::http::Uri;
 use actix_web::web::{Json, Query}; // JsonConfig
@@ -347,7 +347,8 @@ impl BsoParam {
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-            ).into());
+            )
+            .into());
         }
         Ok(match elements.get(5) {
             None => {
@@ -376,13 +377,13 @@ impl BsoParam {
     pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Self, Error> {
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
-        }        let bso = Self::bsoparam_from_path(uri)?;
+        }
+        let bso = Self::bsoparam_from_path(uri)?;
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
         extensions.insert(bso.clone());
         Ok(bso)
-
     }
 }
 
@@ -411,7 +412,7 @@ impl CollectionParam {
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
         if elem.is_none() || elem != Some(&"storage") || !(5..=6).contains(&elements.len()) {
-            return Ok(None)
+            return Ok(None);
         }
         Ok(match elements.get(4) {
             None => {
@@ -444,8 +445,8 @@ impl CollectionParam {
         }
         */
         let collection = Self::col_from_path(&uri)?;
-        if collection.is_none(){
-            return Ok(None)
+        if collection.is_none() {
+            return Ok(None);
         }
         collection.clone().unwrap().validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
@@ -692,33 +693,33 @@ impl FromRequest for BsoPutRequest {
             BsoQueryParams,
             BsoParam,
             BsoBody,
-                )>::from_request(req, payload)
-            .and_then(|(user_id, db, collection, query, bso, body)| {
-                let collection = collection.collection.clone();
-                if collection == "crypto" {
-                    // Verify the client didn't mess up the crypto if we have a payload
-                    if let Some(ref data) = body.payload {
-                        if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
-                            return future::err(
-                                ValidationErrorKind::FromDetails(
-                                    "Known-bad BSO payload".to_owned(),
-                                    RequestErrorLocation::Body,
-                                    Some("bsos".to_owned()),
-                                )
-                                .into(),
-                            );
-                        }
+        )>::from_request(req, payload)
+        .and_then(|(user_id, db, collection, query, bso, body)| {
+            let collection = collection.collection.clone();
+            if collection == "crypto" {
+                // Verify the client didn't mess up the crypto if we have a payload
+                if let Some(ref data) = body.payload {
+                    if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
+                        return future::err(
+                            ValidationErrorKind::FromDetails(
+                                "Known-bad BSO payload".to_owned(),
+                                RequestErrorLocation::Body,
+                                Some("bsos".to_owned()),
+                            )
+                            .into(),
+                        );
                     }
                 }
-                future::ok(BsoPutRequest {
-                    collection,
-                    db,
-                    user_id,
-                    query,
-                    bso: bso.bso.clone(),
-                    body,
-                })
-            });
+            }
+            future::ok(BsoPutRequest {
+                collection,
+                db,
+                user_id,
+                query,
+                bso: bso.bso.clone(),
+                body,
+            })
+        });
         Box::new(fut)
     }
 }
@@ -738,14 +739,14 @@ impl FromRequest for ConfigRequest {
         // TODO: Find a better way to extract these.
         Ok(Self {
             limits: ServerLimits {
-                 max_post_bytes: data.max_post_bytes,
-                 max_post_records: data.max_post_records,
-                 max_record_payload_bytes: data.max_record_payload_bytes,
-                 max_request_bytes: data.max_request_bytes,
-                 max_total_bytes: data.max_total_bytes,
-                 max_total_records: data.max_total_records,
-                 }
-            })
+                max_post_bytes: data.max_post_bytes,
+                max_post_records: data.max_post_records,
+                max_record_payload_bytes: data.max_record_payload_bytes,
+                max_request_bytes: data.max_request_bytes,
+                max_total_bytes: data.max_total_bytes,
+                max_total_records: data.max_total_records,
+            },
+        })
     }
 }
 
@@ -862,8 +863,7 @@ impl FromRequest for HawkIdentifier {
     }
 }
 
-impl HawkIdentifier {
-}
+impl HawkIdentifier {}
 
 impl From<u32> for HawkIdentifier {
     fn from(val: u32) -> Self {
@@ -1106,12 +1106,13 @@ impl PreConditionHeaderOpt {
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
-            // TODO: See following error, 
+            // TODO: See following error,
             return Err(ValidationErrorKind::FromDetails(
                 "conflicts with X-If-Modified-Since".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
-            ).into());
+            )
+            .into());
         };
         let (value, field_name) = if let Some(modified_value) = modified {
             (modified_value, "X-If-Modified-Since")
@@ -1120,13 +1121,20 @@ impl PreConditionHeaderOpt {
         } else {
             return Ok(Self { opt: None });
         };
-        if value.to_str().unwrap_or("0.0").parse::<f64>().unwrap_or(0.0) < 0.0 {
+        if value
+            .to_str()
+            .unwrap_or("0.0")
+            .parse::<f64>()
+            .unwrap_or(0.0)
+            < 0.0
+        {
             //TODO: This is the right error, but it's not being returned correctly.
             return Err(ValidationErrorKind::FromDetails(
                 "value is negative".to_owned(),
                 RequestErrorLocation::Header,
-                Some("X-If-Modified-Since".to_owned())
-            ).into());
+                Some("X-If-Modified-Since".to_owned()),
+            )
+            .into());
         }
         value
             .to_str()
@@ -1168,7 +1176,7 @@ impl FromRequest for PreConditionHeaderOpt {
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extrude(req.headers())
+        Self::extrude(req.headers()).map_err(Into::into)
     }
 }
 

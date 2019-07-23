@@ -77,7 +77,7 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
-         Ok(payload)
+        Ok(payload)
         /*
         if request.validate_header(
             &header,

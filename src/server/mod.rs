@@ -4,17 +4,17 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_rt::{System, SystemRunner};
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 use actix_web::http::StatusCode;
 use actix_web::middleware::errhandlers::ErrorHandlers;
+use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
 // use num_cpus;
 use serde_json::json;
 
 use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
+use crate::error::ApiError;
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
-use crate::error::ApiError;
 
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
@@ -58,12 +58,21 @@ impl Server {
             // Do I need to specify the holding structure or can I be more generic?
             App::new()
                 .data(state)
-                // Middleware is applied LIFO 
+                // Middleware is applied LIFO
+                .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
+                // TODO: Is there a way to define this by default?
+                .wrap(
+                    ErrorHandlers::new()
+                        .handler(StatusCode::BAD_REQUEST, ApiError::add_content_type_to_err),
+                )
+                .wrap(ErrorHandlers::new().handler(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    ApiError::add_content_type_to_err,
+                ))
                 .wrap(middleware::WeaveTimestamp::new())
                 .wrap(middleware::PreConditionCheck::new())
                 .wrap(middleware::DbTransaction::new())
                 .wrap(Cors::default())
-                .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
                 .service(
                     web::resource("/1.5/{uid}/info/collections")
                         .route(web::get().to_async(handlers::get_collections)),
@@ -96,11 +105,9 @@ impl Server {
                         .data(
                             actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                    .content_type(|ct| {
-                                        ct == mime::TEXT_PLAIN
-                                    })
+                                .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )
-                        // TODO:  
+                        // TODO:
                         // .data(Bytes::configure(|cfg| {cfg.limit(settings.limits.max_request_bytes)}))
                         .route(web::delete().to_async(handlers::delete_collection))
                         .route(web::get().to_async(handlers::get_collection))
@@ -109,11 +116,9 @@ impl Server {
                 .service(
                     web::resource("/1.5/{uid}/storage/{collection}/{bso}")
                         .data(
-                                actix_web::web::JsonConfig::default()
+                            actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                    .content_type(|ct| {
-                                        ct == mime::TEXT_PLAIN
-                                    })
+                                .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )
                         .route(web::delete().to_async(handlers::delete_bso))
                         .route(web::get().to_async(handlers::get_bso))

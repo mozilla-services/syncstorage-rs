@@ -2,8 +2,14 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::{dev::ServiceResponse, error::ResponseError, http::{HeaderValue, header, StatusCode}, HttpResponse, dev::HttpResponseBuilder, Result};
-use actix_web::middleware::errhandlers::{ErrorHandlers, ErrorHandlerResponse};
+use actix_web::middleware::errhandlers::{ErrorHandlerResponse, ErrorHandlers};
+use actix_web::{
+    dev::HttpResponseBuilder,
+    dev::ServiceResponse,
+    error::ResponseError,
+    http::{header, HeaderValue, StatusCode},
+    HttpResponse, Result,
+};
 use failure::{Backtrace, Context, Fail};
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
@@ -127,9 +133,22 @@ impl ApiError {
         }
     }
 
-    pub fn render_404<B>(res: ServiceResponse<B>)-> Result<ErrorHandlerResponse<B>> {
+    pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(0);
-        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(res.request().clone(), resp.into_body())))
+        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
+            res.request().clone(),
+            resp.into_body(),
+        )))
+    }
+
+    pub fn add_content_type_to_err<B>(
+        mut res: ServiceResponse<B>,
+    ) -> Result<ErrorHandlerResponse<B>> {
+        res.response_mut().headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        Ok(ErrorHandlerResponse::Response(res))
     }
 }
 
