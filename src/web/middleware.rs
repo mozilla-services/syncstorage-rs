@@ -50,39 +50,46 @@ where
         self.service.poll_ready()
     }
 
-    fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        Box::new(self.service.call(req).map(move |mut resp| {
-            //let ts = DefaultWeaveTimestamp::default();
-            let ts = SyncTimestamp::default().as_seconds();
-            let weave_ts = if let Some(val) = resp.headers().get(X_LAST_MODIFIED) {
-                let resp_ts = val
-                    .to_str()
-                    // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modfied response header: {}", e)).into())
-                    .unwrap()
-                    .parse::<f64>()
-                    // .map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into())
-                    .unwrap();
-                if resp_ts > ts {
-                    resp_ts
-                } else {
-                    ts
-                }
+    fn call(&mut self, mut sreq: ServiceRequest) -> Self::Future {
+        dbg!("### WeaveTimestamp");
+        let ts = SyncTimestamp::default().as_seconds();
+        let headers = sreq.headers_mut();
+        let weave_ts = if let Some(val) = headers.get(X_LAST_MODIFIED) {
+            let resp_ts = val
+                .to_str()
+                //.map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modfied response header: {}", e)).into())
+                .unwrap_or("0")
+                .parse::<f64>()
+                //.map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into())
+                .unwrap();
+            if resp_ts > ts {
+                resp_ts
             } else {
                 ts
-            };
+            }
+        } else {
+            ts
+        };
+        headers.insert(
+            header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
+            header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
+            // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
+        );
+
+        Box::new(self.service.call(sreq).map(move |mut resp| {
             let success = &resp.status().is_success();
             let headers = resp.headers_mut();
+            headers.insert(
+                header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
+                header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
+                // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
+            );
             if !success && !headers.contains_key("content-type") {
                 headers.insert(
                     header::HeaderName::from_static("content-type"),
                     header::HeaderValue::from_str("application/json").unwrap(),
                 );
             }
-            headers.insert(
-                header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-                header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
-                // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
-            );
             resp
         }))
     }

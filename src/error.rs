@@ -2,7 +2,7 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::middleware::errhandlers::{ErrorHandlerResponse};
+use actix_web::middleware::errhandlers::ErrorHandlerResponse;
 use actix_web::{
     dev::HttpResponseBuilder,
     dev::ServiceResponse,
