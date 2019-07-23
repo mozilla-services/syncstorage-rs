@@ -4,11 +4,11 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_web::dev::{ConnectionInfo, Extensions, Payload, ServiceRequest};
+use actix_web::dev::{ConnectionInfo, Extensions, Payload};
 use actix_web::http::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::http::Uri;
 use actix_web::web::{Json, Query}; // JsonConfig
-use actix_web::{error::ErrorInternalServerError, Error, FromRequest, HttpMessage, HttpRequest};
+use actix_web::{error::ErrorInternalServerError, Error, FromRequest, HttpRequest};
 use futures::{future, Future};
 use lazy_static::lazy_static;
 use regex::Regex;

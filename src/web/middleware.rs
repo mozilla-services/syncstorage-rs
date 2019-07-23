@@ -5,12 +5,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actix_http::Response;
 use actix_service::{Service, Transform};
-use actix_web::dev::{JsonBody, MessageBody, ServiceRequest, ServiceResponse};
+use actix_web::dev::{MessageBody, ServiceRequest, ServiceResponse};
 use actix_web::{
     http::{header, Method, StatusCode},
-    web::Data,
     Error, HttpMessage, HttpResponse,
 };
 // use actix_router::PathDeserializer;
@@ -20,10 +18,8 @@ use futures::{
     Future, Poll,
 };
 
-use crate::db::{params, util::SyncTimestamp, Db};
-use crate::error::ApiErrorKind;
+use crate::db::{params, util::SyncTimestamp};
 use crate::server::ServerState;
-use crate::settings::Secrets;
 use crate::web::extractors::{
     extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
     PreConditionHeaderOpt,

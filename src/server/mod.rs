@@ -59,8 +59,10 @@ impl Server {
             App::new()
                 .data(state)
                 // Middleware is applied LIFO
+                // These will wrap all outbound responses with matching status codes.
                 .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
-                // TODO: Is there a way to define this by default?
+                // TODO: Is there a way to define this by default? Outboud errors don't generally set
+                // content type or body.
                 .wrap(
                     ErrorHandlers::new()
                         .handler(StatusCode::BAD_REQUEST, ApiError::add_content_type_to_err),
@@ -69,6 +71,7 @@ impl Server {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     ApiError::add_content_type_to_err,
                 ))
+                // These are our wrappers
                 .wrap(middleware::WeaveTimestamp::new())
                 .wrap(middleware::PreConditionCheck::new())
                 .wrap(middleware::DbTransaction::new())

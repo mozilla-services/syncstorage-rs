@@ -2,7 +2,7 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::middleware::errhandlers::{ErrorHandlerResponse, ErrorHandlers};
+use actix_web::middleware::errhandlers::{ErrorHandlerResponse};
 use actix_web::{
     dev::HttpResponseBuilder,
     dev::ServiceResponse,
@@ -134,6 +134,7 @@ impl ApiError {
     }
 
     pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+        // Replace the outbound error message with our own.
         let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(0);
         Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
             res.request().clone(),
@@ -144,6 +145,7 @@ impl ApiError {
     pub fn add_content_type_to_err<B>(
         mut res: ServiceResponse<B>,
     ) -> Result<ErrorHandlerResponse<B>> {
+        // Inject the "Content-Type: application/json" header into the outbound response.
         res.response_mut().headers_mut().insert(
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
