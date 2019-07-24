@@ -16,6 +16,11 @@ use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
 
+pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
+pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
+const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
+const SYNC_VERSION_PATH: &str = "1.5";
+
 // The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
 mod test;
@@ -32,6 +37,17 @@ pub struct ServerState {
     pub secrets: Arc<Secrets>,
 
     pub port: u16,
+}
+
+fn cfg_path(path: &str) -> String {
+    let path = path
+        .replace(
+            "{collection}",
+            &format!("{{collection:{}}}", COLLECTION_ID_REGEX),
+        )
+        .replace("{bso}", &format!("{{bso:{}}}", BSO_ID_REGEX));
+    // TODO: enforce a different uid regex under spanner
+    format!("/{}/{{uid:{}}}{}", SYNC_VERSION_PATH, MYSQL_UID_REGEX, path)
 }
 
 pub struct Server {}
@@ -77,57 +93,58 @@ impl Server {
                 .wrap(middleware::DbTransaction::new())
                 .wrap(Cors::default())
                 .service(
-                    web::resource("/1.5/{uid}/info/collections")
+                    web::resource(&cfg_path("/info/collections"))
                         .route(web::get().to_async(handlers::get_collections)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/info/collection_counts")
+                    web::resource(&cfg_path("/info/collection_counts"))
                         .route(web::get().to_async(handlers::get_collection_counts)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/info/collection_usage")
+                    web::resource(&cfg_path("/info/collection_usage"))
                         .route(web::get().to_async(handlers::get_collection_usage)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/info/configuration")
+                    web::resource(&cfg_path("/info/configuration"))
                         .route(web::get().to_async(handlers::get_configuration)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/info/quota")
+                    web::resource(&cfg_path("/info/quota"))
                         .route(web::get().to_async(handlers::get_quota)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}").route(web::delete().to_async(handlers::delete_all)),
-                )
-                .service(
-                    web::resource("/1.5/{uid}/storage")
+                    web::resource(&cfg_path(""))
                         .route(web::delete().to_async(handlers::delete_all)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/storage/{collection}")
+                    web::resource(&cfg_path("/storage"))
+                        .route(web::delete().to_async(handlers::delete_all)),
+                )
+                .service(
+                    web::resource(&cfg_path("/storage/{collection}"))
                         .data(
                             // Declare the payload limit for "normal"
-                            actix_web::web::PayloadConfig::new(limits.max_request_bytes as usize)
+                            actix_web::web::PayloadConfig::new(limits.max_request_bytes as usize),
                         )
                         .data(
                             // Declare the payload limits for "JSON"
                             actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN)
+                                .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )
                         .route(web::delete().to_async(handlers::delete_collection))
                         .route(web::get().to_async(handlers::get_collection))
                         .route(web::post().to_async(handlers::post_collection)),
                 )
                 .service(
-                    web::resource("/1.5/{uid}/storage/{collection}/{bso}")
-                        .data(
-                            actix_web::web::PayloadConfig::new(limits.max_request_bytes as usize)
-                        )
+                    web::resource(&cfg_path("/storage/{collection}/{bso}"))
+                        .data(actix_web::web::PayloadConfig::new(
+                            limits.max_request_bytes as usize,
+                        ))
                         .data(
                             actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN)
+                                .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )
                         .route(web::delete().to_async(handlers::delete_bso))
                         .route(web::get().to_async(handlers::get_bso))

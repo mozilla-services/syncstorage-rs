@@ -51,7 +51,6 @@ where
     }
 
     fn call(&mut self, mut sreq: ServiceRequest) -> Self::Future {
-        dbg!("### WeaveTimestamp");
         let ts = SyncTimestamp::default().as_seconds();
         let headers = sreq.headers_mut();
         let weave_ts = if let Some(val) = headers.get(X_LAST_MODIFIED) {
@@ -182,12 +181,11 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // `into_parts()` consumes the service request.
-        println!("### >> DbTransactionMiddleware wrapper");
         let method = sreq.method().clone();
         let collection = match CollectionParam::extrude(&sreq.uri()) {
             Ok(v) => v,
             Err(e) => {
-                dbg!("!!! err: {:?}", e);
+                dbg!("!!! CollectionParam err: {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()

@@ -21,7 +21,7 @@ use validator::{Validate, ValidationError};
 
 use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
-use crate::server::ServerState;
+use crate::server::{ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
 use crate::web::{auth::HawkPayload, error::ValidationErrorKind, X_WEAVE_RECORDS};
 
@@ -35,8 +35,9 @@ const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
-    static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
-    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
+    static ref VALID_ID_REGEX: Regex = Regex::new(&format!("^{}$", BSO_ID_REGEX)).unwrap();
+    static ref VALID_COLLECTION_ID_REGEX: Regex =
+        Regex::new(&format!("^{}$", COLLECTION_ID_REGEX)).unwrap();
     static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
