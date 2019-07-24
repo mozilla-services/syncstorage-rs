@@ -2,16 +2,17 @@
 //!
 //! Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use actix_service::{Service, Transform};
-use actix_web::dev::{MessageBody, ServiceRequest, ServiceResponse};
+use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::{
-    http::{header, Method, StatusCode},
+    http::{
+        header::{self, HeaderMap},
+        Method, StatusCode,
+    },
     Error, HttpMessage, HttpResponse,
 };
-// use actix_router::PathDeserializer;
 
 use futures::{
     future::{self, Either, FutureResult},
@@ -19,6 +20,7 @@ use futures::{
 };
 
 use crate::db::{params, util::SyncTimestamp};
+use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
 use crate::web::extractors::{
     extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
@@ -26,67 +28,65 @@ use crate::web::extractors::{
 };
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
-///// Default Timestamp used for WeaveTimestamp middleware.
-//#[derive(Default)]
-//struct DefaultWeaveTimestamp(SyncTimestamp);
-
 pub struct WeaveTimestampMiddleware<S> {
     service: S,
 }
 
 impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
-    B: MessageBody,
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
+    B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
     type Future = Box<Future<Item = Self::Response, Error = Self::Error>>;
 
-    // call super poll_ready()
     fn poll_ready(&mut self) -> Poll<(), Self::Error> {
         self.service.poll_ready()
     }
 
-    fn call(&mut self, mut sreq: ServiceRequest) -> Self::Future {
+    fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let ts = SyncTimestamp::default().as_seconds();
-        let headers = sreq.headers_mut();
-        let weave_ts = if let Some(val) = headers.get(X_LAST_MODIFIED) {
-            let resp_ts = val
-                .to_str()
-                //.map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modfied response header: {}", e)).into())
-                .unwrap_or("0")
-                .parse::<f64>()
-                //.map_err(|e| ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into())
-                .unwrap();
-            if resp_ts > ts {
-                resp_ts
-            } else {
-                ts
+        Box::new(self.service.call(sreq).and_then(move |mut resp| {
+            match set_weave_timestamp(resp.headers_mut(), ts) {
+                Ok(_) => future::ok(resp),
+                Err(e) => future::err(e.into()),
             }
-        } else {
-            ts
-        };
-
-        Box::new(self.service.call(sreq).map(move |mut resp| {
-            let success = &resp.status().is_success();
-            let headers = resp.headers_mut();
-            headers.insert(
-                header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
-                header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).unwrap(),
-                // .map_err(|e|{ ApiErrorKind::Internal(format!("Invalid X-Weave-Timestamp response header: {}", e)).into()})
-            );
-            if !success && !headers.contains_key("content-type") {
-                headers.insert(
-                    header::HeaderName::from_static("content-type"),
-                    header::HeaderValue::from_str("application/json").unwrap(),
-                );
-            }
-            resp
         }))
     }
+}
+
+/// Set a X-Weave-Timestamp header on all responses (depending on the
+/// response's X-Last-Modified header)
+fn set_weave_timestamp(headers: &mut HeaderMap, ts: f64) -> Result<(), ApiError> {
+    fn invalid_xlm<E>(e: E) -> ApiError
+    where
+        E: Display,
+    {
+        ApiErrorKind::Internal(format!("Invalid X-Last-Modified response header: {}", e)).into()
+    }
+
+    let weave_ts = if let Some(val) = headers.get(X_LAST_MODIFIED) {
+        let resp_ts = val
+            .to_str()
+            .map_err(invalid_xlm)?
+            .parse::<f64>()
+            .map_err(invalid_xlm)?;
+        if resp_ts > ts {
+            resp_ts
+        } else {
+            ts
+        }
+    } else {
+        ts
+    };
+    headers.insert(
+        header::HeaderName::from_static(X_WEAVE_TIMESTAMP),
+        header::HeaderValue::from_str(&format!("{:.2}", &weave_ts)).map_err(invalid_xlm)?,
+    );
+    Ok(())
 }
 
 /// Middleware to set the X-Weave-Timestamp header on all responses.
@@ -108,7 +108,7 @@ impl<S, B> Transform<S> for WeaveTimestamp
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
-    B: MessageBody,
+    B: 'static,
 {
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;

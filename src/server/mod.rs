@@ -88,9 +88,9 @@ impl Server {
                     ApiError::add_content_type_to_err,
                 ))
                 // These are our wrappers
-                .wrap(middleware::WeaveTimestamp::new())
                 .wrap(middleware::PreConditionCheck::new())
                 .wrap(middleware::DbTransaction::new())
+                .wrap(middleware::WeaveTimestamp::new())
                 .wrap(Cors::default())
                 .service(
                     web::resource(&cfg_path("/info/collections"))
