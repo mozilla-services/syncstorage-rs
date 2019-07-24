@@ -13,7 +13,7 @@ use futures::{future, Future};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{
-    de::{Deserializer, Error as SerdeError},
+    de::{Deserializer, Error as SerdeError, IgnoredAny},
     Deserialize, Serialize,
 };
 use serde_json::Value;
@@ -47,7 +47,7 @@ pub struct UidParam {
     uid: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize, Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
     #[validate(custom = "validate_body_bso_id")]
     pub id: String,
@@ -62,8 +62,8 @@ impl BatchBsoBody {
     /// Function to convert valid raw JSON BSO body to a BatchBsoBody
     fn from_raw_bso(val: &Value) -> Result<BatchBsoBody, String> {
         let map = val.as_object().ok_or("invalid json")?;
-        // Verify all the keys are valid
-        let valid_keys = ["id", "sortindex", "payload", "ttl"];
+        // Verify all the keys are valid. modified is allowed but ignored
+        let valid_keys = ["id", "sortindex", "payload", "ttl", "modified"];
         for key_name in map.keys() {
             if !valid_keys.contains(&key_name.as_str()) {
                 return Err(format!("unknown field {}", key_name));
@@ -253,6 +253,7 @@ impl FromRequest for BsoBodies {
 }
 
 #[derive(Default, Debug, Deserialize, Serialize, Validate)]
+#[serde(deny_unknown_fields)]
 pub struct BsoBody {
     #[validate(custom = "validate_body_bso_id")]
     pub id: Option<String>,
@@ -261,6 +262,8 @@ pub struct BsoBody {
     pub payload: Option<String>,
     #[validate(custom = "validate_body_bso_ttl")]
     pub ttl: Option<u32>,
+    #[serde(rename(deserialize = "modified"), skip_serializing)]
+    pub _ignored_modified: Option<IgnoredAny>,
 }
 
 impl FromRequest for BsoBody {
