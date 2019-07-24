@@ -106,12 +106,15 @@ impl Server {
                 .service(
                     web::resource("/1.5/{uid}/storage/{collection}")
                         .data(
+                            // Declare the payload limit for "normal"
+                            actix_web::web::PayloadConfig::new(limits.max_request_bytes as usize)
+                        )
+                        .data(
+                            // Declare the payload limits for "JSON"
                             actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN),
+                                .content_type(|ct| ct == mime::TEXT_PLAIN)
                         )
-                        // TODO:
-                        // .data(Bytes::configure(|cfg| {cfg.limit(settings.limits.max_request_bytes)}))
                         .route(web::delete().to_async(handlers::delete_collection))
                         .route(web::get().to_async(handlers::get_collection))
                         .route(web::post().to_async(handlers::post_collection)),
@@ -119,9 +122,12 @@ impl Server {
                 .service(
                     web::resource("/1.5/{uid}/storage/{collection}/{bso}")
                         .data(
+                            actix_web::web::PayloadConfig::new(limits.max_request_bytes as usize)
+                        )
+                        .data(
                             actix_web::web::JsonConfig::default()
                                 .limit(limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN),
+                                .content_type(|ct| ct == mime::TEXT_PLAIN)
                         )
                         .route(web::delete().to_async(handlers::delete_bso))
                         .route(web::get().to_async(handlers::get_bso))

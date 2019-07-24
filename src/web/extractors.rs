@@ -119,7 +119,8 @@ impl FromRequest for BsoBodies {
         }
 
         // Load the entire request into a String
-        let fut = <String>::from_request(req, payload).map_err(|_| {
+        let fut = <String>::from_request(req, payload).map_err(|e| {
+            dbg!("!!! Payload read error: {:?}", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
                 RequestErrorLocation::Header,
