@@ -5,9 +5,9 @@ use futures::compat::Future01CompatExt;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use codegen::async_test;
-use syncstorage::db::mysql::{models::DEFAULT_BSO_TTL, pool::MysqlDbPool};
+use syncstorage::db::mysql::models::DEFAULT_BSO_TTL;
 use syncstorage::db::util::SyncTimestamp;
-use syncstorage::db::{params, Db, DbPool, Sorting};
+use syncstorage::db::{params, Db, Sorting};
 use syncstorage::error::ApiError;
 use syncstorage::settings::{Secrets, ServerLimits, Settings};
 use syncstorage::web::extractors::{BsoQueryParams, HawkIdentifier};
@@ -32,8 +32,7 @@ async fn db() -> Result<Box<dyn Db>> {
         master_secret: Secrets::default(),
     };
 
-    // XXX: let pool = syncstorage::db:pool_from_settings(&settings)?;
-    let pool = MysqlDbPool::new(&settings)?;
+    let pool = syncstorage::db::pool_from_settings(&settings)?;
     pool.get().compat().await
 }
 

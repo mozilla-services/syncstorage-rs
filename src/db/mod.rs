@@ -5,6 +5,7 @@ pub mod mock;
 pub mod mysql;
 pub mod params;
 pub mod results;
+pub mod spanner;
 pub mod util;
 
 use std::fmt::Debug;
@@ -12,10 +13,12 @@ use std::fmt::Debug;
 use futures::future::Future;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use url::Url;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;
 use crate::error::ApiError;
+use crate::settings::Settings;
 use crate::web::extractors::HawkIdentifier;
 
 lazy_static! {
@@ -44,8 +47,15 @@ lazy_static! {
 
 type DbFuture<T> = Box<Future<Item = T, Error = ApiError>>;
 
-pub trait DbPool: Sync + Debug {
+pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
+    fn box_clone(&self) -> Box<dyn DbPool>;
+}
+
+impl Clone for Box<dyn DbPool> {
+    fn clone(&self) -> Box<dyn DbPool> {
+        self.box_clone()
+    }
 }
 
 pub trait Db: Send + Debug {
@@ -211,4 +221,16 @@ impl Default for Sorting {
     fn default() -> Self {
         Sorting::None
     }
+}
+
+/// Create/initialize a pool of managed Db connections
+// XXX: should likely return a Future?
+pub fn pool_from_settings(settings: &Settings) -> Result<Box<dyn DbPool>, DbError> {
+    let url =
+        Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
+    Ok(match url.scheme() {
+        "mysql" => Box::new(mysql::pool::MysqlDbPool::new(&settings)?),
+        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings)?),
+        _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
+    })
 }

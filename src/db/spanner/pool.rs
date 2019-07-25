@@ -4,19 +4,20 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use diesel::{
-    mysql::MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-    Connection,
-};
+use diesel::r2d2;
+use diesel::r2d2::Pool;
+
 use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
 
-use super::models::{MysqlDb, Result};
-#[cfg(any(test, feature = "db_test"))]
-use super::test::TestTransactionCustomizer;
+use super::models::Result;
+//#[cfg(test)]
+//use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::settings::Settings;
+
+use super::manager::SpannerConnectionManager;
+use super::models::SpannerDb;
 
 embed_migrations!();
 
@@ -24,55 +25,42 @@ embed_migrations!();
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
-    let conn = MysqlConnection::establish(&settings.database_url)?;
-    Ok(embedded_migrations::run(&conn)?)
-}
+//pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
+//    let conn = MysqlConnection::establish(&settings.database_url)?;
+//    Ok(embedded_migrations::run(&conn)?)
+//}
 
 #[derive(Clone)]
-pub struct MysqlDbPool {
+pub struct SpannerDbPool {
     /// Pool of db connections
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<SpannerConnectionManager>,
     /// Thread Pool for running synchronous db calls
     thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 }
 
-impl MysqlDbPool {
+impl SpannerDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
     pub fn new(settings: &Settings) -> Result<Self> {
-        run_embedded_migrations(settings)?;
+        //run_embedded_migrations(settings)?;
         Self::new_without_migrations(settings)
     }
 
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
-
-        #[cfg(any(test, feature = "db_test"))]
-        let builder = if settings.database_use_test_transactions {
-            builder.connection_customizer(Box::new(TestTransactionCustomizer))
-        } else {
-            builder
-        };
-
-        // XXX: tokio_threadpool:ThreadPool probably not the best option: db
-        // calls are longerish running/blocking, so should likely run on
-        // ThreadPool's "backup threads", but it defaults scheduling to its
-        // "worker threads"
-        // XXX: allow configuring the ThreadPool size
+        let m = SpannerConnectionManager::new(settings)?;
+        let pool = r2d2::Pool::builder().build(m).unwrap();
         Ok(Self {
-            pool: builder.build(manager)?,
+            pool: pool,
             thread_pool: Arc::new(ThreadPool::new()),
             coll_cache: Default::default(),
         })
     }
 
-    pub fn get_sync(&self) -> Result<MysqlDb> {
-        Ok(MysqlDb::new(
+    pub fn get_sync(&self) -> Result<SpannerDb> {
+        Ok(SpannerDb::new(
             self.pool.get()?,
             Arc::clone(&self.thread_pool),
             Arc::clone(&self.coll_cache),
@@ -80,7 +68,7 @@ impl MysqlDbPool {
     }
 }
 
-impl DbPool for MysqlDbPool {
+impl DbPool for SpannerDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
@@ -95,9 +83,9 @@ impl DbPool for MysqlDbPool {
     }
 }
 
-impl fmt::Debug for MysqlDbPool {
+impl fmt::Debug for SpannerDbPool {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MysqlDbPool {{ coll_cache: {:?} }}", self.coll_cache)
+        write!(f, "SpannerDbPool {{ coll_cache: {:?} }}", self.coll_cache)
     }
 }
 

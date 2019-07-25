@@ -7,7 +7,7 @@ use actix_web::{http, middleware::cors::Cors, server::HttpServer, App, HttpRespo
 //use num_cpus;
 use serde_json::json;
 
-use crate::db::{mysql::MysqlDbPool, DbError, DbPool};
+use crate::db::{pool_from_settings, DbError, DbPool};
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::handlers;
 use crate::web::middleware;
@@ -111,7 +111,7 @@ pub struct Server {}
 impl Server {
     pub fn with_settings(settings: Settings) -> Result<SystemRunner, DbError> {
         let sys = System::new("syncserver");
-        let db_pool = Box::new(MysqlDbPool::new(&settings)?);
+        let db_pool = pool_from_settings(&settings)?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
