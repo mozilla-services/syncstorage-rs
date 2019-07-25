@@ -53,7 +53,7 @@ impl SpannerDbPool {
         let m = SpannerConnectionManager::new(settings)?;
         let pool = r2d2::Pool::builder().build(m).unwrap();
         Ok(Self {
-            pool: pool,
+            pool,
             thread_pool: Arc::new(ThreadPool::new()),
             coll_cache: Default::default(),
         })
