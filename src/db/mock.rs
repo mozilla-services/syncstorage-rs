@@ -4,7 +4,7 @@ use futures::future;
 
 use super::*;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MockDbPool;
 
 impl MockDbPool {
@@ -16,6 +16,10 @@ impl MockDbPool {
 impl DbPool for MockDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         Box::new(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
+    }
+
+    fn box_clone(&self) -> Box<dyn DbPool> {
+        Box::new(self.clone())
     }
 }
 

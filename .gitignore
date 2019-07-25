@@ -30,3 +30,5 @@ autopush_rs/_native*
 target
 *.rs.bk
 .#*
+service-account.json
+

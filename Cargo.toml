@@ -53,9 +53,18 @@ sha2 = "0.8.0"
 smallvec = "^0.6.10"
 time = "0.1.42"
 tokio-threadpool = "0.1.14"
+url = "1.7.2"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
 validator = "0.8.0"
 validator_derive = "0.8.0"
+
+google-spanner1 = "*"
+# This project intentionally uses an old version of Hyper. See
+# https://github.com/Byron/google-apis-rs/issues/173 for more
+# information.
+hyper = "^0.10"
+hyper-rustls = "^0.6"
+yup-oauth2 = "^1.0"
 
 [features]
 db_test = []
