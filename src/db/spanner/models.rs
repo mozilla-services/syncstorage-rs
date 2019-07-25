@@ -388,8 +388,8 @@ impl SpannerDb {
             .instances_databases_sessions_begin_transaction(req, session)
             .doit();
         match result {
-            Ok(result) => Ok(()),
-            Err(e) => {
+            Ok(_result) => Ok(()),
+            Err(_e) => {
                 // TODO Handle error
                 Ok(())
             }
@@ -417,7 +417,7 @@ impl SpannerDb {
             .doit();
         match result {
             Ok(_) => Ok(()),
-            Err(e) => {
+            Err(_e) => {
                 // TODO Handle error
                 Ok(())
             }
@@ -444,7 +444,7 @@ impl SpannerDb {
             .doit();
         match result {
             Ok(_) => Ok(()),
-            Err(e) => {
+            Err(_e) => {
                 // TODO Handle error
                 Ok(())
             }
@@ -493,7 +493,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
         // user_collections::table
         //     .select(user_collections::modified)
@@ -543,7 +543,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
         // user_collections::table
         //     .select(user_collections::modified)
@@ -585,7 +585,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -620,7 +620,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -654,7 +654,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
         // user_collections::table
         //     .select(user_collections::modified)
@@ -693,7 +693,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -714,9 +714,9 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
         match results {
-            Ok(results) => Ok(()),
+            Ok(_results) => Ok(()),
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -747,9 +747,9 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
         match results {
-            Ok(results) => Ok(self.timestamp()),
+            Ok(_results) => Ok(self.timestamp()),
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -773,9 +773,9 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
         match results {
-            Ok(results) => Ok(self.timestamp()),
+            Ok(_results) => Ok(self.timestamp()),
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -802,9 +802,9 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
         match results {
-            Ok(results) => self.touch_collection(user_id, collection_id),
+            Ok(_results) => self.touch_collection(user_id, collection_id),
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -929,7 +929,7 @@ impl SpannerDb {
                 None => Vec::new(),
             },
             // TODO Return the correct error
-            Err(e) => Vec::new(),
+            Err(_e) => Vec::new(),
         };
 
         // XXX: an additional get_collection_timestamp is done here in
@@ -994,7 +994,7 @@ impl SpannerDb {
                 None => Ok(None),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -1030,7 +1030,7 @@ impl SpannerDb {
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
             // TODO Return the correct error
-            Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
     }
 
@@ -1057,7 +1057,7 @@ impl SpannerDb {
         let exists = match results {
             Ok(results) => results.1.rows.is_some(),
             // TODO Return the correct error
-            Err(e) => {
+            Err(_e) => {
                 return Err(DbErrorKind::CollectionNotFound.into());
             }
         };
@@ -1112,7 +1112,7 @@ impl SpannerDb {
                 // noop
             }
             // TODO Return the correct error
-            Err(e) => {
+            Err(_e) => {
                 return Err(DbErrorKind::CollectionNotFound.into());
             }
         }

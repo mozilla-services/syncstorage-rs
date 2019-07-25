@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::models::{Result, SpannerDb};
 
-use crate::db::{params, results, util::SyncTimestamp, DbError, DbErrorKind};
+use crate::db::{params, results, DbError, DbErrorKind};
 
 use google_spanner1::ExecuteSqlRequest;
 
@@ -66,9 +66,9 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
         .instances_databases_sessions_execute_sql(sql, session)
         .doit();
     match results {
-        Ok(results) => Ok(timestamp),
+        Ok(_results) => Ok(timestamp),
         // TODO Return the correct error
-        Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
     }
 }
 
@@ -96,7 +96,7 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
     match results {
         Ok(results) => Ok(results.1.rows.is_some()),
         // TODO Return the correct error
-        Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
     }
 }
 
@@ -144,9 +144,9 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
         .instances_databases_sessions_execute_sql(sql, session)
         .doit();
     match results {
-        Ok(results) => Ok(()),
+        Ok(_results) => Ok(()),
         // TODO Return the correct error
-        Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
     }
 }
 
@@ -181,7 +181,7 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
             None => Ok(None),
         },
         // TODO Return the correct error
-        Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
     }
 }
 
@@ -207,7 +207,7 @@ fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
     match result {
         Ok(_result) => Ok(()),
         // TODO Return the correct error
-        Err(e) => Err(DbErrorKind::CollectionNotFound.into()),
+        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
     }
 }
 
