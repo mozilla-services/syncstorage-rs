@@ -531,11 +531,8 @@ impl SpannerDb {
                 Some(rows) => {
                     let mut timestamps = results::GetCollectionTimestamps::new();
                     rows.iter().for_each(|row| {
-                        match SyncTimestamp::from_i64(row[1].parse().unwrap()) {
-                            Ok(timestamp) => {
-                                timestamps.insert(row[0].clone(), timestamp);
-                            }
-                            Err(_) => {}
+                        if let Ok(timestamp) = SyncTimestamp::from_i64(row[1].parse().unwrap()) {
+                            timestamps.insert(row[0].clone(), timestamp);
                         }
                     });
                     Ok(timestamps)
@@ -870,7 +867,7 @@ impl SpannerDb {
                     format!("arg{}", i.to_string()).to_string(),
                     ids[i].to_string(),
                 );
-                i = i + 1;
+                i += 1;
             }
             query = format!("{})", query).to_string();
         }
@@ -1267,7 +1264,7 @@ impl Db for SpannerDb {
     }
 
     #[cfg(any(test, feature = "db_test"))]
-    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
+    fn touch_collection(&self, _param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         /*
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
