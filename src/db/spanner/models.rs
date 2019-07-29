@@ -320,10 +320,10 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid FOR UPDATE".to_string());
+        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid".to_string());
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
-        params.insert("collection".to_string(), collection_id.to_string());
+        params.insert("collectionid".to_string(), collection_id.to_string());
         sql.params = Some(params);
 
         let results = spanner
@@ -1039,24 +1039,42 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT 1 as count FROM bso WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
+        sql.sql = Some("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid".to_string());
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sqlparams.insert("bsoid".to_string(), bso.id.to_string());
         sql.params = Some(sqlparams);
+        #[derive(Default)]
+        pub struct Dlg;
 
+        impl google_spanner1::Delegate for Dlg {
+            fn http_failure(&mut self, r: &hyper::client::Response, a: Option<google_spanner1::JsonServerError>, b: Option<google_spanner1::ServerError>) -> yup_oauth2::Retry {
+                if let Some(a) = a {
+                    eprintln!("DDDDDDDDDDDDDDDDDDDD1 |{}| |{:#?}|", a.error, a.error_description);
+                }
+                eprintln!("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD {:#?}", b);
+                yup_oauth2::Retry::Abort
+            }
+        }
         let results = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
+            .delegate(&mut Dlg {})
             .doit();
         let exists = match results {
             Ok(results) => results.1.rows.is_some(),
             // TODO Return the correct error
-            Err(_e) => {
+            Err(google_spanner1::Error::Failure(mut r)) => {
+                let mut v = vec![];
+                use std::io::Read;
+                r.read_to_end(&mut v);
+                let s = std::str::from_utf8(&v);
+                eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ {:#?} {:#?} {:#?}", r, v, s);
                 return Err(DbErrorKind::CollectionNotFound.into());
-            }
+            },
+            _ => return Err(DbErrorKind::CollectionNotFound.into()),
         };
         let sql = if exists {
             let mut sql = ExecuteSqlRequest::default();

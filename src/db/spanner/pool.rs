@@ -51,7 +51,7 @@ impl SpannerDbPool {
 
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
         let m = SpannerConnectionManager::new(settings)?;
-        let pool = r2d2::Pool::builder().build(m).unwrap();
+        let pool = r2d2::Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(2)).build(m).unwrap();
         Ok(Self {
             pool,
             thread_pool: Arc::new(ThreadPool::new()),
