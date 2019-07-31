@@ -2,7 +2,14 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use actix_web::middleware::errhandlers::ErrorHandlerResponse;
+use actix_web::{
+    dev::HttpResponseBuilder,
+    dev::ServiceResponse,
+    error::ResponseError,
+    http::{header, HeaderValue, StatusCode},
+    HttpResponse, Result,
+};
 use failure::{Backtrace, Context, Fail};
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
@@ -103,10 +110,10 @@ impl ApiError {
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
                 ValidationErrorKind::FromDetails(ref description, ref location, name) => {
+                    let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if description == "size-limit-exceeded" {
                         return WeaveError::SizeLimitExceeded;
                     }
-                    let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if *location == RequestErrorLocation::Body
                         && ["bso", "bsos"].contains(&name.as_str())
                     {
@@ -124,6 +131,26 @@ impl ApiError {
             },
             _ => WeaveError::UnknownError,
         }
+    }
+
+    pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+        // Replace the outbound error message with our own.
+        let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(0);
+        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
+            res.request().clone(),
+            resp.into_body(),
+        )))
+    }
+
+    pub fn add_content_type_to_err<B>(
+        mut res: ServiceResponse<B>,
+    ) -> Result<ErrorHandlerResponse<B>> {
+        // Inject the "Content-Type: application/json" header into the outbound response.
+        res.response_mut().headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        Ok(ErrorHandlerResponse::Response(res))
     }
 }
 
@@ -147,6 +174,11 @@ impl From<Context<ApiErrorKind>> for ApiError {
 }
 
 impl ResponseError for ApiError {
+    // Override the default which will force "text/plain" and use the error message.
+    fn render_response(&self) -> HttpResponse {
+        self.error_response()
+    }
+
     fn error_response(&self) -> HttpResponse {
         // To return a descriptive error response, this would work. We do not
         // unfortunately do that so that we can retain Sync 1.1 backwards compatibility

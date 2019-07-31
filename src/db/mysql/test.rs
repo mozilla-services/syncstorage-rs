@@ -90,9 +90,11 @@ fn static_collection_id() -> Result<()> {
         (12, "addresses"),
         (13, "creditcards"),
     ];
-
+    // Avoid collections::name not like "xxx%" (from server-syncstorage test_storage)
+    use diesel::expression_methods::TextExpressionMethods;
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
+        .filter(collections::name.not_like("xxx%"))
         .load(&db.inner.conn)?
         .into_iter()
         .collect();
