@@ -29,6 +29,12 @@ and can be run against a local server, e.g.:
         $ export SYNC_DATABASE_URL=mysql://scott:tiger@localhost/syncstorage
         $ cargo run
 
+## Running the Unittests
+
+1) Run:
+
+        $ export RUST_TEST_THREADS=1
+        $ cargo test
 
 ## Running the End-to-End tests
 
