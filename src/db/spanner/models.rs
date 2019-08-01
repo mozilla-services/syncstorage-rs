@@ -126,7 +126,7 @@ impl SpannerDb {
             .doit();
         let rv = match result {
             Err(e) => {
-                println!("err {}", e);
+                dbg!("err {}", e);
                 // TODO Return error
                 Ok(0)
             }
@@ -165,7 +165,7 @@ impl SpannerDb {
             .doit();
         let id = match result {
             Err(e) => {
-                println!("err {}", e);
+                dbg!("err {}", e);
                 // TODO Return error
                 Ok(0)
             }
@@ -184,7 +184,7 @@ impl SpannerDb {
             );
             let mut params = HashMap::new();
             params.insert("name".to_string(), name.to_string());
-            params.insert("id".to_string(), cmp::max(id, 100).to_string());
+            params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
             sql.params = Some(params);
 
             let result = spanner
@@ -194,7 +194,7 @@ impl SpannerDb {
                 .doit();
             let rv: Result<i32> = match result {
                 Err(e) => {
-                    println!("err {}", e);
+                    dbg!("err {}", e);
                     // TODO Return error
                     Ok(0)
                 }
@@ -1049,11 +1049,22 @@ impl SpannerDb {
         pub struct Dlg;
 
         impl google_spanner1::Delegate for Dlg {
-            fn http_failure(&mut self, r: &hyper::client::Response, a: Option<google_spanner1::JsonServerError>, b: Option<google_spanner1::ServerError>) -> yup_oauth2::Retry {
+            fn http_failure(
+                &mut self,
+                r: &hyper::client::Response,
+                a: Option<google_spanner1::JsonServerError>,
+                b: Option<google_spanner1::ServerError>,
+            ) -> yup_oauth2::Retry {
                 if let Some(a) = a {
-                    eprintln!("DDDDDDDDDDDDDDDDDDDD1 |{}| |{:#?}|", a.error, a.error_description);
+                    eprintln!(
+                        "DDDDDDDDDDDDDDDDDDDD1 |{}| |{:#?}|",
+                        a.error, a.error_description
+                    );
                 }
-                eprintln!("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD {:#?}", b);
+                eprintln!(
+                    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD {:#?}",
+                    b
+                );
                 yup_oauth2::Retry::Abort
             }
         }
@@ -1071,9 +1082,12 @@ impl SpannerDb {
                 use std::io::Read;
                 r.read_to_end(&mut v);
                 let s = std::str::from_utf8(&v);
-                eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ {:#?} {:#?} {:#?}", r, v, s);
+                eprintln!(
+                    "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ {:#?} {:#?} {:#?}",
+                    r, v, s
+                );
                 return Err(DbErrorKind::CollectionNotFound.into());
-            },
+            }
             _ => return Err(DbErrorKind::CollectionNotFound.into()),
         };
         let sql = if exists {
