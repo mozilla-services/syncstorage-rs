@@ -90,8 +90,10 @@ fn static_collection_id() -> Result<()> {
         (12, "addresses"),
         (13, "creditcards"),
     ];
-    // Avoid collections::name not like "xxx%" (from server-syncstorage test_storage)
     use diesel::expression_methods::TextExpressionMethods;
+    // The integration tests can create collections that start
+    // with `xxx%`. We should not include those in our counts for local
+    // unit tests.
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
         .filter(collections::name.not_like("xxx%"))

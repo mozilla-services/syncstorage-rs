@@ -4,24 +4,23 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_rt::{System, SystemRunner};
-use actix_web::http::StatusCode;
-use actix_web::middleware::errhandlers::ErrorHandlers;
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{
+    http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest, HttpResponse,
+    HttpServer,
+};
 // use num_cpus;
 use serde_json::json;
 
 use crate::db::{pool_from_settings, DbError, DbPool};
 use crate::error::ApiError;
 use crate::settings::{Secrets, ServerLimits, Settings};
-use crate::web::handlers;
-use crate::web::middleware;
+use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
-// The tests depend on the init_routes! macro, so this mod must come after it
 #[cfg(test)]
 mod test;
 
@@ -46,11 +45,10 @@ pub fn cfg_path(path: &str) -> String {
             &format!("{{collection:{}}}", COLLECTION_ID_REGEX),
         )
         .replace("{bso}", &format!("{{bso:{}}}", BSO_ID_REGEX));
-    // TODO: enforce a different uid regex under spanner
     format!("/{}/{{uid:{}}}{}", SYNC_VERSION_PATH, MYSQL_UID_REGEX, path)
 }
 
-pub struct Server {}
+pub struct Server;
 
 #[macro_export]
 macro_rules! build_app{
@@ -60,7 +58,7 @@ macro_rules! build_app{
                 // Middleware is applied LIFO
                 // These will wrap all outbound responses with matching status codes.
                 .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
-                // TODO: Is there a way to define this by default? Outboud errors don't generally set
+                // TODO: Is there a way to define this by default? Outbound errors don't generally set
                 // content type or body.
                 .wrap(
                     ErrorHandlers::new()
@@ -74,6 +72,7 @@ macro_rules! build_app{
                 .wrap(middleware::PreConditionCheck::new())
                 .wrap(middleware::DbTransaction::new())
                 .wrap(middleware::WeaveTimestamp::new())
+                // Followed by the "official middleware" so they run first.
                 .wrap(Cors::default())
                 .service(
                     web::resource(&cfg_path("/info/collections"))
@@ -106,12 +105,12 @@ macro_rules! build_app{
                 .service(
                     web::resource(&cfg_path("/storage/{collection}"))
                         .data(
-                            // Declare the payload limit for "normal"
-                            actix_web::web::PayloadConfig::new($limits.max_request_bytes as usize),
+                            // Declare the payload limit for "normal" collections.
+                            web::PayloadConfig::new($limits.max_request_bytes as usize),
                         )
                         .data(
-                            // Declare the payload limits for "JSON"
-                            actix_web::web::JsonConfig::default()
+                            // Declare the payload limits for "JSON" payloads
+                            web::JsonConfig::default()
                                 .limit($limits.max_request_bytes as usize)
                                 .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )
@@ -121,11 +120,11 @@ macro_rules! build_app{
                 )
                 .service(
                     web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                        .data(actix_web::web::PayloadConfig::new(
+                        .data(web::PayloadConfig::new(
                             $limits.max_request_bytes as usize,
                         ))
                         .data(
-                            actix_web::web::JsonConfig::default()
+                            web::JsonConfig::default()
                                 .limit($limits.max_request_bytes as usize)
                                 .content_type(|ct| ct == mime::TEXT_PLAIN),
                         )

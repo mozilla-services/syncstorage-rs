@@ -2,12 +2,11 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::middleware::errhandlers::ErrorHandlerResponse;
 use actix_web::{
-    dev::HttpResponseBuilder,
-    dev::ServiceResponse,
+    dev::{HttpResponseBuilder, ServiceResponse},
     error::ResponseError,
     http::{header, HeaderValue, StatusCode},
+    middleware::errhandlers::ErrorHandlerResponse,
     HttpResponse, Result,
 };
 use failure::{Backtrace, Context, Fail};
@@ -110,10 +109,10 @@ impl ApiError {
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
                 ValidationErrorKind::FromDetails(ref description, ref location, name) => {
-                    let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if description == "size-limit-exceeded" {
                         return WeaveError::SizeLimitExceeded;
                     }
+                    let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if *location == RequestErrorLocation::Body
                         && ["bso", "bsos"].contains(&name.as_str())
                     {
@@ -135,7 +134,8 @@ impl ApiError {
 
     pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         // Replace the outbound error message with our own.
-        let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(0);
+        let resp =
+            HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(WeaveError::UnknownError as u32);
         Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
             res.request().clone(),
             resp.into_body(),

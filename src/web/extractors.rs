@@ -4,11 +4,16 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_web::dev::{ConnectionInfo, Extensions, Payload};
-use actix_web::http::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE};
-use actix_web::http::Uri;
-use actix_web::web::{Json, Query}; // JsonConfig
-use actix_web::{error::ErrorInternalServerError, Error, FromRequest, HttpRequest};
+use actix_web::{
+    dev::{ConnectionInfo, Extensions, Payload},
+    error::ErrorInternalServerError,
+    http::{
+        header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE},
+        Uri,
+    },
+    web::{Json, Query},
+    Error, FromRequest, HttpRequest,
+};
 use futures::{future, Future};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -154,10 +159,6 @@ impl FromRequest for BsoBodies {
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
-                    // Skip any blanks
-                    if item == "" {
-                        continue;
-                    }
                     // Check that its a valid JSON map like we expect
                     if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
                         bsos.push(raw_json);
@@ -165,11 +166,6 @@ impl FromRequest for BsoBodies {
                         // Per Python version, BSO's must json deserialize
                         return future::err(make_error());
                     }
-                }
-                // body.lines() treats a body of "\n" == "". "" succeeds, "\n" should fail.
-                // if sent a body of nothing but "\n", that should be invalid.
-                if bsos.is_empty() && !body.is_empty() {
-                    return future::err(make_error());
                 }
                 bsos
             } else if let Ok(json_vals) = serde_json::from_str::<Vec<Value>>(&body) {
@@ -262,6 +258,7 @@ pub struct BsoBody {
     pub payload: Option<String>,
     #[validate(custom = "validate_body_bso_ttl")]
     pub ttl: Option<u32>,
+    /// Any client-supplied value for this field is ignored
     #[serde(rename(deserialize = "modified"), skip_serializing)]
     pub _ignored_modified: Option<IgnoredAny>,
 }
@@ -351,32 +348,26 @@ impl BsoParam {
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-            )
-            .into());
+            ))?;
         }
-        Ok(match elements.get(5) {
-            None => {
-                return Err(ValidationErrorKind::FromDetails(
-                    "Missing BSO".to_owned(),
+        if let Some(v) = elements.get(5) {
+            let sv = String::from_str(v).map_err(|_e| {
+                // pending circleci update to 1.36
+                // dbg!("!!! BsoParam Error", v, e);
+                ValidationErrorKind::FromDetails(
+                    "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                 )
-                .into())
-            }
-            Some(v) => match String::from_str(v) {
-                Ok(sv) => Self { bso: sv },
-                Err(_e) => {
-                    // pending circleci update to 1.36
-                    // dbg!("!!! BsoParam Error", v, _e);
-                    return Err(ValidationErrorKind::FromDetails(
-                        "Invalid BSO".to_owned(),
-                        RequestErrorLocation::Path,
-                        Some("bso".to_owned()),
-                    )
-                    .into());
-                }
-            },
-        })
+            })?;
+            Ok(Self { bso: sv })
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing BSO".to_owned(),
+                RequestErrorLocation::Path,
+                Some("bso".to_owned()),
+            ))?
+        }
     }
 
     pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Self, Error> {
@@ -402,7 +393,7 @@ impl FromRequest for BsoParam {
     }
 }
 
-/// Collection parameter or
+/// Collection parameter Extractor
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
@@ -418,29 +409,22 @@ impl CollectionParam {
         if elem.is_none() || elem != Some(&"storage") || !(5..=6).contains(&elements.len()) {
             return Ok(None);
         }
-        Ok(match elements.get(4) {
-            None => {
-                return Err(ValidationErrorKind::FromDetails(
+        if let Some(v) = elements.get(4) {
+            let sv = String::from_str(v).map_err(|_e| {
+                ValidationErrorKind::FromDetails(
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                 )
-                .into())
-            }
-            Some(v) => match String::from_str(v) {
-                Ok(sv) => Some(Self { collection: sv }),
-                Err(_e) => {
-                    // pending circleci update to 1.36
-                    // dbg!("!!! Invalid Collection Error", v, _e);
-                    return Err(ValidationErrorKind::FromDetails(
-                        "Invalid Collection".to_owned(),
-                        RequestErrorLocation::Path,
-                        Some("collection".to_owned()),
-                    )
-                    .into());
-                }
-            },
-        })
+            })?;
+            Ok(Some(Self { collection: sv }))
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+            ))?
+        }
     }
 
     pub fn extrude(uri: &Uri) -> Result<Option<Self>, Error> {
@@ -769,29 +753,24 @@ impl HawkIdentifier {
         // TODO: replace with better request path parser.
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
-        Ok(match elements.get(2) {
-            None => {
-                return Err(ValidationErrorKind::FromDetails(
-                    "Missing UID".to_owned(),
+        if let Some(v) = elements.get(2) {
+            u64::from_str(v).map_err(|_e| {
+                // pending circleci update to 1.36
+                // dbg!("!!! HawkIdentifier Error", v, _e);
+                ValidationErrorKind::FromDetails(
+                    "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
                     Some("uid".to_owned()),
                 )
-                .into())
-            }
-            Some(v) => match u64::from_str(v) {
-                Ok(iv) => iv,
-                Err(_e) => {
-                    // pending circleci update to 1.36
-                    // dbg!("!!! HawkIdentifier Error", v, _e);
-                    return Err(ValidationErrorKind::FromDetails(
-                        "Invalid UID".to_owned(),
-                        RequestErrorLocation::Path,
-                        Some("uid".to_owned()),
-                    )
-                    .into());
-                }
-            },
-        })
+                .into()
+            })
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing UID".to_owned(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
+            ))?
+        }
     }
 
     pub fn generate(
@@ -829,6 +808,9 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+            return Ok(user_id.clone());
+        }
         Self::extrude(req)
     }
 }

@@ -2296,7 +2296,6 @@ version = "0.1.0"
 dependencies = [
  "actix-cors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-http 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "actix-router 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-rt 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-service 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-web 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",

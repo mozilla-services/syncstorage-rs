@@ -78,7 +78,7 @@ impl HawkPayload {
         let request = RequestBuilder::new(method, host, port, path).request();
 
         // Toggle the following comments to disable auth (useful for local integration testing)
-        //Ok(payload)
+        // Ok(payload)
         //*
         if request.validate_header(
             &header,
