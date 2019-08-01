@@ -116,7 +116,6 @@ where
     type InitError = ();
     type Transform = WeaveTimestampMiddleware<S>;
     type Future = FutureResult<Self::Transform, Self::InitError>;
-    //type Transform = WeaveTimestampMiddleware<S>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         future::ok(WeaveTimestampMiddleware { service })
@@ -185,9 +184,8 @@ where
         let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
         let collection = match col_result {
             Ok(v) => v,
-            Err(_e) => {
-                // pending circleci update to 1.36
-                // dbg!("!!! CollectionParam err: {:?}", e);
+            Err(e) => {
+                dbg!("!!! CollectionParam err: {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -392,9 +390,8 @@ where
         let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut());
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
-            Err(_e) => {
-                // pending circleci update to 1.36
-                // dbg!("!!! Collection Error: ", e);
+            Err(e) => {
+                dbg!("!!! Collection Error: ", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -449,7 +446,7 @@ where
                         if let Ok(ts_header) =
                             header::HeaderValue::from_str(&resource_ts.as_header())
                         {
-                            // dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
+                            dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
                             resp.headers_mut().insert(
                                 header::HeaderName::from_static(X_LAST_MODIFIED),
                                 ts_header,

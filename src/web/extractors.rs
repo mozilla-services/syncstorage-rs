@@ -128,9 +128,8 @@ impl FromRequest for BsoBodies {
         }
 
         // Load the entire request into a String
-        let fut = <String>::from_request(req, payload).map_err(|_e| {
-            // pending circleci update to 1.36
-            // dbg!("!!! Payload read error", e);
+        let fut = <String>::from_request(req, payload).map_err(|e| {
+            dbg!("!!! Payload read error", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
                 RequestErrorLocation::Header,
@@ -355,9 +354,8 @@ impl BsoParam {
             ))?;
         }
         if let Some(v) = elements.get(5) {
-            let sv = String::from_str(v).map_err(|_e| {
-                // pending circleci update to 1.36
-                // dbg!("!!! BsoParam Error", v, e);
+            let sv = String::from_str(v).map_err(|e| {
+                dbg!("!!! BsoParam Error", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -769,9 +767,8 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            u64::from_str(v).map_err(|_e| {
-                // pending circleci update to 1.36
-                // dbg!("!!! HawkIdentifier Error", v, _e);
+            u64::from_str(v).map_err(|e| {
+                dbg!("!!! HawkIdentifier Error", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
@@ -871,8 +868,7 @@ pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     match exts.get::<(Box<dyn Db>, bool)>() {
         Some((db, _)) => Ok(db.clone()),
         None => {
-            // pending circleci update to 1.36
-            // dbg!("!!! DB Error: No db");
+            dbg!("!!! DB Error: No db");
             Err(ErrorInternalServerError(
                 "Unexpected Db error: No DB".to_owned(),
             ))

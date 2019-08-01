@@ -175,7 +175,6 @@ where
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
         }
     };
-    /* // pending circleci upgrade to 1.36
     if !sresponse.response().status().is_success() {
         dbg!(
             "⚠️ Warning: Returned error",
@@ -183,7 +182,6 @@ where
             sresponse.response()
         );
     }
-    */
     let body = test::read_body(sresponse);
     let result: T = match serde_json::from_slice(&body) {
         Ok(v) => v,
