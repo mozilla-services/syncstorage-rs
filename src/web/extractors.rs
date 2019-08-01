@@ -28,7 +28,11 @@ use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
 use crate::server::{ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
-use crate::web::{auth::HawkPayload, error::ValidationErrorKind, X_WEAVE_RECORDS};
+use crate::web::{
+    auth::HawkPayload,
+    error::{HawkErrorKind, ValidationErrorKind},
+    X_WEAVE_RECORDS,
+};
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -427,15 +431,22 @@ impl CollectionParam {
         }
     }
 
-    pub fn extrude(uri: &Uri) -> Result<Option<Self>, Error> {
-        let collection = Self::col_from_path(&uri)?;
-        if collection.is_none() {
-            return Ok(None);
+    pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Option<Self>, Error> {
+        if let Some(collection) = extensions.get::<Option<Self>>() {
+            return Ok(collection.clone());
         }
-        collection.clone().unwrap().validate().map_err(|e| {
-            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
-        })?;
-        Ok(collection)
+
+        let collection = Self::col_from_path(&uri)?;
+        Ok(if let Some(collection) = collection {
+            collection.validate().map_err(|e| {
+                ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+            })?;
+            let result = Some(collection);
+            extensions.insert(result.clone());
+            result
+        } else {
+            None
+        })
     }
 }
 
@@ -445,9 +456,15 @@ impl FromRequest for CollectionParam {
     type Future = Result<Self, Self::Error>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let collection = Self::extrude(&req.uri())?.unwrap();
-        req.extensions_mut().insert(collection.clone());
-        Ok(collection)
+        if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut())? {
+            Ok(collection)
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+            ))?
+        }
     }
 }
 
@@ -468,7 +485,7 @@ impl FromRequest for MetaRequest {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Call the precondition stuff to init database handles and what-not
         let user_id = HawkIdentifier::from_request(req, payload)?;
-        let db = extrude_db(&req.extensions()).unwrap();
+        let db = extrude_db(&req.extensions())?;
         Ok({ MetaRequest { user_id, db } })
     }
 }
@@ -771,6 +788,37 @@ impl HawkIdentifier {
         }
     }
 
+    fn extrude(req: &HttpRequest) -> Result<Self, Error> {
+        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+            return Ok(user_id.clone());
+        }
+
+        let state = req.get_app_data::<ServerState>().unwrap();
+        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+        let connection_info = req.connection_info().clone();
+        let method = req.method().as_str();
+        let uri = req.uri();
+        let auth_header = req
+            .headers()
+            .get("authorization")
+            .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
+            .to_str()
+            .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
+        let identifier = req
+            .extensions()
+            .get::<HawkIdentifier>()
+            .unwrap_or(&Self::generate(
+                &state.secrets,
+                method,
+                auth_header,
+                &connection_info,
+                uri,
+            )?)
+            .clone();
+        req.extensions_mut().insert(identifier.clone());
+        Ok(identifier)
+    }
+
     pub fn generate(
         secrets: &Secrets,
         method: &str,
@@ -806,44 +854,9 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
-            return Ok(user_id.clone());
-        }
         Self::extrude(req)
     }
 }
-
-impl HawkIdentifier {
-    fn extrude(req: &HttpRequest) -> Result<Self, Error> {
-        let state = req.get_app_data::<ServerState>();
-        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-        let connection_info = req.connection_info().clone();
-        let method = req.method().as_str();
-        let uri = req.uri();
-        let auth_header = req
-            .headers()
-            .get("authorization")
-            .unwrap()
-            .to_str()
-            .unwrap();
-        let identifier = req
-            .extensions()
-            .get::<HawkIdentifier>()
-            .unwrap_or(&Self::generate(
-                &state.unwrap().secrets,
-                method,
-                auth_header,
-                &connection_info,
-                uri,
-            )?)
-            .clone();
-        // The following triggers a BorrowMutError
-        req.extensions_mut().insert(identifier.clone());
-        Ok(identifier.clone())
-    }
-}
-
-impl HawkIdentifier {}
 
 impl From<u32> for HawkIdentifier {
     fn from(val: u32) -> Self {
@@ -1014,10 +1027,9 @@ impl FromRequest for BatchRequestOpt {
             return Ok(Self { opt: None });
         } else if params.batch.is_none() {
             // commit w/ no batch ID is an error
-            // let err: DbError = DbErrorKind::BatchNotFound.into();
             return Err(ValidationErrorKind::FromDetails(
-                "db error".to_string(),
-                RequestErrorLocation::Header,
+                "Commit with no batch specified".to_string(),
+                RequestErrorLocation::Path,
                 None,
             )
             .into());
@@ -1441,7 +1453,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
     }
@@ -1507,7 +1519,7 @@ mod tests {
         let result = BsoPutRequest::from_request(&req, &mut payload.into())
             .wait()
             .unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
         assert_eq!(result.body.payload, Some("x".to_string()));
@@ -1563,7 +1575,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = CollectionRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
     }
 
@@ -1610,7 +1622,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         assert!(result.batch.is_none());
@@ -1624,7 +1636,7 @@ mod tests {
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
     }
@@ -1638,7 +1650,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("batch=True", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, u64::from_str(&USER_ID).unwrap());
+        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         let batch = result.batch.unwrap();
@@ -1764,7 +1776,7 @@ mod tests {
             .to_http_request();
         HawkIdentifier::extrude(&req)
             .and_then(|result| {
-                assert_eq!(result.legacy_id, u64::from_str(&USER_ID).unwrap());
+                assert_eq!(result.legacy_id, *USER_ID_U64);
                 Ok(())
             })
             .unwrap();

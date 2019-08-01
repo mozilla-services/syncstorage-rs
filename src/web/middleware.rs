@@ -182,7 +182,8 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         // `into_parts()` consumes the service request.
         let method = sreq.method().clone();
-        let collection = match CollectionParam::extrude(&sreq.uri()) {
+        let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
+        let collection = match col_result {
             Ok(v) => v,
             Err(_e) => {
                 // pending circleci update to 1.36
@@ -388,7 +389,8 @@ where
         let user_id =
             HawkIdentifier::generate(&secrets, &sreq.method().as_str(), &auth, &ci, &uri).unwrap();
         let db = extrude_db(&sreq.extensions()).unwrap();
-        let collection = match CollectionParam::extrude(&uri) {
+        let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut());
+        let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
             Err(_e) => {
                 // pending circleci update to 1.36

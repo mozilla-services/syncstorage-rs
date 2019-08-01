@@ -1,6 +1,7 @@
 use std::{collections::HashMap, result::Result as StdResult};
 
 use diesel::{
+    expression_methods::TextExpressionMethods,
     mysql::MysqlConnection,
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, QueryDsl, RunQueryDsl,
@@ -90,7 +91,6 @@ fn static_collection_id() -> Result<()> {
         (12, "addresses"),
         (13, "creditcards"),
     ];
-    use diesel::expression_methods::TextExpressionMethods;
     // The integration tests can create collections that start
     // with `xxx%`. We should not include those in our counts for local
     // unit tests.
