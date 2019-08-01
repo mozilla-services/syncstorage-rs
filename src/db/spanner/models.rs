@@ -31,6 +31,7 @@ use google_spanner1::ReadOnly;
 use google_spanner1::ReadWrite;
 use google_spanner1::RollbackRequest;
 use google_spanner1::TransactionOptions;
+use google_spanner1::TransactionSelector;
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -172,8 +173,14 @@ impl SpannerDb {
         };
         if let Ok(id) = id {
             let mut sql = ExecuteSqlRequest::default();
+            let mut options = TransactionOptions::default();
+            options.read_write = Some(ReadWrite::default());
+            let mut selector = TransactionSelector::default();
+            selector.begin = Some(options);
+            sql.transaction = Some(selector);
             sql.sql = Some(
-                "INSERT INTO collections (collectionid, name) VALUES (@id, @name)".to_string(),
+                "INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)"
+                    .to_string(),
             );
             let mut params = HashMap::new();
             params.insert("name".to_string(), name.to_string());
@@ -950,6 +957,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
+
         sql.sql = Some("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid".to_string());
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -1003,6 +1011,11 @@ impl SpannerDb {
         };
         let sql = if exists {
             let mut sql = ExecuteSqlRequest::default();
+            let mut options = TransactionOptions::default();
+            options.read_write = Some(ReadWrite::default());
+            let mut selector = TransactionSelector::default();
+            selector.begin = Some(options);
+            sql.transaction = Some(selector);
             sql.sql = Some("UPDATE bso SET sortindex=@sortindex, expiry=@expiry, payload=@payload, modified=@modified WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
             let mut sqlparams = HashMap::new();
             sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap().to_string());
@@ -1022,7 +1035,12 @@ impl SpannerDb {
             sql
         } else {
             let mut sql = ExecuteSqlRequest::default();
-            sql.sql = Some("INSERT INTO bso (userid, collection_id, id, sortindex, payload, modified, expiry) VALUES (@userid, @collection_id, @bsoid, @sortindex, @payload, @modified, @expiry))".to_string());
+            let mut options = TransactionOptions::default();
+            options.read_write = Some(ReadWrite::default());
+            let mut selector = TransactionSelector::default();
+            selector.begin = Some(options);
+            sql.transaction = Some(selector);
+            sql.sql = Some("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)".to_string());
             let mut sqlparams = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
