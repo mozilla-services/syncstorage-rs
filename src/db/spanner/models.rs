@@ -142,13 +142,6 @@ impl SpannerDb {
             self.coll_cache.put(val, name.to_owned())?;
         };
         rv
-        //let id = sql_query("SELECT id FROM collections WHERE name = ?")
-        //    .bind::<Text, _>(name)
-        //    .get_result::<IdResult>(&self.conn)
-        //    .optional()?
-        //    .ok_or(DbErrorKind::CollectionNotFound)?
-        //    .id;
-        //self.coll_cache.put(id, name.to_owned())?;
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
@@ -210,13 +203,6 @@ impl SpannerDb {
                 self.coll_cache.put(val, name.to_owned())?;
             };
         };
-        // let id = self.conn.transaction(|| {
-        //     sql_query("INSERT INTO collections (name) VALUES (?)")
-        //         .bind::<Text, _>(name)
-        //         .execute(&self.conn)?;
-        //     collections::table.select(last_insert_id).first(&self.conn)
-        // })?;
-        // self.coll_cache.put(id, name.to_owned())?;
         id
     }
 
@@ -280,25 +266,6 @@ impl SpannerDb {
             .coll_locks
             .insert((user_id, collection_id), CollectionLock::Read);
 
-        // let modified = user_collections::table
-        //     .select(user_collections::modified)
-        //     .filter(user_collections::user_id.eq(user_id as i32))
-        //     .filter(user_collections::collection_id.eq(collection_id))
-        //     .lock_in_share_mode()
-        //     .first(&self.conn)
-        //     .optional()?;
-        // if let Some(modified) = modified {
-        //     let modified = SyncTimestamp::from_i64(modified)?;
-        //     self.session
-        //         .borrow_mut()
-        //         .coll_modified_cache
-        //         .insert((user_id, collection_id), modified);
-        // }
-        // // XXX: who's responsible for unlocking (removing the entry)
-        // self.session
-        //     .borrow_mut()
-        //     .coll_locks
-        //     .insert((user_id, collection_id), CollectionLock::Read);
         Ok(())
     }
 
@@ -345,28 +312,6 @@ impl SpannerDb {
             .coll_locks
             .insert((user_id, collection_id), CollectionLock::Write);
 
-        // let modified = user_collections::table
-        //     .select(user_collections::modified)
-        //     .filter(user_collections::user_id.eq(user_id as i32))
-        //     .filter(user_collections::collection_id.eq(collection_id))
-        //     .for_update()
-        //     .first(&self.conn)
-        //     .optional()?;
-        // if let Some(modified) = modified {
-        //     let modified = SyncTimestamp::from_i64(modified)?;
-        //     // Forbid the write if it would not properly incr the timestamp
-        //     if modified >= self.timestamp() {
-        //         Err(DbErrorKind::Conflict)?
-        //     }
-        //     self.session
-        //         .borrow_mut()
-        //         .coll_modified_cache
-        //         .insert((user_id, collection_id), modified);
-        // }
-        // self.session
-        //     .borrow_mut()
-        //     .coll_locks
-        //     .insert((user_id, collection_id), CollectionLock::Write);
         Ok(())
     }
 
@@ -394,10 +339,6 @@ impl SpannerDb {
                 Ok(())
             }
         }
-        // Ok(self
-        //     .conn
-        //     .transaction_manager()
-        //     .begin_transaction(&self.conn)?)
     }
 
     pub fn commit_sync(&self) -> Result<()> {
@@ -422,11 +363,6 @@ impl SpannerDb {
                 Ok(())
             }
         }
-
-        // Ok(self
-        //     .conn
-        //     .transaction_manager()
-        //     .commit_transaction(&self.conn)?)
     }
 
     pub fn rollback_sync(&self) -> Result<()> {
@@ -449,10 +385,6 @@ impl SpannerDb {
                 Ok(())
             }
         }
-        // Ok(self
-        //     .conn
-        //     .transaction_manager()
-        //     .rollback_transaction(&self.conn)?)
     }
 
     pub fn get_collection_timestamp_sync(
@@ -495,13 +427,6 @@ impl SpannerDb {
             // TODO Return the correct error
             Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
-        // user_collections::table
-        //     .select(user_collections::modified)
-        //     .filter(user_collections::user_id.eq(user_id as i32))
-        //     .filter(user_collections::collection_id.eq(collection_id))
-        //     .first(&self.conn)
-        //     .optional()?
-        //     .ok_or_else(|| DbErrorKind::CollectionNotFound.into())
     }
 
     pub fn get_collection_timestamps_sync(
@@ -542,13 +467,6 @@ impl SpannerDb {
             // TODO Return the correct error
             Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
-        // user_collections::table
-        //     .select(user_collections::modified)
-        //     .filter(user_collections::user_id.eq(user_id as i32))
-        //     .filter(user_collections::collection_id.eq(collection_id))
-        //     .first(&self.conn)
-        //     .optional()?
-        //     .ok_or_else(|| DbErrorKind::CollectionNotFound.into())
     }
 
     pub fn get_collection_counts_sync(
@@ -653,13 +571,6 @@ impl SpannerDb {
             // TODO Return the correct error
             Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
-        // user_collections::table
-        //     .select(user_collections::modified)
-        //     .filter(user_collections::user_id.eq(user_id as i32))
-        //     .filter(user_collections::collection_id.eq(collection_id))
-        //     .first(&self.conn)
-        //     .optional()?
-        //     .ok_or_else(|| DbErrorKind::CollectionNotFound.into())
     }
 
     pub fn get_storage_usage_sync(
@@ -1296,8 +1207,7 @@ impl Db for SpannerDb {
     }
 
     #[cfg(any(test, feature = "db_test"))]
-    fn touch_collection(&self, _param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
-        /*
+    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
             future::result(
@@ -1305,8 +1215,6 @@ impl Db for SpannerDb {
                     .map_err(Into::into),
             )
         })))
-         */
-        Box::new(future::ok(Default::default()))
     }
 
     #[cfg(any(test, feature = "db_test"))]
