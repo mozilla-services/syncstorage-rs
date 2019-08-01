@@ -185,7 +185,7 @@ where
         let collection = match col_result {
             Ok(v) => v,
             Err(e) => {
-                dbg!("!!! CollectionParam err: {:?}", e);
+                dbg!("⚠️ CollectionParam err: {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -391,7 +391,7 @@ where
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
-                dbg!("!!! Collection Error: ", e);
+                dbg!("⚠️ Collection Error: ", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -446,7 +446,7 @@ where
                         if let Ok(ts_header) =
                             header::HeaderValue::from_str(&resource_ts.as_header())
                         {
-                            dbg!(format!("XXX Setting X-Last-Modfied {:?}", ts_header));
+                            dbg!(format!("📝 Setting X-Last-Modfied {:?}", ts_header));
                             resp.headers_mut().insert(
                                 header::HeaderName::from_static(X_LAST_MODIFIED),
                                 ts_header,

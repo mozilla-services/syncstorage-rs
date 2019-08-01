@@ -129,7 +129,7 @@ impl FromRequest for BsoBodies {
 
         // Load the entire request into a String
         let fut = <String>::from_request(req, payload).map_err(|e| {
-            dbg!("!!! Payload read error", e);
+            dbg!("⚠️ Payload read error", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
                 RequestErrorLocation::Header,
@@ -355,7 +355,7 @@ impl BsoParam {
         }
         if let Some(v) = elements.get(5) {
             let sv = String::from_str(v).map_err(|e| {
-                dbg!("!!! BsoParam Error", v, e);
+                dbg!("⚠️ BsoParam Error", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -768,7 +768,7 @@ impl HawkIdentifier {
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
             u64::from_str(v).map_err(|e| {
-                dbg!("!!! HawkIdentifier Error", v, e);
+                dbg!("⚠️ HawkIdentifier Error", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
@@ -868,7 +868,7 @@ pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     match exts.get::<(Box<dyn Db>, bool)>() {
         Some((db, _)) => Ok(db.clone()),
         None => {
-            dbg!("!!! DB Error: No db");
+            dbg!("⚠️ DB Error: No db");
             Err(ErrorInternalServerError(
                 "Unexpected Db error: No DB".to_owned(),
             ))
