@@ -113,7 +113,7 @@ impl SpannerDb {
         let spanner = &self.conn;
 
         let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT id FROM collections WHERE name = @name;".to_string());
+        sql.sql = Some("SELECT collectionid FROM collections WHERE name = @name;".to_string());
         let mut params = HashMap::new();
         params.insert("name".to_string(), name.to_string());
         sql.params = Some(params);
@@ -255,10 +255,10 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid LOCK IN SHARE MODE".to_string());
+        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid".to_string());
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
-        params.insert("collection".to_string(), collection_id.to_string());
+        params.insert("collectionid".to_string(), collection_id.to_string());
         sql.params = Some(params);
 
         let results = spanner
