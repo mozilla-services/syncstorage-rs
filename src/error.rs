@@ -5,7 +5,7 @@ use std::fmt;
 use actix_web::{
     dev::{HttpResponseBuilder, ServiceResponse},
     error::ResponseError,
-    http::{header, HeaderValue, StatusCode},
+    http::StatusCode,
     middleware::errhandlers::ErrorHandlerResponse,
     HttpResponse, Result,
 };
@@ -140,17 +140,6 @@ impl ApiError {
             res.request().clone(),
             resp.into_body(),
         )))
-    }
-
-    pub fn add_content_type_to_err<B>(
-        mut res: ServiceResponse<B>,
-    ) -> Result<ErrorHandlerResponse<B>> {
-        // Inject the "Content-Type: application/json" header into the outbound response.
-        res.response_mut().headers_mut().insert(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/json"),
-        );
-        Ok(ErrorHandlerResponse::Response(res))
     }
 }
 

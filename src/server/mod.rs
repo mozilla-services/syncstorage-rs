@@ -51,113 +51,105 @@ pub fn cfg_path(path: &str) -> String {
 pub struct Server;
 
 #[macro_export]
-macro_rules! build_app{
+macro_rules! build_app {
     ($state: expr, $limits: expr) => {
-            App::new()
-                .data($state)
-                // Middleware is applied LIFO
-                // These will wrap all outbound responses with matching status codes.
-                .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
-                // TODO: Is there a way to define this by default? Outbound errors don't generally set
-                // content type or body.
-                .wrap(
-                    ErrorHandlers::new()
-                        .handler(StatusCode::BAD_REQUEST, ApiError::add_content_type_to_err),
-                )
-                .wrap(ErrorHandlers::new().handler(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ApiError::add_content_type_to_err,
-                ))
-                // These are our wrappers
-                .wrap(middleware::PreConditionCheck::new())
-                .wrap(middleware::DbTransaction::new())
-                .wrap(middleware::WeaveTimestamp::new())
-                // Followed by the "official middleware" so they run first.
-                .wrap(Cors::default())
-                .service(
-                    web::resource(&cfg_path("/info/collections"))
-                        .route(web::get().to_async(handlers::get_collections)),
-                )
-                .service(
-                    web::resource(&cfg_path("/info/collection_counts"))
-                        .route(web::get().to_async(handlers::get_collection_counts)),
-                )
-                .service(
-                    web::resource(&cfg_path("/info/collection_usage"))
-                        .route(web::get().to_async(handlers::get_collection_usage)),
-                )
-                .service(
-                    web::resource(&cfg_path("/info/configuration"))
-                        .route(web::get().to_async(handlers::get_configuration)),
-                )
-                .service(
-                    web::resource(&cfg_path("/info/quota"))
-                        .route(web::get().to_async(handlers::get_quota)),
-                )
-                .service(
-                    web::resource(&cfg_path(""))
-                        .route(web::delete().to_async(handlers::delete_all)),
-                )
-                .service(
-                    web::resource(&cfg_path("/storage"))
-                        .route(web::delete().to_async(handlers::delete_all)),
-                )
-                .service(
-                    web::resource(&cfg_path("/storage/{collection}"))
-                        .data(
-                            // Declare the payload limit for "normal" collections.
-                            web::PayloadConfig::new($limits.max_request_bytes as usize),
-                        )
-                        .data(
-                            // Declare the payload limits for "JSON" payloads
-                            web::JsonConfig::default()
-                                .limit($limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN),
-                        )
-                        .route(web::delete().to_async(handlers::delete_collection))
-                        .route(web::get().to_async(handlers::get_collection))
-                        .route(web::post().to_async(handlers::post_collection)),
-                )
-                .service(
-                    web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                        .data(web::PayloadConfig::new(
-                            $limits.max_request_bytes as usize,
-                        ))
-                        .data(
-                            web::JsonConfig::default()
-                                .limit($limits.max_request_bytes as usize)
-                                .content_type(|ct| ct == mime::TEXT_PLAIN),
-                        )
-                        .route(web::delete().to_async(handlers::delete_bso))
-                        .route(web::get().to_async(handlers::get_bso))
-                        .route(web::put().to_async(handlers::put_bso)),
-                )
-                // Dockerflow
-                .service(
-                    web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
-                        // if addidtional information is desired, point to an appropriate handler.
-                        let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                        HttpResponse::Ok()
-                            .content_type("application/json")
-                            .body(body.to_string())
-                    })),
-                )
-                .service(web::resource("/__lbheartbeat__").route(web::get().to(
-                    |_: HttpRequest| {
-                        // used by the load balancers, just return OK.
-                        HttpResponse::Ok()
-                            .content_type("application/json")
-                            .body("{}")
-                    },
-                )))
-                .service(
-                    web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
-                        // return the contents of the version.json file created by circleci and stored in the docker root
-                        HttpResponse::Ok()
-                            .content_type("application/json")
-                            .body(include_str!("../../version.json"))
-                    })),
-                )
+        App::new()
+            .data($state)
+            // Middleware is applied LIFO
+
+            // These will wrap all outbound responses with matching status codes.
+            .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
+            // These are our wrappers
+            .wrap(middleware::PreConditionCheck::new())
+            .wrap(middleware::DbTransaction::new())
+            .wrap(middleware::WeaveTimestamp::new())
+            // Followed by the "official middleware" so they run first.
+            .wrap(Cors::default())
+            .service(
+                web::resource(&cfg_path("/info/collections"))
+                    .route(web::get().to_async(handlers::get_collections)),
+            )
+            .service(
+                web::resource(&cfg_path("/info/collection_counts"))
+                    .route(web::get().to_async(handlers::get_collection_counts)),
+            )
+            .service(
+                web::resource(&cfg_path("/info/collection_usage"))
+                    .route(web::get().to_async(handlers::get_collection_usage)),
+            )
+            .service(
+                web::resource(&cfg_path("/info/configuration"))
+                    .route(web::get().to_async(handlers::get_configuration)),
+            )
+            .service(
+                web::resource(&cfg_path("/info/quota"))
+                    .route(web::get().to_async(handlers::get_quota)),
+            )
+            .service(
+                web::resource(&cfg_path("")).route(web::delete().to_async(handlers::delete_all)),
+            )
+            .service(
+                web::resource(&cfg_path("/storage"))
+                    .route(web::delete().to_async(handlers::delete_all)),
+            )
+            .service(
+                web::resource(&cfg_path("/storage/{collection}"))
+                    .data(
+                        // Declare the payload limit for "normal" collections.
+                        web::PayloadConfig::new($limits.max_request_bytes as usize),
+                    )
+                    .data(
+                        // Declare the payload limits for "JSON" payloads
+                        web::JsonConfig::default()
+                            .limit($limits.max_request_bytes as usize)
+                            .content_type(|ct| ct == mime::TEXT_PLAIN),
+                    )
+                    .route(web::delete().to_async(handlers::delete_collection))
+                    .route(web::get().to_async(handlers::get_collection))
+                    .route(web::post().to_async(handlers::post_collection)),
+            )
+            .service(
+                web::resource(&cfg_path("/storage/{collection}/{bso}"))
+                    .data(web::PayloadConfig::new(
+                        $limits.max_request_bytes as usize,
+                    ))
+                    .data(
+                        web::JsonConfig::default()
+                            .limit($limits.max_request_bytes as usize)
+                            .content_type(|ct| ct == mime::TEXT_PLAIN),
+                    )
+                    .route(web::delete().to_async(handlers::delete_bso))
+                    .route(web::get().to_async(handlers::get_bso))
+                    .route(web::put().to_async(handlers::put_bso)),
+            )
+            // Dockerflow
+            .service(
+                web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
+                    // if addidtional information is desired, point to an appropriate
+                    // handler.
+                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(body.to_string())
+                })),
+            )
+            .service(
+                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
+                    // used by the load balancers, just return OK.
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body("{}")
+                })),
+            )
+            .service(
+                web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                    // return the contents of the version.json file created by circleci
+                    // and stored in the docker root
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(include_str!("../../version.json"))
+                })),
+            )
     };
 }
 

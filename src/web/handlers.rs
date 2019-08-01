@@ -8,7 +8,6 @@ use serde_json::json;
 
 use crate::db::{params, results::Paginated, DbError, DbErrorKind};
 use crate::error::ApiError;
-// use crate::server::ServerState;
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
     MetaRequest, ReplyFormat,
