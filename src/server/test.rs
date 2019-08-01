@@ -52,7 +52,7 @@ fn get_test_settings() -> Settings {
     .unwrap();
     Settings {
         debug: true,
-        port, // TODO: not sure what's setting the test request port to 8080.
+        port,
         host,
         database_url: settings.database_url.clone(),
         database_pool_max_size: Some(pool_size + 1),

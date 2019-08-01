@@ -402,7 +402,7 @@ pub struct CollectionParam {
 
 impl CollectionParam {
     fn col_from_path(uri: &Uri) -> Result<Option<CollectionParam>, Error> {
-        // TODO: replace with better request path parser.
+        // TODO: replace with proper path parser.
         // path: "/1.5/{uid}/storage/{collection}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
@@ -469,7 +469,6 @@ impl FromRequest for MetaRequest {
         // Call the precondition stuff to init database handles and what-not
         let user_id = HawkIdentifier::from_request(req, payload)?;
         let db = extrude_db(&req.extensions()).unwrap();
-        // TODO: Is it possible to put all of the precondition header info in here?
         Ok({ MetaRequest { user_id, db } })
     }
 }
@@ -714,7 +713,6 @@ impl FromRequest for ConfigRequest {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let data = &req.app_data::<ServerState>().unwrap().limits;
-        // TODO: Find a better way to extract these.
         Ok(Self {
             limits: ServerLimits {
                 max_post_bytes: data.max_post_bytes,
@@ -750,7 +748,7 @@ impl HawkIdentifier {
     }
 
     fn uid_from_path(uri: &Uri) -> Result<u64, Error> {
-        // TODO: replace with better request path parser.
+        // TODO: replace with proper path parser.
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
@@ -921,7 +919,6 @@ impl FromRequest for BsoQueryParams {
 
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        // TODO: serde deserialize the query ourselves to catch the serde error nicely
         let params = Query::<BsoQueryParams>::from_request(req, payload)
             .map_err(|e| {
                 ValidationErrorKind::FromDetails(
@@ -1100,7 +1097,7 @@ impl PreConditionHeaderOpt {
             .unwrap_or(0.0)
             < 0.0
         {
-            //TODO: This is the right error, but it's not being returned correctly.
+            // TODO: This is the right error, but it's not being returned correctly.
             return Err(ValidationErrorKind::FromDetails(
                 "value is negative".to_owned(),
                 RequestErrorLocation::Header,

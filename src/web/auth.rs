@@ -12,15 +12,15 @@ use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
+use actix_http::http::Uri;
+use actix_web::dev::ConnectionInfo;
+
 use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
 use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Secrets;
-
-use actix_http::http::Uri;
-use actix_web::dev::ConnectionInfo;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
