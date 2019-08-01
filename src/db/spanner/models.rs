@@ -32,6 +32,7 @@ use google_spanner1::ReadWrite;
 use google_spanner1::RollbackRequest;
 use google_spanner1::TransactionOptions;
 use google_spanner1::TransactionSelector;
+use google_spanner1::Type;
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -676,6 +677,11 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
+        let mut options = TransactionOptions::default();
+        options.read_write = Some(ReadWrite::default());
+        let mut selector = TransactionSelector::default();
+        selector.begin = Some(options);
+        sql.transaction = Some(selector);
         sql.sql = Some("INSERT INTO user_collections (user_id, collection_id, modified) VALUES (@userid, @collectionid, @modified) ON DUPLICATE KEY UPDATE modified = @modified".to_string());
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -754,11 +760,20 @@ impl SpannerDb {
 
         let mut query = "SELECT (id, modified, payload, sortindex, expiry) FROM bso WHERE user_id = @userid AND collection_id = @collectionid AND expiry > @timestamp".to_string();
         let mut sqlparams = HashMap::new();
+        let mut sqltypes = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sqlparams.insert(
             "timestamp".to_string(),
             self.timestamp().as_i64().to_string(),
+        );
+        sqltypes.insert(
+            "timestamp".to_string(),
+            Type {
+                array_element_type: None,
+                code: Some("TIMESTAMP".to_string()),
+                struct_type: None,
+            },
         );
 
         if let Some(older) = older {
@@ -820,6 +835,7 @@ impl SpannerDb {
         let mut sql = ExecuteSqlRequest::default();
         sql.sql = Some(query.to_string());
         sql.params = Some(sqlparams);
+        sql.param_types = Some(sqltypes);
 
         let results = spanner
             .hub
@@ -1056,7 +1072,17 @@ impl SpannerDb {
                     .to_string(),
             );
 
+            let mut sqltypes = HashMap::new();
+            sqltypes.insert(
+                "expiry".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
             sql.params = Some(sqlparams);
+            sql.param_types = Some(sqltypes);
             sql
         };
 
