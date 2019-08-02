@@ -1,11 +1,14 @@
 use futures::future;
 use futures::lazy;
 
+use chrono::{SecondsFormat, TimeZone, Utc};
+
 use diesel::r2d2::PooledConnection;
 
 use std::cell::RefCell;
 use std::cmp;
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -677,26 +680,81 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
-        let mut options = TransactionOptions::default();
-        options.read_write = Some(ReadWrite::default());
-        let mut selector = TransactionSelector::default();
-        selector.begin = Some(options);
-        sql.transaction = Some(selector);
-        sql.sql = Some("INSERT INTO user_collections (user_id, collection_id, modified) VALUES (@userid, @collectionid, @modified) ON DUPLICATE KEY UPDATE modified = @modified".to_string());
+        sql.sql = Some("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;".to_string());
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sql.params = Some(sqlparams);
-
         let results = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
-        match results {
-            Ok(_results) => Ok(self.timestamp()),
-            // TODO Return the correct error
-            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+        let exists = match results {
+            Ok(results) => results.1.rows.is_some(),
+            _ => return Err(DbErrorKind::CollectionNotFound.into()),
+        };
+
+        if exists {
+            let mut sql = ExecuteSqlRequest::default();
+            let mut options = TransactionOptions::default();
+            options.read_write = Some(ReadWrite::default());
+            let mut selector = TransactionSelector::default();
+            selector.begin = Some(options);
+            sql.transaction = Some(selector);
+            sql.sql = Some("UPDATE user_collections SET modified=@modified WHERE userid=@userid AND collection=@collectionid".to_string());
+            let mut sqlparams = HashMap::new();
+            let mut sqltypes = HashMap::new();
+            sqlparams.insert("userid".to_string(), user_id.to_string());
+            sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            sqlparams.insert(
+                "modified".to_string(),
+                self.timestamp().as_i64().to_string(),
+            );
+            sqltypes.insert(
+                "timestamp".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
+            sql.params = Some(sqlparams);
+            sql.param_types = Some(sqltypes);
+
+            let results = spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_execute_sql(sql, session)
+                .doit();
+            match results {
+                Ok(_results) => Ok(self.timestamp()),
+                // TODO Return the correct error
+                Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+            }
+        } else {
+            let mut sql = ExecuteSqlRequest::default();
+            let mut options = TransactionOptions::default();
+            options.read_write = Some(ReadWrite::default());
+            let mut selector = TransactionSelector::default();
+            selector.begin = Some(options);
+            sql.transaction = Some(selector);
+            sql.sql = Some("INSERT INTO user_collections (userid, collection_id, modified) VALUES (@userid, @collectionid, @modified);".to_string());
+            let mut sqlparams = HashMap::new();
+            sqlparams.insert("userid".to_string(), user_id.to_string());
+            sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            sql.params = Some(sqlparams);
+
+            let results = spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_execute_sql(sql, session)
+                .doit();
+            match results {
+                Ok(_results) => Ok(self.timestamp()),
+                // TODO Return the correct error
+                Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+            }
         }
     }
 
@@ -1063,18 +1121,34 @@ impl SpannerDb {
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
             sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap().to_string());
             sqlparams.insert("payload".to_string(), bso.payload.unwrap().to_string());
-            sqlparams.insert("modified".to_string(), timestamp.to_string());
-            sqlparams.insert(
-                "expiry".to_string(),
-                bso.ttl
-                    .map(|ttl| timestamp + (i64::from(ttl) * 1000))
-                    .unwrap()
-                    .to_string(),
-            );
+            let modifiedstring = Utc
+                .timestamp(
+                    timestamp / 1000,
+                    ((timestamp % 1000) * 1000).try_into().unwrap(),
+                )
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+            sqlparams.insert("modified".to_string(), modifiedstring);
+            let ttl = bso
+                .ttl
+                .map(|ttl| timestamp + (i64::from(ttl) * 1000))
+                .unwrap();
+            let expirystring = Utc
+                .timestamp(ttl / 1000, ((ttl % 1000) * 1000).try_into().unwrap())
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+            println!("!!!!! {:}", expirystring);
+            sqlparams.insert("expiry".to_string(), expirystring);
 
             let mut sqltypes = HashMap::new();
             sqltypes.insert(
                 "expiry".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
+            sqltypes.insert(
+                "modified".to_string(),
                 Type {
                     array_element_type: None,
                     code: Some("TIMESTAMP".to_string()),
