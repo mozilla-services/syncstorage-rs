@@ -741,9 +741,28 @@ impl SpannerDb {
             sql.transaction = Some(selector);
             sql.sql = Some("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified);".to_string());
             let mut sqlparams = HashMap::new();
+            let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            let timestamp = self.timestamp().as_i64();
+            let modifiedstring = Utc
+                .timestamp(
+                    timestamp / 1000,
+                    ((timestamp % 1000) * 1000).try_into().unwrap(),
+                )
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+            println!("!!!!! {:}", timestamp);
+            sqlparams.insert("modified".to_string(), modifiedstring);
+            sqltypes.insert(
+                "modified".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
             sql.params = Some(sqlparams);
+            sql.param_types = Some(sqltypes);
 
             let results = spanner
                 .hub
