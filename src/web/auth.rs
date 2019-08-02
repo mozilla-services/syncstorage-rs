@@ -209,8 +209,6 @@ mod tests {
     #[test]
     fn valid_header_with_querystring() {
         let mut fixture = TestFixture::new();
-        // because the port changed, old macs are now invalid.
-
         fixture.header.mac = "xRVjP7607eZUWCBxJKwTo1CsLcNf4TZwUUNrLPUqkdQ=".to_string();
         fixture.header.nonce = "1d4mRs0=".to_string();
         fixture.header.ts = 1_536_198_978;

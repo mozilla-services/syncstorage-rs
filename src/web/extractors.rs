@@ -1301,8 +1301,8 @@ mod tests {
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot"));
-        static ref USER_ID_U64: u64 = thread_rng().gen_range(0, 10000);
-        static ref USER_ID: String = USER_ID_U64.to_string();
+        static ref USER_ID: u64 = thread_rng().gen_range(0, 10000);
+        static ref USER_ID_STR: String = USER_ID.to_string();
     }
 
     const TEST_HOST: &str = "localhost";
@@ -1362,7 +1362,7 @@ mod tests {
     }
 
     fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let path = format!(
             "/1.5/{}/storage/tabs{}{}",
@@ -1380,7 +1380,7 @@ mod tests {
             .header("content-type", "application/json")
             //.set_json(body)
             .set_payload(bod_str.as_bytes())
-            .param("uid", &*USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -1435,7 +1435,7 @@ mod tests {
 
     #[test]
     fn test_valid_bso_request() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
@@ -1443,20 +1443,20 @@ mod tests {
             .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
     }
 
     #[test]
     fn test_invalid_bso_request() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         // Declare these here for the middleware.
         let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, INVALID_BSO_NAME);
@@ -1466,7 +1466,7 @@ mod tests {
             .header("authorization", header)
             .method(Method::GET)
             // `param` sets the value that would be extracted from the tokenized URI, as if the router did it.
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", INVALID_BSO_NAME)
             .to_http_request();
@@ -1491,7 +1491,7 @@ mod tests {
 
     #[test]
     fn test_valid_bso_post_body() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
@@ -1504,7 +1504,7 @@ mod tests {
             .header("content-type", "application/json")
             .method(Method::POST)
             .set_payload(bso_body.to_string())
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
@@ -1515,7 +1515,7 @@ mod tests {
         let result = BsoPutRequest::from_request(&req, &mut payload.into())
             .wait()
             .unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
         assert_eq!(result.body.payload, Some("x".to_string()));
@@ -1523,7 +1523,7 @@ mod tests {
 
     #[test]
     fn test_invalid_bso_post_body() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
@@ -1536,7 +1536,7 @@ mod tests {
             .header("content-type", "application/json")
             .method(Method::POST)
             .set_payload(bso_body.to_string())
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
@@ -1558,7 +1558,7 @@ mod tests {
 
     #[test]
     fn test_valid_collection_request() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/tabs", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
@@ -1566,18 +1566,18 @@ mod tests {
             .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = CollectionRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
     }
 
     #[test]
     fn test_invalid_collection_request() {
-        let hawk_payload = HawkPayload::test_default(*USER_ID_U64);
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/{}", *USER_ID, INVALID_COLLECTION_NAME);
         let header =
@@ -1586,7 +1586,7 @@ mod tests {
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .param("collection", INVALID_COLLECTION_NAME)
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -1618,7 +1618,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         assert!(result.batch.is_none());
@@ -1632,7 +1632,7 @@ mod tests {
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
     }
@@ -1646,7 +1646,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("batch=True", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, *USER_ID_U64);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         let batch = result.batch.unwrap();
@@ -1760,7 +1760,7 @@ mod tests {
 
     #[test]
     fn valid_header_with_valid_path() {
-        let payload = HawkPayload::test_default(*USER_ID_U64);
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
@@ -1768,11 +1768,11 @@ mod tests {
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
-            .param("uid", &USER_ID)
+            .param("uid", &USER_ID_STR)
             .to_http_request();
         HawkIdentifier::extrude(&req)
             .and_then(|result| {
-                assert_eq!(result.legacy_id, *USER_ID_U64);
+                assert_eq!(result.legacy_id, *USER_ID);
                 Ok(())
             })
             .unwrap();
@@ -1781,7 +1781,7 @@ mod tests {
     #[test]
     fn valid_header_with_invalid_uid_in_path() {
         // the uid in the hawk payload should match the UID in the path.
-        let hawk_payload = HawkPayload::test_default(*USER_ID_U64);
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
         let mismatch_uid = "5";
         let state = make_state();
         let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
