@@ -50,10 +50,11 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let ts = SyncTimestamp::default().as_seconds();
         Box::new(self.service.call(sreq).and_then(move |mut resp| {
-            match set_weave_timestamp(resp.headers_mut(), ts) {
-                Ok(_) => future::ok(resp),
-                Err(e) => future::err(e.into()),
-            }
+            future::result(
+                set_weave_timestamp(resp.headers_mut(), ts)
+                    .map_err(Into::into)
+                    .map(|_| resp),
+            )
         }))
     }
 }
@@ -232,13 +233,12 @@ where
             let mut exts = sreq.extensions_mut();
             exts.insert(hawk_user_id.clone());
         }
-        let in_transaction = collection.is_some();
 
         let mut service = Rc::clone(&self.service);
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
             let db2 = db.clone();
 
-            sreq.extensions_mut().insert((db, in_transaction));
+            sreq.extensions_mut().insert(db);
             if let Some(collection) = collection {
                 let db3 = db2.clone();
                 let mut service2 = Rc::clone(&service);

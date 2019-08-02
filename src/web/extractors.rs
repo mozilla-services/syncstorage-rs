@@ -435,16 +435,16 @@ impl CollectionParam {
         }
 
         let collection = Self::col_from_path(&uri)?;
-        Ok(if let Some(collection) = collection {
+        let result = if let Some(collection) = collection {
             collection.validate().map_err(|e| {
                 ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
             })?;
-            let result = Some(collection);
-            extensions.insert(result.clone());
-            result
+            Some(collection)
         } else {
             None
-        })
+        };
+        extensions.insert(result.clone());
+        Ok(result)
     }
 }
 
@@ -801,17 +801,8 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier = req
-            .extensions()
-            .get::<HawkIdentifier>()
-            .unwrap_or(&Self::generate(
-                &state.secrets,
-                method,
-                auth_header,
-                &connection_info,
-                uri,
-            )?)
-            .clone();
+        let identifier =
+            Self::generate(&state.secrets, method, auth_header, &connection_info, uri)?;
         req.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -824,10 +815,6 @@ impl HawkIdentifier {
         uri: &Uri,
     ) -> Result<Self, Error> {
         let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
-
-        // To get the user_ID from the path using the extractor, you need
-        // the HTTPRequest, which isn't available from ServiceRequest,
-
         if payload.user_id != Self::uid_from_path(&uri)? {
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
@@ -865,15 +852,10 @@ impl From<u32> for HawkIdentifier {
 }
 
 pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
-    match exts.get::<(Box<dyn Db>, bool)>() {
-        Some((db, _)) => Ok(db.clone()),
-        None => {
-            dbg!("⚠️ DB Error: No db");
-            Err(ErrorInternalServerError(
-                "Unexpected Db error: No DB".to_owned(),
-            ))
-        }
-    }
+    exts.get::<Box<dyn Db>>().cloned().ok_or_else(|| {
+        dbg!("⚠️ DB Error: No db");
+        ErrorInternalServerError("Unexpected Db error: No DB".to_owned())
+    })
 }
 
 impl FromRequest for Box<dyn Db> {
@@ -1312,8 +1294,8 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> (Box<dyn Db>, bool) {
-        (Box::new(MockDb::new()), false)
+    fn make_db() -> Box<dyn Db> {
+        Box::new(MockDb::new())
     }
 
     fn make_state() -> ServerState {

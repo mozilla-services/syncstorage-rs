@@ -54,7 +54,6 @@ url = "2.0.0"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
 validator = "0.9"
 validator_derive = "0.9"
-json = "0.11"
 
 google-spanner1 = "*"
 # This project intentionally uses an old version of Hyper. See
