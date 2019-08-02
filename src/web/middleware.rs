@@ -236,29 +236,27 @@ where
 
         let mut service = Rc::clone(&self.service);
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
-            let db2 = db.clone();
+            sreq.extensions_mut().insert(db.clone());
 
-            sreq.extensions_mut().insert(db);
             if let Some(collection) = collection {
-                let db3 = db2.clone();
-                let mut service2 = Rc::clone(&service);
-
+                let db2 = db.clone();
                 let lc = params::LockCollection {
                     user_id: hawk_user_id,
                     collection: collection.collection,
                 };
+
                 Either::A(
                     match method {
-                        Method::GET | Method::HEAD => db2.lock_for_read(lc),
-                        _ => db2.lock_for_write(lc),
+                        Method::GET | Method::HEAD => db.lock_for_read(lc),
+                        _ => db.lock_for_write(lc),
                     }
-                    .or_else(move |e| db2.rollback().and_then(|_| future::err(e)))
+                    .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
                     .map_err(Into::into)
                     .and_then(move |_| {
-                        service2.call(sreq).and_then(move |resp| {
+                        service.call(sreq).and_then(move |resp| {
                             match resp.response().error() {
-                                None => db3.commit(),
-                                Some(_) => db3.rollback(),
+                                None => db2.commit(),
+                                Some(_) => db2.rollback(),
                             }
                             .map_err(Into::into)
                             .and_then(|_| resp)
@@ -405,9 +403,9 @@ where
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
         let bso_opt = bso.clone().map(|b| b.bso);
 
-        let mut service = self.service.clone();
+        let mut service = Rc::clone(&self.service);
         Box::new(
-            db.extract_resource(&user_id.clone(), collection, bso_opt)
+            db.extract_resource(user_id, collection, bso_opt)
                 .map_err(Into::into)
                 .and_then(move |resource_ts| {
                     let status = match precondition {
@@ -481,8 +479,8 @@ mod tests {
         let weave_hdr = (weave_hdr * 1000.0) as u64;
         // Add 10 to compensate for how fast Rust can run these
         // tests (Due to 2-digit rounding for the sync ts).
-        assert_eq!(weave_hdr < uts + 10, true);
-        assert_eq!(weave_hdr > uts - 2000, true);
+        assert!(weave_hdr < uts + 10);
+        assert!(weave_hdr > uts - 2000);
     }
 
     #[test]

@@ -143,7 +143,7 @@ where
     .map_err(From::from)
     .and_then(|result| {
         coll.db
-            .extract_resource(&coll.user_id, Some(coll.collection), None)
+            .extract_resource(coll.user_id, Some(coll.collection), None)
             .map_err(From::from)
             .map(move |ts| (result, ts))
     })

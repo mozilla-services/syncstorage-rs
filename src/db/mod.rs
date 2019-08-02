@@ -140,15 +140,14 @@ pub trait Db: Send + Debug {
     /// Modeled on the Python `get_resource_timestamp` function.
     fn extract_resource(
         &self,
-        user_id: &HawkIdentifier,
+        user_id: HawkIdentifier,
         collection: Option<String>,
         bso: Option<String>,
     ) -> DbFuture<SyncTimestamp> {
         // If there's no collection, we return the overall storage timestamp
-        let uid = user_id.clone();
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::new(self.get_storage_timestamp(uid)),
+            None => return Box::new(self.get_storage_timestamp(user_id)),
         };
         // If there's no bso, return the collection
         let bso = match bso {
@@ -156,7 +155,7 @@ pub trait Db: Send + Debug {
             None => {
                 return Box::new(
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
-                        user_id: uid,
+                        user_id,
                         collection,
                     })
                     .or_else(|e| {
@@ -171,7 +170,7 @@ pub trait Db: Send + Debug {
         };
         Box::new(
             self.get_bso_timestamp(params::GetBsoTimestamp {
-                user_id: uid,
+                user_id,
                 collection,
                 id: bso,
             })

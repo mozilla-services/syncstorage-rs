@@ -1440,7 +1440,6 @@ mod tests {
     fn test_invalid_bso_request() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        // Declare these here for the middleware.
         let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, INVALID_BSO_NAME);
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
