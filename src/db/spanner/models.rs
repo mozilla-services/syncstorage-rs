@@ -739,7 +739,7 @@ impl SpannerDb {
             let mut selector = TransactionSelector::default();
             selector.begin = Some(options);
             sql.transaction = Some(selector);
-            sql.sql = Some("INSERT INTO user_collections (userid, collection_id, modified) VALUES (@userid, @collectionid, @modified);".to_string());
+            sql.sql = Some("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified);".to_string());
             let mut sqlparams = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
