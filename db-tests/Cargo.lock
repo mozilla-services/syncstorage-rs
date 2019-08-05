@@ -804,7 +804,6 @@ dependencies = [
 [[package]]
 name = "google-spanner1"
 version = "1.0.10+20190613"
-source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "hyper 0.10.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "mime 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2163,7 +2162,7 @@ dependencies = [
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
- "google-spanner1 1.0.10+20190613 (registry+https://github.com/rust-lang/crates.io-index)",
+ "google-spanner1 1.0.10+20190613",
  "hawk 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hkdf 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hmac 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2947,7 +2946,6 @@ dependencies = [
 "checksum futures-sink-preview 0.3.0-alpha.16 (git+https://github.com/rust-lang-nursery/futures-rs?rev=744ece9)" = "<none>"
 "checksum futures-util-preview 0.3.0-alpha.16 (git+https://github.com/rust-lang-nursery/futures-rs?rev=744ece9)" = "<none>"
 "checksum generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c68f0274ae0e023facc3c97b2e00f076be70e254bc851d972503b328db79b2ec"
-"checksum google-spanner1 1.0.10+20190613 (registry+https://github.com/rust-lang/crates.io-index)" = "ff0777f496d043e9c61b10f233b4dc5e2ced688662d07f293b37a86618666b9e"
 "checksum h2 0.1.24 (registry+https://github.com/rust-lang/crates.io-index)" = "69b2a5a3092cbebbc951fe55408402e696ee2ed09019137d1800fc2c411265d2"
 "checksum hawk 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7afdba594720e9250e3d3609ec309f8adb26fa18ce39834aeb6724a30bc2431c"
 "checksum hkdf 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1a89c4638cf4e02d9db29750659d2af13d9001b508716f77d4693ec8a1f8bda8"

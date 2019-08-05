@@ -55,6 +55,7 @@ struct SpannerDbSession {
     coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
+    transaction: Option<TransactionSelector>,
 }
 
 #[derive(Clone, Debug)]
@@ -344,7 +345,15 @@ impl SpannerDb {
             .instances_databases_sessions_begin_transaction(req, session)
             .doit();
         match result {
-            Ok(_result) => Ok(()),
+            Ok((response, transaction)) => {
+                self.session
+                    .borrow_mut()
+                    .transaction = Some(google_spanner1::TransactionSelector {
+                    id: transaction.id,
+                    ..Default::default()
+                });
+                Ok(())
+            },
             Err(_e) => {
                 // TODO Handle error
                 Ok(())
@@ -680,6 +689,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = ExecuteSqlRequest::default();
+        sql.transaction = self.session.borrow().transaction.clone();
         sql.sql = Some("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;".to_string());
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -1045,6 +1055,7 @@ impl SpannerDb {
     pub fn put_bso_sync(&self, bso: params::PutBso) -> Result<results::PutBso> {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
+        let result = self.touch_collection(user_id as u32, collection_id);
         let timestamp = self.timestamp().as_i64();
 
         let spanner = &self.conn;
@@ -1052,6 +1063,7 @@ impl SpannerDb {
         let mut sql = ExecuteSqlRequest::default();
 
         sql.sql = Some("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid".to_string());
+        sql.transaction = self.session.borrow().transaction.clone();
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1104,11 +1116,7 @@ impl SpannerDb {
         };
         let sql = if exists {
             let mut sql = ExecuteSqlRequest::default();
-            let mut options = TransactionOptions::default();
-            options.read_write = Some(ReadWrite::default());
-            let mut selector = TransactionSelector::default();
-            selector.begin = Some(options);
-            sql.transaction = Some(selector);
+            sql.transaction = self.session.borrow().transaction.clone();
             sql.sql = Some("UPDATE bso SET sortindex=@sortindex, expiry=@expiry, payload=@payload, modified=@modified WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
             let mut sqlparams = HashMap::new();
             sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap().to_string());
@@ -1128,11 +1136,7 @@ impl SpannerDb {
             sql
         } else {
             let mut sql = ExecuteSqlRequest::default();
-            let mut options = TransactionOptions::default();
-            options.read_write = Some(ReadWrite::default());
-            let mut selector = TransactionSelector::default();
-            selector.begin = Some(options);
-            sql.transaction = Some(selector);
+            sql.transaction = self.session.borrow().transaction.clone();
             sql.sql = Some("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)".to_string());
             let mut sqlparams = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -1194,7 +1198,7 @@ impl SpannerDb {
             }
         }
 
-        self.touch_collection(user_id as u32, collection_id)
+        result
     }
 
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
