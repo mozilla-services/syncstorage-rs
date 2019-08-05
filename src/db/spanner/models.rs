@@ -1175,8 +1175,7 @@ impl Db for SpannerDb {
     }
 
     #[cfg(any(test, feature = "db_test"))]
-    fn touch_collection(&self, _param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
-        /*
+    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
             future::result(
@@ -1184,8 +1183,6 @@ impl Db for SpannerDb {
                     .map_err(Into::into),
             )
         })))
-         */
-        Box::new(future::ok(Default::default()))
     }
 
     #[cfg(any(test, feature = "db_test"))]
