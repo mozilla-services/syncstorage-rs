@@ -20,7 +20,8 @@ pub enum DbErrorKind {
         display = "An error occurred while establishing a db connection: {}",
         _0
     )]
-    Connection(#[cause] diesel::result::ConnectionError),
+//    Connection(#[cause] diesel::result::ConnectionError),
+    Connection(ConnectionError),
 
     #[fail(display = "A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
@@ -85,13 +86,36 @@ impl From<Context<DbErrorKind>> for DbError {
     }
 }
 
+// XXX: maybe not worth the effort vs
+// DbErrorKind::{DieselConnectionError, SpannerConnectionError}
+#[derive(Debug)]
+pub enum ConnectionError {
+    Diesel(diesel::result::ConnectionError),
+    Spanner(String),
+}
+
+impl fmt::Display for ConnectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ConnectionError::Diesel(e) => fmt::Display::fmt(e, formatter),
+            ConnectionError::Spanner(e) => fmt::Display::fmt(e, formatter),
+        }
+
+    }
+}
+
 failure_boilerplate!(DbError, DbErrorKind);
 
 from_error!(diesel::result::Error, DbError, DbErrorKind::Query);
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    DbErrorKind::Connection
+    |inner| DbErrorKind::Connection(ConnectionError::Diesel(inner))
+);
+from_error!(
+    google_spanner1::Error,
+    DbError,
+    |inner: google_spanner1::Error| DbErrorKind::Connection(ConnectionError::Spanner(inner.to_string()))
 );
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
 from_error!(

@@ -131,7 +131,12 @@ impl SpannerDb {
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
+            .doit()?;
+        println!("ok {:?}", result.1);
+        let rows = result.1.rows
+            .ok_or(DbErrorKind::CollectionNotFound)?;
+        let id = rows[0][0].parse::<i32>().map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            /*
         let rv = match result {
             Err(e) => {
                 dbg!("err {}", e);
@@ -147,9 +152,10 @@ impl SpannerDb {
             }
         };
         if let Ok(val) = rv {
-            self.coll_cache.put(val, name.to_owned())?;
         };
-        rv
+*/
+        self.coll_cache.put(id, name.to_owned())?;
+        Ok(id)
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
@@ -162,7 +168,15 @@ impl SpannerDb {
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
+            .doit()?;
+        let id = if let Some(rows) = result.1.rows {
+            let max = rows[0][0].parse::<i32>().map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            max + 1
+        } else {
+            // XXX: should never happen but defaulting to id of 1 is bad
+            1
+        };
+        /*
         let id = match result {
             Err(e) => {
                 dbg!("err {}", e);
@@ -177,18 +191,21 @@ impl SpannerDb {
                 }
             }
         };
-        if let Ok(id) = id {
-            let mut sql = self.sql_request("INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)");
-            let mut params = HashMap::new();
-            params.insert("name".to_string(), name.to_string());
-            params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
-            sql.params = Some(params);
+        */
+        //if let Ok(id) = id {
+        let mut sql = self.sql_request("INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)");
+        let mut params = HashMap::new();
+        params.insert("name".to_string(), name.to_string());
+        params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
+        sql.params = Some(params);
 
-            let result = spanner
-                .hub
-                .projects()
-                .instances_databases_sessions_execute_sql(sql, session)
-                .doit();
+        let result = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_execute_sql(sql, session)
+            .doit()?;
+
+        /*
             let rv: Result<i32> = match result {
                 Err(e) => {
                     dbg!("err {}", e);
@@ -206,8 +223,10 @@ impl SpannerDb {
             if let Ok(val) = rv {
                 self.coll_cache.put(val, name.to_owned())?;
             };
-        };
-        id
+//        };
+        */
+        self.coll_cache.put(id, name.to_owned())?;
+        Ok(id)
     }
 
     fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
@@ -1008,12 +1027,29 @@ impl SpannerDb {
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
 
-        let results = spanner
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
-        eprintln!("RRRRRRRRRR {:#?}", results);
+            .doit()?;
+        eprintln!("RRRRRRRRRR {:#?}", result);
+        Ok(if let Some(rows) = result.1.rows {
+            let modified = SyncTimestamp::from_rfc3339(&rows[0][1])?;
+            let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+            // XXX: expiry is i64?
+            let expiry = expiry_dt.timestamp_millis();
+            eprintln!("!!!! GET expiry {} ({}) {}", &rows[0][4], expiry_dt, expiry);
+            Some(results::GetBso {
+                id: rows[0][0].clone(),
+                modified,
+                payload: rows[0][2].clone(),
+                sortindex: Some(rows[0][3].parse().unwrap()),
+                expiry,
+            })
+        } else {
+            None
+        })
+        /*
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
@@ -1036,6 +1072,7 @@ impl SpannerDb {
             // TODO Return the correct error
             Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
         }
+        */
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
@@ -1076,7 +1113,7 @@ impl SpannerDb {
     pub fn put_bso_sync(&self, bso: params::PutBso) -> Result<results::PutBso> {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
-        let result = self.touch_collection(user_id as u32, collection_id);
+        let touch = self.touch_collection(user_id as u32, collection_id)?;
         let timestamp = self.timestamp().as_i64();
 
         let spanner = &self.conn;
@@ -1110,12 +1147,15 @@ impl SpannerDb {
                 yup_oauth2::Retry::Abort
             }
         }
-        let results = spanner
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .delegate(&mut Dlg {})
-            .doit();
+            .doit()?;
+        // XXX: should we rows.len() == 1?
+        let exists = result.1.rows.is_some();
+        /*
         let exists = match results {
             Ok(results) => results.1.rows.is_some(),
             // TODO Return the correct error
@@ -1132,6 +1172,7 @@ impl SpannerDb {
             }
             _ => return Err(DbErrorKind::CollectionNotFound.into()),
         };
+        */
         let sql = if exists {
             // XXX: the "ttl" column is more aptly named "expiry": our mysql
             // schema names it this. the current spanner schema prefers "ttl"
@@ -1236,11 +1277,12 @@ impl SpannerDb {
             sql
         };
 
-        let results = spanner
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
+            .doit()?;
+        /*
         match results {
             Ok(_results) => {
                 // noop
@@ -1250,8 +1292,8 @@ impl SpannerDb {
                 return Err(DbErrorKind::CollectionNotFound.into());
             }
         }
-
-        result
+        */
+        Ok(touch)
     }
 
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {

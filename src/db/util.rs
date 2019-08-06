@@ -88,7 +88,7 @@ impl SyncTimestamp {
     /// Create a `SyncTimestamp` from a chrono DateTime
     fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, DbError> {
         let millis = val.timestamp_millis();
-        if millis  < 0 {
+        if millis < 0 {
             Err(DbErrorKind::Integrity(
                 "Invalid DateTime (< 0)".to_owned(),
             ))?;
