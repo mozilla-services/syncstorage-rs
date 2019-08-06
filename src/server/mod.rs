@@ -100,6 +100,7 @@ macro_rules! build_app {
                     )
                     .data(
                         // Declare the payload limits for "JSON" payloads
+                        // (Specify "text/plain" for legacy client reasons)
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
@@ -125,7 +126,7 @@ macro_rules! build_app {
             // Dockerflow
             .service(
                 web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // if addidtional information is desired, point to an appropriate
+                    // if additional information is desired, point to an appropriate
                     // handler.
                     let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
                     HttpResponse::Ok()

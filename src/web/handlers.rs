@@ -54,22 +54,18 @@ pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpRespons
 }
 
 pub fn get_quota(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    Box::new(
-        meta.db
-            .get_storage_usage(meta.user_id)
-            .map_err(From::from)
-            .map(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None])),
-    )
+    meta.db
+        .get_storage_usage(meta.user_id)
+        .map_err(From::from)
+        .map(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
 pub fn delete_all(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
     #![allow(clippy::unit_arg)]
-    Box::new(
-        meta.db
-            .delete_storage(meta.user_id)
-            .map_err(From::from)
-            .map(|result| HttpResponse::Ok().json(result)),
-    )
+    meta.db
+        .delete_storage(meta.user_id)
+        .map_err(From::from)
+        .map(|result| HttpResponse::Ok().json(result))
 }
 
 pub fn delete_collection(
