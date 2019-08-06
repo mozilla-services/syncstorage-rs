@@ -80,7 +80,8 @@ impl SyncTimestamp {
     /// Create a `SyncTimestamp` from an RFC 3339 and ISO 8601 date and time
     /// string such as 1996-12-19T16:39:57-08:00
     pub fn from_rfc3339(val: &str) -> Result<Self, DbError> {
-        let dt = DateTime::parse_from_rfc3339(val).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+        let dt = DateTime::parse_from_rfc3339(val)
+            .map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
         Self::from_datetime(dt)
     }
 
