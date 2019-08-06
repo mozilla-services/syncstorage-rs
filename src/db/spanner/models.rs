@@ -27,15 +27,17 @@ use crate::web::extractors::BsoQueryParams;
 
 use super::batch;
 
-use google_spanner1::BeginTransactionRequest;
-use google_spanner1::CommitRequest;
-use google_spanner1::ExecuteSqlRequest;
-use google_spanner1::ReadOnly;
-use google_spanner1::ReadWrite;
-use google_spanner1::RollbackRequest;
-use google_spanner1::TransactionOptions;
-use google_spanner1::TransactionSelector;
-use google_spanner1::Type;
+use google_spanner1::{
+    BeginTransactionRequest,
+    CommitRequest,
+    ExecuteSqlRequest,
+    ReadOnly,
+    ReadWrite,
+    RollbackRequest,
+    TransactionOptions,
+    TransactionSelector,
+    Type,
+};
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -119,8 +121,7 @@ impl SpannerDb {
         }
         let spanner = &self.conn;
 
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT collectionid FROM collections WHERE name = @name;".to_string());
+        let mut sql = self.sql_request("SELECT collectionid FROM collections WHERE name = @name");
         let mut params = HashMap::new();
         params.insert("name".to_string(), name.to_string());
         sql.params = Some(params);
@@ -156,8 +157,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
 
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT MAX(collectionid) from collections".to_string());
+        let sql = self.sql_request("SELECT MAX(collectionid) from collections");
         let result = spanner
             .hub
             .projects()
@@ -178,16 +178,7 @@ impl SpannerDb {
             }
         };
         if let Ok(id) = id {
-            let mut sql = ExecuteSqlRequest::default();
-            let mut options = TransactionOptions::default();
-            options.read_write = Some(ReadWrite::default());
-            let mut selector = TransactionSelector::default();
-            selector.begin = Some(options);
-            sql.transaction = Some(selector);
-            sql.sql = Some(
-                "INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)"
-                    .to_string(),
-            );
+            let mut sql = self.sql_request("INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)");
             let mut params = HashMap::new();
             params.insert("name".to_string(), name.to_string());
             params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
@@ -253,8 +244,7 @@ impl SpannerDb {
         self.begin(false)?;
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid".to_string());
+        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -299,8 +289,7 @@ impl SpannerDb {
         self.begin(true)?;
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid".to_string());
+        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -451,8 +440,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid".to_string());
+        let mut sql = self.sql_request("SELECT last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -484,11 +472,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some(
-            "SELECT collection, last_modified FROM user_collections WHERE userid=@userid"
-                .to_string(),
-        );
+        let mut sql = self.sql_request("SELECT collection, last_modified FROM user_collections WHERE userid=@userid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -524,8 +508,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT collection, COUNT(collection) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection".to_string());
+        let mut sql = self.sql_request("SELECT collection, COUNT(collection) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -559,8 +542,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT collection, SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection".to_string());
+        let mut sql = self.sql_request("SELECT collection, SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -594,10 +576,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some(
-            "SELECT MAX(last_modified) FROM user_collections WHERE userid=@userid".to_string(),
-        );
+        let mut sql = self.sql_request("SELECT MAX(last_modified) FROM user_collections WHERE userid=@userid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -628,8 +607,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY userid".to_string());
+        let mut sql = self.sql_request("SELECT SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY userid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -657,8 +635,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("DELETE FROM user_collections WHERE userid=@userid".to_string());
+        let mut sql = self.sql_request("DELETE FROM user_collections WHERE userid=@userid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -688,9 +665,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql =
-            Some("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid".to_string());
+        let mut sql = self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -813,11 +788,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some(
-            "DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid"
-                .to_string(),
-        );
+        let mut sql = self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid");
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -946,8 +917,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some(query.to_string());
+        let mut sql = self.sql_request(&query);
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
 
@@ -1074,8 +1044,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@item AND ttl>@ttl".to_string());
+        let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@item AND ttl>@ttl");
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
