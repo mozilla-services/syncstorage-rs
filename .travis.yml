@@ -3,24 +3,14 @@ cache: cargo
 
 rust:
   - stable
-env:
-  global:
-    - RUST_BACKTRACE=1
-    # XXX: begin_test_transaction doesn't play nice over threaded tests
-    - RUST_TEST_THREADS=1
-    - SYNC_DATABASE_URL="mysql://travis@127.0.0.1/syncstorage"
-
-services:
-  - mysql
 
 before_script:
-  - rustup component add rustfmt-preview
-  - mysql -e 'CREATE DATABASE IF NOT EXISTS syncstorage;'
+  - rustup update
+  - rustc --version
+  - cargo --version
 
 script:
-  - cargo fmt -- --check
   - cargo build
-  - cargo test
   - ./scripts/build-docs.sh
 
 notifications:

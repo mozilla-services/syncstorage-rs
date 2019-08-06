@@ -13,50 +13,47 @@ edition = "2018"
 debug = 1
 
 [dependencies]
-# ### NOTE ###
-# !! make sure that `actix` is compliant with `actix-web` !!
-# else you will get a 'Server is not running' error when trying
-# to run the main application. (Unit tests will pass.)
-#
-# actix-web imports it's own version of actix, unfortunately it may not
-# expose that version of actix fully.
-#
-actix = "0.7.9"
-actix-web = "0.7.19"
+actix-web = "1.0"
+actix-rt = "0.2"
+actix-cors = "0.1"
+actix-http = "0.2"
+actix-service = "0.4"
 base64 = "0.10.1"
+bytes = "0.4"
 cadence = "0.17.1"
-chrono = "0.4.6"
+chrono = "0.4"
 config = "0.9.3"
 diesel = { version = "1.4.2", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.0"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
-env_logger = "0.6.1"
+env_logger = "0.6"
 failure = "0.1.5"
-futures = "0.1.27"
+futures = "0.1"
 lazy_static = "1.3.0"
 # TODO: switch back to default (use_ring) after the actix-web 1.0 upgrade
 hawk = { version = "3.0.0", default_features = false, features = ["use_openssl"] }
-hkdf = "0.7.0"
-hmac = "0.7.0"
+hkdf = "0.8.0"
+hmac = "0.7"
 mime = "0.3"
-mozsvc-common = "0.1.1"
+mozsvc-common = "0.1"
 num = "0.2.0"
-num_cpus = "1.10.0"
-rand = "0.6.5"
-regex = "1.1.6"
-sentry = "0.15.5"
-serde = "1.0.91"
-serde_derive = "1.0.91"
-serde_json = { version = "1.0.39", features = ["arbitrary_precision"] }
+num_cpus = "1.10"
+rand = "0.7"
+regex = "1.2"
+sentry = "0.16.0"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+serde_urlencoded = "0.6.0"
 sha2 = "0.8.0"
-smallvec = "^0.6.10"
+smallvec = "0.6.10"
 time = "0.1.42"
-tokio-threadpool = "0.1.14"
-url = "1.7.2"
+tokio-threadpool = "0.1.15"
+url = "2.0.0"
 uuid = { version = "0.7.4", features = ["serde", "v4"] }
-validator = "0.8.0"
-validator_derive = "0.8.0"
+validator = "0.9"
+validator_derive = "0.9"
 
 google-spanner1 = "*"
 # This project intentionally uses an old version of Hyper. See

@@ -2,7 +2,6 @@
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
 
-use actix_web::{FromRequest, HttpRequest};
 use base64;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
@@ -13,12 +12,14 @@ use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
+use actix_http::http::Uri;
+use actix_web::dev::ConnectionInfo;
+
 use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
 };
 use crate::error::{ApiErrorKind, ApiResult};
-use crate::server::ServerState;
 use crate::settings::Secrets;
 
 /// A parsed and authenticated JSON payload
@@ -76,6 +77,9 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
+        // Toggle the following comments to disable auth (useful for local integration testing)
+        // Ok(payload)
+        //*
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
@@ -89,6 +93,7 @@ impl HawkPayload {
         } else {
             Err(HawkErrorKind::InvalidHeader)?
         }
+        // */
     }
 
     /// Decode the `id` property of a Hawk header
@@ -103,6 +108,7 @@ impl HawkPayload {
         let payload = &decoded_id[0..payload_length];
         let signature = &decoded_id[payload_length..];
 
+        // Comment the following to disable auth
         verify_hmac(payload, &secrets.signing_secret, signature)?;
 
         let payload: HawkPayload = serde_json::from_slice(payload)?;
@@ -115,31 +121,24 @@ impl HawkPayload {
     }
 
     #[cfg(test)]
-    pub fn test_default() -> Self {
+    pub fn test_default(user_id: u64) -> Self {
         HawkPayload {
             expires: Utc::now().timestamp() as f64 + 200_000.0,
             node: "friendly-node".to_string(),
             salt: "saltysalt".to_string(),
-            user_id: 1,
+            user_id,
         }
     }
 }
 
-impl FromRequest<ServerState> for HawkPayload {
-    /// Default [`Settings`](../../settings/struct.Settings.html) instance.
-    ///
-    /// Not hugely useful, all of the configurable settings
-    /// can be found on the [request state](../../server/struct.ServerState.html) instead.
-    type Config = ();
-
-    /// Result-wrapped `HawkPayload` instance.
-    type Result = ApiResult<HawkPayload>;
-
-    /// Parse and authenticate a Hawk payload
-    /// from the `Authorization` header
-    /// of an actix request object.
-    fn from_request(request: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        let ci = request.connection_info();
+impl HawkPayload {
+    pub fn extrude(
+        header: &str,
+        method: &str,
+        secrets: &Secrets,
+        ci: &ConnectionInfo,
+        uri: &Uri,
+    ) -> ApiResult<Self> {
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
         let port = if host_port.len() == 2 {
@@ -155,37 +154,21 @@ impl FromRequest<ServerState> for HawkPayload {
         } else {
             80
         };
-
-        let path = request
-            .uri()
-            .path_and_query()
-            .ok_or(HawkErrorKind::MissingPath)?;
+        let path = uri.path_and_query().ok_or(HawkErrorKind::MissingPath)?;
         let expiry = if path.path().ends_with("/info/collections") {
             0
         } else {
             Utc::now().timestamp() as u64
         };
 
-        HawkPayload::new(
-            request
-                .headers()
-                .get("authorization")
-                .ok_or(HawkErrorKind::MissingHeader)?
-                .to_str()?,
-            request.method().as_str(),
-            path.as_str(),
-            host,
-            port,
-            &request.state().secrets,
-            expiry,
-        )
+        HawkPayload::new(header, method, path.as_str(), host, port, &secrets, expiry)
     }
 }
 
 /// Helper function for [HKDF](https://tools.ietf.org/html/rfc5869) expansion to 32 bytes.
 pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
     let mut result = [0u8; 32];
-    let hkdf: Hkdf<Sha256> = Hkdf::extract(salt, key);
+    let hkdf = Hkdf::<Sha256>::new(salt, key);
     // This unwrap will never panic because 32 bytes is a valid size for Hkdf<Sha256>
     hkdf.expand(info, &mut result).unwrap();
     result

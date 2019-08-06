@@ -2,7 +2,13 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use actix_web::{
+    dev::{HttpResponseBuilder, ServiceResponse},
+    error::ResponseError,
+    http::StatusCode,
+    middleware::errhandlers::ErrorHandlerResponse,
+    HttpResponse, Result,
+};
 use failure::{Backtrace, Context, Fail};
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
@@ -125,6 +131,16 @@ impl ApiError {
             _ => WeaveError::UnknownError,
         }
     }
+
+    pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
+        // Replace the outbound error message with our own.
+        let resp =
+            HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(WeaveError::UnknownError as u32);
+        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
+            res.request().clone(),
+            resp.into_body(),
+        )))
+    }
 }
 
 impl From<ApiError> for HttpResponse {
@@ -147,6 +163,11 @@ impl From<Context<ApiErrorKind>> for ApiError {
 }
 
 impl ResponseError for ApiError {
+    // Override the default which will force "text/plain" and use the error message.
+    fn render_response(&self) -> HttpResponse {
+        self.error_response()
+    }
+
     fn error_response(&self) -> HttpResponse {
         // To return a descriptive error response, this would work. We do not
         // unfortunately do that so that we can retain Sync 1.1 backwards compatibility
