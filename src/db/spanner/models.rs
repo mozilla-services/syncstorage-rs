@@ -1,7 +1,7 @@
 use futures::future;
 use futures::lazy;
 
-use chrono::{SecondsFormat, TimeZone, Utc};
+use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
 
 use diesel::r2d2::PooledConnection;
 
@@ -56,6 +56,7 @@ struct SpannerDbSession {
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
     transaction: Option<TransactionSelector>,
+    execute_sql_count: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -361,7 +362,33 @@ impl SpannerDb {
         }
     }
 
+    /// Return the current transaction metadata (TransactionSelector) if one is active.
+    ///
+    /// May return a test transaction (that's never committed) during tests.
+    fn get_transaction(&self) -> Option<TransactionSelector> {
+        let transaction = self.session.borrow().transaction.clone();
+        #[cfg(any(test, feature = "db_test"))]
+        let transaction = if self.conn.test_transaction.is_some() {
+            self.conn.test_transaction.clone()
+        } else {
+            transaction
+        };
+        transaction
+    }
+
+    fn sql_request(&self, sql: &str) -> ExecuteSqlRequest {
+        let mut sqlr = ExecuteSqlRequest::default();
+        sqlr.sql = Some(sql.to_owned());
+        sqlr.transaction = self.get_transaction();
+        let mut session = self.session.borrow_mut();
+        // XXX: include seqno if no transaction?
+        sqlr.seqno = Some(session.execute_sql_count.to_string());
+        session.execute_sql_count += 1;
+        sqlr
+    }
+
     pub fn commit_sync(&self) -> Result<()> {
+        // XXX: maybe guard against test_transaction?
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let result = spanner
@@ -688,9 +715,13 @@ impl SpannerDb {
     ) -> Result<SyncTimestamp> {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
+        let mut sql = self.sql_request("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;");
+        /*
         let mut sql = ExecuteSqlRequest::default();
-        sql.transaction = self.session.borrow().transaction.clone();
+        //sql.transaction = self.session.borrow().transaction.clone();
+        sql.transaction = self.get_transaction();
         sql.sql = Some("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;".to_string());
+        */
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -706,23 +737,35 @@ impl SpannerDb {
         };
 
         if exists {
-            let mut sql = ExecuteSqlRequest::default();
+            //let mut sql = ExecuteSqlRequest::default();
+            /*
             let mut options = TransactionOptions::default();
             options.read_write = Some(ReadWrite::default());
             let mut selector = TransactionSelector::default();
             selector.begin = Some(options);
             sql.transaction = Some(selector);
-            sql.sql = Some("UPDATE user_collections SET modified=@modified WHERE userid=@userid AND collection=@collectionid".to_string());
+            */
+            //sql.transaction = self.get_transaction();
+            //sql.sql = Some("UPDATE user_collections SET modified=@modified WHERE userid=@userid AND collection=@collectionid".to_string());
+            let mut sql = self.sql_request("UPDATE user_collections SET last_modified=@last_modified WHERE userid=@userid AND collection=@collectionid");
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            let timestamp = self.timestamp().as_i64();
+            let modifiedstring = Utc
+                .timestamp(
+                    timestamp / 1000,
+                    ((timestamp % 1000) * 1000).try_into().unwrap(),
+                )
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
             sqlparams.insert(
-                "modified".to_string(),
-                self.timestamp().as_i64().to_string(),
+                "last_modified".to_string(),
+                //self.timestamp().as_i64().to_string(),
+                modifiedstring,
             );
             sqltypes.insert(
-                "timestamp".to_string(),
+                "last_modified".to_string(),
                 Type {
                     array_element_type: None,
                     code: Some("TIMESTAMP".to_string()),
@@ -743,13 +786,19 @@ impl SpannerDb {
                 Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
             }
         } else {
-            let mut sql = ExecuteSqlRequest::default();
+            //let mut sql = ExecuteSqlRequest::default();
+            /*
             let mut options = TransactionOptions::default();
             options.read_write = Some(ReadWrite::default());
             let mut selector = TransactionSelector::default();
             selector.begin = Some(options);
             sql.transaction = Some(selector);
+             */
+            /*
+            sql.transaction = self.get_transaction();
             sql.sql = Some("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified);".to_string());
+             */
+            let mut sql = self.sql_request("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified);");
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -850,9 +899,16 @@ impl SpannerDb {
         let mut sqltypes = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+        let timestamp = self.timestamp().as_i64();
+        let modifiedstring = Utc
+            .timestamp(
+                timestamp / 1000,
+                ((timestamp % 1000) * 1000).try_into().unwrap(),
+            )
+            .to_rfc3339_opts(SecondsFormat::Nanos, true);
         sqlparams.insert(
             "timestamp".to_string(),
-            self.timestamp().as_i64().to_string(),
+            modifiedstring,
         );
         sqltypes.insert(
             "timestamp".to_string(),
@@ -983,32 +1039,65 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
+        /*
         let mut sql = ExecuteSqlRequest::default();
-        sql.sql = Some("SELECT (id, modified, payload, sortindex, expiry) FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND expiry > @timestamp".to_string());
+        sql.sql = Some("SELECT id, modified, payload, sortindex, ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp".to_string());
+         */
+        let mut sql = self.sql_request("SELECT id, modified, payload, sortindex, ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp");
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sqlparams.insert("bsoid".to_string(), params.id.to_string());
+        let timestamp = self.timestamp().as_i64();
+        let modifiedstring = Utc
+            .timestamp(
+                timestamp / 1000,
+                ((timestamp % 1000) * 1000).try_into().unwrap(),
+            )
+            .to_rfc3339_opts(SecondsFormat::Nanos, true);
         sqlparams.insert(
             "timestamp".to_string(),
-            self.timestamp().as_i64().to_string(),
+            modifiedstring,
+        );
+        let mut sqltypes = HashMap::new();
+        sqltypes.insert(
+            "timestamp".to_string(),
+            Type {
+                array_element_type: None,
+                code: Some("TIMESTAMP".to_string()),
+                struct_type: None,
+            },
         );
         sql.params = Some(sqlparams);
+        sql.param_types = Some(sqltypes);
 
         let results = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
+        eprintln!("RRRRRRRRRR {:#?}", results);
         match results {
             Ok(results) => match results.1.rows {
-                Some(rows) => Ok(Some(results::GetBso {
+                Some(rows) => {
+                    //let modified = SyncTimestamp::from_datetime(DateTime::parse_from_rfc3339(&rows[0][1]).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?)?;
+                    eprintln!("!!!! GET expiry {}", &rows[0][4]);
+                    let modified = SyncTimestamp::from_rfc3339(&rows[0][1])?;
+                    // XXX: expiry is i64?
+                    //let expiry = SyncTimestamp::from_rfc3339(&rows[0][4])?.as_i64();
+                    let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+                    let expiry = expiry_dt.timestamp_millis();
+                    eprintln!("!!!! GET expiry {} ({}) {}", &rows[0][4], expiry_dt, expiry);
+                    Ok(Some(results::GetBso {
                     id: rows[0][0].clone(),
-                    modified: SyncTimestamp::from_i64(rows[0][1].parse().unwrap())?,
+                    //modified: SyncTimestamp::from_i64(rows[0][1].parse().unwrap())?,
+                    modified,
                     payload: rows[0][2].clone(),
                     sortindex: Some(rows[0][3].parse().unwrap()),
-                    expiry: rows[0][4].parse().unwrap(),
-                })),
+                    expiry,
+                    }))
+                }
+                ,
                 None => Ok(None),
             },
             // TODO Return the correct error
@@ -1060,10 +1149,14 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
+        /*
         let mut sql = ExecuteSqlRequest::default();
 
         sql.sql = Some("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid".to_string());
-        sql.transaction = self.session.borrow().transaction.clone();
+        //sql.transaction = self.session.borrow().transaction.clone();
+        sql.transaction = self.get_transaction();
+         */
+        let mut sql = self.sql_request("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1115,35 +1208,82 @@ impl SpannerDb {
             _ => return Err(DbErrorKind::CollectionNotFound.into()),
         };
         let sql = if exists {
+            /*
             let mut sql = ExecuteSqlRequest::default();
-            sql.transaction = self.session.borrow().transaction.clone();
-            sql.sql = Some("UPDATE bso SET sortindex=@sortindex, expiry=@expiry, payload=@payload, modified=@modified WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
+            //sql.transaction = self.session.borrow().transaction.clone();
+            sql.transaction = self.get_transaction();
+            sql.sql = Some("UPDATE bso SET sortindex=@sortindex, expiry=@expiry, payload=@payload, modified=@modified WHERE userid = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
+             */
+            // XXX: the "ttl" column is more aptly named "expiry": our mysql
+            // schema names it this. the current spanner schema prefers "ttl"
+            // to more closely match the python code
+            let mut sql = self.sql_request("UPDATE bso SET sortindex=@sortindex, ttl=@expiry, payload=@payload, modified=@modified WHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
             let mut sqlparams = HashMap::new();
-            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap().to_string());
+            // XXX: handle None sortindex
+            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap_or_default().to_string());
+            let ttl = bso
+                .ttl
+                .map(|ttl| timestamp + (i64::from(ttl) * 1000))
+                .unwrap();
+            let expirystring = Utc
+                .timestamp(ttl / 1000, ((ttl % 1000) * 1000).try_into().unwrap())
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+            let dt = DateTime::parse_from_rfc3339(&expirystring).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+            println!("!!!!! UPDATE {:} ({}) ttl: {} {}", expirystring, timestamp, ttl, dt);
             sqlparams.insert(
                 "expiry".to_string(),
-                bso.ttl
-                    .map(|ttl| timestamp + (i64::from(ttl) * 1000))
-                    .unwrap()
-                    .to_string(),
+                expirystring,
             );
-            sqlparams.insert("payload".to_string(), bso.payload.unwrap().to_string());
-            sqlparams.insert("modified".to_string(), timestamp.to_string());
+            // XXX: handle None payload
+            sqlparams.insert("payload".to_string(), bso.payload.unwrap_or_default().to_string());
+            //sqlparams.insert("modified".to_string(), timestamp.to_string());
+            //let timestamp = self.timestamp().as_i64();
+            let modifiedstring = Utc
+                .timestamp(
+                    timestamp / 1000,
+                    ((timestamp % 1000) * 1000).try_into().unwrap(),
+                )
+                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+            sqlparams.insert("modified".to_string(), modifiedstring);
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
+            let mut sqltypes = HashMap::new();
+            sqltypes.insert(
+                "expiry".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
+            sqltypes.insert(
+                "modified".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
             sql.params = Some(sqlparams);
+            sql.param_types = Some(sqltypes);
             sql
         } else {
+            /*
             let mut sql = ExecuteSqlRequest::default();
-            sql.transaction = self.session.borrow().transaction.clone();
+            //sql.transaction = self.session.borrow().transaction.clone();
+            sql.transaction = self.get_transaction();
             sql.sql = Some("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)".to_string());
+             */
+            let mut sql = self.sql_request("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)");
             let mut sqlparams = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
-            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap().to_string());
-            sqlparams.insert("payload".to_string(), bso.payload.unwrap().to_string());
+            // XXX:
+            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap_or_default().to_string());
+            // XXX:
+            sqlparams.insert("payload".to_string(), bso.payload.unwrap_or_default().to_string());
             let modifiedstring = Utc
                 .timestamp(
                     timestamp / 1000,
@@ -1158,7 +1298,7 @@ impl SpannerDb {
             let expirystring = Utc
                 .timestamp(ttl / 1000, ((ttl % 1000) * 1000).try_into().unwrap())
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
-            println!("!!!!! {:}", expirystring);
+            println!("!!!!! INSERT {:} ({}) ttl: {}", expirystring, timestamp, ttl);
             sqlparams.insert("expiry".to_string(), expirystring);
 
             let mut sqltypes = HashMap::new();

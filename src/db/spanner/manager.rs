@@ -1,5 +1,7 @@
+use std::fmt;
+
 use diesel::r2d2::ManageConnection;
-use google_spanner1::{CreateSessionRequest, Error, Session, Spanner};
+use google_spanner1::{CreateSessionRequest, Error, Session, Spanner, TransactionSelector};
 use hyper::{net::HttpsConnector, Client};
 use hyper_rustls::TlsClient;
 use yup_oauth2::{service_account_key_from_file, GetToken, ServiceAccountAccess};
@@ -9,6 +11,7 @@ use crate::{
     settings::Settings,
 };
 
+#[derive(Debug)]
 pub struct SpannerConnectionManager {
     database_name: String,
 }
@@ -27,6 +30,8 @@ impl SpannerConnectionManager {
 pub struct SpannerSession {
     pub hub: Spanner<Client, ServiceAccountAccess<Client>>,
     pub session: Session,
+    #[cfg(any(test, feature = "db_test"))]
+    pub test_transaction: Option<TransactionSelector>,
 }
 
 impl ManageConnection for SpannerConnectionManager {
@@ -50,7 +55,12 @@ impl ManageConnection for SpannerConnectionManager {
             .doit()
             .unwrap()
             .1;
-        Ok(SpannerSession { hub, session })
+        Ok(SpannerSession {
+            hub,
+            session,
+            #[cfg(any(test, feature = "db_test"))]
+            test_transaction: None,
+        })
     }
 
     fn is_valid(&self, _conn: &mut Self::Connection) -> Result<(), Error> {

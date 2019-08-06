@@ -1,6 +1,6 @@
 use std::u64;
 
-use chrono::offset::Utc;
+use chrono::{DateTime, offset::{FixedOffset, Utc}};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -75,6 +75,24 @@ impl SyncTimestamp {
     pub fn from_seconds(val: f64) -> Self {
         let val = (val * 1000f64) as u64;
         SyncTimestamp(val - (val % 10))
+    }
+
+    /// Create a `SyncTimestamp` from an RFC 3339 and ISO 8601 date and time
+    /// string such as 1996-12-19T16:39:57-08:00
+    pub fn from_rfc3339(val: &str) -> Result<Self, DbError> {
+        let dt = DateTime::parse_from_rfc3339(val).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+        Self::from_datetime(dt)
+    }
+
+    /// Create a `SyncTimestamp` from a chrono DateTime
+    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, DbError> {
+        let millis = val.timestamp_millis();
+        if millis  < 0 {
+            Err(DbErrorKind::Integrity(
+                "Invalid DateTime (< 0)".to_owned(),
+            ))?;
+        }
+        Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
 
     /// Return the timestamp as an i64 milliseconds since epoch

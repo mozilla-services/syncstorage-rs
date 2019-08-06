@@ -11,8 +11,8 @@ use futures::future::lazy;
 use tokio_threadpool::ThreadPool;
 
 use super::models::Result;
-//#[cfg(test)]
-//use super::test::TestTransactionCustomizer;
+#[cfg(any(test, feature = "db_test"))]
+use super::test_util::SpannerTestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::settings::Settings;
 
@@ -50,10 +50,18 @@ impl SpannerDbPool {
     }
 
     pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
-        let m = SpannerConnectionManager::new(settings)?;
-        let pool = r2d2::Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(2)).build(m).unwrap();
+        let manager = SpannerConnectionManager::new(settings)?;
+        let builder = r2d2::Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+
+        #[cfg(any(test, feature = "db_test"))]
+        let builder = if settings.database_use_test_transactions {
+            builder.connection_customizer(Box::new(SpannerTestTransactionCustomizer))
+        } else {
+            builder
+        };
+
         Ok(Self {
-            pool,
+            pool: builder.build(manager)?,
             thread_pool: Arc::new(ThreadPool::new()),
             coll_cache: Default::default(),
         })
