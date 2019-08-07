@@ -45,7 +45,7 @@ lazy_static! {
     };
 }
 
-type DbFuture<T> = Box<Future<Item = T, Error = ApiError>>;
+type DbFuture<T> = Box<dyn Future<Item = T, Error = ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;

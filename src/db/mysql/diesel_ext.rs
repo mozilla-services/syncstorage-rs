@@ -29,7 +29,7 @@ where
 pub struct LockInShareMode;
 
 impl QueryFragment<Mysql> for LockInShareMode {
-    fn walk_ast(&self, mut out: AstPass<Mysql>) -> QueryResult<()> {
+    fn walk_ast(&self, mut out: AstPass<'_, Mysql>) -> QueryResult<()> {
         out.push_sql(" LOCK IN SHARE MODE");
         Ok(())
     }

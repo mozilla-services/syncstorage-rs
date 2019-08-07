@@ -96,7 +96,7 @@ impl DbPool for MysqlDbPool {
 }
 
 impl fmt::Debug for MysqlDbPool {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MysqlDbPool {{ coll_cache: {:?} }}", self.coll_cache)
     }
 }
