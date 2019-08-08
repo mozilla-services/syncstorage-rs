@@ -1105,33 +1105,26 @@ impl SpannerDb {
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
 
-            let q = "";
-            let comma = || if q.is_empty() { "" } else { ", " };
+            let mut q = "".to_string();
+            let comma = |q: &String| if q.is_empty() { "" } else { ", " };
 
-            let q = format!(
-                "{}{}{}",
+            q = format!(
+                "{}{}",
                 q,
-                comma(),
                 if let Some(sortindex) = bso.sortindex {
-                    sqlparams.insert(
-                        "sortindex".to_string(),
-                        sortindex.to_string(),
-                    );
-                    "sortindex = @sortindex"
+                    sqlparams.insert("sortindex".to_string(), sortindex.to_string());
+                    format!("{}{}", comma(&q), "sortindex = @sortindex")
                 } else {
-                    ""
+                    "".to_string()
                 }
-            );
-            let q = format!(
-                "{}{}{}",
+            )
+            .to_string();
+            q = format!(
+                "{}{}",
                 q,
-                comma(),
                 if let Some(ttl) = bso.ttl {
                     let expiry = timestamp + (i64::from(ttl) * 1000);
-                    sqlparams.insert(
-                        "expiry".to_string(),
-                        to_rfc3339(expiry)?,
-                    );
+                    sqlparams.insert("expiry".to_string(), to_rfc3339(expiry)?);
                     sqltypes.insert(
                         "expiry".to_string(),
                         Type {
@@ -1139,15 +1132,15 @@ impl SpannerDb {
                             ..Default::default()
                         },
                     );
-                    "ttl = @expiry"
+                    format!("{}{}", comma(&q), "ttl = @expiry")
                 } else {
-                    ""
+                    "".to_string()
                 }
-            );
-            let q = format!(
-                "{}{}{}",
+            )
+            .to_string();
+            q = format!(
+                "{}{}",
                 q,
-                comma(),
                 if bso.payload.is_some() || bso.sortindex.is_some() {
                     sqlparams.insert("modified".to_string(), self.timestamp().as_rfc3339()?);
                     sqltypes.insert(
@@ -1157,35 +1150,32 @@ impl SpannerDb {
                             ..Default::default()
                         },
                     );
-                    "modified = @modified"
+                    format!("{}{}", comma(&q), "modified = @modified")
                 } else {
-                    ""
+                    "".to_string()
                 }
-            );
-            let q = format!(
-                "{}{}{}",
+            )
+            .to_string();
+            q = format!(
+                "{}{}",
                 q,
-                comma(),
                 if let Some(payload) = bso.payload {
-                    sqlparams.insert(
-                        "payload".to_string(),
-                        payload,
-                    );
-                    "payload = @payload"
+                    sqlparams.insert("payload".to_string(), payload);
+                    format!("{}{}", comma(&q), "payload = @payload")
                 } else {
-                    ""
+                    "".to_string()
                 }
-            );
+            )
+            .to_string();
 
             if q.is_empty() {
                 // Nothing to update
-                return Ok(touch)
+                return Ok(touch);
             }
 
-            let q = format!(
+            q = format!(
                 "UPDATE bso SET {}{}",
-                q,
-                " WHERE userid = @userid AND collection = @collectionid AND id = @bsoid"
+                q, " WHERE userid = @userid AND collection = @collectionid AND id = @bsoid"
             );
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1205,7 +1195,9 @@ impl SpannerDb {
 
             sqlparams.insert(
                 "sortindex".to_string(),
-                bso.sortindex.map(|sortindex| sortindex.to_string()).unwrap_or_else(|| "DEFAULT".to_owned()),
+                bso.sortindex
+                    .map(|sortindex| sortindex.to_string())
+                    .unwrap_or_else(|| "DEFAULT".to_owned()),
             );
             sqlparams.insert(
                 "payload".to_string(),
