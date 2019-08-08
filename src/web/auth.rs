@@ -72,7 +72,7 @@ impl HawkPayload {
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(payload.salt.as_bytes()),
             &secrets.master_secret,
-        );
+        )?;
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
 
         let request = RequestBuilder::new(method, host, port, path).request();
@@ -166,12 +166,13 @@ impl HawkPayload {
 }
 
 /// Helper function for [HKDF](https://tools.ietf.org/html/rfc5869) expansion to 32 bytes.
-pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
+pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> ApiResult<[u8; 32]> {
     let mut result = [0u8; 32];
     let hkdf = Hkdf::<Sha256>::new(salt, key);
     // This unwrap will never panic because 32 bytes is a valid size for Hkdf<Sha256>
-    hkdf.expand(info, &mut result).unwrap();
-    result
+    hkdf.expand(info, &mut result)
+        .map_err(|e| ApiErrorKind::Internal(format!("HKDF Error: {:?}", e)))?;
+    Ok(result)
 }
 
 /// Helper function for [HMAC](https://tools.ietf.org/html/rfc2104) verification.
@@ -261,7 +262,7 @@ mod tests {
             &fixture.request.path,
             &fixture.request.host,
             fixture.request.port,
-            &Secrets::new("wibble"),
+            &Secrets::new("wibble").unwrap(),
             fixture.expected.expires.round() as u64 - 1,
         );
 
@@ -467,7 +468,7 @@ mod tests {
                     database_pool_max_size: None,
                     database_use_test_transactions: false,
                     limits: Default::default(),
-                    master_secret: Secrets::new("Ted Koppel is a robot"),
+                    master_secret: Secrets::new("Ted Koppel is a robot").unwrap(),
                 },
                 expected: HawkPayload {
                     expires: 1_536_199_274.0,

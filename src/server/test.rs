@@ -26,7 +26,7 @@ use crate::web::extractors::BsoBody;
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
-    static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo"));
+    static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo").unwrap());
 }
 
 const TEST_HOST: &str = "localhost";

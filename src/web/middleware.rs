@@ -200,11 +200,23 @@ where
         let ci = &sreq.connection_info().clone();
         let headers = &sreq.headers();
         let auth = match headers.get("authorization") {
-            Some(a) => a.to_str().unwrap(),
+            Some(a) => match a.to_str() {
+                Ok(v) => v,
+                Err(_e) => {
+                    return Box::new(future::ok(
+                        sreq.into_response(
+                            HttpResponse::Unauthorized()
+                                .content_type("application/json")
+                                .body("Err: invalid auth header".to_owned())
+                                .into_body(),
+                        ),
+                    ))
+                }
+            },
             None => {
                 return Box::new(future::ok(
                     sreq.into_response(
-                        HttpResponse::InternalServerError()
+                        HttpResponse::Unauthorized()
                             .content_type("application/json")
                             .body("Err: missing auth header".to_owned())
                             .into_body(),
@@ -228,12 +240,24 @@ where
         let secrets = &state.secrets.clone();
         let uri = &sreq.uri();
         let hawk_user_id =
-            HawkIdentifier::generate(&secrets, &method.as_str(), &auth, &ci, &uri).unwrap();
-        {
-            let mut exts = sreq.extensions_mut();
-            exts.insert(hawk_user_id.clone());
-        }
-
+            match HawkIdentifier::generate(&secrets, &method.as_str(), &auth, &ci, &uri) {
+                Ok(v) => {
+                    let mut exts = sreq.extensions_mut();
+                    exts.insert(v.clone());
+                    v
+                }
+                Err(e) => {
+                    dbg!("⚠️ Hawk user generation error:", e);
+                    return Box::new(future::ok(
+                        sreq.into_response(
+                            HttpResponse::InternalServerError()
+                                .content_type("application/json")
+                                .body("Err: Hawk user id generation error".to_owned())
+                                .into_body(),
+                        ),
+                    ));
+                }
+            };
         let mut service = Rc::clone(&self.service);
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
             sreq.extensions_mut().insert(db.clone());
@@ -369,11 +393,24 @@ where
         let ci = &sreq.connection_info().clone();
         let headers = &sreq.headers();
         let auth = match headers.get("authorization") {
-            Some(a) => a.to_str().unwrap(),
+            Some(a) => match a.to_str() {
+                Ok(v) => v,
+                Err(e) => {
+                    dbg!("⚠️ Invalid auth header", e);
+                    return Box::new(future::ok(
+                        sreq.into_response(
+                            HttpResponse::Unauthorized()
+                                .content_type("application/json")
+                                .body("Err: missing auth".to_owned())
+                                .into_body(),
+                        ),
+                    ));
+                }
+            },
             None => {
                 return Box::new(future::ok(
                     sreq.into_response(
-                        HttpResponse::InternalServerError()
+                        HttpResponse::Unauthorized()
                             .content_type("application/json")
                             .body("Err: missing auth".to_owned())
                             .into_body(),
@@ -383,8 +420,36 @@ where
         };
         let uri = &sreq.uri();
         let user_id =
-            HawkIdentifier::generate(&secrets, &sreq.method().as_str(), &auth, &ci, &uri).unwrap();
-        let db = extrude_db(&sreq.extensions()).unwrap();
+            match HawkIdentifier::generate(&secrets, &sreq.method().as_str(), &auth, &ci, &uri) {
+                Ok(v) => v,
+                Err(e) => {
+                    dbg!("⚠️ Hawk header generation error", e);
+                    return Box::new(future::ok(
+                        sreq.into_response(
+                            HttpResponse::InternalServerError()
+                                .content_type("application/json")
+                                .body("Err: Hawk header generation error".to_owned())
+                                .into_body(),
+                        ),
+                    ));
+                }
+            };
+
+        let edb = extrude_db(&sreq.extensions());
+        let db = match edb {
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("⚠️ Database access error", e);
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: database access error".to_owned())
+                            .into_body(),
+                    ),
+                ));
+            }
+        };
         let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut());
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
