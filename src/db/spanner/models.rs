@@ -19,7 +19,7 @@ use super::pool::CollectionCache;
 use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
-    util::SyncTimestamp,
+    util::{to_rfc3339, SyncTimestamp},
     Db, DbFuture, Sorting,
 };
 
@@ -28,15 +28,8 @@ use crate::web::extractors::BsoQueryParams;
 use super::batch;
 
 use google_spanner1::{
-    BeginTransactionRequest,
-    CommitRequest,
-    ExecuteSqlRequest,
-    ReadOnly,
-    ReadWrite,
-    RollbackRequest,
-    TransactionOptions,
-    TransactionSelector,
-    Type,
+    BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite,
+    RollbackRequest, TransactionOptions, TransactionSelector, Type,
 };
 
 #[derive(Debug)]
@@ -133,27 +126,10 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
         println!("ok {:?}", result.1);
-        let rows = result.1.rows
-            .ok_or(DbErrorKind::CollectionNotFound)?;
-        let id = rows[0][0].parse::<i32>().map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-            /*
-        let rv = match result {
-            Err(e) => {
-                dbg!("err {}", e);
-                // TODO Return error
-                Ok(0)
-            }
-            Ok(res) => {
-                println!("ok {:?}", res.1);
-                match res.1.rows {
-                    Some(row) => Ok(row[0][0].parse().unwrap()),
-                    None => Ok(0),
-                }
-            }
-        };
-        if let Ok(val) = rv {
-        };
-*/
+        let rows = result.1.rows.ok_or(DbErrorKind::CollectionNotFound)?;
+        let id = rows[0][0]
+            .parse::<i32>()
+            .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
         self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
@@ -170,30 +146,18 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
         let id = if let Some(rows) = result.1.rows {
-            let max = rows[0][0].parse::<i32>().map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            let max = rows[0][0]
+                .parse::<i32>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
             max + 1
         } else {
             // XXX: should never happen but defaulting to id of 1 is bad
             1
         };
-        /*
-        let id = match result {
-            Err(e) => {
-                dbg!("err {}", e);
-                // TODO Return error
-                Ok(0)
-            }
-            Ok(res) => {
-                println!("ok {:?}", res.1);
-                match res.1.rows {
-                    Some(row) => Ok(row[0][0].parse::<i32>().unwrap() + 1),
-                    None => Ok(1),
-                }
-            }
-        };
-        */
-        //if let Ok(id) = id {
-        let mut sql = self.sql_request("INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)");
+
+        let mut sql = self.sql_request(
+            "INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)",
+        );
         let mut params = HashMap::new();
         params.insert("name".to_string(), name.to_string());
         params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
@@ -204,27 +168,6 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
-
-        /*
-            let rv: Result<i32> = match result {
-                Err(e) => {
-                    dbg!("err {}", e);
-                    // TODO Return error
-                    Ok(0)
-                }
-                Ok(res) => {
-                    println!("ok {:?}", res.1);
-                    match res.1.rows {
-                        Some(row) => Ok(row[0][0].parse().unwrap()),
-                        None => Ok(0),
-                    }
-                }
-            };
-            if let Ok(val) = rv {
-                self.coll_cache.put(val, name.to_owned())?;
-            };
-//        };
-        */
         self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
@@ -355,14 +298,13 @@ impl SpannerDb {
             .doit();
         match result {
             Ok((response, transaction)) => {
-                self.session
-                    .borrow_mut()
-                    .transaction = Some(google_spanner1::TransactionSelector {
-                    id: transaction.id,
-                    ..Default::default()
-                });
+                self.session.borrow_mut().transaction =
+                    Some(google_spanner1::TransactionSelector {
+                        id: transaction.id,
+                        ..Default::default()
+                    });
                 Ok(())
-            },
+            }
             Err(_e) => {
                 // TODO Handle error
                 Ok(())
@@ -397,48 +339,46 @@ impl SpannerDb {
 
     pub fn commit_sync(&self) -> Result<()> {
         // XXX: maybe guard against test_transaction?
-        let spanner = &self.conn;
-        let session = spanner.session.name.as_ref().unwrap();
-        let result = spanner
-            .hub
-            .projects()
-            .instances_databases_sessions_commit(
-                CommitRequest {
-                    transaction_id: None, // TODO I think we need to provide the transaction id, which means we need to store it in begin
-                    mutations: None,
-                    single_use_transaction: None,
-                },
-                session,
-            )
-            .doit();
-        match result {
-            Ok(_) => Ok(()),
-            Err(_e) => {
-                // TODO Handle error
-                Ok(())
-            }
+        if let Some(transaction) = self.get_transaction() {
+            let spanner = &self.conn;
+            let session = spanner.session.name.as_ref().unwrap();
+            spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_commit(
+                    CommitRequest {
+                        transaction_id: transaction.id,
+                        ..Default::default()
+                    },
+                    session,
+                )
+                .doit()?;
+            Ok(())
+        } else {
+            Err(DbErrorKind::Internal("No transaction to commit".to_owned()))?
         }
     }
 
     pub fn rollback_sync(&self) -> Result<()> {
-        let spanner = &self.conn;
-        let session = spanner.session.name.as_ref().unwrap();
-        let result = spanner
-            .hub
-            .projects()
-            .instances_databases_sessions_rollback(
-                RollbackRequest {
-                    transaction_id: None, // TODO I think we need to provide the transaction id, which means we need to store it in begin
-                },
-                session,
-            )
-            .doit();
-        match result {
-            Ok(_) => Ok(()),
-            Err(_e) => {
-                // TODO Handle error
-                Ok(())
-            }
+        if let Some(transaction) = self.get_transaction() {
+            let spanner = &self.conn;
+            let session = spanner.session.name.as_ref().unwrap();
+            spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_rollback(
+                    RollbackRequest {
+                        transaction_id: transaction.id,
+                        ..Default::default()
+                    },
+                    session,
+                )
+                .doit()?;
+            Ok(())
+        } else {
+            Err(DbErrorKind::Internal(
+                "No transaction to rollback".to_owned(),
+            ))?
         }
     }
 
@@ -491,7 +431,9 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT collection, last_modified FROM user_collections WHERE userid=@userid");
+        let mut sql = self.sql_request(
+            "SELECT collection, last_modified FROM user_collections WHERE userid=@userid",
+        );
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -595,7 +537,8 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT MAX(last_modified) FROM user_collections WHERE userid=@userid");
+        let mut sql = self
+            .sql_request("SELECT MAX(last_modified) FROM user_collections WHERE userid=@userid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -684,7 +627,8 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid");
+        let mut sql =
+            self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid");
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -707,6 +651,7 @@ impl SpannerDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
+        // XXX: We should be able to use Spanner's insert_or_update here (unlike w/ put_bsos)
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;");
@@ -730,6 +675,7 @@ impl SpannerDb {
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            /*
             let timestamp = self.timestamp().as_i64();
             let modifiedstring = Utc
                 .timestamp(
@@ -737,10 +683,8 @@ impl SpannerDb {
                     ((timestamp % 1000) * 1000).try_into().unwrap(),
                 )
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
-            sqlparams.insert(
-                "last_modified".to_string(),
-                modifiedstring,
-            );
+            */
+            sqlparams.insert("last_modified".to_string(), self.timestamp().as_rfc3339()?);
             sqltypes.insert(
                 "last_modified".to_string(),
                 Type {
@@ -768,6 +712,7 @@ impl SpannerDb {
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+            /*
             let timestamp = self.timestamp().as_i64();
             let modifiedstring = Utc
                 .timestamp(
@@ -777,6 +722,8 @@ impl SpannerDb {
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
             println!("!!!!! {:}", timestamp);
             sqlparams.insert("modified".to_string(), modifiedstring);
+            */
+            sqlparams.insert("modified".to_string(), self.timestamp().as_rfc3339()?);
             sqltypes.insert(
                 "modified".to_string(),
                 Type {
@@ -788,16 +735,12 @@ impl SpannerDb {
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
 
-            let results = spanner
+            spanner
                 .hub
                 .projects()
                 .instances_databases_sessions_execute_sql(sql, session)
-                .doit();
-            match results {
-                Ok(_results) => Ok(self.timestamp()),
-                // TODO Return the correct error
-                Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-            }
+                .doit()?;
+            Ok(self.timestamp())
         }
     }
 
@@ -807,7 +750,9 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid");
+        let mut sql = self.sql_request(
+            "DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid",
+        );
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -867,10 +812,7 @@ impl SpannerDb {
                 ((timestamp % 1000) * 1000).try_into().unwrap(),
             )
             .to_rfc3339_opts(SecondsFormat::Nanos, true);
-        sqlparams.insert(
-            "timestamp".to_string(),
-            modifiedstring,
-        );
+        sqlparams.insert("timestamp".to_string(), modifiedstring);
         sqltypes.insert(
             "timestamp".to_string(),
             Type {
@@ -1011,10 +953,7 @@ impl SpannerDb {
                 ((timestamp % 1000) * 1000000).try_into().unwrap(),
             )
             .to_rfc3339_opts(SecondsFormat::Nanos, true);
-        sqlparams.insert(
-            "timestamp".to_string(),
-            modifiedstring,
-        );
+        sqlparams.insert("timestamp".to_string(), modifiedstring);
         let mut sqltypes = HashMap::new();
         sqltypes.insert(
             "timestamp".to_string(),
@@ -1035,7 +974,9 @@ impl SpannerDb {
         eprintln!("RRRRRRRRRR {:#?}", result);
         Ok(if let Some(rows) = result.1.rows {
             let modified = SyncTimestamp::from_rfc3339(&rows[0][1])?;
-            let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+            let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| {
+                DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string()))
+            })?;
             // XXX: expiry is i64?
             let expiry = expiry_dt.timestamp_millis();
             eprintln!("!!!! GET expiry {} ({}) {}", &rows[0][4], expiry_dt, expiry);
@@ -1155,32 +1096,129 @@ impl SpannerDb {
             .doit()?;
         // XXX: should we rows.len() == 1?
         let exists = result.1.rows.is_some();
-        /*
-        let exists = match results {
-            Ok(results) => results.1.rows.is_some(),
-            // TODO Return the correct error
-            Err(google_spanner1::Error::Failure(mut r)) => {
-                let mut v = vec![];
-                use std::io::Read;
-                r.read_to_end(&mut v);
-                let s = std::str::from_utf8(&v);
-                eprintln!(
-                    "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ {:#?} {:#?} {:#?}",
-                    r, v, s
-                );
-                return Err(DbErrorKind::CollectionNotFound.into());
-            }
-            _ => return Err(DbErrorKind::CollectionNotFound.into()),
-        };
-        */
+
         let sql = if exists {
             // XXX: the "ttl" column is more aptly named "expiry": our mysql
             // schema names it this. the current spanner schema prefers "ttl"
             // to more closely match the python code
-            let mut sql = self.sql_request("UPDATE bso SET sortindex=@sortindex, ttl=@expiry, payload=@payload, modified=@modified WHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
+            //let mut sql = self.sql_request("UPDATE bso SET sortindex=@sortindex, ttl=@expiry, payload=@payload, modified=@modified WHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
+
             let mut sqlparams = HashMap::new();
+            let mut sqltypes = HashMap::new();
+            // XXX: "set id = @bsoid" just a bogus place holder incase
+            // no fields are specified (we should probably just noop
+            // instead)
+            let q = "";
+            //let where = "WHERE userid = @userid AND collection = @collectionid AND id = @bsoid";
+
+            //let mut sql = self.sql_request("UPDATE bso SET id = @bsoidWHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
+            let comma = || if q.is_empty() { "" } else { ", " };
+
+            let q = format!(
+                "{}{}{}",
+                q,
+                comma(),
+                if let Some(sortindex) = bso.sortindex {
+                    sqlparams.insert(
+                        "sortindex".to_string(),
+                        sortindex.to_string(),
+                    );
+                    "sortindex = @sortindex"
+                } else {
+                    ""
+                }
+            );
+            let q = format!(
+                "{}{}{}",
+                q,
+                comma(),
+                if let Some(ttl) = bso.ttl {
+                    let expiry = timestamp + (i64::from(ttl) * 1000);
+                    sqlparams.insert(
+                        "expiry".to_string(),
+                        to_rfc3339(expiry)?,
+                    );
+                    sqltypes.insert(
+                        "expiry".to_string(),
+                        Type {
+                            code: Some("TIMESTAMP".to_string()),
+                            ..Default::default()
+                        },
+                    );
+                    "ttl = @expiry"
+                } else {
+                    ""
+                }
+            );
+            let q = format!(
+                "{}{}{}",
+                q,
+                comma(),
+                /*
+                match (bso.payload, bso.sortindex) {
+                    (Some(_), None) | (None, Some(_)) => {
+                        sqlparams.insert("modified".to_string(), self.timestamp().as_rfc3339()?);
+                        sqltypes.insert(
+                            "modified".to_string(),
+                            Type {
+                                code: Some("TIMESTAMP".to_string()),
+                                ..Default::default()
+                            },
+                        );
+                        ", modified = @modified"
+                    },
+                    _ => "",
+                }
+                */
+                if bso.payload.is_some() || bso.sortindex.is_some() {
+                    sqlparams.insert("modified".to_string(), self.timestamp().as_rfc3339()?);
+                    sqltypes.insert(
+                        "modified".to_string(),
+                        Type {
+                            code: Some("TIMESTAMP".to_string()),
+                            ..Default::default()
+                        },
+                    );
+                    "modified = @modified"
+                } else {
+                    ""
+                }
+            );
+            let q = format!(
+                "{}{}{}",
+                q,
+                comma(),
+                if let Some(payload) = bso.payload {
+                    sqlparams.insert(
+                        "payload".to_string(),
+                        payload,
+                    );
+                    "payload = @payload"
+                } else {
+                    ""
+                }
+            );
+
+            if q.is_empty() {
+                // Nothing to update
+                return Ok(touch)
+            }
+
+            let q = format!(
+                "UPDATE bso SET {}{}",
+                q,
+                " WHERE userid = @userid AND collection = @collectionid AND id = @bsoid"
+            );
+
+            let mut sql = self.sql_request(&q);
+            /*
             // XXX: handle None sortindex
-            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap_or_default().to_string());
+            sqlparams.insert(
+                "sortindex".to_string(),
+                bso.sortindex.unwrap_or_default().to_string(),
+            );
+             */
+            /*
             let ttl = bso
                 .ttl
                 .map(|ttl| timestamp + (i64::from(ttl) * 1000))
@@ -1188,14 +1226,21 @@ impl SpannerDb {
             let expirystring = Utc
                 .timestamp(ttl / 1000, ((ttl % 1000) * 1000000).try_into().unwrap())
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
-            let dt = DateTime::parse_from_rfc3339(&expirystring).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
-            println!("!!!!! UPDATE {:} ({}) ttl: {} {}", expirystring, timestamp, ttl, dt);
-            sqlparams.insert(
-                "expiry".to_string(),
-                expirystring,
+            let dt = DateTime::parse_from_rfc3339(&expirystring).map_err(|e| {
+                DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string()))
+            })?;
+            println!(
+                "!!!!! UPDATE {:} ({}) ttl: {} {}",
+                expirystring, timestamp, ttl, dt
             );
-            // XXX: handle None payload
-            sqlparams.insert("payload".to_string(), bso.payload.unwrap_or_default().to_string());
+            sqlparams.insert("expiry".to_string(), expirystring);
+            */
+                // XXX: handle None payload
+                /*
+            sqlparams.insert(
+                "payload".to_string(),
+                bso.payload.unwrap_or_default().to_string(),
+            );
             //sqlparams.insert("modified".to_string(), timestamp.to_string());
             //let timestamp = self.timestamp().as_i64();
             let modifiedstring = Utc
@@ -1205,26 +1250,10 @@ impl SpannerDb {
                 )
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
             sqlparams.insert("modified".to_string(), modifiedstring);
+                */
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
-            let mut sqltypes = HashMap::new();
-            sqltypes.insert(
-                "expiry".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
-            sqltypes.insert(
-                "modified".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
             sql
@@ -1235,9 +1264,15 @@ impl SpannerDb {
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
             // XXX:
-            sqlparams.insert("sortindex".to_string(), bso.sortindex.unwrap_or_default().to_string());
+            sqlparams.insert(
+                "sortindex".to_string(),
+                bso.sortindex.unwrap_or_default().to_string(),
+            );
             // XXX:
-            sqlparams.insert("payload".to_string(), bso.payload.unwrap_or_default().to_string());
+            sqlparams.insert(
+                "payload".to_string(),
+                bso.payload.unwrap_or_default().to_string(),
+            );
             let modifiedstring = Utc
                 .timestamp(
                     timestamp / 1000,
@@ -1252,7 +1287,10 @@ impl SpannerDb {
             let expirystring = Utc
                 .timestamp(ttl / 1000, ((ttl % 1000) * 1000000).try_into().unwrap())
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
-            println!("!!!!! INSERT {:} ({}) ttl: {}", expirystring, timestamp, ttl);
+            println!(
+                "!!!!! INSERT {:} ({}) ttl: {}",
+                expirystring, timestamp, ttl
+            );
             sqlparams.insert("expiry".to_string(), expirystring);
 
             let mut sqltypes = HashMap::new();

@@ -1,9 +1,7 @@
-use std::fmt;
-
 use diesel::r2d2::ManageConnection;
-use google_spanner1::{CreateSessionRequest, Error, Session, Spanner};
 #[cfg(any(test, feature = "db_test"))]
 use google_spanner1::TransactionSelector;
+use google_spanner1::{CreateSessionRequest, Error, Session, Spanner};
 use hyper::{net::HttpsConnector, Client};
 use hyper_rustls::TlsClient;
 use yup_oauth2::{service_account_key_from_file, GetToken, ServiceAccountAccess};

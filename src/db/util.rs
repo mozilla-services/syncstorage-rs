@@ -1,6 +1,9 @@
-use std::u64;
+use std::{convert::TryInto, u64};
 
-use chrono::{DateTime, offset::{FixedOffset, Utc}};
+use chrono::{
+    offset::{FixedOffset, TimeZone, Utc},
+    DateTime, SecondsFormat,
+};
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
@@ -89,9 +92,7 @@ impl SyncTimestamp {
     fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, DbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
-            Err(DbErrorKind::Integrity(
-                "Invalid DateTime (< 0)".to_owned(),
-            ))?;
+            Err(DbErrorKind::Integrity("Invalid DateTime (< 0)".to_owned()))?;
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
@@ -104,6 +105,12 @@ impl SyncTimestamp {
     /// Return the timestamp as an f64 seconds since epoch
     pub fn as_seconds(self) -> f64 {
         self.0 as f64 / 1000.0
+    }
+
+    /// Return the timestamp as an RFC 3339 and ISO 8601 date and time string such as
+    /// 1996-12-19T16:39:57-08:00
+    pub fn as_rfc3339(self) -> Result<String, DbError> {
+        to_rfc3339(self.as_i64())
     }
 }
 
@@ -160,4 +167,16 @@ where
     let precise: serde_json::Number =
         serde_json::from_str(&format_ts(*x)).map_err(ser::Error::custom)?;
     precise.serialize(s)
+}
+
+/// Render a timestamp (as an i64 milliseconds since epoch) as an RFC 3339 and ISO 8601
+/// date and time string such as 1996-12-19T16:39:57-08:00
+pub fn to_rfc3339(val: i64) -> Result<String, DbError> {
+    let secs = val / 1000;
+    let nsecs = ((val % 1000) * 1000000).try_into().map_err(|e| {
+        DbErrorKind::Internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
+    })?;
+    Ok(Utc
+        .timestamp(secs, nsecs)
+        .to_rfc3339_opts(SecondsFormat::Nanos, true))
 }
