@@ -12,7 +12,7 @@ use actix_web::{
         Uri,
     },
     web::{Json, Query},
-    Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures::{future, Future};
 use lazy_static::lazy_static;
@@ -838,36 +838,28 @@ impl HawkIdentifier {
         }
     }
 
-    fn extrude(req: &HttpRequest) -> Result<Self, Error> {
-        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+    pub fn extrude<T>(
+        msg: &T,
+        method: &str,
+        uri: &Uri,
+        ci: &ConnectionInfo,
+        state: &ServerState,
+    ) -> Result<Self, Error>
+    where
+        T: HttpMessage,
+    {
+        if let Some(user_id) = msg.extensions().get::<HawkIdentifier>() {
             return Ok(user_id.clone());
         }
 
-        let state = match req.app_data::<ServerState>() {
-            Some(s) => s,
-            None => {
-                dbg!("⚠️ Could not load the app state");
-                return Err(ValidationErrorKind::FromDetails(
-                    "Internal error".to_owned(),
-                    RequestErrorLocation::Unknown,
-                    Some("state".to_owned()),
-                )
-                .into());
-            }
-        };
-        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-        let connection_info = req.connection_info().clone();
-        let method = req.method().as_str();
-        let uri = req.uri();
-        let auth_header = req
+        let auth_header = msg
             .headers()
             .get("authorization")
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier =
-            Self::generate(&state.secrets, method, auth_header, &connection_info, uri)?;
-        req.extensions_mut().insert(identifier.clone());
+        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
+        msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
 
@@ -902,7 +894,23 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extrude(req)
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Err(ValidationErrorKind::FromDetails(
+                    "Internal error".to_owned(),
+                    RequestErrorLocation::Unknown,
+                    Some("state".to_owned()),
+                )
+                .into());
+            }
+        };
+        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+        let connection_info = req.connection_info().clone();
+        let method = req.method().as_str();
+        let uri = req.uri();
+        Self::extrude(req, method, uri, &connection_info, &state)
     }
 }
 
@@ -1819,17 +1827,19 @@ mod tests {
 
     #[test]
     fn valid_header_with_valid_path() {
-        let payload = HawkPayload::test_default(*USER_ID);
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
             .param("uid", &USER_ID_STR)
             .to_http_request();
-        HawkIdentifier::extrude(&req)
+        let payload = actix_http::h1::Payload::empty();
+        HawkIdentifier::from_request(&req, &mut payload.into())
             .and_then(|result| {
                 assert_eq!(result.legacy_id, *USER_ID);
                 Ok(())
