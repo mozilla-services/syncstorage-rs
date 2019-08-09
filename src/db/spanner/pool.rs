@@ -84,7 +84,7 @@ impl DbPool for SpannerDbPool {
 }
 
 impl fmt::Debug for SpannerDbPool {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SpannerDbPool {{ coll_cache: {:?} }}", self.coll_cache)
     }
 }

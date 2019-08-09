@@ -160,7 +160,7 @@ fn test_endpoint(
     }
 }
 
-fn test_endpoint_with_response<T>(method: http::Method, path: &str, assertions: &Fn(T) -> ())
+fn test_endpoint_with_response<T>(method: http::Method, path: &str, assertions: &dyn Fn(T) -> ())
 where
     T: DeserializeOwned,
 {
