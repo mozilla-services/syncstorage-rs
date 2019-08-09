@@ -235,7 +235,7 @@ where
 macro_rules! failure_boilerplate {
     ($error:ty, $kind:ty) => {
         impl Fail for $error {
-            fn cause(&self) -> Option<&Fail> {
+            fn cause(&self) -> Option<&dyn Fail> {
                 self.inner.cause()
             }
 
@@ -245,7 +245,7 @@ macro_rules! failure_boilerplate {
         }
 
         impl fmt::Display for $error {
-            fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 fmt::Display::fmt(&self.inner, formatter)
             }
         }

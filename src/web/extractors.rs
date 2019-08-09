@@ -96,7 +96,7 @@ pub struct BsoBodies {
 impl FromRequest for BsoBodies {
     type Config = ();
     type Error = Error;
-    type Future = Box<Future<Item = Self, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
 
     /// Extract the BSO Bodies from the request
     ///
@@ -269,7 +269,7 @@ pub struct BsoBody {
 impl FromRequest for BsoBody {
     type Config = ();
     type Error = Error;
-    type Future = Box<Future<Item = BsoBody, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = BsoBody, Error = Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
@@ -555,7 +555,7 @@ pub struct CollectionPostRequest {
 impl FromRequest for CollectionPostRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<Future<Item = CollectionPostRequest, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = CollectionPostRequest, Error = Self::Error>>;
 
     /// Extractor for Collection Posts (Batch BSO upload)
     ///
@@ -675,7 +675,7 @@ pub struct BsoPutRequest {
 impl FromRequest for BsoPutRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<Future<Item = BsoPutRequest, Error = Self::Error>>;
+    type Future = Box<dyn Future<Item = BsoPutRequest, Error = Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let fut = <(
