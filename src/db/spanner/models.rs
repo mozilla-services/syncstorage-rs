@@ -222,7 +222,7 @@ impl SpannerDb {
             .doit();
         if let Ok(results) = results {
             if let Some(rows) = results.1.rows {
-                let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
                 self.session
                     .borrow_mut()
                     .coll_modified_cache
@@ -267,7 +267,7 @@ impl SpannerDb {
             .doit();
         if let Ok(results) = results {
             if let Some(rows) = results.1.rows {
-                let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
                 self.session
                     .borrow_mut()
                     .coll_modified_cache
@@ -416,7 +416,7 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let modified = SyncTimestamp::from_i64(rows[0][1].parse().unwrap())?;
+                    let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
                     Ok(modified)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
@@ -451,7 +451,7 @@ impl SpannerDb {
                 Some(rows) => {
                     let mut timestamps = results::GetCollectionTimestamps::new();
                     rows.iter().for_each(|row| {
-                        if let Ok(timestamp) = SyncTimestamp::from_i64(row[1].parse().unwrap()) {
+                        if let Ok(timestamp) = SyncTimestamp::from_rfc3339(&row[0]) {
                             timestamps.insert(row[0].clone(), timestamp);
                         }
                     });
@@ -554,7 +554,7 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                    let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
                     Ok(modified)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
@@ -897,7 +897,7 @@ impl SpannerDb {
                     rows.iter().for_each(|row| {
                         vec.push(results::GetBso {
                             id: row[0].parse().unwrap(),
-                            modified: SyncTimestamp::from_i64(row[1].parse().unwrap()).unwrap(),
+                            modified: SyncTimestamp::from_rfc3339(&row[1]).unwrap(),
                             payload: row[2].parse().unwrap(),
                             sortindex: Some(row[3].parse().unwrap()),
                             expiry: row[4].parse().unwrap(),
@@ -1044,7 +1044,7 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let modified = SyncTimestamp::from_i64(rows[0][0].parse().unwrap())?;
+                    let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
                     Ok(modified)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
