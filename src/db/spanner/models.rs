@@ -41,6 +41,9 @@ pub enum CollectionLock {
 type Conn = PooledConnection<SpannerConnectionManager>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
+/// The ttl to use for rows that are never supposed to expire (in seconds)
+pub const DEFAULT_BSO_TTL: i64 = 2_100_000_000;
+
 /// Per session Db metadata
 #[derive(Debug, Default)]
 struct SpannerDbSession {
@@ -879,6 +882,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request(&query);
+        sql.transaction = self.session.borrow().transaction.clone();
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
 
@@ -942,6 +946,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request("SELECT id, modified, payload, sortindex, ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp");
+        sql.transaction = self.session.borrow().transaction.clone();
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1113,6 +1118,14 @@ impl SpannerDb {
                 q,
                 if let Some(sortindex) = bso.sortindex {
                     sqlparams.insert("sortindex".to_string(), sortindex.to_string());
+                    sqltypes.insert(
+                        "sortindex".to_string(),
+                        Type {
+                            code: Some("INT64".to_string()),
+                            ..Default::default()
+                        },
+                    );
+
                     format!("{}{}", comma(&q), "sortindex = @sortindex")
                 } else {
                     "".to_string()
@@ -1186,19 +1199,37 @@ impl SpannerDb {
             sql.param_types = Some(sqltypes);
             sql
         } else {
-            let mut sql = self.sql_request("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)");
+            let use_sortindex = bso
+                .sortindex
+                .map(|sortindex| sortindex.to_string())
+                .unwrap_or_else(|| "NULL".to_owned())
+                != "NULL";
+            let mut sql = if use_sortindex {
+                self.sql_request("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)")
+            } else {
+                self.sql_request("INSERT INTO bso (userid, collection, id, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid,  @payload, @modified, @expiry)")
+            };
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
 
-            sqlparams.insert(
-                "sortindex".to_string(),
-                bso.sortindex
-                    .map(|sortindex| sortindex.to_string())
-                    .unwrap_or_else(|| "DEFAULT".to_owned()),
-            );
+            if use_sortindex {
+                sqlparams.insert(
+                    "sortindex".to_string(),
+                    bso.sortindex
+                        .map(|sortindex| sortindex.to_string())
+                        .unwrap_or_else(|| "NULL".to_owned()),
+                );
+                sqltypes.insert(
+                    "sortindex".to_string(),
+                    Type {
+                        code: Some("INT64".to_string()),
+                        ..Default::default()
+                    },
+                );
+            }
             sqlparams.insert(
                 "payload".to_string(),
                 bso.payload.unwrap_or("DEFAULT".to_owned()),
@@ -1212,34 +1243,28 @@ impl SpannerDb {
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
             sqlparams.insert("modified".to_string(), modifiedstring);
             */
-            /*
+            let now_millis = Utc::now().timestamp() * 1000;
             let ttl = bso
                 .ttl
-                .map(|ttl| timestamp + (i64::from(ttl) * 1000))
-                .unwrap();
+                .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
+                + now_millis;
+            let millis = ttl / 1000;
+            let nanos = ((ttl % 1000) * 1000000);
             let expirystring = Utc
-                .timestamp(ttl / 1000, ((ttl % 1000) * 1000000).try_into().unwrap())
+                .timestamp(millis, nanos.try_into().unwrap())
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
             println!(
-                "!!!!! INSERT {:} ({}) ttl: {}",
-                expirystring, timestamp, ttl
+                "!!!!! INSERT {:} ({}) ttl: {} millis: {} nanos: {}",
+                expirystring, timestamp, ttl, millis, nanos
             );
             sqlparams.insert("expiry".to_string(), expirystring);
-             */
-            if let Some(ttl) = bso.ttl {
-                sqltypes.insert(
-                    "expiry".to_string(),
-                    Type {
-                        code: Some("TIMESTAMP".to_string()),
-                        ..Default::default()
-                    },
-                );
-                let expiry = to_rfc3339(timestamp + (i64::from(ttl) * 1000))?;
-                sqlparams.insert("expiry".to_string(), expiry);
-            } else {
-                sql.sql = sql.sql.map(|s| s.replace("@expiry", "DEFAULT"));
-                //"DEFAULT".to_owned()
-            }
+            sqltypes.insert(
+                "expiry".to_string(),
+                Type {
+                    code: Some("TIMESTAMP".to_string()),
+                    ..Default::default()
+                },
+            );
 
             sqlparams.insert("modified".to_string(), self.timestamp().as_rfc3339()?);
             sqltypes.insert(
@@ -1254,11 +1279,20 @@ impl SpannerDb {
             sql
         };
 
-        spanner
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit()?;
+            .doit();
+        match result {
+            Ok(_) => {
+                println!("OK!!!");
+            }
+            Err(e) => {
+                println!("ERR!!! {:}", e);
+                Err(e)?;
+            }
+        }
         Ok(touch)
     }
 
