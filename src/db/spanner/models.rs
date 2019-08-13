@@ -464,6 +464,67 @@ impl SpannerDb {
         }
     }
 
+    fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
+        let mut names = self.load_collection_names(by_id.keys())?;
+        by_id
+            .into_iter()
+            .map(|(id, value)| {
+                names
+                    .remove(&id)
+                    .map(|name| (name, value))
+                    .ok_or_else(|| DbError::internal("load_collection_names get"))
+            })
+            .collect()
+    }
+
+    fn load_collection_names<'a>(
+        &self,
+        collection_ids: impl Iterator<Item = &'a i32>,
+    ) -> Result<HashMap<i32, String>> {
+        let mut names = HashMap::new();
+        let mut uncached = Vec::new();
+        for &id in collection_ids {
+            if let Some(name) = self.coll_cache.get_name(id)? {
+                names.insert(id, name);
+            } else {
+                uncached.push(id);
+            }
+        }
+
+        if !uncached.is_empty() {
+            // TODO only select names that are in uncached.
+            let mut sql = self.sql_request(
+                "SELECT collectionid, name FROM collections",
+            );
+            let spanner = &self.conn;
+            let session = spanner.session.name.as_ref().unwrap();
+            let results = spanner
+                .hub
+                .projects()
+                .instances_databases_sessions_execute_sql(sql, session)
+                .doit();
+            match results {
+                Ok(results) => match results.1.rows {
+                    Some(rows) => {
+                        rows.iter().for_each(|row| {
+                            let id = row[0].parse::<i32>().unwrap();
+                            let name = row[1].clone();
+                            if uncached.contains(&id) {
+                                names.insert(id, name.clone());
+                                self.coll_cache.put(id, name.clone()).unwrap();
+                            }
+                        });
+                    }
+                    None => return Err(DbErrorKind::CollectionNotFound.into()),
+                },
+                // TODO Return the correct error
+                Err(_e) => return Err(DbErrorKind::CollectionNotFound.into()),
+            }
+        }
+
+        Ok(names)
+    }
+
     pub fn get_collection_counts_sync(
         &self,
         user_id: params::GetCollectionCounts,
@@ -485,11 +546,11 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let mut counts = results::GetCollectionCounts::new();
+                    let mut counts = HashMap::new();
                     rows.iter().for_each(|row| {
-                        counts.insert(row[0].clone(), row[1].parse().unwrap());
+                        counts.insert(row[0].parse::<i32>().unwrap(), row[1].parse().unwrap());
                     });
-                    Ok(counts)
+                    self.map_collection_names(counts)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },

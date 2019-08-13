@@ -660,7 +660,7 @@ async fn get_collection_usage() -> Result<()> {
     let mut rng = thread_rng();
 
     for &coll in ["bookmarks", "history", "prefs"].iter() {
-        for i in 0..100 {
+        for i in 0..5 {
             let size = 50 + rng.gen_range(0, 100);
             let payload = rng
                 .sample_iter(&Alphanumeric)
@@ -696,7 +696,7 @@ async fn get_collection_counts() -> Result<()> {
     let mut rng = thread_rng();
 
     for &coll in ["bookmarks", "history", "prefs"].iter() {
-        let count = 5 + rng.gen_range(0, 99);
+        let count = 5 + rng.gen_range(0, 5);
         expected.insert(coll.to_owned(), count);
         for i in 0..count {
             db.put_bso(pbso(uid, coll, &format!("b{}", i), Some("x"), None, None))
