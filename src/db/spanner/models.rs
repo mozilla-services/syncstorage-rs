@@ -945,9 +945,9 @@ impl SpannerDb {
         }
 
         query = match sort {
-            Sorting::Index => format!("{} SORT BY sortindex DESCENDING", query).to_string(),
-            Sorting::Newest => format!("{} SORT BY modified DESCENDING", query).to_string(),
-            Sorting::Oldest => format!("{} SORT BY modified ASCENDING", query).to_string(),
+            Sorting::Index => format!("{} ORDER BY sortindex DESCENDING", query).to_string(),
+            Sorting::Newest => format!("{} ORDER BY modified DESCENDING", query).to_string(),
+            Sorting::Oldest => format!("{} ORDER BY modified ASCENDING", query).to_string(),
             _ => query,
         };
 
