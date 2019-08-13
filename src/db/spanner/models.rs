@@ -809,12 +809,7 @@ impl SpannerDb {
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         let timestamp = self.timestamp().as_i64();
-        let modifiedstring = Utc
-            .timestamp(
-                timestamp / 1000,
-                ((timestamp % 1000) * 1000).try_into().unwrap(),
-            )
-            .to_rfc3339_opts(SecondsFormat::Nanos, true);
+        let modifiedstring = to_rfc3339(timestamp)?;
         sqlparams.insert("timestamp".to_string(), modifiedstring);
         sqltypes.insert(
             "timestamp".to_string(),
@@ -950,12 +945,7 @@ impl SpannerDb {
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sqlparams.insert("bsoid".to_string(), params.id.to_string());
         let timestamp = self.timestamp().as_i64();
-        let modifiedstring = Utc
-            .timestamp(
-                timestamp / 1000,
-                ((timestamp % 1000) * 1000000).try_into().unwrap(),
-            )
-            .to_rfc3339_opts(SecondsFormat::Nanos, true);
+        let modifiedstring = to_rfc3339(timestamp)?;
         sqlparams.insert("timestamp".to_string(), modifiedstring);
         let mut sqltypes = HashMap::new();
         sqltypes.insert(
@@ -1029,10 +1019,7 @@ impl SpannerDb {
         let mut sqlparams = HashMap::new();
         let mut sqltypes = HashMap::new();
         let timestamp = self.timestamp().as_i64();
-        let ttl = Utc::now().timestamp();
-        let expirystring = Utc
-            .timestamp(ttl, 0)
-            .to_rfc3339_opts(SecondsFormat::Nanos, true);
+        let expirystring = to_rfc3339(timestamp)?;
 
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1255,19 +1242,15 @@ impl SpannerDb {
                 .to_rfc3339_opts(SecondsFormat::Nanos, true);
             sqlparams.insert("modified".to_string(), modifiedstring);
             */
-            let now_millis = Utc::now().timestamp() * 1000;
+            let now_millis = self.timestamp().as_i64();
             let ttl = bso
                 .ttl
                 .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
-                + now_millis;
-            let millis = ttl / 1000;
-            let nanos = ((ttl % 1000) * 1000000);
-            let expirystring = Utc
-                .timestamp(millis, nanos.try_into().unwrap())
-                .to_rfc3339_opts(SecondsFormat::Nanos, true);
+                * 1000;
+            let expirystring = to_rfc3339(now_millis + ttl)?;
             println!(
-                "!!!!! INSERT {:} ({}) ttl: {} millis: {} nanos: {}",
-                expirystring, timestamp, ttl, millis, nanos
+                "!!!!! INSERT {:} ({}) ttl: {}",
+                expirystring, timestamp, ttl
             );
             sqlparams.insert("expiry".to_string(), expirystring);
             sqltypes.insert(
