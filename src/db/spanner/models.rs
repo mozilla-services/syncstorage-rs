@@ -1025,16 +1025,30 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@item AND ttl>@ttl");
+        let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl>@ttl");
         let mut sqlparams = HashMap::new();
+        let mut sqltypes = HashMap::new();
+        let timestamp = self.timestamp().as_i64();
+        let ttl = Utc::now().timestamp();
+        let expirystring = Utc
+            .timestamp(ttl, 0)
+            .to_rfc3339_opts(SecondsFormat::Nanos, true);
+
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
         sqlparams.insert("bsoid".to_string(), params.id.to_string());
-        sqlparams.insert(
-            "timestamp".to_string(),
-            self.timestamp().as_i64().to_string(),
+        sqlparams.insert("ttl".to_string(), expirystring);
+        sqltypes.insert(
+            "ttl".to_string(),
+            Type {
+                array_element_type: None,
+                code: Some("TIMESTAMP".to_string()),
+                struct_type: None,
+            },
         );
+
         sql.params = Some(sqlparams);
+        sql.param_types = Some(sqltypes);
 
         let results = spanner
             .hub
