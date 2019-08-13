@@ -832,13 +832,13 @@ impl SpannerDb {
         sqlparams.insert("bsoid".to_string(), params.id.to_string());
         sql.params = Some(sqlparams);
 
-        fn affected_rows(result: &ResultSet) -> Result<i64> {
-            let stats = result
+        fn affected_rows(result_set: &ResultSet) -> Result<i64> {
+            let stats = result_set
                 .stats
                 .as_ref()
-                .ok_or(DbErrorKind::Internal("Expected result stats".to_owned()))?;
+                .ok_or(DbErrorKind::Internal("Expected result_set stats".to_owned()))?;
             let row_count_exact = stats.row_count_exact.as_ref().ok_or(DbErrorKind::Internal(
-                "Expected result stats row_count_exact".to_owned(),
+                "Expected result_set stats row_count_exact".to_owned(),
             ))?;
             Ok(row_count_exact.parse().map_err(|e| {
                 DbErrorKind::Internal("Invalid row_count_exact i64 value".to_owned())
