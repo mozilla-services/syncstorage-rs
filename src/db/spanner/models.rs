@@ -454,13 +454,13 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let mut timestamps = results::GetCollectionTimestamps::new();
+                    let mut timestamps = HashMap::new();
                     rows.iter().for_each(|row| {
-                        if let Ok(timestamp) = SyncTimestamp::from_rfc3339(&row[0]) {
-                            timestamps.insert(row[0].clone(), timestamp);
+                        if let Ok(timestamp) = SyncTimestamp::from_rfc3339(&row[1]) {
+                            timestamps.insert(row[0].parse::<i32>().unwrap(), timestamp);
                         }
                     });
-                    Ok(timestamps)
+                    self.map_collection_names(timestamps)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
