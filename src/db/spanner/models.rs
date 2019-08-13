@@ -142,7 +142,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
 
-        let sql = self.sql_request("SELECT MAX(collectionid) from collections");
+        let sql = self.sql_request("SELECT COALESCE(MAX(collectionid), 1) from collections");
         let result = spanner
             .hub
             .projects()
