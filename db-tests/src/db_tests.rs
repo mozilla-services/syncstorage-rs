@@ -619,7 +619,7 @@ async fn delete_collection() -> Result<()> {
         })
         .compat()
         .await;
-    assert!(result.unwrap_err().is_colllection_not_found());
+    assert!(result.unwrap_err().is_collection_not_found());
     Ok(())
 }
 
@@ -1053,7 +1053,7 @@ async fn lock_for_read() -> Result<()> {
         .get_collection_id("NewCollection".to_owned())
         .compat()
         .await;
-    assert!(result.unwrap_err().is_colllection_not_found());
+    assert!(result.unwrap_err().is_collection_not_found());
     db.commit().compat().await?;
     Ok(())
 }
