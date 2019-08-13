@@ -28,7 +28,7 @@ use crate::web::extractors::BsoQueryParams;
 use super::batch;
 
 use google_spanner1::{
-    BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite,
+    BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite, ResultSet,
     RollbackRequest, TransactionOptions, TransactionSelector, Type,
 };
 
@@ -819,6 +819,7 @@ impl SpannerDb {
         let user_id = params.user_id.legacy_id as u32;
         println!("!!QQQ delete_bso_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
+        let touch = self.touch_collection(user_id as u32, collection_id)?;
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
@@ -831,15 +832,28 @@ impl SpannerDb {
         sqlparams.insert("bsoid".to_string(), params.id.to_string());
         sql.params = Some(sqlparams);
 
-        let results = spanner
+        fn affected_rows(result: &ResultSet) -> Result<i64> {
+            let stats = result
+                .stats
+                .as_ref()
+                .ok_or(DbErrorKind::Internal("Expected result stats".to_owned()))?;
+            let row_count_exact = stats.row_count_exact.as_ref().ok_or(DbErrorKind::Internal(
+                "Expected result stats row_count_exact".to_owned(),
+            ))?;
+            Ok(row_count_exact.parse().map_err(|e| {
+                DbErrorKind::Internal("Invalid row_count_exact i64 value".to_owned())
+            })?)
+        }
+
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
-        match results {
-            Ok(_results) => self.touch_collection(user_id, collection_id),
-            // TODO Return the correct error
-            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+            .doit()?;
+        if affected_rows(&result.1)? == 0 {
+            Err(DbErrorKind::BsoNotFound)?
+        } else {
+            Ok(touch)
         }
     }
 
@@ -880,7 +894,7 @@ impl SpannerDb {
         if deleted > 0 {
             self.touch_collection(user_id, collection_id)
         } else {
-            Err(DbErrorKind::CollectionNotFound.into())
+            Err(DbErrorKind::BsoNotFound.into())
         }
     }
 
