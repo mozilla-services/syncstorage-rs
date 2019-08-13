@@ -583,11 +583,11 @@ impl SpannerDb {
         match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
-                    let mut usage = results::GetCollectionUsage::new();
+                    let mut usage = HashMap::new();
                     rows.iter().for_each(|row| {
-                        usage.insert(row[0].clone(), row[1].parse().unwrap());
+                        usage.insert(row[0].parse::<i32>().unwrap(), row[1].parse().unwrap());
                     });
-                    Ok(usage)
+                    self.map_collection_names(usage)
                 }
                 None => Err(DbErrorKind::CollectionNotFound.into()),
             },
