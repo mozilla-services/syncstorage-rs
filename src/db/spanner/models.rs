@@ -693,10 +693,10 @@ impl SpannerDb {
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql =
             self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid");
-        let mut params = HashMap::new();
-        params.insert("userid".to_string(), user_id.to_string());
-        params.insert("collectionid".to_string(), collection_id.to_string());
-        sql.params = Some(params);
+        let mut sqlparams = HashMap::new();
+        sqlparams.insert("userid".to_string(), user_id.to_string());
+        sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+        sql.params = Some(sqlparams);
 
         let results = spanner
             .hub
@@ -704,10 +704,28 @@ impl SpannerDb {
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
         match results {
-            Ok(_results) => Ok(self.timestamp()),
+            Ok(_results) => {},
             // TODO Return the correct error
-            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+            Err(_e) => return Err(DbErrorKind::CollectionNotFound.into()),
         }
+        let mut sql =
+            self.sql_request("DELETE FROM user_collections WHERE userid=@userid AND collection=@collectionid");
+        let mut sqlparams = HashMap::new();
+        sqlparams.insert("userid".to_string(), user_id.to_string());
+        sqlparams.insert("collectionid".to_string(), collection_id.to_string());
+        sql.params = Some(sqlparams);
+
+        let results = spanner
+            .hub
+            .projects()
+            .instances_databases_sessions_execute_sql(sql, session)
+            .doit();
+        match results {
+            Ok(_results) => {},
+            // TODO Return the correct error
+            Err(_e) => return Err(DbErrorKind::CollectionNotFound.into()),
+        }
+        self.get_storage_timestamp_sync(params.user_id)
     }
 
     pub(super) fn touch_collection(

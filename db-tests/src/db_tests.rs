@@ -619,6 +619,7 @@ async fn delete_collection() -> Result<()> {
         })
         .compat()
         .await;
+    println!("COLLECTION NOT FOUND? {:?}", result);
     assert!(result.unwrap_err().is_collection_not_found());
     Ok(())
 }
