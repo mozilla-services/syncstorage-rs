@@ -1,6 +1,4 @@
 use diesel::r2d2::ManageConnection;
-#[cfg(any(test, feature = "db_test"))]
-use google_spanner1::TransactionSelector;
 use google_spanner1::{CreateSessionRequest, Error, Session, Spanner};
 use hyper::{net::HttpsConnector, Client};
 use hyper_rustls::TlsClient;
@@ -30,8 +28,7 @@ impl SpannerConnectionManager {
 pub struct SpannerSession {
     pub hub: Spanner<Client, ServiceAccountAccess<Client>>,
     pub session: Session,
-    #[cfg(any(test, feature = "db_test"))]
-    pub test_transaction: Option<TransactionSelector>,
+    pub(super) use_test_transactions: bool,
 }
 
 impl ManageConnection for SpannerConnectionManager {
@@ -58,8 +55,7 @@ impl ManageConnection for SpannerConnectionManager {
         Ok(SpannerSession {
             hub,
             session,
-            #[cfg(any(test, feature = "db_test"))]
-            test_transaction: None,
+            use_test_transactions: false,
         })
     }
 

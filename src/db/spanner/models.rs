@@ -1,7 +1,7 @@
 use futures::future;
 use futures::lazy;
 
-use chrono::{DateTime, SecondsFormat, TimeZone, Utc};
+use chrono::DateTime;
 
 use diesel::r2d2::PooledConnection;
 
@@ -117,7 +117,8 @@ impl SpannerDb {
         }
         let spanner = &self.conn;
 
-        let mut sql = self.sql_request("SELECT collectionid FROM collections WHERE name = @name");
+        let mut sql =
+            self.sql_request("SELECT collectionid FROM collections WHERE name = @name")?;
         let mut params = HashMap::new();
         params.insert("name".to_string(), name.to_string());
         sql.params = Some(params);
@@ -142,7 +143,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
 
-        let sql = self.sql_request("SELECT COALESCE(MAX(collectionid), 1) from collections");
+        let sql = self.sql_request("SELECT COALESCE(MAX(collectionid), 1) from collections")?;
         let result = spanner
             .hub
             .projects()
@@ -160,13 +161,13 @@ impl SpannerDb {
 
         let mut sql = self.sql_request(
             "INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)",
-        );
+        )?;
         let mut params = HashMap::new();
         params.insert("name".to_string(), name.to_string());
         params.insert("collectionid".to_string(), cmp::max(id, 100).to_string());
         sql.params = Some(params);
 
-        let result = spanner
+        spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
@@ -209,7 +210,7 @@ impl SpannerDb {
         self.begin(false)?;
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
+        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -254,7 +255,7 @@ impl SpannerDb {
         self.begin(true)?;
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
+        let mut sql = self.sql_request("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -294,56 +295,48 @@ impl SpannerDb {
         let req = BeginTransactionRequest {
             options: Some(options),
         };
-        let result = spanner
+        let (_, transaction) = spanner
             .hub
             .projects()
             .instances_databases_sessions_begin_transaction(req, session)
-            .doit();
-        match result {
-            Ok((response, transaction)) => {
-                self.session.borrow_mut().transaction =
-                    Some(google_spanner1::TransactionSelector {
-                        id: transaction.id,
-                        ..Default::default()
-                    });
-                Ok(())
-            }
-            Err(_e) => {
-                // TODO Handle error
-                Ok(())
-            }
-        }
+            .doit()?;
+        self.session.borrow_mut().transaction = Some(google_spanner1::TransactionSelector {
+            id: transaction.id,
+            ..Default::default()
+        });
+        Ok(())
     }
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.
-    ///
-    /// May return a test transaction (that's never committed) during tests.
-    fn get_transaction(&self) -> Option<TransactionSelector> {
-        let transaction = self.session.borrow().transaction.clone();
-        #[cfg(any(test, feature = "db_test"))]
-        let transaction = if self.conn.test_transaction.is_some() {
-            self.conn.test_transaction.clone()
+    fn get_transaction(&self) -> Result<Option<TransactionSelector>> {
+        Ok(if self.session.borrow().transaction.is_some() {
+            self.session.borrow().transaction.clone()
         } else {
-            transaction
-        };
-        transaction
+            self.begin(true)?;
+            self.session.borrow().transaction.clone()
+        })
     }
 
-    fn sql_request(&self, sql: &str) -> ExecuteSqlRequest {
+    fn sql_request(&self, sql: &str) -> Result<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::default();
         sqlr.sql = Some(sql.to_owned());
-        sqlr.transaction = self.get_transaction();
+        sqlr.transaction = self.get_transaction()?;
         let mut session = self.session.borrow_mut();
         // XXX: include seqno if no transaction?
         sqlr.seqno = Some(session.execute_sql_count.to_string());
         session.execute_sql_count += 1;
-        sqlr
+        Ok(sqlr)
     }
 
     pub fn commit_sync(&self) -> Result<()> {
-        // XXX: maybe guard against test_transaction?
-        if let Some(transaction) = self.get_transaction() {
-            let spanner = &self.conn;
+        let spanner = &self.conn;
+
+        if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
+            // don't commit test transactions
+            return Ok(());
+        }
+
+        if let Some(transaction) = self.get_transaction()? {
             let session = spanner.session.name.as_ref().unwrap();
             spanner
                 .hub
@@ -363,7 +356,7 @@ impl SpannerDb {
     }
 
     pub fn rollback_sync(&self) -> Result<()> {
-        if let Some(transaction) = self.get_transaction() {
+        if let Some(transaction) = self.get_transaction()? {
             let spanner = &self.conn;
             let session = spanner.session.name.as_ref().unwrap();
             spanner
@@ -407,7 +400,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid");
+        let mut sql = self.sql_request("SELECT last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         params.insert("collectionid".to_string(), collection_id.to_string());
@@ -441,7 +434,7 @@ impl SpannerDb {
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request(
             "SELECT collection, last_modified FROM user_collections WHERE userid=@userid",
-        );
+        )?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -498,7 +491,7 @@ impl SpannerDb {
 
         if !uncached.is_empty() {
             // TODO only select names that are in uncached.
-            let mut sql = self.sql_request("SELECT collectionid, name FROM collections");
+            let sql = self.sql_request("SELECT collectionid, name FROM collections")?;
             let spanner = &self.conn;
             let session = spanner.session.name.as_ref().unwrap();
             let results = spanner
@@ -536,7 +529,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT collection, COUNT(collection) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection");
+        let mut sql = self.sql_request("SELECT collection, COUNT(collection) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -570,7 +563,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT collection, SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection");
+        let mut sql = self.sql_request("SELECT collection, SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY collection")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -604,27 +597,28 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
+        let ts0 = "0001-01-01T00:00:00Z";
         let mut sql = self
-            .sql_request("SELECT MAX(last_modified) FROM user_collections WHERE userid=@userid");
+            .sql_request(&format!("SELECT COALESCE(MAX(last_modified), TIMESTAMP '{}') FROM user_collections WHERE userid=@userid", ts0))?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
 
-        let results = spanner
+        let result = spanner
             .hub
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
-            .doit();
-        match results {
-            Ok(results) => match results.1.rows {
-                Some(rows) => {
-                    let modified = SyncTimestamp::from_rfc3339(&rows[0][0])?;
-                    Ok(modified)
-                }
-                None => Err(DbErrorKind::CollectionNotFound.into()),
-            },
-            // TODO Return the correct error
-            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+            .doit()?;
+        if let Some(rows) = result.1.rows {
+            // XXX: detect not max last_modified found via ts0 to workaround
+            // google-apis-rs barfing on a null result
+            if &rows[0][0] == ts0 {
+                SyncTimestamp::from_i64(0)
+            } else {
+                SyncTimestamp::from_rfc3339(&rows[0][0])
+            }
+        } else {
+            SyncTimestamp::from_i64(0)
         }
     }
 
@@ -636,7 +630,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY userid");
+        let mut sql = self.sql_request("SELECT SUM(LENGTH(payload)) FROM bso WHERE userid=@userid AND ttl > CURRENT_TIMESTAMP() GROUP BY userid")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -664,7 +658,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("DELETE FROM user_collections WHERE userid=@userid");
+        let mut sql = self.sql_request("DELETE FROM user_collections WHERE userid=@userid")?;
         let mut params = HashMap::new();
         params.insert("userid".to_string(), user_id.to_string());
         sql.params = Some(params);
@@ -696,7 +690,7 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql =
-            self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid");
+            self.sql_request("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid")?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -714,7 +708,7 @@ impl SpannerDb {
         }
         let mut sql = self.sql_request(
             "DELETE FROM user_collections WHERE userid=@userid AND collection=@collectionid",
-        );
+        )?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -741,7 +735,7 @@ impl SpannerDb {
         // XXX: We should be able to use Spanner's insert_or_update here (unlike w/ put_bsos)
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;");
+        let mut sql = self.sql_request("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;")?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -757,7 +751,7 @@ impl SpannerDb {
         };
 
         if exists {
-            let mut sql = self.sql_request("UPDATE user_collections SET last_modified=@last_modified WHERE userid=@userid AND collection=@collectionid");
+            let mut sql = self.sql_request("UPDATE user_collections SET last_modified=@last_modified WHERE userid=@userid AND collection=@collectionid")?;
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -787,7 +781,7 @@ impl SpannerDb {
                 Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
             }
         } else {
-            let mut sql = self.sql_request("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified);");
+            let mut sql = self.sql_request("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified)")?;
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -825,7 +819,7 @@ impl SpannerDb {
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request(
             "DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid",
-        );
+        )?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -863,12 +857,12 @@ impl SpannerDb {
 
         let mut deleted = 0;
         // TODO figure out how spanner specifies an "IN" query
-        params.ids.iter().for_each(|id| {
+        for id in params.ids {
             let spanner = &self.conn;
             let session = spanner.session.name.as_ref().unwrap();
             let mut sql = self.sql_request(
                 "SELECT 1 FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid",
-            );
+            )?;
             let mut sqlparams = HashMap::new();
             sqlparams.insert("userid".to_string(), user_id.to_string());
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -889,7 +883,7 @@ impl SpannerDb {
                 })
                 .unwrap();
             }
-        });
+        }
         if deleted > 0 {
             self.touch_collection(user_id, collection_id)
         } else {
@@ -1000,7 +994,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request(&query);
+        let mut sql = self.sql_request(&query)?;
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
 
@@ -1065,7 +1059,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT id, modified, payload, coalesce(sortindex, 0), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp");
+        let mut sql = self.sql_request("SELECT id, modified, payload, coalesce(sortindex, 0), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1142,7 +1136,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl>@ttl");
+        let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl>@ttl")?;
         let mut sqlparams = HashMap::new();
         let mut sqltypes = HashMap::new();
         let timestamp = self.timestamp().as_i64();
@@ -1190,7 +1184,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
-        let mut sql = self.sql_request("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid");
+        let mut sql = self.sql_request("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid")?;
         let mut sqlparams = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
         sqlparams.insert("collectionid".to_string(), collection_id.to_string());
@@ -1202,7 +1196,7 @@ impl SpannerDb {
         impl google_spanner1::Delegate for Dlg {
             fn http_failure(
                 &mut self,
-                r: &hyper::client::Response,
+                _: &hyper::client::Response,
                 a: Option<google_spanner1::JsonServerError>,
                 b: Option<google_spanner1::ServerError>,
             ) -> yup_oauth2::Retry {
@@ -1320,7 +1314,7 @@ impl SpannerDb {
             sqlparams.insert("collectionid".to_string(), collection_id.to_string());
             sqlparams.insert("bsoid".to_string(), bso.id.to_string());
 
-            let mut sql = self.sql_request(&q);
+            let mut sql = self.sql_request(&q)?;
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
             sql
@@ -1331,9 +1325,9 @@ impl SpannerDb {
                 .unwrap_or_else(|| "NULL".to_owned())
                 != "NULL";
             let mut sql = if use_sortindex {
-                self.sql_request("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)")
+                self.sql_request("INSERT INTO bso (userid, collection, id, sortindex, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)")?
             } else {
-                self.sql_request("INSERT INTO bso (userid, collection, id, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid,  @payload, @modified, @expiry)")
+                self.sql_request("INSERT INTO bso (userid, collection, id, payload, modified, ttl) VALUES (@userid, @collectionid, @bsoid,  @payload, @modified, @expiry)")?
             };
             let mut sqlparams = HashMap::new();
             let mut sqltypes = HashMap::new();
