@@ -86,7 +86,7 @@ pub fn delete_collection(
     };
 
     fut.or_else(move |e| {
-        if e.is_colllection_not_found() || e.is_bso_not_found() {
+        if e.is_collection_not_found() || e.is_bso_not_found() {
             coll.db.get_storage_timestamp(coll.user_id)
         } else {
             Box::new(future::err(e))
@@ -128,7 +128,7 @@ where
 {
     let reply_format = coll.reply;
     fut.or_else(move |e| {
-        if e.is_colllection_not_found() {
+        if e.is_collection_not_found() {
             // For b/w compat, non-existent collections must return an
             // empty list
             Ok(Paginated::default())
