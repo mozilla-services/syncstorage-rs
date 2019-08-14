@@ -159,8 +159,6 @@ async fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.modified, db.timestamp());
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
-    // XXX: go version assumes ttl was updated here?
-    //assert_eq!(bso.expiry, modified + ttl);
     assert_eq!(bso.expiry, db.timestamp().as_i64() + i64::from(ttl * 1000));
 
     let sortindex = 2;
@@ -170,8 +168,6 @@ async fn bso_successfully_updates_single_values() -> Result<()> {
     assert_eq!(bso.modified, db.timestamp());
     assert_eq!(bso.payload, payload);
     assert_eq!(bso.sortindex, Some(sortindex));
-    // XXX:
-    //assert_eq!(bso.expiry, modified + ttl);
     assert_eq!(bso.expiry, db.timestamp().as_i64() + i64::from(ttl * 1000));
     Ok(())
 }

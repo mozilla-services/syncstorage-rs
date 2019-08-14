@@ -4,15 +4,18 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{self, collections::HashMap, str::FromStr};
 
-use actix_web::http::header::{HeaderValue, ACCEPT, CONTENT_TYPE};
 use actix_web::{
-    dev::{JsonConfig, PayloadConfig},
+    dev::{ConnectionInfo, Extensions, Payload},
     error::ErrorInternalServerError,
-    Error, FromRequest, HttpRequest, Json, Path, Query,
+    http::{
+        header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE},
+        Uri,
+    },
+    web::{Json, Query},
+    Error, FromRequest, HttpRequest,
 };
 use futures::{future, Future};
 use lazy_static::lazy_static;
-use mime;
 use regex::Regex;
 use serde::{
     de::{Deserializer, Error as SerdeError, IgnoredAny},
@@ -21,10 +24,15 @@ use serde::{
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use crate::db::{util::SyncTimestamp, Db, DbError, DbErrorKind, Sorting};
-use crate::error::{ApiError, ApiResult};
-use crate::server::ServerState;
-use crate::web::{auth::HawkPayload, error::ValidationErrorKind};
+use crate::db::{util::SyncTimestamp, Db, Sorting};
+use crate::error::ApiError;
+use crate::server::{ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
+use crate::settings::{Secrets, ServerLimits};
+use crate::web::{
+    auth::HawkPayload,
+    error::{HawkErrorKind, ValidationErrorKind},
+    X_WEAVE_RECORDS,
+};
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -36,8 +44,9 @@ const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
-    static ref VALID_ID_REGEX: Regex = Regex::new(r"^[ -~]{1,64}$").unwrap();
-    static ref VALID_COLLECTION_ID_REGEX: Regex = Regex::new(r"^[a-zA-Z0-9._-]{1,32}$").unwrap();
+    static ref VALID_ID_REGEX: Regex = Regex::new(&format!("^{}$", BSO_ID_REGEX)).unwrap();
+    static ref VALID_COLLECTION_ID_REGEX: Regex =
+        Regex::new(&format!("^{}$", COLLECTION_ID_REGEX)).unwrap();
     static ref TRUE_REGEX: Regex = Regex::new("^(?i)true$").unwrap();
 }
 
@@ -84,9 +93,10 @@ pub struct BsoBodies {
     pub invalid: HashMap<String, String>,
 }
 
-impl FromRequest<ServerState> for BsoBodies {
+impl FromRequest for BsoBodies {
     type Config = ();
-    type Result = Box<Future<Item = BsoBodies, Error = Error>>;
+    type Error = Error;
+    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
 
     /// Extract the BSO Bodies from the request
     ///
@@ -97,7 +107,7 @@ impl FromRequest<ServerState> for BsoBodies {
     ///   - Valid BSO's include a BSO id
     ///
     /// No collection id is used, so payload checks are not done here.
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
         let headers = req.headers();
         let default = HeaderValue::from_static("");
@@ -117,24 +127,16 @@ impl FromRequest<ServerState> for BsoBodies {
             }
         }
 
-        // Get the max request size we'll parse
-        let max_request_bytes = req.state().limits.max_request_bytes;
-
         // Load the entire request into a String
-        let mut config = PayloadConfig::default();
-        config.limit(max_request_bytes as usize);
-        let fut = if let Ok(result) = <String>::from_request(req, &config) {
-            result
-        } else {
-            return Box::new(future::err(
-                ValidationErrorKind::FromDetails(
-                    "Mimetype/encoding/content-length error".to_owned(),
-                    RequestErrorLocation::Header,
-                    None,
-                )
-                .into(),
-            ));
-        };
+        let fut = <String>::from_request(req, payload).map_err(|e| {
+            dbg!("⚠️ Payload read error", e);
+            ValidationErrorKind::FromDetails(
+                "Mimetype/encoding/content-length error".to_owned(),
+                RequestErrorLocation::Header,
+                None,
+            )
+            .into()
+        });
 
         // Avoid duplicating by defining our error func now, doesn't need the box wrapper
         fn make_error() -> Error {
@@ -151,8 +153,9 @@ impl FromRequest<ServerState> for BsoBodies {
         let newlines: bool = content_type == b"application/newlines";
 
         // Grab the max sizes
-        let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
-        let max_post_bytes = req.state().limits.max_post_bytes as usize;
+        let state = req.app_data::<ServerState>().unwrap();
+        let max_payload_size = state.limits.max_record_payload_bytes as usize;
+        let max_post_bytes = state.limits.max_post_bytes as usize;
 
         let fut = fut.and_then(move |body| {
             // Get all the raw JSON values
@@ -248,7 +251,7 @@ impl FromRequest<ServerState> for BsoBodies {
     }
 }
 
-#[derive(Default, Deserialize, Serialize, Validate)]
+#[derive(Default, Debug, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct BsoBody {
     #[validate(custom = "validate_body_bso_id")]
@@ -263,12 +266,14 @@ pub struct BsoBody {
     pub _ignored_modified: Option<IgnoredAny>,
 }
 
-impl FromRequest<ServerState> for BsoBody {
+impl FromRequest for BsoBody {
     type Config = ();
-    type Result = Box<Future<Item = BsoBody, Error = Error>>;
+    type Error = Error;
+    type Future = Box<dyn Future<Item = BsoBody, Error = Self::Error>>;
 
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
+
         let headers = req.headers();
         let default = HeaderValue::from_static("");
         match headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes() {
@@ -284,14 +289,11 @@ impl FromRequest<ServerState> for BsoBody {
                 ));
             }
         }
-        let mut config = JsonConfig::default();
-        let max_request_size = req.state().limits.max_request_bytes as usize;
-        config
-            .limit(max_request_size)
-            .content_type(|ct| ct == mime::TEXT_PLAIN);
+        let state = req.app_data::<ServerState>().unwrap();
 
-        let max_payload_size = req.state().limits.max_record_payload_bytes as usize;
-        let fut = <Json<BsoBody>>::from_request(req, &config)
+        let max_payload_size = state.limits.max_record_payload_bytes as usize;
+
+        let fut = <Json<BsoBody>>::from_request(&req, payload)
             .map_err(|e| {
                 let err: ApiError = ValidationErrorKind::FromDetails(
                     e.to_string(),
@@ -332,68 +334,135 @@ impl FromRequest<ServerState> for BsoBody {
 }
 
 /// Bso id parameter extractor
-#[derive(Clone, Deserialize, Validate)]
+#[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BsoParam {
     #[validate(regex = "VALID_ID_REGEX")]
     pub bso: String,
 }
 
-impl FromRequest<ServerState> for BsoParam {
-    type Config = ();
-    type Result = ApiResult<BsoParam>;
-
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        if let Some(bso) = req.extensions().get::<BsoParam>() {
-            return Ok(bso.clone());
+impl BsoParam {
+    pub fn bsoparam_from_path(uri: &Uri) -> Result<Self, Error> {
+        // TODO: replace with proper path parser
+        // path: "/1.5/{uid}/storage/{collection}/{bso}"
+        let elements: Vec<&str> = uri.path().split('/').collect();
+        let elem = elements.get(3);
+        if elem.is_none() || elem != Some(&"storage") || elements.len() != 6 {
+            return Err(ValidationErrorKind::FromDetails(
+                "Invalid BSO".to_owned(),
+                RequestErrorLocation::Path,
+                Some("bso".to_owned()),
+            ))?;
         }
-
-        let bso = Path::<BsoParam>::extract(req)
-            .map_err(|e| {
+        if let Some(v) = elements.get(5) {
+            let sv = String::from_str(v).map_err(|e| {
+                dbg!("⚠️ BsoParam Error", v, e);
                 ValidationErrorKind::FromDetails(
-                    e.to_string(),
+                    "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                 )
-            })?
-            .into_inner();
+            })?;
+            Ok(Self { bso: sv })
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing BSO".to_owned(),
+                RequestErrorLocation::Path,
+                Some("bso".to_owned()),
+            ))?
+        }
+    }
+
+    pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Self, Error> {
+        if let Some(bso) = extensions.get::<BsoParam>() {
+            return Ok(bso.clone());
+        }
+        let bso = Self::bsoparam_from_path(uri)?;
         bso.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
         })?;
-        req.extensions_mut().insert(bso.clone());
+        extensions.insert(bso.clone());
         Ok(bso)
     }
 }
 
-/// Collection parameter extractor
+impl FromRequest for BsoParam {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Self::extrude(&req.uri(), &mut req.extensions_mut())
+    }
+}
+
+/// Collection parameter Extractor
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
     #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
     pub collection: String,
 }
 
-impl FromRequest<ServerState> for CollectionParam {
-    type Config = ();
-    type Result = ApiResult<CollectionParam>;
-
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        if let Some(collection) = req.extensions().get::<CollectionParam>() {
-            return Ok(collection.clone());
+impl CollectionParam {
+    fn col_from_path(uri: &Uri) -> Result<Option<CollectionParam>, Error> {
+        // TODO: replace with proper path parser.
+        // path: "/1.5/{uid}/storage/{collection}"
+        let elements: Vec<&str> = uri.path().split('/').collect();
+        let elem = elements.get(3);
+        if elem.is_none() || elem != Some(&"storage") || !(5..=6).contains(&elements.len()) {
+            return Ok(None);
         }
-
-        let collection = Path::<CollectionParam>::extract(req)
-            .map_err(|e| {
+        if let Some(v) = elements.get(4) {
+            let sv = String::from_str(v).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
-                    e.to_string(),
+                    "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                 )
-            })?
-            .into_inner();
-        collection.validate().map_err(|e| {
-            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
-        })?;
-        req.extensions_mut().insert(collection.clone());
-        Ok(collection)
+            })?;
+            Ok(Some(Self { collection: sv }))
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+            ))?
+        }
+    }
+
+    pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Option<Self>, Error> {
+        if let Some(collection) = extensions.get::<Option<Self>>() {
+            return Ok(collection.clone());
+        }
+
+        let collection = Self::col_from_path(&uri)?;
+        let result = if let Some(collection) = collection {
+            collection.validate().map_err(|e| {
+                ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path)
+            })?;
+            Some(collection)
+        } else {
+            None
+        };
+        extensions.insert(result.clone());
+        Ok(result)
+    }
+}
+
+impl FromRequest for CollectionParam {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut())? {
+            Ok(collection)
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+            ))?
+        }
     }
 }
 
@@ -406,13 +475,15 @@ pub struct MetaRequest {
     pub db: Box<dyn Db>,
 }
 
-impl FromRequest<ServerState> for MetaRequest {
+impl FromRequest for MetaRequest {
     type Config = ();
-    type Result = Result<MetaRequest, Error>;
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
 
-    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
-        let user_id = HawkIdentifier::from_request(req, settings)?;
-        let db = <Box<dyn Db>>::from_request(req, settings)?;
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        // Call the precondition stuff to init database handles and what-not
+        let user_id = HawkIdentifier::from_request(req, payload)?;
+        let db = extrude_db(&req.extensions())?;
         Ok({ MetaRequest { user_id, db } })
     }
 }
@@ -435,15 +506,16 @@ pub struct CollectionRequest {
     pub reply: ReplyFormat,
 }
 
-impl FromRequest<ServerState> for CollectionRequest {
+impl FromRequest for CollectionRequest {
     type Config = ();
-    type Result = Result<CollectionRequest, Error>;
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
 
-    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
-        let user_id = HawkIdentifier::from_request(req, settings)?;
-        let db = <Box<dyn Db>>::from_request(req, settings)?;
-        let query = BsoQueryParams::from_request(req, settings)?;
-        let collection = CollectionParam::from_request(req, settings)?.collection;
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let user_id = HawkIdentifier::from_request(req, payload)?;
+        let db = <Box<dyn Db>>::from_request(req, payload)?;
+        let query = BsoQueryParams::from_request(req, payload)?;
+        let collection = CollectionParam::from_request(req, payload)?.collection;
         let reply = match req.headers().get(ACCEPT) {
             Some(v) if v.as_bytes() == b"application/newlines" => ReplyFormat::Newlines,
             Some(v) if v.as_bytes() == b"application/json" => ReplyFormat::Json,
@@ -480,9 +552,10 @@ pub struct CollectionPostRequest {
     pub batch: Option<BatchRequest>,
 }
 
-impl FromRequest<ServerState> for CollectionPostRequest {
+impl FromRequest for CollectionPostRequest {
     type Config = ();
-    type Result = Box<Future<Item = CollectionPostRequest, Error = Error>>;
+    type Error = Error;
+    type Future = Box<dyn Future<Item = CollectionPostRequest, Error = Self::Error>>;
 
     /// Extractor for Collection Posts (Batch BSO upload)
     ///
@@ -490,16 +563,17 @@ impl FromRequest<ServerState> for CollectionPostRequest {
     /// done previously:
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let max_post_records = i64::from(req.state().limits.max_post_records);
+        let state = req.app_data::<ServerState>().unwrap();
+        let max_post_records = i64::from(state.limits.max_post_records);
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
             CollectionParam,
             BsoQueryParams,
             BsoBodies,
-        )>::extract(&req)
+        )>::from_request(&req, payload)
         .and_then(move |(user_id, db, collection, query, mut bsos)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
@@ -530,9 +604,10 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                 }
             }
 
-            let batch = match <Option<BatchRequest>>::extract(&req) {
+            // XXX: let's not use extract here (maybe convert to extrude?)
+            let batch = match BatchRequestOpt::extract(&req) {
                 Ok(batch) => batch,
-                Err(e) => return future::err(e.into()),
+                Err(e) => return future::err(e),
             };
 
             future::ok(CollectionPostRequest {
@@ -541,7 +616,7 @@ impl FromRequest<ServerState> for CollectionPostRequest {
                 user_id,
                 query,
                 bsos,
-                batch,
+                batch: batch.opt,
             })
         });
 
@@ -561,18 +636,19 @@ pub struct BsoRequest {
     pub bso: String,
 }
 
-impl FromRequest<ServerState> for BsoRequest {
+impl FromRequest for BsoRequest {
     type Config = ();
-    type Result = Result<BsoRequest, Error>;
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
 
-    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
-        let user_id = HawkIdentifier::from_request(req, settings)?;
-        let db = <Box<dyn Db>>::from_request(req, settings)?;
-        let query = BsoQueryParams::from_request(req, settings)?;
-        let collection = CollectionParam::from_request(req, settings)?
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let user_id = HawkIdentifier::from_request(req, payload)?;
+        let db = <Box<dyn Db>>::from_request(req, payload)?;
+        let query = BsoQueryParams::from_request(req, payload)?;
+        let collection = CollectionParam::from_request(req, payload)?
             .collection
             .clone();
-        let bso = BsoParam::from_request(req, settings)?;
+        let bso = BsoParam::from_request(req, payload)?;
 
         Ok(BsoRequest {
             collection,
@@ -596,11 +672,12 @@ pub struct BsoPutRequest {
     pub body: BsoBody,
 }
 
-impl FromRequest<ServerState> for BsoPutRequest {
+impl FromRequest for BsoPutRequest {
     type Config = ();
-    type Result = Box<Future<Item = BsoPutRequest, Error = Error>>;
+    type Error = Error;
+    type Future = Box<dyn Future<Item = BsoPutRequest, Error = Self::Error>>;
 
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
@@ -608,7 +685,7 @@ impl FromRequest<ServerState> for BsoPutRequest {
             BsoQueryParams,
             BsoParam,
             BsoBody,
-        )>::extract(req)
+        )>::from_request(req, payload)
         .and_then(|(user_id, db, collection, query, bso, body)| {
             let collection = collection.collection.clone();
             if collection == "crypto" {
@@ -626,7 +703,6 @@ impl FromRequest<ServerState> for BsoPutRequest {
                     }
                 }
             }
-
             future::ok(BsoPutRequest {
                 collection,
                 db,
@@ -636,8 +712,32 @@ impl FromRequest<ServerState> for BsoPutRequest {
                 body,
             })
         });
-
         Box::new(fut)
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct ConfigRequest {
+    pub limits: ServerLimits,
+}
+
+impl FromRequest for ConfigRequest {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let data = &req.app_data::<ServerState>().unwrap().limits;
+        Ok(Self {
+            limits: ServerLimits {
+                max_post_bytes: data.max_post_bytes,
+                max_post_records: data.max_post_records,
+                max_record_payload_bytes: data.max_record_payload_bytes,
+                max_request_bytes: data.max_request_bytes,
+                max_total_bytes: data.max_total_bytes,
+                max_total_records: data.max_total_records,
+            },
+        })
     }
 }
 
@@ -653,25 +753,69 @@ pub struct HawkIdentifier {
     pub fxa_id: String,
 }
 
-impl FromRequest<ServerState> for HawkIdentifier {
-    type Config = ();
-    type Result = ApiResult<HawkIdentifier>;
+impl HawkIdentifier {
+    /// Create a new legacy id user identifier
+    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
+        HawkIdentifier {
+            legacy_id: user_id,
+            ..Default::default()
+        }
+    }
 
-    /// Use HawkPayload extraction and format as HawkIdentifier.
-    fn from_request(req: &HttpRequest<ServerState>, settings: &Self::Config) -> Self::Result {
+    fn uid_from_path(uri: &Uri) -> Result<u64, Error> {
+        // TODO: replace with proper path parser.
+        // path: "/1.5/{uid}"
+        let elements: Vec<&str> = uri.path().split('/').collect();
+        if let Some(v) = elements.get(2) {
+            u64::from_str(v).map_err(|e| {
+                dbg!("⚠️ HawkIdentifier Error", v, e);
+                ValidationErrorKind::FromDetails(
+                    "Invalid UID".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("uid".to_owned()),
+                )
+                .into()
+            })
+        } else {
+            Err(ValidationErrorKind::FromDetails(
+                "Missing UID".to_owned(),
+                RequestErrorLocation::Path,
+                Some("uid".to_owned()),
+            ))?
+        }
+    }
+
+    fn extrude(req: &HttpRequest) -> Result<Self, Error> {
         if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
             return Ok(user_id.clone());
         }
 
-        let payload = HawkPayload::from_request(req, settings)?;
-        let path_uid = Path::<UidParam>::extract(req).map_err(|e| {
-            ValidationErrorKind::FromDetails(
-                e.to_string(),
-                RequestErrorLocation::Path,
-                Some("uid".to_owned()),
-            )
-        })?;
-        if payload.user_id != path_uid.uid {
+        let state = req.get_app_data::<ServerState>().unwrap();
+        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+        let connection_info = req.connection_info().clone();
+        let method = req.method().as_str();
+        let uri = req.uri();
+        let auth_header = req
+            .headers()
+            .get("authorization")
+            .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
+            .to_str()
+            .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
+        let identifier =
+            Self::generate(&state.secrets, method, auth_header, &connection_info, uri)?;
+        req.extensions_mut().insert(identifier.clone());
+        Ok(identifier)
+    }
+
+    pub fn generate(
+        secrets: &Secrets,
+        method: &str,
+        header: &str,
+        connection_info: &ConnectionInfo,
+        uri: &Uri,
+    ) -> Result<Self, Error> {
+        let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
+        if payload.user_id != Self::uid_from_path(&uri)? {
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
@@ -683,18 +827,18 @@ impl FromRequest<ServerState> for HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_id: "".to_string(),
         };
-        req.extensions_mut().insert(user_id.clone());
         Ok(user_id)
     }
 }
 
-impl HawkIdentifier {
-    /// Create a new legacy id user identifier
-    pub fn new_legacy(user_id: u64) -> HawkIdentifier {
-        HawkIdentifier {
-            legacy_id: user_id,
-            ..Default::default()
-        }
+impl FromRequest for HawkIdentifier {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    /// Use HawkPayload extraction and format as HawkIdentifier.
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Self::extrude(req)
     }
 }
 
@@ -707,18 +851,20 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-impl FromRequest<ServerState> for Box<dyn Db> {
-    type Config = ();
-    type Result = Result<Self, Error>;
+pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
+    exts.get::<Box<dyn Db>>().cloned().ok_or_else(|| {
+        dbg!("⚠️ DB Error: No db");
+        ErrorInternalServerError("Unexpected Db error: No DB".to_owned())
+    })
+}
 
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        req.extensions()
-            .get::<(Box<dyn Db>, bool)>()
-            .ok_or_else(|| {
-                dbg!("No database handle associated with request, Did the lock attempt fail?");
-                ErrorInternalServerError("Unexpected DB error")
-            })
-            .map(|(db, _)| db.clone())
+impl FromRequest for Box<dyn Db> {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        extrude_db(&req.extensions())
     }
 }
 
@@ -757,23 +903,22 @@ pub struct BsoQueryParams {
     pub full: bool,
 }
 
-impl FromRequest<ServerState> for BsoQueryParams {
+impl FromRequest for BsoQueryParams {
     type Config = ();
-    type Result = ApiResult<BsoQueryParams>;
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
 
     /// Extract and validate the query parameters
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        // TODO: serde deserialize the query ourselves to catch the serde error nicely
-        let params =
-            Query::<BsoQueryParams>::from_request(req, &actix_web::dev::QueryConfig::default())
-                .map_err(|e| {
-                    ValidationErrorKind::FromDetails(
-                        e.to_string(),
-                        RequestErrorLocation::QueryString,
-                        None,
-                    )
-                })?
-                .into_inner();
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let params = Query::<BsoQueryParams>::from_request(req, payload)
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?
+            .into_inner();
         params.validate().map_err(|e| {
             ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::QueryString)
         })?;
@@ -795,25 +940,30 @@ pub struct BatchRequest {
     pub commit: bool,
 }
 
-impl FromRequest<ServerState> for Option<BatchRequest> {
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct BatchRequestOpt {
+    pub opt: Option<BatchRequest>,
+}
+
+impl FromRequest for BatchRequestOpt {
     type Config = ();
-    type Result = ApiResult<Option<BatchRequest>>;
+    type Error = Error;
+    type Future = Result<BatchRequestOpt, Self::Error>;
 
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        let params =
-            Query::<BatchParams>::from_request(req, &actix_web::dev::QueryConfig::default())
-                .map_err(|e| {
-                    ValidationErrorKind::FromDetails(
-                        e.to_string(),
-                        RequestErrorLocation::QueryString,
-                        None,
-                    )
-                })?
-                .into_inner();
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let params = Query::<BatchParams>::from_request(req, payload)
+            .map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    e.to_string(),
+                    RequestErrorLocation::QueryString,
+                    None,
+                )
+            })?
+            .into_inner();
 
-        let limits = &req.state().limits;
+        let limits = &req.app_data::<ServerState>().unwrap().limits;
         let checks = [
-            ("X-Weave-Records", limits.max_post_records),
+            (X_WEAVE_RECORDS, limits.max_post_records),
             ("X-Weave-Bytes", limits.max_post_bytes),
             ("X-Weave-Total-Records", limits.max_total_records),
             ("X-Weave-Total-Bytes", limits.max_total_bytes),
@@ -852,11 +1002,15 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
 
         if params.batch.is_none() && params.commit.is_none() {
             // No batch options requested
-            return Ok(None);
+            return Ok(Self { opt: None });
         } else if params.batch.is_none() {
             // commit w/ no batch ID is an error
-            let err: DbError = DbErrorKind::BatchNotFound.into();
-            return Err(err.into());
+            return Err(ValidationErrorKind::FromDetails(
+                "Commit with no batch specified".to_string(),
+                RequestErrorLocation::Path,
+                None,
+            )
+            .into());
         }
 
         params.validate().map_err(|e| {
@@ -879,10 +1033,12 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
             }
         };
 
-        Ok(Some(BatchRequest {
-            id,
-            commit: params.commit.is_some(),
-        }))
+        Ok(Self {
+            opt: Some(BatchRequest {
+                id,
+                commit: params.commit.is_some(),
+            }),
+        })
     }
 }
 
@@ -896,35 +1052,49 @@ impl FromRequest<ServerState> for Option<BatchRequest> {
 pub enum PreConditionHeader {
     IfModifiedSince(SyncTimestamp),
     IfUnmodifiedSince(SyncTimestamp),
+    NoHeader,
 }
 
-impl FromRequest<ServerState> for Option<PreConditionHeader> {
-    type Config = ();
-    type Result = ApiResult<Option<PreConditionHeader>>;
+#[derive(Debug, Clone, PartialEq)]
+pub struct PreConditionHeaderOpt {
+    pub opt: Option<PreConditionHeader>,
+}
 
-    /// Extract and validate the precondition headers
-    fn from_request(req: &HttpRequest<ServerState>, _: &Self::Config) -> Self::Result {
-        if let Some(precondition) = req.extensions().get::<Option<PreConditionHeader>>() {
-            return Ok(precondition.clone());
-        }
-
-        let headers = req.headers();
+impl PreConditionHeaderOpt {
+    pub fn extrude(headers: &HeaderMap) -> Result<Self, Error> {
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
-            Err(ValidationErrorKind::FromDetails(
+            // TODO: See following error,
+            return Err(ValidationErrorKind::FromDetails(
                 "conflicts with X-If-Modified-Since".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
-            ))?;
+            )
+            .into());
         };
         let (value, field_name) = if let Some(modified_value) = modified {
             (modified_value, "X-If-Modified-Since")
         } else if let Some(unmodified_value) = unmodified {
             (unmodified_value, "X-If-Unmodified-Since")
         } else {
-            return Ok(None);
+            return Ok(Self { opt: None });
         };
+        if value
+            .to_str()
+            .unwrap_or("0.0")
+            .parse::<f64>()
+            .unwrap_or(0.0)
+            < 0.0
+        {
+            // TODO: This is the right error, but it's not being returned correctly.
+            return Err(ValidationErrorKind::FromDetails(
+                "value is negative".to_owned(),
+                RequestErrorLocation::Header,
+                Some("X-If-Modified-Since".to_owned()),
+            )
+            .into());
+        }
         value
             .to_str()
             .map_err(|e| {
@@ -951,9 +1121,19 @@ impl FromRequest<ServerState> for Option<PreConditionHeader> {
                 } else {
                     PreConditionHeader::IfUnmodifiedSince(v)
                 };
-                req.extensions_mut().insert(header.clone());
-                Some(header)
+                Self { opt: Some(header) }
             })
+    }
+}
+
+impl FromRequest for PreConditionHeaderOpt {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    /// Extract and validate the precondition headers
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        Self::extrude(req.headers()).map_err(Into::into)
     }
 }
 
@@ -1082,15 +1262,15 @@ where
 mod tests {
     use super::*;
 
-    use std::str::from_utf8;
     use std::sync::Arc;
 
-    use actix_web::test::TestRequest;
-    use actix_web::{http::Method, Binary, Body};
-    use actix_web::{Error, HttpResponse};
+    use actix_web::dev::ServiceResponse;
+    use actix_web::test::{self, TestRequest};
+    use actix_web::{http::Method, Error, HttpResponse};
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
+    use rand::{thread_rng, Rng};
     use serde_json::{self, json};
     use sha2::Sha256;
 
@@ -1103,15 +1283,19 @@ mod tests {
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot"));
+        static ref USER_ID: u64 = thread_rng().gen_range(0, 10000);
+        static ref USER_ID_STR: String = USER_ID.to_string();
     }
 
+    const TEST_HOST: &str = "localhost";
+    const TEST_PORT: u16 = 8080;
     // String is too long for valid name
     const INVALID_COLLECTION_NAME: &str = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> (Box<dyn Db>, bool) {
-        (Box::new(MockDb::new()), false)
+    fn make_db() -> Box<dyn Db> {
+        Box::new(MockDb::new())
     }
 
     fn make_state() -> ServerState {
@@ -1123,16 +1307,8 @@ mod tests {
         }
     }
 
-    fn extract_body_as_str(response: &HttpResponse) -> String {
-        match response.body() {
-            Body::Binary(binary) => match binary {
-                Binary::Bytes(b) => from_utf8(b).unwrap().to_string(),
-                Binary::Slice(s) => from_utf8(s).unwrap().to_string(),
-                Binary::SharedString(s) => s.clone().to_string(),
-                Binary::SharedVec(v) => from_utf8(v).unwrap().to_string(),
-            },
-            _ => panic!("Invalid body"),
-        }
+    fn extract_body_as_str(sresponse: ServiceResponse) -> String {
+        String::from_utf8(test::read_body(sresponse).to_vec()).unwrap()
     }
 
     fn create_valid_hawk_header(
@@ -1168,37 +1344,48 @@ mod tests {
     }
 
     fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let path = format!(
-            "/storage/1.5/1/storage/tabs{}{}",
+            "/1.5/{}/storage/tabs{}{}",
+            *USER_ID,
             if !qs.is_empty() { "?" } else { "" },
             qs
         );
-        let header = create_valid_hawk_header(&payload, &state, "POST", &path, "localhost", 5000);
-        let req = TestRequest::with_state(state)
+        let bod_str = body.to_string();
+        let header =
+            create_valid_hawk_header(&payload, &state, "POST", &path, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&format!("http://{}:{}{}", TEST_HOST, TEST_PORT, path))
+            .data(state)
+            .method(Method::POST)
             .header("authorization", header)
             .header("content-type", "application/json")
-            .method(Method::POST)
-            .uri(&format!("http://localhost:5000{}", path))
-            .set_payload(body.to_string())
-            .param("uid", "1")
+            //.set_json(body)
+            .set_payload(bod_str.as_bytes())
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
-        CollectionPostRequest::extract(&req).wait()
+
+        // Not sure why but sending req through *::extract loses the body.
+        // Compose a payload here and call the *::from_request
+        let mut payload = actix_http::h1::Payload::empty();
+        payload.unread_data(bytes::Bytes::from(bod_str.as_bytes()));
+
+        CollectionPostRequest::from_request(&req, &mut payload.into()).wait()
     }
 
     #[test]
     fn test_invalid_query_args() {
-        let req = TestRequest::with_state(make_state())
-            .uri("/?lower=-1.23&sort=whatever")
-            .finish();
+        let state = make_state();
+        let req = TestRequest::with_uri("/?lower=-1.23&sort=whatever")
+            .data(state)
+            .to_http_request();
         let result = BsoQueryParams::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors
@@ -1218,9 +1405,9 @@ mod tests {
 
     #[test]
     fn test_valid_query_args() {
-        let req = TestRequest::with_state(make_state())
-            .uri("/?ids=1,2,&full=&sort=index&older=2.43")
-            .finish();
+        let req = TestRequest::with_uri("/?ids=1,2&full=&sort=index&older=2.43")
+            .data(make_state())
+            .to_http_request();
         let result = BsoQueryParams::extract(&req).unwrap();
         assert_eq!(result.ids, vec!["1", "2"]);
         assert_eq!(result.sort, Sorting::Index);
@@ -1230,57 +1417,46 @@ mod tests {
 
     #[test]
     fn test_valid_bso_request() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/1/storage/tabs/asdf",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
-            .param("uid", "1")
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
     }
 
     #[test]
     fn test_invalid_bso_request() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, INVALID_BSO_NAME);
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .param("uid", "1")
+            // `param` sets the value that would be extracted from the tokenized URI, as if the router did it.
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", INVALID_BSO_NAME)
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = BsoRequest::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors
@@ -1296,32 +1472,31 @@ mod tests {
 
     #[test]
     fn test_valid_bso_post_body() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs/asdf",
-            "localhost",
-            5000,
-        );
+        let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
+        let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
             "id": "128", "payload": "x"
         });
-        let req = TestRequest::with_state(state)
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .header("content-type", "application/json")
             .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
             .set_payload(bso_body.to_string())
-            .param("uid", "1")
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = BsoPutRequest::extract(&req).wait().unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        let mut payload = actix_http::h1::Payload::empty();
+        payload.unread_data(bytes::Bytes::from(bso_body.to_string().as_bytes()));
+
+        let result = BsoPutRequest::from_request(&req, &mut payload.into())
+            .wait()
+            .unwrap();
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
         assert_eq!(result.body.payload, Some("x".to_string()));
@@ -1329,34 +1504,28 @@ mod tests {
 
     #[test]
     fn test_invalid_bso_post_body() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "POST",
-            "/storage/1.5/1/storage/tabs/asdf",
-            "localhost",
-            5000,
-        );
+        let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
+        let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
             "payload": "xxx", "sortindex": -9_999_999_999 as i64,
         });
-        let req = TestRequest::with_state(state)
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .header("content-type", "application/json")
             .method(Method::POST)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs/asdf")
             .set_payload(bso_body.to_string())
-            .param("uid", "1")
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .param("bso", "asdf")
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = BsoPutRequest::extract(&req).wait();
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "8")
 
         /* New tests for when we can use descriptive errors
@@ -1370,54 +1539,44 @@ mod tests {
 
     #[test]
     fn test_valid_collection_request() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/tabs", *USER_ID);
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .param("uid", "1")
+            .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = CollectionRequest::extract(&req).unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
     }
 
     #[test]
     fn test_invalid_collection_request() {
-        let payload = HawkPayload::test_default();
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/1/storage/tabs",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/{}", *USER_ID, INVALID_COLLECTION_NAME);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/1/storage/tabs")
-            .param("uid", "1")
+            .data(state)
+            .param("uid", &USER_ID_STR)
             .param("collection", INVALID_COLLECTION_NAME)
-            .finish();
+            .to_http_request();
         req.extensions_mut().insert(make_db());
+
         let result = CollectionRequest::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors
@@ -1440,7 +1599,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         assert!(result.batch.is_none());
@@ -1454,7 +1613,7 @@ mod tests {
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
         let result = post_collection("", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
     }
@@ -1468,7 +1627,7 @@ mod tests {
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
         let result = post_collection("batch=True", &bso_body).unwrap();
-        assert_eq!(result.user_id.legacy_id, 1);
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         let batch = result.batch.unwrap();
@@ -1488,6 +1647,10 @@ mod tests {
 
     #[test]
     fn test_invalid_collection_batch_post_request() {
+        let req = TestRequest::with_uri("/")
+            .method(Method::POST)
+            .data(make_state())
+            .to_http_request();
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
@@ -1496,29 +1659,29 @@ mod tests {
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
 
+        let req = TestRequest::with_uri("/")
+            .method(Method::POST)
+            .data(make_state())
+            .to_http_request();
         let result = post_collection("commit=true", &bso_body);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
     }
 
     #[test]
     fn test_invalid_precondition_headers() {
-        fn assert_invalid_header(
-            req: &HttpRequest<ServerState>,
-            _error_header: &str,
-            _error_message: &str,
-        ) {
-            let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req);
+        fn assert_invalid_header(req: HttpRequest, _error_header: &str, _error_message: &str) {
+            let result = PreConditionHeaderOpt::extrude(&req.headers());
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
             assert_eq!(response.status(), 400);
-            let body = extract_body_as_str(&response);
+            let body = extract_body_as_str(ServiceResponse::new(req, response));
 
             assert_eq!(body, "0");
 
@@ -1531,42 +1694,44 @@ mod tests {
             assert_eq!(err["errors"][0]["name"], error_header);
             */
         }
-        let req = TestRequest::with_state(make_state())
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
             .header("X-If-Modified-Since", "32124.32")
             .header("X-If-Unmodified-Since", "4212.12")
-            .uri("/")
-            .finish();
+            .to_http_request();
         assert_invalid_header(
-            &req,
+            req,
             "X-If-Unmodified-Since",
             "conflicts with X-If-Modified-Since",
         );
-        let req = TestRequest::with_state(make_state())
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
             .header("X-If-Modified-Since", "-32.1")
-            .uri("/")
-            .finish();
-        assert_invalid_header(&req, "X-If-Modified-Since", "Invalid value");
+            .to_http_request();
+        assert_invalid_header(req, "X-If-Modified-Since", "Invalid value");
     }
 
     #[test]
     fn test_valid_precondition_headers() {
-        let req = TestRequest::with_state(make_state())
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
             .header("X-If-Modified-Since", "32.1")
-            .uri("/")
-            .finish();
-        let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
+            .to_http_request();
+        let result = PreConditionHeaderOpt::extrude(&req.headers())
             .unwrap()
+            .opt
             .unwrap();
         assert_eq!(
             result,
             PreConditionHeader::IfModifiedSince(SyncTimestamp::from_seconds(32.1))
         );
-        let req = TestRequest::with_state(make_state())
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
             .header("X-If-Unmodified-Since", "32.14")
-            .uri("/")
-            .finish();
-        let result = <Option<PreConditionHeader> as FromRequest<ServerState>>::extract(&req)
+            .to_http_request();
+        let result = PreConditionHeaderOpt::extrude(&req.headers())
             .unwrap()
+            .opt
             .unwrap();
         assert_eq!(
             result,
@@ -1576,49 +1741,44 @@ mod tests {
 
     #[test]
     fn valid_header_with_valid_path() {
-        let payload = HawkPayload::test_default();
+        let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/1/storage/col2",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/col2", *USER_ID);
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/1/storage/col2")
-            .param("uid", "1")
-            .finish();
-        let result = HawkIdentifier::extract(&req).unwrap();
-        assert_eq!(result.legacy_id, 1);
+            .data(state)
+            .param("uid", &USER_ID_STR)
+            .to_http_request();
+        HawkIdentifier::extrude(&req)
+            .and_then(|result| {
+                assert_eq!(result.legacy_id, *USER_ID);
+                Ok(())
+            })
+            .unwrap();
     }
 
     #[test]
     fn valid_header_with_invalid_uid_in_path() {
-        let payload = HawkPayload::test_default();
+        // the uid in the hawk payload should match the UID in the path.
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
+        let mismatch_uid = "5";
         let state = make_state();
-        let header = create_valid_hawk_header(
-            &payload,
-            &state,
-            "GET",
-            "/storage/1.5/5/storage/col2",
-            "localhost",
-            5000,
-        );
-        let req = TestRequest::with_state(state)
+        let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
             .header("authorization", header)
             .method(Method::GET)
-            .uri("http://localhost:5000/storage/1.5/5/storage/col2")
-            .param("uid", "5")
-            .finish();
+            .param("uid", mismatch_uid)
+            .to_http_request();
         let result = HawkIdentifier::extract(&req);
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(&response);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "0");
 
         /* New tests for when we can use descriptive errors

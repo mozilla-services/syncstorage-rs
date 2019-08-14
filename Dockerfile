@@ -1,4 +1,4 @@
-FROM rust:1.35.0-stretch as builder
+FROM rust:1.36.0-stretch as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin

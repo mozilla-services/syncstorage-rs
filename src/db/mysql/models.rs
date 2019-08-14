@@ -5,12 +5,11 @@ use diesel::{
     delete,
     dsl::max,
     expression::sql_literal::sql,
-    insert_into,
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
     sql_query,
     sql_types::{BigInt, Integer, Nullable, Text},
-    update, Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
+    Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 #[cfg(any(test, feature = "db_test"))]
 use diesel_logger::LoggingConnection;
@@ -87,7 +86,7 @@ pub struct MysqlDbInner {
 }
 
 impl fmt::Debug for MysqlDbInner {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "MysqlDbInner {{ session: {:?} }}", self.session)
     }
 }
@@ -327,43 +326,65 @@ impl MysqlDb {
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
 
-        // XXX: consider mysql ON DUPLICATE KEY UPDATE?
         self.conn.transaction(|| {
+            let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
+            let sortindex = bso.sortindex;
+            let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
             let q = r#"
-                SELECT 1 as count FROM bso
-                WHERE user_id = ? AND collection_id = ? AND id = ?
+                INSERT INTO bso (user_id, collection_id, id, sortindex, payload, modified, expiry)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    user_id = VALUES(user_id),
+                    collection_id = VALUES(collection_id),
+                    id = VALUES(id)
             "#;
-            let exists = sql_query(q)
+            let q = format!(
+                "{}{}",
+                q,
+                if bso.sortindex.is_some() {
+                    ", sortindex = VALUES(sortindex)"
+                } else {
+                    ""
+                },
+            );
+            let q = format!(
+                "{}{}",
+                q,
+                if bso.payload.is_some() {
+                    ", payload = VALUES(payload)"
+                } else {
+                    ""
+                },
+            );
+            let q = format!(
+                "{}{}",
+                q,
+                if bso.ttl.is_some() {
+                    ", expiry = VALUES(expiry)"
+                } else {
+                    ""
+                },
+            );
+            let q = format!(
+                "{}{}",
+                q,
+                if bso.payload.is_some() || bso.sortindex.is_some() {
+                    ", modified = VALUES(modified)"
+                } else {
+                    ""
+                },
+            );
+
+            sql_query(q)
                 .bind::<Integer, _>(user_id as i32) // XXX:
                 .bind::<Integer, _>(&collection_id)
                 .bind::<Text, _>(&bso.id)
-                .get_result::<Count>(&self.conn)
-                .optional()?
-                .is_some();
+                .bind::<Nullable<Integer>, _>(sortindex)
+                .bind::<Text, _>(payload)
+                .bind::<BigInt, _>(timestamp)
+                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000))
+                .execute(&self.conn)?;
 
-            if exists {
-                update(bso::table)
-                    .filter(bso::user_id.eq(user_id as i32)) // XXX:
-                    .filter(bso::collection_id.eq(&collection_id))
-                    .filter(bso::id.eq(&bso.id))
-                    .set(put_bso_as_changeset(&bso, timestamp))
-                    .execute(&self.conn)?;
-            } else {
-                let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
-                let sortindex = bso.sortindex;
-                let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
-                insert_into(bso::table)
-                    .values((
-                        bso::user_id.eq(user_id as i32), // XXX:
-                        bso::collection_id.eq(&collection_id),
-                        bso::id.eq(&bso.id),
-                        bso::sortindex.eq(sortindex),
-                        bso::payload.eq(payload),
-                        bso::modified.eq(timestamp),
-                        bso::expiry.eq(timestamp + (i64::from(ttl) * 1000)),
-                    ))
-                    .execute(&self.conn)?;
-            }
             self.touch_collection(user_id as u32, collection_id)
         })
     }
@@ -865,33 +886,4 @@ struct UserCollectionsResult {
     collection_id: i32,
     #[sql_type = "BigInt"]
     modified: i64,
-}
-
-#[derive(Debug, QueryableByName)]
-struct Count {
-    #[sql_type = "BigInt"]
-    count: i64,
-}
-
-/// Formats a BSO for UPDATEs
-#[derive(AsChangeset)]
-#[table_name = "bso"]
-struct UpdateBSO<'a> {
-    pub sortindex: Option<i32>,
-    pub payload: Option<&'a str>,
-    pub modified: Option<i64>,
-    pub expiry: Option<i64>,
-}
-
-fn put_bso_as_changeset(bso: &params::PutBso, modified: i64) -> UpdateBSO {
-    UpdateBSO {
-        sortindex: bso.sortindex,
-        expiry: bso.ttl.map(|ttl| modified + (i64::from(ttl) * 1000)),
-        payload: bso.payload.as_ref().map(|payload| &**payload),
-        modified: if bso.payload.is_some() || bso.sortindex.is_some() {
-            Some(modified)
-        } else {
-            None
-        },
-    }
 }
