@@ -20,7 +20,6 @@ pub enum DbErrorKind {
         display = "An error occurred while establishing a db connection: {}",
         _0
     )]
-    //    Connection(#[cause] diesel::result::ConnectionError),
     Connection(ConnectionError),
 
     #[fail(display = "A database pool error occurred: {}", _0)]
@@ -95,10 +94,10 @@ pub enum ConnectionError {
 }
 
 impl fmt::Display for ConnectionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConnectionError::Diesel(e) => fmt::Display::fmt(e, formatter),
-            ConnectionError::Spanner(e) => fmt::Display::fmt(e, formatter),
+            ConnectionError::Spanner(msg) => fmt::Display::fmt(msg, formatter),
         }
     }
 }

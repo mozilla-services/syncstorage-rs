@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use env_logger;
 use futures::compat::Future01CompatExt;
+use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use codegen::async_test;
@@ -14,6 +15,10 @@ use syncstorage::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
+
+lazy_static! {
+    static ref UID: u32 = thread_rng().gen_range(0, 10000);
+}
 
 type Result<T> = std::result::Result<T, ApiError>;
 
@@ -136,7 +141,7 @@ macro_rules! with_delta {
 async fn bso_successfully_updates_single_values() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "testBSO";
     let sortindex = 1;
@@ -176,7 +181,7 @@ async fn bso_successfully_updates_single_values() -> Result<()> {
 async fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "testBSO";
     let timestamp = db.timestamp().as_i64();
@@ -198,7 +203,7 @@ async fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
 async fn put_bso_updates() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "1";
     let bso1 = pbso(uid, coll, bid, Some("initial"), None, None);
@@ -220,7 +225,7 @@ async fn put_bso_updates() -> Result<()> {
 async fn get_bsos_limit_offset() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let size = 12;
     for i in 0..size {
@@ -336,7 +341,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
 async fn get_bsos_newer() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let timestamp = db.timestamp().as_i64();
     // XXX: validation
@@ -426,7 +431,7 @@ async fn get_bsos_newer() -> Result<()> {
 async fn get_bsos_sort() -> Result<()> {
     let db = db().await?;
 
-    let uid = 3;
+    let uid = *UID;
     let coll = "clients";
     // XXX: validation again
     //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
@@ -505,7 +510,7 @@ async fn get_bsos_sort() -> Result<()> {
 async fn delete_bsos_in_correct_collection() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let payload = "data";
     db.put_bso(pbso(uid, "clients", "b1", Some(payload), None, None))
         .compat()
@@ -525,7 +530,7 @@ async fn delete_bsos_in_correct_collection() -> Result<()> {
 async fn get_storage_timestamp() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     db.create_collection("col1".to_owned()).compat().await?;
     let col2 = db.create_collection("col2".to_owned()).compat().await?;
     db.create_collection("col3".to_owned()).compat().await?;
@@ -582,7 +587,7 @@ async fn touch_collection() -> Result<()> {
 async fn delete_collection() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "NewCollection";
     for bid in 1..=3 {
         db.put_bso(pbso(uid, coll, &bid.to_string(), Some("test"), None, None))
@@ -623,7 +628,7 @@ async fn delete_collection() -> Result<()> {
 async fn get_collection_timestamps() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "test";
     let cid = db.create_collection(coll.to_owned()).compat().await?;
     db.touch_collection(params::TouchCollection {
@@ -710,7 +715,7 @@ async fn get_collection_counts() -> Result<()> {
 async fn put_bso() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "NewCollection";
     let bid = "b0";
     let bso1 = pbso(uid, coll, bid, Some("foo"), Some(1), Some(DEFAULT_BSO_TTL));
@@ -751,7 +756,7 @@ async fn put_bso() -> Result<()> {
 async fn post_bsos() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "NewCollection";
     let result = db
         .post_bsos(params::PostBsos {
@@ -824,7 +829,7 @@ async fn post_bsos() -> Result<()> {
 async fn get_bso() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "b0";
     let payload = "a";
@@ -918,7 +923,7 @@ async fn get_bsos() -> Result<()> {
 async fn get_bso_timestamp() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "b0";
     let bso = pbso(uid, coll, bid, Some("a"), None, None);
@@ -939,7 +944,7 @@ async fn get_bso_timestamp() -> Result<()> {
 async fn delete_bso() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bid = "b0";
     db.put_bso(pbso(uid, coll, bid, Some("a"), None, None))
@@ -955,7 +960,7 @@ async fn delete_bso() -> Result<()> {
 async fn delete_bsos() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     let bids = (0..=2).map(|i| format!("b{}", i));
     for bid in bids.clone() {
@@ -1012,7 +1017,7 @@ async fn optimize() -> Result<()> {
 async fn delete_storage() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let bid = "test";
     let coll = "my_collection";
     let cid = db.create_collection(coll.to_owned()).compat().await?;
@@ -1037,7 +1042,7 @@ async fn delete_storage() -> Result<()> {
 async fn lock_for_read() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     db.lock_for_read(params::LockCollection {
         user_id: hid(uid),
@@ -1058,7 +1063,7 @@ async fn lock_for_read() -> Result<()> {
 async fn lock_for_write() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = *UID;
     let coll = "clients";
     db.lock_for_write(params::LockCollection {
         user_id: hid(uid),

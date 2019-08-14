@@ -129,7 +129,6 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
-        eprintln!("ok {:?}", result.1);
         let rows = result.1.rows.ok_or(DbErrorKind::CollectionNotFound)?;
         let id = rows[0][0]
             .parse::<i32>()
@@ -351,7 +350,7 @@ impl SpannerDb {
                 .doit()?;
             Ok(())
         } else {
-            Err(DbErrorKind::Internal("No transaction to commit".to_owned()))?
+            Err(DbError::internal("No transaction to commit"))?
         }
     }
 
@@ -365,16 +364,13 @@ impl SpannerDb {
                 .instances_databases_sessions_rollback(
                     RollbackRequest {
                         transaction_id: transaction.id,
-                        ..Default::default()
                     },
                     session,
                 )
                 .doit()?;
             Ok(())
         } else {
-            Err(DbErrorKind::Internal(
-                "No transaction to rollback".to_owned(),
-            ))?
+            Err(DbError::internal("No transaction to rollback"))?
         }
     }
 
@@ -383,10 +379,7 @@ impl SpannerDb {
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        eprintln!(
-            "!!QQQ get_collection_timestamp_sync {:}",
-            &params.collection
-        );
+        dbg!("!!QQQ get_collection_timestamp_sync", &params.collection);
 
         let collection_id = self.get_collection_id(&params.collection)?;
         if let Some(modified) = self
@@ -612,7 +605,7 @@ impl SpannerDb {
         if let Some(rows) = result.1.rows {
             // XXX: detect not max last_modified found via ts0 to workaround
             // google-apis-rs barfing on a null result
-            if &rows[0][0] == ts0 {
+            if rows[0][0] == ts0 {
                 SyncTimestamp::from_i64(0)
             } else {
                 SyncTimestamp::from_rfc3339(&rows[0][0])
@@ -769,16 +762,12 @@ impl SpannerDb {
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
 
-            let results = spanner
+            spanner
                 .hub
                 .projects()
                 .instances_databases_sessions_execute_sql(sql, session)
-                .doit();
-            match results {
-                Ok(_results) => Ok(self.timestamp()),
-                // TODO Return the correct error
-                Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-            }
+                .doit()?;
+            Ok(self.timestamp())
         } else {
             let mut sql = self.sql_request("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified)")?;
             let mut sqlparams = HashMap::new();
@@ -825,14 +814,16 @@ impl SpannerDb {
         sql.params = Some(sqlparams);
 
         fn affected_rows(result_set: &ResultSet) -> Result<i64> {
-            let stats = result_set.stats.as_ref().ok_or(DbErrorKind::Internal(
-                "Expected result_set stats".to_owned(),
-            ))?;
-            let row_count_exact = stats.row_count_exact.as_ref().ok_or(DbErrorKind::Internal(
-                "Expected result_set stats row_count_exact".to_owned(),
-            ))?;
+            let stats = result_set
+                .stats
+                .as_ref()
+                .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
+            let row_count_exact = stats
+                .row_count_exact
+                .as_ref()
+                .ok_or_else(|| DbError::internal("Expected result_set stats row_count_exact"))?;
             Ok(row_count_exact.parse().map_err(|e| {
-                DbErrorKind::Internal("Invalid row_count_exact i64 value".to_owned())
+                DbError::internal(&format!("Invalid row_count_exact i64 value {}", e))
             })?)
         }
 
@@ -866,20 +857,17 @@ impl SpannerDb {
             sqlparams.insert("bsoid".to_string(), id.to_string());
             sql.params = Some(sqlparams);
 
-            let results = spanner
+            spanner
                 .hub
                 .projects()
                 .instances_databases_sessions_execute_sql(sql, session)
-                .doit();
-            if !results.is_err() {
-                deleted += 1;
-                self.delete_bso_sync(params::DeleteBso {
-                    user_id: params.user_id.clone(),
-                    collection: params.collection.clone(),
-                    id: id.to_string(),
-                })
-                .unwrap();
-            }
+                .doit()?;
+            deleted += 1;
+            self.delete_bso_sync(params::DeleteBso {
+                user_id: params.user_id.clone(),
+                collection: params.collection.clone(),
+                id: id.to_string(),
+            })?;
         }
         if deleted > 0 {
             self.touch_collection(user_id, collection_id)
@@ -999,7 +987,7 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
-        eprintln!("!!RESULTS {:?}", results);
+        dbg!("!!RESULTS", &results);
         let mut bsos = match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
@@ -1079,7 +1067,7 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
-        eprintln!("RRRRRRRRRR {:#?}", result);
+        dbg!("RRRRRRRRRR", &result);
         Ok(if let Some(rows) = result.1.rows {
             let modified = SyncTimestamp::from_rfc3339(&rows[0][1])?;
             let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| {
@@ -1087,7 +1075,7 @@ impl SpannerDb {
             })?;
             // XXX: expiry is i64?
             let expiry = expiry_dt.timestamp_millis();
-            eprintln!("!!!! GET expiry {} ({}) {}", &rows[0][4], expiry_dt, expiry);
+            dbg!("!!!! GET expiry", &rows[0][4], expiry_dt, expiry);
             Some(results::GetBso {
                 id: rows[0][0].clone(),
                 modified,
@@ -1098,35 +1086,11 @@ impl SpannerDb {
         } else {
             None
         })
-        /*
-        match results {
-            Ok(results) => match results.1.rows {
-                Some(rows) => {
-                    let modified = SyncTimestamp::from_rfc3339(&rows[0][1])?;
-                    let expiry_dt = DateTime::parse_from_rfc3339(&rows[0][4]).map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
-                    // XXX: expiry is i64?
-                    let expiry = expiry_dt.timestamp_millis();
-                    eprintln!("!!!! GET expiry {} ({}) {}", &rows[0][4], expiry_dt, expiry);
-                    Ok(Some(results::GetBso {
-                        id: rows[0][0].clone(),
-                        modified,
-                        payload: rows[0][2].clone(),
-                        sortindex: Some(rows[0][3].parse().unwrap()),
-                        expiry,
-                    }))
-                }
-                ,
-                None => Ok(None),
-            },
-            // TODO Return the correct error
-            Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-        }
-        */
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        eprintln!("!!QQQ get_bso_timestamp_sync {:}", &params.collection);
+        dbg!("!!QQQ get_bso_timestamp_sync", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let spanner = &self.conn;
@@ -1196,15 +1160,9 @@ impl SpannerDb {
                 b: Option<google_spanner1::ServerError>,
             ) -> yup_oauth2::Retry {
                 if let Some(a) = a {
-                    eprintln!(
-                        "DDDDDDDDDDDDDDDDDDDD1 |{}| |{:#?}|",
-                        a.error, a.error_description
-                    );
+                    dbg!("DDDDDDDDDDDDDDDDDDDD1", a.error, a.error_description);
                 }
-                eprintln!(
-                    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD {:#?}",
-                    b
-                );
+                dbg!("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", b);
                 yup_oauth2::Retry::Abort
             }
         }
@@ -1347,7 +1305,7 @@ impl SpannerDb {
             }
             sqlparams.insert(
                 "payload".to_string(),
-                bso.payload.unwrap_or("DEFAULT".to_owned()),
+                bso.payload.unwrap_or_else(|| "DEFAULT".to_owned()),
             );
             let now_millis = self.timestamp().as_i64();
             let ttl = bso
@@ -1355,10 +1313,7 @@ impl SpannerDb {
                 .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
                 * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
-            eprintln!(
-                "!!!!! INSERT {:} ({}) ttl: {}",
-                expirystring, timestamp, ttl
-            );
+            dbg!("!!!!! INSERT", &expirystring, timestamp, ttl);
             sqlparams.insert("expiry".to_string(), expirystring);
             sqltypes.insert(
                 "expiry".to_string(),
@@ -1388,10 +1343,10 @@ impl SpannerDb {
             .doit();
         match result {
             Ok(_) => {
-                eprintln!("OK!!!");
+                dbg!("OK!!!");
             }
             Err(e) => {
-                eprintln!("ERR!!! {:}", e);
+                dbg!("ERR!!!", &e);
                 Err(e)?;
             }
         }

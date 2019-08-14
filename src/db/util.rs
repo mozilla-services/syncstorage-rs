@@ -173,8 +173,8 @@ where
 /// date and time string such as 1996-12-19T16:39:57-08:00
 pub fn to_rfc3339(val: i64) -> Result<String, DbError> {
     let secs = val / 1000;
-    let nsecs = ((val % 1000) * 1000000).try_into().map_err(|e| {
-        DbErrorKind::Internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
+    let nsecs = ((val % 1000) * 1_000_000).try_into().map_err(|e| {
+        DbError::internal(&format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
     })?;
     Ok(Utc
         .timestamp(secs, nsecs)

@@ -8,5 +8,6 @@ edition = "2018"
 codegen = { version = "0.1.0", path = "../codegen" }
 env_logger = "0.6.1"
 futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "744ece9", features = ["compat"] }
+lazy_static = "1.3.0"
 rand = "0.6.5"
 syncstorage = { version = "0.1.0", path = "../", features = ["db_test"] }
