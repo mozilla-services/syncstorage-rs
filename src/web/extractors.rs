@@ -12,7 +12,7 @@ use actix_web::{
         Uri,
     },
     web::{Json, Query},
-    Error, FromRequest, HttpRequest,
+    Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures::{future, Future};
 use lazy_static::lazy_static;
@@ -153,7 +153,20 @@ impl FromRequest for BsoBodies {
         let newlines: bool = content_type == b"application/newlines";
 
         // Grab the max sizes
-        let state = req.app_data::<ServerState>().unwrap();
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("app_data".to_owned()),
+                    )
+                    .into(),
+                ));
+            }
+        };
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
@@ -289,7 +302,20 @@ impl FromRequest for BsoBody {
                 ));
             }
         }
-        let state = req.app_data::<ServerState>().unwrap();
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("app_data".to_owned()),
+                    )
+                    .into(),
+                ));
+            }
+        };
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
@@ -565,7 +591,21 @@ impl FromRequest for CollectionPostRequest {
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let state = req.app_data::<ServerState>().unwrap();
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("app_data".to_owned()),
+                    )
+                    .into(),
+                ));
+            }
+        };
+
         let max_post_records = i64::from(state.limits.max_post_records);
         let fut = <(
             HawkIdentifier,
@@ -727,7 +767,20 @@ impl FromRequest for ConfigRequest {
     type Future = Result<Self, Self::Error>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let data = &req.app_data::<ServerState>().unwrap().limits;
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Err(ValidationErrorKind::FromDetails(
+                    "Internal error".to_owned(),
+                    RequestErrorLocation::Unknown,
+                    Some("state".to_owned()),
+                )
+                .into());
+            }
+        };
+
+        let data = &state.limits;
         Ok(Self {
             limits: ServerLimits {
                 max_post_bytes: data.max_post_bytes,
@@ -785,25 +838,28 @@ impl HawkIdentifier {
         }
     }
 
-    fn extrude(req: &HttpRequest) -> Result<Self, Error> {
-        if let Some(user_id) = req.extensions().get::<HawkIdentifier>() {
+    pub fn extrude<T>(
+        msg: &T,
+        method: &str,
+        uri: &Uri,
+        ci: &ConnectionInfo,
+        state: &ServerState,
+    ) -> Result<Self, Error>
+    where
+        T: HttpMessage,
+    {
+        if let Some(user_id) = msg.extensions().get::<HawkIdentifier>() {
             return Ok(user_id.clone());
         }
 
-        let state = req.get_app_data::<ServerState>().unwrap();
-        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-        let connection_info = req.connection_info().clone();
-        let method = req.method().as_str();
-        let uri = req.uri();
-        let auth_header = req
+        let auth_header = msg
             .headers()
             .get("authorization")
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier =
-            Self::generate(&state.secrets, method, auth_header, &connection_info, uri)?;
-        req.extensions_mut().insert(identifier.clone());
+        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
+        msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
 
@@ -838,7 +894,23 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extrude(req)
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Err(ValidationErrorKind::FromDetails(
+                    "Internal error".to_owned(),
+                    RequestErrorLocation::Unknown,
+                    Some("state".to_owned()),
+                )
+                .into());
+            }
+        };
+        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+        let connection_info = req.connection_info().clone();
+        let method = req.method().as_str();
+        let uri = req.uri();
+        Self::extrude(req, method, uri, &connection_info, &state)
     }
 }
 
@@ -960,8 +1032,21 @@ impl FromRequest for BatchRequestOpt {
                 )
             })?
             .into_inner();
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                dbg!("⚠️ Could not load the app state");
+                return Err(ValidationErrorKind::FromDetails(
+                    "Internal error".to_owned(),
+                    RequestErrorLocation::Unknown,
+                    Some("state".to_owned()),
+                )
+                .into());
+            }
+        };
 
-        let limits = &req.app_data::<ServerState>().unwrap().limits;
+        let limits = &state.limits;
+
         let checks = [
             (X_WEAVE_RECORDS, limits.max_post_records),
             ("X-Weave-Bytes", limits.max_post_bytes),
@@ -1282,7 +1367,7 @@ mod tests {
 
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
-        static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot"));
+        static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
         static ref USER_ID: u64 = thread_rng().gen_range(0, 10000);
         static ref USER_ID_STR: String = USER_ID.to_string();
     }
@@ -1331,7 +1416,8 @@ mod tests {
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(salt.as_bytes()),
             &SECRETS.master_secret,
-        );
+        )
+        .unwrap();
         let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
         let credentials = Credentials {
             id,
@@ -1741,17 +1827,19 @@ mod tests {
 
     #[test]
     fn valid_header_with_valid_path() {
-        let payload = HawkPayload::test_default(*USER_ID);
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
             .param("uid", &USER_ID_STR)
             .to_http_request();
-        HawkIdentifier::extrude(&req)
+        let payload = actix_http::h1::Payload::empty();
+        HawkIdentifier::from_request(&req, &mut payload.into())
             .and_then(|result| {
                 assert_eq!(result.legacy_id, *USER_ID);
                 Ok(())

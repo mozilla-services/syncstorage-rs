@@ -3,6 +3,7 @@
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
 
+use crate::error::ApiError;
 use crate::web::auth::hkdf_expand_32;
 
 static DEFAULT_PORT: u16 = 8000;
@@ -150,17 +151,17 @@ pub struct Secrets {
 impl Secrets {
     /// Decode the master secret to a byte array
     /// and derive the signing secret from it.
-    pub fn new(master_secret: &str) -> Self {
+    pub fn new(master_secret: &str) -> Result<Self, ApiError> {
         let master_secret = master_secret.as_bytes().to_vec();
         let signing_secret = hkdf_expand_32(
             b"services.mozilla.com/tokenlib/v1/signing",
             None,
             &master_secret,
-        );
-        Self {
+        )?;
+        Ok(Self {
             master_secret,
             signing_secret,
-        }
+        })
     }
 }
 
@@ -182,6 +183,7 @@ impl<'d> Deserialize<'d> for Secrets {
         D: Deserializer<'d>,
     {
         let master_secret: String = Deserialize::deserialize(deserializer)?;
-        Ok(Secrets::new(&master_secret))
+        Secrets::new(&master_secret)
+            .map_err(|e| serde::de::Error::custom(format!("error: {:?}", e)))
     }
 }
