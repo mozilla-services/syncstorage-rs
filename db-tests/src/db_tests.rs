@@ -430,7 +430,7 @@ async fn get_bsos_newer() -> Result<()> {
 async fn get_bsos_sort() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = 3;
     let coll = "clients";
     // XXX: validation again
     //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
@@ -655,7 +655,7 @@ async fn get_collection_timestamps() -> Result<()> {
 async fn get_collection_usage() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = 5;
     let mut expected = HashMap::new();
     let mut rng = thread_rng();
 
@@ -691,7 +691,7 @@ async fn get_collection_usage() -> Result<()> {
 async fn get_collection_counts() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = 4;
     let mut expected = HashMap::new();
     let mut rng = thread_rng();
 
@@ -849,7 +849,7 @@ async fn get_bso() -> Result<()> {
 async fn get_bsos() -> Result<()> {
     let db = db().await?;
 
-    let uid = 1;
+    let uid = 2;
     let coll = "clients";
     let sortindexes = vec![1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {

@@ -960,9 +960,9 @@ impl SpannerDb {
             query = format!("{} AND id IN (", query).to_string();
             while i < idlen {
                 if i == 0 {
-                    query = format!("{}arg{}", query, i.to_string()).to_string();
+                    query = format!("{}@arg{}", query, i.to_string()).to_string();
                 } else {
-                    query = format!("{}, arg{}", query, i.to_string()).to_string();
+                    query = format!("{}, @arg{}", query, i.to_string()).to_string();
                 }
                 sqlparams.insert(
                     format!("arg{}", i.to_string()).to_string(),
