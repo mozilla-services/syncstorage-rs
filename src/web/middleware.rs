@@ -180,8 +180,6 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        // `into_parts()` consumes the service request.
-        let method = sreq.method().clone();
         let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
         let collection = match col_result {
             Ok(v) => v,
@@ -197,21 +195,7 @@ where
                 ));
             }
         };
-        let ci = &sreq.connection_info().clone();
-        let headers = &sreq.headers();
-        let auth = match headers.get("authorization") {
-            Some(a) => a.to_str().unwrap(),
-            None => {
-                return Box::new(future::ok(
-                    sreq.into_response(
-                        HttpResponse::InternalServerError()
-                            .content_type("application/json")
-                            .body("Err: missing auth header".to_owned())
-                            .into_body(),
-                    ),
-                ))
-            }
-        };
+        let method = sreq.method().clone();
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
@@ -225,15 +209,20 @@ where
                 ))
             }
         };
-        let secrets = &state.secrets.clone();
-        let uri = &sreq.uri();
-        let hawk_user_id =
-            HawkIdentifier::generate(&secrets, &method.as_str(), &auth, &ci, &uri).unwrap();
-        {
-            let mut exts = sreq.extensions_mut();
-            exts.insert(hawk_user_id.clone());
-        }
-
+        let hawk_user_id = match sreq.get_hawk_id() {
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("⚠️ Bad Hawk Id: ", e);
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::Unauthorized()
+                            .content_type("application/json")
+                            .body("Err: Invalid Authorization".to_owned())
+                            .into_body(),
+                    ),
+                ));
+            }
+        };
         let mut service = Rc::clone(&self.service);
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
             sreq.extensions_mut().insert(db.clone());
@@ -339,52 +328,47 @@ where
                 None => PreConditionHeader::NoHeader,
             },
             Err(e) => {
+                dbg!("⚠️ Precondition error", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
                             .content_type("application/json")
-                            .body(format!("Err: {:?}", e))
+                            .body("An error occurred in preprocessing".to_owned())
                             .into_body(),
                     ),
-                ))
+                ));
             }
         };
-
-        let secrets = match &sreq.app_data::<ServerState>() {
-            Some(v) => v,
-            None => {
+        let user_id = match sreq.get_hawk_id() {
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("⚠️ Hawk header error", e);
                 return Box::new(future::ok(
                     sreq.into_response(
-                        HttpResponse::InternalServerError()
+                        HttpResponse::Unauthorized()
                             .content_type("application/json")
-                            .body("Err: No State".to_owned())
+                            .body("Invalid Authorization".to_owned())
                             .into_body(),
                     ),
-                ))
+                ));
             }
-        }
-        .secrets
-        .clone();
-
-        let ci = &sreq.connection_info().clone();
-        let headers = &sreq.headers();
-        let auth = match headers.get("authorization") {
-            Some(a) => a.to_str().unwrap(),
-            None => {
+        };
+        let edb = extrude_db(&sreq.extensions());
+        let db = match edb {
+            Ok(v) => v,
+            Err(e) => {
+                dbg!("⚠️ Database access error", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
-                            .body("Err: missing auth".to_owned())
+                            .body("Err: database access error".to_owned())
                             .into_body(),
                     ),
-                ))
+                ));
             }
         };
         let uri = &sreq.uri();
-        let user_id =
-            HawkIdentifier::generate(&secrets, &sreq.method().as_str(), &auth, &ci, &uri).unwrap();
-        let db = extrude_db(&sreq.extensions()).unwrap();
         let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut());
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
@@ -456,7 +440,24 @@ where
         )
     }
 }
-// */
+
+trait SyncServerRequest {
+    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error>;
+}
+
+impl SyncServerRequest for ServiceRequest {
+    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
+        let method = self.method().clone();
+        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
+        // it must be cloned
+        let ci = &self.connection_info().clone();
+        let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
+            ApiErrorKind::Internal("No app_data ServverState".to_owned()).into()
+        })?;
+        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
