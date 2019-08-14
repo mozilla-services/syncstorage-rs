@@ -833,10 +833,9 @@ impl SpannerDb {
         sql.params = Some(sqlparams);
 
         fn affected_rows(result_set: &ResultSet) -> Result<i64> {
-            let stats = result_set
-                .stats
-                .as_ref()
-                .ok_or(DbErrorKind::Internal("Expected result_set stats".to_owned()))?;
+            let stats = result_set.stats.as_ref().ok_or(DbErrorKind::Internal(
+                "Expected result_set stats".to_owned(),
+            ))?;
             let row_count_exact = stats.row_count_exact.as_ref().ok_or(DbErrorKind::Internal(
                 "Expected result_set stats row_count_exact".to_owned(),
             ))?;
@@ -912,7 +911,7 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "SELECT (id, modified, payload, sortindex, expiry) FROM bso WHERE user_id = @userid AND collection_id = @collectionid AND expiry > @timestamp".to_string();
+        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, 0), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
         let mut sqlparams = HashMap::new();
         let mut sqltypes = HashMap::new();
         sqlparams.insert("userid".to_string(), user_id.to_string());
@@ -931,11 +930,27 @@ impl SpannerDb {
 
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query).to_string();
-            sqlparams.insert("older".to_string(), older.as_i64().to_string());
+            sqlparams.insert("older".to_string(), to_rfc3339(older.as_i64()).unwrap());
+            sqltypes.insert(
+                "older".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query).to_string();
-            sqlparams.insert("newer".to_string(), newer.as_i64().to_string());
+            sqlparams.insert("newer".to_string(), to_rfc3339(newer.as_i64()).unwrap());
+            sqltypes.insert(
+                "newer".to_string(),
+                Type {
+                    array_element_type: None,
+                    code: Some("TIMESTAMP".to_string()),
+                    struct_type: None,
+                },
+            );
         }
 
         let idlen = ids.len();
@@ -959,9 +974,9 @@ impl SpannerDb {
         }
 
         query = match sort {
-            Sorting::Index => format!("{} ORDER BY sortindex DESCENDING", query).to_string(),
-            Sorting::Newest => format!("{} ORDER BY modified DESCENDING", query).to_string(),
-            Sorting::Oldest => format!("{} ORDER BY modified ASCENDING", query).to_string(),
+            Sorting::Index => format!("{} ORDER BY sortindex DESC", query).to_string(),
+            Sorting::Newest => format!("{} ORDER BY modified DESC", query).to_string(),
+            Sorting::Oldest => format!("{} ORDER BY modified ASC", query).to_string(),
             _ => query,
         };
 
@@ -994,6 +1009,7 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
+        println!("!!RESULTS {:?}", results);
         let mut bsos = match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
@@ -1004,7 +1020,7 @@ impl SpannerDb {
                             modified: SyncTimestamp::from_rfc3339(&row[1]).unwrap(),
                             payload: row[2].parse().unwrap(),
                             sortindex: Some(row[3].parse().unwrap()),
-                            expiry: row[4].parse().unwrap(),
+                            expiry: SyncTimestamp::from_rfc3339(&row[4]).unwrap().as_i64(),
                         });
                     });
                     vec
