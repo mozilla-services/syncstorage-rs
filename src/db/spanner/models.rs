@@ -129,7 +129,7 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit()?;
-        println!("ok {:?}", result.1);
+        eprintln!("ok {:?}", result.1);
         let rows = result.1.rows.ok_or(DbErrorKind::CollectionNotFound)?;
         let id = rows[0][0]
             .parse::<i32>()
@@ -383,7 +383,7 @@ impl SpannerDb {
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        println!(
+        eprintln!(
             "!!QQQ get_collection_timestamp_sync {:}",
             &params.collection
         );
@@ -684,7 +684,6 @@ impl SpannerDb {
         params: params::DeleteCollection,
     ) -> Result<results::DeleteCollection> {
         let user_id = params.user_id.legacy_id as u32;
-        println!("!!QQQ delete_collection_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let spanner = &self.conn;
@@ -811,7 +810,6 @@ impl SpannerDb {
 
     pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
         let user_id = params.user_id.legacy_id as u32;
-        println!("!!QQQ delete_bso_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
         let touch = self.touch_collection(user_id as u32, collection_id)?;
 
@@ -852,7 +850,6 @@ impl SpannerDb {
 
     pub fn delete_bsos_sync(&self, params: params::DeleteBsos) -> Result<results::DeleteBsos> {
         let user_id = params.user_id.legacy_id as u32;
-        println!("!!QQQ delete_bsos_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let mut deleted = 0;
@@ -893,7 +890,6 @@ impl SpannerDb {
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i32;
-        println!("!!QQQ get_bsos_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
         let BsoQueryParams {
             newer,
@@ -1003,7 +999,7 @@ impl SpannerDb {
             .projects()
             .instances_databases_sessions_execute_sql(sql, session)
             .doit();
-        println!("!!RESULTS {:?}", results);
+        eprintln!("!!RESULTS {:?}", results);
         let mut bsos = match results {
             Ok(results) => match results.1.rows {
                 Some(rows) => {
@@ -1054,7 +1050,6 @@ impl SpannerDb {
 
     pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id;
-        println!("!!QQQ get_bso_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let spanner = &self.conn;
@@ -1131,7 +1126,7 @@ impl SpannerDb {
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
-        println!("!!QQQ get_bso_timestamp_sync {:}", &params.collection);
+        eprintln!("!!QQQ get_bso_timestamp_sync {:}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let spanner = &self.conn;
@@ -1360,7 +1355,7 @@ impl SpannerDb {
                 .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
                 * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
-            println!(
+            eprintln!(
                 "!!!!! INSERT {:} ({}) ttl: {}",
                 expirystring, timestamp, ttl
             );
@@ -1393,10 +1388,10 @@ impl SpannerDb {
             .doit();
         match result {
             Ok(_) => {
-                println!("OK!!!");
+                eprintln!("OK!!!");
             }
             Err(e) => {
-                println!("ERR!!! {:}", e);
+                eprintln!("ERR!!! {:}", e);
                 Err(e)?;
             }
         }
