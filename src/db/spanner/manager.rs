@@ -9,6 +9,7 @@ use crate::{
     settings::Settings,
 };
 
+#[derive(Debug)]
 pub struct SpannerConnectionManager {
     database_name: String,
 }
@@ -27,6 +28,7 @@ impl SpannerConnectionManager {
 pub struct SpannerSession {
     pub hub: Spanner<Client, ServiceAccountAccess<Client>>,
     pub session: Session,
+    pub(super) use_test_transactions: bool,
 }
 
 impl ManageConnection for SpannerConnectionManager {
@@ -50,7 +52,11 @@ impl ManageConnection for SpannerConnectionManager {
             .doit()
             .unwrap()
             .1;
-        Ok(SpannerSession { hub, session })
+        Ok(SpannerSession {
+            hub,
+            session,
+            use_test_transactions: false,
+        })
     }
 
     fn is_valid(&self, _conn: &mut Self::Connection) -> Result<(), Error> {

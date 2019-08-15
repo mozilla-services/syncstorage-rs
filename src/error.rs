@@ -72,7 +72,7 @@ impl ApiError {
         self.inner.get_context()
     }
 
-    pub fn is_colllection_not_found(&self) -> bool {
+    pub fn is_collection_not_found(&self) -> bool {
         match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::CollectionNotFound => return true,

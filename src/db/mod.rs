@@ -159,7 +159,7 @@ pub trait Db: Send + Debug {
                         collection,
                     })
                     .or_else(|e| {
-                        if e.is_colllection_not_found() {
+                        if e.is_collection_not_found() {
                             Ok(SyncTimestamp::from_seconds(0f64))
                         } else {
                             Err(e)
@@ -175,7 +175,7 @@ pub trait Db: Send + Debug {
                 id: bso,
             })
             .or_else(|e| {
-                if e.is_colllection_not_found() {
+                if e.is_collection_not_found() {
                     Ok(SyncTimestamp::from_seconds(0f64))
                 } else {
                     Err(e)

@@ -54,7 +54,8 @@ uuid = { version = "0.7.4", features = ["serde", "v4"] }
 validator = "0.9"
 validator_derive = "0.9"
 
-google-spanner1 = "*"
+google-spanner1 = "1.0.10"
+#google-spanner1 = { version = "*", path = "../google-apis-rs/gen/spanner1" }
 # This project intentionally uses an old version of Hyper. See
 # https://github.com/Byron/google-apis-rs/issues/173 for more
 # information.
