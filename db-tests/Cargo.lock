@@ -1802,6 +1802,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "2.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
 name = "publicsuffix"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2445,6 +2450,7 @@ dependencies = [
  "mozsvc-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "num 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sentry 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3250,6 +3256,7 @@ dependencies = [
 "checksum pkg-config 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)" = "676e8eb2b1b4c9043511a9b7bea0915320d7e502b0a079fb03f9635a5252b18c"
 "checksum ppv-lite86 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "e3cbf9f658cdb5000fcf6f362b8ea2ba154b9f146a61c7a20d647034c6b6561b"
 "checksum proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)" = "cf3d2011ab5c909338f7887f4fc896d35932e29146c12c8d01da6b22a80ba759"
+"checksum protobuf 2.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8aefcec9f142b524d98fc81d07827743be89dd6586a1ba6ab21fa66a500b3fa5"
 "checksum publicsuffix 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5afecba86dcf1e4fd610246f89899d1924fe12e1e89f555eb7c7f710f3c5ad1d"
 "checksum quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9274b940887ce9addde99c4eee6b5c44cc494b182b97e73dc8ffdcb3397fd3f0"
 "checksum quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
