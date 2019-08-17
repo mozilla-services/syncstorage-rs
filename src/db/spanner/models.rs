@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use super::manager::SpannerConnectionManager;
 use super::pool::CollectionCache;
+use super::support::SpannerType;
 
 use crate::db::{
     error::{DbError, DbErrorKind},
@@ -29,7 +30,7 @@ use super::{batch, support::as_value};
 
 use google_spanner1::{
     BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite, ResultSet,
-    RollbackRequest, TransactionOptions, TransactionSelector, Type,
+    RollbackRequest, TransactionOptions, TransactionSelector,
 };
 
 #[derive(Debug)]
@@ -744,21 +745,15 @@ impl SpannerDb {
 
         if exists {
             let mut sql = self.sql_request("UPDATE user_collections SET last_modified=@last_modified WHERE userid=@userid AND collection=@collectionid")?;
-            let mut sqltypes = HashMap::new();
             let timestamp = self.timestamp().as_i64();
             let modifiedstring = to_rfc3339(timestamp)?;
-            sqltypes.insert(
-                "last_modified".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
             let sqlparams = params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
                 "last_modified" => modifiedstring,
+            };
+            let sqltypes = param_types! {
+                "last_modified" => SpannerType::Timestamp,
             };
 
             sql.params = Some(sqlparams);
@@ -772,21 +767,15 @@ impl SpannerDb {
             Ok(self.timestamp())
         } else {
             let mut sql = self.sql_request("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified)")?;
-            let mut sqltypes = HashMap::new();
             let timestamp = self.timestamp().as_i64();
             let modifiedstring = to_rfc3339(timestamp)?;
-            sqltypes.insert(
-                "modified".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
             let sqlparams = params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
                 "modified" => modifiedstring,
+            };
+            let sqltypes = param_types! {
+                "modified" => SpannerType::Timestamp,
             };
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
@@ -902,16 +891,9 @@ impl SpannerDb {
             "collectionid" => collection_id.to_string(),
             "timestamp" => modifiedstring,
         };
-
-        let mut sqltypes = HashMap::new();
-        sqltypes.insert(
-            "timestamp".to_string(),
-            Type {
-                array_element_type: None,
-                code: Some("TIMESTAMP".to_string()),
-                struct_type: None,
-            },
-        );
+        let mut sqltypes = param_types! {
+            "timestamp" => SpannerType::Timestamp,
+        };
 
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query).to_string();
@@ -919,14 +901,7 @@ impl SpannerDb {
                 "older".to_string(),
                 as_value(to_rfc3339(older.as_i64()).unwrap()),
             );
-            sqltypes.insert(
-                "older".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
+            sqltypes.insert("older".to_string(), SpannerType::Timestamp.into());
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query).to_string();
@@ -934,14 +909,7 @@ impl SpannerDb {
                 "newer".to_string(),
                 as_value(to_rfc3339(newer.as_i64()).unwrap()),
             );
-            sqltypes.insert(
-                "newer".to_string(),
-                Type {
-                    array_element_type: None,
-                    code: Some("TIMESTAMP".to_string()),
-                    struct_type: None,
-                },
-            );
+            sqltypes.insert("newer".to_string(), SpannerType::Timestamp.into());
         }
 
         let idlen = ids.len();
@@ -1058,20 +1026,14 @@ impl SpannerDb {
         let mut sql = self.sql_request("SELECT id, modified, payload, coalesce(sortindex, 0), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?;
         let timestamp = self.timestamp().as_i64();
         let modifiedstring = to_rfc3339(timestamp)?;
-        let mut sqltypes = HashMap::new();
-        sqltypes.insert(
-            "timestamp".to_string(),
-            Type {
-                array_element_type: None,
-                code: Some("TIMESTAMP".to_string()),
-                struct_type: None,
-            },
-        );
         let sqlparams = params! {
             "userid" => user_id.to_string(),
             "collectionid" => collection_id.to_string(),
             "bsoid" => params.id.to_string(),
             "timestamp" => modifiedstring,
+        };
+        let sqltypes = param_types! {
+            "timestamp" => SpannerType::Timestamp,
         };
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
@@ -1110,24 +1072,17 @@ impl SpannerDb {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut sql = self.sql_request("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl>@ttl")?;
-        let mut sqltypes = HashMap::new();
         let timestamp = self.timestamp().as_i64();
         let expirystring = to_rfc3339(timestamp)?;
-
-        sqltypes.insert(
-            "ttl".to_string(),
-            Type {
-                array_element_type: None,
-                code: Some("TIMESTAMP".to_string()),
-                struct_type: None,
-            },
-        );
 
         let sqlparams = params! {
             "userid" => user_id.to_string(),
             "collectionid" => collection_id.to_string(),
             "bsoid" => params.id.to_string(),
             "ttl" => expirystring,
+        };
+        let sqltypes = param_types! {
+            "ttl" => SpannerType::Timestamp,
         };
         sql.params = Some(sqlparams);
         sql.param_types = Some(sqltypes);
@@ -1212,13 +1167,7 @@ impl SpannerDb {
                 q,
                 if let Some(sortindex) = bso.sortindex {
                     sqlparams.insert("sortindex".to_string(), as_value(sortindex.to_string()));
-                    sqltypes.insert(
-                        "sortindex".to_string(),
-                        Type {
-                            code: Some("INT64".to_string()),
-                            ..Default::default()
-                        },
-                    );
+                    sqltypes.insert("sortindex".to_string(), SpannerType::Int64.into());
 
                     format!("{}{}", comma(&q), "sortindex = @sortindex")
                 } else {
@@ -1232,13 +1181,7 @@ impl SpannerDb {
                 if let Some(ttl) = bso.ttl {
                     let expiry = timestamp + (i64::from(ttl) * 1000);
                     sqlparams.insert("expiry".to_string(), as_value(to_rfc3339(expiry)?));
-                    sqltypes.insert(
-                        "expiry".to_string(),
-                        Type {
-                            code: Some("TIMESTAMP".to_string()),
-                            ..Default::default()
-                        },
-                    );
+                    sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
                     format!("{}{}", comma(&q), "ttl = @expiry")
                 } else {
                     "".to_string()
@@ -1253,13 +1196,7 @@ impl SpannerDb {
                         "modified".to_string(),
                         as_value(self.timestamp().as_rfc3339()?),
                     );
-                    sqltypes.insert(
-                        "modified".to_string(),
-                        Type {
-                            code: Some("TIMESTAMP".to_string()),
-                            ..Default::default()
-                        },
-                    );
+                    sqltypes.insert("modified".to_string(), SpannerType::Timestamp.into());
                     format!("{}{}", comma(&q), "modified = @modified")
                 } else {
                     "".to_string()
@@ -1313,13 +1250,7 @@ impl SpannerDb {
                         .map(|sortindex| sortindex.to_string())
                         .unwrap_or_else(|| "NULL".to_owned()),
                 );
-                sqltypes.insert(
-                    "sortindex".to_string(),
-                    Type {
-                        code: Some("INT64".to_string()),
-                        ..Default::default()
-                    },
-                );
+                sqltypes.insert("sortindex".to_string(), SpannerType::Int64.into());
             }
             sqlparams.insert(
                 "payload".to_string(),
@@ -1333,25 +1264,13 @@ impl SpannerDb {
             let expirystring = to_rfc3339(now_millis + ttl)?;
             dbg!("!!!!! INSERT", &expirystring, timestamp, ttl);
             sqlparams.insert("expiry".to_string(), as_value(expirystring));
-            sqltypes.insert(
-                "expiry".to_string(),
-                Type {
-                    code: Some("TIMESTAMP".to_string()),
-                    ..Default::default()
-                },
-            );
+            sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
 
             sqlparams.insert(
                 "modified".to_string(),
                 as_value(self.timestamp().as_rfc3339()?),
             );
-            sqltypes.insert(
-                "modified".to_string(),
-                Type {
-                    code: Some("TIMESTAMP".to_string()),
-                    ..Default::default()
-                },
-            );
+            sqltypes.insert("modified".to_string(), SpannerType::Timestamp.into());
             sql.params = Some(sqlparams);
             sql.param_types = Some(sqltypes);
             sql
