@@ -8,10 +8,7 @@ use super::{
     models::{MysqlDb, Result},
     schema::batches,
 };
-use crate::db::{params, results, DbError, DbErrorKind};
-
-/// Rough guesstimate of the maximum reasonable life span of a batch.
-pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
+use crate::db::{params, results, DbError, DbErrorKind, BATCH_LIFETIME};
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i32;
@@ -75,7 +72,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
         .optional()?)
 }
 
-fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
+pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     diesel::delete(batches::table)
@@ -143,157 +140,4 @@ macro_rules! batch_db_method {
             batch::$batch_name(self, params)
         }
     }
-}
-
-#[cfg(test)]
-mod test {
-    use super::{
-        super::test::{db, gbso, hid, postbso},
-        *,
-    };
-    use crate::db::params;
-
-    fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
-        params::CreateBatch {
-            user_id: hid(user_id),
-            collection: coll.to_owned(),
-            bsos,
-        }
-    }
-
-    fn vb(user_id: u32, coll: &str, id: i64) -> params::ValidateBatch {
-        params::ValidateBatch {
-            user_id: hid(user_id),
-            collection: coll.to_owned(),
-            id,
-        }
-    }
-
-    fn ab(
-        user_id: u32,
-        coll: &str,
-        id: i64,
-        bsos: Vec<params::PostCollectionBso>,
-    ) -> params::AppendToBatch {
-        params::AppendToBatch {
-            user_id: hid(user_id),
-            collection: coll.to_owned(),
-            id,
-            bsos,
-        }
-    }
-
-    fn gb(user_id: u32, coll: &str, id: i64) -> params::GetBatch {
-        params::GetBatch {
-            user_id: hid(user_id),
-            collection: coll.to_owned(),
-            id,
-        }
-    }
-
-    #[test]
-    fn create_delete() -> Result<()> {
-        let db = db()?;
-
-        let uid = 1;
-        let coll = "clients";
-        let id = create(&db, cb(uid, coll, vec![]))?;
-        assert!(validate(&db, vb(uid, coll, id))?);
-        assert!(!validate(&db, vb(uid, coll, id + 1000))?);
-
-        delete(
-            &db,
-            params::DeleteBatch {
-                user_id: hid(uid),
-                collection: coll.to_owned(),
-                id,
-            },
-        )?;
-        assert!(!validate(&db, vb(uid, coll, id))?);
-        Ok(())
-    }
-
-    #[test]
-    fn expiry() -> Result<()> {
-        let db = db()?;
-
-        let uid = 1;
-        let coll = "clients";
-        let id = db.with_delta(-(BATCH_LIFETIME + 11), |db| {
-            create(&db, cb(uid, coll, vec![]))
-        })?;
-        assert!(!validate(&db, vb(uid, coll, id))?);
-        let result = get(&db, gb(uid, coll, id))?;
-        assert!(result.is_none());
-
-        let bsos = vec![postbso("b0", Some("payload 0"), Some(10), None)];
-        let result = append(&db, ab(uid, coll, id, bsos));
-        match result.unwrap_err().kind() {
-            DbErrorKind::BatchNotFound => (),
-            _ => panic!("Expected BatchNotFound"),
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn update() -> Result<()> {
-        let db = db()?;
-
-        let uid = 1;
-        let coll = "clients";
-        let id = create(&db, cb(uid, coll, vec![]))?;
-        let batch = get(&db, gb(uid, coll, id))?.unwrap();
-        assert_eq!(batch.bsos, "".to_owned());
-
-        let bsos = vec![
-            postbso("b0", Some("payload 0"), Some(10), None),
-            postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
-        ];
-        append(&db, ab(uid, coll, id, bsos))?;
-
-        let batch = get(&db, gb(uid, coll, id))?.unwrap();
-        assert_ne!(batch.bsos, "".to_owned());
-        Ok(())
-    }
-
-    #[test]
-    fn append_commit() -> Result<()> {
-        let db = db()?;
-
-        let uid = 1;
-        let coll = "clients";
-        let bsos1 = vec![
-            postbso("b0", Some("payload 0"), Some(10), None),
-            postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
-        ];
-        let id = create(&db, cb(uid, coll, bsos1))?;
-
-        let bsos2 = vec![postbso("b2", Some("payload 2"), None, Some(1000))];
-        append(&db, ab(uid, coll, id, bsos2))?;
-
-        let batch = get(&db, gb(uid, coll, id))?.unwrap();
-        let result = commit(
-            &db,
-            params::CommitBatch {
-                user_id: hid(uid),
-                collection: coll.to_owned(),
-                batch,
-            },
-        )?;
-
-        assert!(result.success.contains(&"b0".to_owned()));
-        assert!(result.success.contains(&"b2".to_owned()));
-
-        let ts = db.get_collection_timestamp_sync(params::GetCollectionTimestamp {
-            user_id: hid(uid),
-            collection: coll.to_owned(),
-        })?;
-        assert_eq!(result.modified, ts);
-
-        let bso = db.get_bso_sync(gbso(uid, coll, "b1"))?.unwrap();
-        assert_eq!(bso.sortindex, Some(1_000_000_000));
-        assert_eq!(bso.payload, "payload 1");
-        Ok(())
-    }
-
 }

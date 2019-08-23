@@ -95,6 +95,9 @@ impl Db for MockDb {
 
     #[cfg(any(test, feature = "db_test"))]
     fn set_timestamp(&self, _: SyncTimestamp) {}
+
+    #[cfg(any(test, feature = "db_test"))]
+    mock_db_method!(delete_batch, DeleteBatch);
 }
 
 unsafe impl Send for MockDb {}

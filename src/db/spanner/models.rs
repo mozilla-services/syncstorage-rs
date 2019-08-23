@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use super::manager::SpannerConnectionManager;
 use super::pool::CollectionCache;
-use super::support::{SpannerType, SyncResultSet};
+use super::support::SpannerType;
 
 use crate::db::{
     error::{DbError, DbErrorKind},
@@ -36,7 +36,7 @@ use google_spanner1::{
     RollbackRequest, TransactionOptions, TransactionSelector,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum CollectionLock {
     Read,
     Write,
@@ -297,11 +297,24 @@ impl SpannerDb {
         Ok(sqlr)
     }
 
-    fn sql(&self, sql: &str) -> Result<ExecuteSqlRequestBuilder> {
+    pub fn sql(&self, sql: &str) -> Result<ExecuteSqlRequestBuilder> {
         Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql)?))
     }
 
+    fn in_write_transaction(&self) -> bool {
+        self.session
+            .borrow_mut()
+            .coll_locks
+            .values()
+            .any(|lock| lock == &CollectionLock::Write)
+    }
+
     pub fn commit_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
         let spanner = &self.conn;
 
         if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
@@ -329,6 +342,11 @@ impl SpannerDb {
     }
 
     pub fn rollback_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
         if let Some(transaction) = self.get_transaction()? {
             let spanner = &self.conn;
             let session = spanner.session.name.as_ref().unwrap();
@@ -625,19 +643,6 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
         let touch = self.touch_collection(user_id as u32, collection_id)?;
 
-        fn affected_rows(result_set: &SyncResultSet) -> Result<i64> {
-            let stats = result_set
-                .stats()
-                .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
-            let row_count_exact = stats
-                .row_count_exact
-                .as_ref()
-                .ok_or_else(|| DbError::internal("Expected result_set stats row_count_exact"))?;
-            Ok(row_count_exact.parse().map_err(|e| {
-                DbError::internal(&format!("Invalid row_count_exact i64 value {}", e))
-            })?)
-        }
-
         let result = self
             .sql("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid")?
             .params(params! {
@@ -646,7 +651,7 @@ impl SpannerDb {
                 "bsoid" => params.id.to_string(),
             })
             .execute(&self.conn)?;
-        if affected_rows(&result)? == 0 {
+        if result.affected_rows()? == 0 {
             Err(DbErrorKind::BsoNotFound)?
         } else {
             Ok(touch)
@@ -752,18 +757,21 @@ impl SpannerDb {
             _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(-1);
-        // fetch an extra row to detect if there are more rows that
-        // match the query conditions
-
-        //query = query.limit(if limit >= 0 { limit + 1 } else { limit });
-        if limit >= 0 {
-            query = format!("{} LIMIT {}", query, limit + 1).to_string();
-        } else {
-            query = format!("{} LIMIT {}", query, limit).to_string();
-        }
-
         let offset = offset.unwrap_or(0) as i64;
+        if let Some(limit) = limit {
+            // fetch an extra row to detect if there are more rows that match
+            // the query conditions
+            query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
+        } else if offset != 0 {
+            // Special case no limit specified but still required for an
+            // offset. Spanner doesn't accept a simpler limit of -1 (common in
+            // most databases) so we specify a max value with offset subtracted
+            // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
+            // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
+            query = format!("{} LIMIT {}", query, i64::max_value() - offset);
+        };
+        let limit = limit.map(i64::from).unwrap_or(-1);
+
         if offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
@@ -1066,6 +1074,8 @@ impl SpannerDb {
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
+    #[cfg(any(test, feature = "db_test"))]
+    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
         batch::get(&self, params)
@@ -1197,4 +1207,7 @@ impl Db for SpannerDb {
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
         self.session.borrow_mut().timestamp = timestamp;
     }
+
+    #[cfg(any(test, feature = "db_test"))]
+    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 }

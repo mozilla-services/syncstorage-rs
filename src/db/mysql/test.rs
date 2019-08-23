@@ -13,9 +13,7 @@ use crate::db::mysql::{
     pool::MysqlDbPool,
     schema::collections,
 };
-use crate::db::params;
 use crate::settings::{Secrets, ServerLimits, Settings};
-use crate::web::extractors::HawkIdentifier;
 
 #[derive(Debug)]
 pub struct TestTransactionCustomizer;
@@ -43,32 +41,6 @@ pub fn db() -> Result<MysqlDb> {
 
     let pool = MysqlDbPool::new(&settings)?;
     pool.get_sync()
-}
-
-pub fn postbso(
-    bid: &str,
-    payload: Option<&str>,
-    sortindex: Option<i32>,
-    ttl: Option<u32>,
-) -> params::PostCollectionBso {
-    params::PostCollectionBso {
-        id: bid.to_owned(),
-        payload: payload.map(&str::to_owned),
-        sortindex,
-        ttl,
-    }
-}
-
-pub fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
-    params::GetBso {
-        user_id: hid(user_id),
-        collection: coll.to_owned(),
-        id: bid.to_owned(),
-    }
-}
-
-pub fn hid(user_id: u32) -> HawkIdentifier {
-    HawkIdentifier::new_legacy(u64::from(user_id))
 }
 
 #[test]

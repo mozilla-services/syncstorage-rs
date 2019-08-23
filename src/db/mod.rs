@@ -45,6 +45,9 @@ lazy_static! {
     };
 }
 
+/// Rough guesstimate of the maximum reasonable life span of a batch
+pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
+
 type DbFuture<T> = Box<dyn Future<Item = T, Error = ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
@@ -200,6 +203,9 @@ pub trait Db: Send + Debug {
 
     #[cfg(any(test, feature = "db_test"))]
     fn set_timestamp(&self, timestamp: SyncTimestamp);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<()>;
 }
 
 impl Clone for Box<dyn Db> {
