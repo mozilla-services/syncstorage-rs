@@ -200,6 +200,19 @@ impl SyncResultSet {
             Ok(result)
         }
     }
+
+    pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
+        let stats = self
+            .stats()
+            .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
+        let row_count_exact = stats
+            .row_count_exact
+            .as_ref()
+            .ok_or_else(|| DbError::internal("Expected result_set stats row_count_exact"))?;
+        Ok(row_count_exact
+            .parse()
+            .map_err(|e| DbError::internal(&format!("Invalid row_count_exact i64 value {}", e)))?)
+    }
 }
 
 #[cfg(feature = "google_grpc")]

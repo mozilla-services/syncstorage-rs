@@ -719,6 +719,8 @@ impl MysqlDb {
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
+    #[cfg(any(test, feature = "db_test"))]
+    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
         batch::get(&self, params)
@@ -726,19 +728,6 @@ impl MysqlDb {
 
     pub fn timestamp(&self) -> SyncTimestamp {
         self.session.borrow().timestamp
-    }
-
-    #[cfg(test)]
-    pub(super) fn with_delta<T, E, F>(&self, delta: i64, f: F) -> std::result::Result<T, E>
-    where
-        F: FnOnce(&Self) -> std::result::Result<T, E>,
-    {
-        let set = |ts| self.session.borrow_mut().timestamp = SyncTimestamp::from_i64(ts).unwrap();
-        let ts = self.timestamp().as_i64();
-        set(ts + delta);
-        let result = f(&self);
-        set(ts);
-        result
     }
 }
 
@@ -865,6 +854,9 @@ impl Db for MysqlDb {
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
         self.session.borrow_mut().timestamp = timestamp;
     }
+
+    #[cfg(any(test, feature = "db_test"))]
+    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 }
 
 #[derive(Debug, QueryableByName)]

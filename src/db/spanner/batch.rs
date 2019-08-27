@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-
-use super::models::{Result, SpannerDb};
-
-use crate::db::{params, results, DbError, DbErrorKind};
-
-use google_spanner1::ExecuteSqlRequest;
-
-/// Rough guesstimate of the maximum reasonable life span of a batch.
-pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
+use super::{
+    models::{Result, SpannerDb},
+    support::{as_value, SpannerType},
+};
+use crate::db::{
+    params, results,
+    util::{to_rfc3339, SyncTimestamp},
+    DbError, DbErrorKind, BATCH_LIFETIME,
+};
 
 /// Serialize bsos into strings separated by newlines
 fn bsos_to_batch_string(bsos: &[params::PostCollectionBso]) -> Result<String> {
@@ -45,31 +44,20 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
     let timestamp = db.timestamp().as_i64();
     let bsos = bsos_to_batch_string(&params.bsos)?;
 
-    let spanner = &db.conn;
-    let session = spanner.session.name.as_ref().unwrap();
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("INSERT INTO batches (user_id, collection_id, id, bsos, expiry) VALUES (@userid, @collectionid, @bsosid, @bsos, @expiry)".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsosid".to_string(), timestamp.to_string());
-    sqlparams.insert("bsos".to_string(), bsos);
-    sqlparams.insert(
-        "expiry".to_string(),
-        (timestamp + BATCH_LIFETIME).to_string(),
-    );
-    sql.params = Some(sqlparams);
-
-    let results = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    match results {
-        Ok(_results) => Ok(timestamp),
-        // TODO Return the correct error
-        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-    }
+    db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry) VALUES (@userid, @collectionid, @bsoid, @bsos, @expiry)")?
+        .params(params! {
+            "userid" => user_id.to_string(),
+            "collectionid" => collection_id.to_string(),
+            "bsoid" => to_rfc3339(timestamp)?,
+            "bsos" => bsos,
+            "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
+        })
+        .param_types(param_types! {
+            "bsoid" => SpannerType::Timestamp,
+            "expiry" => SpannerType::Timestamp,
+        })
+        .execute(&db.conn)?;
+    Ok(timestamp)
 }
 
 pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
@@ -77,27 +65,20 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp().as_i64();
 
-    let spanner = &db.conn;
-    let session = spanner.session.name.as_ref().unwrap();
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("SELECT 1 FROM batches WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid AND expiry > @expiry".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsoid".to_string(), params.id.to_string());
-    sqlparams.insert("expiry".to_string(), timestamp.to_string());
-    sql.params = Some(sqlparams);
-
-    let results = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    match results {
-        Ok(results) => Ok(results.1.rows.is_some()),
-        // TODO Return the correct error
-        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-    }
+    let exists = db.sql("SELECT 1 FROM batches WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
+        .params(params! {
+            "userid" => user_id.to_string(),
+            "collectionid" => collection_id.to_string(),
+            "bsoid" => to_rfc3339(params.id)?,
+            "expiry" => to_rfc3339(timestamp)?,
+        })
+        .param_types(param_types! {
+            "bsoid" => SpannerType::Timestamp,
+            "expiry" => SpannerType::Timestamp,
+        })
+        .execute(&db.conn)?
+        .one_or_none()?;
+    Ok(exists.is_some())
 }
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
@@ -107,46 +88,23 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let bsos = bsos_to_batch_string(&params.bsos)?;
     let timestamp = db.timestamp().as_i64();
 
-    let spanner = &db.conn;
-    let session = spanner.session.name.as_ref().unwrap();
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("SELECT 1 FROM batches WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid AND expiry > @expiry".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsoid".to_string(), params.id.to_string());
-    sqlparams.insert("expiry".to_string(), timestamp.to_string());
-    sql.params = Some(sqlparams);
-
-    let results = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    if let Ok(results) = results {
-        if results.1.rows.is_some() {
-            return Err(DbErrorKind::BatchNotFound.into());
-        }
-    }
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("UPDATE batches SET bsos = @bsos WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid AND expiry > @expiry".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsoid".to_string(), params.id.to_string());
-    sqlparams.insert("expiry".to_string(), timestamp.to_string());
-    sqlparams.insert("bsos".to_string(), bsos);
-    sql.params = Some(sqlparams);
-
-    let results = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    match results {
-        Ok(_results) => Ok(()),
-        // TODO Return the correct error
-        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+    let result = db.sql("UPDATE batches SET bsos = CONCAT(bsos, @bsos) WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
+        .params(params! {
+            "userid" => user_id.to_string(),
+            "collectionid" => collection_id.to_string(),
+            "bsoid" => to_rfc3339(params.id)?,
+            "expiry" => to_rfc3339(timestamp)?,
+            "bsos" => bsos,
+        })
+        .param_types(param_types! {
+            "bsoid" => SpannerType::Timestamp,
+            "expiry" => SpannerType::Timestamp,
+        })
+        .execute(&db.conn)?;
+    if result.affected_rows()? == 1 {
+        Ok(())
+    } else {
+        Err(DbErrorKind::BatchNotFound.into())
     }
 }
 
@@ -155,60 +113,50 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp().as_i64();
 
-    let spanner = &db.conn;
-    let session = spanner.session.name.as_ref().unwrap();
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("SELECT (id, bsos, expiry) FROM batches WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid AND expiry > @expiry".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsoid".to_string(), params.id.to_string());
-    sqlparams.insert("expiry".to_string(), timestamp.to_string());
-    sql.params = Some(sqlparams);
-
-    let result = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    match result {
-        Ok(result) => match result.1.rows {
-            Some(rows) => Ok(Some(params::Batch {
-                id: params.id,
-                bsos: rows[0][1].clone(),
-                expiry: rows[0][2].parse().unwrap(),
-            })),
-            None => Ok(None),
-        },
-        // TODO Return the correct error
-        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
+    let result = db.sql("SELECT id, bsos, expiry FROM batches WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
+        .params(params! {
+            "userid" => user_id.to_string(),
+            "collectionid" => collection_id.to_string(),
+            "bsoid" => to_rfc3339(params.id)?,
+            "expiry" => to_rfc3339(timestamp)?,
+        })
+        .param_types(param_types! {
+            "bsoid" => SpannerType::Timestamp,
+            "expiry" => SpannerType::Timestamp,
+        })
+        .execute(&db.conn)?
+        .one_or_none()?;
+    if let Some(result) = result {
+        Ok(Some(params::Batch {
+            id: params.id,
+            bsos: result[1].get_string_value().to_owned(),
+            // XXX: we don't really use expiry (but it's probably needed for
+            // mysql/diesel compat). converting it back to i64 is maybe
+            // suspicious
+            expiry: SyncTimestamp::from_rfc3339(result[2].get_string_value())?.as_i64(),
+        }))
+    } else {
+        Ok(None)
     }
 }
 
-fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
+pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
 
-    let spanner = &db.conn;
-    let session = spanner.session.name.as_ref().unwrap();
-    let mut sql = ExecuteSqlRequest::default();
-    sql.sql = Some("DELETE FROM batches WHERE user_id = @userid AND collection_id = @collectionid AND id = @bsoid".to_string());
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("userid".to_string(), user_id.to_string());
-    sqlparams.insert("collectionid".to_string(), collection_id.to_string());
-    sqlparams.insert("bsoid".to_string(), params.id.to_string());
-    sql.params = Some(sqlparams);
-
-    let result = spanner
-        .hub
-        .projects()
-        .instances_databases_sessions_execute_sql(sql, session)
-        .doit();
-    match result {
-        Ok(_result) => Ok(()),
-        // TODO Return the correct error
-        Err(_e) => Err(DbErrorKind::CollectionNotFound.into()),
-    }
+    db.sql(
+        "DELETE FROM batches WHERE userid = @userid AND collection = @collectionid AND id = @bsoid",
+    )?
+    .params(params! {
+        "userid" => user_id.to_string(),
+        "collectionid" => collection_id.to_string(),
+        "bsoid" => to_rfc3339(params.id)?,
+    })
+    .param_types(param_types! {
+        "bsoid" => SpannerType::Timestamp,
+    })
+    .execute(&db.conn)?;
+    Ok(())
 }
 
 pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {

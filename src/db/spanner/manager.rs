@@ -49,8 +49,7 @@ impl ManageConnection for SpannerConnectionManager {
         let session = hub
             .projects()
             .instances_databases_sessions_create(req, &self.database_name)
-            .doit()
-            .unwrap()
+            .doit()?
             .1;
         Ok(SpannerSession {
             hub,
@@ -59,7 +58,15 @@ impl ManageConnection for SpannerConnectionManager {
         })
     }
 
-    fn is_valid(&self, _conn: &mut Self::Connection) -> Result<(), Error> {
+    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Error> {
+        use google_spanner1::ExecuteSqlRequest;
+        let mut request = ExecuteSqlRequest::default();
+        request.sql = Some("SELECT 1".to_owned());
+        let session = conn.session.name.as_ref().unwrap();
+        conn.hub
+            .projects()
+            .instances_databases_sessions_execute_sql(request, session)
+            .doit()?;
         Ok(())
     }
 

@@ -1,140 +1,19 @@
 use std::collections::HashMap;
 
-use env_logger;
 use futures::compat::Future01CompatExt;
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use codegen::async_test;
-use syncstorage::db::mysql::models::DEFAULT_BSO_TTL;
-use syncstorage::db::util::SyncTimestamp;
-use syncstorage::db::{params, Db, Sorting};
-use syncstorage::error::ApiError;
-use syncstorage::settings::{Secrets, ServerLimits, Settings};
-use syncstorage::web::extractors::{BsoQueryParams, HawkIdentifier};
+use syncstorage::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
+
+use crate::support::{db, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, Result};
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
 
 lazy_static! {
     static ref UID: u32 = thread_rng().gen_range(0, 10000);
-}
-
-type Result<T> = std::result::Result<T, ApiError>;
-
-async fn db() -> Result<Box<dyn Db>> {
-    let _ = env_logger::try_init();
-    // inherit SYNC_DATABASE_URL from the env
-    let settings = Settings::with_env_and_config_file(&None).unwrap();
-    let settings = Settings {
-        debug: true,
-        port: 8000,
-        host: settings.host,
-        database_url: settings.database_url,
-        database_pool_max_size: Some(1),
-        database_use_test_transactions: true,
-        limits: ServerLimits::default(),
-        master_secret: Secrets::default(),
-    };
-
-    let pool = syncstorage::db::pool_from_settings(&settings)?;
-    pool.get().compat().await
-}
-
-fn pbso(
-    user_id: u32,
-    coll: &str,
-    bid: &str,
-    payload: Option<&str>,
-    sortindex: Option<i32>,
-    ttl: Option<u32>,
-) -> params::PutBso {
-    params::PutBso {
-        user_id: HawkIdentifier::new_legacy(u64::from(user_id)),
-        collection: coll.to_owned(),
-        id: bid.to_owned(),
-        payload: payload.map(|payload| payload.to_owned()),
-        sortindex,
-        ttl,
-    }
-}
-
-fn postbso(
-    bid: &str,
-    payload: Option<&str>,
-    sortindex: Option<i32>,
-    ttl: Option<u32>,
-) -> params::PostCollectionBso {
-    params::PostCollectionBso {
-        id: bid.to_owned(),
-        payload: payload.map(&str::to_owned),
-        sortindex,
-        ttl,
-    }
-}
-
-fn gbso(user_id: u32, coll: &str, bid: &str) -> params::GetBso {
-    params::GetBso {
-        user_id: hid(user_id),
-        collection: coll.to_owned(),
-        id: bid.to_owned(),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn gbsos(
-    user_id: u32,
-    coll: &str,
-    bids: &[&str],
-    older: u64,
-    newer: u64,
-    sort: Sorting,
-    limit: i64,
-    offset: i64,
-) -> params::GetBsos {
-    params::GetBsos {
-        user_id: hid(user_id),
-        collection: coll.to_owned(),
-        params: BsoQueryParams {
-            ids: bids.iter().map(|id| id.to_owned().into()).collect(),
-            older: Some(SyncTimestamp::from_milliseconds(older)),
-            newer: Some(SyncTimestamp::from_milliseconds(newer)),
-            sort,
-            limit: Some(limit as u32),
-            offset: Some(offset as u64),
-            full: true,
-        },
-    }
-}
-
-fn dbso(user_id: u32, coll: &str, bid: &str) -> params::DeleteBso {
-    params::DeleteBso {
-        user_id: hid(user_id),
-        collection: coll.to_owned(),
-        id: bid.to_owned(),
-    }
-}
-
-fn dbsos(user_id: u32, coll: &str, bids: &[&str]) -> params::DeleteBsos {
-    params::DeleteBsos {
-        user_id: hid(user_id),
-        collection: coll.to_owned(),
-        ids: bids.iter().map(|id| id.to_owned().into()).collect(),
-    }
-}
-
-fn hid(user_id: u32) -> HawkIdentifier {
-    HawkIdentifier::new_legacy(u64::from(user_id))
-}
-
-macro_rules! with_delta {
-    ($db:expr, $delta:expr, $body:block) => {{
-        let ts = $db.timestamp().as_i64();
-        $db.set_timestamp(SyncTimestamp::_from_i64(ts + $delta).unwrap());
-        let result = $body;
-        $db.set_timestamp(SyncTimestamp::_from_i64(ts).unwrap());
-        result
-    }};
 }
 
 #[async_test]
