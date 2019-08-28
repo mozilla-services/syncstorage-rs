@@ -69,3 +69,6 @@ yup-oauth2 = "^1.0"
 [features]
 db_test = []
 #google_grpc = ["googleapis-raw", "grpcio"]
+
+[patch.crates-io]
+actix-web = { git = "https://github.com/pjenvey/actix-web", branch = "extensions-leak-1062" }
