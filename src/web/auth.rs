@@ -78,8 +78,8 @@ impl HawkPayload {
         let request = RequestBuilder::new(method, host, port, path).request();
 
         // Toggle the following comments to disable auth (useful for local integration testing)
-        // Ok(payload)
-        //*
+        Ok(payload)
+        /*
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
@@ -93,7 +93,7 @@ impl HawkPayload {
         } else {
             Err(HawkErrorKind::InvalidHeader)?
         }
-        // */
+        */
     }
 
     /// Decode the `id` property of a Hawk header

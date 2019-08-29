@@ -91,6 +91,8 @@ impl From<Context<DbErrorKind>> for DbError {
 pub enum ConnectionError {
     Diesel(diesel::result::ConnectionError),
     Spanner(String),
+    #[cfg(feature = "google_grpc")]
+    SpannerGrpc(grpcio::Error),
 }
 
 impl fmt::Display for ConnectionError {
@@ -98,6 +100,8 @@ impl fmt::Display for ConnectionError {
         match self {
             ConnectionError::Diesel(e) => fmt::Display::fmt(e, formatter),
             ConnectionError::Spanner(msg) => fmt::Display::fmt(msg, formatter),
+            #[cfg(feature = "google_grpc")]
+            ConnectionError::SpannerGrpc(e) => fmt::Display::fmt(e, formatter),
         }
     }
 }
@@ -115,6 +119,10 @@ from_error!(
         inner.to_string()
     ))
 );
+#[cfg(feature = "google_grpc")]
+from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
+    DbErrorKind::Connection(ConnectionError::SpannerGrpc(inner))
+});
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
 from_error!(
     diesel_migrations::RunMigrationsError,

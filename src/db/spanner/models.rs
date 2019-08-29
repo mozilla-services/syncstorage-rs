@@ -33,8 +33,13 @@ use super::{
 
 use google_spanner1::{
     BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite,
-    RollbackRequest, TransactionOptions, TransactionSelector,
+    RollbackRequest, TransactionOptions,
 };
+
+#[cfg(feature = "google_grpc")]
+pub type TransactionSelector = googleapis_raw::spanner::v1::transaction::TransactionSelector;
+#[cfg(not(feature = "google_grpc"))]
+pub type TransactionSelector = google_spanner1::TransactionSelector;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum CollectionLock {
@@ -57,6 +62,9 @@ struct SpannerDbSession {
     coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
+    #[cfg(feature = "google_grpc")]
+    transaction: Option<googleapis_raw::spanner::v1::transaction::TransactionSelector>,
+    #[cfg(not(feature = "google_grpc"))]
     transaction: Option<TransactionSelector>,
     execute_sql_count: u64,
 }
@@ -252,6 +260,31 @@ impl SpannerDb {
         Ok(())
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub(super) fn begin(&self, for_write: bool) -> Result<()> {
+        let spanner = &self.conn;
+        let mut options = googleapis_raw::spanner::v1::transaction::TransactionOptions::new();
+        if for_write {
+            options.set_read_write(
+                googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadWrite::new(),
+            );
+        } else {
+            options.set_read_only(
+                googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadOnly::new(),
+            );
+        }
+        let mut req = googleapis_raw::spanner::v1::spanner::BeginTransactionRequest::new();
+        req.set_session(spanner.session.get_name().to_owned());
+        req.set_options(options);
+        let mut transaction = spanner.client.begin_transaction(&req)?;
+
+        let mut ts = googleapis_raw::spanner::v1::transaction::TransactionSelector::new();
+        ts.set_id(transaction.take_id());
+        self.session.borrow_mut().transaction = Some(ts);
+        Ok(())
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub(super) fn begin(&self, for_write: bool) -> Result<()> {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
@@ -286,6 +319,27 @@ impl SpannerDb {
         })
     }
 
+    #[cfg(feature = "google_grpc")]
+    fn sql_request(
+        &self,
+        sql: &str,
+    ) -> Result<googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest> {
+        let mut sqlr = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest::new();
+        sqlr.set_sql(sql.to_owned());
+        if let Some(transaction) = self.get_transaction()? {
+            sqlr.set_transaction(transaction);
+        }
+        let mut session = self.session.borrow_mut();
+        // XXX: include seqno if no transaction?
+        sqlr.seqno = session
+            .execute_sql_count
+            .try_into()
+            .map_err(|_| DbError::internal("seqno overflow"))?;
+        session.execute_sql_count += 1;
+        Ok(sqlr)
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     fn sql_request(&self, sql: &str) -> Result<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::default();
         sqlr.sql = Some(sql.to_owned());
@@ -309,6 +363,32 @@ impl SpannerDb {
             .any(|lock| lock == &CollectionLock::Write)
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn commit_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
+        let spanner = &self.conn;
+
+        if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
+            // don't commit test transactions
+            return Ok(());
+        }
+
+        if let Some(transaction) = self.get_transaction()? {
+            let mut req = googleapis_raw::spanner::v1::spanner::CommitRequest::new();
+            req.set_session(spanner.session.get_name().to_owned());
+            req.set_transaction_id(transaction.get_id().to_vec());
+            spanner.client.commit(&req)?;
+            Ok(())
+        } else {
+            Err(DbError::internal("No transaction to commit"))?
+        }
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn commit_sync(&self) -> Result<()> {
         if !self.in_write_transaction() {
             // read-only
@@ -341,6 +421,26 @@ impl SpannerDb {
         }
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn rollback_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
+        if let Some(transaction) = self.get_transaction()? {
+            let spanner = &self.conn;
+            let mut req = googleapis_raw::spanner::v1::spanner::RollbackRequest::new();
+            req.set_session(spanner.session.get_name().to_owned());
+            req.set_transaction_id(transaction.get_id().to_vec());
+            spanner.client.rollback(&req)?;
+            Ok(())
+        } else {
+            Err(DbError::internal("No transaction to rollback"))?
+        }
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn rollback_sync(&self) -> Result<()> {
         if !self.in_write_transaction() {
             // read-only
@@ -1001,13 +1101,25 @@ impl SpannerDb {
             };
 
             if use_sortindex {
-                // XXX: special handling for google_grpc (null)
-                sqlparams.insert(
-                    "sortindex".to_string(),
-                    bso.sortindex
-                        .map(|sortindex| sortindex.to_string())
-                        .unwrap_or_else(|| "NULL".to_owned()),
-                );
+                // special handling for google_grpc (null)
+                #[cfg(feature = "google_grpc")]
+                let sortindex = bso
+                    .sortindex
+                    .map(|sortindex| as_value(sortindex.to_string()))
+                    .unwrap_or_else(|| {
+                        use protobuf::well_known_types::{NullValue, Value};
+                        let mut value = Value::new();
+                        value.set_null_value(NullValue::NULL_VALUE);
+                        value
+                    });
+
+                #[cfg(not(feature = "google_grpc"))]
+                let sortindex = bso
+                    .sortindex
+                    .map(|sortindex| sortindex.to_string())
+                    .unwrap_or_else(|| "NULL".to_owned());
+
+                sqlparams.insert("sortindex".to_string(), sortindex);
                 sqltypes.insert("sortindex".to_string(), SpannerType::Int64.into());
             }
             sqlparams.insert(
