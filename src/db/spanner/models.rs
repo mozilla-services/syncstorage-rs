@@ -66,6 +66,7 @@ struct SpannerDbSession {
     transaction: Option<googleapis_raw::spanner::v1::transaction::TransactionSelector>,
     #[cfg(not(feature = "google_grpc"))]
     transaction: Option<TransactionSelector>,
+    in_write_transaction: bool,
     execute_sql_count: u64,
 }
 
@@ -268,6 +269,7 @@ impl SpannerDb {
             options.set_read_write(
                 googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadWrite::new(),
             );
+            self.session.borrow_mut().in_write_transaction = true;
         } else {
             options.set_read_only(
                 googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadOnly::new(),
@@ -291,6 +293,7 @@ impl SpannerDb {
         let mut options = TransactionOptions::default();
         if for_write {
             options.read_write = Some(ReadWrite::default());
+            self.session.borrow_mut().in_write_transaction = true;
         } else {
             options.read_only = Some(ReadOnly::default());
         }
@@ -357,10 +360,8 @@ impl SpannerDb {
 
     fn in_write_transaction(&self) -> bool {
         self.session
-            .borrow_mut()
-            .coll_locks
-            .values()
-            .any(|lock| lock == &CollectionLock::Write)
+            .borrow()
+            .in_write_transaction
     }
 
     #[cfg(feature = "google_grpc")]
