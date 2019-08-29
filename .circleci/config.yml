@@ -259,6 +259,11 @@ workflows:
           filters:
             tags:
               only: /.*/
+        # ping @g-k / gguthe on slack with feedback
+      - rust-changelog:
+          filters:
+            tags:
+              only: /.*/
 
       # Need to update https://circleci.com/gh/mozilla-services/syncstorage-rs/edit#env-vars
       # with docker hub credentials. before enabling this.
@@ -268,11 +273,3 @@ workflows:
       #    filters:
       #      tags:
       #        only: /.*/
-
-  # ping @g-k / gguthe on slack with feedback
-  dep-report:
-    jobs:
-      - rust-changelog:
-          filters:
-            tags:
-              only: /.*/
