@@ -67,7 +67,6 @@ hyper-rustls = "^0.6"
 yup-oauth2 = "^1.0"
 
 [features]
-default = ["google_grpc"]
 db_test = []
 google_grpc = ["googleapis-raw", "grpcio"]
 
