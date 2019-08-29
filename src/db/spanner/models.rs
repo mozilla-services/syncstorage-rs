@@ -359,9 +359,7 @@ impl SpannerDb {
     }
 
     fn in_write_transaction(&self) -> bool {
-        self.session
-            .borrow()
-            .in_write_transaction
+        self.session.borrow().in_write_transaction
     }
 
     #[cfg(feature = "google_grpc")]
