@@ -235,11 +235,15 @@ jobs:
             tar -xz -C /tmp -f /tmp/docker-$VER.tgz
             mv /tmp/docker/* /usr/bin
       - run:
+          name: pull find-package-rugaru image
+          command: |
+            docker pull gguthemoz/fpr:latest
+      - run:
           name: Check Rust Dependencies
           command: |
             printf '{"org": "mozilla-services", "repo": "syncstorage-rs", "ref": {"value": "master", "kind": "branch"}, "repo_url": "https://github.com/mozilla-services/syncstorage-rs.git"}\n{"org": "mozilla-services", "repo": "syncstorage-rs", "ref": {"value": "$CIRCLE_SHA1", "kind": "commit"}, "repo_url": "https://github.com/mozilla-services/syncstorage-rs.git"}\n'  | \
-                docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock --name fpr-cargo_metadata gguthemoz:fpr python fpr/run_pipeline.py cargo_metadata | \
-                docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock --name fpr-rust_changelog gguthemoz:fpr python fpr/run_pipeline.py rust_changelog -m Cargo.toml
+                docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock --name fpr-cargo_metadata gguthemoz/fpr:latest python fpr/run_pipeline.py cargo_metadata | \
+                docker run --rm -i -v /var/run/docker.sock:/var/run/docker.sock --name fpr-rust_changelog gguthemoz/fpr:latest python fpr/run_pipeline.py rust_changelog -m Cargo.toml
 
 workflows:
   version: 2
