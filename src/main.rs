@@ -33,8 +33,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
 
     // Setup and run the server
+    let db_url = url::Url::parse(&settings.database_url)?;
+    let features = if cfg!(feature = "google_grpc") {
+        "+google_grpc"
+    } else {
+        ""
+    };
+    let banner = format!(
+        "Server running on http://{}:{} ({}{})",
+        settings.host,
+        settings.port,
+        db_url.scheme(),
+        features
+    );
+
     let sys = server::Server::with_settings(settings).unwrap();
-    println!("Server running...");
+    println!("{}", banner);
     sys.run()?;
     println!("Server closing");
 
