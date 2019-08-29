@@ -227,34 +227,34 @@ where
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
             sreq.extensions_mut().insert(db.clone());
 
-            if let Some(collection) = collection {
-                let db2 = db.clone();
-                let lc = params::LockCollection {
-                    user_id: hawk_user_id,
-                    collection: collection.collection,
-                };
-
-                Either::A(
-                    match method {
-                        Method::GET | Method::HEAD => db.lock_for_read(lc),
-                        _ => db.lock_for_write(lc),
-                    }
-                    .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
-                    .map_err(Into::into)
-                    .and_then(move |_| {
-                        service.call(sreq).and_then(move |resp| {
-                            match resp.response().error() {
-                                None => db2.commit(),
-                                Some(_) => db2.rollback(),
-                            }
-                            .map_err(Into::into)
-                            .and_then(|_| resp)
-                        })
-                    }),
-                )
+            let collection = if let Some(collection) = collection {
+                collection
             } else {
-                Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
+                CollectionParam { collection: "".to_owned() }
+            };
+
+            let db2 = db.clone();
+            let lc = params::LockCollection {
+                user_id: hawk_user_id,
+                collection: collection.collection,
+            };
+
+            match method {
+                Method::GET | Method::HEAD => db.lock_for_read(lc),
+                _ => db.lock_for_write(lc),
             }
+            .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
+            .map_err(Into::into)
+            .and_then(move |_| {
+                service.call(sreq).and_then(move |resp| {
+                    match resp.response().error() {
+                        None => db2.commit(),
+                        Some(_) => db2.rollback(),
+                    }
+                    .map_err(Into::into)
+                    .and_then(|_| resp)
+                })
+            })
         });
         Box::new(fut)
     }

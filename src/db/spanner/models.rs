@@ -174,6 +174,10 @@ impl SpannerDb {
 
     pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
         let user_id = params.user_id.legacy_id as u32;
+        if params.collection == "" {
+            self.begin(false)?;
+            return Ok(());
+        }
         let collection_id =
             self.get_collection_id(&params.collection)
                 .or_else(|e| match e.kind() {
@@ -224,6 +228,10 @@ impl SpannerDb {
 
     pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
         let user_id = params.user_id.legacy_id as u32;
+        if params.collection == "" {
+            self.begin(true)?;
+            return Ok(());
+        }
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
             .inner
