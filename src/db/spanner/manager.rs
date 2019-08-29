@@ -84,16 +84,10 @@ impl ManageConnection for SpannerConnectionManager {
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        /*
-        use google_spanner1::ExecuteSqlRequest;
-        let mut request = ExecuteSqlRequest::default();
-        request.sql = Some("SELECT 1".to_owned());
-        let session = conn.session.name.as_ref().unwrap();
-        conn.hub
-            .projects()
-            .instances_databases_sessions_execute_sql(request, session)
-            .doit()?;
-        */
+        let mut req = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest::new();
+        req.set_sql("SELECT 1".to_owned());
+        req.set_session(conn.session.get_name().to_owned());
+        conn.client.execute_sql(&req)?;
         Ok(())
     }
 
