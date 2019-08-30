@@ -808,7 +808,7 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, 0), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
+        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
         let timestamp = self.timestamp().as_i64();
         let modifiedstring = to_rfc3339(timestamp)?;
         let mut sqlparams = params! {
@@ -892,11 +892,16 @@ impl SpannerDb {
             .execute(&self.conn)?;
         let mut bsos = vec![];
         for row in result {
+            let sortindex = if row[3].has_null_value() {
+                None
+            } else {
+                Some(row[3].get_string_value().parse().unwrap())
+            };
             bsos.push(results::GetBso {
                 id: row[0].get_string_value().parse().unwrap(),
                 modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value()).unwrap(),
                 payload: row[2].get_string_value().parse().unwrap(),
-                sortindex: Some(row[3].get_string_value().parse().unwrap()),
+                sortindex,
                 expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())
                     .unwrap()
                     .as_i64(),
@@ -935,7 +940,7 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let result = self.
-            sql("SELECT id, modified, payload, coalesce(sortindex, 0), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?
+            sql("SELECT id, modified, payload, coalesce(sortindex, NULL), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
