@@ -52,6 +52,8 @@ struct MysqlDbSession {
     coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
+    /// Whether a transaction was started (begin() called)
+    in_transaction: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -214,24 +216,29 @@ impl MysqlDb {
     }
 
     pub(super) fn begin(&self) -> Result<()> {
-        Ok(self
-            .conn
+        self.conn
             .transaction_manager()
-            .begin_transaction(&self.conn)?)
+            .begin_transaction(&self.conn)?;
+        self.session.borrow_mut().in_transaction = true;
+        Ok(())
     }
 
     pub fn commit_sync(&self) -> Result<()> {
-        Ok(self
-            .conn
-            .transaction_manager()
-            .commit_transaction(&self.conn)?)
+        if self.session.borrow().in_transaction {
+            self.conn
+                .transaction_manager()
+                .commit_transaction(&self.conn)?;
+        }
+        Ok(())
     }
 
     pub fn rollback_sync(&self) -> Result<()> {
-        Ok(self
-            .conn
-            .transaction_manager()
-            .rollback_transaction(&self.conn)?)
+        if self.session.borrow().in_transaction {
+            self.conn
+                .transaction_manager()
+                .rollback_transaction(&self.conn)?;
+        }
+        Ok(())
     }
 
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {

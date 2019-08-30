@@ -173,11 +173,10 @@ impl SpannerDb {
     }
 
     pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
+        // Begin a transaction
+        self.begin(false)?;
+
         let user_id = params.user_id.legacy_id as u32;
-        if params.collection == "" {
-            self.begin(false)?;
-            return Ok(());
-        }
         let collection_id =
             self.get_collection_id(&params.collection)
                 .or_else(|e| match e.kind() {
@@ -199,9 +198,6 @@ impl SpannerDb {
             return Ok(());
         }
 
-        // Lock the db
-        self.begin(false)?;
-
         self.session
             .borrow_mut()
             .coll_locks
@@ -211,11 +207,10 @@ impl SpannerDb {
     }
 
     pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
+        // Begin a transaction
+        self.begin(true)?;
+
         let user_id = params.user_id.legacy_id as u32;
-        if params.collection == "" {
-            self.begin(true)?;
-            return Ok(());
-        }
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
             .inner
@@ -227,8 +222,6 @@ impl SpannerDb {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
 
-        // Lock the db
-        self.begin(true)?;
         let result = self
             .sql("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
             .params(params! {
