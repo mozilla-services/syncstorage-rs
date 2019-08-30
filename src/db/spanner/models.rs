@@ -1131,7 +1131,7 @@ impl SpannerDb {
             }
             sqlparams.insert(
                 "payload".to_string(),
-                as_value(bso.payload.unwrap_or_else(|| "DEFAULT".to_owned())),
+                as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
             );
             let now_millis = self.timestamp().as_i64();
             let ttl = bso
