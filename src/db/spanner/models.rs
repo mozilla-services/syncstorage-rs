@@ -966,7 +966,7 @@ impl SpannerDb {
                 id: row[0].get_string_value().to_owned(),
                 modified,
                 payload: row[2].get_string_value().to_owned(),
-                sortindex: Some(row[3].get_string_value().parse().unwrap()),
+                sortindex: None,
                 expiry,
             })
         } else {
