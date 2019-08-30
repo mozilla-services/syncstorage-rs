@@ -201,23 +201,7 @@ impl SpannerDb {
 
         // Lock the db
         self.begin(false)?;
-        // XXX: lock_for_read shouldn't need to query for a timestamp?
-        let result = self
-            .sql("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
-            .params(params! {
-                "userid" => user_id.to_string(),
-                "collectionid" => collection_id.to_string(),
-            })
-            .execute(&self.conn)?
-            .one_or_none()?;
-        // XXX: python code does a "SELECT CURRENT_TIMESTAMP()" when None here
-        if let Some(result) = result {
-            let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
-            self.session
-                .borrow_mut()
-                .coll_modified_cache
-                .insert((user_id, collection_id), modified);
-        }
+
         self.session
             .borrow_mut()
             .coll_locks
@@ -255,7 +239,7 @@ impl SpannerDb {
             .one_or_none()?;
         // XXX: python code does a "SELECT CURRENT_TIMESTAMP()" when None here
         if let Some(result) = result {
-            let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
+            let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
             self.session
                 .borrow_mut()
                 .coll_modified_cache
