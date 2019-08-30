@@ -239,20 +239,25 @@ where
                 collection: collection.collection,
             };
 
-            match method {
-                Method::GET | Method::HEAD => db.lock_for_read(lc),
-                _ => db.lock_for_write(lc),
-            }
+            let (result, for_write) = match method {
+                Method::GET | Method::HEAD => (db.lock_for_read(lc), false),
+                _ => (db.lock_for_write(lc), true)
+            };
+            result
             .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
             .map_err(Into::into)
             .and_then(move |_| {
                 service.call(sreq).and_then(move |resp| {
-                    match resp.response().error() {
-                        None => db2.commit(),
-                        Some(_) => db2.rollback(),
+                    if for_write {
+                        Either::A(match resp.response().error() {
+                            None => db2.commit(),
+                            Some(_) => db2.rollback(),
+                        }
+                        .map_err(Into::into)
+                        .and_then(|_| resp))
+                    } else {
+                        Either::B(future::ok(resp))
                     }
-                    .map_err(Into::into)
-                    .and_then(|_| resp)
                 })
             })
         });
