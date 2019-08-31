@@ -31,6 +31,7 @@ use super::{
     support::{as_value, ExecuteSqlRequestBuilder},
 };
 
+#[cfg(not(feature = "google_grpc"))]
 use google_spanner1::{
     BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite,
     RollbackRequest, TransactionOptions,

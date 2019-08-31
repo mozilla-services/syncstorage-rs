@@ -98,7 +98,7 @@ impl Settings {
     pub fn banner(&self) -> String {
         let db = Url::parse(&self.database_url)
             .map(|url| url.scheme().to_owned())
-            .unwrap_or("<invalid db>".to_owned());
+            .unwrap_or_else(|_| "<invalid db>".to_owned());
         let features = if cfg!(feature = "google_grpc") {
             "+google_grpc"
         } else {

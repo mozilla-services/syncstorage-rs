@@ -1,7 +1,11 @@
 use diesel::r2d2::ManageConnection;
+#[cfg(not(feature = "google_grpc"))]
 use google_spanner1::{CreateSessionRequest, Session, Spanner};
+#[cfg(not(feature = "google_grpc"))]
 use hyper::{net::HttpsConnector, Client};
+#[cfg(not(feature = "google_grpc"))]
 use hyper_rustls::TlsClient;
+#[cfg(not(feature = "google_grpc"))]
 use yup_oauth2::{service_account_key_from_file, GetToken, ServiceAccountAccess};
 
 use crate::{
@@ -46,8 +50,7 @@ impl ManageConnection for SpannerConnectionManager {
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
         use googleapis_raw::spanner::v1::{
-            spanner::{CreateSessionRequest, ExecuteSqlRequest},
-            spanner_grpc::SpannerClient,
+            spanner::CreateSessionRequest, spanner_grpc::SpannerClient,
         };
         use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
         use std::sync::Arc;
