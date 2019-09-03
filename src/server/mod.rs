@@ -11,16 +11,18 @@ use actix_web::{
 // use num_cpus;
 use serde_json::json;
 
-use crate::db::{pool_from_settings, DbError, DbPool};
+use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::{handlers, middleware};
+use cadence::StatsdClient;
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
+pub mod metrics;
 #[cfg(test)]
 mod test;
 
@@ -34,6 +36,9 @@ pub struct ServerState {
 
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
+
+    /// Metric reporting
+    pub metrics: Box<StatsdClient>,
 
     pub port: u16,
 }
@@ -155,8 +160,9 @@ macro_rules! build_app {
 }
 
 impl Server {
-    pub fn with_settings(settings: Settings) -> Result<SystemRunner, DbError> {
+    pub fn with_settings(settings: Settings) -> Result<SystemRunner, ApiError> {
         let sys = System::new("syncserver");
+        let metrics = metrics::metrics_from_opts(&settings)?;
         let db_pool = pool_from_settings(&settings)?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
@@ -168,6 +174,7 @@ impl Server {
                 db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
+                metrics: Box::new(metrics.clone()),
                 port,
             };
 

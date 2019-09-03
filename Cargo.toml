@@ -20,7 +20,7 @@ actix-http = "0.2"
 actix-service = "0.4"
 base64 = "0.10.1"
 bytes = "0.4"
-cadence = "0.17.1"
+cadence = "0.18.0"
 chrono = "0.4"
 config = "0.9.3"
 diesel = { version = "1.4.2", features = ["mysql", "r2d2"] }

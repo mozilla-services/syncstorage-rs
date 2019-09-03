@@ -149,6 +149,18 @@ impl From<ApiError> for HttpResponse {
     }
 }
 
+impl From<cadence::MetricError> for ApiError {
+    fn from(inner: cadence::MetricError) -> Self {
+        ApiErrorKind::Internal(inner.to_string()).into()
+    }
+}
+
+impl From<std::io::Error> for ApiError {
+    fn from(inner: std::io::Error) -> Self {
+        ApiErrorKind::Internal(inner.to_string()).into()
+    }
+}
+
 impl From<Context<ApiErrorKind>> for ApiError {
     fn from(inner: Context<ApiErrorKind>) -> Self {
         let status = match inner.get_context() {
