@@ -2895,11 +2895,6 @@ dependencies = [
  "url 1.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
-[[patch.unused]]
-name = "actix-web"
-version = "1.0.6"
-source = "git+https://github.com/pjenvey/actix-web?branch=extensions-leak-1062#e5210789a4834568087266e7aad7b6f288b0e1da"
-
 [metadata]
 "checksum actix-codec 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9f2c11af4b06dc935d8e1b1491dad56bfb32febc49096a91e773f8535c176453"
 "checksum actix-connect 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "a0ff50d0ec73f6db267ca8ad28ccf325846e691c6bc15d8b6c0f4ea43b238e90"
