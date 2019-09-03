@@ -13,7 +13,7 @@ edition = "2018"
 debug = 1
 
 [dependencies]
-actix-web = "1.0"
+actix-web = "^1.0.7"
 actix-rt = "0.2"
 actix-cors = "0.1"
 actix-http = "0.2"
