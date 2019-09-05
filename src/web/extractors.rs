@@ -26,7 +26,7 @@ use validator::{Validate, ValidationError};
 
 use crate::db::{util::SyncTimestamp, Db, Sorting};
 use crate::error::ApiError;
-use crate::server::{ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
+use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
 use crate::web::{
     auth::HawkPayload,
@@ -499,6 +499,7 @@ impl FromRequest for CollectionParam {
 pub struct MetaRequest {
     pub user_id: HawkIdentifier,
     pub db: Box<dyn Db>,
+    pub metrics: metrics::Metrics,
 }
 
 impl FromRequest for MetaRequest {
@@ -510,7 +511,13 @@ impl FromRequest for MetaRequest {
         // Call the precondition stuff to init database handles and what-not
         let user_id = HawkIdentifier::from_request(req, payload)?;
         let db = extrude_db(&req.extensions())?;
-        Ok({ MetaRequest { user_id, db } })
+        Ok({
+            MetaRequest {
+                user_id,
+                db,
+                metrics: metrics::Metrics::from(req),
+            }
+        })
     }
 }
 
@@ -530,6 +537,7 @@ pub struct CollectionRequest {
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub reply: ReplyFormat,
+    pub metrics: metrics::Metrics,
 }
 
 impl FromRequest for CollectionRequest {
@@ -562,6 +570,7 @@ impl FromRequest for CollectionRequest {
             user_id,
             query,
             reply,
+            metrics: metrics::Metrics::from(req),
         })
     }
 }
@@ -576,6 +585,7 @@ pub struct CollectionPostRequest {
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
     pub batch: Option<BatchRequest>,
+    pub metrics: metrics::Metrics,
 }
 
 impl FromRequest for CollectionPostRequest {
@@ -657,6 +667,7 @@ impl FromRequest for CollectionPostRequest {
                 query,
                 bsos,
                 batch: batch.opt,
+                metrics: metrics::Metrics::from(&req),
             })
         });
 
@@ -674,6 +685,7 @@ pub struct BsoRequest {
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
+    pub metrics: metrics::Metrics,
 }
 
 impl FromRequest for BsoRequest {
@@ -696,6 +708,7 @@ impl FromRequest for BsoRequest {
             user_id,
             query,
             bso: bso.bso.clone(),
+            metrics: metrics::Metrics::from(req),
         })
     }
 }
@@ -710,6 +723,7 @@ pub struct BsoPutRequest {
     pub query: BsoQueryParams,
     pub bso: String,
     pub body: BsoBody,
+    pub metrics: metrics::Metrics,
 }
 
 impl FromRequest for BsoPutRequest {
@@ -718,6 +732,8 @@ impl FromRequest for BsoPutRequest {
     type Future = Box<dyn Future<Item = BsoPutRequest, Error = Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let metrics = metrics::Metrics::from(req);
+
         let fut = <(
             HawkIdentifier,
             Box<dyn Db>,
@@ -750,6 +766,7 @@ impl FromRequest for BsoPutRequest {
                 query,
                 bso: bso.bso.clone(),
                 body,
+                metrics,
             })
         });
         Box::new(fut)
@@ -1360,8 +1377,8 @@ mod tests {
     use sha2::Sha256;
 
     use crate::db::mock::{MockDb, MockDbPool};
-    use crate::server::ServerState;
-    use crate::settings::{Secrets, ServerLimits};
+    use crate::server::{metrics, ServerState};
+    use crate::settings::{Secrets, ServerLimits, Settings};
 
     use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
@@ -1384,11 +1401,13 @@ mod tests {
     }
 
     fn make_state() -> ServerState {
+        let settings = Settings::default();
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             secrets: Arc::clone(&SECRETS),
             port: 8000,
+            metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
         }
     }
 

@@ -21,7 +21,7 @@ use futures::{
 
 use crate::db::{params, util::SyncTimestamp};
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::ServerState;
+use crate::server::{metrics, ServerState};
 use crate::web::extractors::{
     extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
     PreConditionHeaderOpt,
@@ -181,21 +181,6 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
-        let collection = match col_result {
-            Ok(v) => v,
-            Err(e) => {
-                dbg!("⚠️ CollectionParam err: {:?}", e);
-                return Box::new(future::ok(
-                    sreq.into_response(
-                        HttpResponse::InternalServerError()
-                            .content_type("application/json")
-                            .body("Err: invalid collection".to_owned())
-                            .into_body(),
-                    ),
-                ));
-            }
-        };
-        let method = sreq.method().clone();
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
@@ -209,6 +194,23 @@ where
                 ))
             }
         };
+        let collection = match col_result {
+            Ok(v) => v,
+            Err(e) => {
+                // Semi-example to show how to use metrics inside of middleware.
+                metrics::Metrics::from(&state).incr("sync.error.collectionParam");
+                dbg!("⚠️ CollectionParam err: {:?}", e);
+                return Box::new(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: invalid collection".to_owned())
+                            .into_body(),
+                    ),
+                ));
+            }
+        };
+        let method = sreq.method().clone();
         let hawk_user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {

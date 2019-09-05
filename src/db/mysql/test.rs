@@ -37,6 +37,7 @@ pub fn db() -> Result<MysqlDb> {
         database_use_test_transactions: true,
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
+        ..Default::default()
     };
 
     let pool = MysqlDbPool::new(&settings)?;

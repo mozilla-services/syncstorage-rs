@@ -13,14 +13,14 @@ edition = "2018"
 debug = 1
 
 [dependencies]
-actix-web = "1.0"
+actix-web = "^1.0.7"
 actix-rt = "0.2"
 actix-cors = "0.1"
 actix-http = "0.2"
 actix-service = "0.4"
 base64 = "0.10.1"
 bytes = "0.4"
-cadence = "0.17.1"
+cadence = "0.18.0"
 chrono = "0.4"
 config = "0.9.3"
 diesel = { version = "1.4.2", features = ["mysql", "r2d2"] }
@@ -70,5 +70,5 @@ yup-oauth2 = "^1.0"
 db_test = []
 #google_grpc = ["googleapis-raw", "grpcio"]
 
-[patch.crates-io]
-actix-web = { git = "https://github.com/pjenvey/actix-web", branch = "extensions-leak-1062" }
+#[patch.crates-io]
+#actix-web = { git = "https://github.com/pjenvey/actix-web", branch = "extensions-leak-1062" }

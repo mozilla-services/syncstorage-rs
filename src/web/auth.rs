@@ -469,6 +469,7 @@ mod tests {
                     database_use_test_transactions: false,
                     limits: Default::default(),
                     master_secret: Secrets::new("Ted Koppel is a robot").unwrap(),
+                    ..Default::default()
                 },
                 expected: HawkPayload {
                     expires: 1_536_199_274.0,

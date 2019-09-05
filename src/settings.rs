@@ -16,6 +16,7 @@ static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = 2 * MEGABYTE;
 static DEFAULT_MAX_REQUEST_BYTES: u32 = DEFAULT_MAX_POST_BYTES + 4 * KILOBYTE;
 static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
 static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
+static PREFIX: &str = "sync";
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
@@ -34,6 +35,10 @@ pub struct Settings {
     /// the signing secret and token secret
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
+
+    pub statsd_host: Option<String>,
+    pub statsd_port: u16,
+    pub statsd_label: String,
 }
 
 impl Default for Settings {
@@ -48,6 +53,9 @@ impl Default for Settings {
             database_use_test_transactions: false,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
+            statsd_host: None,
+            statsd_port: 8125,
+            statsd_label: "syncstorage".to_string(),
         }
     }
 }
@@ -82,6 +90,9 @@ impl Settings {
             "limits.max_total_records",
             i64::from(DEFAULT_MAX_TOTAL_RECORDS),
         )?;
+        s.set_default("statsd_host", "localhost")?;
+        s.set_default("statsd_port", 8125)?;
+        s.set_default("statsd_label", "syncstorage")?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -89,8 +100,29 @@ impl Settings {
         }
 
         // Merge the environment overrides
-        s.merge(Environment::with_prefix("sync"))?;
-        s.try_into()
+        s.merge(Environment::with_prefix(PREFIX))?;
+
+        // Configuration errors are not very sysop friendly, Try to make them
+        // a bit more 3AM useful.
+        Ok(match s.try_into() {
+            Ok(s) => s,
+            Err(e) => match e {
+                ConfigError::Message(v) => {
+                    println!("Bad configuration: {:?}", &v);
+                    println!("Please set in config file or use environment variable.");
+                    println!(
+                        "For example to set `database_url` use env var `{}_DATABASE_URL`\n",
+                        PREFIX.to_uppercase()
+                    );
+                    dbg!("⚠️ Configuration error: Value undefined", &v);
+                    return Err(ConfigError::NotFound(v));
+                }
+                _ => {
+                    dbg!("⚠️ Other: ", &e);
+                    return Err(e);
+                }
+            },
+        })
     }
 }
 
