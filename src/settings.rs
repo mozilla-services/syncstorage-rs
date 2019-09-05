@@ -35,6 +35,7 @@ pub struct Settings {
     /// the signing secret and token secret
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
+    pub human_logs: bool,
 
     pub statsd_host: Option<String>,
     pub statsd_port: u16,
@@ -56,6 +57,7 @@ impl Default for Settings {
             statsd_host: None,
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
+            human_logs: false,
         }
     }
 }
@@ -69,6 +71,7 @@ impl Settings {
         s.set_default("debug", false)?;
         s.set_default("port", i64::from(DEFAULT_PORT))?;
         s.set_default("host", "127.0.0.1")?;
+        s.set_default("human_logs", false)?;
         #[cfg(any(test, feature = "db_test"))]
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
