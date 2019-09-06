@@ -85,7 +85,7 @@ impl HawkPayload {
             .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
         if cfg!(test) {
             // test cases are valid until 3018. Add millenia as required.
-            duration = duration * 1000;
+            duration *= 1000;
         }
         if request.validate_header(
             &header,
