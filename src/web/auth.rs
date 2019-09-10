@@ -80,14 +80,19 @@ impl HawkPayload {
         // Toggle the following comments to disable auth (useful for local integration testing)
         // Ok(payload)
         //*
+        let mut duration = Duration::weeks(52)
+            .to_std()
+            .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
+        if cfg!(test) {
+            // test cases are valid until 3018. Add millenia as required.
+            duration *= 1000;
+        }
         if request.validate_header(
             &header,
             &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
             // Allow plenty of leeway for clock skew, because
             // client timestamps tend to be all over the shop
-            Duration::weeks(52)
-                .to_std()
-                .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?,
+            duration,
         ) {
             Ok(payload)
         } else {
