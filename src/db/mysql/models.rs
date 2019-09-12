@@ -616,7 +616,7 @@ impl MysqlDb {
         .bind::<Integer, _>(user_id.legacy_id as i32)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
-        .map(|cr| SyncTimestamp::from_i64(cr.modified).and_then(|ts| Ok((cr.collection_id, ts))))
+        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).and_then(|ts| Ok((cr.collection, ts))))
         .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
@@ -894,8 +894,9 @@ struct NameResult {
 
 #[derive(Debug, QueryableByName)]
 struct UserCollectionsResult {
+    // Can't substitute column names here.
     #[sql_type = "Integer"]
-    collection_id: i32,
+    collection: i32, // COLLECTION_ID
     #[sql_type = "BigInt"]
-    modified: i64,
+    last_modified: i64, // LAST_MODIFIED
 }
