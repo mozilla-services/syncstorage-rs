@@ -41,6 +41,14 @@ commands:
       - run:
           name: cargo build
           command: cargo build
+  checkout-gcp-grpc:
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "2f:0b:a1:51:75:6a:3f:ac:fb:af:ef:7c:ca:62:21:2f"
+      - run:
+          name: Checkout gcp-grpc
+          command: git clone git@github.com:pjenvey/mozilla-rust-sdk.git ../mozilla-rust-sdk
 
   write-version:
     steps:
@@ -121,6 +129,7 @@ jobs:
       - image: circleci/rust:latest
     steps:
       - checkout
+      - checkout-gcp-grpc
       - setup-rust
       - setup-rust-check
       - rust-check
@@ -142,6 +151,7 @@ jobs:
             MYSQL_DATABASE: syncstorage
     steps:
       - checkout
+      - checkout-gcp-grpc
       - setup-rust
       # XXX: currently the time needed to setup-sccache negates its savings
       #- setup-sccache
