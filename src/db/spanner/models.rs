@@ -945,11 +945,16 @@ impl SpannerDb {
                 expiry_dt,
                 expiry
             );
+            let sortindex = if row[3].has_null_value() {
+                None
+            } else {
+                Some(row[3].get_string_value().parse().unwrap())
+            };
             Some(results::GetBso {
                 id: row[0].get_string_value().to_owned(),
                 modified,
                 payload: row[2].get_string_value().to_owned(),
-                sortindex: None,
+                sortindex,
                 expiry,
             })
         } else {
