@@ -59,6 +59,7 @@ fn get_test_settings() -> Settings {
         database_use_test_transactions: true,
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
+        ..Default::default()
     }
 }
 
@@ -67,6 +68,7 @@ fn get_test_state(settings: &Settings) -> ServerState {
         db_pool: Box::new(MysqlDbPool::new(&settings).unwrap()),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
+        metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
         port: settings.port,
     }
 }

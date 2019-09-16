@@ -2,9 +2,10 @@
 use std::error::Error;
 
 use docopt::Docopt;
+use log::info;
 use serde_derive::Deserialize;
 
-use syncstorage::{server, settings};
+use syncstorage::{logging, server, settings};
 
 const USAGE: &str = "
 Usage: syncstorage [options]
@@ -31,13 +32,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
-
     // Setup and run the server
     let banner = settings.banner();
     let sys = server::Server::with_settings(settings).unwrap();
-    println!("Server running on {}", banner);
+    info!("Server running on {}", banner);
     sys.run()?;
-    println!("Server closing");
+    info!("Server closing");
+    logging::reset_logging();
 
     Ok(())
 }

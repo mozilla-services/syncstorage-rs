@@ -23,6 +23,7 @@ pub async fn db() -> Result<Box<dyn Db>> {
         database_use_test_transactions: true,
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
+        ..Default::default()
     };
 
     let pool = syncstorage::db::pool_from_settings(&settings)?;
