@@ -15,21 +15,24 @@ and can be run against a local server, e.g.:
 
  * Rust stable
  * MySQL 5.7 (or compatible)
-   * libmysqlclient (brew install mysql on macOS, apt-get install libmysqlclient-dev on Ubuntu)
+   * libmysqlclient (`brew install mysql` on macOS, `apt-get install libmysqlclient-dev` on Ubuntu)
 
 ## Setting Up
 
-1) [Install Rust]
+1) [Install Rust](https://rustup.rs)
 
-2) Create a `syncstorage` user/database
-
+2) Create a `syncstorage` user/database. In the mysql shell:
+    ```
+    CREATE USER "syncstorage"@"localhost" IDENTIFIED BY "password";
+    CREATE DATABASE syncstorage;`
+    ```
 3) Run:
 
         $ export SYNC_MASTER_SECRET=<SOMESECRET>
-        $ export SYNC_DATABASE_URL=mysql://scott:tiger@localhost/syncstorage
+        $ export SYNC_DATABASE_URL=mysql://<YOUR_MYSQL_USERNAME>:<YOUR_MYSQL_PASSWORD>@localhost/syncstorage
         $ cargo run
 
-## Running the Unittests
+## Running the Unit tests
 
 1) Run:
 
@@ -38,15 +41,17 @@ and can be run against a local server, e.g.:
 
 ## Running the End-to-End tests
 
-1) Install (Python) server-syncstorage:
+1) If you haven't already followed the instructions [here](https://mozilla-services.readthedocs.io/en/latest/howtos/run-sync-1.5.html) to get all the dependencies for the [server-syncstorage](https://github.com/mozilla-services/server-syncstorage/) repo, you should start there.
+
+2) Install (Python) server-syncstorage:
 
         $ git clone https://github.com/mozilla-services/server-syncstorage/
         $ cd server-syncstorage
         $ make build
 
-2) Run an instance of syncstorage-rs (see above).
+3) Run an instance of syncstorage-rs (see step 3 above).
 
-3) Run:
+4) Run:
 
         $ ./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000#<SOMESECRET>
 
