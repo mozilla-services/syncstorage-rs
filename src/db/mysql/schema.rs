@@ -19,8 +19,10 @@ table! {
         id -> Varchar,
         sortindex -> Nullable<Integer>,
         payload -> Mediumtext,
-        #[sql_name="modified"]
+        // not used, but legacy
+        payload_size -> Bigint,
         modified -> Bigint,
+        #[sql_name="ttl"]
         expiry -> Bigint,
     }
 }

@@ -42,6 +42,7 @@ pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 pub const COLLECTION_ID: &str = "collection";
 pub const USER_ID: &str = "userid";
 pub const MODIFIED: &str = "modified";
+pub const EXPIRY: &str = "ttl";
 pub const LAST_MODIFIED: &str = "last_modified";
 
 #[derive(Debug)]
@@ -338,13 +339,13 @@ impl MysqlDb {
             let sortindex = bso.sortindex;
             let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
             let q = format!(r#"
-                INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, expiry)
+            INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     {user_id} = VALUES({user_id}),
                     {collection_id} = VALUES({collection_id}),
                     id = VALUES(id)
-            "#, user_id=USER_ID, modified=MODIFIED, collection_id=COLLECTION_ID);
+            "#, user_id=USER_ID, modified=MODIFIED, collection_id=COLLECTION_ID, expiry=EXPIRY);
             let q = format!(
                 "{}{}",
                 q,
@@ -367,9 +368,9 @@ impl MysqlDb {
                 "{}{}",
                 q,
                 if bso.ttl.is_some() {
-                    ", expiry = VALUES(expiry)"
+                    format!(", {expiry} = VALUES({expiry})", expiry=EXPIRY)
                 } else {
-                    ""
+                    "".to_owned()
                 },
             );
             let q = format!(
