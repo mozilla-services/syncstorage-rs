@@ -140,6 +140,12 @@ impl CollectionCache {
             .get(&id)
             .cloned())
     }
+
+    #[cfg(any(test, feature = "db_test"))]
+    pub fn clear(&self) {
+        self.by_name.write().expect("by_name write").clear();
+        self.by_id.write().expect("by_id write").clear();
+    }
 }
 
 impl Default for CollectionCache {
