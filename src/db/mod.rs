@@ -138,6 +138,8 @@ pub trait Db: Send + Debug {
 
     fn box_clone(&self) -> Box<dyn Db>;
 
+    fn purge_expired_bsos(&self, params: params::PurgeExpired) -> DbFuture<results::PurgeExpired>;
+
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.

@@ -9,7 +9,7 @@ use serde_json::json;
 use crate::db::{params, results::Paginated, DbError, DbErrorKind};
 use crate::error::ApiError;
 use crate::web::extractors::{
-    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
+    BsoPutRequest, BsoRequest, CmdRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
     MetaRequest, ReplyFormat,
 };
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -373,4 +373,12 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
 
 pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse, Error = Error> {
     future::result(Ok(HttpResponse::Ok().json(creq.limits)))
+}
+
+pub fn purge_expired_bsos(req: CmdRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+    let params = params::PurgeExpired {};
+    req.db
+        .purge_expired_bsos(params)
+        .map_err(From::from)
+        .map(|_result| HttpResponse::build(StatusCode::OK).json(json!({})))
 }

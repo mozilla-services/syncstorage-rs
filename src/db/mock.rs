@@ -80,6 +80,7 @@ impl Db for MockDb {
     mock_db_method!(append_to_batch, AppendToBatch);
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
+    mock_db_method!(purge_expired_bsos, PurgeExpired);
 
     #[cfg(any(test, feature = "db_test"))]
     mock_db_method!(get_collection_id, GetCollectionId);

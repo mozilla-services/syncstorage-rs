@@ -1,3 +1,4 @@
+use log::warn;
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{
@@ -729,6 +730,15 @@ impl MysqlDb {
     pub fn timestamp(&self) -> SyncTimestamp {
         self.session.borrow().timestamp
     }
+
+    pub fn purge_expired_bsos_sync(&self, _params: params::PurgeExpired) -> Result<()> {
+        let del = r#"DELETE FROM bso WHERE expiry < ?"#;
+        warn!("Purging expired BSOs");
+        sql_query(del)
+            .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .execute(&self.conn)?;
+        Ok(())
+    }
 }
 
 macro_rules! sync_db_method {
@@ -817,6 +827,8 @@ impl Db for MysqlDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+
+    sync_db_method!(purge_expired_bsos, purge_expired_bsos_sync, PurgeExpired);
 
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {

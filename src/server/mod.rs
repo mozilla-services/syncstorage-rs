@@ -130,7 +130,8 @@ macro_rules! build_app {
             )
             // Dockerflow
             .service(
-                web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
+                web::resource("/__heartbeat__")
+                .route(web::get().to(|_: HttpRequest| {
                     // if additional information is desired, point to an appropriate
                     // handler.
                     let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
@@ -155,6 +156,11 @@ macro_rules! build_app {
                         .content_type("application/json")
                         .body(include_str!("../../version.json"))
                 })),
+            )
+            // Purge expired BSOs
+            .service(
+                web::resource("/__purge__")
+                .route(web::get().to_async(handlers::purge_expired_bsos)),
             )
     };
 }

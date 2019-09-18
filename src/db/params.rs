@@ -55,40 +55,42 @@ uid_data! {
 }
 
 collection_data! {
-    LockCollection {},
-    DeleteCollection {},
-    GetCollectionTimestamp {},
-    DeleteBsos {
-        ids: Vec<String>,
-    },
-    GetBsos {
-        params: BsoQueryParams,
-    },
-    PostBsos {
-        bsos: Vec<PostCollectionBso>,
-        failed: HashMap<String, String>,
-    },
+   LockCollection {},
+   DeleteCollection {},
+   GetCollectionTimestamp {},
+   DeleteBsos {
+       ids: Vec<String>,
+   },
+   GetBsos {
+       params: BsoQueryParams,
+   },
+   PostBsos {
+       bsos: Vec<PostCollectionBso>,
+       failed: HashMap<String, String>,
+   },
 
-    CreateBatch {
-        bsos: Vec<PostCollectionBso>,
-    },
-    ValidateBatch {
-        id: i64,
-    },
-    AppendToBatch {
-        id: i64,
-        bsos: Vec<PostCollectionBso>,
-    },
-    CommitBatch {
-        batch: Batch,
-    },
-    GetBatch {
-        id: i64,
-    },
-    DeleteBatch {
-        id: i64,
-    },
+   CreateBatch {
+       bsos: Vec<PostCollectionBso>,
+   },
+   ValidateBatch {
+       id: i64,
+   },
+   AppendToBatch {
+       id: i64,
+       bsos: Vec<PostCollectionBso>,
+   },
+   CommitBatch {
+       batch: Batch,
+   },
+   GetBatch {
+       id: i64,
+   },
+   DeleteBatch {
+       id: i64,
+   },
 }
+
+pub struct PurgeExpired;
 
 pub type GetBsoIds = GetBsos;
 

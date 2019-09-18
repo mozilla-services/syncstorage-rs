@@ -1144,6 +1144,26 @@ impl FromRequest for BatchRequestOpt {
     }
 }
 
+// CmdRequest is reserved for general commands like "purge expired bsos"
+#[derive(Debug, Clone)]
+pub struct CmdRequest {
+    pub db: Box<dyn Db>,
+    pub metrics: metrics::Metrics,
+}
+
+impl FromRequest for CmdRequest {
+    type Config = ();
+    type Error = Error;
+    type Future = Result<Self, Self::Error>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        Ok(Self {
+            db: extrude_db(&req.extensions())?,
+            metrics: metrics::Metrics::from(req),
+        })
+    }
+}
+
 /// PreCondition Header
 ///
 /// It's valid to include a X-If-Modified-Since or X-If-Unmodified-Since header but not

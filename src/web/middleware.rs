@@ -450,6 +450,12 @@ trait SyncServerRequest {
 impl SyncServerRequest for ServiceRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
         let method = self.method().clone();
+        if self.uri().path().starts_with("/__") {
+            return Ok(HawkIdentifier {
+                legacy_id: 0,
+                fxa_id: "cmd".to_owned(),
+            });
+        }
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
         let ci = &self.connection_info().clone();

@@ -28,6 +28,8 @@ pub type GetBatch = params::Batch;
 pub type DeleteBatch = ();
 pub type CommitBatch = PostBsos;
 
+pub type PurgeExpired = ();
+
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {
     #[sql_type = "Text"]

@@ -1070,6 +1070,17 @@ impl SpannerDb {
         Ok(result)
     }
 
+    pub fn purge_expired_bsos_sync(
+        &self,
+        _params: params::PurgeExpired,
+    ) -> Result<results::PurgeExpired> {
+        let del = r#"DELETE FROM bso WHERE expiry < @expiry"#;
+        self.sql(&del)?
+            .params(params!("expiry"=> to_rfc3339(self.timestamp().as_i64())?))
+            .execute(&self.conn)?;
+        Ok(())
+    }
+
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
@@ -1170,6 +1181,7 @@ impl Db for SpannerDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+    sync_db_method!(purge_expired_bsos, purge_expired_bsos_sync, PurgeExpired);
 
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
