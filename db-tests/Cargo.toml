@@ -11,3 +11,6 @@ futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev
 lazy_static = "1.3.0"
 rand = "0.6.5"
 syncstorage = { version = "0.1.0", path = "../", features = ["db_test"] }
+
+[features]
+google_grpc = ["syncstorage/google_grpc"]

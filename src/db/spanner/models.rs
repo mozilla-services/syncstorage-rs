@@ -31,10 +31,16 @@ use super::{
     support::{as_value, ExecuteSqlRequestBuilder},
 };
 
+#[cfg(not(feature = "google_grpc"))]
 use google_spanner1::{
     BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, ReadOnly, ReadWrite,
-    RollbackRequest, TransactionOptions, TransactionSelector,
+    RollbackRequest, TransactionOptions,
 };
+
+#[cfg(feature = "google_grpc")]
+pub type TransactionSelector = googleapis_raw::spanner::v1::transaction::TransactionSelector;
+#[cfg(not(feature = "google_grpc"))]
+pub type TransactionSelector = google_spanner1::TransactionSelector;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum CollectionLock {
@@ -57,7 +63,11 @@ struct SpannerDbSession {
     coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
     coll_locks: HashMap<(u32, i32), CollectionLock>,
+    #[cfg(feature = "google_grpc")]
+    transaction: Option<googleapis_raw::spanner::v1::transaction::TransactionSelector>,
+    #[cfg(not(feature = "google_grpc"))]
     transaction: Option<TransactionSelector>,
+    in_write_transaction: bool,
     execute_sql_count: u64,
 }
 
@@ -164,6 +174,9 @@ impl SpannerDb {
     }
 
     pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
+        // Begin a transaction
+        self.begin(false)?;
+
         let user_id = params.user_id.legacy_id as u32;
         let collection_id =
             self.get_collection_id(&params.collection)
@@ -186,25 +199,6 @@ impl SpannerDb {
             return Ok(());
         }
 
-        // Lock the db
-        self.begin(false)?;
-        // XXX: lock_for_read shouldn't need to query for a timestamp?
-        let result = self
-            .sql("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
-            .params(params! {
-                "userid" => user_id.to_string(),
-                "collectionid" => collection_id.to_string(),
-            })
-            .execute(&self.conn)?
-            .one_or_none()?;
-        // XXX: python code does a "SELECT CURRENT_TIMESTAMP()" when None here
-        if let Some(result) = result {
-            let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
-            self.session
-                .borrow_mut()
-                .coll_modified_cache
-                .insert((user_id, collection_id), modified);
-        }
         self.session
             .borrow_mut()
             .coll_locks
@@ -214,6 +208,9 @@ impl SpannerDb {
     }
 
     pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
+        // Begin a transaction
+        self.begin(true)?;
+
         let user_id = params.user_id.legacy_id as u32;
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
@@ -226,8 +223,6 @@ impl SpannerDb {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
 
-        // Lock the db
-        self.begin(true)?;
         let result = self
             .sql("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
             .params(params! {
@@ -238,7 +233,7 @@ impl SpannerDb {
             .one_or_none()?;
         // XXX: python code does a "SELECT CURRENT_TIMESTAMP()" when None here
         if let Some(result) = result {
-            let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
+            let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
             self.session
                 .borrow_mut()
                 .coll_modified_cache
@@ -252,12 +247,39 @@ impl SpannerDb {
         Ok(())
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub(super) fn begin(&self, for_write: bool) -> Result<()> {
+        let spanner = &self.conn;
+        let mut options = googleapis_raw::spanner::v1::transaction::TransactionOptions::new();
+        if for_write {
+            options.set_read_write(
+                googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadWrite::new(),
+            );
+            self.session.borrow_mut().in_write_transaction = true;
+        } else {
+            options.set_read_only(
+                googleapis_raw::spanner::v1::transaction::TransactionOptions_ReadOnly::new(),
+            );
+        }
+        let mut req = googleapis_raw::spanner::v1::spanner::BeginTransactionRequest::new();
+        req.set_session(spanner.session.get_name().to_owned());
+        req.set_options(options);
+        let mut transaction = spanner.client.begin_transaction(&req)?;
+
+        let mut ts = googleapis_raw::spanner::v1::transaction::TransactionSelector::new();
+        ts.set_id(transaction.take_id());
+        self.session.borrow_mut().transaction = Some(ts);
+        Ok(())
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub(super) fn begin(&self, for_write: bool) -> Result<()> {
         let spanner = &self.conn;
         let session = spanner.session.name.as_ref().unwrap();
         let mut options = TransactionOptions::default();
         if for_write {
             options.read_write = Some(ReadWrite::default());
+            self.session.borrow_mut().in_write_transaction = true;
         } else {
             options.read_only = Some(ReadOnly::default());
         }
@@ -286,6 +308,27 @@ impl SpannerDb {
         })
     }
 
+    #[cfg(feature = "google_grpc")]
+    fn sql_request(
+        &self,
+        sql: &str,
+    ) -> Result<googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest> {
+        let mut sqlr = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest::new();
+        sqlr.set_sql(sql.to_owned());
+        if let Some(transaction) = self.get_transaction()? {
+            sqlr.set_transaction(transaction);
+        }
+        let mut session = self.session.borrow_mut();
+        // XXX: include seqno if no transaction?
+        sqlr.seqno = session
+            .execute_sql_count
+            .try_into()
+            .map_err(|_| DbError::internal("seqno overflow"))?;
+        session.execute_sql_count += 1;
+        Ok(sqlr)
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     fn sql_request(&self, sql: &str) -> Result<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::default();
         sqlr.sql = Some(sql.to_owned());
@@ -302,13 +345,35 @@ impl SpannerDb {
     }
 
     fn in_write_transaction(&self) -> bool {
-        self.session
-            .borrow_mut()
-            .coll_locks
-            .values()
-            .any(|lock| lock == &CollectionLock::Write)
+        self.session.borrow().in_write_transaction
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn commit_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
+        let spanner = &self.conn;
+
+        if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
+            // don't commit test transactions
+            return Ok(());
+        }
+
+        if let Some(transaction) = self.get_transaction()? {
+            let mut req = googleapis_raw::spanner::v1::spanner::CommitRequest::new();
+            req.set_session(spanner.session.get_name().to_owned());
+            req.set_transaction_id(transaction.get_id().to_vec());
+            spanner.client.commit(&req)?;
+            Ok(())
+        } else {
+            Err(DbError::internal("No transaction to commit"))?
+        }
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn commit_sync(&self) -> Result<()> {
         if !self.in_write_transaction() {
             // read-only
@@ -341,6 +406,26 @@ impl SpannerDb {
         }
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn rollback_sync(&self) -> Result<()> {
+        if !self.in_write_transaction() {
+            // read-only
+            return Ok(());
+        }
+
+        if let Some(transaction) = self.get_transaction()? {
+            let spanner = &self.conn;
+            let mut req = googleapis_raw::spanner::v1::spanner::RollbackRequest::new();
+            req.set_session(spanner.session.get_name().to_owned());
+            req.set_transaction_id(transaction.get_id().to_vec());
+            spanner.client.rollback(&req)?;
+            Ok(())
+        } else {
+            Err(DbError::internal("No transaction to rollback"))?
+        }
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn rollback_sync(&self) -> Result<()> {
         if !self.in_write_transaction() {
             // read-only
@@ -701,7 +786,7 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, 0), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
+        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
         let timestamp = self.timestamp().as_i64();
         let modifiedstring = to_rfc3339(timestamp)?;
         let mut sqlparams = params! {
@@ -785,11 +870,16 @@ impl SpannerDb {
             .execute(&self.conn)?;
         let mut bsos = vec![];
         for row in result {
+            let sortindex = if row[3].has_null_value() {
+                None
+            } else {
+                Some(row[3].get_string_value().parse().unwrap())
+            };
             bsos.push(results::GetBso {
                 id: row[0].get_string_value().parse().unwrap(),
                 modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value()).unwrap(),
                 payload: row[2].get_string_value().parse().unwrap(),
-                sortindex: Some(row[3].get_string_value().parse().unwrap()),
+                sortindex,
                 expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())
                     .unwrap()
                     .as_i64(),
@@ -828,7 +918,7 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let result = self.
-            sql("SELECT id, modified, payload, coalesce(sortindex, 0), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?
+            sql("SELECT id, modified, payload, coalesce(sortindex, NULL), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
@@ -855,11 +945,16 @@ impl SpannerDb {
                 expiry_dt,
                 expiry
             );
+            let sortindex = if row[3].has_null_value() {
+                None
+            } else {
+                Some(row[3].get_string_value().parse().unwrap())
+            };
             Some(results::GetBso {
                 id: row[0].get_string_value().to_owned(),
                 modified,
                 payload: row[2].get_string_value().to_owned(),
-                sortindex: Some(row[3].get_string_value().parse().unwrap()),
+                sortindex,
                 expiry,
             })
         } else {
@@ -1001,18 +1096,30 @@ impl SpannerDb {
             };
 
             if use_sortindex {
-                // XXX: special handling for google_grpc (null)
-                sqlparams.insert(
-                    "sortindex".to_string(),
-                    bso.sortindex
-                        .map(|sortindex| sortindex.to_string())
-                        .unwrap_or_else(|| "NULL".to_owned()),
-                );
+                // special handling for google_grpc (null)
+                #[cfg(feature = "google_grpc")]
+                let sortindex = bso
+                    .sortindex
+                    .map(|sortindex| as_value(sortindex.to_string()))
+                    .unwrap_or_else(|| {
+                        use protobuf::well_known_types::{NullValue, Value};
+                        let mut value = Value::new();
+                        value.set_null_value(NullValue::NULL_VALUE);
+                        value
+                    });
+
+                #[cfg(not(feature = "google_grpc"))]
+                let sortindex = bso
+                    .sortindex
+                    .map(|sortindex| sortindex.to_string())
+                    .unwrap_or_else(|| "NULL".to_owned());
+
+                sqlparams.insert("sortindex".to_string(), sortindex);
                 sqltypes.insert("sortindex".to_string(), SpannerType::Int64.into());
             }
             sqlparams.insert(
                 "payload".to_string(),
-                as_value(bso.payload.unwrap_or_else(|| "DEFAULT".to_owned())),
+                as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
             );
             let now_millis = self.timestamp().as_i64();
             let ttl = bso
