@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use protobuf::well_known_types::Value;
 #[cfg(feature = "google_grpc")]
-use protobuf::{well_known_types::Struct, SingularPtrField};
+use protobuf::well_known_types::Struct;
+use protobuf::well_known_types::Value;
 
 use super::models::{Conn, Result};
 use crate::db::DbError;
@@ -18,9 +18,9 @@ type ParamType = googleapis_raw::spanner::v1::type_pb::Type;
 type ParamType = google_spanner1::Type;
 
 #[cfg(feature = "google_grpc")]
-type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
+pub type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
 #[cfg(not(feature = "google_grpc"))]
-type ExecuteSqlRequest = google_spanner1::ExecuteSqlRequest;
+pub type ExecuteSqlRequest = google_spanner1::ExecuteSqlRequest;
 
 #[cfg(feature = "google_grpc")]
 type ResultSet = googleapis_raw::spanner::v1::result_set::ResultSet;
@@ -136,16 +136,16 @@ impl ExecuteSqlRequestBuilder {
     #[cfg(feature = "google_grpc")]
     pub fn execute(self, spanner: &Conn) -> Result<SyncResultSet> {
         let mut request = self.execute_sql;
-        request.session = "XXX".to_owned();
+        request.set_session(spanner.session.get_name().to_owned());
         if let Some(params) = self.params {
-            let paramss = Struct::new();
+            let mut paramss = Struct::new();
             paramss.set_fields(params);
-            request.params = SingularPtrField::some(paramss);
+            request.set_params(paramss);
         }
         if let Some(param_types) = self.param_types {
-            request.param_types = param_types;
+            request.set_param_types(param_types);
         }
-        let result = spanner.execute_sql(&request)?;
+        let result = spanner.client.execute_sql(&request)?;
         Ok(SyncResultSet { result })
     }
 
@@ -201,6 +201,15 @@ impl SyncResultSet {
         }
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
+        let stats = self
+            .stats()
+            .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
+        Ok(stats.get_row_count_exact())
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
         let stats = self
             .stats()
@@ -220,7 +229,7 @@ impl Iterator for SyncResultSet {
     type Item = Vec<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows = self.result.rows;
+        let rows = &mut self.result.rows;
         if rows.is_empty() {
             None
         } else {
