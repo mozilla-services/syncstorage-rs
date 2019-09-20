@@ -2,6 +2,7 @@
 
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
+use url::Url;
 
 use crate::error::ApiError;
 use crate::web::auth::hkdf_expand_32;
@@ -126,6 +127,19 @@ impl Settings {
                 }
             },
         })
+    }
+
+    /// A simple banner for display of certain settings at startup
+    pub fn banner(&self) -> String {
+        let db = Url::parse(&self.database_url)
+            .map(|url| url.scheme().to_owned())
+            .unwrap_or_else(|_| "<invalid db>".to_owned());
+        let features = if cfg!(feature = "google_grpc") {
+            "+google_grpc"
+        } else {
+            ""
+        };
+        format!("http://{}:{} ({}{})", self.host, self.port, db, features)
     }
 }
 

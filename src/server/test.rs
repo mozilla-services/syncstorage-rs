@@ -16,8 +16,8 @@ use std::str::FromStr;
 
 use super::*;
 use crate::build_app;
-use crate::db::mysql::pool::MysqlDbPool;
 use crate::db::params;
+use crate::db::pool_from_settings;
 use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use crate::db::util::SyncTimestamp;
 use crate::settings::{Secrets, ServerLimits};
@@ -65,7 +65,7 @@ fn get_test_settings() -> Settings {
 
 fn get_test_state(settings: &Settings) -> ServerState {
     ServerState {
-        db_pool: Box::new(MysqlDbPool::new(&settings).unwrap()),
+        db_pool: pool_from_settings(&settings).unwrap(),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
         metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),

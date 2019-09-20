@@ -3,7 +3,7 @@ WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
 RUN apt-get -q update && \
-    apt-get -q install -y default-libmysqlclient-dev && \
+    apt-get -q install -y default-libmysqlclient-dev cmake golang-go && \
     cd /app && \
     mkdir -m 755 bin
 

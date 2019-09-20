@@ -33,8 +33,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or_else(|e| e.exit());
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
     // Setup and run the server
+    let banner = settings.banner();
     let sys = server::Server::with_settings(settings).unwrap();
-    info!("Server running...");
+    info!("Server running on {}", banner);
     sys.run()?;
     info!("Server closing");
     logging::reset_logging();
