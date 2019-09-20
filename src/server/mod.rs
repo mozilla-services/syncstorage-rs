@@ -43,6 +43,11 @@ pub struct ServerState {
     pub port: u16,
 }
 
+// This is the global state for DockerFlow calls
+pub struct DFState {
+    pub port: u16,
+}
+
 pub fn cfg_path(path: &str) -> String {
     let path = path
         .replace(
@@ -61,7 +66,6 @@ macro_rules! build_app {
         App::new()
             .data($state)
             // Middleware is applied LIFO
-
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
@@ -116,9 +120,7 @@ macro_rules! build_app {
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .data(web::PayloadConfig::new(
-                        $limits.max_request_bytes as usize,
-                    ))
+                    .data(web::PayloadConfig::new($limits.max_request_bytes as usize))
                     .data(
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
@@ -127,34 +129,6 @@ macro_rules! build_app {
                     .route(web::delete().to_async(handlers::delete_bso))
                     .route(web::get().to_async(handlers::get_bso))
                     .route(web::put().to_async(handlers::put_bso)),
-            )
-            // Dockerflow
-            .service(
-                web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // if additional information is desired, point to an appropriate
-                    // handler.
-                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body.to_string())
-                })),
-            )
-            .service(
-                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // used by the load balancers, just return OK.
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body("{}")
-                })),
-            )
-            .service(
-                web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
-                    // return the contents of the version.json file created by circleci
-                    // and stored in the docker root
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(include_str!("../../version.json"))
-                })),
             )
     };
 }
@@ -166,8 +140,10 @@ impl Server {
         let db_pool = pool_from_settings(&settings)?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
-        let port = settings.port;
+        let main_port = settings.port;
+        let df_port = main_port + 1;
 
+        // Main server
         HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
@@ -175,14 +151,55 @@ impl Server {
                 limits: Arc::clone(&limits),
                 secrets: Arc::clone(&secrets),
                 metrics: Box::new(metrics.clone()),
-                port,
+                port: main_port,
             };
 
             build_app!(state, limits)
         })
-        .bind(format!("{}:{}", settings.host, settings.port))
+        .bind(format!("{}:{}", settings.host, main_port))
         .unwrap()
         .start();
+
+        // Dockerflow calls
+        HttpServer::new(move || {
+            // Setup the server state
+            let state = DFState { port: df_port };
+
+            App::new()
+                .data(state)
+                // Dockerflow
+                .service(
+                    web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
+                        // if additional information is desired, point to an appropriate
+                        // handler.
+                        let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body(body.to_string())
+                    })),
+                )
+                .service(web::resource("/__lbheartbeat__").route(web::get().to(
+                    |_: HttpRequest| {
+                        // used by the load balancers, just return OK.
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body("{}")
+                    },
+                )))
+                .service(
+                    web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                        // return the contents of the version.json file created by circleci
+                        // and stored in the docker root
+                        HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body(include_str!("../../version.json"))
+                    })),
+                )
+        })
+        .bind(format!("{}:{}", settings.host, df_port))
+        .unwrap()
+        .start();
+
         Ok(sys)
     }
 }
