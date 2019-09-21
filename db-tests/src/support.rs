@@ -27,7 +27,11 @@ pub async fn db() -> Result<Box<dyn Db>> {
     };
 
     let pool = syncstorage::db::pool_from_settings(&settings)?;
-    pool.get().compat().await
+    let db = pool.get().compat().await?;
+    // Spanner won't have a timestamp until lock_for_xxx are called: fill one
+    // in for it
+    db.set_timestamp(SyncTimestamp::default());
+    Ok(db)
 }
 
 macro_rules! with_delta {

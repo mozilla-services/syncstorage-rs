@@ -45,6 +45,9 @@ lazy_static! {
     };
 }
 
+/// Non-standard collections will be allocated IDs beginning with this value
+pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
+
 /// Rough guesstimate of the maximum reasonable life span of a batch
 pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 
