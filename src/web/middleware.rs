@@ -32,6 +32,10 @@ pub struct WeaveTimestampMiddleware<S> {
     service: S,
 }
 
+// Known DockerFlow commands for Ops callbacks
+const DOCKER_FLOW_ENDPOINTS: [&'static str; 3] =
+    ["/__heartbeat__", "/__lbheartbeat__", "/__version__"];
+
 impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -451,6 +455,10 @@ trait SyncServerRequest {
 
 impl SyncServerRequest for ServiceRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
+        dbg!("HERE", self.uri().path().to_lowercase().as_str());
+        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
+            return Ok(HawkIdentifier::cmd_dummy());
+        }
         let method = self.method().clone();
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
