@@ -33,7 +33,7 @@ pub struct WeaveTimestampMiddleware<S> {
 }
 
 // Known DockerFlow commands for Ops callbacks
-const DOCKER_FLOW_ENDPOINTS: [&'static str; 3] =
+const DOCKER_FLOW_ENDPOINTS: [&str; 3] =
     ["/__heartbeat__", "/__lbheartbeat__", "/__version__"];
 
 impl<S, B> Service for WeaveTimestampMiddleware<S>
