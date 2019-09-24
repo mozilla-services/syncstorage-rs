@@ -82,7 +82,6 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
 }
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
-    // TODO
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let bsos = bsos_to_batch_string(&params.bsos)?;

@@ -2,10 +2,13 @@ use std::collections::HashMap;
 
 #[cfg(feature = "google_grpc")]
 use protobuf::well_known_types::Struct;
-use protobuf::well_known_types::Value;
+use protobuf::{
+    well_known_types::{ListValue, Value},
+    RepeatedField,
+};
 
 use super::models::{Conn, Result};
-use crate::db::DbError;
+use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
 
 #[cfg(feature = "google_grpc")]
 type ParamValue = protobuf::well_known_types::Value;
@@ -37,7 +40,6 @@ type ResultSetStats = googleapis_raw::spanner::v1::result_set::ResultSetStats;
 #[cfg(not(feature = "google_grpc"))]
 type ResultSetStats = google_spanner1::ResultSetStats;
 
-// XXX: or Into<protobuf Value>?
 #[cfg(feature = "google_grpc")]
 pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
     let mut value = Value::new();
@@ -48,6 +50,18 @@ pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
 #[cfg(not(feature = "google_grpc"))]
 pub fn as_value(string_value: String) -> String {
     string_value
+}
+
+pub fn as_list_value(
+    string_values: impl Iterator<Item = String>,
+) -> protobuf::well_known_types::Value {
+    let mut list = ListValue::new();
+    list.set_values(RepeatedField::from_vec(
+        string_values.map(as_value).collect(),
+    ));
+    let mut value = Value::new();
+    value.set_list_value(list);
+    value
 }
 
 #[allow(dead_code)]
@@ -237,6 +251,11 @@ impl Iterator for SyncResultSet {
             Some(row.get_values().to_vec())
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.result.rows.len();
+        (len, Some(len))
+    }
 }
 
 #[cfg(not(feature = "google_grpc"))]
@@ -263,4 +282,28 @@ impl Iterator for SyncResultSet {
             None
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.result.rows.len();
+        (len, Some(len))
+    }
+}
+
+pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
+    Ok(results::GetBso {
+        id: row[0].get_string_value().to_owned(),
+        modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value())?,
+        payload: row[2].get_string_value().to_owned(),
+        sortindex: if row[3].has_null_value() {
+            None
+        } else {
+            Some(
+                row[3]
+                    .get_string_value()
+                    .parse::<i32>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?,
+            )
+        },
+        expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
+    })
 }

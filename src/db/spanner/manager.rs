@@ -75,7 +75,7 @@ impl ManageConnection for SpannerConnectionManager {
         req.database = self.database_name.clone();
         let mut meta = MetadataBuilder::new();
         meta.add_str("google-cloud-resource-prefix", &self.database_name)?;
-        meta.add_str("x-goog-api-client", "googleapis-rs")?;
+        meta.add_str("x-goog-api-client", "gcp-grpc-rs")?;
         let opt = CallOption::default().headers(meta.build());
         let session = client.create_session_opt(&req, opt)?;
 

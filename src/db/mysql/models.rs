@@ -551,7 +551,9 @@ impl MysqlDb {
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
             });
-            // XXX: python version doesn't report failures from db layer..
+            // XXX: python version doesn't report failures from db
+            // layer.. (wouldn't db failures abort the entire transaction
+            // anyway?)
             // XXX: sanitize to.to_string()?
             match put_result {
                 Ok(_) => result.success.push(id),
@@ -885,6 +887,11 @@ impl Db for MysqlDb {
 
     #[cfg(any(test, feature = "db_test"))]
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn clear_coll_cache(&self) {
+        self.coll_cache.clear();
+    }
 }
 
 #[derive(Debug, QueryableByName)]

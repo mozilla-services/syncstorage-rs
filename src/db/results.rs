@@ -39,6 +39,9 @@ pub struct GetBso {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[sql_type = "Nullable<Integer>"]
     pub sortindex: Option<i32>,
+    // NOTE: expiry (ttl) is never rendered to clients and only loaded for
+    // tests: this and its associated queries/loading could be wrapped in
+    // #[cfg(any(test, feature = "db_test"))]
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     #[sql_type = "BigInt"]

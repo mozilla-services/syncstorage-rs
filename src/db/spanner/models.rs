@@ -1,8 +1,6 @@
 use futures::future;
 use futures::lazy;
 
-use chrono::DateTime;
-
 use diesel::r2d2::PooledConnection;
 
 use std::cell::RefCell;
@@ -28,7 +26,7 @@ use crate::web::extractors::BsoQueryParams;
 
 use super::{
     batch,
-    support::{as_value, ExecuteSqlRequestBuilder},
+    support::{as_list_value, as_value, bso_from_row, ExecuteSqlRequestBuilder},
 };
 
 #[cfg(not(feature = "google_grpc"))]
@@ -145,7 +143,6 @@ impl SpannerDb {
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
-        // XXX: handle concurrent attempts at inserts
         let result = self
             .sql("SELECT COALESCE(MAX(collectionid), 1) from collections")?
             .execute(&self.conn)?
@@ -317,14 +314,13 @@ impl SpannerDb {
         sqlr.set_sql(sql.to_owned());
         if let Some(transaction) = self.get_transaction()? {
             sqlr.set_transaction(transaction);
+            let mut session = self.session.borrow_mut();
+            sqlr.seqno = session
+                .execute_sql_count
+                .try_into()
+                .map_err(|_| DbError::internal("seqno overflow"))?;
+            session.execute_sql_count += 1;
         }
-        let mut session = self.session.borrow_mut();
-        // XXX: include seqno if no transaction?
-        sqlr.seqno = session
-            .execute_sql_count
-            .try_into()
-            .map_err(|_| DbError::internal("seqno overflow"))?;
-        session.execute_sql_count += 1;
         Ok(sqlr)
     }
 
@@ -332,11 +328,13 @@ impl SpannerDb {
     fn sql_request(&self, sql: &str) -> Result<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::default();
         sqlr.sql = Some(sql.to_owned());
-        sqlr.transaction = self.get_transaction()?;
-        let mut session = self.session.borrow_mut();
-        // XXX: include seqno if no transaction?
-        sqlr.seqno = Some(session.execute_sql_count.to_string());
-        session.execute_sql_count += 1;
+        let transaction = self.get_transaction()?;
+        if transaction.is_some() {
+            sqlr.transaction = transaction;
+            let mut session = self.session.borrow_mut();
+            sqlr.seqno = Some(session.execute_sql_count.to_string());
+            session.execute_sql_count += 1;
+        }
         Ok(sqlr)
     }
 
@@ -530,18 +528,25 @@ impl SpannerDb {
         }
 
         if !uncached.is_empty() {
-            // TODO only select names that are in uncached.
+            let mut params = HashMap::new();
+            params.insert(
+                "ids".to_owned(),
+                as_list_value(uncached.into_iter().map(|id| id.to_string())),
+            );
             let result = self
-                .sql("SELECT collectionid, name FROM collections")?
+                .sql(
+                    "SELECT collectionid, name FROM collections WHERE collectionid IN UNNEST(@ids)",
+                )?
+                .params(params)
                 .execute(&self.conn)?;
             for row in result {
-                let id = row[0].get_string_value().parse::<i32>().unwrap();
+                let id = row[0]
+                    .get_string_value()
+                    .parse::<i32>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
                 let name = row[1].get_string_value().to_owned();
-                // XXX: shouldn't this always insert?
-                if uncached.contains(&id) {
-                    names.insert(id, name.clone());
-                    self.coll_cache.put(id, name).unwrap();
-                }
+                names.insert(id, name.clone());
+                self.coll_cache.put(id, name)?;
             }
         }
 
@@ -681,7 +686,15 @@ impl SpannerDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
-        // XXX: We should be able to use Spanner's insert_or_update here (unlike w/ put_bsos)
+        // NOTE: Spanner supports upserts via its InsertOrUpdate mutation but
+        // lacks a SQL equivalent. This call could be 1 InsertOrUpdate instead
+        // of 2 queries but would require put/post_bsos to also use mutations.
+        // Due to case of when no parent row exists (in user_collections)
+        // before writing to bsos. Spanner requires a parent table row exist
+        // before child table rows are written.
+        // Mutations don't run in the same order as ExecuteSql calls, they are
+        // buffered on the client side and only issued to Spanner in the final
+        // transaction Commit.
         let result = self
             .sql("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;")?
             .params(params! {
@@ -747,30 +760,16 @@ impl SpannerDb {
         let user_id = params.user_id.legacy_id as u32;
         let collection_id = self.get_collection_id(&params.collection)?;
 
-        let mut deleted = 0;
-        // TODO figure out how spanner specifies an "IN" query
-        for id in params.ids {
-            self.sql(
-                "SELECT 1 FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid",
-            )?
-            .params(params! {
-                "userid" => user_id.to_string(),
-                "collectionid" => collection_id.to_string(),
-                "bsoid" => id.to_string(),
-            })
+        let mut sqlparams = params! {
+            "userid" => user_id.to_string(),
+            "collectionid" => collection_id.to_string(),
+        };
+        sqlparams.insert("ids".to_owned(), as_list_value(params.ids.into_iter()));
+        self
+            .sql("DELETE FROM bso WHERE userid=@userid AND collection=@collectionid AND id IN UNNEST(@ids)")?
+            .params(sqlparams)
             .execute(&self.conn)?;
-            deleted += 1;
-            self.delete_bso_sync(params::DeleteBso {
-                user_id: params.user_id.clone(),
-                collection: params.collection.clone(),
-                id: id.to_string(),
-            })?;
-        }
-        if deleted > 0 {
-            self.touch_collection(user_id, collection_id)
-        } else {
-            Err(DbErrorKind::BsoNotFound.into())
-        }
+        self.touch_collection(user_id, collection_id)
     }
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
@@ -800,39 +799,18 @@ impl SpannerDb {
 
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query).to_string();
-            sqlparams.insert(
-                "older".to_string(),
-                as_value(to_rfc3339(older.as_i64()).unwrap()),
-            );
+            sqlparams.insert("older".to_string(), as_value(to_rfc3339(older.as_i64())?));
             sqltypes.insert("older".to_string(), SpannerType::Timestamp.into());
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query).to_string();
-            sqlparams.insert(
-                "newer".to_string(),
-                as_value(to_rfc3339(newer.as_i64()).unwrap()),
-            );
+            sqlparams.insert("newer".to_string(), as_value(to_rfc3339(newer.as_i64())?));
             sqltypes.insert("newer".to_string(), SpannerType::Timestamp.into());
         }
 
-        let idlen = ids.len();
         if !ids.is_empty() {
-            // TODO use UNNEST and pass a vec later
-            let mut i = 0;
-            query = format!("{} AND id IN (", query).to_string();
-            while i < idlen {
-                if i == 0 {
-                    query = format!("{}@arg{}", query, i.to_string()).to_string();
-                } else {
-                    query = format!("{}, @arg{}", query, i.to_string()).to_string();
-                }
-                sqlparams.insert(
-                    format!("arg{}", i.to_string()).to_string(),
-                    as_value(ids[i].to_string()),
-                );
-                i += 1;
-            }
-            query = format!("{})", query).to_string();
+            query = format!("{} AND id IN UNNEST(@ids)", query).to_string();
+            sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
         }
 
         query = match sort {
@@ -863,33 +841,21 @@ impl SpannerDb {
             query = format!("{} OFFSET {}", query, offset).to_string();
         }
 
-        let result = self
+        let result: Result<Vec<_>> = self
             .sql(&query)?
             .params(sqlparams)
             .param_types(sqltypes)
-            .execute(&self.conn)?;
-        let mut bsos = vec![];
-        for row in result {
-            let sortindex = if row[3].has_null_value() {
-                None
-            } else {
-                Some(row[3].get_string_value().parse().unwrap())
-            };
-            bsos.push(results::GetBso {
-                id: row[0].get_string_value().parse().unwrap(),
-                modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value()).unwrap(),
-                payload: row[2].get_string_value().parse().unwrap(),
-                sortindex,
-                expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())
-                    .unwrap()
-                    .as_i64(),
-            });
-        }
+            .execute(&self.conn)?
+            .map(bso_from_row)
+            .collect();
+        let mut bsos = result?;
 
-        // XXX: an additional get_collection_timestamp is done here in
-        // python to trigger potential CollectionNotFoundErrors
-        //if bsos.len() == 0 {
-        //}
+        // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
+        // makes an additional call to get_collection_timestamp to potentially
+        // trigger CollectionNotFound errors.  However it ultimately eats the
+        // CollectionNotFound and returns empty anyway, for the sake of
+        // backwards compat.:
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
@@ -930,33 +896,8 @@ impl SpannerDb {
             })
             .execute(&self.conn)?
             .one_or_none()?;
-        dbg!("RRRRRRRRRR", &result);
         Ok(if let Some(row) = result {
-            let modified = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
-            let expiry_dt =
-                DateTime::parse_from_rfc3339(&row[4].get_string_value()).map_err(|e| {
-                    DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string()))
-                })?;
-            // XXX: expiry is i64?
-            let expiry = expiry_dt.timestamp_millis();
-            dbg!(
-                "!!!! GET expiry",
-                &row[4].get_string_value(),
-                expiry_dt,
-                expiry
-            );
-            let sortindex = if row[3].has_null_value() {
-                None
-            } else {
-                Some(row[3].get_string_value().parse().unwrap())
-            };
-            Some(results::GetBso {
-                id: row[0].get_string_value().to_owned(),
-                modified,
-                payload: row[2].get_string_value().to_owned(),
-                sortindex,
-                expiry,
-            })
+            Some(bso_from_row(row)?)
         } else {
             None
         })
@@ -1012,7 +953,7 @@ impl SpannerDb {
         let mut sqltypes = HashMap::new();
 
         let sql = if exists {
-            // XXX: the "ttl" column is more aptly named "expiry": our mysql
+            // NOTE: the "ttl" column is more aptly named "expiry": our mysql
             // schema names it this. the current spanner schema prefers "ttl"
             // to more closely match the python code
 
@@ -1156,22 +1097,15 @@ impl SpannerDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            let put_result = self.put_bso_sync(params::PutBso {
+            self.put_bso_sync(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
                 payload: pbso.payload,
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
-            });
-            // XXX: python version doesn't report failures from db layer..
-            // XXX: sanitize to.to_string()?
-            match put_result {
-                Ok(_) => result.success.push(id),
-                Err(e) => {
-                    result.failed.insert(id, e.to_string());
-                }
-            }
+            })?;
+            result.success.push(id);
         }
         self.touch_collection(input.user_id.legacy_id as u32, collection_id)?;
         Ok(result)
@@ -1317,4 +1251,9 @@ impl Db for SpannerDb {
 
     #[cfg(any(test, feature = "db_test"))]
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn clear_coll_cache(&self) {
+        self.coll_cache.clear();
+    }
 }
