@@ -129,6 +129,8 @@ macro_rules! build_app {
                     .route(web::put().to_async(handlers::put_bso)),
             )
             // Dockerflow
+            // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
+            // when applying changes to endpoint names.
             .service(
                 web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
                     // if additional information is desired, point to an appropriate
