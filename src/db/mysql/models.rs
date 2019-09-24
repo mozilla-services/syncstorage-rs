@@ -37,6 +37,14 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 /// The ttl to use for rows that are never supposed to expire (in seconds)
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
+/// SQL Variable remapping
+/// These names are the legacy values mapped to the new names.
+pub const COLLECTION_ID: &str = "collection";
+pub const USER_ID: &str = "userid";
+pub const MODIFIED: &str = "modified";
+pub const EXPIRY: &str = "ttl";
+pub const LAST_MODIFIED: &str = "last_modified";
+
 #[derive(Debug)]
 pub enum CollectionLock {
     Read,
@@ -337,14 +345,14 @@ impl MysqlDb {
             let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
             let sortindex = bso.sortindex;
             let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
-            let q = r#"
-                INSERT INTO bso (user_id, collection_id, id, sortindex, payload, modified, expiry)
+            let q = format!(r#"
+            INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
-                    user_id = VALUES(user_id),
-                    collection_id = VALUES(collection_id),
+                    {user_id} = VALUES({user_id}),
+                    {collection_id} = VALUES({collection_id}),
                     id = VALUES(id)
-            "#;
+            "#, user_id=USER_ID, modified=MODIFIED, collection_id=COLLECTION_ID, expiry=EXPIRY);
             let q = format!(
                 "{}{}",
                 q,
@@ -367,18 +375,18 @@ impl MysqlDb {
                 "{}{}",
                 q,
                 if bso.ttl.is_some() {
-                    ", expiry = VALUES(expiry)"
+                    format!(", {expiry} = VALUES({expiry})", expiry=EXPIRY)
                 } else {
-                    ""
+                    "".to_owned()
                 },
             );
             let q = format!(
                 "{}{}",
                 q,
                 if bso.payload.is_some() || bso.sortindex.is_some() {
-                    ", modified = VALUES(modified)"
+                    format!(", {modified} = VALUES({modified})", modified=MODIFIED)
                 } else {
-                    ""
+                    "".to_owned()
                 },
             );
 
@@ -609,15 +617,17 @@ impl MysqlDb {
         &self,
         user_id: HawkIdentifier,
     ) -> Result<results::GetCollectionTimestamps> {
-        let modifieds =
-            sql_query("SELECT collection_id, modified FROM user_collections WHERE user_id = ?")
-                .bind::<Integer, _>(user_id.legacy_id as i32)
-                .load::<UserCollectionsResult>(&self.conn)?
-                .into_iter()
-                .map(|cr| {
-                    SyncTimestamp::from_i64(cr.modified).and_then(|ts| Ok((cr.collection_id, ts)))
-                })
-                .collect::<Result<HashMap<_, _>>>()?;
+        let modifieds = sql_query(format!(
+            "SELECT {collection_id}, {modified} FROM user_collections WHERE {user_id} = ?",
+            collection_id = COLLECTION_ID,
+            user_id = USER_ID,
+            modified = LAST_MODIFIED
+        ))
+        .bind::<Integer, _>(user_id.legacy_id as i32)
+        .load::<UserCollectionsResult>(&self.conn)?
+        .into_iter()
+        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).and_then(|ts| Ok((cr.collection, ts))))
+        .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
 
@@ -668,11 +678,16 @@ impl MysqlDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
-        let upsert = r#"
-                INSERT INTO user_collections (user_id, collection_id, modified)
+        let upsert = format!(
+            r#"
+                INSERT INTO user_collections ({user_id}, {collection_id}, {modified})
                 VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE modified = ?
-        "#;
+                ON DUPLICATE KEY UPDATE {modified} = ?
+        "#,
+            user_id = USER_ID,
+            collection_id = COLLECTION_ID,
+            modified = LAST_MODIFIED
+        );
         sql_query(upsert)
             .bind::<Integer, _>(user_id as i32)
             .bind::<Integer, _>(&collection_id)
@@ -714,7 +729,13 @@ impl MysqlDb {
         user_id: HawkIdentifier,
     ) -> Result<results::GetCollectionCounts> {
         let counts = bso::table
-            .select((bso::collection_id, sql::<BigInt>("COUNT(collection_id)")))
+            .select((
+                bso::collection_id,
+                sql::<BigInt>(&format!(
+                    "COUNT({collection_id})",
+                    collection_id = COLLECTION_ID
+                )),
+            ))
             .filter(bso::user_id.eq(user_id.legacy_id as i32))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .group_by(bso::collection_id)
@@ -888,8 +909,9 @@ struct NameResult {
 
 #[derive(Debug, QueryableByName)]
 struct UserCollectionsResult {
+    // Can't substitute column names here.
     #[sql_type = "Integer"]
-    collection_id: i32,
+    collection: i32, // COLLECTION_ID
     #[sql_type = "BigInt"]
-    modified: i64,
+    last_modified: i64, // LAST_MODIFIED
 }
