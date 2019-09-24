@@ -832,6 +832,14 @@ impl HawkIdentifier {
         }
     }
 
+    pub fn cmd_dummy() -> Self {
+        // Create a "dummy" HawkID for use by DockerFlow commands
+        Self {
+            legacy_id: 0,
+            fxa_id: "cmd".to_owned(),
+        }
+    }
+
     fn uid_from_path(uri: &Uri) -> Result<u64, Error> {
         // TODO: replace with proper path parser.
         // path: "/1.5/{uid}"
