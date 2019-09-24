@@ -98,6 +98,9 @@ impl Db for MockDb {
 
     #[cfg(any(test, feature = "db_test"))]
     mock_db_method!(delete_batch, DeleteBatch);
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn clear_coll_cache(&self) {}
 }
 
 unsafe impl Send for MockDb {}

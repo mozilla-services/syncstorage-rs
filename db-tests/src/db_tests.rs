@@ -223,8 +223,6 @@ async fn get_bsos_newer() -> Result<()> {
     let uid = *UID;
     let coll = "clients";
     let timestamp = db.timestamp().as_i64();
-    // XXX: validation
-    //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
     for i in (0..=2).rev() {
         let pbso = pbso(
@@ -312,8 +310,6 @@ async fn get_bsos_sort() -> Result<()> {
 
     let uid = *UID;
     let coll = "clients";
-    // XXX: validation again
-    //db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, -1, Sorting::None, 10, 0)).is_err()
 
     for (revi, sortindex) in [1, 0, 2].iter().enumerate().rev() {
         let pbso = pbso(
@@ -653,10 +649,9 @@ async fn post_bsos() -> Result<()> {
 
     assert!(result.success.contains(&"b0".to_owned()));
     assert!(result.success.contains(&"b2".to_owned()));
-    // XXX: validation?
+    // NOTE: b1 exceeds BSO_MAX_TTL but the database layer doesn't validate.
+    // This is the extractor's responsibility
     //assert!(!result.success.contains(&"b1".to_owned()));
-    //assert!(!result.failed.contains_key("b1"));
-    //assert!(!result.failed.contains_key("b1"));
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
@@ -914,6 +909,26 @@ async fn delete_storage() -> Result<()> {
         .compat()
         .await?;
     assert_eq!(cid2, cid);
+    Ok(())
+}
+
+#[async_test]
+async fn collection_cache() -> Result<()> {
+    let db = db().await?;
+
+    let uid = *UID;
+    let coll = "test";
+    let cid = db.create_collection(coll.to_owned()).compat().await?;
+    db.touch_collection(params::TouchCollection {
+        user_id: hid(uid),
+        collection_id: cid,
+    })
+    .compat()
+    .await?;
+
+    db.clear_coll_cache();
+    let cols = db.get_collection_timestamps(hid(uid)).compat().await?;
+    assert!(cols.contains_key(coll));
     Ok(())
 }
 

@@ -206,6 +206,9 @@ pub trait Db: Send + Debug {
 
     #[cfg(any(test, feature = "db_test"))]
     fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<()>;
+
+    #[cfg(any(test, feature = "db_test"))]
+    fn clear_coll_cache(&self);
 }
 
 impl Clone for Box<dyn Db> {
