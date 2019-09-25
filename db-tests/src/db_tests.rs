@@ -909,6 +909,10 @@ async fn delete_storage() -> Result<()> {
         .compat()
         .await?;
     assert_eq!(cid2, cid);
+
+    let collections = db.get_collection_counts(hid(uid)).compat().await?;
+    assert!(collections == HashMap::<String, i64>::new());
+
     Ok(())
 }
 

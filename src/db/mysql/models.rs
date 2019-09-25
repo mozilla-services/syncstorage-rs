@@ -37,6 +37,7 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 /// The ttl to use for rows that are never supposed to expire (in seconds)
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
+pub const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
 /// These names are the legacy values mapped to the new names.
 pub const COLLECTION_ID: &str = "collection";
@@ -249,17 +250,38 @@ impl MysqlDb {
         Ok(())
     }
 
+    fn erect_tombstone(&self, user_id: i32) -> Result<()> {
+        sql_query(
+            format!(r#"INSERT INTO user_collections ({user_id}, {collection_id}, {modified}) values (?, ?, ?)
+             ON DUPLICATE KEY UPDATE {modified} = VALUES({modified})"#,
+             user_id = USER_ID,
+             collection_id = COLLECTION_ID,
+             modified = LAST_MODIFIED)
+        )
+        .bind::<Integer, _>(user_id)
+        .bind::<Integer, _>(TOMBSTONE)
+        .bind::<BigInt, _>(self.timestamp().as_i64())
+        .execute(&self.conn)?;
+        Ok(())
+    }
+
+    // Delete all data associated with the user. Erect a tombstone because legacy
+    // systems expect a `200 []` instead of a 404 if no data is present.
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
-        let user_id = user_id.legacy_id;
+        let user_id = user_id.legacy_id as i32;
+        self.begin()?;
+        // Delete user data.
         delete(bso::table)
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id))
             .execute(&self.conn)?;
+        // Delete user collections.
         delete(user_collections::table)
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id))
             .execute(&self.conn)?;
         Ok(())
     }
 
+    // Delete just a collection for a given user.
     pub fn delete_collection_sync(
         &self,
         params: params::DeleteCollection,
@@ -276,6 +298,8 @@ impl MysqlDb {
             .execute(&self.conn)?;
         if count == 0 {
             Err(DbErrorKind::CollectionNotFound)?
+        } else {
+            self.erect_tombstone(user_id as i32)?;
         }
         self.get_storage_timestamp_sync(params.user_id)
     }
@@ -635,11 +659,12 @@ impl MysqlDb {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
+            .filter(|id| id.0 > 0) // ignore any tombstones (they're alive again)
             .map(|(id, value)| {
                 names
                     .remove(&id)
                     .map(|name| (name, value))
-                    .ok_or_else(|| DbError::internal("load_collection_names get"))
+                    .ok_or_else(|| DbError::internal("load_collection_names unknown collection id"))
             })
             .collect()
     }

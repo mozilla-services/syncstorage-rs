@@ -52,6 +52,8 @@ pub type Result<T> = std::result::Result<T, DbError>;
 /// The ttl to use for rows that are never supposed to expire (in seconds)
 pub const DEFAULT_BSO_TTL: i64 = 2_100_000_000;
 
+pub const TOMBSTONE: i32 = 0;
+
 /// Per session Db metadata
 #[derive(Debug, Default)]
 struct SpannerDbSession {
@@ -504,6 +506,7 @@ impl SpannerDb {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
+            .filter(|id| id.0 > 0) // ignore any tombstones (they're alive again)
             .map(|(id, value)| {
                 names
                     .remove(&id)
@@ -647,10 +650,19 @@ impl SpannerDb {
         }
     }
 
+    fn erect_tombstone(&self, user_id: u32) -> Result<()> {
+        self.sql("INSERT INTO user_collections (userid, collection, last_modified) values (@userid, \"0\", @modified)")?
+            .params(params!{"userid" => user_id.to_string(), "modified" => self.timestamp().as_rfc3339()?})
+            .execute(&self.conn)?;
+        Ok(())
+    }
+
     pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
-        // XXX: should delete from bso table too
         let user_id = user_id.legacy_id as u32;
         self.sql("DELETE FROM user_collections WHERE userid=@userid")?
+            .params(params! {"userid" => user_id.to_string()})
+            .execute(&self.conn)?;
+        self.sql("DELETE FROM bso WHERE userid=@userid")?
             .params(params! {"userid" => user_id.to_string()})
             .execute(&self.conn)?;
         Ok(())
@@ -678,6 +690,7 @@ impl SpannerDb {
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?;
+        self.erect_tombstone(user_id)?;
         self.get_storage_timestamp_sync(params.user_id)
     }
 
