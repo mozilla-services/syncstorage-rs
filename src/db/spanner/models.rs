@@ -687,7 +687,7 @@ impl SpannerDb {
             .params(params!{
                 "userid" => user_id.to_string(), 
                 "collection" => TOMBSTONE.to_string(), 
-                "modified" => self.timestamp().as_rfc3339()?})
+                "modified" => self.timestamp()?.as_rfc3339()?})
             .execute(&self.conn)?;
         Ok(())
     }
