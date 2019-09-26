@@ -265,8 +265,6 @@ impl MysqlDb {
         Ok(())
     }
 
-    // Delete all data associated with the user. Erect a tombstone because legacy
-    // systems expect a `200 []`.
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
         let user_id = user_id.legacy_id as i32;
         self.begin()?;
@@ -281,7 +279,9 @@ impl MysqlDb {
         Ok(())
     }
 
-    // Delete just a collection for a given user.
+    // Deleting the collection should result in:
+    //  - collection does not appear in /info/collections
+    //  - X-Last-Modified timestamp at the storage level changing
     pub fn delete_collection_sync(
         &self,
         params: params::DeleteCollection,

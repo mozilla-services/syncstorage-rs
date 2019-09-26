@@ -673,21 +673,22 @@ impl SpannerDb {
     fn erect_tombstone(&self, user_id: u32) -> Result<()> {
         // Delete the old tombstone (if it exists)
         self.sql("DELETE from user_collection where userid=@userid and collection=@collection")?
+            .params(params! {
+                "userid" => user_id.to_string(),
+            })
             .param_types(param_types! {
                 "collection" => SpannerType::Int64,
             })
-            .params(params! {
-                "userid" => user_id.to_string(),
-            });
+            .execute(&self.conn)?;
         self.sql("INSERT INTO user_collections (userid, collection, last_modified) values (@userid, @collection, @modified)")?
-            .param_types(param_types!{
-                "modified" => SpannerType::Timestamp,
-                "collection" => SpannerType::Int64,
-            })
             .params(params!{
                 "userid" => user_id.to_string(), 
                 "collection" => TOMBSTONE.to_string(), 
                 "modified" => self.timestamp()?.as_rfc3339()?})
+            .param_types(param_types!{
+                "modified" => SpannerType::Timestamp,
+                "collection" => SpannerType::Int64,
+            })
             .execute(&self.conn)?;
         Ok(())
     }
