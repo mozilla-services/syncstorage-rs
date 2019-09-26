@@ -19,7 +19,7 @@ use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
     util::{to_rfc3339, SyncTimestamp},
-    Db, DbFuture, Sorting,
+    Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
 
 use crate::web::extractors::BsoQueryParams;
@@ -57,8 +57,9 @@ pub const TOMBSTONE: i32 = 0;
 /// Per session Db metadata
 #[derive(Debug, Default)]
 struct SpannerDbSession {
-    /// The "current time" on the server used for this session's operations
-    timestamp: SyncTimestamp,
+    /// CURRENT_TIMESTAMP() from Spanner, used for timestamping this session's
+    /// operations
+    timestamp: Option<SyncTimestamp>,
     /// Cache of collection modified timestamps per (user_id, collection_id)
     coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections
@@ -145,6 +146,12 @@ impl SpannerDb {
     }
 
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
+        // This should always run within a r/w transaction, so that: "If a
+        // transaction successfully commits, then no other writer modified the
+        // data that was read in the transaction after it was read."
+        if cfg!(not(any(test, feature = "db_test"))) && !self.in_write_transaction() {
+            Err(DbError::internal("Can't escalate read-lock to write-lock"))?
+        }
         let result = self
             .sql("SELECT COALESCE(MAX(collectionid), 1) from collections")?
             .execute(&self.conn)?
@@ -153,7 +160,7 @@ impl SpannerDb {
             .get_string_value()
             .parse::<i32>()
             .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-        let id = max + 1;
+        let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
 
         self.sql("INSERT INTO collections (collectionid, name) VALUES (@collectionid, @name)")?
             .params(params! {
@@ -223,27 +230,40 @@ impl SpannerDb {
         }
 
         let result = self
-            .sql("SELECT CURRENT_TIMESTAMP() as now, last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
+            .sql("SELECT CURRENT_TIMESTAMP(), last_modified FROM user_collections WHERE userid=@userid AND collection=@collectionid")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?
             .one_or_none()?;
-        // XXX: python code does a "SELECT CURRENT_TIMESTAMP()" when None here
-        if let Some(result) = result {
+
+        let timestamp = if let Some(result) = result {
             let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
             self.session
                 .borrow_mut()
                 .coll_modified_cache
                 .insert((user_id, collection_id), modified);
-        }
+            SyncTimestamp::from_rfc3339(result[0].get_string_value())?
+        } else {
+            let result = self
+                .sql("SELECT CURRENT_TIMESTAMP()")?
+                .execute(&self.conn)?
+                .one()?;
+            SyncTimestamp::from_rfc3339(result[0].get_string_value())?
+        };
+        self.set_timestamp(timestamp);
+
         self.session
             .borrow_mut()
             .coll_locks
             .insert((user_id, collection_id), CollectionLock::Write);
 
         Ok(())
+    }
+
+    fn set_timestamp(&self, timestamp: SyncTimestamp) {
+        self.session.borrow_mut().timestamp = Some(timestamp);
     }
 
     #[cfg(feature = "google_grpc")]
@@ -683,8 +703,11 @@ impl SpannerDb {
         Ok(())
     }
 
-    pub fn timestamp(&self) -> SyncTimestamp {
-        self.session.borrow().timestamp
+    pub fn timestamp(&self) -> Result<SyncTimestamp> {
+        self.session
+            .borrow()
+            .timestamp
+            .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP() not read yet"))
     }
 
     pub fn delete_collection_sync(
@@ -723,6 +746,7 @@ impl SpannerDb {
         // Mutations don't run in the same order as ExecuteSql calls, they are
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
+        let timestamp = self.timestamp()?;
         let result = self
             .sql("SELECT 1 as count FROM user_collections WHERE userid = @userid AND collection = @collectionid;")?
             .params(params! {
@@ -734,33 +758,31 @@ impl SpannerDb {
         let exists = result.is_some();
 
         if exists {
-            let timestamp = self.timestamp().as_i64();
             self
                 .sql("UPDATE user_collections SET last_modified=@last_modified WHERE userid=@userid AND collection=@collectionid")?
                 .params(params! {
                     "userid" => user_id.to_string(),
                     "collectionid" => collection_id.to_string(),
-                    "last_modified" => to_rfc3339(timestamp)?,
+                    "last_modified" => timestamp.as_rfc3339()?,
                 })
                 .param_types(param_types! {
                     "last_modified" => SpannerType::Timestamp,
                 })
                 .execute(&self.conn)?;
-            Ok(self.timestamp())
+            Ok(timestamp)
         } else {
-            let timestamp = self.timestamp().as_i64();
             self
                 .sql("INSERT INTO user_collections (userid, collection, last_modified) VALUES (@userid, @collectionid, @modified)")?
                 .params(params! {
                     "userid" => user_id.to_string(),
                     "collectionid" => collection_id.to_string(),
-                    "modified" => to_rfc3339(timestamp)?,
+                    "modified" => timestamp.as_rfc3339()?,
                 })
                 .param_types(param_types! {
                     "modified" => SpannerType::Timestamp,
                 })
                 .execute(&self.conn)?;
-            Ok(self.timestamp())
+            Ok(timestamp)
         }
     }
 
@@ -813,26 +835,21 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > @timestamp".to_string();
-        let timestamp = self.timestamp().as_i64();
-        let modifiedstring = to_rfc3339(timestamp)?;
+        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl FROM bso WHERE userid = @userid AND collection = @collectionid AND ttl > CURRENT_TIMESTAMP()".to_string();
         let mut sqlparams = params! {
             "userid" => user_id.to_string(),
             "collectionid" => collection_id.to_string(),
-            "timestamp" => modifiedstring,
         };
-        let mut sqltypes = param_types! {
-            "timestamp" => SpannerType::Timestamp,
-        };
+        let mut sqltypes = HashMap::new();
 
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query).to_string();
-            sqlparams.insert("older".to_string(), as_value(to_rfc3339(older.as_i64())?));
+            sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
             sqltypes.insert("older".to_string(), SpannerType::Timestamp.into());
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query).to_string();
-            sqlparams.insert("newer".to_string(), as_value(to_rfc3339(newer.as_i64())?));
+            sqlparams.insert("newer".to_string(), as_value(newer.as_rfc3339()?));
             sqltypes.insert("newer".to_string(), SpannerType::Timestamp.into());
         }
 
@@ -912,15 +929,11 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let result = self.
-            sql("SELECT id, modified, payload, coalesce(sortindex, NULL), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > @timestamp")?
+            sql("SELECT id, modified, payload, coalesce(sortindex, NULL), ttl FROM bso WHERE userid=@userid AND collection=@collectionid AND id=@bsoid AND ttl > CURRENT_TIMESTAMP()")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
                 "bsoid" => params.id.to_string(),
-                "timestamp" => to_rfc3339(self.timestamp().as_i64())?
-            })
-            .param_types(param_types! {
-                "timestamp" => SpannerType::Timestamp,
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -937,15 +950,11 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let result = self
-            .sql("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl>@ttl")?
+            .sql("SELECT modified FROM bso WHERE collection=@collectionid AND userid=@userid AND id=@bsoid AND ttl > CURRENT_TIMESTAMP()")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collectionid" => collection_id.to_string(),
                 "bsoid" => params.id.to_string(),
-                "ttl" => to_rfc3339(self.timestamp().as_i64())?,
-            })
-            .param_types(param_types! {
-                "ttl" => SpannerType::Timestamp,
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -960,7 +969,7 @@ impl SpannerDb {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
         let touch = self.touch_collection(user_id as u32, collection_id)?;
-        let timestamp = self.timestamp().as_i64();
+        let timestamp = self.timestamp()?;
 
         let result = self
             .sql("SELECT 1 as count FROM bso WHERE userid = @userid AND collection = @collectionid AND id = @bsoid")?
@@ -1005,7 +1014,7 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if let Some(ttl) = bso.ttl {
-                    let expiry = timestamp + (i64::from(ttl) * 1000);
+                    let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
                     sqlparams.insert("expiry".to_string(), as_value(to_rfc3339(expiry)?));
                     sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
                     format!("{}{}", comma(&q), "ttl = @expiry")
@@ -1018,10 +1027,7 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if bso.payload.is_some() || bso.sortindex.is_some() {
-                    sqlparams.insert(
-                        "modified".to_string(),
-                        as_value(self.timestamp().as_rfc3339()?),
-                    );
+                    sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
                     sqltypes.insert("modified".to_string(), SpannerType::Timestamp.into());
                     format!("{}{}", comma(&q), "modified = @modified")
                 } else {
@@ -1090,7 +1096,7 @@ impl SpannerDb {
                 "payload".to_string(),
                 as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
             );
-            let now_millis = self.timestamp().as_i64();
+            let now_millis = timestamp.as_i64();
             let ttl = bso
                 .ttl
                 .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
@@ -1100,10 +1106,7 @@ impl SpannerDb {
             sqlparams.insert("expiry".to_string(), as_value(expirystring));
             sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
 
-            sqlparams.insert(
-                "modified".to_string(),
-                as_value(self.timestamp().as_rfc3339()?),
-            );
+            sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
             sqltypes.insert("modified".to_string(), SpannerType::Timestamp.into());
             sql.to_owned()
         };
@@ -1118,7 +1121,7 @@ impl SpannerDb {
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostBsos {
-            modified: self.timestamp(),
+            modified: self.timestamp()?,
             success: Default::default(),
             failed: input.failed,
         };
@@ -1270,11 +1273,12 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn timestamp(&self) -> SyncTimestamp {
         self.timestamp()
+            .expect("set_timestamp() not called yet for SpannerDb")
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
-        self.session.borrow_mut().timestamp = timestamp;
+        SpannerDb::set_timestamp(self, timestamp)
     }
 
     #[cfg(any(test, feature = "db_test"))]

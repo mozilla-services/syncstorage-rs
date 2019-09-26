@@ -1,4 +1,5 @@
 #![warn(rust_2018_idioms)]
+#![allow(clippy::try_err)]
 
 #[macro_use]
 extern crate diesel;

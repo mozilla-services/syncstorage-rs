@@ -142,8 +142,7 @@ impl Default for DbTransaction {
 
 impl<S, B> Transform<S> for DbTransaction
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -168,8 +167,7 @@ pub struct DbTransactionMiddleware<S> {
 
 impl<S, B> Service for DbTransactionMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -287,8 +285,7 @@ impl Default for PreConditionCheck {
 
 impl<S, B> Transform<S> for PreConditionCheck
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -312,8 +309,7 @@ pub struct PreConditionCheckMiddleware<S> {
 
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
