@@ -266,7 +266,7 @@ impl MysqlDb {
     }
 
     // Delete all data associated with the user. Erect a tombstone because legacy
-    // systems expect a `200 []` instead of a 404 if no data is present.
+    // systems expect a `200 []`.
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
         let user_id = user_id.legacy_id as i32;
         self.begin()?;
