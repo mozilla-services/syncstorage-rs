@@ -15,7 +15,7 @@ use tokio_threadpool::ThreadPool;
 use super::models::{MysqlDb, Result};
 #[cfg(any(test, feature = "db_test"))]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
 use crate::settings::Settings;
 
 embed_migrations!();
@@ -66,7 +66,11 @@ impl MysqlDbPool {
         // XXX: allow configuring the ThreadPool size
         Ok(Self {
             pool: builder.build(manager)?,
-            thread_pool: Arc::new(ThreadPool::new()),
+            thread_pool: Arc::new(
+                tokio_threadpool::Builder::new()
+                    .pool_size(DB_THREAD_POOL_SIZE)
+                    .build(),
+            ),
             coll_cache: Default::default(),
         })
     }

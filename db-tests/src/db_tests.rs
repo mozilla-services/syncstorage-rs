@@ -500,6 +500,75 @@ async fn delete_collection() -> Result<()> {
 }
 
 #[async_test]
+async fn delete_collection_tombstone() -> Result<()> {
+    let db = db().await?;
+
+    let uid = *UID;
+    let coll = "test";
+    let bid1 = "b0";
+    let coll2 = "test2";
+    let ts1 = with_delta!(db, -100, {
+        db.put_bso(pbso(uid, coll, bid1, Some("test"), None, None))
+            .compat()
+            .await?;
+        for bid2 in 1..=3 {
+            db.put_bso(pbso(
+                uid,
+                "test2",
+                &bid2.to_string(),
+                Some("test"),
+                None,
+                None,
+            ))
+            .compat()
+            .await?;
+        }
+        db.timestamp()
+    });
+
+    let ts2 = db
+        .delete_collection(params::DeleteCollection {
+            user_id: hid(uid),
+            collection: coll2.to_owned(),
+        })
+        .compat()
+        .await?;
+    assert!(ts2 > ts1);
+    /*
+    // TODO: fix mysql returning CollectionNotFound here
+
+    // nothing deleted, storage's timestamp not touched
+    let ts3 = db
+        .delete_collection(params::DeleteCollection {
+            user_id: hid(uid),
+            collection: coll2.to_owned(),
+        })
+        .compat()
+        .await?;
+    assert_eq!(ts2, ts3);
+    */
+
+    let ts_storage = db.get_storage_timestamp(hid(uid)).compat().await?;
+    assert_eq!(ts2, ts_storage);
+
+    // make sure coll2 BSOs were deleted
+    for bid2 in 1..=3 {
+        let result = db
+            .get_bso(gbso(uid, coll2, &bid2.to_string()))
+            .compat()
+            .await?;
+        assert!(result.is_none());
+    }
+    // make sure coll BSOs were *not* deleted
+    let result = db
+        .get_bso(gbso(uid, coll, &bid1.to_string()))
+        .compat()
+        .await?;
+    assert!(result.is_some());
+    Ok(())
+}
+
+#[async_test]
 async fn get_collection_timestamps() -> Result<()> {
     let db = db().await?;
 
@@ -524,6 +593,31 @@ async fn get_collection_timestamps() -> Result<()> {
         .compat()
         .await?;
     assert_eq!(Some(&ts), cols.get(coll));
+    Ok(())
+}
+
+#[async_test]
+async fn get_collection_timestamps_tombstone() -> Result<()> {
+    let db = db().await?;
+
+    let uid = *UID;
+    let coll = "test";
+    let cid = db.create_collection(coll.to_owned()).compat().await?;
+    db.touch_collection(params::TouchCollection {
+        user_id: hid(uid),
+        collection_id: cid,
+    })
+    .compat()
+    .await?;
+
+    db.delete_collection(params::DeleteCollection {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+    })
+    .compat()
+    .await?;
+    let cols = db.get_collection_timestamps(hid(uid)).compat().await?;
+    assert!(cols.is_empty());
     Ok(())
 }
 

@@ -51,6 +51,9 @@ pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 /// Rough guesstimate of the maximum reasonable life span of a batch
 pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 
+/// DbPools' worker ThreadPool size
+pub const DB_THREAD_POOL_SIZE: usize = 50;
+
 type DbFuture<T> = Box<dyn Future<Item = T, Error = ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {

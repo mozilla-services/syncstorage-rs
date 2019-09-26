@@ -257,11 +257,17 @@ impl SpannerDb {
 
         let timestamp = if let Some(result) = result {
             let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
+            let now = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
+            // Forbid the write if it would not properly incr the modified
+            // timestamp
+            if modified >= now {
+                Err(DbErrorKind::Conflict)?
+            }
             self.session
                 .borrow_mut()
                 .coll_modified_cache
                 .insert((params.user_id.clone(), collection_id), modified);
-            SyncTimestamp::from_rfc3339(result[0].get_string_value())?
+            now
         } else {
             let result = self
                 .sql("SELECT CURRENT_TIMESTAMP()")?
@@ -537,11 +543,13 @@ impl SpannerDb {
                 "SELECT collection, last_modified
                    FROM user_collections
                   WHERE userid = @fxa_uid
-                    AND fxa_kid = @fxa_kid",
+                    AND fxa_kid = @fxa_kid
+                    AND collection != @collectionid",
             )?
             .params(params! {
                 "fxa_uid" => fxa_uid,
-                "fxa_kid" => fxa_kid
+                "fxa_kid" => fxa_kid,
+                "collectionid" => TOMBSTONE.to_string(),
             })
             .execute(&self.conn)?
             .map(|row| {
@@ -560,7 +568,6 @@ impl SpannerDb {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
-            .filter(|id| id.0 > 0) // ignore any tombstones (they're alive again)
             .map(|(id, value)| {
                 names
                     .remove(&id)
@@ -629,8 +636,8 @@ impl SpannerDb {
                   GROUP BY collection",
             )?
             .params(params! {
-            "fxa_uid" => fxa_uid,
-            "fxa_kid" => fxa_kid,
+                "fxa_uid" => fxa_uid,
+                "fxa_kid" => fxa_kid,
             })
             .execute(&self.conn)?
             .map(|row| {
@@ -685,32 +692,23 @@ impl SpannerDb {
         &self,
         user_id: params::GetStorageTimestamp,
     ) -> Result<SyncTimestamp> {
-        let ts0 = "0001-01-01T00:00:00Z";
-        let result = self
-            .sql(&format!(
-                "SELECT COALESCE(MAX(last_modified), TIMESTAMP '{}')
+        let row = self
+            .sql(
+                "SELECT MAX(last_modified)
                    FROM user_collections
                   WHERE userid = @fxa_uid
                     AND fxa_kid = @fxa_kid",
-                ts0
-            ))?
+            )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid
             })
             .execute(&self.conn)?
-            .one_or_none()?;
-        if let Some(result) = result {
-            let val = result[0].get_string_value();
-            // XXX: detect not max last_modified found via ts0 to workaround
-            // google-apis-rs barfing on a null result
-            if val == ts0 {
-                SyncTimestamp::from_i64(0)
-            } else {
-                SyncTimestamp::from_rfc3339(val)
-            }
-        } else {
+            .one()?;
+        if row[0].has_null_value() {
             SyncTimestamp::from_i64(0)
+        } else {
+            SyncTimestamp::from_rfc3339(row[0].get_string_value())
         }
     }
 
@@ -753,8 +751,8 @@ impl SpannerDb {
             "modified" => self.timestamp()?.as_rfc3339()?
         };
         let types = param_types! {
-            "modified" => SpannerType::Timestamp,
             "collection" => SpannerType::Int64,
+            "modified" => SpannerType::Timestamp,
         };
         self.sql(
             "DELETE FROM user_collections
@@ -783,16 +781,10 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone()
         };
+        // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
+        // ON DELETE CASCADE
         self.sql(
             "DELETE FROM user_collections
-              WHERE userid = @fxa_uid
-                AND fxa_kid = @fxa_kid",
-        )?
-        .params(params.clone())
-        .execute(&self.conn)?;
-
-        self.sql(
-            "DELETE FROM bso
               WHERE userid = @fxa_uid
                 AND fxa_kid = @fxa_kid",
         )?
@@ -817,10 +809,12 @@ impl SpannerDb {
             "fxa_kid" => params.user_id.fxa_kid.clone(),
             "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
         };
+        // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
+        // ON DELETE CASCADE
         if self
             .sql(
                 "DELETE FROM user_collections
-                 WHERE userid = @fxa_uid
+                  WHERE userid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection = @collectionid",
             )?
@@ -879,20 +873,19 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection = @collectionid",
             )?
-            .params(sqlparams.clone())
-            .param_types(sql_types.clone())
+            .params(sqlparams)
+            .param_types(sql_types)
             .execute(&self.conn)?;
-            Ok(timestamp)
         } else {
             self.sql(
                 "INSERT INTO user_collections (userid, fxa_kid, collection, last_modified)
                  VALUES (@fxa_uid, @fxa_kid, @collectionid, @last_modified)",
             )?
-            .params(sqlparams.clone())
-            .param_types(sql_types.clone())
+            .params(sqlparams)
+            .param_types(sql_types)
             .execute(&self.conn)?;
-            Ok(timestamp)
         }
+        Ok(timestamp)
     }
 
     pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
@@ -959,13 +952,14 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl
-                           FROM bso
-                          WHERE userid = @fxa_uid
-                            AND fxa_kid = @fxa_kid
-                            AND collection = @collectionid
-                            AND ttl > CURRENT_TIMESTAMP()"
-            .to_string();
+        let mut query = "\
+            SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl
+              FROM bso
+             WHERE userid = @fxa_uid
+               AND fxa_kid = @fxa_kid
+               AND collection = @collectionid
+               AND ttl > CURRENT_TIMESTAMP()"
+            .to_owned();
         let mut sqltypes = HashMap::new();
 
         if let Some(older) = older {
@@ -1055,7 +1049,7 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl
+                "SELECT id, modified, payload, sortindex, ttl
                    FROM bso
                   WHERE userid = @fxa_uid
                     AND fxa_kid = @fxa_kid

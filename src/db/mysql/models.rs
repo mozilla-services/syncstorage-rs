@@ -657,12 +657,14 @@ impl MysqlDb {
         let modifieds = sql_query(format!(
             "SELECT {collection_id}, {modified}
                FROM user_collections
-              WHERE {user_id} = ?",
+              WHERE {user_id} = ?
+               AND {collection_id} != ?",
             collection_id = COLLECTION_ID,
             user_id = USER_ID,
             modified = LAST_MODIFIED
         ))
         .bind::<Integer, _>(user_id.legacy_id as i32)
+        .bind::<Integer, _>(TOMBSTONE)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
         .map(|cr| SyncTimestamp::from_i64(cr.last_modified).and_then(|ts| Ok((cr.collection, ts))))
@@ -674,7 +676,6 @@ impl MysqlDb {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
-            .filter(|id| id.0 > 0) // ignore any tombstones (they're alive again)
             .map(|(id, value)| {
                 names
                     .remove(&id)
