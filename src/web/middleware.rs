@@ -450,7 +450,6 @@ trait SyncServerRequest {
 
 impl SyncServerRequest for ServiceRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
-        dbg!("HERE", self.uri().path().to_lowercase().as_str());
         if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
             return Ok(HawkIdentifier::cmd_dummy());
         }
