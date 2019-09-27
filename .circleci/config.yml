@@ -285,12 +285,9 @@ workflows:
           filters:
             tags:
               only: /.*/
-
-      # Need to update https://circleci.com/gh/mozilla-services/syncstorage-rs/edit#env-vars
-      # with docker hub credentials. before enabling this.
-      #- deploy:
-      #    requires:
-      #      - build
-      #    filters:
-      #      tags:
-      #        only: /.*/
+      - deploy:
+          requires:
+            - e2e-tests
+          filters:
+            tags:
+              only: /.*/
