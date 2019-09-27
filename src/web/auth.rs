@@ -116,6 +116,8 @@ impl HawkPayload {
         // Comment the following to disable auth
         verify_hmac(payload, &secrets.signing_secret, signature)?;
 
+        eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
+        dbg!(std::str::from_utf8(payload).unwrap());
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
         if expiry == 0 || (payload.expires.round() as u64) > expiry {
@@ -194,6 +196,9 @@ mod tests {
 
     #[test]
     fn valid_header() {
+    use env_logger;
+    env_logger::init();
+
         let fixture = TestFixture::new();
 
         let result = HawkPayload::new(
@@ -454,10 +459,10 @@ mod tests {
         fn new() -> TestFixture {
             TestFixture {
                 header: HawkHeader::new(
-                    "eyJub2RlIjogImh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsICJ1aWQiOiAxLCAiZXhwaXJlcyI6IDE1MzYxOTkyNzQsICJmeGFfdWlkIjogIjMxOWI5OGY5OTYxZmYxZGJkZDA3MzEzY2Q2YmE5MjVhIiwgInNhbHQiOiAiYjAyNjBlIiwgImRldmljZV9pZCI6ICJjMDlkMjZmYWYyYjQ5YWI2NGEyODgyOTA3MjA2ZDBiNSJ96drmQ_KNFOe7U3g1D8ZX5-he2Bv2aRvKZzBPrCjHKO4=",
-                    "+1oGdzqpxYndK5ejQLdnZpXgGSt/IlxNh5MvcR6j7t4=",
-                    "omxLZWE=",
-                    1_536_198_980,
+                    "eyJ1aWQiOiAxLCAibm9kZSI6ICJodHRwOi8vbG9jYWxob3N0OjUwMDAiLCAiZXhwaXJlcyI6IDE4ODQ4OTc5NDUuMCwgImZ4YV91aWQiOiAiMzE5Yjk4Zjk5NjFmZjFkYmRkMDczMTNjZDZiYTkyNWEiLCAiZnhhX2tpZCI6ICJYWFgiLCAiaGFzaGVkX2Z4YV91aWQiOiAiMGU4ZGY1ZDQxMzk4YTM4OTkxM2JkODQwMjQzNTY0OTUxOGFmNDY0OTNkYTFkNGE0MzdhNDZkYzE3ODRjNTAxYSIsICJoYXNoZWRfZGV2aWNlX2lkIjogIjZjODFiNTYwNDFkMzFjZTdjNjEzZGE5Njk5NDUwYjc1YzI4YzkxMWI5ZTkxZWFiMGZhZDI1NGZkNzEyYWRjOTkiLCAic2FsdCI6ICJjMmRhMDAiffgQor4EjvbKT_MZX8lLAy7jSy62Sy_4JagNj9hSzRXD",
+                    "4y7ad0wDSUaGmSUMUxi6JRpyxF2/q3iqZAGSxtT/2ds=",
+                    "bYV1OrQ=",
+                    1884897945,
                 ),
                 request: Request::new(
                     "GET",
@@ -477,9 +482,9 @@ mod tests {
                     ..Default::default()
                 },
                 expected: HawkPayload {
-                    expires: 1_536_199_274.0,
+                    expires: 1884897945.0,
                     node: "http://localhost:5000".to_string(),
-                    salt: "b0260e".to_string(),
+                    salt: "c2da00".to_string(),
                     user_id: 1,
                 },
             }

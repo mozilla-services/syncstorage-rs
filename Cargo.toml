@@ -35,7 +35,7 @@ grpcio = { version = "0.5.0-alpha.1", optional = true }
 lazy_static = "1.4.0"
 # XXX: switch to this line google-apis-rs support
 #hawk = { version = "3.0.0", default_features = false, features = ["use_openssl"] }
-hawk = "3.0.0"
+hawk = { version = "3.0.0", path = "../../rust/rust-hawk" }
 hkdf = "0.8.0"
 hmac = "0.7"
 log = "0.4"
