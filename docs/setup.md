@@ -51,7 +51,43 @@ The following configuration options are avaialble.
 
 ## Mysql Integration
 
-Durable sync needs only a valid mysql DSN in order to set up connections to a MySQL database.
+Durable sync needs only a valid mysql DSN in order to set up connections to a MySQL database. The database can be local and is usually specified with a DSN like:
+
+mysql://_user_:_password_@_host_/_database_
 
 ## Setting up Spanner integration
 
+Spanner requires a key in order to access the database. It's important that you know which keys have access to the spanner database. Contact your administrator 
+to find out. One you know the key, log into the [Google Cloud Console Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page. Be sure to 
+select the correct project.
+
+* Locate the email identifier of the access key and pick the vertical dot menu at the far right of the row. 
+* Select "*Create Key*" from the pop-up menu.
+* Select "JSON" from the Dialog Box.
+
+A proper Key file will be downloaded to your local directroy. It's important to safeguard that key file. For this example, we're going to name the file 
+`sync-spanner.json` and store it in a subdirectory called `./keys`
+
+The proper key file is in JSON format. An example file is provided below, with private information replaced by "`...`"
+```json
+{ 
+    "type": "service_account",
+    "project_id": "...",
+    "private_key_id": "...",
+    "private_key": "...",
+    "client_email": "...",
+    "client_id": "...",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "..."
+}
+```
+You can then specify the path to the key file using the environment variable `GOOGLE_APPLICATION_CREDENTIALS` when running the application.
+
+e.g.
+```bash
+RUST_LOG=warn GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/sync-spanner.json` cargo run -- --config sync.ini
+```
+
+Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
