@@ -41,7 +41,7 @@ fn batch_string_to_bsos(bsos: &str) -> Result<Vec<params::PostCollectionBso>> {
 pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let timestamp = db.timestamp().as_i64();
+    let timestamp = db.timestamp()?.as_i64();
     let bsos = bsos_to_batch_string(&params.bsos)?;
 
     db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry) VALUES (@userid, @collectionid, @bsoid, @bsos, @expiry)")?
@@ -63,7 +63,7 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
 pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let timestamp = db.timestamp().as_i64();
+    let timestamp = db.timestamp()?.as_i64();
 
     let exists = db.sql("SELECT 1 FROM batches WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
         .params(params! {
@@ -82,11 +82,10 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
 }
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
-    // TODO
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let bsos = bsos_to_batch_string(&params.bsos)?;
-    let timestamp = db.timestamp().as_i64();
+    let timestamp = db.timestamp()?.as_i64();
 
     let result = db.sql("UPDATE batches SET bsos = CONCAT(bsos, @bsos) WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
         .params(params! {
@@ -111,7 +110,7 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
 pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let timestamp = db.timestamp().as_i64();
+    let timestamp = db.timestamp()?.as_i64();
 
     let result = db.sql("SELECT id, bsos, expiry FROM batches WHERE userid = @userid AND collection = @collectionid AND id = @bsoid AND expiry > @expiry")?
         .params(params! {

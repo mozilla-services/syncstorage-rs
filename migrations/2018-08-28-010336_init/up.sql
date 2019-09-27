@@ -26,7 +26,7 @@ CREATE TABLE `bso` (
 CREATE TABLE `collections` (
     `id` INT PRIMARY KEY      NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(32) UNIQUE NOT NULL
-) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO collections (id, name) VALUES
     ( 1, "clients"),
     ( 2, "crypto"),

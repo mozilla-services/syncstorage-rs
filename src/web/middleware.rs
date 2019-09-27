@@ -32,6 +32,9 @@ pub struct WeaveTimestampMiddleware<S> {
     service: S,
 }
 
+// Known DockerFlow commands for Ops callbacks
+const DOCKER_FLOW_ENDPOINTS: [&str; 3] = ["/__heartbeat__", "/__lbheartbeat__", "/__version__"];
+
 impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
@@ -139,8 +142,7 @@ impl Default for DbTransaction {
 
 impl<S, B> Transform<S> for DbTransaction
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -165,8 +167,7 @@ pub struct DbTransactionMiddleware<S> {
 
 impl<S, B> Service for DbTransactionMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -228,35 +229,37 @@ where
         let mut service = Rc::clone(&self.service);
         let fut = state.db_pool.get().map_err(Into::into).and_then(move |db| {
             sreq.extensions_mut().insert(db.clone());
+            let db2 = db.clone();
 
             if let Some(collection) = collection {
-                let db2 = db.clone();
                 let lc = params::LockCollection {
                     user_id: hawk_user_id,
                     collection: collection.collection,
                 };
-
-                Either::A(
-                    match method {
-                        Method::GET | Method::HEAD => db.lock_for_read(lc),
-                        _ => db.lock_for_write(lc),
-                    }
-                    .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
-                    .map_err(Into::into)
-                    .and_then(move |_| {
-                        service.call(sreq).and_then(move |resp| {
-                            match resp.response().error() {
-                                None => db2.commit(),
-                                Some(_) => db2.rollback(),
-                            }
-                            .map_err(Into::into)
-                            .and_then(|_| resp)
-                        })
-                    }),
-                )
+                Either::A(match method {
+                    Method::GET | Method::HEAD => db.lock_for_read(lc),
+                    _ => db.lock_for_write(lc),
+                })
             } else {
-                Either::B(service.call(sreq).map_err(Into::into).map(|resp| resp))
+                Either::B(future::ok(()))
             }
+            .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
+            .map_err(Into::into)
+            .and_then(move |_| {
+                service.call(sreq).and_then(move |resp| {
+                    // XXX: lock_for_x usually begins transactions but Dbs
+                    // may also implicitly create them, so commit/rollback
+                    // are always called to finish them. They noop when no
+                    // implicit transaction was created (maybe rename them
+                    // to maybe_commit/rollback?)
+                    match resp.response().error() {
+                        None => db2.commit(),
+                        Some(_) => db2.rollback(),
+                    }
+                    .map_err(Into::into)
+                    .and_then(|_| resp)
+                })
+            })
         });
         Box::new(fut)
     }
@@ -282,8 +285,7 @@ impl Default for PreConditionCheck {
 
 impl<S, B> Transform<S> for PreConditionCheck
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -307,8 +309,7 @@ pub struct PreConditionCheckMiddleware<S> {
 
 impl<S, B> Service for PreConditionCheckMiddleware<S>
 where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S: 'static,
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
     B: 'static,
 {
@@ -449,6 +450,9 @@ trait SyncServerRequest {
 
 impl SyncServerRequest for ServiceRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
+        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
+            return Ok(HawkIdentifier::cmd_dummy());
+        }
         let method = self.method().clone();
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned

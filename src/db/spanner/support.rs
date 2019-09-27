@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
-use protobuf::well_known_types::Value;
 #[cfg(feature = "google_grpc")]
-use protobuf::{well_known_types::Struct, SingularPtrField};
+use protobuf::well_known_types::Struct;
+use protobuf::{
+    well_known_types::{ListValue, Value},
+    RepeatedField,
+};
 
 use super::models::{Conn, Result};
-use crate::db::DbError;
+use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
 
 #[cfg(feature = "google_grpc")]
 type ParamValue = protobuf::well_known_types::Value;
@@ -18,9 +21,9 @@ type ParamType = googleapis_raw::spanner::v1::type_pb::Type;
 type ParamType = google_spanner1::Type;
 
 #[cfg(feature = "google_grpc")]
-type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
+pub type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
 #[cfg(not(feature = "google_grpc"))]
-type ExecuteSqlRequest = google_spanner1::ExecuteSqlRequest;
+pub type ExecuteSqlRequest = google_spanner1::ExecuteSqlRequest;
 
 #[cfg(feature = "google_grpc")]
 type ResultSet = googleapis_raw::spanner::v1::result_set::ResultSet;
@@ -37,7 +40,6 @@ type ResultSetStats = googleapis_raw::spanner::v1::result_set::ResultSetStats;
 #[cfg(not(feature = "google_grpc"))]
 type ResultSetStats = google_spanner1::ResultSetStats;
 
-// XXX: or Into<protobuf Value>?
 #[cfg(feature = "google_grpc")]
 pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
     let mut value = Value::new();
@@ -48,6 +50,18 @@ pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
 #[cfg(not(feature = "google_grpc"))]
 pub fn as_value(string_value: String) -> String {
     string_value
+}
+
+pub fn as_list_value(
+    string_values: impl Iterator<Item = String>,
+) -> protobuf::well_known_types::Value {
+    let mut list = ListValue::new();
+    list.set_values(RepeatedField::from_vec(
+        string_values.map(as_value).collect(),
+    ));
+    let mut value = Value::new();
+    value.set_list_value(list);
+    value
 }
 
 #[allow(dead_code)]
@@ -136,16 +150,16 @@ impl ExecuteSqlRequestBuilder {
     #[cfg(feature = "google_grpc")]
     pub fn execute(self, spanner: &Conn) -> Result<SyncResultSet> {
         let mut request = self.execute_sql;
-        request.session = "XXX".to_owned();
+        request.set_session(spanner.session.get_name().to_owned());
         if let Some(params) = self.params {
-            let paramss = Struct::new();
+            let mut paramss = Struct::new();
             paramss.set_fields(params);
-            request.params = SingularPtrField::some(paramss);
+            request.set_params(paramss);
         }
         if let Some(param_types) = self.param_types {
-            request.param_types = param_types;
+            request.set_param_types(param_types);
         }
-        let result = spanner.execute_sql(&request)?;
+        let result = spanner.client.execute_sql(&request)?;
         Ok(SyncResultSet { result })
     }
 
@@ -201,6 +215,15 @@ impl SyncResultSet {
         }
     }
 
+    #[cfg(feature = "google_grpc")]
+    pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
+        let stats = self
+            .stats()
+            .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
+        Ok(stats.get_row_count_exact())
+    }
+
+    #[cfg(not(feature = "google_grpc"))]
     pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
         let stats = self
             .stats()
@@ -220,13 +243,18 @@ impl Iterator for SyncResultSet {
     type Item = Vec<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let rows = self.result.rows;
+        let rows = &mut self.result.rows;
         if rows.is_empty() {
             None
         } else {
             let row = rows.remove(0);
             Some(row.get_values().to_vec())
         }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.result.rows.len();
+        (len, Some(len))
     }
 }
 
@@ -254,4 +282,28 @@ impl Iterator for SyncResultSet {
             None
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.result.rows.len();
+        (len, Some(len))
+    }
+}
+
+pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
+    Ok(results::GetBso {
+        id: row[0].get_string_value().to_owned(),
+        modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value())?,
+        payload: row[2].get_string_value().to_owned(),
+        sortindex: if row[3].has_null_value() {
+            None
+        } else {
+            Some(
+                row[3]
+                    .get_string_value()
+                    .parse::<i32>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?,
+            )
+        },
+        expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
+    })
 }

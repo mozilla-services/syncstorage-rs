@@ -4,7 +4,7 @@ use diesel::{
     expression_methods::TextExpressionMethods,
     mysql::MysqlConnection,
     r2d2::{CustomizeConnection, Error as PoolError},
-    Connection, QueryDsl, RunQueryDsl,
+    Connection, ExpressionMethods, QueryDsl, RunQueryDsl,
 };
 use env_logger;
 
@@ -69,6 +69,7 @@ fn static_collection_id() -> Result<()> {
     // unit tests.
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
+        .filter(collections::name.ne(""))
         .filter(collections::name.not_like("xxx%"))
         .load(&db.inner.conn)?
         .into_iter()

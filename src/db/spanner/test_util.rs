@@ -1,5 +1,8 @@
 use diesel::r2d2::CustomizeConnection;
+#[cfg(not(feature = "google_grpc"))]
 use google_spanner1::Error;
+#[cfg(feature = "google_grpc")]
+use grpcio::Error;
 
 use super::manager::SpannerSession;
 
