@@ -672,7 +672,7 @@ impl SpannerDb {
 
     fn erect_tombstone(&self, user_id: u32) -> Result<()> {
         // Delete the old tombstone (if it exists)
-        self.sql("DELETE from user_collection where userid=@userid and collection=@collection")?
+        self.sql("DELETE from user_collections where userid=@userid and collection=@collection")?
             .params(params! {
                 "userid" => user_id.to_string(),
                 "collection" => TOMBSTONE.to_string(),
