@@ -267,7 +267,7 @@ fn delete_collection() {
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks",
         None,
-        Some("0.00"),
+        None, // deleting a collection may return a tombstone rather than "0.00"
     );
     test_endpoint_with_response(
         http::Method::DELETE,
