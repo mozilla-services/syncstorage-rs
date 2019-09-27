@@ -675,6 +675,7 @@ impl SpannerDb {
         self.sql("DELETE from user_collection where userid=@userid and collection=@collection")?
             .params(params! {
                 "userid" => user_id.to_string(),
+                "collection" => TOMBSTONE.to_string(),
             })
             .param_types(param_types! {
                 "collection" => SpannerType::Int64,
