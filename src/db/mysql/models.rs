@@ -251,13 +251,15 @@ impl MysqlDb {
     }
 
     fn erect_tombstone(&self, user_id: i32) -> Result<()> {
-        sql_query(
-            format!(r#"INSERT INTO user_collections ({user_id}, {collection_id}, {modified}) values (?, ?, ?)
-             ON DUPLICATE KEY UPDATE {modified} = VALUES({modified})"#,
-             user_id = USER_ID,
-             collection_id = COLLECTION_ID,
-             modified = LAST_MODIFIED)
-        )
+        sql_query(format!(
+            r#"INSERT INTO user_collections ({user_id}, {collection_id}, {modified})
+               VALUES (?, ?, ?)
+                   ON DUPLICATE KEY UPDATE
+                      {modified} = VALUES({modified})"#,
+            user_id = USER_ID,
+            collection_id = COLLECTION_ID,
+            modified = LAST_MODIFIED
+        ))
         .bind::<Integer, _>(user_id)
         .bind::<Integer, _>(TOMBSTONE)
         .bind::<BigInt, _>(self.timestamp().as_i64())
@@ -307,9 +309,12 @@ impl MysqlDb {
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
         // XXX: handle concurrent attempts at inserts
         let id = self.conn.transaction(|| {
-            sql_query("INSERT INTO collections (name) VALUES (?)")
-                .bind::<Text, _>(name)
-                .execute(&self.conn)?;
+            sql_query(
+                "INSERT INTO collections (name)
+                 VALUES (?)",
+            )
+            .bind::<Text, _>(name)
+            .execute(&self.conn)?;
             collections::table.select(last_insert_id).first(&self.conn)
         })?;
         self.coll_cache.put(id, name.to_owned())?;
@@ -328,12 +333,16 @@ impl MysqlDb {
             return Ok(id);
         }
 
-        let id = sql_query("SELECT id FROM collections WHERE name = ?")
-            .bind::<Text, _>(name)
-            .get_result::<IdResult>(&self.conn)
-            .optional()?
-            .ok_or(DbErrorKind::CollectionNotFound)?
-            .id;
+        let id = sql_query(
+            "SELECT id
+               FROM collections
+              WHERE name = ?",
+        )
+        .bind::<Text, _>(name)
+        .get_result::<IdResult>(&self.conn)
+        .optional()?
+        .ok_or(DbErrorKind::CollectionNotFound)?
+        .id;
         self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
@@ -342,12 +351,16 @@ impl MysqlDb {
         let name = if let Some(name) = self.coll_cache.get_name(id)? {
             name
         } else {
-            sql_query("SELECT name FROM collections where id = ?")
-                .bind::<Integer, _>(&id)
-                .get_result::<NameResult>(&self.conn)
-                .optional()?
-                .ok_or(DbErrorKind::CollectionNotFound)?
-                .name
+            sql_query(
+                "SELECT name
+                   FROM collections
+                  WHERE id = ?",
+            )
+            .bind::<Integer, _>(&id)
+            .get_result::<NameResult>(&self.conn)
+            .optional()?
+            .ok_or(DbErrorKind::CollectionNotFound)?
+            .name
         };
         Ok(name)
     }
@@ -371,11 +384,11 @@ impl MysqlDb {
             let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
             let q = format!(r#"
             INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
-                    {user_id} = VALUES({user_id}),
-                    {collection_id} = VALUES({collection_id}),
-                    id = VALUES(id)
+                   {user_id} = VALUES({user_id}),
+                   {collection_id} = VALUES({collection_id}),
+                   id = VALUES(id)
             "#, user_id=USER_ID, modified=MODIFIED, collection_id=COLLECTION_ID, expiry=EXPIRY);
             let q = format!(
                 "{}{}",
@@ -642,7 +655,9 @@ impl MysqlDb {
         user_id: HawkIdentifier,
     ) -> Result<results::GetCollectionTimestamps> {
         let modifieds = sql_query(format!(
-            "SELECT {collection_id}, {modified} FROM user_collections WHERE {user_id} = ?",
+            "SELECT {collection_id}, {modified}
+               FROM user_collections
+              WHERE {user_id} = ?",
             collection_id = COLLECTION_ID,
             user_id = USER_ID,
             modified = LAST_MODIFIED
@@ -707,7 +722,8 @@ impl MysqlDb {
             r#"
                 INSERT INTO user_collections ({user_id}, {collection_id}, {modified})
                 VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE {modified} = ?
+                    ON DUPLICATE KEY UPDATE
+                       {modified} = ?
         "#,
             user_id = USER_ID,
             collection_id = COLLECTION_ID,
