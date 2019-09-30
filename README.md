@@ -19,7 +19,7 @@ and can be run against a local server, e.g.:
 
 ## Setting Up
 
-1) [Install Rust](https://rustup.rs)
+1) [Install Rust](https://rustup.rs) and [Install Go](https://golang.org/doc/install).
 
 2) Create a `syncstorage` user/database. In the mysql shell:
     ```
