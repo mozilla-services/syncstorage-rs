@@ -125,7 +125,6 @@ impl HawkPayload {
         // Comment the following to disable auth
         verify_hmac(payload, &secrets.signing_secret, signature)?;
 
-        dbg!(std::str::from_utf8(payload).unwrap());
         let payload: HawkPayload = serde_json::from_slice(payload)?;
 
         if expiry == 0 || (payload.expires.round() as u64) > expiry {
