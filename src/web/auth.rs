@@ -42,6 +42,15 @@ pub struct HawkPayload {
     /// User identifier.
     #[serde(rename = "uid")]
     pub user_id: u64,
+
+    #[serde(default)]
+    pub fxa_uid: String,
+
+    #[serde(default)]
+    pub fxa_kid: String,
+
+    #[serde(default, rename = "hashed_device_id")]
+    pub device_id: String,
 }
 
 impl HawkPayload {
@@ -133,6 +142,9 @@ impl HawkPayload {
             node: "friendly-node".to_string(),
             salt: "saltysalt".to_string(),
             user_id,
+            fxa_uid: "xxx_test".to_owned(),
+            fxa_kid: "xxx_test".to_owned(),
+            device_id: "xxx_test".to_owned(),
         }
     }
 }
@@ -482,6 +494,9 @@ mod tests {
                     node: "http://localhost:5000".to_string(),
                     salt: "2b307b".to_string(),
                     user_id: 1,
+                    fxa_uid: "319b98f9961ff1dbdd07313cd6ba925a".to_owned(),
+                    fxa_kid: "de697ad66d845b2873c9d7e13b8971af".to_owned(),
+                    device_id: "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6".to_owned(),
                 },
             }
         }

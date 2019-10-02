@@ -820,7 +820,8 @@ pub struct HawkIdentifier {
     /// For MySQL database backends as the primary key
     pub legacy_id: u64,
     /// For NoSQL database backends that require randomly distributed primary keys
-    pub fxa_id: String,
+    pub fxa_uid: String,
+    pub fxa_kid: String,
 }
 
 impl HawkIdentifier {
@@ -836,7 +837,8 @@ impl HawkIdentifier {
         // Create a "dummy" HawkID for use by DockerFlow commands
         Self {
             legacy_id: 0,
-            fxa_id: "cmd".to_owned(),
+            fxa_uid: "cmd".to_owned(),
+            fxa_kid: "cmd".to_owned(),
         }
     }
 
@@ -906,7 +908,8 @@ impl HawkIdentifier {
 
         let user_id = HawkIdentifier {
             legacy_id: payload.user_id,
-            fxa_id: "".to_string(),
+            fxa_uid: "".to_string(),
+            fxa_kid: "".to_string(),
         };
         Ok(user_id)
     }

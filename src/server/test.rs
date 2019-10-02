@@ -109,6 +109,9 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         node: format!("http://{}:{}", host, port).to_string(),
         salt: "wibble".to_string(),
         user_id: 42,
+        fxa_uid: "xxx_test".to_owned(),
+        fxa_kid: "xxx_test".to_owned(),
+        device_id: "xxx_test".to_owned(),
     };
     let payload = serde_json::to_string(&payload).unwrap();
     let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret).unwrap();
@@ -177,6 +180,7 @@ where
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
         }
     };
+
     if !sresponse.response().status().is_success() {
         dbg!(
             "⚠️ Warning: Returned error",
@@ -191,7 +195,7 @@ where
             panic!("test_endpoint_with_response: serde_json failed: {:?}", e);
         }
     };
-    assertions(result);
+    assertions(result)
 }
 
 fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::Value) -> Bytes {
@@ -263,24 +267,34 @@ fn delete_all() {
 #[test]
 fn delete_collection() {
     let start = SyncTimestamp::default();
-    test_endpoint(
+    test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks",
-        None,
-        None, // deleting a collection may return a tombstone rather than "0.00"
+        &move |result: DeleteBso| {
+            assert!(
+                result == SyncTimestamp::from_seconds(0.00),
+                format!("Bad Bookmarks {:?} != 0", result)
+            );
+        },
     );
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,",
         &move |result: DeleteBso| {
-            assert!(result > start);
+            assert!(
+                result > start,
+                format!("Bad Bookmarks ids {:?} < {:?}", result, start)
+            );
         },
     );
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,2,3",
         &move |result: DeleteBso| {
-            assert!(result > start);
+            assert!(
+                result > start,
+                format!("Bad Bookmarks ids, m {:?} < {:?}", result, start)
+            );
         },
     );
 }
