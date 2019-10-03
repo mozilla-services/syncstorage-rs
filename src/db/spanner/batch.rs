@@ -36,14 +36,14 @@ fn batch_string_to_bsos(bsos: &str) -> Result<Vec<params::PostCollectionBso>> {
 }
 
 pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
-    let user_id = params.user_id.legacy_id as i32;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id(&params.collection)?.to_string();
+    let fxa_uid = params.user_id.fxa_uid;
     let timestamp = db.timestamp()?.as_i64();
     if params.bsos.is_empty() {
-        db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@userid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
+        db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@fxa_uid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
             .params(params! {
-                "userid" => user_id.to_string(),
-                "collectionid" => collection_id.to_string(),
+                "fxa_uid" => fxa_uid.clone(),
+                "collectionid" => collection_id.clone(),
                 "bsoid" => to_rfc3339(timestamp)?,
                 "timestamp" => to_rfc3339(timestamp)?,
                 "bsos" => "".to_string(),
@@ -65,10 +65,10 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
         })
         .to_string();
 
-        db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@userid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
+        db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@fxa_uid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
             .params(params! {
-                "userid" => user_id.to_string(),
-                "collectionid" => collection_id.to_string(),
+                "fxa_uid" => fxa_uid.clone(),
+                "collectionid" => collection_id.clone(),
                 "bsoid" => to_rfc3339(timestamp + i as i64)?,
                 "timestamp" => to_rfc3339(timestamp)?,
                 "bsos" => bsos,
@@ -86,11 +86,10 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
 }
 
 pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
-    let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let exists = db.sql("SELECT expiry FROM batches WHERE userid = @userid AND collection = @collectionid AND timestamp = @timestamp AND expiry > @expiry")?
+    let exists = db.sql("SELECT expiry FROM batches WHERE userid = @fxa_uid AND collection = @collectionid AND timestamp = @timestamp AND expiry > @expiry")?
         .params(params! {
-            "userid" => user_id.to_string(),
+            "fxa_uid" => params.user_id.fxa_uid,
             "collectionid" => collection_id.to_string(),
             "timestamp" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
@@ -105,11 +104,10 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
 }
 
 pub fn select_max_id(db: &SpannerDb, params: params::ValidateBatch) -> Result<i64> {
-    let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let exists = db.sql("SELECT UNIX_MILLIS(id) FROM batches WHERE userid = @userid AND collection = @collectionid AND timestamp = @timestamp AND expiry > @expiry ORDER BY id DESC")?
+    let exists = db.sql("SELECT UNIX_MILLIS(id) FROM batches WHERE userid = @fxa_uid AND collection = @collectionid AND timestamp = @timestamp AND expiry > @expiry ORDER BY id DESC")?
         .params(params! {
-            "userid" => user_id.to_string(),
+            "fxa_uid" => params.user_id.fxa_uid,
             "collectionid" => collection_id.to_string(),
             "timestamp" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
@@ -131,7 +129,6 @@ pub fn select_max_id(db: &SpannerDb, params: params::ValidateBatch) -> Result<i6
 }
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
-    let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = params.id;
     if let Ok(max_id) = select_max_id(
@@ -151,9 +148,9 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
                 "ttl": bso.ttl,
             })
             .to_string();
-            db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@userid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
+            db.sql("INSERT INTO batches (userid, collection, id, bsos, expiry, timestamp) VALUES (@fxa_uid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)")?
                 .params(params! {
-                    "userid" => user_id.to_string(),
+                    "fxa_uid" => params.user_id.fxa_uid.clone(),
                     "collectionid" => collection_id.to_string(),
                     "bsoid" => to_rfc3339(params.id + i)?,
                     "timestamp" => to_rfc3339(params.id)?,
@@ -175,13 +172,12 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
 }
 
 pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-    let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp()?.as_i64();
 
-    let result = db.sql("SELECT id, bsos, expiry FROM batches WHERE userid = @userid AND collection = @collectionid AND timestamp = @bsoid AND expiry > @expiry")?
+    let result = db.sql("SELECT id, bsos, expiry FROM batches WHERE userid = @fxa_uid AND collection = @collectionid AND timestamp = @bsoid AND expiry > @expiry")?
         .params(params! {
-            "userid" => user_id.to_string(),
+            "fxa_uid" => params.user_id.fxa_uid,
             "collectionid" => collection_id.to_string(),
             "bsoid" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(timestamp)?,
@@ -206,14 +202,13 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
 }
 
 pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
-    let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
 
     db.sql(
-        "DELETE FROM batches WHERE userid = @userid AND collection = @collectionid AND timestamp = @bsoid",
+        "DELETE FROM batches WHERE userid = @fxa_uid AND collection = @collectionid AND timestamp = @bsoid",
     )?
     .params(params! {
-        "userid" => user_id.to_string(),
+        "fxa_uid" => params.user_id.fxa_uid,
         "collectionid" => collection_id.to_string(),
         "bsoid" => to_rfc3339(params.id)?,
     })
