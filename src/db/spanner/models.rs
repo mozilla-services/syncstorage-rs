@@ -60,10 +60,10 @@ struct SpannerDbSession {
     /// CURRENT_TIMESTAMP() from Spanner, used for timestamping this session's
     /// operations
     timestamp: Option<SyncTimestamp>,
-    /// Cache of collection modified timestamps per (fxa_kid, fxa_uid, collection_id)
-    coll_modified_cache: HashMap<(String, String, i32), SyncTimestamp>,
+    /// Cache of collection modified timestamps per (HawkIdentifier, collection_id)
+    coll_modified_cache: HashMap<(HawkIdentifier, i32), SyncTimestamp>,
     /// Currently locked collections
-    coll_locks: HashMap<(String, String, i32), CollectionLock>,
+    coll_locks: HashMap<(HawkIdentifier, i32), CollectionLock>,
     #[cfg(feature = "google_grpc")]
     transaction: Option<googleapis_raw::spanner::v1::transaction::TransactionSelector>,
     #[cfg(not(feature = "google_grpc"))]
@@ -193,9 +193,6 @@ impl SpannerDb {
         // Begin a transaction
         self.begin(false)?;
 
-        let fxa_kid = params.user_id.fxa_kid;
-        let fxa_uid = params.user_id.fxa_uid;
-
         let collection_id =
             self.get_collection_id(&params.collection)
                 .or_else(|e| match e.kind() {
@@ -211,16 +208,16 @@ impl SpannerDb {
             .session
             .borrow()
             .coll_locks
-            .get(&(fxa_kid.clone(), fxa_uid.clone(), collection_id))
+            .get(&(params.user_id.clone(), collection_id))
             .is_some()
         {
             return Ok(());
         }
 
-        self.session.borrow_mut().coll_locks.insert(
-            (fxa_kid.clone(), fxa_uid.clone(), collection_id),
-            CollectionLock::Read,
-        );
+        self.session
+            .borrow_mut()
+            .coll_locks
+            .insert((params.user_id, collection_id), CollectionLock::Read);
 
         Ok(())
     }
@@ -229,14 +226,16 @@ impl SpannerDb {
         // Begin a transaction
         self.begin(true)?;
 
-        let fxa_kid = params.user_id.fxa_kid;
-        let fxa_uid = params.user_id.fxa_uid;
+        let fxa_uid = params.user_id.fxa_uid.clone();
+        let fxa_kid = params.user_id.fxa_kid.clone();
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
-        if let Some(CollectionLock::Read) = self.inner.session.borrow().coll_locks.get(&(
-            fxa_kid.clone(),
-            fxa_uid.clone(),
-            collection_id,
-        )) {
+        if let Some(CollectionLock::Read) = self
+            .inner
+            .session
+            .borrow()
+            .coll_locks
+            .get(&(params.user_id.clone(), collection_id))
+        {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
 
@@ -249,8 +248,8 @@ impl SpannerDb {
                     AND collection = @collectionid",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid.clone(),
-                "fxa_kid" => fxa_kid.clone(),
+                "fxa_uid" => fxa_uid,
+                "fxa_kid" => fxa_kid,
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?
@@ -261,7 +260,7 @@ impl SpannerDb {
             self.session
                 .borrow_mut()
                 .coll_modified_cache
-                .insert((fxa_kid.clone(), fxa_uid.clone(), collection_id), modified);
+                .insert((params.user_id.clone(), collection_id), modified);
             SyncTimestamp::from_rfc3339(result[0].get_string_value())?
         } else {
             let result = self
@@ -272,10 +271,10 @@ impl SpannerDb {
         };
         self.set_timestamp(timestamp);
 
-        self.session.borrow_mut().coll_locks.insert(
-            (fxa_kid.clone(), fxa_uid.clone(), collection_id),
-            CollectionLock::Write,
-        );
+        self.session
+            .borrow_mut()
+            .coll_locks
+            .insert((params.user_id, collection_id), CollectionLock::Write);
 
         Ok(())
     }
@@ -493,16 +492,17 @@ impl SpannerDb {
         &self,
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
-        let fxa_kid = params.user_id.fxa_kid;
-        let fxa_uid = params.user_id.fxa_uid;
+        let fxa_uid = params.user_id.fxa_uid.clone();
+        let fxa_kid = params.user_id.fxa_kid.clone();
         dbg!("!!QQQ get_collection_timestamp_sync", &params.collection);
 
         let collection_id = self.get_collection_id(&params.collection)?;
-        if let Some(modified) = self.session.borrow().coll_modified_cache.get(&(
-            fxa_kid.clone(),
-            fxa_uid.clone(),
-            collection_id,
-        )) {
+        if let Some(modified) = self
+            .session
+            .borrow()
+            .coll_modified_cache
+            .get(&(params.user_id, collection_id))
+        {
             return Ok(*modified);
         }
 
@@ -515,8 +515,8 @@ impl SpannerDb {
                     AND collection = @collectionid",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid.to_string(),
-                "fxa_kid" => fxa_kid.clone(),
+                "fxa_uid" => fxa_uid,
+                "fxa_kid" => fxa_kid,
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?
@@ -530,8 +530,8 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> Result<results::GetCollectionTimestamps> {
-        let fxa_kid = user_id.fxa_kid;
         let fxa_uid = user_id.fxa_uid;
+        let fxa_kid = user_id.fxa_kid;
         let modifieds = self
             .sql(
                 "SELECT collection, last_modified
@@ -616,8 +616,8 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionCounts,
     ) -> Result<results::GetCollectionCounts> {
-        let fxa_kid = user_id.fxa_kid;
         let fxa_uid = user_id.fxa_uid;
+        let fxa_kid = user_id.fxa_kid;
 
         let counts = self
             .sql(
@@ -780,8 +780,8 @@ impl SpannerDb {
 
     pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
         let params = params! {
-        "fxa_uid" => user_id.fxa_uid.clone(),
-        "fxa_kid" => user_id.fxa_kid.clone()
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone()
         };
         self.sql(
             "DELETE FROM user_collections
@@ -829,7 +829,7 @@ impl SpannerDb {
             .affected_rows()?
             > 0
         {
-            return self.erect_tombstone(&params.user_id);
+            self.erect_tombstone(&params.user_id)?;
         }
         self.get_storage_timestamp_sync(params.user_id)
     }
@@ -908,8 +908,8 @@ impl SpannerDb {
                     AND id = @bsoid",
             )?
             .params(params! {
-                "fxa_uid" => user_id.fxa_uid.clone(),
-                "fxa_kid" => user_id.fxa_kid.clone(),
+                "fxa_uid" => user_id.fxa_uid,
+                "fxa_kid" => user_id.fxa_kid,
                 "collectionid" => collection_id.to_string(),
                 "bsoid" => params.id.to_string(),
             })
@@ -926,7 +926,7 @@ impl SpannerDb {
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let mut sqlparams = params! {
-            "fxa_uid" => user_id.fxa_uid.to_string(),
+            "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
             "collectionid" => collection_id.to_string(),
         };
