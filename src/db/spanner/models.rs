@@ -145,7 +145,9 @@ impl SpannerDb {
             .get_string_value()
             .parse::<i32>()
             .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-        self.coll_cache.put(id, name.to_owned())?;
+        if !self.in_write_transaction() {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
         Ok(id)
     }
 
@@ -605,7 +607,9 @@ impl SpannerDb {
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
                 let name = row[1].get_string_value().to_owned();
                 names.insert(id, name.clone());
-                self.coll_cache.put(id, name)?;
+                if !self.in_write_transaction() {
+                    self.coll_cache.put(id, name)?;
+                }
             }
         }
 
