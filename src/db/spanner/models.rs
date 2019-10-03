@@ -829,7 +829,7 @@ impl SpannerDb {
             .affected_rows()?
             > 0
         {
-            self.erect_tombstone(&params.user_id)?;
+            return self.erect_tombstone(&params.user_id);
         }
         self.get_storage_timestamp_sync(params.user_id)
     }
