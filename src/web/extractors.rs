@@ -908,8 +908,8 @@ impl HawkIdentifier {
 
         let user_id = HawkIdentifier {
             legacy_id: payload.user_id,
-            fxa_uid: "".to_string(),
-            fxa_kid: "".to_string(),
+            fxa_uid: payload.fxa_uid,
+            fxa_kid: payload.fxa_kid,
         };
         Ok(user_id)
     }
