@@ -42,6 +42,15 @@ pub struct HawkPayload {
     /// User identifier.
     #[serde(rename = "uid")]
     pub user_id: u64,
+
+    #[serde(default)]
+    pub fxa_uid: String,
+
+    #[serde(default)]
+    pub fxa_kid: String,
+
+    #[serde(default, rename = "hashed_device_id")]
+    pub device_id: String,
 }
 
 impl HawkPayload {
@@ -132,6 +141,9 @@ impl HawkPayload {
             node: "friendly-node".to_string(),
             salt: "saltysalt".to_string(),
             user_id,
+            fxa_uid: "xxx_test".to_owned(),
+            fxa_kid: "xxx_test".to_owned(),
+            device_id: "xxx_test".to_owned(),
         }
     }
 }
@@ -215,9 +227,9 @@ mod tests {
     #[test]
     fn valid_header_with_querystring() {
         let mut fixture = TestFixture::new();
-        fixture.header.mac = "xRVjP7607eZUWCBxJKwTo1CsLcNf4TZwUUNrLPUqkdQ=".to_string();
-        fixture.header.nonce = "1d4mRs0=".to_string();
-        fixture.header.ts = 1_536_198_978;
+        fixture.header.mac = "E7j1UjN7//mh7pYXsgGi3n0KGR+sUPpuyogDVzJWaHg=".to_string();
+        fixture.header.nonce = "4Rj7c+0=".to_string();
+        fixture.header.ts = 1_569_608_439;
         fixture.request.method = "POST".to_string();
         fixture
             .request
@@ -454,10 +466,10 @@ mod tests {
         fn new() -> TestFixture {
             TestFixture {
                 header: HawkHeader::new(
-                    "eyJub2RlIjogImh0dHA6Ly9sb2NhbGhvc3Q6NTAwMCIsICJ1aWQiOiAxLCAiZXhwaXJlcyI6IDE1MzYxOTkyNzQsICJmeGFfdWlkIjogIjMxOWI5OGY5OTYxZmYxZGJkZDA3MzEzY2Q2YmE5MjVhIiwgInNhbHQiOiAiYjAyNjBlIiwgImRldmljZV9pZCI6ICJjMDlkMjZmYWYyYjQ5YWI2NGEyODgyOTA3MjA2ZDBiNSJ96drmQ_KNFOe7U3g1D8ZX5-he2Bv2aRvKZzBPrCjHKO4=",
-                    "+1oGdzqpxYndK5ejQLdnZpXgGSt/IlxNh5MvcR6j7t4=",
-                    "omxLZWE=",
-                    1_536_198_980,
+                    "eyJ1aWQiOiAxLCAibm9kZSI6ICJodHRwOi8vbG9jYWxob3N0OjUwMDAiLCAiZXhwaXJlcyI6IDE4ODQ5Njg0MzkuMCwgImZ4YV91aWQiOiAiMzE5Yjk4Zjk5NjFmZjFkYmRkMDczMTNjZDZiYTkyNWEiLCAiZnhhX2tpZCI6ICJkZTY5N2FkNjZkODQ1YjI4NzNjOWQ3ZTEzYjg5NzFhZiIsICJoYXNoZWRfZnhhX3VpZCI6ICIwZThkZjVkNDEzOThhMzg5OTEzYmQ4NDAyNDM1NjQ5NTE4YWY0NjQ5M2RhMWQ0YTQzN2E0NmRjMTc4NGM1MDFhIiwgImhhc2hlZF9kZXZpY2VfaWQiOiAiMmJjYjkyZjRkNDY5OGMzZDdiMDgzYTNjNjk4YTE2Y2NkNzhiYzJhOGQyMGE5NmU0YmIxMjhkZGNlYWY0ZTBiNiIsICJzYWx0IjogIjJiMzA3YiJ9lXaC5pIOenf7qL1AWlgKFvYH63nakyniTXP-7acS5cw=",
+                    "UwDpC+DSrHCSTQSfMOWlueB6kM6gHb0Hsv8eU9ZcTVs=",
+                    "h1Ch4vo=",
+                    1_569_608_439,
                 ),
                 request: Request::new(
                     "GET",
@@ -477,10 +489,13 @@ mod tests {
                     ..Default::default()
                 },
                 expected: HawkPayload {
-                    expires: 1_536_199_274.0,
+                    expires: 1_884_968_439.0,
                     node: "http://localhost:5000".to_string(),
-                    salt: "b0260e".to_string(),
+                    salt: "2b307b".to_string(),
                     user_id: 1,
+                    fxa_uid: "319b98f9961ff1dbdd07313cd6ba925a".to_owned(),
+                    fxa_kid: "de697ad66d845b2873c9d7e13b8971af".to_owned(),
+                    device_id: "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6".to_owned(),
                 },
             }
         }

@@ -815,12 +815,13 @@ impl FromRequest for ConfigRequest {
 ///
 /// This token should be adapted as needed for the storage system to store data
 /// for the user.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct HawkIdentifier {
     /// For MySQL database backends as the primary key
     pub legacy_id: u64,
     /// For NoSQL database backends that require randomly distributed primary keys
-    pub fxa_id: String,
+    pub fxa_uid: String,
+    pub fxa_kid: String,
 }
 
 impl HawkIdentifier {
@@ -836,7 +837,8 @@ impl HawkIdentifier {
         // Create a "dummy" HawkID for use by DockerFlow commands
         Self {
             legacy_id: 0,
-            fxa_id: "cmd".to_owned(),
+            fxa_uid: "cmd".to_owned(),
+            fxa_kid: "cmd".to_owned(),
         }
     }
 
@@ -906,7 +908,8 @@ impl HawkIdentifier {
 
         let user_id = HawkIdentifier {
             legacy_id: payload.user_id,
-            fxa_id: "".to_string(),
+            fxa_uid: payload.fxa_uid,
+            fxa_kid: payload.fxa_kid,
         };
         Ok(user_id)
     }
