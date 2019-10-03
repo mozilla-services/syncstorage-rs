@@ -215,26 +215,21 @@ impl SyncResultSet {
         }
     }
 
+    pub fn all_or_none(&mut self) -> Option<Vec<ListValue>> {
+        if self.result.rows.is_empty() {
+            None
+        } else {
+            Some(self.result.rows.clone().into_vec())
+        }
+    }
+
     #[cfg(feature = "google_grpc")]
     pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
         let stats = self
             .stats()
             .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
-        Ok(stats.get_row_count_exact())
-    }
-
-    #[cfg(not(feature = "google_grpc"))]
-    pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
-        let stats = self
-            .stats()
-            .ok_or_else(|| DbError::internal("Expected result_set stats"))?;
-        let row_count_exact = stats
-            .row_count_exact
-            .as_ref()
-            .ok_or_else(|| DbError::internal("Expected result_set stats row_count_exact"))?;
-        Ok(row_count_exact
-            .parse()
-            .map_err(|e| DbError::internal(&format!("Invalid row_count_exact i64 value {}", e)))?)
+        let row_count_exact = stats.get_row_count_exact();
+        Ok(row_count_exact)
     }
 }
 
