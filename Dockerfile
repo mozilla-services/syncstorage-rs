@@ -1,4 +1,4 @@
-FROM rust:1.36.0-stretch as builder
+FROM rust:1.38.0-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -13,7 +13,7 @@ RUN \
     cargo build && \
     cp target/debug/syncstorage bin
 
-FROM debian:stretch-slim
+FROM debian:buster-slim
 WORKDIR /app
 RUN \
     groupadd --gid 10001 app && \

@@ -121,7 +121,15 @@ from_error!(
 );
 #[cfg(feature = "google_grpc")]
 from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
-    DbErrorKind::Connection(ConnectionError::SpannerGrpc(inner))
+    // Convert ABORTED (typically due to a transaction abort) into 503s
+    match inner {
+        grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
+            if status.status == grpcio::RpcStatusCode::ABORTED =>
+        {
+            DbErrorKind::Conflict
+        }
+        _ => DbErrorKind::Connection(ConnectionError::SpannerGrpc(inner)),
+    }
 });
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
 from_error!(
