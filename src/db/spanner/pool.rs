@@ -13,7 +13,7 @@ use tokio_threadpool::ThreadPool;
 use super::models::Result;
 #[cfg(any(test, feature = "db_test"))]
 use super::test_util::SpannerTestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
 use crate::settings::Settings;
 
 use super::manager::SpannerConnectionManager;
@@ -62,7 +62,11 @@ impl SpannerDbPool {
 
         Ok(Self {
             pool: builder.build(manager)?,
-            thread_pool: Arc::new(ThreadPool::new()),
+            thread_pool: Arc::new(
+                tokio_threadpool::Builder::new()
+                    .pool_size(DB_THREAD_POOL_SIZE)
+                    .build(),
+            ),
             coll_cache: Default::default(),
         })
     }
