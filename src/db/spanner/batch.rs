@@ -40,20 +40,20 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
     let timestamp = db.timestamp()?.as_i64();
     if params.bsos.is_empty() {
         db.sql(
-            "INSERT INTO batches (userid, fxa_kid, collection, id, bsos, expiry, timestamp) 
-             VALUES (@fxa_uid, @fxa_kid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)",
+            "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, id, bsos, expiry, timestamp)
+             VALUES (@fxa_uid, @fxa_kid, @collection_id, @bso_id, @bsos, @expiry, @timestamp)",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collectionid" => collection_id.clone(),
-            "bsoid" => to_rfc3339(timestamp)?,
+            "collection_id" => collection_id.clone(),
+            "bso_id" => to_rfc3339(timestamp)?,
             "timestamp" => to_rfc3339(timestamp)?,
             "bsos" => "".to_string(),
             "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
         })
         .param_types(param_types! {
-            "bsoid" => SpannerType::Timestamp,
+            "bso_id" => SpannerType::Timestamp,
             "expiry" => SpannerType::Timestamp,
             "timestamp" => SpannerType::Timestamp,
         })
@@ -69,20 +69,20 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
         .to_string();
 
         db.sql(
-            "INSERT INTO batches (userid, fxa_kid, collection, id, bsos, expiry, timestamp) 
-             VALUES (@fxa_uid, @fxa_kid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)",
+            "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, id, bsos, expiry, timestamp)
+             VALUES (@fxa_uid, @fxa_kid, @collection_id, @bso_id, @bsos, @expiry, @timestamp)",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collectionid" => collection_id.clone(),
-            "bsoid" => to_rfc3339(timestamp + i as i64)?,
+            "collection_id" => collection_id.clone(),
+            "bso_id" => to_rfc3339(timestamp + i as i64)?,
             "timestamp" => to_rfc3339(timestamp)?,
             "bsos" => bsos,
             "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
         })
         .param_types(param_types! {
-            "bsoid" => SpannerType::Timestamp,
+            "bso_id" => SpannerType::Timestamp,
             "expiry" => SpannerType::Timestamp,
             "timestamp" => SpannerType::Timestamp,
         })
@@ -96,17 +96,17 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
     let collection_id = db.get_collection_id(&params.collection)?;
     let exists = db
         .sql(
-            "SELECT expiry FROM batches 
-              WHERE userid = @fxa_uid 
-                AND fxa_kid = @fxa_kid 
-                AND collection = @collectionid 
-                AND timestamp = @timestamp 
+            "SELECT expiry FROM batches
+              WHERE fxa_uid = @fxa_uid
+                AND fxa_kid = @fxa_kid
+                AND collection_id = @collection_id
+                AND timestamp = @timestamp
                 AND expiry > @expiry",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collectionid" => collection_id.to_string(),
+            "collection_id" => collection_id.to_string(),
             "timestamp" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
         })
@@ -123,19 +123,19 @@ pub fn select_max_id(db: &SpannerDb, params: params::ValidateBatch) -> Result<i6
     let collection_id = db.get_collection_id(&params.collection)?;
     let exists = db
         .sql(
-            "SELECT UNIX_MILLIS(id) 
-               FROM batches 
-              WHERE userid = @fxa_uid 
+            "SELECT UNIX_MILLIS(id)
+               FROM batches
+              WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
-                AND collection = @collectionid 
-                AND timestamp = @timestamp 
-                AND expiry > @expiry 
+                AND collection_id = @collection_id
+                AND timestamp = @timestamp
+                AND expiry > @expiry
               ORDER BY id DESC",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collectionid" => collection_id.to_string(),
+            "collection_id" => collection_id.to_string(),
             "timestamp" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
         })
@@ -176,20 +176,20 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
             })
             .to_string();
             db.sql(
-                "INSERT INTO batches (userid, fxa_kid, collection, id, bsos, expiry, timestamp) 
-                 VALUES (@fxa_uid, @fxa_kid, @collectionid, @bsoid, @bsos, @expiry, @timestamp)",
+                "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, id, bsos, expiry, timestamp)
+                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @bso_id, @bsos, @expiry, @timestamp)",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collectionid" => collection_id.to_string(),
-                "bsoid" => to_rfc3339(params.id + i)?,
+                "collection_id" => collection_id.to_string(),
+                "bso_id" => to_rfc3339(params.id + i)?,
                 "timestamp" => to_rfc3339(params.id)?,
                 "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
                 "bsos" => bsos,
             })
             .param_types(param_types! {
-                "bsoid" => SpannerType::Timestamp,
+                "bso_id" => SpannerType::Timestamp,
                 "timestamp" => SpannerType::Timestamp,
                 "expiry" => SpannerType::Timestamp,
             })
@@ -208,23 +208,23 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
 
     let result = db
         .sql(
-            "SELECT id, bsos, expiry 
-               FROM batches 
-              WHERE userid = @fxa_uid
-                AND fxa_kid = @fxa_kid 
-                AND collection = @collectionid 
-                AND timestamp = @bsoid 
+            "SELECT id, bsos, expiry
+               FROM batches
+              WHERE fxa_uid = @fxa_uid
+                AND fxa_kid = @fxa_kid
+                AND collection_id = @collection_id
+                AND timestamp = @bso_id
                 AND expiry > @expiry",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collectionid" => collection_id.to_string(),
-            "bsoid" => to_rfc3339(params.id)?,
+            "collection_id" => collection_id.to_string(),
+            "bso_id" => to_rfc3339(params.id)?,
             "expiry" => to_rfc3339(timestamp)?,
         })
         .param_types(param_types! {
-            "bsoid" => SpannerType::Timestamp,
+            "bso_id" => SpannerType::Timestamp,
             "expiry" => SpannerType::Timestamp,
         })
         .execute(&db.conn)?
@@ -247,20 +247,20 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
     let collection_id = db.get_collection_id(&params.collection)?;
 
     db.sql(
-        "DELETE FROM batches 
-          WHERE userid = @fxa_uid
-            AND fxa_kid = @fxa_kid 
-            AND collection = @collectionid 
-            AND timestamp = @bsoid",
+        "DELETE FROM batches
+          WHERE fxa_uid = @fxa_uid
+            AND fxa_kid = @fxa_kid
+            AND collection_id = @collection_id
+            AND timestamp = @bso_id",
     )?
     .params(params! {
         "fxa_uid" => params.user_id.fxa_uid,
         "fxa_kid" => params.user_id.fxa_kid,
-        "collectionid" => collection_id.to_string(),
-        "bsoid" => to_rfc3339(params.id)?,
+        "collection_id" => collection_id.to_string(),
+        "bso_id" => to_rfc3339(params.id)?,
     })
     .param_types(param_types! {
-        "bsoid" => SpannerType::Timestamp,
+        "bso_id" => SpannerType::Timestamp,
     })
     .execute(&db.conn)?;
     Ok(())
