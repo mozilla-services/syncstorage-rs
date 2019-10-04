@@ -180,7 +180,6 @@ impl SpannerDb {
             "collectionid" => cmp::max(id, 100).to_string(),
         })
         .execute(&self.conn)?;
-        self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
 
