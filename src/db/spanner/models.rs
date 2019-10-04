@@ -4,7 +4,6 @@ use futures::lazy;
 use diesel::r2d2::PooledConnection;
 
 use std::cell::RefCell;
-use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
@@ -175,7 +174,7 @@ impl SpannerDb {
         )?
         .params(params! {
             "name" => name.to_string(),
-            "collectionid" => cmp::max(id, 100).to_string(),
+            "collectionid" => id.to_string(),
         })
         .execute(&self.conn)?;
         self.coll_cache.put(id, name.to_owned())?;
@@ -225,9 +224,6 @@ impl SpannerDb {
     pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
         // Begin a transaction
         self.begin(true)?;
-
-        let fxa_uid = params.user_id.fxa_uid.clone();
-        let fxa_kid = params.user_id.fxa_kid.clone();
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
             .inner
@@ -248,8 +244,8 @@ impl SpannerDb {
                     AND collection = @collectionid",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid,
-                "fxa_kid" => fxa_kid,
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?
@@ -498,8 +494,6 @@ impl SpannerDb {
         &self,
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
-        let fxa_uid = params.user_id.fxa_uid.clone();
-        let fxa_kid = params.user_id.fxa_kid.clone();
         dbg!("!!QQQ get_collection_timestamp_sync", &params.collection);
 
         let collection_id = self.get_collection_id(&params.collection)?;
@@ -507,7 +501,7 @@ impl SpannerDb {
             .session
             .borrow()
             .coll_modified_cache
-            .get(&(params.user_id, collection_id))
+            .get(&(params.user_id.clone(), collection_id))
         {
             return Ok(*modified);
         }
@@ -521,8 +515,8 @@ impl SpannerDb {
                     AND collection = @collectionid",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid,
-                "fxa_kid" => fxa_kid,
+                "fxa_uid" => params.user_id.fxa_uid,
+                "fxa_kid" => params.user_id.fxa_kid,
                 "collectionid" => collection_id.to_string(),
             })
             .execute(&self.conn)?
@@ -536,8 +530,6 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> Result<results::GetCollectionTimestamps> {
-        let fxa_uid = user_id.fxa_uid;
-        let fxa_kid = user_id.fxa_kid;
         let modifieds = self
             .sql(
                 "SELECT collection, last_modified
@@ -547,8 +539,8 @@ impl SpannerDb {
                     AND collection != @collectionid",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid,
-                "fxa_kid" => fxa_kid,
+                "fxa_uid" => user_id.fxa_uid,
+                "fxa_kid" => user_id.fxa_kid,
                 "collectionid" => TOMBSTONE.to_string(),
             })
             .execute(&self.conn)?
@@ -623,9 +615,6 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionCounts,
     ) -> Result<results::GetCollectionCounts> {
-        let fxa_uid = user_id.fxa_uid;
-        let fxa_kid = user_id.fxa_kid;
-
         let counts = self
             .sql(
                 "SELECT collection, COUNT(collection)
@@ -636,8 +625,8 @@ impl SpannerDb {
                   GROUP BY collection",
             )?
             .params(params! {
-                "fxa_uid" => fxa_uid,
-                "fxa_kid" => fxa_kid,
+                "fxa_uid" => user_id.fxa_uid,
+                "fxa_kid" => user_id.fxa_kid,
             })
             .execute(&self.conn)?
             .map(|row| {
@@ -723,7 +712,7 @@ impl SpannerDb {
                   WHERE userid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND ttl > CURRENT_TIMESTAMP()
-                  GROUP BY fxa_kid",
+                  GROUP BY userid",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
@@ -777,10 +766,6 @@ impl SpannerDb {
     }
 
     pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
-        let params = params! {
-            "fxa_uid" => user_id.fxa_uid.clone(),
-            "fxa_kid" => user_id.fxa_kid.clone()
-        };
         // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
         // ON DELETE CASCADE
         self.sql(
@@ -788,7 +773,10 @@ impl SpannerDb {
               WHERE userid = @fxa_uid
                 AND fxa_kid = @fxa_kid",
         )?
-        .params(params.clone())
+        .params(params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid,
+        })
         .execute(&self.conn)?;
         Ok(())
     }
@@ -804,28 +792,26 @@ impl SpannerDb {
         &self,
         params: params::DeleteCollection,
     ) -> Result<results::DeleteCollection> {
-        let sqlparams = params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
-        };
         // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
         // ON DELETE CASCADE
-        if self
+        let rs = self
             .sql(
                 "DELETE FROM user_collections
                   WHERE userid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection = @collectionid",
             )?
-            .params(sqlparams.clone())
-            .execute(&self.conn)?
-            .affected_rows()?
-            > 0
-        {
-            return self.erect_tombstone(&params.user_id);
+            .params(params! {
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
+                "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
+            })
+            .execute(&self.conn)?;
+        if rs.affected_rows()? > 0 {
+            self.erect_tombstone(&params.user_id)
+        } else {
+            self.get_storage_timestamp_sync(params.user_id)
         }
-        self.get_storage_timestamp_sync(params.user_id)
     }
 
     pub(super) fn touch_collection(
@@ -889,7 +875,6 @@ impl SpannerDb {
     }
 
     pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
-        let user_id = params.user_id.clone();
         let collection_id = self.get_collection_id(&params.collection)?;
         let touch = self.touch_collection(&params.user_id, collection_id)?;
         let result = self
@@ -901,8 +886,8 @@ impl SpannerDb {
                     AND id = @bsoid",
             )?
             .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid,
+                "fxa_uid" => params.user_id.fxa_uid,
+                "fxa_kid" => params.user_id.fxa_kid,
                 "collectionid" => collection_id.to_string(),
                 "bsoid" => params.id.to_string(),
             })
@@ -938,8 +923,8 @@ impl SpannerDb {
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let mut sqlparams = params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
             "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
         };
         let BsoQueryParams {
