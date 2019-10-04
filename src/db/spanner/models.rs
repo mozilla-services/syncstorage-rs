@@ -132,7 +132,7 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT collectionid
+                "SELECT id
                    FROM collections
                   WHERE name = @name",
             )?
@@ -159,7 +159,7 @@ impl SpannerDb {
         }
         let result = self
             .sql(
-                "SELECT COALESCE(MAX(collectionid), 1)
+                "SELECT COALESCE(MAX(id), 1)
                    FROM collections",
             )?
             .execute(&self.conn)?
@@ -171,12 +171,12 @@ impl SpannerDb {
         let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
 
         self.sql(
-            "INSERT INTO collections (collectionid, name)
-             VALUES (@collectionid, @name)",
+            "INSERT INTO collections (id, name)
+             VALUES (@id, @name)",
         )?
         .params(params! {
             "name" => name.to_string(),
-            "collectionid" => id.to_string(),
+            "id" => id.to_string(),
         })
         .execute(&self.conn)?;
         Ok(id)
@@ -238,16 +238,16 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT CURRENT_TIMESTAMP(), last_modified
+                "SELECT CURRENT_TIMESTAMP(), modified
                    FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid",
+                    AND collection_id = @collection_id",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collectionid" => collection_id.to_string(),
+                "collection_id" => collection_id.to_string(),
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -509,16 +509,16 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT last_modified
+                "SELECT modified
                    FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid",
+                    AND collection_id = @collection_id",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
-                "collectionid" => collection_id.to_string(),
+                "collection_id" => collection_id.to_string(),
             })
             .execute(&self.conn)?
             .one_or_none()?
@@ -533,16 +533,16 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionTimestamps> {
         let modifieds = self
             .sql(
-                "SELECT collection, last_modified
+                "SELECT collection_id, modified
                    FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection != @collectionid",
+                    AND collection_id != @collection_id",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid,
-                "collectionid" => TOMBSTONE.to_string(),
+                "collection_id" => TOMBSTONE.to_string(),
             })
             .execute(&self.conn)?
             .map(|row| {
@@ -550,8 +550,8 @@ impl SpannerDb {
                     .get_string_value()
                     .parse::<i32>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                let ts = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
-                Ok((collection_id, ts))
+                let modified = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
+                Ok((collection_id, modified))
             })
             .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
@@ -592,9 +592,9 @@ impl SpannerDb {
             );
             let result = self
                 .sql(
-                    "SELECT collectionid, name
+                    "SELECT id, name
                        FROM collections
-                      WHERE collectionid IN UNNEST(@ids)",
+                      WHERE id IN UNNEST(@ids)",
                 )?
                 .params(params)
                 .execute(&self.conn)?;
@@ -620,12 +620,12 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionCounts> {
         let counts = self
             .sql(
-                "SELECT collection, COUNT(collection)
+                "SELECT collection_id, COUNT(collection_id)
                    FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND ttl > CURRENT_TIMESTAMP()
-                  GROUP BY collection",
+                    AND expiry > CURRENT_TIMESTAMP()
+                  GROUP BY collection_id",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
@@ -633,7 +633,7 @@ impl SpannerDb {
             })
             .execute(&self.conn)?
             .map(|row| {
-                let collection = row[0]
+                let collection_id = row[0]
                     .get_string_value()
                     .parse::<i32>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
@@ -641,7 +641,7 @@ impl SpannerDb {
                     .get_string_value()
                     .parse::<i64>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                Ok((collection, count))
+                Ok((collection_id, count))
             })
             .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(counts)
@@ -653,12 +653,12 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionUsage> {
         let usages = self
             .sql(
-                "SELECT collection, SUM(LENGTH(payload))
+                "SELECT collection_id, SUM(LENGTH(payload))
                    FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND ttl > CURRENT_TIMESTAMP()
-                  GROUP BY collection",
+                    AND expiry > CURRENT_TIMESTAMP()
+                  GROUP BY collection_id",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
@@ -666,7 +666,7 @@ impl SpannerDb {
             })
             .execute(&self.conn)?
             .map(|row| {
-                let collection = row[0]
+                let collection_id = row[0]
                     .get_string_value()
                     .parse::<i32>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
@@ -674,7 +674,7 @@ impl SpannerDb {
                     .get_string_value()
                     .parse::<i64>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                Ok((collection, usage))
+                Ok((collection_id, usage))
             })
             .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(usages)
@@ -686,9 +686,9 @@ impl SpannerDb {
     ) -> Result<SyncTimestamp> {
         let row = self
             .sql(
-                "SELECT MAX(last_modified)
+                "SELECT MAX(modified)
                    FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid",
             )?
             .params(params! {
@@ -712,10 +712,10 @@ impl SpannerDb {
             .sql(
                 "SELECT SUM(LENGTH(payload))
                    FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND ttl > CURRENT_TIMESTAMP()
-                  GROUP BY userid",
+                    AND expiry > CURRENT_TIMESTAMP()
+                  GROUP BY fxa_uid",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
@@ -739,26 +739,26 @@ impl SpannerDb {
         let params = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection" => TOMBSTONE.to_string(),
+            "collection_id" => TOMBSTONE.to_string(),
             "modified" => self.timestamp()?.as_rfc3339()?
         };
         let types = param_types! {
-            "collection" => SpannerType::Int64,
+            "collection_id" => SpannerType::Int64,
             "modified" => SpannerType::Timestamp,
         };
         self.sql(
             "DELETE FROM user_collections
-              WHERE userid = @fxa_uid
+              WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
-                AND collection = @collection",
+                AND collection_id = @collection_id",
         )?
         .params(params.clone())
         .param_types(types.clone())
         .execute(&self.conn)?;
 
         self.sql(
-            "INSERT INTO user_collections (userid, fxa_kid, collection, last_modified)
-             VALUES (@fxa_uid, @fxa_kid, @collection, @modified)",
+            "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
+             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)",
         )?
         .params(params.clone())
         .param_types(types.clone())
@@ -773,7 +773,7 @@ impl SpannerDb {
         // ON DELETE CASCADE
         self.sql(
             "DELETE FROM user_collections
-              WHERE userid = @fxa_uid
+              WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid",
         )?
         .params(params! {
@@ -800,14 +800,14 @@ impl SpannerDb {
         let rs = self
             .sql(
                 "DELETE FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid",
+                    AND collection_id = @collection_id",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
+                "collection_id" => self.get_collection_id(&params.collection)?.to_string(),
             })
             .execute(&self.conn)?;
         if rs.affected_rows()? > 0 {
@@ -835,19 +835,19 @@ impl SpannerDb {
         let sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
-            "collectionid" => collection_id.to_string(),
-            "last_modified" => timestamp.as_rfc3339()?,
+            "collection_id" => collection_id.to_string(),
+            "modified" => timestamp.as_rfc3339()?,
         };
         let sql_types = param_types! {
-            "last_modified" => SpannerType::Timestamp,
+            "modified" => SpannerType::Timestamp,
         };
         let result = self
             .sql(
-                "SELECT 1 as count
+                "SELECT 1 AS count
                    FROM user_collections
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid",
+                    AND collection_id = @collection_id",
             )?
             .params(sqlparams.clone())
             .execute(&self.conn)?
@@ -857,18 +857,18 @@ impl SpannerDb {
         if exists {
             self.sql(
                 "UPDATE user_collections
-                    SET last_modified = @last_modified
-                  WHERE userid = @fxa_uid
+                    SET modified = @modified
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid",
+                    AND collection_id = @collection_id",
             )?
             .params(sqlparams)
             .param_types(sql_types)
             .execute(&self.conn)?;
         } else {
             self.sql(
-                "INSERT INTO user_collections (userid, fxa_kid, collection, last_modified)
-                 VALUES (@fxa_uid, @fxa_kid, @collectionid, @last_modified)",
+                "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
+                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)",
             )?
             .params(sqlparams)
             .param_types(sql_types)
@@ -883,16 +883,16 @@ impl SpannerDb {
         let result = self
             .sql(
                 "DELETE FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid
-                    AND id = @bsoid",
+                    AND collection_id = @collection_id
+                    AND id = @id",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
-                "collectionid" => collection_id.to_string(),
-                "bsoid" => params.id.to_string(),
+                "collection_id" => collection_id.to_string(),
+                "id" => params.id.to_string(),
             })
             .execute(&self.conn)?;
         if result.affected_rows()? == 0 {
@@ -909,14 +909,14 @@ impl SpannerDb {
         let mut sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
-            "collectionid" => collection_id.to_string(),
+            "collection_id" => collection_id.to_string(),
         };
         sqlparams.insert("ids".to_owned(), as_list_value(params.ids.into_iter()));
         self.sql(
             "DELETE FROM bso
-              WHERE userid = @fxa_uid
+              WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
-                AND collection = @collectionid
+                AND collection_id = @collection_id
                 AND id IN UNNEST(@ids)",
         )?
         .params(sqlparams)
@@ -928,7 +928,7 @@ impl SpannerDb {
         let mut sqlparams = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collectionid" => self.get_collection_id(&params.collection)?.to_string(),
+            "collection_id" => self.get_collection_id(&params.collection)?.to_string(),
         };
         let BsoQueryParams {
             newer,
@@ -941,12 +941,12 @@ impl SpannerDb {
         } = params.params;
 
         let mut query = "\
-            SELECT id, modified, payload, COALESCE(sortindex, NULL), ttl
+            SELECT id, modified, payload, COALESCE(sortindex, NULL), expiry
               FROM bso
-             WHERE userid = @fxa_uid
+             WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
-               AND collection = @collectionid
-               AND ttl > CURRENT_TIMESTAMP()"
+               AND collection_id = @collection_id
+               AND expiry > CURRENT_TIMESTAMP()"
             .to_owned();
         let mut sqltypes = HashMap::new();
 
@@ -1037,19 +1037,19 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT id, modified, payload, sortindex, ttl
+                "SELECT id, modified, payload, sortindex, expiry
                    FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid
-                    AND id = @bsoid
-                    AND ttl > CURRENT_TIMESTAMP()",
+                    AND collection_id = @collection_id
+                    AND id = @id
+                    AND expiry > CURRENT_TIMESTAMP()",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
-                "collectionid" => collection_id.to_string(),
-                "bsoid" => params.id.to_string(),
+                "collection_id" => collection_id.to_string(),
+                "id" => params.id.to_string(),
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -1068,17 +1068,17 @@ impl SpannerDb {
             .sql(
                 "SELECT modified
                    FROM bso
-                  WHERE collection = @collectionid
-                    AND userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND id = @bsoid
-                    AND ttl > CURRENT_TIMESTAMP()",
+                    AND collection_id = @collection_id
+                    AND id = @id
+                    AND expiry > CURRENT_TIMESTAMP()",
             )?
             .params(params! {
-                "collectionid" => collection_id.to_string(),
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
-                "bsoid" => params.id.to_string(),
+                "collection_id" => collection_id.to_string(),
+                "id" => params.id.to_string(),
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -1094,8 +1094,8 @@ impl SpannerDb {
         let mut sqlparams = params! {
             "fxa_uid" => bso.user_id.fxa_uid.clone(),
             "fxa_kid" => bso.user_id.fxa_kid.clone(),
-            "collectionid" => collection_id.to_string(),
-            "bsoid" => bso.id.to_string(),
+            "collection_id" => collection_id.to_string(),
+            "id" => bso.id.to_string(),
         };
         let mut sqltypes = HashMap::new();
         let touch = self.touch_collection(&bso.user_id, collection_id)?;
@@ -1103,12 +1103,12 @@ impl SpannerDb {
 
         let result = self
             .sql(
-                "SELECT 1 as count
+                "SELECT 1 AS count
                    FROM bso
-                  WHERE userid = @fxa_uid
+                  WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid
-                    AND id = @bsoid",
+                    AND collection_id = @collection_id
+                    AND id = @id",
             )?
             .params(sqlparams.clone())
             .execute(&self.conn)?
@@ -1116,10 +1116,6 @@ impl SpannerDb {
         let exists = result.is_some();
 
         let sql = if exists {
-            // NOTE: the "ttl" column is more aptly named "expiry": our mysql
-            // schema names it this. the current spanner schema prefers "ttl"
-            // to more closely match the python code
-
             let mut q = "".to_string();
             let comma = |q: &String| if q.is_empty() { "" } else { ", " };
 
@@ -1143,7 +1139,7 @@ impl SpannerDb {
                     let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
                     sqlparams.insert("expiry".to_string(), as_value(to_rfc3339(expiry)?));
                     sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
-                    format!("{}{}", comma(&q), "ttl = @expiry")
+                    format!("{}{}", comma(&q), "expiry = @expiry")
                 } else {
                     "".to_string()
                 }
@@ -1181,10 +1177,10 @@ impl SpannerDb {
             format!(
                 "UPDATE bso SET {}{}",
                 q,
-                " WHERE userid = @fxa_uid
+                " WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection = @collectionid
-                    AND id = @bsoid"
+                    AND collection_id = @collection_id
+                    AND id = @id"
             )
         } else {
             let use_sortindex = bso
@@ -1193,11 +1189,14 @@ impl SpannerDb {
                 .unwrap_or_else(|| "NULL".to_owned())
                 != "NULL";
             let sql = if use_sortindex {
-                "INSERT INTO bso (userid, fxa_kid, collection, id, sortindex, payload, modified, ttl)
-                 VALUES (@fxa_uid, @fxa_kid, @collectionid, @bsoid, @sortindex, @payload, @modified, @expiry)"
+                "INSERT INTO bso
+                        (fxa_uid, fxa_kid, collection_id, id, sortindex, payload, modified, expiry)
+                 VALUES
+                        (@fxa_uid, @fxa_kid, @collection_id, @id, @sortindex, @payload, @modified,
+                         @expiry)"
             } else {
-                "INSERT INTO bso (userid, fxa_kid, collection, id, payload, modified, ttl)
-                 VALUES (@fxa_uid, @fxa_kid, @collectionid, @bsoid,  @payload, @modified, @expiry)"
+                "INSERT INTO bso (fxa_uid, fxa_kid, collection_id, id, payload, modified, expiry)
+                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @id,  @payload, @modified, @expiry)"
             };
 
             if use_sortindex {
