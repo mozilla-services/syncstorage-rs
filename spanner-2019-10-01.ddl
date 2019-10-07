@@ -21,7 +21,7 @@ CREATE TABLE bso (
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
-    CREATE INDEX BsoLastModified
+    CREATE INDEX BsoModified
         ON bso(fxa_uid, fxa_kid, collection_id, modified DESC, expiry),
 INTERLEAVE IN user_collections;
 
