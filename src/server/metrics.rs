@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::UdpSocket;
 
 use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
@@ -39,10 +40,22 @@ impl Metrics {
         StatsdClient::builder("", NopMetricSink).build()
     }
 
-    // TODO: Return this as a metric string for testing/debugging?
+    // increment a counter with no tags data.
     pub fn incr(self, label: &str) {
-        if self.client.is_some() {
-            match self.client.unwrap().incr(label) {
+        self.incr_with_tags(label, None)
+    }
+
+    pub fn incr_with_tags(self, label: &str, tags: Option<HashMap<String, String>>) {
+        if let Some(client) = self.client {
+            let mut incr = client.incr_with_tags(label);
+            let tags = tags.unwrap_or_default();
+            let keys = tags.keys();
+            for tag in keys {
+                incr = incr.with_tag(tag, &tags.get(tag).unwrap())
+            }
+            // Include any "hard coded" tags.
+            incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
+            match incr.try_send() {
                 Err(e) => {
                     // eat the metric, but log the error
                     dbg!("⚠️ Metric {} error: {:?} ", label, e);
