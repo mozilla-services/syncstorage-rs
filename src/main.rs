@@ -1,4 +1,4 @@
-//! Sync Storage Server for Sync 1.6
+//! Sync Storage Server for Sync 1.5
 use std::error::Error;
 
 use docopt::Docopt;
