@@ -17,24 +17,28 @@ use super::support::SpannerType;
 use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
-    util::{to_rfc3339, SyncTimestamp},
+    util::SyncTimestamp,
     Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
 
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
+#[cfg(not(any(test, feature = "db_test")))]
+use super::support::{bso_to_insert_row, bso_to_update_row};
 use super::{
     batch,
     support::{as_list_value, as_value, bso_from_row, ExecuteSqlRequestBuilder},
 };
 
-use googleapis_raw::spanner::v1::spanner::{
-    BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest,
-};
 use googleapis_raw::spanner::v1::transaction;
 use googleapis_raw::spanner::v1::transaction::{
     TransactionOptions, TransactionOptions_ReadOnly, TransactionOptions_ReadWrite,
 };
+use googleapis_raw::spanner::v1::{
+    mutation::{Mutation, Mutation_Write},
+    spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
+};
+use protobuf::{well_known_types::ListValue, RepeatedField};
 
 pub type TransactionSelector = transaction::TransactionSelector;
 
@@ -48,7 +52,7 @@ pub(super) type Conn = PooledConnection<SpannerConnectionManager>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
-pub const DEFAULT_BSO_TTL: i64 = 2_100_000_000;
+pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 pub const TOMBSTONE: i32 = 0;
 
@@ -63,6 +67,9 @@ struct SpannerDbSession {
     /// Currently locked collections
     coll_locks: HashMap<(HawkIdentifier, i32), CollectionLock>,
     transaction: Option<TransactionSelector>,
+    /// Behind Vec so commit can take() it (maybe commit() should consume self
+    /// instead?)
+    mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
 }
@@ -327,8 +334,56 @@ impl SpannerDb {
         Ok(sqlr)
     }
 
-    pub fn sql(&self, sql: &str) -> Result<ExecuteSqlRequestBuilder> {
+    pub(super) fn sql(&self, sql: &str) -> Result<ExecuteSqlRequestBuilder> {
         Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql)?))
+    }
+
+    #[cfg(not(any(test, feature = "db_test")))]
+    pub(super) fn insert(&self, table: &str, columns: &[&str], values: Vec<ListValue>) {
+        let mut mutation = Mutation::new();
+        mutation.set_insert(self.mutation_write(table, columns, values));
+        self.session
+            .borrow_mut()
+            .mutations
+            .get_or_insert_with(|| vec![])
+            .push(mutation);
+    }
+
+    #[cfg(not(any(test, feature = "db_test")))]
+    pub(super) fn update(&self, table: &str, columns: &[&str], values: Vec<ListValue>) {
+        let mut mutation = Mutation::new();
+        mutation.set_update(self.mutation_write(table, columns, values));
+        self.session
+            .borrow_mut()
+            .mutations
+            .get_or_insert_with(|| vec![])
+            .push(mutation);
+    }
+
+    #[allow(unused)]
+    pub(super) fn insert_or_update(&self, table: &str, columns: &[&str], values: Vec<ListValue>) {
+        let mut mutation = Mutation::new();
+        mutation.set_insert_or_update(self.mutation_write(table, columns, values));
+        self.session
+            .borrow_mut()
+            .mutations
+            .get_or_insert_with(|| vec![])
+            .push(mutation);
+    }
+
+    fn mutation_write(
+        &self,
+        table: &str,
+        columns: &[&str],
+        values: Vec<ListValue>,
+    ) -> Mutation_Write {
+        let mut write = Mutation_Write::new();
+        write.set_table(table.to_owned());
+        write.set_columns(RepeatedField::from_vec(
+            columns.iter().map(|&column| column.to_owned()).collect(),
+        ));
+        write.set_values(RepeatedField::from_vec(values));
+        write
     }
 
     fn in_write_transaction(&self) -> bool {
@@ -352,6 +407,9 @@ impl SpannerDb {
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
+            if let Some(mutations) = self.session.borrow_mut().mutations.take() {
+                req.set_mutations(RepeatedField::from_vec(mutations));
+            }
             spanner.client.commit(&req)?;
             Ok(())
         } else {
@@ -975,7 +1033,106 @@ impl SpannerDb {
         }
     }
 
+    #[cfg(not(any(test, feature = "db_test")))]
+    pub fn put_bso_sync(&self, params: params::PutBso) -> Result<results::PutBso> {
+        let bsos = vec![params::PostCollectionBso {
+            id: params.id,
+            sortindex: params.sortindex,
+            payload: params.payload,
+            ttl: params.ttl,
+        }];
+        let result = self.post_bsos_sync(params::PostBsos {
+            user_id: params.user_id,
+            collection: params.collection,
+            bsos,
+            failed: HashMap::new(),
+        })?;
+        Ok(result.modified)
+    }
+
+    #[cfg(not(any(test, feature = "db_test")))]
+    pub fn post_bsos_sync(&self, params: params::PostBsos) -> Result<results::PostBsos> {
+        let user_id = params.user_id;
+        let collection_id = self.get_or_create_collection_id(&params.collection)?;
+        // Ensure a parent record exists in user_collections before writing to
+        // bso (INTERLEAVE IN PARENT user_collections)
+        let timestamp = self.touch_collection(&user_id, collection_id)?;
+
+        let mut sqlparams = params! {
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone(),
+            "collection_id" => collection_id.to_string(),
+        };
+        sqlparams.insert(
+            "ids".to_owned(),
+            as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
+        );
+        let existing: Vec<_> = self
+            .sql(
+                "SELECT id
+                   FROM bso
+                  WHERE fxa_uid = @fxa_uid
+                    AND fxa_kid = @fxa_kid
+                    AND collection_id = @collection_id
+                    AND id IN UNNEST(@ids)",
+            )?
+            .params(sqlparams)
+            .execute(&self.conn)?
+            .map(|row| row[0].get_string_value().to_owned())
+            .collect();
+
+        let mut inserts = vec![];
+        let mut updates = HashMap::new();
+        let mut success = vec![];
+        for bso in params.bsos {
+            success.push(bso.id.clone());
+            if existing.contains(&bso.id) {
+                let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
+                updates
+                    .entry(columns)
+                    .or_insert_with(|| vec![])
+                    .push(values);
+            } else {
+                let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
+                inserts.push(values);
+            }
+        }
+
+        if !inserts.is_empty() {
+            dbg!(&inserts);
+            self.insert(
+                "bso",
+                &[
+                    "fxa_uid",
+                    "fxa_kid",
+                    "collection_id",
+                    "id",
+                    "sortindex",
+                    "payload",
+                    "modified",
+                    "expiry",
+                ],
+                inserts,
+            );
+        }
+        for (columns, values) in updates {
+            dbg!(&columns, &values);
+            self.update("bso", &columns, values);
+        }
+
+        let result = results::PostBsos {
+            modified: timestamp,
+            success,
+            failed: params.failed,
+        };
+        Ok(result)
+    }
+
+    // NOTE: Currently this put_bso_sync impl. is only used during db_tests,
+    // see above for the non-tests version
+    #[cfg(any(test, feature = "db_test"))]
     pub fn put_bso_sync(&self, bso: params::PutBso) -> Result<results::PutBso> {
+        use crate::db::util::to_rfc3339;
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let mut sqlparams = params! {
             "fxa_uid" => bso.user_id.fxa_uid.clone(),
@@ -1106,7 +1263,7 @@ impl SpannerDb {
             let now_millis = timestamp.as_i64();
             let ttl = bso
                 .ttl
-                .map_or(DEFAULT_BSO_TTL, |ttl| ttl.try_into().unwrap())
+                .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().unwrap())
                 * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             dbg!("!!!!! INSERT", &expirystring, timestamp, ttl);
@@ -1125,6 +1282,9 @@ impl SpannerDb {
         Ok(touch)
     }
 
+    // NOTE: Currently this post_bso_sync impl. is only used during db_tests,
+    // see above for the non-tests version
+    #[cfg(any(test, feature = "db_test"))]
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostBsos {
