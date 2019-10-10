@@ -1,17 +1,13 @@
 use diesel::r2d2::ManageConnection;
-#[cfg(not(feature = "google_grpc"))]
-use google_spanner1::{CreateSessionRequest, Session, Spanner};
-#[cfg(not(feature = "google_grpc"))]
-use hyper::{net::HttpsConnector, Client};
-#[cfg(not(feature = "google_grpc"))]
-use hyper_rustls::TlsClient;
-#[cfg(not(feature = "google_grpc"))]
-use yup_oauth2::{service_account_key_from_file, GetToken, ServiceAccountAccess};
 
 use crate::{
     db::error::{DbError, DbErrorKind},
     settings::Settings,
 };
+
+use googleapis_raw::spanner::v1::spanner_grpc::SpannerClient;
+
+use googleapis_raw::spanner::v1::spanner::{CreateSessionRequest, ExecuteSqlRequest, Session};
 
 #[derive(Debug)]
 pub struct SpannerConnectionManager {
@@ -30,28 +26,17 @@ impl SpannerConnectionManager {
 }
 
 pub struct SpannerSession {
-    #[cfg(feature = "google_grpc")]
-    pub client: googleapis_raw::spanner::v1::spanner_grpc::SpannerClient,
-    #[cfg(feature = "google_grpc")]
-    pub session: googleapis_raw::spanner::v1::spanner::Session,
-
-    #[cfg(not(feature = "google_grpc"))]
-    pub hub: Spanner<Client, ServiceAccountAccess<Client>>,
-    #[cfg(not(feature = "google_grpc"))]
+    pub client: SpannerClient,
     pub session: Session,
 
     pub(super) use_test_transactions: bool,
 }
 
-#[cfg(feature = "google_grpc")]
 impl ManageConnection for SpannerConnectionManager {
     type Connection = SpannerSession;
     type Error = grpcio::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        use googleapis_raw::spanner::v1::{
-            spanner::CreateSessionRequest, spanner_grpc::SpannerClient,
-        };
         use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
         use std::sync::Arc;
 
@@ -87,55 +72,10 @@ impl ManageConnection for SpannerConnectionManager {
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let mut req = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest::new();
+        let mut req = ExecuteSqlRequest::new();
         req.set_sql("SELECT 1".to_owned());
         req.set_session(conn.session.get_name().to_owned());
         conn.client.execute_sql(&req)?;
-        Ok(())
-    }
-
-    fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
-        false
-    }
-}
-
-#[cfg(not(feature = "google_grpc"))]
-impl ManageConnection for SpannerConnectionManager {
-    type Connection = SpannerSession;
-    type Error = google_spanner1::Error;
-
-    fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let secret = service_account_key_from_file(&String::from("service-account.json")).unwrap();
-        let client = Client::with_connector(HttpsConnector::new(TlsClient::new()));
-        let mut access = ServiceAccountAccess::new(secret, client);
-        let _token = access
-            .token(&vec!["https://www.googleapis.com/auth/spanner.data"])
-            .unwrap();
-        // println!("{:?}", token);
-        let client2 = Client::with_connector(HttpsConnector::new(TlsClient::new()));
-        let hub = Spanner::new(client2, access);
-        let req = CreateSessionRequest::default();
-        let session = hub
-            .projects()
-            .instances_databases_sessions_create(req, &self.database_name)
-            .doit()?
-            .1;
-        Ok(SpannerSession {
-            hub,
-            session,
-            use_test_transactions: false,
-        })
-    }
-
-    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        use google_spanner1::ExecuteSqlRequest;
-        let mut request = ExecuteSqlRequest::default();
-        request.sql = Some("SELECT 1".to_owned());
-        let session = conn.session.name.as_ref().unwrap();
-        conn.hub
-            .projects()
-            .instances_databases_sessions_execute_sql(request, session)
-            .doit()?;
         Ok(())
     }
 

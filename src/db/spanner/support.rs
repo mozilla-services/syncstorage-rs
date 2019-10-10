@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "google_grpc")]
 use protobuf::well_known_types::Struct;
 use protobuf::{
     well_known_types::{ListValue, Value},
@@ -10,46 +9,24 @@ use protobuf::{
 use super::models::{Conn, Result};
 use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
 
-#[cfg(feature = "google_grpc")]
+use googleapis_raw::spanner::v1::type_pb::{Type, TypeCode};
+
 type ParamValue = protobuf::well_known_types::Value;
-#[cfg(not(feature = "google_grpc"))]
-type ParamValue = String;
 
-#[cfg(feature = "google_grpc")]
 type ParamType = googleapis_raw::spanner::v1::type_pb::Type;
-#[cfg(not(feature = "google_grpc"))]
-type ParamType = google_spanner1::Type;
 
-#[cfg(feature = "google_grpc")]
 pub type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
-#[cfg(not(feature = "google_grpc"))]
-pub type ExecuteSqlRequest = google_spanner1::ExecuteSqlRequest;
 
-#[cfg(feature = "google_grpc")]
 type ResultSet = googleapis_raw::spanner::v1::result_set::ResultSet;
-#[cfg(not(feature = "google_grpc"))]
-type ResultSet = google_spanner1::ResultSet;
 
-#[cfg(feature = "google_grpc")]
 type ResultSetMetadata = googleapis_raw::spanner::v1::result_set::ResultSetMetadata;
-#[cfg(not(feature = "google_grpc"))]
-type ResultSetMetadata = google_spanner1::ResultSetMetadata;
 
-#[cfg(feature = "google_grpc")]
 type ResultSetStats = googleapis_raw::spanner::v1::result_set::ResultSetStats;
-#[cfg(not(feature = "google_grpc"))]
-type ResultSetStats = google_spanner1::ResultSetStats;
 
-#[cfg(feature = "google_grpc")]
 pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
     let mut value = Value::new();
     value.set_string_value(string_value);
     value
-}
-
-#[cfg(not(feature = "google_grpc"))]
-pub fn as_value(string_value: String) -> String {
-    string_value
 }
 
 pub fn as_list_value(
@@ -79,11 +56,9 @@ pub enum SpannerType {
     Struct,
 }
 
-#[cfg(feature = "google_grpc")]
-impl Into<googleapis_raw::spanner::v1::type_pb::Type> for SpannerType {
-    fn into(self) -> googleapis_raw::spanner::v1::type_pb::Type {
-        let mut t = googleapis_raw::spanner::v1::type_pb::Type::new();
-        use googleapis_raw::spanner::v1::type_pb::TypeCode;
+impl Into<Type> for SpannerType {
+    fn into(self) -> Type {
+        let mut t = Type::new();
         let code = match self {
             SpannerType::TypeCodeUnspecified => TypeCode::TYPE_CODE_UNSPECIFIED,
             SpannerType::Bool => TypeCode::BOOL,
@@ -98,27 +73,6 @@ impl Into<googleapis_raw::spanner::v1::type_pb::Type> for SpannerType {
         };
         t.set_code(code);
         t
-    }
-}
-
-impl Into<google_spanner1::Type> for SpannerType {
-    fn into(self) -> google_spanner1::Type {
-        let code = match self {
-            SpannerType::TypeCodeUnspecified => "TYPE_CODE_UNSPECIFIED",
-            SpannerType::Bool => "BOOL",
-            SpannerType::Int64 => "INT64",
-            SpannerType::Float64 => "FLOAT64",
-            SpannerType::Timestamp => "TIMESTAMP",
-            SpannerType::Date => "DATE",
-            SpannerType::String => "STRING",
-            SpannerType::Bytes => "BYTES",
-            SpannerType::Array => "ARRAY",
-            SpannerType::Struct => "STRUCT",
-        };
-        google_spanner1::Type {
-            code: Some(code.to_owned()),
-            ..Default::default()
-        }
     }
 }
 
@@ -147,7 +101,6 @@ impl ExecuteSqlRequestBuilder {
         self
     }
 
-    #[cfg(feature = "google_grpc")]
     pub fn execute(self, spanner: &Conn) -> Result<SyncResultSet> {
         let mut request = self.execute_sql;
         request.set_session(spanner.session.get_name().to_owned());
@@ -160,24 +113,6 @@ impl ExecuteSqlRequestBuilder {
             request.set_param_types(param_types);
         }
         let result = spanner.client.execute_sql(&request)?;
-        Ok(SyncResultSet { result })
-    }
-
-    #[cfg(not(feature = "google_grpc"))]
-    pub fn execute(self, spanner: &Conn) -> Result<SyncResultSet> {
-        let session = spanner
-            .session
-            .name
-            .as_ref()
-            .ok_or_else(|| DbError::internal("No spanner session"))?;
-        let mut request = self.execute_sql;
-        request.params = self.params;
-        request.param_types = self.param_types;
-        let (_, result) = spanner
-            .hub
-            .projects()
-            .instances_databases_sessions_execute_sql(request, session)
-            .doit()?;
         Ok(SyncResultSet { result })
     }
 }
@@ -223,7 +158,6 @@ impl SyncResultSet {
         }
     }
 
-    #[cfg(feature = "google_grpc")]
     pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
         let stats = self
             .stats()
@@ -233,7 +167,6 @@ impl SyncResultSet {
     }
 }
 
-#[cfg(feature = "google_grpc")]
 impl Iterator for SyncResultSet {
     type Item = Vec<Value>;
 
@@ -244,37 +177,6 @@ impl Iterator for SyncResultSet {
         } else {
             let row = rows.remove(0);
             Some(row.get_values().to_vec())
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.result.rows.len();
-        (len, Some(len))
-    }
-}
-
-#[cfg(not(feature = "google_grpc"))]
-impl Iterator for SyncResultSet {
-    type Item = Vec<Value>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(rows) = self.result.rows.as_mut() {
-            if rows.is_empty() {
-                None
-            } else {
-                let row = rows.remove(0);
-                Some(
-                    row.into_iter()
-                        .map(|s| {
-                            let mut value = Value::new();
-                            value.set_string_value(s);
-                            value
-                        })
-                        .collect(),
-                )
-            }
-        } else {
-            None
         }
     }
 
