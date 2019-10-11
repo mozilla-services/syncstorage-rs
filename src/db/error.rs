@@ -90,8 +90,6 @@ impl From<Context<DbErrorKind>> for DbError {
 #[derive(Debug)]
 pub enum ConnectionError {
     Diesel(diesel::result::ConnectionError),
-    Spanner(String),
-    #[cfg(feature = "google_grpc")]
     SpannerGrpc(grpcio::Error),
 }
 
@@ -99,8 +97,6 @@ impl fmt::Display for ConnectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConnectionError::Diesel(e) => fmt::Display::fmt(e, formatter),
-            ConnectionError::Spanner(msg) => fmt::Display::fmt(msg, formatter),
-            #[cfg(feature = "google_grpc")]
             ConnectionError::SpannerGrpc(e) => fmt::Display::fmt(e, formatter),
         }
     }
@@ -112,14 +108,7 @@ from_error!(diesel::result::Error, DbError, DbErrorKind::Query);
 from_error!(diesel::result::ConnectionError, DbError, |inner| {
     DbErrorKind::Connection(ConnectionError::Diesel(inner))
 });
-from_error!(
-    google_spanner1::Error,
-    DbError,
-    |inner: google_spanner1::Error| DbErrorKind::Connection(ConnectionError::Spanner(
-        inner.to_string()
-    ))
-);
-#[cfg(feature = "google_grpc")]
+
 from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
     // Convert ABORTED (typically due to a transaction abort) into 503s
     match inner {
