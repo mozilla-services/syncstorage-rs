@@ -8,7 +8,7 @@ use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload},
     error::ErrorInternalServerError,
     http::{
-        header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_TYPE},
+        header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE},
         Uri,
     },
     web::{Json, Query},
@@ -87,17 +87,11 @@ impl BatchBsoBody {
     }
 }
 
-fn get_content_type(headers: &HeaderMap, default: &HeaderValue) -> String {
-    let ct_raw = String::from_utf8(
-        headers
-            .get(CONTENT_TYPE)
-            .unwrap_or(&default)
-            .as_bytes()
-            .to_vec(),
-    )
-    .unwrap_or_else(|_| "invalid".to_owned());
+fn get_trimmed_header(headers: &HeaderMap, key: HeaderName, default: &HeaderValue) -> String {
+    let ct_raw = std::str::from_utf8(headers.get(key).unwrap_or(&default).as_bytes())
+        .unwrap_or_else(|_| "invalid");
     let ct_parts: Vec<&str> = ct_raw.split(';').collect();
-    ct_parts[0].to_owned()
+    ct_parts[0].trim_end().to_owned()
 }
 
 #[derive(Default, Deserialize)]
@@ -124,14 +118,16 @@ impl FromRequest for BsoBodies {
         // Only try and parse the body if its a valid content-type
         let headers = req.headers();
         let default = HeaderValue::from_static("");
-        let content_type = get_content_type(headers, &default);
+        let content_type = get_trimmed_header(headers, CONTENT_TYPE, &default);
+
+        dbg!(&content_type);
 
         match content_type.as_str() {
             "application/json" | "text/plain" | "application/newlines" | "" => (),
             _ => {
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
-                        "Invalid Content-Type".to_owned(),
+                        format!("Invalid Content-Type {:?}", content_type),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                     )
@@ -302,7 +298,7 @@ impl FromRequest for BsoBody {
 
         let headers = req.headers();
         let default = HeaderValue::from_static("");
-        let content_type = get_content_type(&headers, &default);
+        let content_type = get_trimmed_header(&headers, CONTENT_TYPE, &default);
         match content_type.as_str() {
             "application/json" | "text/plain" | "" => (),
             _ => {
@@ -564,10 +560,12 @@ impl FromRequest for CollectionRequest {
         let db = <Box<dyn Db>>::from_request(req, payload)?;
         let query = BsoQueryParams::from_request(req, payload)?;
         let collection = CollectionParam::from_request(req, payload)?.collection;
-        let reply = match req.headers().get(ACCEPT) {
-            Some(v) if v.as_bytes() == b"application/newlines" => ReplyFormat::Newlines,
-            Some(v) if v.as_bytes() == b"application/json" => ReplyFormat::Json,
-            Some(_) => {
+        let content_type =
+            get_trimmed_header(&req.headers(), ACCEPT, &HeaderValue::from_static(""));
+        let reply = match content_type.as_str() {
+            "application/newlines" => ReplyFormat::Newlines,
+            "application/json" | "" => ReplyFormat::Json,
+            _ => {
                 return Err(ValidationErrorKind::FromDetails(
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
@@ -575,7 +573,6 @@ impl FromRequest for CollectionRequest {
                 )
                 .into());
             }
-            None => ReplyFormat::Json,
         };
 
         Ok(CollectionRequest {
@@ -1489,7 +1486,8 @@ mod tests {
             .data(state)
             .method(Method::POST)
             .header("authorization", header)
-            .header("content-type", "application/json")
+            .header("content-type", "application/json; charset=UTF-8")
+            .header("accept", "application/json;q=0.9,/;q=0.2")
             //.set_json(body)
             .set_payload(bod_str.as_bytes())
             .param("uid", &USER_ID_STR)
@@ -1676,6 +1674,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .header("authorization", header)
+            .header("accept", "application/json;a=0.9,/;q=0.2")
             .method(Method::GET)
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
