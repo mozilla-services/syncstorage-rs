@@ -87,6 +87,19 @@ impl BatchBsoBody {
     }
 }
 
+fn get_content_type(headers: &HeaderMap, default: &HeaderValue) -> String {
+    let ct_raw = String::from_utf8(
+        headers
+            .get(CONTENT_TYPE)
+            .unwrap_or(&default)
+            .as_bytes()
+            .to_vec(),
+    )
+    .unwrap_or_else(|_| "invalid".to_owned());
+    let ct_parts: Vec<&str> = ct_raw.split(';').collect();
+    ct_parts[0].to_owned()
+}
+
 #[derive(Default, Deserialize)]
 pub struct BsoBodies {
     pub valid: Vec<BatchBsoBody>,
@@ -111,10 +124,10 @@ impl FromRequest for BsoBodies {
         // Only try and parse the body if its a valid content-type
         let headers = req.headers();
         let default = HeaderValue::from_static("");
-        let content_type = headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes();
+        let content_type = get_content_type(headers, &default);
 
-        match content_type {
-            b"application/json" | b"text/plain" | b"application/newlines" | b"" => (),
+        match content_type.as_str() {
+            "application/json" | "text/plain" | "application/newlines" | "" => (),
             _ => {
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
@@ -150,7 +163,7 @@ impl FromRequest for BsoBodies {
 
         // Define a new bool to check from a static closure to release the reference on the
         // content_type header
-        let newlines: bool = content_type == b"application/newlines";
+        let newlines: bool = content_type == "application/newlines";
 
         // Grab the max sizes
         let state = match req.app_data::<ServerState>() {
@@ -289,8 +302,9 @@ impl FromRequest for BsoBody {
 
         let headers = req.headers();
         let default = HeaderValue::from_static("");
-        match headers.get(CONTENT_TYPE).unwrap_or(&default).as_bytes() {
-            b"application/json" | b"text/plain" | b"" => (),
+        let content_type = get_content_type(&headers, &default);
+        match content_type.as_str() {
+            "application/json" | "text/plain" | "" => (),
             _ => {
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
