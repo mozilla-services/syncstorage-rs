@@ -25,13 +25,17 @@ CREATE TABLE bso (
         ON bso(fxa_uid, fxa_kid, collection_id, modified DESC, expiry),
 INTERLEAVE IN user_collections;
 
-    CREATE INDEX BsoExpiry ON bso(expiry);
+    CREATE INDEX BsoExpiry
+           ON bso(expiry);
 
 
 CREATE TABLE collections (
   id INT64          NOT NULL,
   name STRING(MAX)  NOT NULL,
 ) PRIMARY KEY(id);
+
+    CREATE UNIQUE INDEX CollectionName
+        ON collections(name);
 
 
 CREATE TABLE batches (

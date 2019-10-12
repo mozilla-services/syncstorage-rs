@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+#[cfg(not(any(test, feature = "db_test")))]
+use protobuf::well_known_types::NullValue;
 use protobuf::well_known_types::Struct;
 use protobuf::{
     well_known_types::{ListValue, Value},
@@ -8,6 +10,12 @@ use protobuf::{
 
 use super::models::{Conn, Result};
 use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
+
+#[cfg(not(any(test, feature = "db_test")))]
+use crate::{
+    db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
+    web::extractors::HawkIdentifier,
+};
 
 use googleapis_raw::spanner::v1::type_pb::{Type, TypeCode};
 
@@ -117,6 +125,7 @@ impl ExecuteSqlRequestBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct SyncResultSet {
     result: ResultSet,
 }
@@ -203,4 +212,75 @@ pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
         },
         expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
     })
+}
+
+#[cfg(not(any(test, feature = "db_test")))]
+pub fn bso_to_insert_row(
+    user_id: &HawkIdentifier,
+    collection_id: i32,
+    bso: params::PostCollectionBso,
+    now: SyncTimestamp,
+) -> Result<ListValue> {
+    let sortindex = bso
+        .sortindex
+        .map(|sortindex| as_value(sortindex.to_string()))
+        .unwrap_or_else(|| {
+            let mut value = Value::new();
+            value.set_null_value(NullValue::NULL_VALUE);
+            value
+        });
+    let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
+    let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
+
+    let mut row = ListValue::new();
+    row.set_values(RepeatedField::from_vec(vec![
+        as_value(user_id.fxa_uid.clone()),
+        as_value(user_id.fxa_kid.clone()),
+        as_value(collection_id.to_string()),
+        as_value(bso.id),
+        sortindex,
+        as_value(bso.payload.unwrap_or_default()),
+        as_value(now.as_rfc3339()?),
+        as_value(expiry),
+    ]));
+    Ok(row)
+}
+
+#[cfg(not(any(test, feature = "db_test")))]
+pub fn bso_to_update_row(
+    user_id: &HawkIdentifier,
+    collection_id: i32,
+    bso: params::PostCollectionBso,
+    now: SyncTimestamp,
+) -> Result<(Vec<&'static str>, ListValue)> {
+    let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "id"];
+    let mut values = vec![
+        as_value(user_id.fxa_uid.clone()),
+        as_value(user_id.fxa_kid.clone()),
+        as_value(collection_id.to_string()),
+        as_value(bso.id),
+    ];
+
+    let modified = bso.payload.is_some() || bso.sortindex.is_some();
+    if let Some(sortindex) = bso.sortindex {
+        columns.push("sortindex");
+        values.push(as_value(sortindex.to_string()));
+    }
+    if let Some(payload) = bso.payload {
+        columns.push("payload");
+        values.push(as_value(payload));
+    }
+    if modified {
+        columns.push("modified");
+        values.push(as_value(now.as_rfc3339()?));
+    }
+    if let Some(ttl) = bso.ttl {
+        columns.push("expiry");
+        let expiry = now.as_i64() + (i64::from(ttl) * 1000);
+        values.push(as_value(to_rfc3339(expiry)?));
+    }
+
+    let mut row = ListValue::new();
+    row.set_values(RepeatedField::from_vec(values));
+    Ok((columns, row))
 }
