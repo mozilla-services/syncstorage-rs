@@ -6,6 +6,9 @@
 --             in hex and padded to 13 digits, provided by the fxa server
 -- - client_state: the first 16 bytes of a SHA256 hash of the user's sync
 --             encryption key.
+--
+-- NOTE: DO NOT INCLUDE COMMENTS IF PASTING INTO CONSOLE
+--       ALSO, CONSOLE WANTS ONE SPACE BETWEEN DDL COMMANDS
 
 CREATE TABLE user_collections (
   fxa_uid STRING(36)  NOT NULL,
@@ -14,17 +17,13 @@ CREATE TABLE user_collections (
   modified TIMESTAMP   NOT NULL,
 ) PRIMARY KEY(fxa_uid, fxa_kid, collection_id);
 
-
 CREATE TABLE bso (
   fxa_uid STRING(36)  NOT NULL,
   fxa_kid STRING(48)  NOT NULL,
   collection_id INT64  NOT NULL,
   id STRING(64)       NOT NULL,
-
   sortindex INT64,
-
   payload STRING(MAX)  NOT NULL,
-
   modified TIMESTAMP   NOT NULL,
   expiry TIMESTAMP     NOT NULL,
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, id),
@@ -37,7 +36,6 @@ INTERLEAVE IN user_collections;
     CREATE INDEX BsoExpiry
            ON bso(expiry);
 
-
 CREATE TABLE collections (
   id INT64          NOT NULL,
   name STRING(32)  NOT NULL,
@@ -45,7 +43,6 @@ CREATE TABLE collections (
 
     CREATE UNIQUE INDEX CollectionName
         ON collections(name);
-
 
 CREATE TABLE batches (
   fxa_uid STRING(36)  NOT NULL,
