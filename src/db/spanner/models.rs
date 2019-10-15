@@ -2,6 +2,7 @@ use futures::future;
 use futures::lazy;
 
 use diesel::r2d2::PooledConnection;
+use log::debug;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -439,7 +440,10 @@ impl SpannerDb {
         &self,
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
-        dbg!("!!QQQ get_collection_timestamp_sync", &params.collection);
+        debug!(
+            "!!QQQ get_collection_timestamp_sync {:?}",
+            &params.collection
+        );
 
         let collection_id = self.get_collection_id(&params.collection)?;
         if let Some(modified) = self
@@ -1005,7 +1009,7 @@ impl SpannerDb {
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
-        dbg!("!!QQQ get_bso_timestamp_sync", &params.collection);
+        debug!("!!QQQ get_bso_timestamp_sync: {:?}", &params.collection);
         let collection_id = self.get_collection_id(&params.collection)?;
 
         let result = self
@@ -1099,7 +1103,7 @@ impl SpannerDb {
         }
 
         if !inserts.is_empty() {
-            dbg!(&inserts);
+            debug!("inserts: {:?}", &inserts);
             self.insert(
                 "bso",
                 &[
@@ -1116,7 +1120,7 @@ impl SpannerDb {
             );
         }
         for (columns, values) in updates {
-            dbg!(&columns, &values);
+            debug!("columns: {:?}, values:{:?}", &columns, &values);
             self.update("bso", &columns, values);
         }
 
@@ -1266,7 +1270,10 @@ impl SpannerDb {
                 .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().unwrap())
                 * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
-            dbg!("!!!!! INSERT", &expirystring, timestamp, ttl);
+            debug!(
+                "!!!!! INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
+                &expirystring, timestamp, ttl
+            );
             sqlparams.insert("expiry".to_string(), as_value(expirystring));
             sqltypes.insert("expiry".to_string(), SpannerType::Timestamp.into());
 
