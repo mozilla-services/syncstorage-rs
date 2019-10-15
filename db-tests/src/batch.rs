@@ -143,7 +143,7 @@ async fn append_commit() -> Result<()> {
         .compat()
         .await?;
 
-    debug!("result", &result);
+    debug!("result: {:?}", &result);
     assert!(result.success.contains(&"b0".to_owned()));
     assert!(result.success.contains(&"b2".to_owned()));
 
