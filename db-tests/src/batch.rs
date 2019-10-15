@@ -1,7 +1,7 @@
 use futures::compat::Future01CompatExt;
 
 use codegen::async_test;
-use slog::debug;
+use log::debug;
 
 use syncstorage::{
     db::{error::DbErrorKind, params, util::SyncTimestamp, BATCH_LIFETIME},
