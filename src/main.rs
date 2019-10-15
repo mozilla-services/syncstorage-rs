@@ -2,7 +2,7 @@
 use std::error::Error;
 
 use docopt::Docopt;
-use log::info;
+use log::{debug, info};
 use serde_derive::Deserialize;
 
 use syncstorage::{logging, server, settings};
@@ -22,6 +22,7 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
+    debug!("Starting up...");
     // Set SENTRY_DSN environment variable to enable Sentry
     let sentry = sentry::init(sentry::ClientOptions::default());
     if sentry.is_enabled() {
