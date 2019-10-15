@@ -1,6 +1,8 @@
 use futures::compat::Future01CompatExt;
 
 use codegen::async_test;
+use log::debug;
+
 use syncstorage::{
     db::{error::DbErrorKind, params, util::SyncTimestamp, BATCH_LIFETIME},
     error::ApiErrorKind,
@@ -141,7 +143,7 @@ async fn append_commit() -> Result<()> {
         .compat()
         .await?;
 
-    dbg!("result", &result);
+    debug!("result: {:?}", &result);
     assert!(result.success.contains(&"b0".to_owned()));
     assert!(result.success.contains(&"b2".to_owned()));
 

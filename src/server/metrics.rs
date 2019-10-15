@@ -2,6 +2,7 @@ use std::net::UdpSocket;
 
 use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
 use cadence::{BufferedUdpMetricSink, Counted, NopMetricSink, QueuingMetricSink, StatsdClient};
+use log::debug;
 
 use crate::error::ApiError;
 use crate::server::ServerState;
@@ -18,7 +19,7 @@ impl From<&HttpRequest> for Metrics {
             client: match req.app_data::<ServerState>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
-                    dbg!("⚠️ metric error: No App State");
+                    debug!("⚠️ metric error: No App State");
                     None
                 }
             },
@@ -45,7 +46,7 @@ impl Metrics {
             match self.client.unwrap().incr(label) {
                 Err(e) => {
                     // eat the metric, but log the error
-                    dbg!("⚠️ Metric {} error: {:?} ", label, e);
+                    debug!("⚠️ Metric {} error: {:?} ", label, e);
                 }
                 Ok(_v) => {
                     // v.as_metric_str()
@@ -79,7 +80,7 @@ pub fn metrics_from_opts(opts: &Settings) -> Result<StatsdClient, ApiError> {
     };
     Ok(builder
         .with_error_handler(|err| {
-            dbg!("⚠️ Metric send error:", err);
+            debug!("⚠️ Metric send error:  {:?}", err);
         })
         .build())
 }
