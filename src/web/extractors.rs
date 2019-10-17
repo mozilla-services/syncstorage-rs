@@ -42,6 +42,9 @@ const BSO_MAX_TTL: u32 = 31_536_000;
 const BSO_MAX_SORTINDEX_VALUE: i32 = 999_999_999;
 const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 
+const ACCEPTED_CONTENT_TYPES: [&str; 3] =
+    ["application/json", "text/plain", "application/newlines"];
+
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
@@ -88,11 +91,39 @@ impl BatchBsoBody {
     }
 }
 
-fn get_trimmed_header(headers: &HeaderMap, key: HeaderName, default: &HeaderValue) -> String {
-    let ct_raw = std::str::from_utf8(headers.get(key).unwrap_or(&default).as_bytes())
+// This tries to do the right thing to get the Accepted header according to
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept, but some corners can absolutely be cut.
+// This will pull the first accepted content type listed, or the highest rated non-accepted type.
+fn get_weighted_header(
+    headers: &HeaderMap,
+    key: HeaderName,
+    accepted: &[&str],
+    default: &'static str,
+) -> String {
+    let def_hv = HeaderValue::from_static(default);
+    let hv_raw = std::str::from_utf8(headers.get(key).unwrap_or(&def_hv).as_bytes())
         .unwrap_or_else(|_| "invalid");
-    let ct_parts: Vec<&str> = ct_raw.split(';').collect();
-    ct_parts[0].trim_end().to_owned()
+    let hv_parts: Vec<&str> = hv_raw.split(',').collect();
+    let mut choice_weight = 0;
+    let mut pick: String = default.to_owned();
+    for choice in hv_parts {
+        let opt_weight: Vec<&str> = choice.split(';').collect();
+        let opt = opt_weight[0].trim_end().to_lowercase();
+        if accepted.contains(&&opt.as_ref()) {
+            return opt;
+        }
+        let weight = if opt_weight.len() > 1 {
+            let weights: Vec<&str> = opt_weight[1].split('=').collect();
+            i64::from_str(weights[1]).unwrap_or_else(|_| 0)
+        } else {
+            1
+        };
+        if weight > choice_weight {
+            pick = opt;
+            choice_weight = weight;
+        }
+    }
+    pick
 }
 
 #[derive(Default, Deserialize)]
@@ -118,23 +149,24 @@ impl FromRequest for BsoBodies {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
         let headers = req.headers();
-        let default = HeaderValue::from_static("");
-        let content_type = get_trimmed_header(headers, CONTENT_TYPE, &default);
+        let content_type = get_weighted_header(
+            headers,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
 
         debug!("content_type: {:?}", &content_type);
 
-        match content_type.as_str() {
-            "application/json" | "text/plain" | "application/newlines" | "" => (),
-            _ => {
-                return Box::new(future::err(
-                    ValidationErrorKind::FromDetails(
-                        format!("Invalid Content-Type {:?}", content_type),
-                        RequestErrorLocation::Header,
-                        Some("Content-Type".to_owned()),
-                    )
-                    .into(),
-                ));
-            }
+        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_str()) {
+            return Box::new(future::err(
+                ValidationErrorKind::FromDetails(
+                    format!("Invalid Content-Type {:?}", content_type),
+                    RequestErrorLocation::Header,
+                    Some("Content-Type".to_owned()),
+                )
+                .into(),
+            ));
         }
 
         // Load the entire request into a String
@@ -181,7 +213,7 @@ impl FromRequest for BsoBodies {
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
         let fut = fut.and_then(move |body| {
-            // Get all the raw JSON values
+            // Get all the raw / values
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
@@ -298,20 +330,21 @@ impl FromRequest for BsoBody {
         // Only try and parse the body if its a valid content-type
 
         let headers = req.headers();
-        let default = HeaderValue::from_static("");
-        let content_type = get_trimmed_header(&headers, CONTENT_TYPE, &default);
-        match content_type.as_str() {
-            "application/json" | "text/plain" | "" => (),
-            _ => {
-                return Box::new(future::err(
-                    ValidationErrorKind::FromDetails(
-                        "Invalid Content-Type".to_owned(),
-                        RequestErrorLocation::Header,
-                        Some("Content-Type".to_owned()),
-                    )
-                    .into(),
-                ));
-            }
+        let content_type = get_weighted_header(
+            &headers,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
+        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_str()) {
+            return Box::new(future::err(
+                ValidationErrorKind::FromDetails(
+                    "Invalid Content-Type".to_owned(),
+                    RequestErrorLocation::Header,
+                    Some("Content-Type".to_owned()),
+                )
+                .into(),
+            ));
         }
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
@@ -561,8 +594,12 @@ impl FromRequest for CollectionRequest {
         let db = <Box<dyn Db>>::from_request(req, payload)?;
         let query = BsoQueryParams::from_request(req, payload)?;
         let collection = CollectionParam::from_request(req, payload)?.collection;
-        let content_type =
-            get_trimmed_header(&req.headers(), ACCEPT, &HeaderValue::from_static(""));
+        let content_type = get_weighted_header(
+            &req.headers(),
+            ACCEPT,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
         let reply = match content_type.as_str() {
             "application/newlines" => ReplyFormat::Newlines,
             "application/json" | "" => ReplyFormat::Json,
@@ -1675,7 +1712,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .header("authorization", header)
-            .header("accept", "application/json;a=0.9,/;q=0.2")
+            .header("accept", "application/json;a=0.9,*/*;q=0.2")
             .method(Method::GET)
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
