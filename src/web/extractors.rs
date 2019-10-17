@@ -104,20 +104,23 @@ fn get_weighted_header(
     let hv_raw = std::str::from_utf8(headers.get(key).unwrap_or(&def_hv).as_bytes())
         .unwrap_or_else(|_| "invalid");
     let hv_parts: Vec<&str> = hv_raw.split(',').collect();
-    let mut choice_weight = 0;
+    let mut choice_weight = 0.0;
     let mut pick: String = default.to_owned();
     for choice in hv_parts {
         let opt_weight: Vec<&str> = choice.split(';').collect();
-        let opt = opt_weight[0].trim_end().to_lowercase();
-        if accepted.contains(&&opt.as_ref()) {
-            return opt;
-        }
+        let mut opt = opt_weight[0].trim_end().to_lowercase();
+        if opt == "*/*" {
+            opt = default.to_owned()
+        };
         let weight = if opt_weight.len() > 1 {
             let weights: Vec<&str> = opt_weight[1].split('=').collect();
-            i64::from_str(weights[1]).unwrap_or_else(|_| 0)
+            f32::from_str(weights[1]).unwrap_or_else(|_| 0.0)
         } else {
-            1
+            1.0
         };
+        if weight.abs().trunc() > 0.0 && accepted.contains(&&opt.as_ref()) {
+            return opt;
+        }
         if weight > choice_weight {
             pick = opt;
             choice_weight = weight;
@@ -1567,6 +1570,48 @@ mod tests {
 
         assert_eq!(sort_error["location"], "querystring");
         */
+    }
+
+    #[test]
+    fn test_weighted_header() {
+        // test non-priority, full weight selection
+        let mut header_map = HeaderMap::new();
+        header_map.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/json;q=0.9,text/plain"),
+        );
+        let selected = get_weighted_header(
+            &header_map,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
+        assert_eq!(selected, "text/plain".to_owned());
+
+        // test default for */*
+        let mut header_map = HeaderMap::new();
+        header_map.insert(CONTENT_TYPE, HeaderValue::from_static("*/*,text/plain"));
+        let selected = get_weighted_header(
+            &header_map,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
+        assert_eq!(selected, "application/json".to_owned());
+
+        // test default for selected weighted.
+        let mut header_map = HeaderMap::new();
+        header_map.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("foo/bar;q=0.1,application/json;q=0.2,text/plain;q=0.3"),
+        );
+        let selected = get_weighted_header(
+            &header_map,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "application/json",
+        );
+        assert_eq!(selected, "text/plain".to_owned());
     }
 
     #[test]
