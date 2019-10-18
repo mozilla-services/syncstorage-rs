@@ -116,8 +116,8 @@ fn get_weighted_header(
             let weights: Vec<&str> = opt_weight[1].split('=').collect();
             // if the weight is malformed, ignore this choice.
             if weights.len() < 2 {
-                continue
-            } 
+                continue;
+            }
             f32::from_str(weights[1]).unwrap_or_else(|_| 0.0)
         } else {
             1.0
@@ -1630,7 +1630,6 @@ mod tests {
             "text/plain",
         );
         assert_eq!(selected, "text/plain".to_owned());
-
     }
 
     #[test]
