@@ -32,6 +32,10 @@ and can be run against a local server, e.g.:
         $ export SYNC_DATABASE_URL=mysql://<YOUR_MYSQL_USERNAME>:<YOUR_MYSQL_PASSWORD>@localhost/syncstorage
         $ cargo run
 
+## Logging
+
+If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value, and `export SENTRY_DSN=DSN_VALUE_GOES_HERE` to the environment when running this project.
+
 ## Running the Unit tests
 
 1) Run:

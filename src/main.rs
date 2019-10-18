@@ -2,7 +2,7 @@
 use std::error::Error;
 
 use docopt::Docopt;
-use log::info;
+use log::{debug, info};
 use serde_derive::Deserialize;
 
 use syncstorage::{logging, server, settings};
@@ -22,8 +22,18 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-    // Set SENTRY_DSN environment variable to enable Sentry
-    let sentry = sentry::init(sentry::ClientOptions::default());
+    debug!("Starting up...");
+    // Set SENTRY_DSN environment variable to enable Sentry.
+    // Avoid its default reqwest transport for now due to issues w/
+    // likely grpcio's boringssl
+    let curl_transport_factory = |options: &sentry::ClientOptions| {
+        Box::new(sentry::transports::CurlHttpTransport::new(options))
+            as Box<dyn sentry::internals::Transport>
+    };
+    let sentry = sentry::init(sentry::ClientOptions {
+        transport: Box::new(curl_transport_factory),
+        ..sentry::ClientOptions::default()
+    });
     if sentry.is_enabled() {
         sentry::integrations::panic::register_panic_handler();
     }

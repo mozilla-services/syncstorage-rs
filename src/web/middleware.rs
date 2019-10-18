@@ -18,6 +18,7 @@ use futures::{
     future::{self, Either, FutureResult},
     Future, Poll,
 };
+use log::debug;
 
 use crate::db::{params, util::SyncTimestamp};
 use crate::error::{ApiError, ApiErrorKind};
@@ -200,7 +201,7 @@ where
             Err(e) => {
                 // Semi-example to show how to use metrics inside of middleware.
                 metrics::Metrics::from(&state).incr("sync.error.collectionParam");
-                dbg!("⚠️ CollectionParam err: {:?}", e);
+                debug!("⚠️ CollectionParam err: {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -215,7 +216,7 @@ where
         let hawk_user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {
-                dbg!("⚠️ Bad Hawk Id: ", e);
+                debug!("⚠️ Bad Hawk Id: {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
@@ -331,7 +332,7 @@ where
                 None => PreConditionHeader::NoHeader,
             },
             Err(e) => {
-                dbg!("⚠️ Precondition error", e);
+                debug!("⚠️ Precondition error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
@@ -345,7 +346,7 @@ where
         let user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {
-                dbg!("⚠️ Hawk header error", e);
+                debug!("⚠️ Hawk header error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
@@ -360,7 +361,7 @@ where
         let db = match edb {
             Ok(v) => v,
             Err(e) => {
-                dbg!("⚠️ Database access error", e);
+                debug!("⚠️ Database access error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -376,7 +377,7 @@ where
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
-                dbg!("⚠️ Collection Error: ", e);
+                debug!("⚠️ Collection Error:  {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -431,7 +432,7 @@ where
                         if let Ok(ts_header) =
                             header::HeaderValue::from_str(&resource_ts.as_header())
                         {
-                            dbg!("📝 Setting X-Last-Modfied:", &ts_header);
+                            debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
                             resp.headers_mut().insert(
                                 header::HeaderName::from_static(X_LAST_MODIFIED),
                                 ts_header,

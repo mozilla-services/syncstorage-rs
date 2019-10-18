@@ -1,6 +1,7 @@
 //! Application settings objects and initialization
 
 use config::{Config, ConfigError, Environment, File};
+use log::debug;
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
@@ -118,11 +119,11 @@ impl Settings {
                         "For example to set `database_url` use env var `{}_DATABASE_URL`\n",
                         PREFIX.to_uppercase()
                     );
-                    dbg!("⚠️ Configuration error: Value undefined", &v);
+                    debug!("⚠️ Configuration error: Value undefined {:?}", &v);
                     return Err(ConfigError::NotFound(v));
                 }
                 _ => {
-                    dbg!("⚠️ Other: ", &e);
+                    debug!("⚠️ Other:  {:?}", &e);
                     return Err(e);
                 }
             },

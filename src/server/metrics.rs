@@ -1,10 +1,11 @@
+use log::debug;
 use std::collections::HashMap;
 use std::net::UdpSocket;
 use std::time::Instant;
 
 use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
 use cadence::{
-    BufferedUdpMetricSink, Counted, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
 
 use crate::error::ApiError;
@@ -31,20 +32,22 @@ impl Drop for Metrics {
         if let Some(client) = self.client.as_ref() {
             if let Some(timer) = self.timer.as_ref() {
                 let lapse = (Instant::now() - timer.start).as_nanos() as u64;
-                dbg!("### Ending timer at nanos:", &timer.label, lapse);
-                let mut t = client.time_with_tags(&timer.label, lapse);
+                debug!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
+                let mut tagged = client.time_with_tags(&timer.label, lapse);
+                // Include any "hard coded" tags.
+                // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
                 let tags = timer.tags.clone().unwrap_or_default();
                 let keys = tags.keys();
                 for tag in keys {
-                    t = t.with_tag(tag, &tags.get(tag).unwrap())
+                    tagged = tagged.with_tag(tag, &tags.get(tag).unwrap())
                 }
-                match t.try_send() {
+                match tagged.try_send() {
                     Err(e) => {
                         // eat the metric, but log the error
-                        dbg!("⚠️ Metric {} error: {:?} ", &timer.label, e);
+                        debug!("⚠️ Metric {} error: {:?} ", &timer.label, e);
                     }
-                    Ok(_v) => {
-                        // v.as_metric_str()
+                    Ok(v) => {
+                        debug!("⌚ {:?}", v.as_metric_str());
                     }
                 }
             }
@@ -58,7 +61,7 @@ impl From<&HttpRequest> for Metrics {
             client: match req.app_data::<ServerState>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
-                    dbg!("⚠️ metric error: No App State");
+                    debug!("⚠️ metric error: No App State");
                     None
                 }
             },
@@ -82,7 +85,7 @@ impl Metrics {
     }
 
     pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
-        dbg!("### Starting timer... ", &label);
+        debug!("⌚ Starting timer... {:?}", &label);
         self.timer = Some(MetricTimer {
             label: label.to_owned(),
             start: Instant::now(),
@@ -97,22 +100,20 @@ impl Metrics {
 
     pub fn incr_with_tags(self, label: &str, tags: Option<HashMap<String, String>>) {
         if let Some(client) = self.client.as_ref() {
-            let mut incr = client.incr_with_tags(label);
+            let mut tagged = client.incr_with_tags(label);
             let tags = tags.unwrap_or_default();
             let keys = tags.keys();
             for tag in keys {
-                incr = incr.with_tag(tag, &tags.get(tag).unwrap())
+                tagged = tagged.with_tag(tag, &tags.get(tag).unwrap())
             }
             // Include any "hard coded" tags.
             // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
-            match incr.try_send() {
+            match tagged.try_send() {
                 Err(e) => {
                     // eat the metric, but log the error
-                    dbg!("⚠️ Metric {} error: {:?} ", label, e);
+                    debug!("⚠️ Metric {} error: {:?} ", label, e);
                 }
-                Ok(_v) => {
-                    // v.as_metric_str()
-                }
+                Ok(v) => debug!("☑️ {:?}", v.as_metric_str()),
             }
         }
     }
@@ -142,7 +143,7 @@ pub fn metrics_from_opts(opts: &Settings) -> Result<StatsdClient, ApiError> {
     };
     Ok(builder
         .with_error_handler(|err| {
-            dbg!("⚠️ Metric send error:", err);
+            debug!("⚠️ Metric send error:  {:?}", err);
         })
         .build())
 }
