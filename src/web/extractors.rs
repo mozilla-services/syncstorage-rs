@@ -103,7 +103,7 @@ fn get_weighted_header(
     let def_hv = HeaderValue::from_static(default);
     let hv_raw = std::str::from_utf8(headers.get(key).unwrap_or(&def_hv).as_bytes())
         .unwrap_or_else(|_| "invalid");
-    let hv_parts: Vec<&str> = hv_raw.split(',').collect();
+    let hv_parts = hv_raw.split(',');
     let mut choice_weight = 0.0;
     let mut pick: String = default.to_owned();
     for choice in hv_parts {
@@ -114,6 +114,10 @@ fn get_weighted_header(
         };
         let weight = if opt_weight.len() > 1 {
             let weights: Vec<&str> = opt_weight[1].split('=').collect();
+            // if the weight is malformed, ignore this choice.
+            if weights.len() < 2 {
+                continue
+            } 
             f32::from_str(weights[1]).unwrap_or_else(|_| 0.0)
         } else {
             1.0
@@ -1612,6 +1616,21 @@ mod tests {
             "application/json",
         );
         assert_eq!(selected, "text/plain".to_owned());
+
+        // test default for selected weighted.
+        let mut header_map = HeaderMap::new();
+        header_map.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("foo/bar;0.1,text/plain;q=0.1"),
+        );
+        let selected = get_weighted_header(
+            &header_map,
+            CONTENT_TYPE,
+            &ACCEPTED_CONTENT_TYPES,
+            "text/plain",
+        );
+        assert_eq!(selected, "text/plain".to_owned());
+
     }
 
     #[test]
