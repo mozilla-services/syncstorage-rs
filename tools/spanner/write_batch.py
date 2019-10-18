@@ -7,6 +7,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
+import os
 
 import random
 import string
@@ -20,8 +21,8 @@ from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 
 # Change these to reflect your Spanner instance install
-INSTANCE = "spanner-test"
-DB = "sync_stage"
+INSTANCE_ID = os.environ.get("INSTANCE_ID", "spanner-test")
+DATABASE_ID = os.environ.get("DATABASE_ID", "sync_stage")
 
 # max batch size for this write is 2000, otherwise we run into:
 """google.api_core.exceptions.InvalidArgument: 400 The transaction
@@ -180,7 +181,7 @@ def loader():
     fxa_kid = "{:013d}-{}".format(22, fxa_uid)
     name = threading.current_thread().getName()
     print("{} -> Loading {} {}".format(name, fxa_uid, fxa_kid))
-    load(INSTANCE, DB, fxa_uid, fxa_kid, COLL_ID)
+    load(INSTANCE_ID, DATABASE_ID, fxa_uid, fxa_kid, COLL_ID)
 
 
 def main():
