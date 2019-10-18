@@ -118,7 +118,7 @@ fn get_weighted_header(
             if weights.len() < 2 {
                 continue;
             }
-            f32::from_str(weights[1]).unwrap_or_else(|_| 0.0)
+            f32::from_str(weights[1]).unwrap_or(0.0)
         } else {
             1.0
         };
