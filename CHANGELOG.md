@@ -1,3 +1,14 @@
+<a name="0.1.4"></a>
+## 0.1.4 (2019-10-18)
+
+
+#### Bug Fixes
+
+*   switch sentry to its curl transport ([5cbd1974](https://github.com/mozilla-services/syncstorage-rs/commit/5cbd19744c13ef59f7fb0ba995231879c7a050d6), closes [#289](https://github.com/mozilla-services/syncstorage-rs/issues/289))
+*   accept weighted content-type headers ([f3899695](https://github.com/mozilla-services/syncstorage-rs/commit/f389969517e60d41774ce71c4e7093a79c642ddd), closes [#287](https://github.com/mozilla-services/syncstorage-rs/issues/287))
+
+
+
 <a name="0.1.2"></a>
 ## 0.1.2 (2019-10-12)
 
