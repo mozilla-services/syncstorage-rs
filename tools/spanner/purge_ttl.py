@@ -17,7 +17,7 @@ def spanner_read_data(request):
     instance = client.instance(instance_id)
     database = instance.database(database_id)
 
-    query = 'DELETE FROM bso WHERE ttl < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)'
+    query = 'DELETE FROM bso WHERE expiry < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)'
 
     result = database.execute_partitioned_dml(query)
     outputs.append(results)
