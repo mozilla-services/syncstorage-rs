@@ -21,6 +21,7 @@ use crate::db::{
     util::SyncTimestamp,
     Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
+use crate::server::metrics::Metrics;
 
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
@@ -81,6 +82,8 @@ pub struct SpannerDb {
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
+
+    pub metrics: Metrics,
 }
 
 pub struct SpannerDbInner {
@@ -117,6 +120,7 @@ impl SpannerDb {
         conn: Conn,
         thread_pool: Arc<::tokio_threadpool::ThreadPool>,
         coll_cache: Arc<CollectionCache>,
+        metrics: &Metrics,
     ) -> Self {
         let inner = SpannerDbInner {
             conn,
@@ -126,6 +130,7 @@ impl SpannerDb {
         SpannerDb {
             inner: Arc::new(inner),
             coll_cache,
+            metrics: metrics.clone(),
         }
     }
 
@@ -133,7 +138,6 @@ impl SpannerDb {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }
-
         let result = self
             .sql(
                 "SELECT id

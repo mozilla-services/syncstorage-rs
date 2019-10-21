@@ -156,6 +156,8 @@ pub fn select_max_id(db: &SpannerDb, params: params::ValidateBatch) -> Result<i6
 }
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
+    let mut timer = db.metrics.clone();
+    timer.start_timer("syncstorage.storage.spanner.append_items_to_batch", None);
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = params.id;
     if let Ok(max_id) = select_max_id(
@@ -268,6 +270,8 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
 
 pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let bsos = batch_string_to_bsos(&params.batch.bsos)?;
+    let mut timer = db.metrics.clone();
+    timer.start_timer("syncstorage.storage.spanner.apply_batch", None);
     let result = db.post_bsos_sync(params::PostBsos {
         user_id: params.user_id.clone(),
         collection: params.collection.clone(),

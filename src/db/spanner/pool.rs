@@ -14,6 +14,7 @@ use super::models::Result;
 #[cfg(any(test, feature = "db_test"))]
 use super::test_util::SpannerTestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
+use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
 use super::manager::SpannerConnectionManager;
@@ -38,20 +39,24 @@ pub struct SpannerDbPool {
     thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
+
+    metrics: Metrics,
 }
 
 impl SpannerDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
-    pub fn new(settings: &Settings) -> Result<Self> {
+    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         //run_embedded_migrations(settings)?;
-        Self::new_without_migrations(settings)
+        Self::new_without_migrations(settings, metrics)
     }
 
-    pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
+    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = SpannerConnectionManager::new(settings)?;
         let builder = r2d2::Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        let mut timer = metrics.clone();
+        timer.start_timer("syncstorage.storage.spanner.pool.get", None);
 
         #[cfg(any(test, feature = "db_test"))]
         let builder = if settings.database_use_test_transactions {
@@ -68,6 +73,7 @@ impl SpannerDbPool {
                     .build(),
             ),
             coll_cache: Default::default(),
+            metrics: metrics.clone(),
         })
     }
 
@@ -76,6 +82,7 @@ impl SpannerDbPool {
             self.pool.get()?,
             Arc::clone(&self.thread_pool),
             Arc::clone(&self.coll_cache),
+            &self.metrics,
         ))
     }
 }

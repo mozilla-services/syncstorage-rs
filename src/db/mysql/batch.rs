@@ -86,6 +86,8 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let bsos = batch_string_to_bsos(&params.batch.bsos)?;
+    let mut timer = db.metrics.clone();
+    timer.start_timer("syncstorage.storage.sql.apply_batch", None);
     let result = db.post_bsos_sync(params::PostBsos {
         user_id: params.user_id.clone(),
         collection: params.collection.clone(),

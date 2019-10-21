@@ -70,6 +70,15 @@ impl From<&HttpRequest> for Metrics {
     }
 }
 
+impl From<&StatsdClient> for Metrics {
+    fn from(client: &StatsdClient) -> Self {
+        Metrics {
+            client: Some(client.clone()),
+            timer: None,
+        }
+    }
+}
+
 impl From<&actix_web::web::Data<ServerState>> for Metrics {
     fn from(state: &actix_web::web::Data<ServerState>) -> Self {
         Metrics {
@@ -82,6 +91,13 @@ impl From<&actix_web::web::Data<ServerState>> for Metrics {
 impl Metrics {
     pub fn sink() -> StatsdClient {
         StatsdClient::builder("", NopMetricSink).build()
+    }
+
+    pub fn noop() -> Self {
+        Self {
+            client: Some(Self::sink()),
+            timer: None,
+        }
     }
 
     pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
