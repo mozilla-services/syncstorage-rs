@@ -411,3 +411,27 @@ fn invalid_content_type() {
     let response = test::block_on(app.call(req)).unwrap();
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
+
+#[test]
+fn invalid_batch_post() {
+    let settings = get_test_settings();
+    let limits = Arc::new(settings.limits.clone());
+    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+
+    let mut headers = HashMap::new();
+    headers.insert("accept", "application/json".to_owned());
+    let req = create_request(
+        http::Method::POST,
+        "/1.5/42/storage/tabs?batch=sammich",
+        Some(headers),
+        Some(json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ])),
+    );
+
+    let response = test::block_on(app.call(req)).unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body = String::from_utf8(test::read_body(response).to_vec()).unwrap();
+    assert_eq!(body, "0");
+}

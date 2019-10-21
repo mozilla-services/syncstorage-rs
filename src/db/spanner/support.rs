@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
-#[cfg(not(any(test, feature = "db_test")))]
-use protobuf::well_known_types::NullValue;
-use protobuf::well_known_types::Struct;
 use protobuf::{
-    well_known_types::{ListValue, Value},
+    well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
 };
 
@@ -51,6 +48,12 @@ pub fn as_list_value(
     ));
     let mut value = Value::new();
     value.set_list_value(list);
+    value
+}
+
+pub fn null_value() -> protobuf::well_known_types::Value {
+    let mut value = Value::new();
+    value.set_null_value(NullValue::NULL_VALUE);
     value
 }
 
@@ -129,14 +132,6 @@ impl SyncResultSet {
         }
     }
 
-    pub fn all_or_none(&mut self) -> Option<Vec<ListValue>> {
-        if self.result.rows.is_empty() {
-            None
-        } else {
-            Some(self.result.rows.clone().into_vec())
-        }
-    }
-
     pub fn affected_rows(self: &SyncResultSet) -> Result<i64> {
         let stats = self
             .stats()
@@ -194,11 +189,7 @@ pub fn bso_to_insert_row(
     let sortindex = bso
         .sortindex
         .map(|sortindex| as_value(sortindex.to_string()))
-        .unwrap_or_else(|| {
-            let mut value = Value::new();
-            value.set_null_value(NullValue::NULL_VALUE);
-            value
-        });
+        .unwrap_or_else(null_value);
     let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
     let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
 

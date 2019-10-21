@@ -1085,7 +1085,7 @@ pub struct BatchParams {
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct BatchRequest {
-    pub id: Option<i64>,
+    pub id: Option<String>,
     pub commit: bool,
 }
 
@@ -1182,16 +1182,17 @@ impl FromRequest for BatchRequestOpt {
         let id = match params.batch {
             None => None,
             Some(ref batch) if batch == "" || TRUE_REGEX.is_match(batch) => None,
-            Some(ref batch) => {
-                let bytes = base64::decode(batch).unwrap_or_else(|_| batch.as_bytes().to_vec());
-                let decoded = std::str::from_utf8(&bytes).unwrap_or(batch);
-                Some(decoded.parse::<i64>().map_err(|_| {
-                    ValidationErrorKind::FromDetails(
+            Some(batch) => {
+                let db = extrude_db(&req.extensions())?;
+                if db.validate_batch_id(batch.clone()).is_err() {
+                    return Err(ValidationErrorKind::FromDetails(
                         format!(r#"Invalid batch ID: "{}""#, batch),
                         RequestErrorLocation::QueryString,
                         Some("batch".to_owned()),
                     )
-                })?)
+                    .into());
+                }
+                Some(batch)
             }
         };
 
@@ -1839,38 +1840,26 @@ mod tests {
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         let batch = result.batch.unwrap();
-        assert_eq!(batch.id, None);
+        assert!(batch.id.is_none());
         assert_eq!(batch.commit, false);
 
         let result = post_collection("batch", &bso_body).unwrap();
         let batch = result.batch.unwrap();
-        assert_eq!(batch.id, None);
+        assert!(batch.id.is_none());
         assert_eq!(batch.commit, false);
 
         let result = post_collection("batch=MTI%3D&commit=true", &bso_body).unwrap();
         let batch = result.batch.unwrap();
-        assert_eq!(batch.id, Some(12));
+        assert!(batch.id.is_some());
         assert_eq!(batch.commit, true);
     }
 
     #[test]
     fn test_invalid_collection_batch_post_request() {
-        let req = TestRequest::with_uri("/")
-            .method(Method::POST)
-            .header("accept", "application/json")
-            .data(make_state())
-            .to_http_request();
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let result = post_collection("batch=sammich", &bso_body);
-        assert!(result.is_err());
-        let response: HttpResponse = result.err().unwrap().into();
-        assert_eq!(response.status(), 400);
-        let body = extract_body_as_str(ServiceResponse::new(req, response));
-        assert_eq!(body, "0");
-
         let req = TestRequest::with_uri("/")
             .method(Method::POST)
             .data(make_state())

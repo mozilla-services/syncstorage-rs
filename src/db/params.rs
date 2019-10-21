@@ -73,23 +73,24 @@ collection_data! {
         bsos: Vec<PostCollectionBso>,
     },
     ValidateBatch {
-        id: i64,
+        id: String,
     },
     AppendToBatch {
-        id: i64,
+        id: String,
         bsos: Vec<PostCollectionBso>,
     },
     CommitBatch {
         batch: Batch,
     },
     GetBatch {
-        id: i64,
+        id: String,
     },
     DeleteBatch {
-        id: i64,
+        id: String,
     },
 }
 
+pub type ValidateBatchId = String;
 pub type GetBsoIds = GetBsos;
 
 bso_data! {
@@ -100,7 +101,7 @@ bso_data! {
 
 #[derive(Debug, Default, Queryable)]
 pub struct Batch {
-    pub id: i64,
+    pub id: String,
     pub bsos: String,
     pub expiry: i64,
 }
