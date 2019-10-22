@@ -13,6 +13,7 @@ use serde_json::json;
 
 use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
+use crate::server::metrics::Metrics;
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::{handlers, middleware};
 use cadence::StatsdClient;
@@ -165,7 +166,7 @@ impl Server {
     pub fn with_settings(settings: Settings) -> Result<SystemRunner, ApiError> {
         let sys = System::new("syncserver");
         let metrics = metrics::metrics_from_opts(&settings)?;
-        let db_pool = pool_from_settings(&settings)?;
+        let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics))?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;

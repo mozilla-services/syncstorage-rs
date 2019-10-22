@@ -27,6 +27,7 @@ use crate::db::{
     util::SyncTimestamp,
     Db, DbFuture, Sorting,
 };
+use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 no_arg_sql_function!(last_insert_id, Integer);
@@ -78,6 +79,8 @@ pub struct MysqlDb {
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
+
+    pub metrics: Metrics,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -115,6 +118,7 @@ impl MysqlDb {
         conn: Conn,
         thread_pool: Arc<::tokio_threadpool::ThreadPool>,
         coll_cache: Arc<CollectionCache>,
+        metrics: &Metrics,
     ) -> Self {
         let inner = MysqlDbInner {
             #[cfg(not(any(test, feature = "db_test")))]
@@ -127,6 +131,7 @@ impl MysqlDb {
         MysqlDb {
             inner: Arc::new(inner),
             coll_cache,
+            metrics: metrics.clone(),
         }
     }
 

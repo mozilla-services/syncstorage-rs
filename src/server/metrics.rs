@@ -1,16 +1,58 @@
+use log::debug;
+use std::collections::HashMap;
 use std::net::UdpSocket;
+use std::time::Instant;
 
 use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
-use cadence::{BufferedUdpMetricSink, Counted, NopMetricSink, QueuingMetricSink, StatsdClient};
-use log::debug;
+use cadence::{
+    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+};
 
 use crate::error::ApiError;
 use crate::server::ServerState;
 use crate::settings::Settings;
 
+pub type Tags = HashMap<String, String>;
+
+#[derive(Debug, Clone)]
+pub struct MetricTimer {
+    pub label: String,
+    pub start: Instant,
+    pub tags: Option<Tags>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Metrics {
     client: Option<StatsdClient>,
+    timer: Option<MetricTimer>,
+}
+
+impl Drop for Metrics {
+    fn drop(&mut self) {
+        if let Some(client) = self.client.as_ref() {
+            if let Some(timer) = self.timer.as_ref() {
+                let lapse = (Instant::now() - timer.start).as_nanos() as u64;
+                debug!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
+                let mut tagged = client.time_with_tags(&timer.label, lapse);
+                // Include any "hard coded" tags.
+                // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
+                let tags = timer.tags.clone().unwrap_or_default();
+                let keys = tags.keys();
+                for tag in keys {
+                    tagged = tagged.with_tag(tag, &tags.get(tag).unwrap())
+                }
+                match tagged.try_send() {
+                    Err(e) => {
+                        // eat the metric, but log the error
+                        debug!("⚠️ Metric {} error: {:?} ", &timer.label, e);
+                    }
+                    Ok(v) => {
+                        debug!("⌚ {:?}", v.as_metric_str());
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl From<&HttpRequest> for Metrics {
@@ -23,6 +65,16 @@ impl From<&HttpRequest> for Metrics {
                     None
                 }
             },
+            timer: None,
+        }
+    }
+}
+
+impl From<&StatsdClient> for Metrics {
+    fn from(client: &StatsdClient) -> Self {
+        Metrics {
+            client: Some(client.clone()),
+            timer: None,
         }
     }
 }
@@ -31,6 +83,7 @@ impl From<&actix_web::web::Data<ServerState>> for Metrics {
     fn from(state: &actix_web::web::Data<ServerState>) -> Self {
         Metrics {
             client: Some(*state.metrics.clone()),
+            timer: None,
         }
     }
 }
@@ -40,17 +93,43 @@ impl Metrics {
         StatsdClient::builder("", NopMetricSink).build()
     }
 
-    // TODO: Return this as a metric string for testing/debugging?
+    pub fn noop() -> Self {
+        Self {
+            client: Some(Self::sink()),
+            timer: None,
+        }
+    }
+
+    pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
+        debug!("⌚ Starting timer... {:?}", &label);
+        self.timer = Some(MetricTimer {
+            label: label.to_owned(),
+            start: Instant::now(),
+            tags,
+        });
+    }
+
+    // increment a counter with no tags data.
     pub fn incr(self, label: &str) {
-        if self.client.is_some() {
-            match self.client.unwrap().incr(label) {
+        self.incr_with_tags(label, None)
+    }
+
+    pub fn incr_with_tags(self, label: &str, tags: Option<HashMap<String, String>>) {
+        if let Some(client) = self.client.as_ref() {
+            let mut tagged = client.incr_with_tags(label);
+            let tags = tags.unwrap_or_default();
+            let keys = tags.keys();
+            for tag in keys {
+                tagged = tagged.with_tag(tag, &tags.get(tag).unwrap())
+            }
+            // Include any "hard coded" tags.
+            // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
+            match tagged.try_send() {
                 Err(e) => {
                     // eat the metric, but log the error
                     debug!("⚠️ Metric {} error: {:?} ", label, e);
                 }
-                Ok(_v) => {
-                    // v.as_metric_str()
-                }
+                Ok(v) => debug!("☑️ {:?}", v.as_metric_str()),
             }
         }
     }

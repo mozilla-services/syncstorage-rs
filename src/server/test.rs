@@ -64,11 +64,12 @@ fn get_test_settings() -> Settings {
 }
 
 fn get_test_state(settings: &Settings) -> ServerState {
+    let metrics = Metrics::sink();
     ServerState {
-        db_pool: pool_from_settings(&settings).unwrap(),
+        db_pool: pool_from_settings(&settings, &Metrics::from(&metrics)).unwrap(),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
-        metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
+        metrics: Box::new(metrics),
         port: settings.port,
     }
 }
