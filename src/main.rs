@@ -5,8 +5,8 @@ use docopt::Docopt;
 use log::{debug, info};
 use serde_derive::Deserialize;
 
-use syncstorage::{logging, server, settings};
 use logging::init_logging;
+use syncstorage::{logging, server, settings};
 
 const USAGE: &str = "
 Usage: syncstorage [options]
