@@ -8,7 +8,7 @@ use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload},
     error::ErrorInternalServerError,
     http::{
-        header::{HeaderMap, HeaderName, HeaderValue, ACCEPT, CONTENT_TYPE},
+        header::{qitem, Accept, ContentType, Header, HeaderMap},
         Uri,
     },
     web::{Json, Query},
@@ -17,6 +17,7 @@ use actix_web::{
 use futures::{future, Future};
 use lazy_static::lazy_static;
 use log::debug;
+use mime::STAR_STAR;
 use regex::Regex;
 use serde::{
     de::{Deserializer, Error as SerdeError, IgnoredAny},
@@ -94,43 +95,24 @@ impl BatchBsoBody {
 // This tries to do the right thing to get the Accepted header according to
 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept, but some corners can absolutely be cut.
 // This will pull the first accepted content type listed, or the highest rated non-accepted type.
-fn get_weighted_header(
-    headers: &HeaderMap,
-    key: HeaderName,
-    accepted: &[&str],
-    default: &'static str,
-) -> String {
-    let def_hv = HeaderValue::from_static(default);
-    let hv_raw = std::str::from_utf8(headers.get(key).unwrap_or(&def_hv).as_bytes())
-        .unwrap_or_else(|_| "invalid");
-    let hv_parts = hv_raw.split(',');
-    let mut choice_weight = 0.0;
-    let mut pick: String = default.to_owned();
-    for choice in hv_parts {
-        let opt_weight: Vec<&str> = choice.split(';').collect();
-        let mut opt = opt_weight[0].trim_end().to_lowercase();
-        if opt == "*/*" {
-            opt = default.to_owned()
-        };
-        let weight = if opt_weight.len() > 1 {
-            let weights: Vec<&str> = opt_weight[1].split('=').collect();
-            // if the weight is malformed, ignore this choice.
-            if weights.len() < 2 {
-                continue;
-            }
-            f32::from_str(weights[1]).unwrap_or(0.0)
-        } else {
-            1.0
-        };
-        if weight.abs().trunc() > 0.0 && accepted.contains(&&opt.as_ref()) {
-            return opt;
+fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> String {
+    let mut candidates = Accept::parse(req)
+        .unwrap_or_else(|_| Accept(vec![qitem(mime::Mime::from_str(default).unwrap())]));
+    candidates.sort_by(|a, b| {
+        b.quality
+            .partial_cmp(&a.quality)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for qitem in candidates.to_vec() {
+        if qitem.item == STAR_STAR {
+            return default.to_owned();
         }
-        if weight > choice_weight {
-            pick = opt;
-            choice_weight = weight;
+        let lc = qitem.item.to_string().to_lowercase();
+        if accepted.contains(&lc.as_str()) {
+            return lc;
         }
     }
-    pick
+    "invalid".to_string()
 }
 
 #[derive(Default, Deserialize)]
@@ -155,17 +137,23 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
-        let headers = req.headers();
-        let content_type = get_weighted_header(
-            headers,
-            CONTENT_TYPE,
-            &ACCEPTED_CONTENT_TYPES,
-            "application/json",
-        );
-
+        let ctype = match ContentType::parse(req) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        format!("Unreadable Content-Type: {:?}", e),
+                        RequestErrorLocation::Header,
+                        Some("Content-Type".to_owned()),
+                    )
+                    .into(),
+                ))
+            }
+        };
+        let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
         debug!("content_type: {:?}", &content_type);
 
-        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_str()) {
+        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
             return Box::new(future::err(
                 ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
@@ -336,14 +324,21 @@ impl FromRequest for BsoBody {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
 
-        let headers = req.headers();
-        let content_type = get_weighted_header(
-            &headers,
-            CONTENT_TYPE,
-            &ACCEPTED_CONTENT_TYPES,
-            "application/json",
-        );
-        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_str()) {
+        let ctype = match ContentType::parse(req) {
+            Ok(v) => v,
+            Err(e) => {
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        format!("Unreadable Content-Type: {:?}", e),
+                        RequestErrorLocation::Header,
+                        Some("Content-Type".to_owned()),
+                    )
+                    .into(),
+                ))
+            }
+        };
+        let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
+        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
             return Box::new(future::err(
                 ValidationErrorKind::FromDetails(
                     "Invalid Content-Type".to_owned(),
@@ -601,13 +596,9 @@ impl FromRequest for CollectionRequest {
         let db = <Box<dyn Db>>::from_request(req, payload)?;
         let query = BsoQueryParams::from_request(req, payload)?;
         let collection = CollectionParam::from_request(req, payload)?.collection;
-        let content_type = get_weighted_header(
-            &req.headers(),
-            ACCEPT,
-            &ACCEPTED_CONTENT_TYPES,
-            "application/json",
-        );
-        let reply = match content_type.as_str() {
+
+        let accept = get_accepted(req, &ACCEPTED_CONTENT_TYPES, "application/json");
+        let reply = match accept.as_str() {
             "application/newlines" => ReplyFormat::Newlines,
             "application/json" | "" => ReplyFormat::Json,
             _ => {
@@ -1433,9 +1424,15 @@ mod tests {
 
     use std::sync::Arc;
 
-    use actix_web::dev::ServiceResponse;
-    use actix_web::test::{self, TestRequest};
-    use actix_web::{http::Method, Error, HttpResponse};
+    use actix_web::{
+        dev::ServiceResponse,
+        http::{
+            header::{HeaderValue, ACCEPT},
+            Method,
+        },
+        test::{self, TestRequest},
+        Error, HttpResponse,
+    };
     use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
@@ -1533,7 +1530,6 @@ mod tests {
             .header("authorization", header)
             .header("content-type", "application/json; charset=UTF-8")
             .header("accept", "application/json;q=0.9,/;q=0.2")
-            //.set_json(body)
             .set_payload(bod_str.as_bytes())
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
@@ -1579,55 +1575,35 @@ mod tests {
     #[test]
     fn test_weighted_header() {
         // test non-priority, full weight selection
-        let mut header_map = HeaderMap::new();
-        header_map.insert(
-            CONTENT_TYPE,
+        let req = TestRequest::with_header(
+            ACCEPT,
             HeaderValue::from_static("application/json;q=0.9,text/plain"),
         );
-        let selected = get_weighted_header(
-            &header_map,
-            CONTENT_TYPE,
+        let selected = get_accepted(
+            &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
             "application/json",
         );
         assert_eq!(selected, "text/plain".to_owned());
 
         // test default for */*
-        let mut header_map = HeaderMap::new();
-        header_map.insert(CONTENT_TYPE, HeaderValue::from_static("*/*,text/plain"));
-        let selected = get_weighted_header(
-            &header_map,
-            CONTENT_TYPE,
+        let req = TestRequest::with_header(ACCEPT, HeaderValue::from_static("*/*;q=0.2,foo/bar"));
+        let selected = get_accepted(
+            &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
             "application/json",
         );
         assert_eq!(selected, "application/json".to_owned());
 
         // test default for selected weighted.
-        let mut header_map = HeaderMap::new();
-        header_map.insert(
-            CONTENT_TYPE,
-            HeaderValue::from_static("foo/bar;q=0.1,application/json;q=0.2,text/plain;q=0.3"),
+        let req = TestRequest::with_header(
+            ACCEPT,
+            HeaderValue::from_static("foo/bar;q=0.1,application/json;q=0.5,text/plain;q=0.9"),
         );
-        let selected = get_weighted_header(
-            &header_map,
-            CONTENT_TYPE,
+        let selected = get_accepted(
+            &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
             "application/json",
-        );
-        assert_eq!(selected, "text/plain".to_owned());
-
-        // test default for selected weighted.
-        let mut header_map = HeaderMap::new();
-        header_map.insert(
-            CONTENT_TYPE,
-            HeaderValue::from_static("foo/bar;0.1,text/plain;q=0.1"),
-        );
-        let selected = get_weighted_header(
-            &header_map,
-            CONTENT_TYPE,
-            &ACCEPTED_CONTENT_TYPES,
-            "text/plain",
         );
         assert_eq!(selected, "text/plain".to_owned());
     }
@@ -1775,7 +1751,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .header("authorization", header)
-            .header("accept", "application/json;a=0.9,*/*;q=0.2")
+            .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
@@ -1879,6 +1855,7 @@ mod tests {
     fn test_invalid_collection_batch_post_request() {
         let req = TestRequest::with_uri("/")
             .method(Method::POST)
+            .header("accept", "application/json")
             .data(make_state())
             .to_http_request();
         let bso_body = json!([
