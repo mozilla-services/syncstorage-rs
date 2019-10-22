@@ -6,6 +6,7 @@ use log::{debug, info};
 use serde_derive::Deserialize;
 
 use syncstorage::{logging, server, settings};
+use logging::init_logging;
 
 const USAGE: &str = "
 Usage: syncstorage [options]
@@ -21,7 +22,11 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
+    let args: Args = Docopt::new(USAGE)
+        .and_then(|d| d.deserialize())
+        .unwrap_or_else(|e| e.exit());
+    let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
+    init_logging(!settings.human_logs).expect("Logging failed to initialize");
     debug!("Starting up...");
     // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/
@@ -38,10 +43,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         sentry::integrations::panic::register_panic_handler();
     }
 
-    let args: Args = Docopt::new(USAGE)
-        .and_then(|d| d.deserialize())
-        .unwrap_or_else(|e| e.exit());
-    let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
     // Setup and run the server
     let banner = settings.banner();
     let sys = server::Server::with_settings(settings).unwrap();
