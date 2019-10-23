@@ -87,7 +87,7 @@ impl HawkPayload {
         let request = RequestBuilder::new(method, host, port, path).request();
 
         // Toggle the following comments to disable auth (useful for local integration testing)
-        // Ok(payload)
+        //Ok(payload)
         //*
         let mut duration = Duration::weeks(52)
             .to_std()

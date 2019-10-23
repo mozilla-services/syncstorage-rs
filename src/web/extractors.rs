@@ -98,6 +98,9 @@ impl BatchBsoBody {
 fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> String {
     let mut candidates = Accept::parse(req)
         .unwrap_or_else(|_| Accept(vec![qitem(mime::Mime::from_str(default).unwrap())]));
+    if candidates.is_empty() {
+        return default.to_owned();
+    }
     candidates.sort_by(|a, b| {
         b.quality
             .partial_cmp(&a.quality)
