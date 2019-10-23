@@ -13,6 +13,7 @@ use crate::db::mysql::{
     pool::MysqlDbPool,
     schema::collections,
 };
+use crate::server::metrics;
 use crate::settings::{Secrets, ServerLimits, Settings};
 
 #[derive(Debug)]
@@ -40,7 +41,7 @@ pub fn db() -> Result<MysqlDb> {
         ..Default::default()
     };
 
-    let pool = MysqlDbPool::new(&settings)?;
+    let pool = MysqlDbPool::new(&settings, &metrics::Metrics::noop())?;
     pool.get_sync()
 }
 
