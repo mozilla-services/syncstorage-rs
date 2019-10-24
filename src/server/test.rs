@@ -86,7 +86,8 @@ fn create_request(
         .header(
             "Authorization",
             create_hawk_header(method.as_str(), settings.port, path),
-        );
+        )
+        .header("Accept", "application/json");
     if let Some(body) = payload {
         req = req.set_json(&body);
     };
