@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use diesel::r2d2;
@@ -54,7 +55,9 @@ impl SpannerDbPool {
 
     pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = SpannerConnectionManager::new(settings)?;
-        let builder = r2d2::Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        let builder = r2d2::Pool::builder()
+            .max_size(settings.database_pool_max_size.unwrap_or(10))
+            .connection_timeout(Duration::from_secs(120));
         let mut timer = metrics.clone();
         timer.start_timer("syncstorage.storage.spanner.pool.get", None);
 
