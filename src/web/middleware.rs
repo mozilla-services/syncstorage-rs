@@ -52,6 +52,10 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
+            return Box::new(self.service.call(sreq));
+        }
+
         let ts = SyncTimestamp::default().as_seconds();
         Box::new(self.service.call(sreq).and_then(move |mut resp| {
             future::result(
@@ -182,6 +186,11 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
+            let mut service = Rc::clone(&self.service);
+            return Box::new(service.call(sreq));
+        }
+
         let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
@@ -325,6 +334,11 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
+            let mut service = Rc::clone(&self.service);
+            return Box::new(service.call(sreq));
+        }
+
         // Pre check
         let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers()) {
             Ok(precond) => match precond.opt {
