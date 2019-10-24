@@ -5,6 +5,7 @@ use docopt::Docopt;
 use log::{debug, info};
 use serde_derive::Deserialize;
 
+use logging::init_logging;
 use syncstorage::{logging, server, settings};
 
 const USAGE: &str = "
@@ -21,18 +22,27 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    env_logger::init();
-    debug!("Starting up...");
-    // Set SENTRY_DSN environment variable to enable Sentry
-    let sentry = sentry::init(sentry::ClientOptions::default());
-    if sentry.is_enabled() {
-        sentry::integrations::panic::register_panic_handler();
-    }
-
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
+    init_logging(!settings.human_logs).expect("Logging failed to initialize");
+    debug!("Starting up...");
+    // Set SENTRY_DSN environment variable to enable Sentry.
+    // Avoid its default reqwest transport for now due to issues w/
+    // likely grpcio's boringssl
+    let curl_transport_factory = |options: &sentry::ClientOptions| {
+        Box::new(sentry::transports::CurlHttpTransport::new(options))
+            as Box<dyn sentry::internals::Transport>
+    };
+    let sentry = sentry::init(sentry::ClientOptions {
+        transport: Box::new(curl_transport_factory),
+        ..sentry::ClientOptions::default()
+    });
+    if sentry.is_enabled() {
+        sentry::integrations::panic::register_panic_handler();
+    }
+
     // Setup and run the server
     let banner = settings.banner();
     let sys = server::Server::with_settings(settings).unwrap();

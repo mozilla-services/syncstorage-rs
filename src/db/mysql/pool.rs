@@ -16,6 +16,7 @@ use super::models::{MysqlDb, Result};
 #[cfg(any(test, feature = "db_test"))]
 use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
+use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
 embed_migrations!();
@@ -37,18 +38,20 @@ pub struct MysqlDbPool {
     thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
+
+    metrics: Metrics,
 }
 
 impl MysqlDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
-    pub fn new(settings: &Settings) -> Result<Self> {
+    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         run_embedded_migrations(settings)?;
-        Self::new_without_migrations(settings)
+        Self::new_without_migrations(settings, metrics)
     }
 
-    pub fn new_without_migrations(settings: &Settings) -> Result<Self> {
+    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
@@ -72,6 +75,7 @@ impl MysqlDbPool {
                     .build(),
             ),
             coll_cache: Default::default(),
+            metrics: metrics.clone(),
         })
     }
 
@@ -80,6 +84,7 @@ impl MysqlDbPool {
             self.pool.get()?,
             Arc::clone(&self.thread_pool),
             Arc::clone(&self.coll_cache),
+            &self.metrics,
         ))
     }
 }
