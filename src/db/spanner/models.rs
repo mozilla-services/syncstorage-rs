@@ -1289,7 +1289,7 @@ impl SpannerDb {
 
         self.sql(&sql)?
             .params(sqlparams)
-            .param_types(sqltypes.into())
+            .param_types(sqltypes)
             .execute(&self.conn)?;
         Ok(touch)
     }
