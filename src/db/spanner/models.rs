@@ -5,6 +5,7 @@ use diesel::r2d2::PooledConnection;
 use log::debug;
 
 use std::cell::RefCell;
+use std::clone::Clone;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
@@ -18,6 +19,7 @@ use super::support::SpannerType;
 use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
+    spanner::support::SyncResultSet,
     util::SyncTimestamp,
     Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
@@ -876,7 +878,8 @@ impl SpannerDb {
         self.touch_collection(&params.user_id, collection_id)
     }
 
-    pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
+    fn bsos_query_sync(&self, query_str: &str, params: params::GetBsos) -> Result<SyncResultSet> {
+        let mut query = query_str.to_owned();
         let mut sqlparams = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
@@ -892,14 +895,6 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut query = "\
-            SELECT id, modified, payload, COALESCE(sortindex, NULL), expiry
-              FROM bso
-             WHERE fxa_uid = @fxa_uid
-               AND fxa_kid = @fxa_kid
-               AND collection_id = @collection_id
-               AND expiry > CURRENT_TIMESTAMP()"
-            .to_owned();
         let mut sqltypes = HashMap::new();
 
         if let Some(older) = older {
@@ -938,7 +933,6 @@ impl SpannerDb {
             // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
             query = format!("{} LIMIT {}", query, i64::max_value() - offset);
         };
-        let limit = limit.map(i64::from).unwrap_or(-1);
 
         if offset != 0 {
             // XXX: copy over this optimization:
@@ -946,14 +940,28 @@ impl SpannerDb {
             query = format!("{} OFFSET {}", query, offset).to_string();
         }
 
-        let result: Result<Vec<_>> = self
-            .sql(&query)?
+        self.sql(&query)?
             .params(sqlparams)
             .param_types(sqltypes)
-            .execute(&self.conn)?
+            .execute(&self.conn)
+    }
+
+    pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
+        let query = "\
+            SELECT id, modified, payload, COALESCE(sortindex, NULL), expiry
+              FROM bso
+             WHERE fxa_uid = @fxa_uid
+               AND fxa_kid = @fxa_kid
+               AND collection_id = @collection_id
+               AND expiry > CURRENT_TIMESTAMP()";
+        let limit = params.params.limit.map(i64::from).unwrap_or(-1);
+        let offset = params.params.offset.unwrap_or(0) as i64;
+
+        let result: Result<Vec<_>> = self
+            .bsos_query_sync(query, params)?
             .map(bso_from_row)
             .collect();
-        let mut bsos = result?;
+        let mut bsos: Vec<_> = result?;
 
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -977,10 +985,39 @@ impl SpannerDb {
 
     pub fn get_bso_ids_sync(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
         // XXX: should be a more efficient select of only the id column
-        let result = self.get_bsos_sync(params)?;
+        let limit = params.params.limit.map(i64::from).unwrap_or(-1);
+        let offset = params.params.offset.unwrap_or(0) as i64;
+
+        let query = "\
+            SELECT id
+              FROM bso
+             WHERE fxa_uid = @fxa_uid
+               AND fxa_kid = @fxa_kid
+               AND collection_id = @collection_id
+               AND expiry > CURRENT_TIMESTAMP()";
+
+        let mut ids: Vec<String> = self
+            .bsos_query_sync(query, params)?
+            .map(|r| r[0].get_string_value().to_owned())
+            .collect();
+
+        // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
+        // makes an additional call to get_collection_timestamp to potentially
+        // trigger CollectionNotFound errors.  However it ultimately eats the
+        // CollectionNotFound and returns empty anyway, for the sake of
+        // backwards compat.:
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
+
+        let next_offset = if limit >= 0 && ids.len() > limit as usize {
+            ids.pop();
+            Some(limit + offset)
+        } else {
+            None
+        };
+
         Ok(results::GetBsoIds {
-            items: result.items.into_iter().map(|bso| bso.id).collect(),
-            offset: result.offset,
+            items: ids,
+            offset: next_offset,
         })
     }
 

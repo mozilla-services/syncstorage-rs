@@ -522,11 +522,71 @@ impl MysqlDb {
     }
 
     pub fn get_bso_ids_sync(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
-        // XXX: should be a more efficient select of only the id column
-        let result = self.get_bsos_sync(params)?;
+        let user_id = params.user_id.legacy_id as i32;
+        let collection_id = self.get_collection_id(&params.collection)?;
+        let BsoQueryParams {
+            newer,
+            older,
+            sort,
+            limit,
+            offset,
+            ids,
+            ..
+        } = params.params;
+
+        let mut query = bso::table
+            .select(bso::id)
+            .filter(bso::user_id.eq(user_id))
+            .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
+            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .into_boxed();
+
+        if let Some(older) = older {
+            query = query.filter(bso::modified.lt(older.as_i64()));
+        }
+        if let Some(newer) = newer {
+            query = query.filter(bso::modified.gt(newer.as_i64()));
+        }
+
+        if !ids.is_empty() {
+            query = query.filter(bso::id.eq_any(ids));
+        }
+
+        query = match sort {
+            Sorting::Index => query.order(bso::sortindex.desc()),
+            Sorting::Newest => query.order(bso::modified.desc()),
+            Sorting::Oldest => query.order(bso::modified.asc()),
+            _ => query,
+        };
+
+        let limit = limit.map(i64::from).unwrap_or(-1);
+        // fetch an extra row to detect if there are more rows that
+        // match the query conditions
+        query = query.limit(if limit >= 0 { limit + 1 } else { limit });
+
+        let offset = offset.unwrap_or(0) as i64;
+        if offset != 0 {
+            // XXX: copy over this optimization:
+            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
+            query = query.offset(offset);
+        }
+        let mut ids = query.load::<String>(&self.conn)?;
+
+        // XXX: an additional get_collection_timestamp is done here in
+        // python to trigger potential CollectionNotFoundErrors
+        //if bsos.len() == 0 {
+        //}
+
+        let next_offset = if limit >= 0 && ids.len() > limit as usize {
+            ids.pop();
+            Some(limit + offset)
+        } else {
+            None
+        };
+
         Ok(results::GetBsoIds {
-            items: result.items.into_iter().map(|bso| bso.id).collect(),
-            offset: result.offset,
+            items: ids,
+            offset: next_offset,
         })
     }
 
