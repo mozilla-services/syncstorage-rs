@@ -1,8 +1,10 @@
 //! Sync Storage Server for Sync 1.5
+#[macro_use]
+extern crate slog_scope;
+
 use std::error::Error;
 
 use docopt::Docopt;
-use log::{debug, info};
 use serde_derive::Deserialize;
 
 use logging::init_logging;

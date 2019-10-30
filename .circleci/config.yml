@@ -88,11 +88,6 @@ commands:
           command: cargo test --all --verbose
           working_directory: db-tests
       - run:
-          # clean up specifically the CMakeLists.txt (from grpcio-sys): it can
-          # differ in the Docker and break its build
-          name: cargo clean
-          command: cargo clean
-      - run:
           # Clear the unneeded target/ so it's not sent to docker in the next step
           name: db-tests cleanup
           command: cargo clean

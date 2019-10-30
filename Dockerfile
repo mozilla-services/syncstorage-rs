@@ -10,8 +10,7 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo build && \
-    cp target/debug/syncstorage bin
+    cargo install --path . --root /app
 
 FROM debian:buster-slim
 WORKDIR /app

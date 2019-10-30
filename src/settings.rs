@@ -1,7 +1,6 @@
 //! Application settings objects and initialization
 
 use config::{Config, ConfigError, Environment, File};
-use log::debug;
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
