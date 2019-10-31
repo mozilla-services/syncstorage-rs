@@ -39,13 +39,14 @@ def spanner_read_data(request=None):
     outputs = []
 
     outputs.append("For {}:{}".format(instance_id, database_id))
-    # Delete Batches
+    # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
+    # IN PARENT batches ON DELETE CASCADE)
     query = 'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
     result = database.execute_partitioned_dml(query)
     outputs.append("batches: removed {} rows".format(result))
 
     # Delete BSOs
-    query = 'DELETE FROM bso WHERE expiry < CURRENT_TIMESTAMP()'
+    query = 'DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()'
     result = database.execute_partitioned_dml(query)
     outputs.append("bso: removed {} rows".format(result))
     return '\n'.join(outputs)

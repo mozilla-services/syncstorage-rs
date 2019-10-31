@@ -17,34 +17,37 @@ CREATE TABLE user_collections (
   modified TIMESTAMP   NOT NULL,
 ) PRIMARY KEY(fxa_uid, fxa_kid, collection_id);
 
-CREATE TABLE bso (
+CREATE TABLE bsos (
   fxa_uid STRING(MAX)  NOT NULL,
   fxa_kid STRING(MAX)  NOT NULL,
   collection_id INT64  NOT NULL,
-  id STRING(64)        NOT NULL,
+  bso_id STRING(64)    NOT NULL,
+
   sortindex INT64,
+
   payload STRING(MAX)  NOT NULL,
+
   modified TIMESTAMP   NOT NULL,
   expiry TIMESTAMP     NOT NULL,
-)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, id),
+)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, bso_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
     CREATE INDEX BsoModified
-        ON bso(fxa_uid, fxa_kid, collection_id, modified DESC, expiry),
+        ON bsos(fxa_uid, fxa_kid, collection_id, modified DESC),
 INTERLEAVE IN user_collections;
 
     CREATE INDEX BsoExpiry
-           ON bso(expiry);
+        ON bsos(expiry);
 
 CREATE TABLE collections (
-  id INT64          NOT NULL,
-  name STRING(32)   NOT NULL,
-) PRIMARY KEY(id);
+  collection_id INT64  NOT NULL,
+  name STRING(32)      NOT NULL,
+) PRIMARY KEY(collection_id);
 
     CREATE UNIQUE INDEX CollectionName
         ON collections(name);
 
-INSERT INTO collections (id, name) VALUES
+INSERT INTO collections (collection_id, name) VALUES
     ( 1, "clients"),
     ( 2, "crypto"),
     ( 3, "forms"),
@@ -68,20 +71,23 @@ CREATE TABLE batches (
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
-CREATE TABLE batch_bso (
-  fxa_uid STRING(MAX)  NOT NULL,
-  fxa_kid STRING(MAX)  NOT NULL,
-  collection_id INT64  NOT NULL,
-  batch_id STRING(MAX) NOT NULL,
-  id STRING(64)        NOT NULL,
+    CREATE INDEX BatchExpiry
+        ON batches(expiry);
+
+CREATE TABLE batch_bsos (
+  fxa_uid STRING(MAX)      NOT NULL,
+  fxa_kid STRING(MAX)      NOT NULL,
+  collection_id INT64      NOT NULL,
+  batch_id STRING(MAX)     NOT NULL,
+  batch_bso_id STRING(64)  NOT NULL,
 
   sortindex INT64,
   payload STRING(MAX),
   ttl INT64,
-)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id, id),
+)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id),
   INTERLEAVE IN PARENT batches ON DELETE CASCADE;
 
--- batch_bso's bso fields are nullable as the batch upload may or may
+-- batch_bsos' bso fields are nullable as the batch upload may or may
 -- not set each individual field of each item. Also note that there's
 -- no "modified" column because the modification timestamp gets set on
 -- batch commit.
