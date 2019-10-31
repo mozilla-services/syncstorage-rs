@@ -37,6 +37,11 @@ pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
     value
 }
 
+pub fn as_type(v: TypeCode) -> Type {
+    let mut t = Type::new();
+    t.set_code(v);
+    t
+}
 pub fn as_list_value(
     string_values: impl Iterator<Item = String>,
 ) -> protobuf::well_known_types::Value {
@@ -47,41 +52,6 @@ pub fn as_list_value(
     let mut value = Value::new();
     value.set_list_value(list);
     value
-}
-
-#[allow(dead_code)]
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub enum SpannerType {
-    TypeCodeUnspecified,
-    Bool,
-    Int64,
-    Float64,
-    Timestamp,
-    Date,
-    String,
-    Bytes,
-    Array,
-    Struct,
-}
-
-impl Into<Type> for SpannerType {
-    fn into(self) -> Type {
-        let mut t = Type::new();
-        let code = match self {
-            SpannerType::TypeCodeUnspecified => TypeCode::TYPE_CODE_UNSPECIFIED,
-            SpannerType::Bool => TypeCode::BOOL,
-            SpannerType::Int64 => TypeCode::INT64,
-            SpannerType::Float64 => TypeCode::FLOAT64,
-            SpannerType::Timestamp => TypeCode::TIMESTAMP,
-            SpannerType::Date => TypeCode::DATE,
-            SpannerType::String => TypeCode::STRING,
-            SpannerType::Bytes => TypeCode::BYTES,
-            SpannerType::Array => TypeCode::ARRAY,
-            SpannerType::Struct => TypeCode::STRUCT,
-        };
-        t.set_code(code);
-        t
-    }
 }
 
 #[derive(Default)]

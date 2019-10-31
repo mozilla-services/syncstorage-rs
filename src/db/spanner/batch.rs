@@ -1,8 +1,9 @@
 use super::{
     models::{Result, SpannerDb},
-    support::{as_value, SpannerType},
+    support::as_value,
 };
 use crate::db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME};
+use googleapis_raw::spanner::v1::type_pb::TypeCode;
 use protobuf::well_known_types::ListValue;
 use serde_json::json;
 
@@ -53,9 +54,9 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
             "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
         })
         .param_types(param_types! {
-            "bso_id" => SpannerType::Timestamp,
-            "expiry" => SpannerType::Timestamp,
-            "timestamp" => SpannerType::Timestamp,
+            "bso_id" => TypeCode::TIMESTAMP,
+            "expiry" => TypeCode::TIMESTAMP,
+            "timestamp" => TypeCode::TIMESTAMP,
         })
         .execute(&db.conn)?;
     }
@@ -82,9 +83,9 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
             "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
         })
         .param_types(param_types! {
-            "bso_id" => SpannerType::Timestamp,
-            "expiry" => SpannerType::Timestamp,
-            "timestamp" => SpannerType::Timestamp,
+            "bso_id" => TypeCode::TIMESTAMP,
+            "expiry" => TypeCode::TIMESTAMP,
+            "timestamp" => TypeCode::TIMESTAMP,
         })
         .execute(&db.conn)?;
     }
@@ -111,8 +112,8 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
         })
         .param_types(param_types! {
-            "timestamp" => SpannerType::Timestamp,
-            "expiry" => SpannerType::Timestamp,
+            "timestamp" => TypeCode::TIMESTAMP,
+            "expiry" => TypeCode::TIMESTAMP,
         })
         .execute(&db.conn)?
         .all_or_none();
@@ -140,8 +141,8 @@ pub fn select_max_id(db: &SpannerDb, params: params::ValidateBatch) -> Result<i6
             "expiry" => to_rfc3339(db.timestamp()?.as_i64())?,
         })
         .param_types(param_types! {
-            "timestamp" => SpannerType::Timestamp,
-            "expiry" => SpannerType::Timestamp,
+            "timestamp" => TypeCode::TIMESTAMP,
+            "expiry" => TypeCode::TIMESTAMP,
         })
         .execute(&db.conn)?
         .all_or_none();
@@ -191,9 +192,9 @@ pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
                 "bsos" => bsos,
             })
             .param_types(param_types! {
-                "bso_id" => SpannerType::Timestamp,
-                "timestamp" => SpannerType::Timestamp,
-                "expiry" => SpannerType::Timestamp,
+                "bso_id" => TypeCode::TIMESTAMP,
+                "timestamp" => TypeCode::TIMESTAMP,
+                "expiry" => TypeCode::TIMESTAMP,
             })
             .execute(&db.conn)?;
             i += 1;
@@ -226,8 +227,8 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
             "expiry" => to_rfc3339(timestamp)?,
         })
         .param_types(param_types! {
-            "bso_id" => SpannerType::Timestamp,
-            "expiry" => SpannerType::Timestamp,
+            "bso_id" => TypeCode::TIMESTAMP,
+            "expiry" => TypeCode::TIMESTAMP,
         })
         .execute(&db.conn)?
         .all_or_none();
@@ -262,7 +263,7 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
         "bso_id" => to_rfc3339(params.id)?,
     })
     .param_types(param_types! {
-        "bso_id" => SpannerType::Timestamp,
+        "bso_id" => TypeCode::TIMESTAMP,
     })
     .execute(&db.conn)?;
     Ok(())
