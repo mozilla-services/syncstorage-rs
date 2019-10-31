@@ -25,7 +25,7 @@ macro_rules! param_types {
             let _cap = param_types!(@count $($key),*);
             let mut _map = ::std::collections::HashMap::with_capacity(_cap);
             $(
-                _map.insert($key.to_owned(), $value.into());
+                _map.insert($key.to_owned(), crate::db::spanner::support::as_type($value));
             )*
             _map
         }
