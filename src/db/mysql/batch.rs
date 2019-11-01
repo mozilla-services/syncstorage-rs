@@ -1,6 +1,10 @@
 use diesel::{
-    self, dsl::sql, insert_into, sql_types::Integer, update, ExpressionMethods, OptionalExtension,
-    QueryDsl, RunQueryDsl, TextExpressionMethods,
+    self,
+    dsl::sql,
+    insert_into,
+    result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
+    sql_types::Integer,
+    update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
 };
 use serde_json;
 
@@ -23,7 +27,14 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             batches::bsos.eq(&bsos),
             batches::expiry.eq(timestamp + BATCH_LIFETIME),
         ))
-        .execute(&db.conn)?;
+        .execute(&db.conn)
+        .map_err(|e| -> DbError {
+            match e {
+                // The user tried to create two batches with the same timestamp
+                DieselError::DatabaseError(UniqueViolation, _) => DbErrorKind::Conflict.into(),
+                _ => e.into(),
+            }
+        })?;
     Ok(timestamp)
 }
 

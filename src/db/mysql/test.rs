@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "db_test", allow(dead_code, unused_imports))]
+
 use std::{collections::HashMap, result::Result as StdResult};
 
 use diesel::{

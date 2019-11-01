@@ -28,12 +28,13 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
             .hostname(hostname)
             .build()
             .fuse();
+        let drain = slog_envlogger::new(drain);
         let drain = slog_async::Async::new(drain).build().fuse();
         slog::Logger::root(drain, slog_o!())
     } else {
-        env_logger::init();
         let decorator = slog_term::TermDecorator::new().build();
         let drain = slog_term::FullFormat::new(decorator).build().fuse();
+        let drain = slog_envlogger::new(drain);
         let drain = slog_async::Async::new(drain).build().fuse();
         slog::Logger::root(drain, slog_o!())
     };

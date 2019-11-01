@@ -18,7 +18,6 @@ use futures::{
     future::{self, Either, FutureResult},
     Future, Poll,
 };
-use log::debug;
 
 use crate::db::{params, util::SyncTimestamp};
 use crate::error::{ApiError, ApiErrorKind};

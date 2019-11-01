@@ -16,7 +16,6 @@ use actix_web::{
 };
 use futures::{future, Future};
 use lazy_static::lazy_static;
-use log::debug;
 use mime::STAR_STAR;
 use regex::Regex;
 use serde::{

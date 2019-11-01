@@ -1,4 +1,3 @@
-use log::debug;
 use std::collections::HashMap;
 use std::net::UdpSocket;
 use std::time::Instant;
@@ -32,7 +31,7 @@ impl Drop for Metrics {
         if let Some(client) = self.client.as_ref() {
             if let Some(timer) = self.timer.as_ref() {
                 let lapse = (Instant::now() - timer.start).as_nanos() as u64;
-                debug!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
+                trace!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
                 let mut tagged = client.time_with_tags(&timer.label, lapse);
                 // Include any "hard coded" tags.
                 // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
@@ -47,7 +46,7 @@ impl Drop for Metrics {
                         debug!("⚠️ Metric {} error: {:?} ", &timer.label, e);
                     }
                     Ok(v) => {
-                        debug!("⌚ {:?}", v.as_metric_str());
+                        trace!("⌚ {:?}", v.as_metric_str());
                     }
                 }
             }
@@ -101,7 +100,7 @@ impl Metrics {
     }
 
     pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
-        debug!("⌚ Starting timer... {:?}", &label);
+        trace!("⌚ Starting timer... {:?}", &label);
         self.timer = Some(MetricTimer {
             label: label.to_owned(),
             start: Instant::now(),
@@ -129,7 +128,7 @@ impl Metrics {
                     // eat the metric, but log the error
                     debug!("⚠️ Metric {} error: {:?} ", label, e);
                 }
-                Ok(v) => debug!("☑️ {:?}", v.as_metric_str()),
+                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
             }
         }
     }

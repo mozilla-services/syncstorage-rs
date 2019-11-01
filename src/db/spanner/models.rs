@@ -2,7 +2,6 @@ use futures::future;
 use futures::lazy;
 
 use diesel::r2d2::PooledConnection;
-use log::debug;
 
 use googleapis_raw::spanner::v1::type_pb::TypeCode;
 use std::cell::RefCell;
