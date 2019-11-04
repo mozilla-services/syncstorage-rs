@@ -218,14 +218,14 @@ pub fn post_collection_batch(
         }
     };
 
-    let fut = if let Some(id) = breq.id {
+    let fut = if let Some(id) = breq.id.clone() {
         // Validate the batch before attempting a full append (for efficiency)
         Either::A(
             coll.db
                 .validate_batch(params::ValidateBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
-                    id,
+                    id: id.clone(),
                 })
                 .and_then(move |is_valid| {
                     if is_valid {
@@ -258,7 +258,7 @@ pub fn post_collection_batch(
                 .append_to_batch(params::AppendToBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
-                    id,
+                    id: id.clone(),
                     bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
                 })
                 .then(move |result| {
@@ -284,7 +284,7 @@ pub fn post_collection_batch(
             });
 
             if !breq.commit {
-                resp["batch"] = json!(base64::encode(&id.to_string()));
+                resp["batch"] = json!(&id);
                 return Either::A(future::ok(HttpResponse::Accepted().json(resp)));
             }
 

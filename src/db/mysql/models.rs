@@ -856,6 +856,9 @@ impl MysqlDb {
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
+    pub fn validate_batch_id(&self, id: String) -> Result<()> {
+        batch::validate_batch_id(&id)
+    }
     #[cfg(any(test, feature = "db_test"))]
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
@@ -954,6 +957,10 @@ impl Db for MysqlDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
+        self.validate_batch_id(params)
+    }
 
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {

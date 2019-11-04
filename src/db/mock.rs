@@ -81,6 +81,10 @@ impl Db for MockDb {
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
 
+    fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
+        Ok(())
+    }
+
     #[cfg(any(test, feature = "db_test"))]
     mock_db_method!(get_collection_id, GetCollectionId);
     #[cfg(any(test, feature = "db_test"))]

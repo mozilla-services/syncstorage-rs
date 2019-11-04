@@ -3,7 +3,6 @@ use futures::lazy;
 
 use diesel::r2d2::PooledConnection;
 
-use googleapis_raw::spanner::v1::type_pb::TypeCode;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -39,6 +38,7 @@ use googleapis_raw::spanner::v1::transaction::{
 use googleapis_raw::spanner::v1::{
     mutation::{Mutation, Mutation_Write},
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
+    type_pb::TypeCode,
 };
 use protobuf::{well_known_types::ListValue, RepeatedField};
 
@@ -57,6 +57,8 @@ pub type Result<T> = std::result::Result<T, DbError>;
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 pub const TOMBSTONE: i32 = 0;
+
+pub const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 
 /// Per session Db metadata
 #[derive(Debug, Default)]
@@ -250,12 +252,17 @@ impl SpannerDb {
                    FROM user_collections
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id",
+                    AND collection_id = @collection_id
+                    AND modified > @pretouch_ts",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
                 "collection_id" => collection_id.to_string(),
+                "pretouch_ts" => PRETOUCH_TS.to_owned(),
+            })
+            .param_types(param_types! {
+                "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?
             .one_or_none()?;
@@ -465,12 +472,17 @@ impl SpannerDb {
                    FROM user_collections
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id",
+                    AND collection_id = @collection_id
+                    AND modified > @pretouch_ts",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
                 "collection_id" => collection_id.to_string(),
+                "pretouch_ts" => PRETOUCH_TS.to_owned(),
+            })
+            .param_types(param_types! {
+                "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?
             .one_or_none()?
@@ -489,12 +501,17 @@ impl SpannerDb {
                    FROM user_collections
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection_id != @collection_id",
+                    AND collection_id != @collection_id
+                    AND modified > @pretouch_ts",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid,
                 "collection_id" => TOMBSTONE.to_string(),
+                "pretouch_ts" => PRETOUCH_TS.to_owned(),
+            })
+            .param_types(param_types! {
+                "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?
             .map(|row| {
@@ -641,11 +658,16 @@ impl SpannerDb {
                 "SELECT MAX(modified)
                    FROM user_collections
                   WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid",
+                    AND fxa_kid = @fxa_kid
+                    AND modified > @pretouch_ts",
             )?
             .params(params! {
                 "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid
+                "fxa_kid" => user_id.fxa_kid,
+                "pretouch_ts" => PRETOUCH_TS.to_owned(),
+            })
+            .param_types(param_types! {
+                "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?
             .one()?;
@@ -721,8 +743,8 @@ impl SpannerDb {
     }
 
     pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
-        // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
-        // ON DELETE CASCADE
+        // Also deletes child bso/batch rows (INTERLEAVE IN PARENT
+        // user_collections ON DELETE CASCADE)
         self.sql(
             "DELETE FROM user_collections
               WHERE fxa_uid = @fxa_uid
@@ -747,19 +769,24 @@ impl SpannerDb {
         &self,
         params: params::DeleteCollection,
     ) -> Result<results::DeleteCollection> {
-        // Also deletes child bso rows (INTERLEAVE IN PARENT user_collections
-        // ON DELETE CASCADE
+        // Also deletes child bso/batch rows (INTERLEAVE IN PARENT
+        // user_collections ON DELETE CASCADE)
         let rs = self
             .sql(
                 "DELETE FROM user_collections
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id",
+                    AND collection_id = @collection_id
+                    AND modified > @pretouch_ts",
             )?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
                 "collection_id" => self.get_collection_id(&params.collection)?.to_string(),
+                "pretouch_ts" => PRETOUCH_TS.to_owned(),
+            })
+            .param_types(param_types! {
+                "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?;
         if rs.affected_rows()? > 0 {
@@ -1285,16 +1312,11 @@ impl SpannerDb {
             };
 
             if use_sortindex {
+                use super::support::null_value;
                 let sortindex = bso
                     .sortindex
                     .map(|sortindex| as_value(sortindex.to_string()))
-                    .unwrap_or_else(|| {
-                        use protobuf::well_known_types::{NullValue, Value};
-                        let mut value = Value::new();
-                        value.set_null_value(NullValue::NULL_VALUE);
-                        value
-                    });
-
+                    .unwrap_or_else(null_value);
                 sqlparams.insert("sortindex".to_string(), sortindex);
                 sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
@@ -1358,6 +1380,9 @@ impl SpannerDb {
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
+    pub fn validate_batch_id(&self, id: String) -> Result<()> {
+        batch::validate_batch_id(&id)
+    }
     #[cfg(any(test, feature = "db_test"))]
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
@@ -1454,6 +1479,10 @@ impl Db for SpannerDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
+        self.validate_batch_id(params)
+    }
 
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {

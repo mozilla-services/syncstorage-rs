@@ -35,17 +35,18 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
                 _ => e.into(),
             }
         })?;
-    Ok(timestamp)
+    Ok(encode_id(timestamp))
 }
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
+    let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let exists = batches::table
         .select(sql::<Integer>("1"))
         .filter(batches::user_id.eq(&user_id))
         .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&params.id))
+        .filter(batches::id.eq(&id))
         .filter(batches::expiry.gt(&db.timestamp().as_i64()))
         .get_result::<i32>(&db.conn)
         .optional()?;
@@ -53,13 +54,14 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
 }
 
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
+    let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     let bsos = bsos_to_batch_string(&params.bsos)?;
     let affected_rows = update(batches::table)
         .filter(batches::user_id.eq(&user_id))
         .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&params.id))
+        .filter(batches::id.eq(&id))
         .filter(batches::expiry.gt(&db.timestamp().as_i64()))
         .set(batches::bsos.eq(batches::bsos.concat(&bsos)))
         .execute(&db.conn)?;
@@ -70,26 +72,40 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     }
 }
 
+#[derive(Debug, Default, Queryable)]
+pub struct Batch {
+    pub id: i64,
+    pub bsos: String,
+    pub expiry: i64,
+}
+
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
+    let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     Ok(batches::table
         .select((batches::id, batches::bsos, batches::expiry))
         .filter(batches::user_id.eq(&user_id))
         .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&params.id))
+        .filter(batches::id.eq(&id))
         .filter(batches::expiry.gt(&db.timestamp().as_i64()))
-        .get_result(&db.conn)
-        .optional()?)
+        .get_result::<Batch>(&db.conn)
+        .optional()?
+        .map(|batch| results::GetBatch {
+            id: encode_id(batch.id),
+            bsos: batch.bsos,
+            expiry: batch.expiry,
+        }))
 }
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
+    let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i32;
     let collection_id = db.get_collection_id(&params.collection)?;
     diesel::delete(batches::table)
         .filter(batches::user_id.eq(&user_id))
         .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&params.id))
+        .filter(batches::id.eq(&id))
         .execute(&db.conn)?;
     Ok(())
 }
@@ -114,6 +130,22 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         },
     )?;
     result
+}
+
+pub fn validate_batch_id(id: &str) -> Result<()> {
+    decode_id(id).map(|_| ())
+}
+
+fn encode_id(id: i64) -> String {
+    base64::encode(&id.to_string())
+}
+
+fn decode_id(id: &str) -> Result<i64> {
+    let bytes = base64::decode(id).unwrap_or_else(|_| id.as_bytes().to_vec());
+    let decoded = std::str::from_utf8(&bytes).unwrap_or(id);
+    decoded
+        .parse::<i64>()
+        .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))
 }
 
 /// Deserialize a batch string into bsos

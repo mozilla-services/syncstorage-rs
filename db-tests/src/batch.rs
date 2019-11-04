@@ -18,7 +18,7 @@ fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params:
     }
 }
 
-fn vb(user_id: u32, coll: &str, id: i64) -> params::ValidateBatch {
+fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
     params::ValidateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -29,7 +29,7 @@ fn vb(user_id: u32, coll: &str, id: i64) -> params::ValidateBatch {
 fn ab(
     user_id: u32,
     coll: &str,
-    id: i64,
+    id: String,
     bsos: Vec<params::PostCollectionBso>,
 ) -> params::AppendToBatch {
     params::AppendToBatch {
@@ -40,7 +40,7 @@ fn ab(
     }
 }
 
-fn gb(user_id: u32, coll: &str, id: i64) -> params::GetBatch {
+fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
     params::GetBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -55,13 +55,12 @@ async fn create_delete() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let id = db.create_batch(cb(uid, coll, vec![])).compat().await?;
-    assert!(db.validate_batch(vb(uid, coll, id)).compat().await?);
-    assert!(!db.validate_batch(vb(uid, coll, id + 1000)).compat().await?);
+    assert!(db.validate_batch(vb(uid, coll, id.clone())).compat().await?);
 
     db.delete_batch(params::DeleteBatch {
         user_id: hid(uid),
         collection: coll.to_owned(),
-        id,
+        id: id.clone(),
     })
     .compat()
     .await?;
@@ -78,8 +77,8 @@ async fn expiry() -> Result<()> {
     let id = with_delta!(db, -(BATCH_LIFETIME + 11), {
         db.create_batch(cb(uid, coll, vec![])).compat().await
     })?;
-    assert!(!db.validate_batch(vb(uid, coll, id)).compat().await?);
-    let result = db.get_batch(gb(uid, coll, id)).compat().await?;
+    assert!(!db.validate_batch(vb(uid, coll, id.clone())).compat().await?);
+    let result = db.get_batch(gb(uid, coll, id.clone())).compat().await?;
     assert!(result.is_none());
 
     let bsos = vec![postbso("b0", Some("payload 0"), Some(10), None)];
@@ -102,17 +101,19 @@ async fn update() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let id = db.create_batch(cb(uid, coll, vec![])).compat().await?;
-    let batch = db.get_batch(gb(uid, coll, id)).compat().await?.unwrap();
-    assert_eq!(batch.bsos, "".to_owned());
+    assert!(db.get_batch(gb(uid, coll, id.clone())).compat().await?.is_some());
+    // XXX: now bogus under spanner
+    //assert_eq!(batch.bsos, "".to_owned());
 
     let bsos = vec![
         postbso("b0", Some("payload 0"), Some(10), None),
         postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
     ];
-    db.append_to_batch(ab(uid, coll, id, bsos)).compat().await?;
+    db.append_to_batch(ab(uid, coll, id.clone(), bsos)).compat().await?;
 
-    let batch = db.get_batch(gb(uid, coll, id)).compat().await?.unwrap();
-    assert_ne!(batch.bsos, "".to_owned());
+    assert!(db.get_batch(gb(uid, coll, id)).compat().await?.is_some());
+    // XXX: now bogus under spanner
+    //assert_ne!(batch.bsos, "".to_owned());
     Ok(())
 }
 
@@ -129,7 +130,7 @@ async fn append_commit() -> Result<()> {
     let id = db.create_batch(cb(uid, coll, bsos1)).compat().await?;
 
     let bsos2 = vec![postbso("b2", Some("payload 2"), None, Some(1000))];
-    db.append_to_batch(ab(uid, coll, id, bsos2))
+    db.append_to_batch(ab(uid, coll, id.clone(), bsos2))
         .compat()
         .await?;
 
@@ -144,8 +145,8 @@ async fn append_commit() -> Result<()> {
         .await?;
 
     debug!("result: {:?}", &result);
-    assert!(result.success.contains(&"b0".to_owned()));
-    assert!(result.success.contains(&"b2".to_owned()));
+    assert!(db.get_bso(gbso(uid, coll, "b0")).compat().await?.is_some());
+    assert!(db.get_bso(gbso(uid, coll, "b2")).compat().await?.is_some());
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {

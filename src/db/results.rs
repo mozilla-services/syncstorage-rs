@@ -21,12 +21,13 @@ pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
 
-pub type CreateBatch = i64;
+pub type CreateBatch = String;
 pub type ValidateBatch = bool;
 pub type AppendToBatch = ();
 pub type GetBatch = params::Batch;
 pub type DeleteBatch = ();
 pub type CommitBatch = PostBsos;
+pub type ValidateBatchId = ();
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {

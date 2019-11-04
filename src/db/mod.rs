@@ -143,6 +143,8 @@ pub trait Db: Send + Debug {
 
     fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<results::CommitBatch>;
 
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
+
     fn box_clone(&self) -> Box<dyn Db>;
 
     /// Retrieve the timestamp for an item/collection

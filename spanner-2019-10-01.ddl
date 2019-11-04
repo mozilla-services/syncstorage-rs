@@ -62,9 +62,26 @@ INSERT INTO collections (id, name) VALUES
 CREATE TABLE batches (
   fxa_uid STRING(MAX)  NOT NULL,
   fxa_kid STRING(MAX)  NOT NULL,
-  id TIMESTAMP         NOT NULL,
   collection_id INT64  NOT NULL,
-  bsos STRING(MAX)     NOT NULL,
+  batch_id STRING(MAX) NOT NULL,
   expiry TIMESTAMP     NOT NULL,
-  timestamp TIMESTAMP,
-) PRIMARY KEY(fxa_uid, fxa_kid, collection_id, id);
+)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id),
+  INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
+
+CREATE TABLE batch_bso (
+  fxa_uid STRING(MAX)  NOT NULL,
+  fxa_kid STRING(MAX)  NOT NULL,
+  collection_id INT64  NOT NULL,
+  batch_id STRING(MAX) NOT NULL,
+  id STRING(64)        NOT NULL,
+
+  sortindex INT64,
+  payload STRING(MAX),
+  ttl INT64,
+)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id, id),
+  INTERLEAVE IN PARENT batches ON DELETE CASCADE;
+
+-- batch_bso's bso fields are nullable as the batch upload may or may
+-- not set each individual field of each item. Also note that there's
+-- no "modified" column because the modification timestamp gets set on
+-- batch commit.
