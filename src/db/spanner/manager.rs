@@ -1,13 +1,16 @@
+use std::sync::Arc;
+
 use diesel::r2d2::ManageConnection;
+use googleapis_raw::spanner::v1::{
+    spanner::{CreateSessionRequest, GetSessionRequest, Session},
+    spanner_grpc::SpannerClient,
+};
+use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
 
 use crate::{
     db::error::{DbError, DbErrorKind},
     settings::Settings,
 };
-
-use googleapis_raw::spanner::v1::spanner_grpc::SpannerClient;
-
-use googleapis_raw::spanner::v1::spanner::{CreateSessionRequest, ExecuteSqlRequest, Session};
 
 #[derive(Debug)]
 pub struct SpannerConnectionManager {
@@ -37,9 +40,6 @@ impl ManageConnection for SpannerConnectionManager {
     type Error = grpcio::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
-        use std::sync::Arc;
-
         // Google Cloud configuration.
         let endpoint = "spanner.googleapis.com:443";
 
@@ -56,13 +56,7 @@ impl ManageConnection for SpannerConnectionManager {
         let client = SpannerClient::new(chan);
 
         // Connect to the instance and create a Spanner session.
-        let mut req = CreateSessionRequest::new();
-        req.database = self.database_name.clone();
-        let mut meta = MetadataBuilder::new();
-        meta.add_str("google-cloud-resource-prefix", &self.database_name)?;
-        meta.add_str("x-goog-api-client", "gcp-grpc-rs")?;
-        let opt = CallOption::default().headers(meta.build());
-        let session = client.create_session_opt(&req, opt)?;
+        let session = create_session(&client, &self.database_name)?;
 
         Ok(SpannerSession {
             client,
@@ -72,14 +66,32 @@ impl ManageConnection for SpannerConnectionManager {
     }
 
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let mut req = ExecuteSqlRequest::new();
-        req.set_sql("SELECT 1".to_owned());
-        req.set_session(conn.session.get_name().to_owned());
-        conn.client.execute_sql(&req)?;
+        let mut req = GetSessionRequest::new();
+        req.set_name(conn.session.get_name().to_owned());
+        if let Err(e) = conn.client.get_session(&req) {
+            match e {
+                grpcio::Error::RpcFailure(ref status)
+                    if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
+                {
+                    conn.session = create_session(&conn.client, &self.database_name)?;
+                }
+                _ => return Err(e),
+            }
+        }
         Ok(())
     }
 
     fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
         false
     }
+}
+
+fn create_session(client: &SpannerClient, database_name: &str) -> Result<Session, grpcio::Error> {
+    let mut req = CreateSessionRequest::new();
+    req.database = database_name.to_owned();
+    let mut meta = MetadataBuilder::new();
+    meta.add_str("google-cloud-resource-prefix", database_name)?;
+    meta.add_str("x-goog-api-client", "gcp-grpc-rs")?;
+    let opt = CallOption::default().headers(meta.build());
+    client.create_session_opt(&req, opt)
 }
