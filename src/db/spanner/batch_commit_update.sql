@@ -1,26 +1,26 @@
-UPDATE bso
+UPDATE bsos
    SET sortindex = COALESCE(
            (SELECT sortindex
-              FROM batch_bso
+              FROM batch_bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
                AND collection_id = @collection_id
                AND batch_id = @batch_id
-               AND id = bso.id
+               AND batch_bso_id = bsos.bso_id
             ),
-            bso.sortindex
+            bsos.sortindex
        ),
 
        payload = COALESCE(
            (SELECT payload
-              FROM batch_bso
+              FROM batch_bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
                AND collection_id = @collection_id
                AND batch_id = @batch_id
-               AND id = bso.id
+               AND batch_bso_id = bsos.bso_id
            ),
-           bso.payload
+           bsos.payload
        ),
 
        modified = @timestamp,
@@ -28,21 +28,21 @@ UPDATE bso
        expiry = COALESCE(
            -- TIMESTAMP_ADD returns NULL when ttl is null
            (SELECT TIMESTAMP_ADD(@timestamp, INTERVAL ttl SECOND)
-              FROM batch_bso
+              FROM batch_bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
                AND collection_id = @collection_id
                AND batch_id = @batch_id
-               AND id = bso.id
+               AND batch_bso_id = bsos.bso_id
            ),
-           bso.expiry
+           bsos.expiry
        )
  WHERE fxa_uid = @fxa_uid
    AND fxa_kid = @fxa_kid
    AND collection_id = @collection_id
-   AND id in (
-       SELECT id
-         FROM batch_bso
+   AND bso_id in (
+       SELECT batch_bso_id
+         FROM batch_bsos
         WHERE fxa_uid = @fxa_uid
           AND fxa_kid = @fxa_kid
           AND collection_id = @collection_id

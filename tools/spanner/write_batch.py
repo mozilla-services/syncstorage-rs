@@ -142,12 +142,12 @@ def load(instance, db, fxa_uid, fxa_kid, coll_id):
             records.append(record)
         with db.batch() as batch:
             batch.insert(
-                table='bso',
+                table='bsos',
                 columns=(
                     'fxa_uid',
                     'fxa_kid',
                     'collection_id',
-                    'id',
+                    'bso_id',
                     'sortindex',
                     'payload',
                     'modified',

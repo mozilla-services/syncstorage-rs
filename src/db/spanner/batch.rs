@@ -129,8 +129,8 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
 
 pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
     let collection_id = db.get_collection_id(&params.collection)?;
-    // Also deletes child batch_bso rows (INTERLEAVE IN PARENT batches ON
-    // DELETE CASCADE
+    // Also deletes child batch_bsos rows (INTERLEAVE IN PARENT batches ON
+    // DELETE CASCADE)
     db.sql(
         "DELETE FROM batches
           WHERE fxa_uid = @fxa_uid
@@ -153,12 +153,12 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
     timer.start_timer("syncstorage.storage.spanner.apply_batch", None);
     let collection_id = db.get_collection_id(&params.collection)?;
 
-    // Ensure a parent record exists in user_collections before writing to bso
+    // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db.touch_collection(&params.user_id, collection_id)?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
-    // First, UPDATE existing rows in the bso table with any new values
+    // First, UPDATE existing rows in the bsos table with any new values
     // supplied in this batch
     db.sql(include_str!("batch_commit_update.sql"))?
         .params(params! {
@@ -173,7 +173,7 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
         })
         .execute(&db.conn)?;
 
-    // Then INSERT INTO SELECT remaining rows from this batch into the bso
+    // Then INSERT INTO SELECT remaining rows from this batch into the bsos
     // table (that didn't already exist there)
     db.sql(include_str!("batch_commit_insert.sql"))?
         .params(params! {
@@ -219,7 +219,7 @@ pub fn do_append(
             "fxa_kid" => user_id.fxa_kid.clone(),
             "collection_id" => collection_id.to_string(),
             "batch_id" => batch_id.clone(),
-            "id" => bso.id,
+            "batch_bso_id" => bso.id,
         };
 
         sqlparams.insert(
@@ -240,10 +240,10 @@ pub fn do_append(
         );
 
         db.sql(
-            "INSERT INTO batch_bso (fxa_uid, fxa_kid, collection_id, batch_id, id, sortindex,
-                                    payload, ttl)
-             VALUES (@fxa_uid, @fxa_kid, @collection_id, @batch_id, @id, @sortindex,
-                     @payload, @ttl)",
+            "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
+                                     sortindex, payload, ttl)
+             VALUES (@fxa_uid, @fxa_kid, @collection_id, @batch_id, @batch_bso_id,
+                     @sortindex, @payload, @ttl)",
         )?
         .params(sqlparams)
         .execute(&db.conn)?;

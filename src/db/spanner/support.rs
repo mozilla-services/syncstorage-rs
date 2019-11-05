@@ -214,7 +214,7 @@ pub fn bso_to_update_row(
     bso: params::PostCollectionBso,
     now: SyncTimestamp,
 ) -> Result<(Vec<&'static str>, ListValue)> {
-    let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "id"];
+    let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
     let mut values = vec![
         as_value(user_id.fxa_uid.clone()),
         as_value(user_id.fxa_kid.clone()),
