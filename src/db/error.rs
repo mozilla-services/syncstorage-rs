@@ -14,13 +14,16 @@ pub struct DbError {
 #[derive(Debug, Fail)]
 pub enum DbErrorKind {
     #[fail(display = "A database error occurred: {}", _0)]
-    Query(#[cause] diesel::result::Error),
+    DieselQuery(#[cause] diesel::result::Error),
 
     #[fail(
         display = "An error occurred while establishing a db connection: {}",
         _0
     )]
-    Connection(ConnectionError),
+    DieselConnection(#[cause] diesel::result::ConnectionError),
+
+    #[fail(display = "A database error occurred: {}", _0)]
+    SpannerGrpc(#[cause] grpcio::Error),
 
     #[fail(display = "A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
@@ -85,30 +88,14 @@ impl From<Context<DbErrorKind>> for DbError {
     }
 }
 
-// XXX: maybe not worth the effort vs
-// DbErrorKind::{DieselConnectionError, SpannerConnectionError}
-#[derive(Debug)]
-pub enum ConnectionError {
-    Diesel(diesel::result::ConnectionError),
-    SpannerGrpc(grpcio::Error),
-}
-
-impl fmt::Display for ConnectionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConnectionError::Diesel(e) => fmt::Display::fmt(e, formatter),
-            ConnectionError::SpannerGrpc(e) => fmt::Display::fmt(e, formatter),
-        }
-    }
-}
-
 failure_boilerplate!(DbError, DbErrorKind);
 
-from_error!(diesel::result::Error, DbError, DbErrorKind::Query);
-from_error!(diesel::result::ConnectionError, DbError, |inner| {
-    DbErrorKind::Connection(ConnectionError::Diesel(inner))
-});
-
+from_error!(diesel::result::Error, DbError, DbErrorKind::DieselQuery);
+from_error!(
+    diesel::result::ConnectionError,
+    DbError,
+    DbErrorKind::DieselConnection
+);
 from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
     // Convert ABORTED (typically due to a transaction abort) into 503s
     match inner {
@@ -117,7 +104,7 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
         {
             DbErrorKind::Conflict
         }
-        _ => DbErrorKind::Connection(ConnectionError::SpannerGrpc(inner)),
+        _ => DbErrorKind::SpannerGrpc(inner),
     }
 });
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
