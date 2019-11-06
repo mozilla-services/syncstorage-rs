@@ -23,5 +23,6 @@ RUN \
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/version.json /app
+COPY --from=builder /app/spanner_config.ini /app
 
-CMD ["/app/bin/syncstorage"]
+CMD ["/app/bin/syncstorage", "--config=spanner_config.ini"]
