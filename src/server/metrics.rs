@@ -30,7 +30,7 @@ impl Drop for Metrics {
     fn drop(&mut self) {
         if let Some(client) = self.client.as_ref() {
             if let Some(timer) = self.timer.as_ref() {
-                let lapse = (Instant::now() - timer.start).as_nanos() as u64;
+                let lapse = (Instant::now() - timer.start).as_millis() as u64;
                 trace!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse);
                 let mut tagged = client.time_with_tags(&timer.label, lapse);
                 // Include any "hard coded" tags.
