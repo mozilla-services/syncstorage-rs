@@ -65,3 +65,4 @@ validator_derive = "0.9"
 
 [features]
 db_test = []
+no_auth = []
