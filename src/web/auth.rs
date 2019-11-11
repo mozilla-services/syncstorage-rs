@@ -86,7 +86,6 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
-        // Toggle the following comments to disable auth (useful for local integration testing)
         #[cfg(feature = "no_auth")]
         {
             Ok(payload)
