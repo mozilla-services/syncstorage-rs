@@ -58,8 +58,8 @@ impl SpannerDbPool {
         let builder = r2d2::Pool::builder()
             .max_size(settings.database_pool_max_size.unwrap_or(10))
             .connection_timeout(Duration::from_secs(120));
-        let mut timer = metrics.clone();
-        timer.start_timer("syncstorage.storage.spanner.pool.get", None);
+        let mut metrics = metrics.clone();
+        metrics.start_timer("syncstorage.storage.spanner.pool.get", None);
 
         #[cfg(any(test, feature = "db_test"))]
         let builder = if settings.database_use_test_transactions {

@@ -1175,7 +1175,7 @@ impl SpannerDb {
             }
         }
         if load_size > MAX_SPANNER_LOAD_SIZE {
-            self.metrics.clone().incr("sync.error.tooMuchData");
+            self.metrics.clone().incr("syncstorage.error.tooMuchData");
             debug!(
                 "⚠️Attempted to load too much data into Spanner: {:?} bytes",
                 load_size
