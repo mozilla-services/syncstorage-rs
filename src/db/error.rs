@@ -25,6 +25,9 @@ pub enum DbErrorKind {
     #[fail(display = "A database error occurred: {}", _0)]
     SpannerGrpc(#[cause] grpcio::Error),
 
+    #[fail(display = "Spanner data load too large: {}", _0)]
+    SpannerTooLarge(String),
+
     #[fail(display = "A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
 
@@ -68,7 +71,7 @@ impl From<Context<DbErrorKind>> for DbError {
         let status = match inner.get_context() {
             DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
             // Matching the Python code here (a 400 vs 404)
-            DbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
+            DbErrorKind::BatchNotFound | DbErrorKind::SpannerTooLarge(_) => StatusCode::BAD_REQUEST,
             // NOTE: the protocol specification states that we should return a
             // "409 Conflict" response here, but clients currently do not
             // handle these respones very well:
