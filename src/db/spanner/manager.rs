@@ -1,20 +1,33 @@
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use diesel::r2d2::ManageConnection;
 use googleapis_raw::spanner::v1::{
     spanner::{CreateSessionRequest, GetSessionRequest, Session},
     spanner_grpc::SpannerClient,
 };
-use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
+use grpcio::{
+    CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, Environment, MetadataBuilder,
+};
 
 use crate::{
     db::error::{DbError, DbErrorKind},
     settings::Settings,
 };
 
-#[derive(Debug)]
+const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
+
 pub struct SpannerConnectionManager {
     database_name: String,
+    /// The gRPC environment
+    env: Arc<Environment>,
+}
+
+impl fmt::Debug for SpannerConnectionManager {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("SpannerConnectionManager")
+            .field("database_name", &self.database_name)
+            .finish()
+    }
 }
 
 impl SpannerConnectionManager {
@@ -24,7 +37,8 @@ impl SpannerConnectionManager {
             Err(DbErrorKind::InvalidUrl(url.to_owned()))?;
         }
         let database_name = url["spanner://".len()..].to_owned();
-        Ok(SpannerConnectionManager { database_name })
+        let env = Arc::new(EnvBuilder::new().build());
+        Ok(SpannerConnectionManager { database_name, env })
     }
 }
 
@@ -40,19 +54,14 @@ impl ManageConnection for SpannerConnectionManager {
     type Error = grpcio::Error;
 
     fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        // Google Cloud configuration.
-        let endpoint = "spanner.googleapis.com:443";
-
-        // Set up the gRPC environment.
-        let env = Arc::new(EnvBuilder::new().build());
         // Requires GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
         let creds = ChannelCredentials::google_default_credentials()?;
 
         // Create a Spanner client.
-        let chan = ChannelBuilder::new(env.clone())
+        let chan = ChannelBuilder::new(self.env.clone())
             .max_send_message_len(100 << 20)
             .max_receive_message_len(100 << 20)
-            .secure_connect(&endpoint, creds);
+            .secure_connect(SPANNER_ADDRESS, creds);
         let client = SpannerClient::new(chan);
 
         // Connect to the instance and create a Spanner session.
