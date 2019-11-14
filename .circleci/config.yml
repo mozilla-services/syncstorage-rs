@@ -45,10 +45,10 @@ commands:
     steps:
       - add_ssh_keys:
           fingerprints:
-            - "2f:0b:a1:51:75:6a:3f:ac:fb:af:ef:7c:ca:62:21:2f"
+            - "f1:d3:a1:e0:b1:cc:60:80:e5:bd:fa:f9:9c:3f:93:6f"
       - run:
           name: Checkout gcp-grpc
-          command: git clone git@github.com:pjenvey/mozilla-rust-sdk.git
+          command: git clone git@github.com:mozilla-services/mozilla-rust-sdk.git
       - run:
           name: Adjust gcp-grpc dep path
           # Switch it into the working dir so it's sent to Docker
