@@ -2,19 +2,19 @@ use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 
 use diesel::r2d2;
 use diesel::r2d2::Pool;
 
 use futures::future::lazy;
+use scheduled_thread_pool::ScheduledThreadPool;
 use tokio_threadpool::ThreadPool;
 
 use super::models::Result;
 #[cfg(any(test, feature = "db_test"))]
 use super::test_util::SpannerTestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
+use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
@@ -55,9 +55,15 @@ impl SpannerDbPool {
 
     pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = SpannerConnectionManager::new(settings)?;
+        let max_size = settings.database_pool_max_size.unwrap_or(10);
+        // r2d2 creates max_size count of db connections on creation via its
+        // own thread_pool. increase its default size to quicken their
+        // creation, accommodating large max_size values (otherwise it may
+        // timeout)
+        let r2d2_thread_pool_size = ((max_size as f32 * 0.05) as usize).max(3);
         let builder = r2d2::Pool::builder()
-            .max_size(settings.database_pool_max_size.unwrap_or(10))
-            .connection_timeout(Duration::from_secs(120));
+            .max_size(max_size)
+            .thread_pool(Arc::new(ScheduledThreadPool::new(r2d2_thread_pool_size)));
         let mut metrics = metrics.clone();
         metrics.start_timer("syncstorage.storage.spanner.pool.get", None);
 
@@ -72,7 +78,7 @@ impl SpannerDbPool {
             pool: builder.build(manager)?,
             thread_pool: Arc::new(
                 tokio_threadpool::Builder::new()
-                    .pool_size(DB_THREAD_POOL_SIZE)
+                    .pool_size(max_size as usize)
                     .build(),
             ),
             coll_cache: Default::default(),
