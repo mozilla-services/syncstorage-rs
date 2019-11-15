@@ -102,8 +102,8 @@ impl Metrics {
         StatsdClient::builder("", NopMetricSink).build()
     }
 
-    pub fn default_tags(user_agent: &str) -> HashMap<String, String> {
-        let mut tags = HashMap::new();
+    pub fn default_tags(user_agent: &str) -> Tags {
+        let mut tags = Tags::new();
 
         let (ua_result, metrics_os, metrics_browser) = parse_user_agent(user_agent);
 
@@ -144,7 +144,7 @@ impl Metrics {
         self.incr_with_tags(label, None)
     }
 
-    pub fn incr_with_tags(self, label: &str, tags: Option<HashMap<String, String>>) {
+    pub fn incr_with_tags(self, label: &str, tags: Option<Tags>) {
         if let Some(client) = self.client.as_ref() {
             let mut tagged = client.incr_with_tags(label);
             let mut mtags = self.tags.clone().unwrap_or_default();
