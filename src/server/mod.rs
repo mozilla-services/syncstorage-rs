@@ -26,6 +26,7 @@ const SYNC_VERSION_PATH: &str = "1.5";
 pub mod metrics;
 #[cfg(test)]
 mod test;
+pub mod user_agent;
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
