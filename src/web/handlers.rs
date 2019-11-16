@@ -270,12 +270,8 @@ pub fn post_collection_batch(
                 .then(move |result| {
                     match result {
                         Ok(_) => success.extend(bso_ids),
-                        Err(e) => {
-                            // NLL: not a guard as: (E0008) "moves value into
-                            // pattern guard"
-                            if e.is_conflict() {
-                                return future::err(e);
-                            }
+                        Err(e) if e.is_conflict() => return future::err(e),
+                        Err(_) => {
                             failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
                         }
                     };
