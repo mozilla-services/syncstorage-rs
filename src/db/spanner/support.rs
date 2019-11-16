@@ -14,7 +14,7 @@ use crate::{
     web::extractors::HawkIdentifier,
 };
 
-use googleapis_raw::spanner::v1::type_pb::{Type, TypeCode};
+use googleapis_raw::spanner::v1::type_pb::{StructType_Field, Type, TypeCode};
 
 type ParamValue = protobuf::well_known_types::Value;
 
@@ -39,6 +39,14 @@ pub fn as_type(v: TypeCode) -> Type {
     t.set_code(v);
     t
 }
+
+pub fn struct_type_field(name: &str, field_type: TypeCode) -> StructType_Field {
+    let mut field = StructType_Field::new();
+    field.set_name(name.to_owned());
+    field.set_field_type(as_type(field_type));
+    field
+}
+
 pub fn as_list_value(
     string_values: impl Iterator<Item = String>,
 ) -> protobuf::well_known_types::Value {
