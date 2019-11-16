@@ -52,7 +52,7 @@ BATCH_SIZE = 2000
 # Total number of threads to use
 THREAD_COUNT = 16
 # Number of batches per thread
-BATCHES = 186412
+BATCHES = 330
 
 # `100` is the bottom limit for reserved collections.
 COLL_ID = 100
@@ -76,7 +76,10 @@ PAYLOAD = ''.join(
     for _ in range(PAYLOAD_SIZE))
 
 
-def load(instance, db, fxa_uid, fxa_kid, coll_id):
+def load(instance, db, coll_id, name):
+    fxa_uid = "DEADBEEF" + uuid.uuid4().hex[8:]
+    fxa_kid = "{:013d}-{}".format(22, fxa_uid)
+    print("{} -> Loading {} {}".format(name, fxa_uid, fxa_kid))
     name = threading.current_thread().getName()
     spanner_client = spanner.Client()
     instance = spanner_client.instance(instance)
@@ -196,11 +199,9 @@ def loader():
     # Each loader thread gets it's own fake user to prevent some hotspot
     # issues.
     (instance_id, database_id) = from_env()
-    fxa_uid = "DEADBEEF" + uuid.uuid4().hex[8:]
-    fxa_kid = "{:013d}-{}".format(22, fxa_uid)
+    # switching uid/kid to per load because of weird google trimming
     name = threading.current_thread().getName()
-    print("{} -> Loading {} {}".format(name, fxa_uid, fxa_kid))
-    load(instance_id, database_id, fxa_uid, fxa_kid, COLL_ID)
+    load(instance_id, database_id, COLL_ID, name)
 
 
 def main():

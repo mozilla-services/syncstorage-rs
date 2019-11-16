@@ -1,9 +1,11 @@
 //! Application settings objects and initialization
+use std::cmp::min;
 
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
+use crate::db::spanner::models::MAX_SPANNER_LOAD_SIZE;
 use crate::error::ApiError;
 use crate::web::auth::hkdf_expand_32;
 
@@ -19,7 +21,7 @@ static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
 static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 static PREFIX: &str = "sync";
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub debug: bool,
     pub port: u16,
@@ -106,11 +108,20 @@ impl Settings {
         // Merge the environment overrides
         s.merge(Environment::with_prefix(PREFIX))?;
 
-        // Configuration errors are not very sysop friendly, Try to make them
-        // a bit more 3AM useful.
-        Ok(match s.try_into() {
-            Ok(s) => s,
+        Ok(match s.try_into::<Self>() {
+            Ok(s) => {
+                // Adjust the max values if required.
+                if s.uses_spanner() {
+                    let mut ms = s.clone();
+                    ms.limits.max_total_bytes =
+                        min(ms.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
+                    return Ok(ms);
+                }
+                s
+            }
             Err(e) => match e {
+                // Configuration errors are not very sysop friendly, Try to make them
+                // a bit more 3AM useful.
                 ConfigError::Message(v) => {
                     println!("Bad configuration: {:?}", &v);
                     println!("Please set in config file or use environment variable.");
@@ -127,6 +138,10 @@ impl Settings {
                 }
             },
         })
+    }
+
+    pub fn uses_spanner(&self) -> bool {
+        self.database_url.as_str().starts_with("spanner")
     }
 
     /// A simple banner for display of certain settings at startup
@@ -181,7 +196,7 @@ impl Default for ServerLimits {
 }
 
 /// Secrets used during Hawk authentication.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Secrets {
     /// The master secret in byte array form.
     ///

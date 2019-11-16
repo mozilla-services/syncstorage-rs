@@ -86,28 +86,32 @@ impl HawkPayload {
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
-        // Toggle the following comments to disable auth (useful for local integration testing)
-        //Ok(payload)
-        //*
-        let mut duration = Duration::weeks(52)
-            .to_std()
-            .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
-        if cfg!(test) {
-            // test cases are valid until 3018. Add millenia as required.
-            duration *= 1000;
-        }
-        if request.validate_header(
-            &header,
-            &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
-            // Allow plenty of leeway for clock skew, because
-            // client timestamps tend to be all over the shop
-            duration,
-        ) {
+        #[cfg(feature = "no_auth")]
+        {
             Ok(payload)
-        } else {
-            Err(HawkErrorKind::InvalidHeader)?
         }
-        // */
+
+        #[cfg(not(feature = "no_auth"))]
+        {
+            let mut duration = Duration::weeks(52)
+                .to_std()
+                .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
+            if cfg!(test) {
+                // test cases are valid until 3018. Add millenia as required.
+                duration *= 1000;
+            }
+            if request.validate_header(
+                &header,
+                &Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)?,
+                // Allow plenty of leeway for clock skew, because
+                // client timestamps tend to be all over the shop
+                duration,
+            ) {
+                Ok(payload)
+            } else {
+                Err(HawkErrorKind::InvalidHeader)?
+            }
+        }
     }
 
     /// Decode the `id` property of a Hawk header
@@ -122,7 +126,7 @@ impl HawkPayload {
         let payload = &decoded_id[0..payload_length];
         let signature = &decoded_id[payload_length..];
 
-        // Comment the following to disable auth
+        #[cfg(not(feature = "no_auth"))]
         verify_hmac(payload, &secrets.signing_secret, signature)?;
 
         let payload: HawkPayload = serde_json::from_slice(payload)?;

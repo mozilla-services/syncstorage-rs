@@ -17,7 +17,7 @@ use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 pub const ONE_KB: f64 = 1024.0;
 
 pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    meta.metrics.incr("sync.request.get_collections");
+    meta.metrics.incr("syncstorage.request.get_collections");
     meta.db
         .get_collection_timestamps(meta.user_id)
         .map_err(From::from)
@@ -29,7 +29,8 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Er
 }
 
 pub fn get_collection_counts(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    meta.metrics.incr("sync.request.get_collection_counts");
+    meta.metrics
+        .incr("syncstorage.request.get_collection_counts");
     meta.db
         .get_collection_counts(meta.user_id)
         .map_err(From::from)
@@ -41,7 +42,8 @@ pub fn get_collection_counts(meta: MetaRequest) -> impl Future<Item = HttpRespon
 }
 
 pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    meta.metrics.incr("sync.request.get_collection_usage");
+    meta.metrics
+        .incr("syncstorage.request.get_collection_usage");
     meta.db
         .get_collection_usage(meta.user_id)
         .map_err(From::from)
@@ -57,7 +59,7 @@ pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpRespons
 }
 
 pub fn get_quota(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    meta.metrics.incr("sync.request.get_quota");
+    meta.metrics.incr("syncstorage.request.get_quota");
     meta.db
         .get_storage_usage(meta.user_id)
         .map_err(From::from)
@@ -66,7 +68,7 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = 
 
 pub fn delete_all(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
     #![allow(clippy::unit_arg)]
-    meta.metrics.incr("sync.request.delete_all");
+    meta.metrics.incr("syncstorage.request.delete_all");
     meta.db
         .delete_storage(meta.user_id)
         .map_err(From::from)
@@ -79,14 +81,14 @@ pub fn delete_collection(
     let delete_bsos = !coll.query.ids.is_empty();
     let metrics = coll.metrics.clone();
     let fut = if delete_bsos {
-        metrics.incr("sync.request.delete_bsos");
+        metrics.incr("syncstorage.request.delete_bsos");
         coll.db.delete_bsos(params::DeleteBsos {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
             ids: coll.query.ids.clone(),
         })
     } else {
-        metrics.incr("sync.request.delete_collection");
+        metrics.incr("syncstorage.request.delete_collection");
         coll.db.delete_collection(params::DeleteCollection {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
@@ -111,7 +113,9 @@ pub fn delete_collection(
 }
 
 pub fn get_collection(coll: CollectionRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    coll.metrics.clone().incr("sync.request.get_collection");
+    coll.metrics
+        .clone()
+        .incr("syncstorage.request.get_collection");
     let params = params::GetBsos {
         user_id: coll.user_id.clone(),
         params: coll.query.clone(),
@@ -181,7 +185,9 @@ where
 pub fn post_collection(
     coll: CollectionPostRequest,
 ) -> impl Future<Item = HttpResponse, Error = Error> {
-    coll.metrics.clone().incr("sync.request.post_collection");
+    coll.metrics
+        .clone()
+        .incr("syncstorage.request.post_collection");
     if coll.batch.is_some() {
         return Either::A(post_collection_batch(coll));
     }
@@ -207,7 +213,7 @@ pub fn post_collection_batch(
 ) -> impl Future<Item = HttpResponse, Error = Error> {
     coll.metrics
         .clone()
-        .incr("sync.request.post_collection_batch");
+        .incr("syncstorage.request.post_collection_batch");
     // Bail early if we have nonsensical arguments
     let breq = match coll.batch.clone() {
         Some(breq) => breq,
@@ -264,12 +270,8 @@ pub fn post_collection_batch(
                 .then(move |result| {
                     match result {
                         Ok(_) => success.extend(bso_ids),
-                        Err(e) => {
-                            // NLL: not a guard as: (E0008) "moves value into
-                            // pattern guard"
-                            if e.is_conflict() {
-                                return future::err(e);
-                            }
+                        Err(e) if e.is_conflict() => return future::err(e),
+                        Err(_) => {
                             failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
                         }
                     };
@@ -321,7 +323,7 @@ pub fn post_collection_batch(
 }
 
 pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    bso_req.metrics.incr("sync.request.delete_bso");
+    bso_req.metrics.incr("syncstorage.request.delete_bso");
     bso_req
         .db
         .delete_bso(params::DeleteBso {
@@ -334,7 +336,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error
 }
 
 pub fn get_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    bso_req.metrics.incr("sync.request.get_bso");
+    bso_req.metrics.incr("syncstorage.request.get_bso");
     bso_req
         .db
         .get_bso(params::GetBso {
@@ -352,7 +354,7 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = 
 }
 
 pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    bso_req.metrics.incr("sync.request.put_bso");
+    bso_req.metrics.incr("syncstorage.request.put_bso");
     bso_req
         .db
         .put_bso(params::PutBso {

@@ -87,7 +87,11 @@ fn create_request(
             "Authorization",
             create_hawk_header(method.as_str(), settings.port, path),
         )
-        .header("Accept", "application/json");
+        .header("Accept", "application/json")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",
+        );
     if let Some(body) = payload {
         req = req.set_json(&body);
     };

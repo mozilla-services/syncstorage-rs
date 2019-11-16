@@ -5,6 +5,7 @@
  2) Install `libmysqlclient`, the mysql client development library 
     * macOS: `brew install mysql` 
     * ubuntu: `apt install libmysqlclient-dev`
+ 3) You may need to also install `libgrpcdev`, `protobuf-compiler-grpc`, and `golang`
 
 ## Configuration
 Rust uses environment variables for a number of configuration options. Some of these include:

@@ -40,7 +40,9 @@ use googleapis_raw::spanner::v1::{
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
     type_pb::TypeCode,
 };
-use protobuf::{well_known_types::ListValue, RepeatedField};
+
+#[allow(unused_imports)]
+use protobuf::{well_known_types::ListValue, Message, RepeatedField};
 
 pub type TransactionSelector = transaction::TransactionSelector;
 
@@ -59,6 +61,9 @@ pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 pub const TOMBSTONE: i32 = 0;
 
 pub const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
+
+// max load size in bytes
+pub const MAX_SPANNER_LOAD_SIZE: usize = 100_000_000;
 
 /// Per session Db metadata
 #[derive(Debug, Default)]
@@ -1153,18 +1158,33 @@ impl SpannerDb {
         let mut inserts = vec![];
         let mut updates = HashMap::new();
         let mut success = vec![];
+        let mut load_size: usize = 0;
         for bso in params.bsos {
             success.push(bso.id.clone());
             if existing.contains(&bso.id) {
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
+                load_size += values.compute_size() as usize;
                 updates
                     .entry(columns)
                     .or_insert_with(|| vec![])
                     .push(values);
             } else {
                 let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
+                load_size += values.compute_size() as usize;
                 inserts.push(values);
             }
+        }
+        if load_size > MAX_SPANNER_LOAD_SIZE {
+            self.metrics.clone().incr("syncstorage.error.tooMuchData");
+            debug!(
+                "⚠️Attempted to load too much data into Spanner: {:?} bytes",
+                load_size
+            );
+            return Err(DbErrorKind::SpannerTooLarge(format!(
+                "Committed data too large: {}",
+                load_size
+            ))
+            .into());
         }
 
         if !inserts.is_empty() {

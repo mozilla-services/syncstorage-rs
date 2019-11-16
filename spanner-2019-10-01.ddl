@@ -21,7 +21,7 @@ CREATE TABLE bsos (
   fxa_uid STRING(MAX)  NOT NULL,
   fxa_kid STRING(MAX)  NOT NULL,
   collection_id INT64  NOT NULL,
-  bso_id STRING(64)    NOT NULL,
+  bso_id STRING(MAX)   NOT NULL,
 
   sortindex INT64,
 
@@ -79,7 +79,7 @@ CREATE TABLE batch_bsos (
   fxa_kid STRING(MAX)      NOT NULL,
   collection_id INT64      NOT NULL,
   batch_id STRING(MAX)     NOT NULL,
-  batch_bso_id STRING(64)  NOT NULL,
+  batch_bso_id STRING(MAX) NOT NULL,
 
   sortindex INT64,
   payload STRING(MAX),
