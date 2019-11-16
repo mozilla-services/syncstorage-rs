@@ -108,12 +108,9 @@ impl Settings {
         // Merge the environment overrides
         s.merge(Environment::with_prefix(PREFIX))?;
 
-        // Adjust the max values if required.
-
-        // Configuration errors are not very sysop friendly, Try to make them
-        // a bit more 3AM useful.
         Ok(match s.try_into::<Self>() {
             Ok(s) => {
+                // Adjust the max values if required.
                 if s.uses_spanner() {
                     let mut ms = s.clone();
                     ms.limits.max_total_bytes =
@@ -123,6 +120,8 @@ impl Settings {
                 s
             }
             Err(e) => match e {
+                // Configuration errors are not very sysop friendly, Try to make them
+                // a bit more 3AM useful.
                 ConfigError::Message(v) => {
                     println!("Bad configuration: {:?}", &v);
                     println!("Please set in config file or use environment variable.");
