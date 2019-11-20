@@ -114,7 +114,7 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let bsos = batch_string_to_bsos(&params.batch.bsos)?;
     let mut metrics = db.metrics.clone();
-    metrics.start_timer("syncstorage.storage.sql.apply_batch", None);
+    metrics.start_timer("storage.sql.apply_batch", None);
     let result = db.post_bsos_sync(params::PostBsos {
         user_id: params.user_id.clone(),
         collection: params.collection.clone(),

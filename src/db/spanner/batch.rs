@@ -73,7 +73,7 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
 
 pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
-    metrics.start_timer("syncstorage.storage.spanner.append_items_to_batch", None);
+    metrics.start_timer("storage.spanner.append_items_to_batch", None);
 
     let exists = validate(
         db,
@@ -150,7 +150,7 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
 
 pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
-    metrics.start_timer("syncstorage.storage.spanner.apply_batch", None);
+    metrics.start_timer("storage.spanner.apply_batch", None);
     let collection_id = db.get_collection_id(&params.collection)?;
 
     // Ensure a parent record exists in user_collections before writing to bsos
