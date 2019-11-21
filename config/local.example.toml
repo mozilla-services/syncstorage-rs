@@ -1,6 +1,2 @@
-PORT=8000
-RUST_BACKTRACE=1
-RUST_LOG="debug"
-SENTRY_DSN="see readme for instructions"
-SYNC_DATABASE_URL="mysql://sample_user:sample_password@localhost/syncstorage_rs"
-SYNC_MASTER_SECRET="your secret here"
+database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+master_secret = "some_secret_here"
