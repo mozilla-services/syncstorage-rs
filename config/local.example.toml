@@ -1,0 +1,2 @@
+database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+master_secret = "some_secret_here"
