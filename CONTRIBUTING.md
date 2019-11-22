@@ -33,6 +33,7 @@ When submitting a PR:
 - Ensure your changes do not reduce code coverage of the test suite.
 - Please do not include merge commits in pull requests; include only commits
   with the new relevant code.
+- PR naming conventions - begins with type (fix, feature, doc, chore, etc) and a short description with no period.
 
 See the main [README.md](/README.md) for information on prerequisites,
 installing, running and testing.
