@@ -39,6 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let sentry = sentry::init(sentry::ClientOptions {
         transport: Box::new(curl_transport_factory),
+        release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
     if sentry.is_enabled() {
