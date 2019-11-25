@@ -65,7 +65,7 @@ impl SpannerDbPool {
             .max_size(max_size)
             .thread_pool(Arc::new(ScheduledThreadPool::new(r2d2_thread_pool_size)));
         let mut metrics = metrics.clone();
-        metrics.start_timer("syncstorage.storage.spanner.pool.get", None);
+        metrics.start_timer("storage.spanner.pool.get", None);
 
         #[cfg(any(test, feature = "db_test"))]
         let builder = if settings.database_use_test_transactions {
