@@ -1,5 +1,11 @@
 use std::collections::HashMap;
 
+use googleapis_raw::spanner::v1::{
+    result_set::{ResultSet, ResultSetMetadata, ResultSetStats},
+    spanner::ExecuteSqlRequest,
+    type_pb::{StructType_Field, Type, TypeCode},
+};
+
 use protobuf::{
     well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
@@ -14,21 +20,7 @@ use crate::{
     web::extractors::HawkIdentifier,
 };
 
-use googleapis_raw::spanner::v1::type_pb::{StructType_Field, Type, TypeCode};
-
-type ParamValue = protobuf::well_known_types::Value;
-
-type ParamType = googleapis_raw::spanner::v1::type_pb::Type;
-
-pub type ExecuteSqlRequest = googleapis_raw::spanner::v1::spanner::ExecuteSqlRequest;
-
-type ResultSet = googleapis_raw::spanner::v1::result_set::ResultSet;
-
-type ResultSetMetadata = googleapis_raw::spanner::v1::result_set::ResultSetMetadata;
-
-type ResultSetStats = googleapis_raw::spanner::v1::result_set::ResultSetStats;
-
-pub fn as_value(string_value: String) -> protobuf::well_known_types::Value {
+pub fn as_value(string_value: String) -> Value {
     let mut value = Value::new();
     value.set_string_value(string_value);
     value
@@ -59,7 +51,7 @@ pub fn as_list_value(
     value
 }
 
-pub fn null_value() -> protobuf::well_known_types::Value {
+pub fn null_value() -> Value {
     let mut value = Value::new();
     value.set_null_value(NullValue::NULL_VALUE);
     value
@@ -68,8 +60,8 @@ pub fn null_value() -> protobuf::well_known_types::Value {
 #[derive(Default)]
 pub struct ExecuteSqlRequestBuilder {
     execute_sql: ExecuteSqlRequest,
-    params: Option<HashMap<String, ParamValue>>,
-    param_types: Option<HashMap<String, ParamType>>,
+    params: Option<HashMap<String, Value>>,
+    param_types: Option<HashMap<String, Type>>,
 }
 
 impl ExecuteSqlRequestBuilder {
@@ -80,12 +72,12 @@ impl ExecuteSqlRequestBuilder {
         }
     }
 
-    pub fn params(mut self, params: HashMap<String, ParamValue>) -> Self {
+    pub fn params(mut self, params: HashMap<String, Value>) -> Self {
         self.params = Some(params);
         self
     }
 
-    pub fn param_types(mut self, param_types: HashMap<String, ParamType>) -> Self {
+    pub fn param_types(mut self, param_types: HashMap<String, Type>) -> Self {
         self.param_types = Some(param_types);
         self
     }
@@ -171,18 +163,18 @@ impl Iterator for SyncResultSet {
 pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
     Ok(results::GetBso {
         id: row[0].get_string_value().to_owned(),
-        modified: SyncTimestamp::from_rfc3339(&row[1].get_string_value())?,
-        payload: row[2].get_string_value().to_owned(),
-        sortindex: if row[3].has_null_value() {
+        sortindex: if row[1].has_null_value() {
             None
         } else {
             Some(
-                row[3]
+                row[1]
                     .get_string_value()
                     .parse::<i32>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?,
             )
         },
+        payload: row[2].get_string_value().to_owned(),
+        modified: SyncTimestamp::from_rfc3339(&row[3].get_string_value())?,
         expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
     })
 }
