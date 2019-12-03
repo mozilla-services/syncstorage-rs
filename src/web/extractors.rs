@@ -8,7 +8,7 @@ use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload},
     error::ErrorInternalServerError,
     http::{
-        header::{qitem, Accept, ContentType, Header, HeaderMap},
+        header::{qitem, Accept, ContentType, Header, HeaderMap, HeaderValue},
         Uri,
     },
     web::{Json, Query},
@@ -367,8 +367,29 @@ impl FromRequest for BsoBody {
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
+        // The `meta/global` BSO is special in that it's used as a command to
+        // reset the timestamp. A possible client bug is sending an empty
+        // body. Handle it, but issue an info so we can track the event.
+        if req.path().ends_with("/meta/global")
+            && req
+                .headers()
+                .get("content-length")
+                .unwrap_or(&HeaderValue::from(0))
+                == HeaderValue::from(0)
+        {
+            info!("⚠️ Got an empty meta BSO");
+            return Box::new(future::ok(BsoBody {
+                id: None,
+                sortindex: None,
+                payload: None,
+                ttl: None,
+                _ignored_modified: None,
+            }));
+        }
+
         let fut = <Json<BsoBody>>::from_request(&req, payload)
             .map_err(|e| {
+                warn!("⚠️ Could not parse BSO Body: {:?}", e);
                 let err: ApiError = ValidationErrorKind::FromDetails(
                     e.to_string(),
                     RequestErrorLocation::Body,
@@ -421,6 +442,7 @@ impl BsoParam {
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
         if elem.is_none() || elem != Some(&"storage") || elements.len() != 6 {
+            warn!("⚠️ Unexpected BSO URI: {:?}", uri.path());
             return Err(ValidationErrorKind::FromDetails(
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
@@ -429,7 +451,7 @@ impl BsoParam {
         }
         if let Some(v) = elements.get(5) {
             let sv = String::from_str(v).map_err(|e| {
-                debug!("⚠️ BsoParam Error element:{:?} error:{:?}", v, e);
+                warn!("⚠️ BsoParam Error element:{:?} error:{:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -438,6 +460,7 @@ impl BsoParam {
             })?;
             Ok(Self { bso: sv })
         } else {
+            warn!("⚠️ Missing BSO: {:?}", uri.path());
             Err(ValidationErrorKind::FromDetails(
                 "Missing BSO".to_owned(),
                 RequestErrorLocation::Path,
@@ -674,7 +697,7 @@ impl FromRequest for CollectionPostRequest {
             BsoBodies,
         )>::from_request(&req, payload)
         .and_then(move |(user_id, db, collection, query, mut bsos)| {
-            let collection = collection.collection.clone();
+            let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
                 for bso in &bsos.valid {
@@ -746,9 +769,7 @@ impl FromRequest for BsoRequest {
         let user_id = HawkIdentifier::from_request(req, payload)?;
         let db = <Box<dyn Db>>::from_request(req, payload)?;
         let query = BsoQueryParams::from_request(req, payload)?;
-        let collection = CollectionParam::from_request(req, payload)?
-            .collection
-            .clone();
+        let collection = CollectionParam::from_request(req, payload)?.collection;
         let bso = BsoParam::from_request(req, payload)?;
 
         Ok(BsoRequest {
@@ -756,7 +777,7 @@ impl FromRequest for BsoRequest {
             db,
             user_id,
             query,
-            bso: bso.bso.clone(),
+            bso: bso.bso,
             metrics: metrics::Metrics::from(req),
         })
     }
@@ -792,7 +813,7 @@ impl FromRequest for BsoPutRequest {
             BsoBody,
         )>::from_request(req, payload)
         .and_then(|(user_id, db, collection, query, bso, body)| {
-            let collection = collection.collection.clone();
+            let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
                 if let Some(ref data) = body.payload {
@@ -813,7 +834,7 @@ impl FromRequest for BsoPutRequest {
                 db,
                 user_id,
                 query,
-                bso: bso.bso.clone(),
+                bso: bso.bso,
                 body,
                 metrics,
             })
@@ -897,7 +918,7 @@ impl HawkIdentifier {
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
             u64::from_str(v).map_err(|e| {
-                debug!("⚠️ HawkIdentifier Error {:?} {:?}", v, e);
+                info!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
@@ -906,6 +927,7 @@ impl HawkIdentifier {
                 .into()
             })
         } else {
+            info!("⚠️ HawkIdentifier Error missing UID {:?}", uri);
             Err(ValidationErrorKind::FromDetails(
                 "Missing UID".to_owned(),
                 RequestErrorLocation::Path,
@@ -947,7 +969,9 @@ impl HawkIdentifier {
         uri: &Uri,
     ) -> Result<Self, Error> {
         let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
-        if payload.user_id != Self::uid_from_path(&uri)? {
+        let puid = Self::uid_from_path(&uri)?;
+        if payload.user_id != puid {
+            info!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
@@ -1143,7 +1167,7 @@ impl FromRequest for BatchRequestOpt {
                 })?,
                 None => continue,
             };
-            let count = value.parse::<(u32)>().map_err(|_| {
+            let count = value.parse::<u32>().map_err(|_| {
                 let err: ApiError = ValidationErrorKind::FromDetails(
                     format!("Invalid integer value: {}", value),
                     RequestErrorLocation::Header,

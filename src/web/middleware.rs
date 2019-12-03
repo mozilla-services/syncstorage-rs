@@ -402,7 +402,7 @@ where
             }
         };
         let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
-        let bso_opt = bso.clone().map(|b| b.bso);
+        let bso_opt = bso.map(|b| b.bso);
 
         let mut service = Rc::clone(&self.service);
         Box::new(
