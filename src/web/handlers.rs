@@ -242,6 +242,7 @@ pub fn post_collection_batch(
         }))
     };
 
+    let commit = breq.commit;
     let db = coll.db.clone();
     let user_id = coll.user_id.clone();
     let collection = coll.collection.clone();
@@ -252,23 +253,56 @@ pub fn post_collection_batch(
             let mut failed = coll.bsos.invalid.clone();
             let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
-            coll.db
-                .append_to_batch(params::AppendToBatch {
+            if commit && !coll.bsos.valid.is_empty() {
+                // There's pending items to append to the batch but since we're
+                // committing, write them to bsos immediately. Otherwise under
+                // Spanner we would pay twice the mutations for those pending
+                // items (once writing them to to batch_bsos, then again
+                // writing them to bsos)
+
+                // NOTE: Unfortunately this means we make two calls to
+                // touch_collection (in post_bsos and then commit_batch). The
+                // second touch is redundant, writing the same timestamp
+                Either::A(
+                    coll.db
+                        .post_bsos(params::PostBsos {
+                            user_id: coll.user_id.clone(),
+                            collection: coll.collection.clone(),
+                            // XXX: why does BatchBsoBody exist (it's the same struct
+                            // as PostCollectionBso)?
+                            bsos: coll
+                                .bsos
+                                .valid
+                                .into_iter()
+                                .map(|batch_bso| params::PostCollectionBso {
+                                    id: batch_bso.id,
+                                    sortindex: batch_bso.sortindex,
+                                    payload: batch_bso.payload,
+                                    ttl: batch_bso.ttl,
+                                })
+                                .collect(),
+                            failed: Default::default(),
+                        })
+                        .and_then(|_| future::ok(())),
+                )
+            } else {
+                Either::B(coll.db.append_to_batch(params::AppendToBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
                     id: id.clone(),
                     bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-                })
-                .then(move |result| {
-                    match result {
-                        Ok(_) => success.extend(bso_ids),
-                        Err(e) if e.is_conflict() => return future::err(e),
-                        Err(_) => {
-                            failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
-                        }
-                    };
-                    future::ok((id, success, failed))
-                })
+                }))
+            }
+            .then(move |result| {
+                match result {
+                    Ok(_) => success.extend(bso_ids),
+                    Err(e) if e.is_conflict() => return future::err(e),
+                    Err(_) => {
+                        failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
+                    }
+                };
+                future::ok((id, success, failed))
+            })
         })
         .map_err(From::from)
         .and_then(move |(id, success, failed)| {
