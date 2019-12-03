@@ -876,7 +876,7 @@ impl SpannerDb {
                 "fxa_uid" => params.user_id.fxa_uid,
                 "fxa_kid" => params.user_id.fxa_kid,
                 "collection_id" => collection_id.to_string(),
-                "bso_id" => params.id.to_string(),
+                "bso_id" => params.id,
             })
             .execute(&self.conn)?;
         if result.affected_rows()? == 0 {
@@ -978,7 +978,7 @@ impl SpannerDb {
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let query = "\
-            SELECT bso_id, modified, payload, sortindex, expiry
+            SELECT bso_id, sortindex, payload, modified, expiry
               FROM bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
@@ -1053,29 +1053,25 @@ impl SpannerDb {
     pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let collection_id = self.get_collection_id(&params.collection)?;
 
-        let result = self
-            .sql(
-                "SELECT bso_id, modified, payload, sortindex, expiry
+        self.sql(
+            "SELECT bso_id, sortindex, payload, modified, expiry
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id
                     AND expiry > CURRENT_TIMESTAMP()",
-            )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid,
-                "fxa_kid" => params.user_id.fxa_kid,
-                "collection_id" => collection_id.to_string(),
-                "bso_id" => params.id.to_string(),
-            })
-            .execute(&self.conn)?
-            .one_or_none()?;
-        Ok(if let Some(row) = result {
-            Some(bso_from_row(row)?)
-        } else {
-            None
+        )?
+        .params(params! {
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => collection_id.to_string(),
+            "bso_id" => params.id,
         })
+        .execute(&self.conn)?
+        .one_or_none()?
+        .map(bso_from_row)
+        .transpose()
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
