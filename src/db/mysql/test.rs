@@ -40,7 +40,7 @@ pub fn settings() -> Result<Settings> {
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
         ..Default::default()
-    })  
+    })
 }
 
 pub fn db(settings: &Settings) -> Result<MysqlDb> {
@@ -56,7 +56,7 @@ fn static_collection_id() -> Result<()> {
     let settings = settings()?;
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql
-        return Ok(()) 
+        return Ok(());
     }
     let db = db(&settings)?;
 
