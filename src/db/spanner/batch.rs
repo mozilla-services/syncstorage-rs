@@ -1,9 +1,13 @@
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 
-use googleapis_raw::spanner::v1::type_pb::TypeCode;
+use googleapis_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
+use protobuf::{
+    well_known_types::{ListValue, Value},
+    RepeatedField,
+};
 use uuid::Uuid;
 
-use super::support::null_value;
+use super::support::{null_value, struct_type_field};
 use super::{
     models::{Result, SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS},
     support::as_value,
@@ -213,41 +217,83 @@ pub fn do_append(
     batch_id: String,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
-    for bso in bsos {
-        let mut sqlparams = params! {
-            "fxa_uid" => user_id.fxa_uid.clone(),
-            "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => batch_id.clone(),
-            "batch_bso_id" => bso.id,
-        };
-
-        sqlparams.insert(
-            "sortindex".to_string(),
-            bso.sortindex
+    // Pass an array of struct objects as @values (for UNNEST), e.g.:
+    // [("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso1", NULL, "payload1", NULL),
+    //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
+    // https://cloud.google.com/spanner/docs/structs#creating_struct_objects
+    let rows: Vec<_> = bsos
+        .into_iter()
+        .map(|bso| {
+            let sortindex = bso
+                .sortindex
                 .map(|sortindex| as_value(sortindex.to_string()))
-                .unwrap_or_else(null_value),
-        );
-        sqlparams.insert(
-            "payload".to_string(),
-            bso.payload.map(as_value).unwrap_or_else(null_value),
-        );
-        sqlparams.insert(
-            "ttl".to_string(),
-            bso.ttl
+                .unwrap_or_else(null_value);
+            let payload = bso.payload.map(as_value).unwrap_or_else(null_value);
+            let ttl = bso
+                .ttl
                 .map(|ttl| as_value(ttl.to_string()))
-                .unwrap_or_else(null_value),
-        );
+                .unwrap_or_else(null_value);
 
-        db.sql(
-            "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
-                                     sortindex, payload, ttl)
-             VALUES (@fxa_uid, @fxa_kid, @collection_id, @batch_id, @batch_bso_id,
-                     @sortindex, @payload, @ttl)",
-        )?
-        .params(sqlparams)
-        .execute(&db.conn)?;
-    }
+            let mut row = ListValue::new();
+            row.set_values(RepeatedField::from_vec(vec![
+                as_value(user_id.fxa_uid.clone()),
+                as_value(user_id.fxa_kid.clone()),
+                as_value(collection_id.to_string()),
+                as_value(batch_id.clone()),
+                as_value(bso.id),
+                sortindex,
+                payload,
+                ttl,
+            ]));
+            let mut value = Value::new();
+            value.set_list_value(row);
+            value
+        })
+        .collect();
+
+    let mut list_values = ListValue::new();
+    list_values.set_values(RepeatedField::from_vec(rows));
+    let mut values = Value::new();
+    values.set_list_value(list_values);
+
+    // values' type is an ARRAY of STRUCTs
+    let mut param_type = Type::new();
+    param_type.set_code(TypeCode::ARRAY);
+    let mut array_type = Type::new();
+    array_type.set_code(TypeCode::STRUCT);
+
+    // STRUCT requires definition of all its field types
+    let mut struct_type = StructType::new();
+    let fields = vec![
+        ("fxa_uid", TypeCode::STRING),
+        ("fxa_kid", TypeCode::STRING),
+        ("collection_id", TypeCode::INT64),
+        ("batch_id", TypeCode::STRING),
+        ("batch_bso_id", TypeCode::STRING),
+        ("sortindex", TypeCode::INT64),
+        ("payload", TypeCode::STRING),
+        ("ttl", TypeCode::INT64),
+    ]
+    .into_iter()
+    .map(|(name, field_type)| struct_type_field(name, field_type))
+    .collect();
+    struct_type.set_fields(RepeatedField::from_vec(fields));
+    array_type.set_struct_type(struct_type);
+    param_type.set_array_element_type(array_type);
+
+    let mut sqlparams = HashMap::new();
+    sqlparams.insert("values".to_owned(), values);
+    let mut sqlparam_types = HashMap::new();
+    sqlparam_types.insert("values".to_owned(), param_type);
+    db.sql(
+        "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
+                                 sortindex, payload, ttl)
+         SELECT * FROM UNNEST(@values)",
+    )?
+    .params(sqlparams)
+    .param_types(sqlparam_types)
+    .execute(&db.conn)?;
+
     Ok(())
 }
 

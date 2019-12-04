@@ -37,7 +37,8 @@ CREATE TABLE bsos (
 INTERLEAVE IN user_collections;
 
     CREATE INDEX BsoExpiry
-        ON bsos(expiry);
+        ON bsos(expiry),
+INTERLEAVE IN user_collections;
 
 CREATE TABLE collections (
   collection_id INT64  NOT NULL,
