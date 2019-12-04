@@ -9,6 +9,7 @@ use diesel::{
     Connection, ExpressionMethods, QueryDsl, RunQueryDsl,
 };
 use env_logger;
+use url::Url;
 
 use crate::db::mysql::{
     models::{MysqlDb, Result},
@@ -27,11 +28,9 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
     }
 }
 
-pub fn db() -> Result<MysqlDb> {
-    let _ = env_logger::try_init();
-    // inherit SYNC_DATABASE_URL from the env
+pub fn settings() -> Result<Settings> {
     let settings = Settings::with_env_and_config_file(&None).unwrap();
-    let settings = Settings {
+    Ok(Settings {
         debug: true,
         port: 8000,
         host: settings.host,
@@ -41,7 +40,12 @@ pub fn db() -> Result<MysqlDb> {
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
         ..Default::default()
-    };
+    })
+}
+
+pub fn db(settings: &Settings) -> Result<MysqlDb> {
+    let _ = env_logger::try_init();
+    // inherit SYNC_DATABASE_URL from the env
 
     let pool = MysqlDbPool::new(&settings, &metrics::Metrics::noop())?;
     pool.get_sync()
@@ -49,7 +53,12 @@ pub fn db() -> Result<MysqlDb> {
 
 #[test]
 fn static_collection_id() -> Result<()> {
-    let db = db()?;
+    let settings = settings()?;
+    if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
+        // Skip this test if we're not using mysql
+        return Ok(());
+    }
+    let db = db(&settings)?;
 
     // ensure DB actually has predefined common collections
     let cols: Vec<(i32, _)> = vec![
