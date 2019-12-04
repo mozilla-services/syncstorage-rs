@@ -11,6 +11,7 @@
   - [Tests](#tests)
     - [Unit tests](#unit-tests)
     - [End-to-End tests](#end-to-end-tests)
+  - [Creating Releases](#creating-releases)
   - [Troubleshooting](#troubleshooting)
   - [Related Documentation](#related-documentation)
 
@@ -136,6 +137,17 @@ Functional tests live in [server-syncstorage](https://github.com/mozilla-service
 
         $ SYNC_TEST_PREFIX=test_get_collection \
             ./local/bin/python syncstorage/tests/functional/test_storage.py http://localhost:8000#<SOMESECRET>
+
+## Creating Releases
+
+Open a PR after doing the following:
+
+1. Bump the version number in [Cargo.toml](https://github.com/mozilla-services/syncstorage-rs/blob/master/Cargo.toml).
+2. `cargo build --release` - Build with the release profile [release mode](https://doc.rust-lang.org/book/ch14-01-release-profiles.html).
+3. `clog -C CHANGELOG.md` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes. Add a `-p`, `-m` or `-M` flag to denote major/minor/patch version, ie `clog -C CHANGELOG.md -p`.
+
+Once your PR merges, then go ahead and create an official [GitHub release](https://github.com/mozilla-services/syncstorage-rs/releases).
+
 
 ## Troubleshooting
 
