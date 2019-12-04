@@ -1143,7 +1143,7 @@ impl FromRequest for BatchRequestOpt {
                 })?,
                 None => continue,
             };
-            let count = value.parse::<(u32)>().map_err(|_| {
+            let count = value.parse::<u32>().map_err(|_| {
                 let err: ApiError = ValidationErrorKind::FromDetails(
                     format!("Invalid integer value: {}", value),
                     RequestErrorLocation::Header,
