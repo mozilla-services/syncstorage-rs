@@ -1,3 +1,17 @@
+<a name="0.1.9"></a>
+## 0.1.9 (2019-12-04)
+
+
+#### Features
+
+*   Handle empty bso body on /meta/global ([af7bf6d0](https://github.com/mozilla-services/syncstorage-rs/commit/af7bf6d05e7bb9e3745bab73706984e1f336bd55))
+
+#### Bug Fixes
+
+*   Don't run mysql tests when testing spanner. ([bdd4cbe5](https://github.com/mozilla-services/syncstorage-rs/commit/bdd4cbe538b22b4a5d91f5572783931efa9eceda), closes [#360](https://github.com/mozilla-services/syncstorage-rs/issues/360))
+
+
+
 <a name="0.1.8"></a>
 ### 0.1.8 (2019-12-03)
 
