@@ -112,7 +112,7 @@ impl Settings {
             Ok(s) => {
                 // Adjust the max values if required.
                 if s.uses_spanner() {
-                    let mut ms = s.clone();
+                    let mut ms = s;
                     ms.limits.max_total_bytes =
                         min(ms.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
                     return Ok(ms);
