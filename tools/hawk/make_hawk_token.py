@@ -30,7 +30,7 @@ FXA_UID = "DEADBEEF00004be4ae957006c0ceb620"
 FXA_KID = "DEADBEEF00004be4ae957006c0ceb620"
 DEVICE_ID = "device1"
 NODE = "http://localhost:8000"
-SECRET = "Ted Koppel is a robot"
+SECRET = "Ted_Koppel_is_a_robot"
 HMAC_KEY = b"foo"
 
 # 10 years
@@ -120,7 +120,7 @@ def main():
         print("\nPath: ", path)
         print("Hawk Authorization Header: ", header)
     else:
-        print(header)
+        print("Authorization:", header)
 
 
 if __name__ == '__main__':
