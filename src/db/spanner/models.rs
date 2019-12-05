@@ -739,8 +739,8 @@ impl SpannerDb {
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
              VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)",
         )?
-        .params(params.clone())
-        .param_types(types.clone())
+        .params(params)
+        .param_types(types)
         .execute(&self.conn)?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
@@ -928,25 +928,25 @@ impl SpannerDb {
         let mut sqltypes = HashMap::new();
 
         if let Some(older) = older {
-            query = format!("{} AND modified < @older", query).to_string();
+            query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
             sqltypes.insert("older".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         if let Some(newer) = newer {
-            query = format!("{} AND modified > @newer", query).to_string();
+            query = format!("{} AND modified > @newer", query);
             sqlparams.insert("newer".to_string(), as_value(newer.as_rfc3339()?));
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
 
         if !ids.is_empty() {
-            query = format!("{} AND bso_id IN UNNEST(@ids)", query).to_string();
+            query = format!("{} AND bso_id IN UNNEST(@ids)", query);
             sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
         }
 
         query = match sort {
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query).to_string(),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query).to_string(),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query).to_string(),
+            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
+            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
+            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
             _ => query,
         };
 
@@ -967,7 +967,7 @@ impl SpannerDb {
         if offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = format!("{} OFFSET {}", query, offset).to_string();
+            query = format!("{} OFFSET {}", query, offset);
         }
 
         self.sql(&query)?

@@ -82,7 +82,7 @@ impl SpannerDbPool {
                     .build(),
             ),
             coll_cache: Default::default(),
-            metrics: metrics.clone(),
+            metrics,
         })
     }
 
