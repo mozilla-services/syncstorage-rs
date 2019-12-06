@@ -31,7 +31,6 @@ env_logger = "0.7.1"
 failure = "0.1.6"
 # do not upgrade futures!
 futures = "0.1.28"
-futures03 = {package = "futures", version="0.3", default-features=false, features=["compat"]}
 googleapis-raw = { version = "0", path = "../mozilla-rust-sdk/googleapis-raw" }
 grpcio = { version = "0.5.0-alpha.5" }
 lazy_static = "1.4.0"
