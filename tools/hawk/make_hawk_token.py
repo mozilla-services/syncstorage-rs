@@ -25,6 +25,7 @@ from webob.request import Request
 LEGACY_UID = 1
 COL = "col2"
 URI = "/1.5/{uid}/storage/{col}/".format(uid=LEGACY_UID, col=COL)
+METHOD = "GET"
 FXA_UID = "DEADBEEF00004be4ae957006c0ceb620"
 FXA_KID = "DEADBEEF00004be4ae957006c0ceb620"
 DEVICE_ID = "device1"
@@ -48,6 +49,9 @@ def get_args():
     parser.add_argument(
         '--uri', default=URI,
         help="URI path ({})".format(URI))
+    parser.add_argument(
+        '--method', default=METHOD,
+        help="The HTTP Method ({})".format(METHOD))
     parser.add_argument(
         '--fxa_uid', default=FXA_UID,
         help="FxA User ID ({})".format(FXA_UID))
@@ -108,6 +112,7 @@ def main():
             node=args.node,
             uri=args.uri)
     req = Request.blank(path)
+    req.method = args.method
     header = hawkauthlib.sign_request(req, token, key)
     if not args.as_header:
         print("Expires: ", expires)
