@@ -99,6 +99,8 @@ bso_data! {
     GetBsoTimestamp {},
 }
 
+pub struct Check {}
+
 #[derive(Debug, Default, Queryable)]
 pub struct Batch {
     pub id: String,

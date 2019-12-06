@@ -147,6 +147,8 @@ pub trait Db: Send + Debug {
 
     fn box_clone(&self) -> Box<dyn Db>;
 
+    fn check(&self, _: params::Check) -> DbFuture<results::Check>;
+
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.

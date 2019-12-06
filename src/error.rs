@@ -60,6 +60,9 @@ pub enum ApiErrorKind {
     #[fail(display = "HAWK authentication error: {}", _0)]
     Hawk(#[cause] HawkError),
 
+    #[fail(display = "No app_data ServerState")]
+    NoServerState,
+
     #[fail(display = "{}", _0)]
     Internal(String),
 
@@ -166,7 +169,9 @@ impl From<Context<ApiErrorKind>> for ApiError {
         let status = match inner.get_context() {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
-            ApiErrorKind::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             ApiErrorKind::Validation(error) => error.status,
         };
 
@@ -230,6 +235,9 @@ impl Serialize for ApiErrorKind {
                 serialize_string_to_array(serializer, description)
             }
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
+            ApiErrorKind::NoServerState => {
+                Serialize::serialize("No State information found", serializer)
+            }
         }
     }
 }

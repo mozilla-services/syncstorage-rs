@@ -1069,3 +1069,11 @@ async fn lock_for_write() -> Result<()> {
     db.commit().compat().await?;
     Ok(())
 }
+
+#[async_test]
+async fn heartbeat() -> Result<()> {
+    let db = db().await?;
+
+    assert!(db.check()?);
+    Ok(())
+}

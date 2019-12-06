@@ -9,8 +9,6 @@ use actix_web::{
     HttpServer,
 };
 // use num_cpus;
-use serde_json::json;
-
 use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
@@ -63,7 +61,6 @@ macro_rules! build_app {
         App::new()
             .data($state)
             // Middleware is applied LIFO
-
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
@@ -118,9 +115,7 @@ macro_rules! build_app {
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .data(web::PayloadConfig::new(
-                        $limits.max_request_bytes as usize,
-                    ))
+                    .data(web::PayloadConfig::new($limits.max_request_bytes as usize))
                     .data(
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
@@ -134,14 +129,7 @@ macro_rules! build_app {
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
             .service(
-                web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // if additional information is desired, point to an appropriate
-                    // handler.
-                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body.to_string())
-                })),
+                web::resource("/__heartbeat__").route(web::get().to_async(handlers::heartbeat)),
             )
             .service(
                 web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {

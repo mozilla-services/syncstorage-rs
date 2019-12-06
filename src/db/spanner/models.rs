@@ -1395,6 +1395,14 @@ impl SpannerDb {
         Ok(result)
     }
 
+    fn check_sync(&self, _: params::Check) -> Result<results::Check> {
+        // TODO: is there a better check than just fetching UTC?
+        self.sql("SELECT CURRENT_TIMESTAMP()")?
+            .execute(&self.conn)?
+            .one()?;
+        Ok(true)
+    }
+
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
@@ -1498,6 +1506,7 @@ impl Db for SpannerDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+    sync_db_method!(check, check_sync, Check);
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
         self.validate_batch_id(params)
