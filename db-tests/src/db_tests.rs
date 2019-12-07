@@ -1074,6 +1074,6 @@ async fn lock_for_write() -> Result<()> {
 async fn heartbeat() -> Result<()> {
     let db = db().await?;
 
-    assert!(db.check()?);
+    assert!(db.check(params::Check{}).compat().await?);
     Ok(())
 }
