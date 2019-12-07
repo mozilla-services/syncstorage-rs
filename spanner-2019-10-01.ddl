@@ -37,7 +37,7 @@ CREATE TABLE bsos (
 INTERLEAVE IN user_collections;
 
     CREATE INDEX BsoExpiry
-        ON bsos(expiry),
+        ON bsos(fxa_uid, fxa_kid, collection_id, expiry),
 INTERLEAVE IN user_collections;
 
 CREATE TABLE collections (
