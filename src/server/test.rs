@@ -372,6 +372,17 @@ fn put_bso() {
 }
 
 #[test]
+fn put_meta_storage() {
+    let start = SyncTimestamp::default();
+    // test that "collection" is accepted, even if ignored
+    let body = json!({"id": "global", "collection": "meta", "payload": "SomePayload"});
+    let bytes = test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", body);
+    let result: PutBso = serde_json::from_slice(&bytes).unwrap();
+
+    assert!(result >= start);
+}
+
+#[test]
 fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
     let settings = get_test_settings();
