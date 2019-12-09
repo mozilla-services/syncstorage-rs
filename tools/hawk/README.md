@@ -19,6 +19,11 @@ virutal environment.
 
 3) To create a Token Header:
 
-`venv/bin/python make_hawk_token.py`
+You'll need to pass along your `SYNC_MASTER_SECRET` and the uri you'll be testing in order to generate a valid Hawk Id:
+
+`venv/bin/python make_hawk_token.py --uri /1.5/1/storage/meta/global --secret=$SYNC_MASTER_SECRET --as_header`
+
+** For testing against uri's using methods other than GET, you'll need to pass along the `--method` flag to generate your token. Ie, `venv/bin/python make_hawk_token.py --method PUT --uri /1.5/1/storage/meta/global --secret=$SYNC_MASTER_SECRET --as_header`. See [examples/put.bash](https://github.com/mozilla-services/syncstorage-rs/blob/master/tools/examples/put.bash) for an example of this.
+
 
 Use `-h` for help.

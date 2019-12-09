@@ -8,7 +8,7 @@ use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload},
     error::ErrorInternalServerError,
     http::{
-        header::{qitem, Accept, ContentType, Header, HeaderMap, HeaderValue},
+        header::{qitem, Accept, ContentType, Header, HeaderMap},
         Uri,
     },
     web::{Json, Query},
@@ -313,9 +313,11 @@ pub struct BsoBody {
     pub payload: Option<String>,
     #[validate(custom = "validate_body_bso_ttl")]
     pub ttl: Option<u32>,
-    /// Any client-supplied value for this field is ignored
+    /// Any client-supplied value for these fields are ignored
     #[serde(rename(deserialize = "modified"), skip_serializing)]
     pub _ignored_modified: Option<IgnoredAny>,
+    #[serde(rename(deserialize = "collection"), skip_serializing)]
+    pub _ignored_collection: Option<IgnoredAny>,
 }
 
 impl FromRequest for BsoBody {
@@ -366,26 +368,6 @@ impl FromRequest for BsoBody {
         };
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
-
-        // The `meta/global` BSO is special in that it's used as a command to
-        // reset the timestamp. A possible client bug is sending an empty
-        // body. Handle it, but issue an info so we can track the event.
-        if req.path().ends_with("/meta/global")
-            && req
-                .headers()
-                .get("content-length")
-                .unwrap_or(&HeaderValue::from(0))
-                == HeaderValue::from(0)
-        {
-            info!("⚠️ Got an empty meta BSO");
-            return Box::new(future::ok(BsoBody {
-                id: None,
-                sortindex: None,
-                payload: None,
-                ttl: None,
-                _ignored_modified: None,
-            }));
-        }
 
         let fut = <Json<BsoBody>>::from_request(&req, payload)
             .map_err(|e| {

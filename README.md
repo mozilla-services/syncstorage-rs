@@ -29,6 +29,9 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - MySQL 5.7 (or compatible)
   -\* libmysqlclient (`brew install mysql` on macOS, `apt-get install libmysqlclient-dev` on Ubuntu)
 - [Go](https://golang.org/doc/install)
+- Cmake
+- Pkg-config
+- Openssl
 
 Depending on your OS, you may also need to install `libgrpcdev`, and `protobuf-compiler-grpc`.
 
@@ -36,7 +39,7 @@ Depending on your OS, you may also need to install `libgrpcdev`, and `protobuf-c
 
 1. Follow the instructions below to use either MySQL or Spanner as your DB.
 2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
-3. `make run-local` starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
+3. `make run_local` starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
 4. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
 ### MySQL
