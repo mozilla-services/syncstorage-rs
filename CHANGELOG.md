@@ -1,3 +1,20 @@
+<a name="0.1.10"></a>
+## 0.1.10 (2019-12-09)
+
+
+#### Bug Fixes
+
+*   remove duplicate header key from example script ([fea3b532](https://github.com/mozilla-services/syncstorage-rs/commit/fea3b532826b628559f8b31093923de05356b13a))
+*   allow "collection" in BSOs (although we ignore it) ([013eaafd](https://github.com/mozilla-services/syncstorage-rs/commit/013eaafd35d3955de655b500d6d5e38c17e20458))
+*   oops, properly interleave this index ([658ba6af](https://github.com/mozilla-services/syncstorage-rs/commit/658ba6af831b4e5c424ed6273e37d5ce87660c30), closes [#318](https://github.com/mozilla-services/syncstorage-rs/issues/318))
+
+#### Chore
+
+*   adjust perms on sample file ([e1b25603](https://github.com/mozilla-services/syncstorage-rs/commit/e1b2560345ee99bff30fadcdcb8433f88065a5f3))
+*   adjust sample script so it works and adding docs to link to it ([80b0c591](https://github.com/mozilla-services/syncstorage-rs/commit/80b0c591f321bbfc5073f0de833ddc03d7819a20))
+
+
+
 <a name="0.1.9"></a>
 ## 0.1.9 (2019-12-04)
 
