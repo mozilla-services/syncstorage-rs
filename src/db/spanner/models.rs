@@ -67,7 +67,7 @@ pub const MAX_SPANNER_LOAD_SIZE: usize = 100_000_000;
 
 /// Per session Db metadata
 #[derive(Debug, Default)]
-struct SpannerDbSession {
+pub(super) struct SpannerDbSession {
     /// CURRENT_TIMESTAMP() from Spanner, used for timestamping this session's
     /// operations
     timestamp: Option<SyncTimestamp>,
@@ -78,7 +78,7 @@ struct SpannerDbSession {
     transaction: Option<TransactionSelector>,
     /// Behind Vec so commit can take() it (maybe commit() should consume self
     /// instead?)
-    mutations: Option<Vec<Mutation>>,
+    pub(super) mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
 }
@@ -97,7 +97,7 @@ pub struct SpannerDbInner {
     pub(super) conn: Conn,
 
     thread_pool: Arc<::tokio_threadpool::ThreadPool>,
-    session: RefCell<SpannerDbSession>,
+    pub(super) session: RefCell<SpannerDbSession>,
 }
 
 impl fmt::Debug for SpannerDbInner {
