@@ -1,3 +1,13 @@
+<a name="0.1.11"></a>
+## 0.1.11 (2019-12-11)
+
+
+#### Features
+
+*   add temporary sentry tags for the mutation limit issue ([98471212](https://github.com/mozilla-services/syncstorage-rs/commit/98471212613980a923af45ecfb24cbc824569e2b))
+
+
+
 <a name="0.1.10"></a>
 ## 0.1.10 (2019-12-09)
 
