@@ -428,9 +428,9 @@ pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error
             HttpResponse::Ok().json(checklist)
         }
         Err(e) => {
+            error!("Heartbeat error: {:?}", e);
             checklist.insert("status".to_owned(), Value::from("Err"));
             checklist.insert("database".to_owned(), Value::from("Unknown"));
-            checklist.insert("status_msg".to_owned(), Value::from(e.to_string()));
             HttpResponse::ServiceUnavailable().json(checklist)
         }
     })
