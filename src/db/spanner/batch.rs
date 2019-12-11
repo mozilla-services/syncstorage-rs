@@ -152,6 +152,107 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
     Ok(())
 }
 
+pub fn _audit_commit_err<T>(
+    db: &SpannerDb,
+    params: &params::CommitBatch,
+    result: Result<T>,
+) -> Result<T> {
+    if let Err(ref e) = result {
+        if let DbErrorKind::SpannerGrpc(grpce) = e.kind() {
+            _audit_commit_err2(db, params, grpce)?
+        }
+    }
+    result
+}
+
+pub fn _audit_commit_err2(
+    db: &SpannerDb,
+    params: &params::CommitBatch,
+    grpce: &grpcio::Error,
+) -> Result<()> {
+    match grpce {
+        grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
+            if status.status == grpcio::RpcStatusCode::INVALID_ARGUMENT
+                && grpce.to_string().to_lowercase().contains("mutation") =>
+        {
+            let result = db
+                .sql(
+                    "SELECT COUNT(*)
+                       FROM batch_bsos
+                      WHERE fxa_uid = @fxa_uid
+                        AND fxa_kid = @fxa_kid
+                        AND collection_id = @collection_id
+                        AND batch_id = @batch_id",
+                )?
+                .params(params! {
+                    "fxa_uid" => params.user_id.fxa_uid.clone(),
+                    "fxa_kid" => params.user_id.fxa_kid.clone(),
+                    "collection_id" => db.get_collection_id(&params.collection)?.to_string(),
+                    "batch_id" => params.batch.id.clone(),
+                })
+                .execute(&db.conn)?
+                .one()?;
+            let batch_bsos_len = result[0]
+                .get_string_value()
+                .parse::<i64>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+
+            let mutations = db
+                .session
+                .borrow()
+                .mutations
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| vec![]);
+            let mut mutations_total_values_len = 0;
+            let mut mutations_insert_values_len = 0;
+            for mutation in &mutations {
+                if mutation.has_insert() {
+                    let values_len = mutation.get_insert().values.len();
+                    mutations_insert_values_len += values_len;
+                    mutations_total_values_len += values_len;
+                } else {
+                    mutations_total_values_len += mutation.get_update().values.len();
+                }
+            }
+
+            let mut event = sentry::integrations::failure::event_from_fail(grpce);
+            event.extra.insert(
+                "legacy_uid".to_owned(),
+                params.user_id.legacy_id.to_string().into(),
+            );
+            event
+                .extra
+                .insert("ua".to_owned(), params.user_id.ua.clone().into());
+            event
+                .extra
+                .insert("collection".to_owned(), params.collection.clone().into());
+            event
+                .extra
+                .insert("batch_id".to_owned(), params.batch.id.clone().into());
+            event.extra.insert(
+                "batch_bsos_len".to_owned(),
+                batch_bsos_len.to_string().into(),
+            );
+            event.extra.insert(
+                "mutations_len".to_owned(),
+                mutations.len().to_string().into(),
+            );
+            event.extra.insert(
+                "mutations_total_values_len".to_owned(),
+                mutations_total_values_len.to_string().into(),
+            );
+            event.extra.insert(
+                "mutations_insert_values_len".to_owned(),
+                mutations_insert_values_len.to_string().into(),
+            );
+            sentry::capture_event(event);
+        }
+        _ => (),
+    }
+    Ok(())
+}
+
 pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
@@ -164,7 +265,8 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
     let as_rfc3339 = timestamp.as_rfc3339()?;
     // First, UPDATE existing rows in the bsos table with any new values
     // supplied in this batch
-    db.sql(include_str!("batch_commit_update.sql"))?
+    let result = db
+        .sql(include_str!("batch_commit_update.sql"))?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -175,11 +277,13 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
         .param_types(param_types! {
             "timestamp" => TypeCode::TIMESTAMP,
         })
-        .execute(&db.conn)?;
+        .execute(&db.conn);
+    _audit_commit_err(db, &params, result)?;
 
     // Then INSERT INTO SELECT remaining rows from this batch into the bsos
     // table (that didn't already exist there)
-    db.sql(include_str!("batch_commit_insert.sql"))?
+    let result = db
+        .sql(include_str!("batch_commit_insert.sql"))?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -192,7 +296,8 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
             "timestamp" => TypeCode::TIMESTAMP,
             "default_bso_ttl" => TypeCode::INT64,
         })
-        .execute(&db.conn)?;
+        .execute(&db.conn);
+    _audit_commit_err(db, &params, result)?;
 
     delete(
         db,
