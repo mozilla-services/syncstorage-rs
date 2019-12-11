@@ -147,7 +147,7 @@ pub trait Db: Send + Debug {
 
     fn box_clone(&self) -> Box<dyn Db>;
 
-    fn check(&self, _: params::Check) -> DbFuture<results::Check>;
+    fn check(&self) -> DbFuture<results::Check>;
 
     /// Retrieve the timestamp for an item/collection
     ///

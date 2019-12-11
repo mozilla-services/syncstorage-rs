@@ -877,7 +877,20 @@ impl FromRequest for HeartbeatRequest {
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let headers = req.headers().clone();
 
-        let state = req.app_data::<ServerState>().unwrap();
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                debug!("⚠️ Could not load the app state");
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("state".to_owned()),
+                    )
+                    .into(),
+                ));
+            }
+        };
         let fut = state
             .db_pool
             .get()

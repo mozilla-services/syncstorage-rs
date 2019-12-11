@@ -737,7 +737,7 @@ impl MysqlDb {
         self.map_collection_names(modifieds)
     }
 
-    fn check_sync(&self, _: params::Check) -> Result<results::Check> {
+    fn check_sync(&self) -> Result<results::Check> {
         // has the database been up for more than 0 seconds?
         let result = sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.conn)?;
         Ok(result as u64 > 0)
@@ -910,6 +910,13 @@ impl Db for MysqlDb {
         Box::new(self.clone())
     }
 
+    fn check(&self) -> DbFuture<results::Check> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.check_sync().map_err(Into::into))
+        })))
+    }
+
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
     sync_db_method!(lock_for_write, lock_for_write_sync, LockCollection);
     sync_db_method!(
@@ -963,7 +970,6 @@ impl Db for MysqlDb {
         Option<results::GetBatch>
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
-    sync_db_method!(check, check_sync, Check);
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
         self.validate_batch_id(params)

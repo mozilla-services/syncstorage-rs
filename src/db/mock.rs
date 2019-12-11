@@ -57,7 +57,7 @@ impl Db for MockDb {
         Box::new(self.clone())
     }
 
-    fn check(&self, _: params::Check) -> DbFuture<results::Check> {
+    fn check(&self) -> DbFuture<results::Check> {
         Box::new(future::ok(true))
     }
 

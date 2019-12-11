@@ -407,10 +407,8 @@ pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse
  *
  */
 pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    let params = params::Check {};
-
     hb.db
-        .check(params)
+        .check()
         .map(|result| {
             let mut checklist = HashMap::new();
             checklist.insert(
