@@ -407,14 +407,13 @@ pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse
  *
  */
 pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    hb.db
-        .check()
-        .map(|result| {
-            let mut checklist = HashMap::new();
-            checklist.insert(
-                "version".to_owned(),
-                Value::String(env!("CARGO_PKG_VERSION").to_owned()),
-            );
+    let mut checklist = HashMap::new();
+    checklist.insert(
+        "version".to_owned(),
+        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
+    );
+    hb.db.check().then(|response| match response {
+        Ok(result) => {
             if result {
                 checklist.insert("database".to_owned(), Value::from("Ok"));
             } else {
@@ -427,6 +426,12 @@ pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error
             let status = if result { "Ok" } else { "Err" };
             checklist.insert("status".to_owned(), Value::from(status));
             HttpResponse::Ok().json(checklist)
-        })
-        .map_err(From::from)
+        }
+        Err(e) => {
+            checklist.insert("status".to_owned(), Value::from("Err"));
+            checklist.insert("database".to_owned(), Value::from("Unknown"));
+            checklist.insert("status_msg".to_owned(), Value::from(e.to_string()));
+            HttpResponse::ServiceUnavailable().json(checklist)
+        }
+    })
 }
