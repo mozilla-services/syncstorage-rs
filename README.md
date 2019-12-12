@@ -7,6 +7,7 @@
   - [Local Setup](#local-setup)
     - [MySQL](#mysql)
     - [Spanner](#spanner)
+    - [Connecting to Firefox](#connecting-to-firefox)
   - [Logging](#logging)
   - [Tests](#tests)
     - [Unit tests](#unit-tests)
@@ -96,6 +97,35 @@ RUST_LOG=warn GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/sync-spanner.json` cargo
 ```
 
 Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+
+### Connecting to Firefox
+
+This will walk you through the steps to connect this project to your local copy of Firefox. 
+
+1. Follow the steps outlined above for running this project using [MySQL](https://github.com/mozilla-services/syncstorage-rs#mysql).
+
+2. Setup a local copy of [syncserver](https://github.com/mozilla-services/syncserver), with a few special changes to [syncserver.ini](https://github.com/mozilla-services/syncserver/blob/master/syncserver.ini); make sure that you're using the following values (in addition to all of the other defaults):
+
+    ```
+    [server:main]
+    port = 5000
+
+    [syncserver]
+    public_url = http://localhost:5000/
+
+    # This value needs to match your "master_secret" for syncstorage-rs!
+    secret = INSERT_SECRET_KEY_HERE
+
+    [tokenserver]
+    node_url = http://localhost:8000
+    sqluri = pymysql://sample_user:sample_password@127.0.0.1/syncstorage_rs
+
+    [endpoints]
+    sync-1.5 = "http://localhost:8000/1.5/1"```
+
+
+3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/token/1.0/sync/1.5`.
+4. Restart Firefox. Now, try syncing. You should see new BSOs in your local MySQL instance.
 
 ## Logging
 
