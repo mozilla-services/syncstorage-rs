@@ -737,6 +737,12 @@ impl MysqlDb {
         self.map_collection_names(modifieds)
     }
 
+    fn check_sync(&self) -> Result<results::Check> {
+        // has the database been up for more than 0 seconds?
+        let result = sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.conn)?;
+        Ok(result as u64 > 0)
+    }
+
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
@@ -902,6 +908,13 @@ impl Db for MysqlDb {
 
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
+    }
+
+    fn check(&self) -> DbFuture<results::Check> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.check_sync().map_err(Into::into))
+        })))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);

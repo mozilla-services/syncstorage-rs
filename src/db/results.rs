@@ -28,6 +28,7 @@ pub type GetBatch = params::Batch;
 pub type DeleteBatch = ();
 pub type CommitBatch = PostBsos;
 pub type ValidateBatchId = ();
+pub type Check = bool;
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {

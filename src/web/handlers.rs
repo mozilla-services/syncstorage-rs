@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use actix_web::{http::StatusCode, Error, HttpResponse};
 use futures::future::{self, Either, Future};
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::db::{params, results::Paginated, DbError, DbErrorKind};
 use crate::error::ApiError;
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
-    MetaRequest, ReplyFormat,
+    HeartbeatRequest, MetaRequest, ReplyFormat,
 };
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
@@ -401,4 +401,37 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
 
 pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse, Error = Error> {
     future::result(Ok(HttpResponse::Ok().json(creq.limits)))
+}
+
+/** Returns a status message indicating the state of the current server
+ *
+ */
+pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+    let mut checklist = HashMap::new();
+    checklist.insert(
+        "version".to_owned(),
+        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
+    );
+    hb.db.check().then(|response| match response {
+        Ok(result) => {
+            if result {
+                checklist.insert("database".to_owned(), Value::from("Ok"));
+            } else {
+                checklist.insert("database".to_owned(), Value::from("Err"));
+                checklist.insert(
+                    "database_msg".to_owned(),
+                    Value::from("check failed without error"),
+                );
+            };
+            let status = if result { "Ok" } else { "Err" };
+            checklist.insert("status".to_owned(), Value::from(status));
+            HttpResponse::Ok().json(checklist)
+        }
+        Err(e) => {
+            error!("Heartbeat error: {:?}", e);
+            checklist.insert("status".to_owned(), Value::from("Err"));
+            checklist.insert("database".to_owned(), Value::from("Unknown"));
+            HttpResponse::ServiceUnavailable().json(checklist)
+        }
+    })
 }

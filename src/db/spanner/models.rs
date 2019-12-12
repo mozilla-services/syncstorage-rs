@@ -1395,6 +1395,14 @@ impl SpannerDb {
         Ok(result)
     }
 
+    fn check_sync(&self) -> Result<results::Check> {
+        // TODO: is there a better check than just fetching UTC?
+        self.sql("SELECT CURRENT_TIMESTAMP()")?
+            .execute(&self.conn)?
+            .one()?;
+        Ok(true)
+    }
+
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
@@ -1443,6 +1451,13 @@ impl Db for SpannerDb {
 
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
+    }
+
+    fn check(&self) -> DbFuture<results::Check> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.check_sync().map_err(Into::into))
+        })))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
