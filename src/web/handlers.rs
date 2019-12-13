@@ -259,10 +259,6 @@ pub fn post_collection_batch(
                 // Spanner we would pay twice the mutations for those pending
                 // items (once writing them to to batch_bsos, then again
                 // writing them to bsos)
-
-                // NOTE: Unfortunately this means we make two calls to
-                // touch_collection (in post_bsos and then commit_batch). The
-                // second touch is redundant, writing the same timestamp
                 Either::A(
                     coll.db
                         .post_bsos(params::PostBsos {
