@@ -81,6 +81,8 @@ pub(super) struct SpannerDbSession {
     pub(super) mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
+    /// Whether touch_collection has already been called
+    touched_collection: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -816,6 +818,11 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.timestamp()?;
+        if self.session.borrow().touched_collection {
+            // No need to touch it again
+            return Ok(timestamp);
+        }
+
         let sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
@@ -858,6 +865,7 @@ impl SpannerDb {
             .param_types(sql_types)
             .execute(&self.conn)?;
         }
+        self.session.borrow_mut().touched_collection = true;
         Ok(timestamp)
     }
 
