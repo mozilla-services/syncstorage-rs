@@ -57,6 +57,10 @@ impl Db for MockDb {
         Box::new(self.clone())
     }
 
+    fn check(&self) -> DbFuture<results::Check> {
+        Box::new(future::ok(true))
+    }
+
     mock_db_method!(lock_for_read, LockCollection);
     mock_db_method!(lock_for_write, LockCollection);
     mock_db_method!(get_collection_timestamps, GetCollectionTimestamps);

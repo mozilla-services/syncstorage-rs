@@ -81,6 +81,8 @@ pub(super) struct SpannerDbSession {
     pub(super) mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
+    /// Whether touch_collection has already been called
+    touched_collection: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -816,6 +818,11 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.timestamp()?;
+        if self.session.borrow().touched_collection {
+            // No need to touch it again
+            return Ok(timestamp);
+        }
+
         let sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
@@ -858,6 +865,7 @@ impl SpannerDb {
             .param_types(sql_types)
             .execute(&self.conn)?;
         }
+        self.session.borrow_mut().touched_collection = true;
         Ok(timestamp)
     }
 
@@ -1395,6 +1403,14 @@ impl SpannerDb {
         Ok(result)
     }
 
+    fn check_sync(&self) -> Result<results::Check> {
+        // TODO: is there a better check than just fetching UTC?
+        self.sql("SELECT CURRENT_TIMESTAMP()")?
+            .execute(&self.conn)?
+            .one()?;
+        Ok(true)
+    }
+
     batch_db_method!(create_batch_sync, create, CreateBatch);
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
@@ -1443,6 +1459,13 @@ impl Db for SpannerDb {
 
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
+    }
+
+    fn check(&self) -> DbFuture<results::Check> {
+        let db = self.clone();
+        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+            future::result(db.check_sync().map_err(Into::into))
+        })))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);

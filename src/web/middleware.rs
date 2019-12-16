@@ -472,7 +472,7 @@ impl SyncServerRequest for ServiceRequest {
         // it must be cloned
         let ci = &self.connection_info().clone();
         let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
-            ApiErrorKind::Internal("No app_data ServverState".to_owned()).into()
+            ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
         })?;
         HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
     }

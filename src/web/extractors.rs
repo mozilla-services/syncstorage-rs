@@ -863,6 +863,43 @@ impl FromRequest for ConfigRequest {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct HeartbeatRequest {
+    pub headers: HeaderMap,
+    pub db: Box<dyn Db>,
+}
+
+impl FromRequest for HeartbeatRequest {
+    type Config = ();
+    type Error = Error;
+    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let headers = req.headers().clone();
+
+        let state = match req.app_data::<ServerState>() {
+            Some(s) => s,
+            None => {
+                debug!("⚠️ Could not load the app state");
+                return Box::new(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("state".to_owned()),
+                    )
+                    .into(),
+                ));
+            }
+        };
+        let fut = state
+            .db_pool
+            .get()
+            .map_err(Into::into)
+            .and_then(|db| Ok(HeartbeatRequest { headers, db }));
+        Box::new(fut)
+    }
+}
+
 /// Extract a user-identifier from the authentication token and validate against the URL
 ///
 /// This token should be adapted as needed for the storage system to store data
