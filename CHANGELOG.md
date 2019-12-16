@@ -1,3 +1,13 @@
+<a name="0.1.13"></a>
+## 0.1.13 (2019-12-16)
+
+
+#### Chore
+
+*   force cargo install to use Cargo.lock ([d3ffba6c](https://github.com/mozilla-services/syncstorage-rs/commit/d3ffba6c1c222710d1231572ba1e71487147e96e), closes [#378](https://github.com/mozilla-services/syncstorage-rs/issues/378))
+
+
+
 <a name="0.1.12"></a>
 ## 0.1.12 (2019-12-16)
 
