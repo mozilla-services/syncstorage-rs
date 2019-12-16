@@ -10,7 +10,7 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path . --root /app
+    cargo install --path . --locked --root /app
 
 FROM debian:buster-slim
 WORKDIR /app
