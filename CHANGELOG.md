@@ -1,3 +1,21 @@
+<a name="0.1.12"></a>
+## 0.1.12 (2019-12-16)
+
+
+#### Features
+
+*   Add db check and version info to __heartbeat__ ([d078bc3a](https://github.com/mozilla-services/syncstorage-rs/commit/d078bc3ad7f144394cae0557cf70fd0e166e1e94), closes [#388](https://github.com/mozilla-services/syncstorage-rs/issues/388))
+
+#### Doc
+
+*   add instructions on how to connect to local firefox ([85396935](https://github.com/mozilla-services/syncstorage-rs/commit/85396935aeae04c06dbf2ea849b93454d57d5942))
+
+#### Bug Fixes
+
+*   lower max_total_records per batch_commit_update costs ([8d3264f7](https://github.com/mozilla-services/syncstorage-rs/commit/8d3264f7f207034131250ddb93f013a64ab38d05), closes [#333](https://github.com/mozilla-services/syncstorage-rs/issues/333))
+
+
+
 <a name="0.1.11"></a>
 ## 0.1.11 (2019-12-11)
 
