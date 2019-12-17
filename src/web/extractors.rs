@@ -75,8 +75,15 @@ impl BatchBsoBody {
     /// Function to convert valid raw JSON BSO body to a BatchBsoBody
     fn from_raw_bso(val: &Value) -> Result<BatchBsoBody, String> {
         let map = val.as_object().ok_or("invalid json")?;
-        // Verify all the keys are valid. modified is allowed but ignored
-        let valid_keys = ["id", "sortindex", "payload", "ttl", "modified"];
+        // Verify all the keys are valid. modified/collection are allowed but ignored
+        let valid_keys = [
+            "id",
+            "sortindex",
+            "payload",
+            "ttl",
+            "modified",
+            "collection",
+        ];
         for key_name in map.keys() {
             if !valid_keys.contains(&key_name.as_str()) {
                 return Err(format!("unknown field {}", key_name));
