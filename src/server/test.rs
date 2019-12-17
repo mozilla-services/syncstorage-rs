@@ -373,13 +373,21 @@ fn put_bso() {
 }
 
 #[test]
-fn put_meta_storage() {
+fn bsos_can_have_a_collection_field() {
     let start = SyncTimestamp::default();
     // test that "collection" is accepted, even if ignored
-    let body = json!({"id": "global", "collection": "meta", "payload": "SomePayload"});
-    let bytes = test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", body);
-    let result: PutBso = serde_json::from_slice(&bytes).unwrap();
+    let bso1 = json!({"id": "global", "collection": "meta", "payload": "SomePayload"});
+    let bsos = json!(
+        [bso1,
+         {"id": "2", "collection": "foo", "payload": "SomePayload"},
+    ]);
+    let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos);
+    let result: PostBsos = serde_json::from_slice(&bytes.to_vec()).unwrap();
+    assert_eq!(result.success.len(), 2);
+    assert_eq!(result.failed.len(), 0);
 
+    let bytes = test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", bso1);
+    let result: PutBso = serde_json::from_slice(&bytes).unwrap();
     assert!(result >= start);
 }
 
