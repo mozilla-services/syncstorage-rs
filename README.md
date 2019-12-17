@@ -129,8 +129,16 @@ This will walk you through the steps to connect this project to your local copy 
 
 ## Logging
 
-- If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value, and `export SENTRY_DSN=DSN_VALUE_GOES_HERE` to the environment when running this project.
-- Using [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env var.
+### Sentry:
+1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value.
+2. Comment out the `human_logs` line in your `config/local.toml` file.
+3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
+4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run_local`.
+5. You may need to stop the local server after it hits the panic! before errors will appear in Sentry.
+
+### RUST_LOG
+
+We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env var.
 
 ## Tests
 
