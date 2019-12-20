@@ -43,6 +43,7 @@ mozsvc-common = "0.1"
 num_cpus = "1.11"
 # must match what's used by googleapis-raw
 protobuf = "2.7.0"
+openssl ="0.10"
 rand = "0.7"
 regex = "1.3"
 sentry = { version = "0.17.0", features = ["with_curl_transport"] }

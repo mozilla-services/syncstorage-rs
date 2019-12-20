@@ -4,8 +4,8 @@ use futures::compat::Future01CompatExt;
 use syncstorage::{
     db::{params, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
-    settings::{Secrets, ServerLimits, Settings},
     server::metrics,
+    settings::{Secrets, ServerLimits, Settings},
     web::extractors::{BsoQueryParams, HawkIdentifier},
 };
 

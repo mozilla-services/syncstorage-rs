@@ -8,12 +8,11 @@ use actix_service::{Service, Transform};
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::{
     http::{
-        header::{self, HeaderMap},
+        header::{self, HeaderMap, HeaderValue},
         Method, StatusCode,
     },
     Error, HttpMessage, HttpResponse,
 };
-
 use futures::{
     future::{self, Either, FutureResult},
     Future, Poll,
@@ -22,9 +21,12 @@ use futures::{
 use crate::db::{params, util::SyncTimestamp};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics, ServerState};
-use crate::web::extractors::{
-    extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
-    PreConditionHeaderOpt,
+use crate::web::{
+    extractors::{
+        extrude_db, BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader,
+        PreConditionHeaderOpt,
+    },
+    tags::Tags,
 };
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
@@ -33,7 +35,12 @@ pub struct WeaveTimestampMiddleware<S> {
 }
 
 // Known DockerFlow commands for Ops callbacks
-const DOCKER_FLOW_ENDPOINTS: [&str; 3] = ["/__heartbeat__", "/__lbheartbeat__", "/__version__"];
+const DOCKER_FLOW_ENDPOINTS: [&str; 4] = [
+    "/__heartbeat__",
+    "/__lbheartbeat__",
+    "/__version__",
+    "/__error__",
+];
 
 impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
@@ -185,12 +192,24 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        let no_agent = HeaderValue::from_str("NONE").unwrap();
+        let useragent = sreq
+            .headers()
+            .get("user-agent")
+            .unwrap_or(&no_agent)
+            .to_str()
+            .unwrap_or("NONE");
+        info!(">>> testing db middleware"; "user_agent" => useragent);
         if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
             let mut service = Rc::clone(&self.service);
             return Box::new(service.call(sreq));
         }
 
-        let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut());
+        let tags = match sreq.extensions().get::<Tags>() {
+            Some(t) => t.clone(),
+            None => Tags::from_request_head(sreq.head()),
+        };
+        let col_result = CollectionParam::extrude(&sreq.uri(), &mut sreq.extensions_mut(), &tags);
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
@@ -224,7 +243,7 @@ where
         let hawk_user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {
-                debug!("⚠️ Bad Hawk Id: {:?}", e);
+                debug!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
@@ -271,6 +290,103 @@ where
             })
         });
         Box::new(fut)
+    }
+}
+
+pub struct SentryWrapper;
+
+impl SentryWrapper {
+    pub fn new() -> Self {
+        SentryWrapper::default()
+    }
+}
+
+impl Default for SentryWrapper {
+    fn default() -> Self {
+        Self
+    }
+}
+
+impl<S, B> Transform<S> for SentryWrapper
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = SentryWrapperMiddleware<S>;
+    type Future = FutureResult<Self::Transform, Self::InitError>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        future::ok(SentryWrapperMiddleware {
+            service: Rc::new(RefCell::new(service)),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct SentryWrapperMiddleware<S> {
+    service: Rc<RefCell<S>>,
+}
+
+impl<S, B> Service for SentryWrapperMiddleware<S>
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+
+    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
+        self.service.poll_ready()
+    }
+
+    fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        let mut tags = Tags::from_request_head(sreq.head());
+        sreq.extensions_mut().insert(tags.clone());
+
+        Box::new(self.service.call(sreq).and_then(move |sresp| {
+            // handed an actix_error::error::Error;
+            // Fetch out the tags (in case any have been added.)
+            match sresp.response().error() {
+                None => {}
+                Some(e) => {
+                    // The extensions defined in the request do not get populated
+                    // into the response. There can be two different, and depending
+                    // on where a tag may be set, only one set may be available.
+                    // Base off of the request, then overwrite/suppliment with the
+                    // response.
+                    if let Some(t) = sresp.request().extensions().get::<Tags>() {
+                        debug!("Found request tags: {:?}", &t.tags);
+                        for (k, v) in t.tags.clone() {
+                            tags.tags.insert(k, v);
+                        }
+                    };
+                    if let Some(t) = sresp.response().extensions().get::<Tags>() {
+                        debug!("Found response tags: {:?}", &t.tags);
+                        for (k, v) in t.tags.clone() {
+                            tags.tags.insert(k, v);
+                        }
+                    };
+                    // deriving the sentry event from a fail directly from the error
+                    // is not currently thread safe. Downcasting the error to an
+                    // ApiError resolves this.
+                    let apie: Option<&ApiError> = e.as_error();
+                    if let Some(apie) = apie {
+                        let mut event = sentry::integrations::failure::event_from_fail(apie);
+                        event.tags = tags.as_btree();
+                        sentry::capture_event(event);
+                    }
+                }
+            }
+            sresp
+        }))
     }
 }
 
@@ -339,7 +455,15 @@ where
         }
 
         // Pre check
-        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers()) {
+        let tags = {
+            let exts = sreq.extensions();
+            match exts.get::<Tags>() {
+                Some(t) => t.clone(),
+                None => Tags::from_request_head(sreq.head()),
+            }
+        };
+        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers(), Some(tags.clone()))
+        {
             Ok(precond) => match precond.opt {
                 Some(p) => p,
                 None => PreConditionHeader::NoHeader,
@@ -386,7 +510,7 @@ where
             }
         };
         let uri = &sreq.uri();
-        let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut());
+        let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut(), &tags);
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
@@ -401,7 +525,7 @@ where
                 ));
             }
         };
-        let bso = BsoParam::extrude(&sreq.uri(), &mut sreq.extensions_mut()).ok();
+        let bso = BsoParam::extrude(sreq.head(), &mut sreq.extensions_mut()).ok();
         let bso_opt = bso.map(|b| b.bso);
 
         let mut service = Rc::clone(&self.service);
@@ -474,7 +598,8 @@ impl SyncServerRequest for ServiceRequest {
         let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
             ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
         })?;
-        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
+        let tags = Tags::from_request_head(self.head());
+        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state, Some(tags))
     }
 }
 

@@ -111,7 +111,12 @@ impl ApiError {
     fn weave_error_code(&self) -> WeaveError {
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
-                ValidationErrorKind::FromDetails(ref description, ref location, name) => {
+                ValidationErrorKind::FromDetails(
+                    ref description,
+                    ref location,
+                    name,
+                    ref _tags,
+                ) => {
                     if description == "size-limit-exceeded" {
                         return WeaveError::SizeLimitExceeded;
                     }
@@ -123,7 +128,7 @@ impl ApiError {
                     }
                     WeaveError::UnknownError
                 }
-                ValidationErrorKind::FromValidationErrors(ref _err, ref location) => {
+                ValidationErrorKind::FromValidationErrors(ref _err, ref location, ref _tags) => {
                     if *location == RequestErrorLocation::Body {
                         WeaveError::InvalidWbo
                     } else {
