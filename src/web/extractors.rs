@@ -2097,7 +2097,7 @@ mod tests {
                 Some(t) => t.clone(),
                 None => Tags::from_request_head(req.head()),
             };
-            let result = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()));
+            let result = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags));
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
             assert_eq!(response.status(), 400);
