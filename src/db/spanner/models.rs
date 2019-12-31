@@ -1266,8 +1266,7 @@ impl SpannerDb {
                 } else {
                     "".to_string()
                 }
-            )
-            .to_string();
+            );
             q = format!(
                 "{}{}",
                 q,
@@ -1279,8 +1278,7 @@ impl SpannerDb {
                 } else {
                     "".to_string()
                 }
-            )
-            .to_string();
+            );
             q = format!(
                 "{}{}",
                 q,
@@ -1291,8 +1289,7 @@ impl SpannerDb {
                 } else {
                     "".to_string()
                 }
-            )
-            .to_string();
+            );
             q = format!(
                 "{}{}",
                 q,
@@ -1302,8 +1299,7 @@ impl SpannerDb {
                 } else {
                     "".to_string()
                 }
-            )
-            .to_string();
+            );
 
             if q.is_empty() {
                 // Nothing to update

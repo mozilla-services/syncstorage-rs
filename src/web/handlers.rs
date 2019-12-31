@@ -1,16 +1,16 @@
 //! API Handlers
 use std::collections::HashMap;
 
-use actix_web::{http::StatusCode, Error, HttpResponse};
+use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
 use futures::future::{self, Either, Future};
 use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::db::{params, results::Paginated, DbError, DbErrorKind};
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiErrorKind};
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
-    HeartbeatRequest, MetaRequest, ReplyFormat,
+    HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
 };
 use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
@@ -430,4 +430,31 @@ pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error
             HttpResponse::ServiceUnavailable().json(checklist)
         }
     })
+}
+
+pub fn test_error(
+    _req: HttpRequest,
+    ter: TestErrorRequest,
+) -> impl Future<Item = HttpResponse, Error = ApiError> {
+    // generate an error for sentry.
+
+    /*  The various error log macros only can take a string.
+        Additional values can be expressed as KV (key value) after a `;`
+        e.g.
+        ```
+        error!("Something Bad {:?}", err;
+                "ua.os.family" => wtags.get("ua.os.family"),
+                "ua.browser.family" => wtags.get("ua.browser.family"),
+                "ua.name" => wtags.get("ua.name"),
+                "ua.os.ver" => wtags.get("ua.os.ver"),
+                "ua.browser.ver" => wtags.get("ua.browser.ver"))
+        ```
+        TODO: find some way to transform Tags into error::KV
+    */
+    error!("Test Error: {:?}", &ter.tags);
+
+    // ApiError will call the middleware layer to auto-append the tags.
+    let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
+
+    future::result(Err(err))
 }

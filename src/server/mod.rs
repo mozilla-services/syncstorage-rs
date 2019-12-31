@@ -67,6 +67,7 @@ macro_rules! build_app {
             .wrap(middleware::PreConditionCheck::new())
             .wrap(middleware::DbTransaction::new())
             .wrap(middleware::WeaveTimestamp::new())
+            .wrap(middleware::SentryWrapper::new())
             // Followed by the "official middleware" so they run first.
             .wrap(Cors::default())
             .service(
@@ -148,6 +149,7 @@ macro_rules! build_app {
                         .body(include_str!("../../version.json"))
                 })),
             )
+            .service(web::resource("/__error__").route(web::get().to_async(handlers::test_error)))
     };
 }
 

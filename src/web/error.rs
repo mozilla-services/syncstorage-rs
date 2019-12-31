@@ -16,6 +16,7 @@ use serde_json::{Error as JsonError, Value};
 use validator;
 
 use super::extractors::RequestErrorLocation;
+use super::tags::Tags;
 use crate::error::ApiError;
 
 /// An error occurred during HAWK authentication.
@@ -70,8 +71,8 @@ pub enum HawkErrorKind {
 /// An error occurred in an Actix extractor.
 #[derive(Debug)]
 pub struct ValidationError {
-    inner: Context<ValidationErrorKind>,
     pub status: StatusCode,
+    inner: Context<ValidationErrorKind>,
 }
 
 impl ValidationError {
@@ -84,10 +85,14 @@ impl ValidationError {
 #[derive(Debug, Fail)]
 pub enum ValidationErrorKind {
     #[fail(display = "{}", _0)]
-    FromDetails(String, RequestErrorLocation, Option<String>),
+    FromDetails(String, RequestErrorLocation, Option<String>, Option<Tags>),
 
     #[fail(display = "{}", _0)]
-    FromValidationErrors(#[cause] validator::ValidationErrors, RequestErrorLocation),
+    FromValidationErrors(
+        #[cause] validator::ValidationErrors,
+        RequestErrorLocation,
+        Option<Tags>,
+    ),
 }
 
 failure_boilerplate!(HawkError, HawkErrorKind);
@@ -109,7 +114,7 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
         debug!("Validation Error: {:?}", inner.get_context());
         let status = match inner.get_context() {
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Header =>
             {
                 match name.to_ascii_lowercase().as_str() {
@@ -118,7 +123,7 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
                     _ => StatusCode::BAD_REQUEST,
                 }
             }
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name))
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Path
                     && ["bso", "collection"].contains(&name.as_ref()) =>
             {
@@ -175,16 +180,17 @@ impl Serialize for ValidationErrorKind {
         let mut seq = serializer.serialize_seq(None)?;
 
         match *self {
-            ValidationErrorKind::FromDetails(ref description, ref location, ref name) => {
+            ValidationErrorKind::FromDetails(ref description, ref location, ref name, ref tags) => {
                 seq.serialize_element(&SerializedValidationError {
                     description,
                     location,
                     name: name.as_ref().map(|name| &**name),
                     value: None,
+                    tags: tags.as_ref(),
                 })?;
             }
 
-            ValidationErrorKind::FromValidationErrors(ref errors, ref location) => {
+            ValidationErrorKind::FromValidationErrors(ref errors, ref location, ref tags) => {
                 for (field, field_errors) in errors.clone().field_errors().iter() {
                     for field_error in field_errors.iter() {
                         seq.serialize_element(&SerializedValidationError {
@@ -192,6 +198,7 @@ impl Serialize for ValidationErrorKind {
                             location,
                             name: Some(field),
                             value: field_error.params.get("value"),
+                            tags: tags.clone().as_ref(),
                         })?;
                     }
                 }
@@ -208,4 +215,5 @@ struct SerializedValidationError<'e> {
     pub location: &'e RequestErrorLocation,
     pub name: Option<&'e str>,
     pub value: Option<&'e Value>,
+    pub tags: Option<&'e Tags>,
 }

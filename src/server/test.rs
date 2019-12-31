@@ -55,7 +55,7 @@ fn get_test_settings() -> Settings {
         debug: true,
         port,
         host,
-        database_url: settings.database_url.clone(),
+        database_url: settings.database_url,
         database_pool_max_size: Some(pool_size + 1),
         database_use_test_transactions: true,
         limits: ServerLimits::default(),
@@ -113,7 +113,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let host = TEST_HOST;
     let payload = HawkPayload {
         expires: (Utc::now().timestamp() + 5) as f64,
-        node: format!("http://{}:{}", host, port).to_string(),
+        node: format!("http://{}:{}", host, port),
         salt: "wibble".to_string(),
         user_id: 42,
         fxa_uid: "xxx_test".to_owned(),

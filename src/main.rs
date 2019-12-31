@@ -34,7 +34,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
     let curl_transport_factory = |options: &sentry::ClientOptions| {
-        Box::new(sentry::transports::CurlHttpTransport::new(options))
+        // Note: set options.debug = true when diagnosing sentry issues.
+        Box::new(sentry::transports::CurlHttpTransport::new(&options))
             as Box<dyn sentry::internals::Transport>
     };
     let sentry = sentry::init(sentry::ClientOptions {

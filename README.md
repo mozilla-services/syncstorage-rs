@@ -34,7 +34,10 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - Pkg-config
 - Openssl
 
-Depending on your OS, you may also need to install `libgrpcdev`, and `protobuf-compiler-grpc`.
+Depending on your OS, you may also need to install `libgrpcdev`,
+`libcurl4-openssl-dev`, and `protobuf-compiler-grpc`. *Note*: if the
+code complies cleanly, but generates a Segmentation Fault within
+Sentry init, you probably are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
