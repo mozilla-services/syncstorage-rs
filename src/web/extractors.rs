@@ -461,7 +461,6 @@ impl BsoParam {
         }
         if let Some(v) = elements.get(5) {
             let sv = String::from_str(v).map_err(|_| {
-                // TODO: Why is the param for this block causing warn! to say it's unreachable?
                 warn!("⚠️ Invalid BsoParam Error: {:?}", v;
                 "ua.os.family" => tags.get("ua.os.family"),
                 "ua.browser.family" => tags.get("ua.browser.family"),
