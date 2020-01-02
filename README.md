@@ -101,6 +101,19 @@ RUST_LOG=warn GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/sync-spanner.json` cargo
 
 Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
 
+### Running via Docker
+This currently requires access to the [mozilla-rust-sdk](https://github.com/mozilla-services/mozilla-rust-sdk) repo. If you don't have it, this will be made public soon; we'll update the README here when that happens.
+1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
+2. Copy the contents of mozilla-rust-sdk into top level root dir here.
+3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
+4. Comment out the `image` value under `syncstorage-rs` in docker-compose.yml, and add this instead:
+    ```
+      build:
+        context: .
+    ```
+5. Adjust the MySQL db creds in docker-compose.yml to match your local setup.
+6. `make docker_start` - You can verify it's working by visiting [localhost:8000/__heartbeat__](http://localhost:8000/__heartbeat__)
+
 ### Connecting to Firefox
 
 This will walk you through the steps to connect this project to your local copy of Firefox. 
@@ -147,14 +160,7 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 ### Unit tests
 
-1. `cd db-tests`.
-2. Pass along your `SYNC_DATABASE_URL` to the test runner. Ie:
-
-```
-SYNC_DATABASE_URL="mysql://sample_user:sample_password@localhost/syncstorage_rs" && /
-RUST_TEST_THREADS=1 && /
-cargo test
-```
+`make test` - open the Makefile to adjust your `SYNC_DATABASE_URL` as needed.
 
 ### End-to-End tests
 
