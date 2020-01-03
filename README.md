@@ -71,8 +71,8 @@ select the correct project.
 - Select "_Create Key_" from the pop-up menu.
 - Select "JSON" from the Dialog Box.
 
-A proper Key file will be downloaded to your local directory. It's important to safeguard that key file. For this example, we're going to name the file
-`sync-spanner.json` and store it in a subdirectory called `./keys`
+A proper key file will be downloaded to your local directory. It's important to safeguard that key file. For this example, we're going to name the file
+`service-account.json`.
 
 The proper key file is in JSON format. An example file is provided below, with private information replaced by "`...`"
 
@@ -91,15 +91,15 @@ The proper key file is in JSON format. An example file is provided below, with p
 }
 ```
 
-You can then specify the path to the key file using the environment variable `GOOGLE_APPLICATION_CREDENTIALS` when running the application.
-
-e.g.
-
-```bash
-RUST_LOG=warn GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/sync-spanner.json` cargo run -- --config sync.ini
-```
-
 Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+
+To point to a GCP hosted Spanner instance from your local machine, follow these steps:
+
+1. Download the key file as shown above.
+2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
+3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
+4. `make run_spanner`.
+5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
 ### Running via Docker
 This currently requires access to the [mozilla-rust-sdk](https://github.com/mozilla-services/mozilla-rust-sdk) repo. If you don't have it, this will be made public soon; we'll update the README here when that happens.
