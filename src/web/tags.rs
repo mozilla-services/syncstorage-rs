@@ -69,16 +69,6 @@ impl Tags {
         Tags { tags }
     }
 
-    pub fn as_btree(&self) -> BTreeMap<String, String> {
-        let mut result = BTreeMap::new();
-
-        for (k, v) in &self.tags {
-            result.insert(k.clone(), v.clone());
-        }
-
-        result
-    }
-
     pub fn get(&self, label: &str) -> String {
         let none = "None".to_owned();
         self.tags.get(label).map(String::from).unwrap_or(none)
@@ -104,5 +94,17 @@ impl FromRequest for Tags {
         };
 
         Ok(tags)
+    }
+}
+
+impl Into<BTreeMap<String, String>> for Tags {
+    fn into(self) -> BTreeMap<String, String> {
+        let mut result = BTreeMap::new();
+
+        for (k, v) in self.tags {
+            result.insert(k.clone(), v.clone());
+        }
+
+        result
     }
 }
