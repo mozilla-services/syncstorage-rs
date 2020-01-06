@@ -5,6 +5,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import os
+import time
 from urllib import parse
 
 from google.cloud import spanner
@@ -41,14 +42,19 @@ def spanner_read_data(request=None):
     outputs.append("For {}:{}".format(instance_id, database_id))
     # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
     # IN PARENT batches ON DELETE CASCADE)
+    start = time.now()
     query = 'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
     result = database.execute_partitioned_dml(query)
-    outputs.append("batches: removed {} rows".format(result))
+    outputs.append("batches: removed {} rows in {} seconds".format(
+        result, time.now()-start))
 
     # Delete BSOs
+    start_bsos = time.now()
     query = 'DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()'
     result = database.execute_partitioned_dml(query)
-    outputs.append("bso: removed {} rows".format(result))
+    outputs.append("bso: removed {} rows in {} seconds".format(
+        result, time.now()-start_bsos))
+    outputs.append("time: {} seconds".format(time.now() - start))
     return '\n'.join(outputs)
 
 
