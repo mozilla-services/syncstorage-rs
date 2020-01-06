@@ -16,12 +16,11 @@ use super::pool::CollectionCache;
 use crate::db::{
     error::{DbError, DbErrorKind},
     params, results,
-    spanner::support::{as_type, SyncResultSet},
+    spanner::support::{as_type, MapAndThenTrait, StreamedResultSet},
     util::SyncTimestamp,
     Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
 use crate::server::metrics::Metrics;
-
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
 #[cfg(not(any(test, feature = "db_test")))]
@@ -40,6 +39,7 @@ use googleapis_raw::spanner::v1::{
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
     type_pb::TypeCode,
 };
+use itertools::Itertools;
 
 #[allow(unused_imports)]
 use protobuf::{well_known_types::ListValue, Message, RepeatedField};
@@ -171,7 +171,7 @@ impl SpannerDb {
         // This should always run within a r/w transaction, so that: "If a
         // transaction successfully commits, then no other writer modified the
         // data that was read in the transaction after it was read."
-        if cfg!(not(any(test, feature = "db_test"))) && !self.in_write_transaction() {
+        if !cfg!(any(test, feature = "db_test")) && !self.in_write_transaction() {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
         let result = self
@@ -195,7 +195,7 @@ impl SpannerDb {
             "name" => name.to_string(),
             "collection_id" => id.to_string(),
         })
-        .execute(&self.conn)?;
+        .execute_dml(&self.conn)?;
         Ok(id)
     }
 
@@ -521,7 +521,7 @@ impl SpannerDb {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute(&self.conn)?
-            .map(|row| {
+            .map_and_then(|row| {
                 let collection_id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -566,7 +566,7 @@ impl SpannerDb {
                 "ids".to_owned(),
                 as_list_value(uncached.into_iter().map(|id| id.to_string())),
             );
-            let result = self
+            let rs = self
                 .sql(
                     "SELECT collection_id, name
                        FROM collections
@@ -574,7 +574,8 @@ impl SpannerDb {
                 )?
                 .params(params)
                 .execute(&self.conn)?;
-            for row in result {
+            for row_result in rs {
+                let row = row_result?;
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -608,7 +609,7 @@ impl SpannerDb {
                 "fxa_kid" => user_id.fxa_kid,
             })
             .execute(&self.conn)?
-            .map(|row| {
+            .map_and_then(|row| {
                 let collection_id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -641,7 +642,7 @@ impl SpannerDb {
                 "fxa_kid" => user_id.fxa_kid
             })
             .execute(&self.conn)?
-            .map(|row| {
+            .map_and_then(|row| {
                 let collection_id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -735,7 +736,7 @@ impl SpannerDb {
         )?
         .params(params.clone())
         .param_types(types.clone())
-        .execute(&self.conn)?;
+        .execute_dml(&self.conn)?;
 
         self.sql(
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
@@ -743,7 +744,7 @@ impl SpannerDb {
         )?
         .params(params)
         .param_types(types)
-        .execute(&self.conn)?;
+        .execute_dml(&self.conn)?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
         Ok(self.timestamp()?)
@@ -761,7 +762,7 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
         })
-        .execute(&self.conn)?;
+        .execute_dml(&self.conn)?;
         Ok(())
     }
 
@@ -778,7 +779,7 @@ impl SpannerDb {
     ) -> Result<results::DeleteCollection> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
-        let rs = self
+        let affected_rows = self
             .sql(
                 "DELETE FROM user_collections
                   WHERE fxa_uid = @fxa_uid
@@ -795,8 +796,8 @@ impl SpannerDb {
             .param_types(param_types! {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
-            .execute(&self.conn)?;
-        if rs.affected_rows()? > 0 {
+            .execute_dml(&self.conn)?;
+        if affected_rows > 0 {
             self.erect_tombstone(&params.user_id)
         } else {
             self.get_storage_timestamp_sync(params.user_id)
@@ -818,8 +819,9 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.timestamp()?;
-        if self.session.borrow().touched_collection {
-            // No need to touch it again
+        if !cfg!(any(test, feature = "db_test")) && self.session.borrow().touched_collection {
+            // No need to touch it again (except during tests where we
+            // currently reuse Dbs for multiple requests)
             return Ok(timestamp);
         }
 
@@ -855,7 +857,7 @@ impl SpannerDb {
             )?
             .params(sqlparams)
             .param_types(sql_types)
-            .execute(&self.conn)?;
+            .execute_dml(&self.conn)?;
         } else {
             self.sql(
                 "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
@@ -863,7 +865,7 @@ impl SpannerDb {
             )?
             .params(sqlparams)
             .param_types(sql_types)
-            .execute(&self.conn)?;
+            .execute_dml(&self.conn)?;
         }
         self.session.borrow_mut().touched_collection = true;
         Ok(timestamp)
@@ -872,7 +874,7 @@ impl SpannerDb {
     pub fn delete_bso_sync(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
         let collection_id = self.get_collection_id(&params.collection)?;
         let touch = self.touch_collection(&params.user_id, collection_id)?;
-        let result = self
+        let affected_rows = self
             .sql(
                 "DELETE FROM bsos
                   WHERE fxa_uid = @fxa_uid
@@ -886,8 +888,8 @@ impl SpannerDb {
                 "collection_id" => collection_id.to_string(),
                 "bso_id" => params.id,
             })
-            .execute(&self.conn)?;
-        if result.affected_rows()? == 0 {
+            .execute_dml(&self.conn)?;
+        if affected_rows == 0 {
             Err(DbErrorKind::BsoNotFound)?
         } else {
             Ok(touch)
@@ -912,11 +914,15 @@ impl SpannerDb {
                 AND bso_id IN UNNEST(@ids)",
         )?
         .params(sqlparams)
-        .execute(&self.conn)?;
+        .execute_dml(&self.conn)?;
         self.touch_collection(&params.user_id, collection_id)
     }
 
-    fn bsos_query_sync(&self, query_str: &str, params: params::GetBsos) -> Result<SyncResultSet> {
+    fn bsos_query_sync(
+        &self,
+        query_str: &str,
+        params: params::GetBsos,
+    ) -> Result<StreamedResultSet> {
         let mut query = query_str.to_owned();
         let mut sqlparams = params! {
             "fxa_uid" => params.user_id.fxa_uid,
@@ -995,11 +1001,10 @@ impl SpannerDb {
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
         let offset = params.params.offset.unwrap_or(0) as i64;
 
-        let result: Result<Vec<_>> = self
+        let mut bsos = self
             .bsos_query_sync(query, params)?
-            .map(bso_from_row)
-            .collect();
-        let mut bsos: Vec<_> = result?;
+            .map_and_then(bso_from_row)
+            .collect::<Result<Vec<_>>>()?;
 
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -1033,10 +1038,10 @@ impl SpannerDb {
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
 
-        let mut ids: Vec<String> = self
+        let mut ids = self
             .bsos_query_sync(query, params)?
-            .map(|r| r[0].get_string_value().to_owned())
-            .collect();
+            .map_results(|row| row[0].get_string_value().to_owned())
+            .collect::<Result<Vec<_>>>()?;
 
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -1060,15 +1065,14 @@ impl SpannerDb {
 
     pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let collection_id = self.get_collection_id(&params.collection)?;
-
         self.sql(
             "SELECT bso_id, sortindex, payload, modified, expiry
-                   FROM bsos
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id
-                    AND bso_id = @bso_id
-                    AND expiry > CURRENT_TIMESTAMP()",
+               FROM bsos
+              WHERE fxa_uid = @fxa_uid
+                AND fxa_kid = @fxa_kid
+                AND collection_id = @collection_id
+                AND bso_id = @bso_id
+                AND expiry > CURRENT_TIMESTAMP()",
         )?
         .params(params! {
             "fxa_uid" => params.user_id.fxa_uid,
@@ -1145,7 +1149,7 @@ impl SpannerDb {
             "ids".to_owned(),
             as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
         );
-        let existing: Vec<_> = self
+        let existing = self
             .sql(
                 "SELECT bso_id
                    FROM bsos
@@ -1156,8 +1160,8 @@ impl SpannerDb {
             )?
             .params(sqlparams)
             .execute(&self.conn)?
-            .map(|row| row[0].get_string_value().to_owned())
-            .collect();
+            .map_results(|row| row[0].get_string_value().to_owned())
+            .collect::<Result<Vec<_>>>()?;
 
         let mut inserts = vec![];
         let mut updates = HashMap::new();
@@ -1371,7 +1375,8 @@ impl SpannerDb {
         self.sql(&sql)?
             .params(sqlparams)
             .param_types(sqltypes)
-            .execute(&self.conn)?;
+            .execute_dml(&self.conn)?;
+
         Ok(touch)
     }
 

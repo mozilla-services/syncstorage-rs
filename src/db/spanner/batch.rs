@@ -40,7 +40,7 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
     .param_types(param_types! {
         "expiry" => TypeCode::TIMESTAMP,
     })
-    .execute(&db.conn)?;
+    .execute_dml(&db.conn)?;
 
     do_append(
         db,
@@ -148,7 +148,7 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
         "collection_id" => collection_id.to_string(),
         "batch_id" => params.id,
     })
-    .execute(&db.conn)?;
+    .execute_dml(&db.conn)?;
     Ok(())
 }
 
@@ -277,7 +277,7 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
         .param_types(param_types! {
             "timestamp" => TypeCode::TIMESTAMP,
         })
-        .execute(&db.conn);
+        .execute_dml(&db.conn);
     _audit_commit_err(db, &params, result)?;
 
     // Then INSERT INTO SELECT remaining rows from this batch into the bsos
@@ -296,7 +296,7 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
             "timestamp" => TypeCode::TIMESTAMP,
             "default_bso_ttl" => TypeCode::INT64,
         })
-        .execute(&db.conn);
+        .execute_dml(&db.conn);
     _audit_commit_err(db, &params, result)?;
 
     delete(
@@ -397,7 +397,7 @@ pub fn do_append(
     )?
     .params(sqlparams)
     .param_types(sqlparam_types)
-    .execute(&db.conn)?;
+    .execute_dml(&db.conn)?;
 
     Ok(())
 }
@@ -437,7 +437,7 @@ fn pretouch_collection(db: &SpannerDb, user_id: &HawkIdentifier, collection_id: 
         .param_types(param_types! {
             "modified" => TypeCode::TIMESTAMP,
         })
-        .execute(&db.conn)?;
+        .execute_dml(&db.conn)?;
     }
     Ok(())
 }
