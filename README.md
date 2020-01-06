@@ -18,7 +18,7 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-[![License: MPL 2.0][mpl-svg]][mpl] [![Test Status][travis-badge]][travis] [![Build Status][circleci-badge]][circleci]
+[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci]
 
 # Syncstorage-rs
 
@@ -208,7 +208,5 @@ Once your PR merges, then go ahead and create an official [GitHub release](https
 
 [mpl-svg]: https://img.shields.io/badge/License-MPL%202.0-blue.svg
 [mpl]: https://opensource.org/licenses/MPL-2.0
-[travis-badge]: https://travis-ci.org/mozilla-services/syncstorage-rs.svg?branch=master
-[travis]: https://travis-ci.org/mozilla-services/syncstorage-rs
 [circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
 [circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
