@@ -3,7 +3,9 @@
 ##
 
 SYNC_DATABASE_URL = 'mysql://sample_user:sample_password@localhost/syncstorage_rs'
-PATH_TO_SYNC_SPANNER_KEYS = `pwd`service-account.json
+
+# This key can live anywhere on your machine. Adjust path as needed.
+PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 
 # TODO: replace with rust grpc alternative when ready
 # Assumes you've cloned the server-syncstorage repo locally into a peer dir.
