@@ -37,6 +37,7 @@ lazy_static = "1.4.0"
 hawk = "3.0.0"
 hkdf = "0.8.0"
 hmac = "0.7"
+itertools = "0.8.2"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 mozsvc-common = "0.1"
