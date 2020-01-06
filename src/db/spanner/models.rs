@@ -1271,6 +1271,7 @@ impl SpannerDb {
                     "".to_string()
                 }
             );
+
             q = format!(
                 "{}{}",
                 q,
@@ -1283,6 +1284,7 @@ impl SpannerDb {
                     "".to_string()
                 }
             );
+
             q = format!(
                 "{}{}",
                 q,
@@ -1294,6 +1296,7 @@ impl SpannerDb {
                     "".to_string()
                 }
             );
+
             q = format!(
                 "{}{}",
                 q,
