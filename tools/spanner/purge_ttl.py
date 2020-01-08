@@ -14,8 +14,10 @@ from urllib import parse
 from google.cloud import spanner
 
 # set up logger
-logging.basicConfig(format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
-                    stream=sys.stdout,level=logging.INFO)
+logging.basicConfig(
+    format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
+    stream=sys.stdout,
+    level=logging.INFO)
 
 # Change these to match your install.
 client = spanner.Client()
@@ -53,7 +55,8 @@ def spanner_read_data(request=None):
         query = 'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
         result = database.execute_partitioned_dml(query)
         batches_end = datetime.now()
-        logging.info("batches: removed {} rows, batches_duration: {}".format(result, batches_end - batches_start))
+        logging.info("batches: removed {} rows, batches_duration: {}".format(
+            result, batches_end - batches_start))
 
     # Delete BSOs
     with statsd.timer("syncstorage.purge_ttl.bso_duration"):
@@ -61,7 +64,8 @@ def spanner_read_data(request=None):
         query = 'DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()'
         result = database.execute_partitioned_dml(query)
         bso_end = datetime.now()
-        logging.info("bso: removed {} rows, bso_duration: {}".format(result, bso_end - bso_start))
+        logging.info("bso: removed {} rows, bso_duration: {}".format(
+            result, bso_end - bso_start))
 
 
 if __name__ == "__main__":
@@ -73,4 +77,5 @@ if __name__ == "__main__":
 
         end_time = datetime.now()
         duration = end_time - start_time
-        logging.info('Completed purge_ttl.py, total_duration: {}'.format(duration))
+        logging.info(
+            'Completed purge_ttl.py, total_duration: {}'.format(duration))
