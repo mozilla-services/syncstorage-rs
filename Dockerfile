@@ -21,7 +21,7 @@ RUN \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends default-libmysqlclient-dev libssl-dev ca-certificates libcurl4 python3-venv python3-pip && \
     python3 -m pip install setuptools wheel && \
-    python3 -m pip install google-cloud-spanner && \
+    python3 -m pip install google-cloud-spanner statsd && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/bin /app/bin
