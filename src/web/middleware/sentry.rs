@@ -69,6 +69,7 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from_request_head(sreq.head());
+        let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
         Box::new(self.service.call(sreq).and_then(move |sresp| {
@@ -94,6 +95,8 @@ where
                             tags.tags.insert(k, v);
                         }
                     };
+                    // add the uri.path (which can cause influx to puke)
+                    tags.tags.insert("uri.path".to_owned(), uri);
                     // deriving the sentry event from a fail directly from the error
                     // is not currently thread safe. Downcasting the error to an
                     // ApiError resolves this.
