@@ -176,10 +176,9 @@ where
                     if status != StatusCode::OK {
                         return Either::A(future::ok(
                             sreq.into_response(
-                                HttpResponse::Ok()
+                                HttpResponse::build(status)
                                     .content_type("application/json")
                                     .header(X_LAST_MODIFIED, resource_ts.as_header())
-                                    .status(status)
                                     .body("".to_owned())
                                     .into_body(),
                             ),
