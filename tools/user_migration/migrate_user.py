@@ -83,21 +83,25 @@ def update_token(databases, user):
     is now on Spanner
 
     """
-    cursor = databases['token'].cursor()
-    cursor.execute(
-        """
-        UPDATE
-            users
-        SET
-            replaced_at = {timestamp},
-            nodeid = {nodeid}
-        WHERE
-           uid = {uid}
-        """.format(
-            timestamp=int(time.time() * 100),
-            nodeid=SPANNER_NODE_ID,
-            uid=user)
-        )
+    with databases['token'].cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE
+                users
+            SET
+                replaced_at = {timestamp},
+                nodeid = {nodeid}
+            WHERE
+            uid = {uid}
+            """.format(
+                timestamp=int(time.time() * 100),
+                nodeid=SPANNER_NODE_ID,
+                uid=user)
+            )
+
+def update_collections(mysql, spanner, user, fxa_kid, fxa_uid):
+    # new unique user collections
+    mysql.execute("")
 
 
 # The following two functions are taken from browserid.utils
@@ -123,15 +127,14 @@ def get_fxa_id(databases, user):
         FROM users
             WHERE uid = {uid}
     """.format(uid=user)
-    cursor = databases['mysql'].cursor()
-    cursor.execute(sql)
-    (email, generation, keys_changed_at, client_state) = cursor.next()
-    fxa_uid = email.split('@')[0]
-    fxa_kid = format_key_id(
-        keys_changed_at or generation,
-        bytes.fromhex(client_state),
-    )
-    cursor.close()
+    with databases['token'].cursor() as cursor:
+        cursor.execute(sql)
+        (email, generation, keys_changed_at, client_state) = cursor.next()
+        fxa_uid = email.split('@')[0]
+        fxa_kid = format_key_id(
+            keys_changed_at or generation,
+            bytes.fromhex(client_state),
+        )
     return (fxa_kid, fxa_uid)
 
 
@@ -156,7 +159,7 @@ def move_user(databases, user, args):
     # ttl => expiry
 
     # user collections require a unique key.
-    unique_key_filter = []
+    unique_key_filter = set()
 
     uc_columns = (
         'fxa_kid',
@@ -186,74 +189,74 @@ def move_user(databases, user, args):
     ORDER BY modified DESC"""
 
     count = 0
-    with databases['spanner'].batch() as batch:
-        cursor = databases['mysql'].cursor()
-        try:
-            cursor.execute(sql.format(user))
-            print("Processing... {} -> {}:{}".format(
-                user, fxa_uid, fxa_kid))
-            for (cid, bid, exp, mod, pay, sid) in cursor:
-                # columns from sync_schema3
-                mod_v = datetime.utcfromtimestamp(mod/1000)
-                exp_v = datetime.utcfromtimestamp(exp)
-                # User_Collection can only have unique values. Filter
-                # non-unique keys and take the most recent modified
-                # time. The join could be anything.
-                uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, cid)
-                if uc_key not in unique_key_filter:
-                    unique_key_filter.append(uc_key)
-                    uc_values = [(
-                        fxa_kid,
-                        fxa_uid,
-                        cid,
-                        mod_v,
-                    )]
-                    if args.verbose:
-                        print("### uc:")
-                        dumper(uc_columns, uc_values)
-                    batch.insert(
-                        'user_collections',
-                        columns=uc_columns,
-                        values=uc_values
-                    )
-                # add the BSO values.
-                bso_values = [[
-                        cid,
-                        fxa_kid,
-                        fxa_uid,
-                        bid,
-                        exp_v,
-                        mod_v,
-                        pay,
-                        sid,
-                ]]
+    with databases['spanner'].batch() as spanner:
+        with databases['mysql'].cursor() as mysql:
+            try:
+                update_collections(mysql, spanner, user, fxa_kid, fxa_uid)
+                mysql.execute(sql.format(user))
+                print("Processing... {} -> {}:{}".format(
+                    user, fxa_uid, fxa_kid))
+                for (cid, bid, exp, mod, pay, sid) in mysql:
+                    # columns from sync_schema3
+                    mod_v = datetime.utcfromtimestamp(mod/1000.0)
+                    exp_v = datetime.utcfromtimestamp(exp)
+                    # User_Collection can only have unique values. Filter
+                    # non-unique keys and take the most recent modified
+                    # time. The join could be anything.
+                    uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, cid)
+                    if uc_key not in unique_key_filter:
+                        unique_key_filter.append(uc_key)
+                        uc_values = [(
+                            fxa_kid,
+                            fxa_uid,
+                            cid,
+                            mod_v,
+                        )]
+                        if args.verbose:
+                            print("### uc:")
+                            dumper(uc_columns, uc_values)
+                        spanner.insert(
+                            'user_collections',
+                            columns=uc_columns,
+                            values=uc_values
+                        )
+                    # add the BSO values.
+                    bso_values = [[
+                            cid,
+                            fxa_kid,
+                            fxa_uid,
+                            bid,
+                            exp_v,
+                            mod_v,
+                            pay,
+                            sid,
+                    ]]
 
+                    if args.verbose:
+                        print("###bso:")
+                        dumper(bso_columns, bso_values)
+                    spanner.insert(
+                        'bsos',
+                        columns=bso_columns,
+                        values=bso_values
+                    )
+                    if databases.get('token'):
+                        update_token(databases, user)
+                    count += 1
+                    # Closing the with automatically calls `batch.commit()`
+            except Exception as e:
+                print("### batch failure: {}".format(e))
+            finally:
+                # cursor may complain about unread data, this should prevent
+                # that warning.
+                result = mysql.stored_results()
                 if args.verbose:
-                    print("###bso:")
-                    dumper(bso_columns, bso_values)
-                batch.insert(
-                    'bsos',
-                    columns=bso_columns,
-                    values=bso_values
-                )
-                if databases.get('token'):
-                    update_token(databases, user)
-                count += 1
-                # Closing the with automatically calls `batch.commit()`
-        except Exception as e:
-            print("### batch failure: {}".format(e))
-        finally:
-            # cursor may complain about unread data, this should prevent
-            # that warning.
-            result = cursor.stored_results()
-            if args.verbose:
-                print("stored results:")
-            for ig in result:
+                    print("stored results:")
+                for ig in result:
+                    if args.verbose:
+                        print("> {}".format(ig))
                 if args.verbose:
-                    print("> {}".format(ig))
-            if args.verbose:
-                print("Closing...")
-            cursor.close()
+                    print("Closing...")
     return count
 
 
