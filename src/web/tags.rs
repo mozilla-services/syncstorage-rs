@@ -61,7 +61,7 @@ impl Tags {
                 insert_if_not_empty("ua.browser.ver", ua_result.version, &mut tags);
             }
         }
-        tags.insert("uri.path".to_owned(), req_head.uri.to_string());
+        // `uri.path` causes too much cardinality for influx.
         tags.insert("uri.method".to_owned(), req_head.method.to_string());
         Tags { tags }
     }

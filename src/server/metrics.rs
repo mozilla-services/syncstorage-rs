@@ -223,7 +223,6 @@ mod tests {
         result.insert("ua.browser.ver".to_owned(), "72.0".to_owned());
         result.insert("ua.name".to_owned(), "Firefox".to_owned());
         result.insert("ua.browser.family".to_owned(), "Firefox".to_owned());
-        result.insert("uri.path".to_owned(), path.to_owned());
         result.insert("uri.method".to_owned(), "GET".to_owned());
 
         assert_eq!(tags.tags, result)
