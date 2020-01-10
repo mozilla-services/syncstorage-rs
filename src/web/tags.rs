@@ -32,7 +32,7 @@ impl Serialize for Tags {
     {
         let mut seq = serializer.serialize_map(Some(self.tags.len()))?;
         for tag in self.tags.clone() {
-            if &tag.1 != "" {
+            if !tag.1.is_empty() {
                 seq.serialize_entry(&tag.0, &tag.1)?;
             }
         }
