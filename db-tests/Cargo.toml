@@ -11,5 +11,5 @@ futures-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev
 lazy_static = "1.4.0"
 log="0.4"
 rand = "0.7.2"
-syncstorage = { version = "0.1.0", path = "../", features = ["db_test"] }
+syncstorage = { path = "../", features = ["db_test"] }
 
