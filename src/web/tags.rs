@@ -32,9 +32,17 @@ impl Serialize for Tags {
     {
         let mut seq = serializer.serialize_map(Some(self.tags.len()))?;
         for tag in self.tags.clone() {
-            seq.serialize_entry(&tag.0, &tag.1)?;
+            if !tag.1.is_empty() {
+                seq.serialize_entry(&tag.0, &tag.1)?;
+            }
         }
         seq.end()
+    }
+}
+
+fn insert_if_not_empty(label: &str, val: &str, tags: &mut HashMap<String, String>) {
+    if !val.is_empty() {
+        tags.insert(label.to_owned(), val.to_owned());
     }
 }
 
@@ -46,15 +54,11 @@ impl Tags {
         if let Some(ua) = req_head.headers().get(USER_AGENT) {
             if let Ok(uas) = ua.to_str() {
                 let (ua_result, metrics_os, metrics_browser) = parse_user_agent(uas);
-
-                tags.insert("ua.os.family".to_owned(), metrics_os.to_owned());
-                tags.insert("ua.browser.family".to_owned(), metrics_browser.to_owned());
-                tags.insert("ua.name".to_owned(), ua_result.name.to_owned());
-                tags.insert(
-                    "ua.os.ver".to_owned(),
-                    ua_result.os_version.to_owned().to_string(),
-                );
-                tags.insert("ua.browser.ver".to_owned(), ua_result.version.to_owned());
+                insert_if_not_empty("ua.os.family", metrics_os, &mut tags);
+                insert_if_not_empty("ua.browser.family", metrics_browser, &mut tags);
+                insert_if_not_empty("ua.name", ua_result.name, &mut tags);
+                insert_if_not_empty("ua.os.ver", &ua_result.os_version.to_owned(), &mut tags);
+                insert_if_not_empty("ua.browser.ver", ua_result.version, &mut tags);
             }
         }
         // `uri.path` causes too much cardinality for influx.
