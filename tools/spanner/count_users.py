@@ -49,8 +49,7 @@ def spanner_read_data(request=None):
 
     logging.info("For {}:{}".format(instance_id, database_id))
 
-    # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
-    # IN PARENT batches ON DELETE CASCADE)
+    # Count users
     with statsd.timer("syncstorage.count_users.duration"):
         with database.snapshot() as snapshot:
             query = 'SELECT COUNT (DISTINCT fxa_uid) FROM user_collections'
