@@ -7,12 +7,15 @@
 #
 
 import argparse
+import logging
 import base64
+import sys
 import time
 from datetime import datetime
 
 from mysql import connector
 from google.cloud import spanner
+from google.api_core.exceptions import AlreadyExists
 from urllib.parse import urlparse
 
 SPANNER_NODE_ID = 800
@@ -20,6 +23,61 @@ SPANNER_NODE_ID = 800
 
 class BadDSNException(Exception):
     pass
+
+
+class Collections:
+    """Cache spanner collection list.
+
+    The spanner collection list is the (soon to be) single source of
+    truth regarding collection ids.
+
+    """
+    _by_name = {}
+    databases = None
+
+    def __init__(self, databases):
+        """Get the cache list of collection ids"""
+        sql = """
+        SELECT
+            name, collection_id
+        FROM
+            collections;
+        """
+        self.databases = databases
+        logging.debug("Fetching collections...")
+        with self.databases['spanner'].snapshot() as cursor:
+            rows = cursor.execute_sql(sql)
+            for row in rows:
+                self._by_name[row[0]] = row[1]
+
+    def get_id(self, name):
+        """ Get/Init the ID for a given collection """
+        if name in self._by_name:
+            return self._by_name.get(name)
+
+        # option 1: do what spanner-rs does
+        with self.databases['spanner'].snapshot() as cursor:
+            result = cursor.execute_sql("""
+                SELECT
+                    COALESCE(MAX(collection_id), 1)
+                FROM
+                    collections""")
+            collection_id = result.one()[0] + 1
+
+        # option 2: use a int(uuid)
+
+        logging.debug("Inserting new collection: {} => {}".format(
+            name, collection_id))
+        with self.databases['spanner'].batch() as batch:
+            batch.insert(
+                table="collections",
+                columns=('collection_id', 'name'),
+                values=[
+                    (collection_id, name)
+                ]
+            )
+        self._by_name[name] = collection_id
+        return collection_id
 
 
 def get_args():
@@ -45,6 +103,7 @@ def get_args():
 
 def conf_mysql(dsn):
     """create a connection to the original storage system """
+    logging.debug("Configuring MYSQL: {}".format(dsn))
     connection = connector.connect(
         user=dsn.username,
         password=dsn.password,
@@ -57,6 +116,7 @@ def conf_mysql(dsn):
 
 def conf_spanner(dsn):
     """create a connection to the new Spanner system"""
+    logging.debug("Configuring SPANNER: {}".format(dsn))
     path = dsn.path.split("/")
     instance_id = path[-3]
     database_id = path[-1]
@@ -83,6 +143,10 @@ def update_token(databases, user):
     is now on Spanner
 
     """
+    if 'token' not in databases:
+        logging.warn("Skipping token update...")
+        return
+    logging.info("Updating token server for user: {}".format(user))
     with databases['token'].cursor() as cursor:
         cursor.execute(
             """
@@ -98,10 +162,6 @@ def update_token(databases, user):
                 nodeid=SPANNER_NODE_ID,
                 uid=user)
             )
-
-def update_collections(mysql, spanner, user, fxa_kid, fxa_uid):
-    # new unique user collections
-    mysql.execute("")
 
 
 # The following two functions are taken from browserid.utils
@@ -127,7 +187,8 @@ def get_fxa_id(databases, user):
         FROM users
             WHERE uid = {uid}
     """.format(uid=user)
-    with databases['token'].cursor() as cursor:
+    try:
+        cursor = databases['mysql'].cursor()
         cursor.execute(sql)
         (email, generation, keys_changed_at, client_state) = cursor.next()
         fxa_uid = email.split('@')[0]
@@ -135,16 +196,18 @@ def get_fxa_id(databases, user):
             keys_changed_at or generation,
             bytes.fromhex(client_state),
         )
+    finally:
+        cursor.close()
     return (fxa_kid, fxa_uid)
 
 
 def dumper(columns, values):
     """verbose column and data dumper. """
+    result = ""
     for row in values:
-        print("---\n")
         for i in range(0, len(columns)):
-            print("{} => {}".format(columns[i], row[i]))
-    print("===\n")
+            result += " {} => {}\n".format(columns[i], row[i])
+    return result
 
 
 def move_user(databases, user, args):
@@ -160,6 +223,11 @@ def move_user(databases, user, args):
 
     # user collections require a unique key.
     unique_key_filter = set()
+
+    # off chance that someone else might have written
+    # a new collection table since the last time we
+    # fetched.
+    collections = Collections(databases)
 
     uc_columns = (
         'fxa_kid',
@@ -183,80 +251,92 @@ def move_user(databases, user, args):
 
     # Fetch the BSO data from the original storage.
     sql = """
-    SELECT collection, id, ttl, modified, payload, sortindex
-    FROM bso
-    WHERE userid = {}
-    ORDER BY modified DESC"""
+    SELECT
+        collections.name, bso.collection,
+        bso.id, bso.ttl, bso.modified, bso.payload, bso.sortindex
+    FROM
+        collections, bso
+    WHERE
+        bso.userid = {} and collections.collectionid = bso.collection
+    ORDER BY
+        modified DESC"""
 
     count = 0
-    with databases['spanner'].batch() as spanner:
-        with databases['mysql'].cursor() as mysql:
-            try:
-                update_collections(mysql, spanner, user, fxa_kid, fxa_uid)
-                mysql.execute(sql.format(user))
-                print("Processing... {} -> {}:{}".format(
-                    user, fxa_uid, fxa_kid))
-                for (cid, bid, exp, mod, pay, sid) in mysql:
-                    # columns from sync_schema3
-                    mod_v = datetime.utcfromtimestamp(mod/1000.0)
-                    exp_v = datetime.utcfromtimestamp(exp)
-                    # User_Collection can only have unique values. Filter
-                    # non-unique keys and take the most recent modified
-                    # time. The join could be anything.
-                    uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, cid)
-                    if uc_key not in unique_key_filter:
-                        unique_key_filter.append(uc_key)
-                        uc_values = [(
-                            fxa_kid,
-                            fxa_uid,
-                            cid,
-                            mod_v,
-                        )]
-                        if args.verbose:
-                            print("### uc:")
-                            dumper(uc_columns, uc_values)
-                        spanner.insert(
-                            'user_collections',
-                            columns=uc_columns,
-                            values=uc_values
-                        )
-                    # add the BSO values.
-                    bso_values = [[
-                            cid,
-                            fxa_kid,
-                            fxa_uid,
-                            bid,
-                            exp_v,
-                            mod_v,
-                            pay,
-                            sid,
-                    ]]
 
-                    if args.verbose:
-                        print("###bso:")
-                        dumper(bso_columns, bso_values)
-                    spanner.insert(
-                        'bsos',
-                        columns=bso_columns,
-                        values=bso_values
-                    )
-                    if databases.get('token'):
-                        update_token(databases, user)
-                    count += 1
-                    # Closing the with automatically calls `batch.commit()`
-            except Exception as e:
-                print("### batch failure: {}".format(e))
-            finally:
-                # cursor may complain about unread data, this should prevent
-                # that warning.
-                result = mysql.stored_results()
-                if args.verbose:
-                    print("stored results:")
-                for ig in result:
-                    if args.verbose:
-                        print("> {}".format(ig))
-                if args.verbose:
-                    print("Closing...")
+    def spanner_transact(transaction):
+        collection_id = collections.get_id(col)
+        if collection_id != cid:
+            logging.warn(
+                "Remapping collection '{}' from {} to {}".format(
+                    col, cid, collection_id))
+        # columns from sync_schema3
+        mod_v = datetime.utcfromtimestamp(mod/1000.0)
+        exp_v = datetime.utcfromtimestamp(exp)
+        # User_Collection can only have unique values. Filter
+        # non-unique keys and take the most recent modified
+        # time. The join could be anything.
+        uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, col)
+        if uc_key not in unique_key_filter:
+            unique_key_filter.add(uc_key)
+            uc_values = [(
+                fxa_kid,
+                fxa_uid,
+                collection_id,
+                mod_v,
+            )]
+            logging.debug(
+                "### uc: {}".format(uc_columns, uc_values))
+            transaction.insert(
+                'user_collections',
+                columns=uc_columns,
+                values=uc_values
+            )
+        # add the BSO values.
+        bso_values = [[
+                collection_id,
+                fxa_kid,
+                fxa_uid,
+                bid,
+                exp_v,
+                mod_v,
+                pay,
+                sid,
+        ]]
+
+        logging.debug(
+            "###bso: {}".format(dumper(bso_columns, bso_values)))
+        transaction.insert(
+            'bsos',
+            columns=bso_columns,
+            values=bso_values
+        )
+
+    try:
+        # Note: cursor() does not support __enter__()
+        mysql = databases['mysql'].cursor()
+        mysql.execute(sql.format(user))
+        logging.info("Processing... {} -> {}:{}".format(
+            user, fxa_uid, fxa_kid))
+        for (col, cid, bid, exp, mod, pay, sid) in mysql:
+            databases['spanner'].run_in_transaction(spanner_transact)
+            if databases.get('token'):
+                update_token(databases, user)
+            count += 1
+            # Closing the with automatically calls `batch.commit()`
+    except AlreadyExists:
+        logging.warn(
+            "User already imported fxa_uid:{} / fxa_kid:{}".format(
+                fxa_uid, fxa_kid
+            ))
+    except Exception as e:
+        logging.error("### batch failure:", e)
+    finally:
+        # cursor may complain about unread data, this should prevent
+        # that warning.
+        for result in mysql:
+            pass
+        logging.debug("Closing...")
+        mysql.close()
     return count
 
 
@@ -270,6 +350,13 @@ def move_data(databases, users, args):
 def main():
     start = time.time()
     args = get_args()
+    log_level = logging.ERROR
+    if args.verbose:
+        log_level = logging.DEBUG
+    logging.basicConfig(
+        stream=sys.stdout,
+        level=log_level,
+    )
     dsns = open(args.dsns).readlines()
     users = open(args.users).readlines()
     databases = {}
@@ -282,9 +369,11 @@ def main():
     if not databases.get('mysql') or not databases.get('spanner'):
         RuntimeError("Both mysql and spanner dsns must be specified")
 
-    print("Starting:")
+    logging.info("Starting:")
     rows = move_data(databases, users, args)
-    print("Moved: {} rows in {} seconds".format(rows, time.time() - start))
+    logging.info(
+        "Moved: {} rows in {} seconds".format(
+            rows, time.time() - start))
 
 
 if __name__ == "__main__":
