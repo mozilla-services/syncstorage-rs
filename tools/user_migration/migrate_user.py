@@ -56,20 +56,14 @@ class Collections:
             return self._by_name.get(name)
 
         # option 1: do what spanner-rs does
-        with self.databases['spanner'].snapshot() as cursor:
+        with self.databases['spanner'].batch() as cursor:
             result = cursor.execute_sql("""
                 SELECT
                     COALESCE(MAX(collection_id), 1)
                 FROM
                     collections""")
             collection_id = result.one()[0] + 1
-
-        # option 2: use a int(uuid)
-
-        logging.debug("Inserting new collection: {} => {}".format(
-            name, collection_id))
-        with self.databases['spanner'].batch() as batch:
-            batch.insert(
+            cursor.insert(
                 table="collections",
                 columns=('collection_id', 'name'),
                 values=[
