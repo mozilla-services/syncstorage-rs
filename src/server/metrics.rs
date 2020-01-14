@@ -223,9 +223,26 @@ mod tests {
         result.insert("ua.browser.ver".to_owned(), "72.0".to_owned());
         result.insert("ua.name".to_owned(), "Firefox".to_owned());
         result.insert("ua.browser.family".to_owned(), "Firefox".to_owned());
-        result.insert("uri.path".to_owned(), path.to_owned());
         result.insert("uri.method".to_owned(), "GET".to_owned());
 
         assert_eq!(tags.tags, result)
+    }
+
+    #[test]
+    fn no_empty_tags() {
+        use actix_web::dev::RequestHead;
+        use actix_web::http::{header, uri::Uri};
+
+        let mut rh = RequestHead::default();
+        let path = "/1.5/42/storage/meta/global";
+        rh.uri = Uri::from_static(path);
+        rh.headers.insert(
+            header::USER_AGENT,
+            header::HeaderValue::from_static("Mozilla/5.0 (curl) Gecko/20100101 curl"),
+        );
+
+        let tags = Tags::from_request_head(&rh);
+        assert!(!tags.tags.contains_key("ua.os.ver"));
+        println!("{:?}", tags);
     }
 }
