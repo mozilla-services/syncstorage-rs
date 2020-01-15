@@ -50,26 +50,24 @@ class Collections:
             for row in rows:
                 self._by_name[row[0]] = row[1]
 
-    def get_id(self, name):
+    def get_id(self, name, cursor):
         """ Get/Init the ID for a given collection """
         if name in self._by_name:
             return self._by_name.get(name)
-
-        # option 1: do what spanner-rs does
-        with self.databases['spanner'].batch() as cursor:
-            result = cursor.execute_sql("""
-                SELECT
-                    COALESCE(MAX(collection_id), 1)
-                FROM
-                    collections""")
-            collection_id = result.one()[0] + 1
-            cursor.insert(
-                table="collections",
-                columns=('collection_id', 'name'),
-                values=[
-                    (collection_id, name)
-                ]
-            )
+        result = cursor.execute_sql("""
+            SELECT
+                COALESCE(MAX(collection_id), 1)
+            FROM
+                collections""")
+        # preserve the "reserved" / < 100 ids.
+        collection_id = max(result.one()[0] + 1, 101)
+        cursor.insert(
+            table="collections",
+            columns=('collection_id', 'name'),
+            values=[
+                (collection_id, name)
+            ]
+        )
         self._by_name[name] = collection_id
         return collection_id
 
@@ -258,7 +256,7 @@ def move_user(databases, user, args):
     count = 0
 
     def spanner_transact(transaction):
-        collection_id = collections.get_id(col)
+        collection_id = collections.get_id(col, transaction)
         if collection_id != cid:
             logging.warn(
                 "Remapping collection '{}' from {} to {}".format(
