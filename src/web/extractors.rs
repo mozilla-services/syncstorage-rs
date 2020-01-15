@@ -14,7 +14,8 @@ use actix_web::{
     web::{Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-use futures::{future, Future};
+use futures::future;
+use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
 use regex::Regex;
@@ -134,7 +135,7 @@ pub struct BsoBodies {
 impl FromRequest for BsoBodies {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract the BSO Bodies from the request
     ///
@@ -150,7 +151,7 @@ impl FromRequest for BsoBodies {
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
@@ -165,7 +166,7 @@ impl FromRequest for BsoBodies {
         debug!("content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            return Box::new(future::err(
+            return Box::pin(future::err(
                 ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
@@ -208,7 +209,7 @@ impl FromRequest for BsoBodies {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -314,7 +315,7 @@ impl FromRequest for BsoBodies {
             future::ok(BsoBodies { valid, invalid })
         });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -338,14 +339,14 @@ pub struct BsoBody {
 impl FromRequest for BsoBody {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = BsoBody, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
@@ -358,7 +359,7 @@ impl FromRequest for BsoBody {
         };
         let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            return Box::new(future::err(
+            return Box::pin(future::err(
                 ValidationErrorKind::FromDetails(
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
@@ -372,7 +373,7 @@ impl FromRequest for BsoBody {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -428,7 +429,7 @@ impl FromRequest for BsoBody {
                 future::ok(bso.into_inner())
             });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -513,10 +514,10 @@ impl BsoParam {
 impl FromRequest for BsoParam {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Self::extrude(req.head(), &mut req.extensions_mut())
+        Box::pin(Self::extrude(req.head(), &mut req.extensions_mut()))
     }
 }
 
@@ -586,12 +587,12 @@ impl CollectionParam {
 impl FromRequest for CollectionParam {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
         if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
-            Ok(collection)
+            Box::pin(future::ok(Ok(collection)))
         } else {
             Err(ValidationErrorKind::FromDetails(
                 "Missing Collection".to_owned(),
@@ -617,7 +618,7 @@ pub struct MetaRequest {
 impl FromRequest for MetaRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Call the precondition stuff to init database handles and what-not
@@ -630,14 +631,14 @@ impl FromRequest for MetaRequest {
         };
         let user_id = HawkIdentifier::from_request(req, payload)?;
         let db = extrude_db(&req.extensions())?;
-        Ok({
+        Box::pin(future::ok(Ok({
             MetaRequest {
                 user_id,
                 db,
                 metrics: metrics::Metrics::from(req),
                 tags,
             }
-        })
+        })))
     }
 }
 
@@ -664,7 +665,7 @@ pub struct CollectionRequest {
 impl FromRequest for CollectionRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let user_id = HawkIdentifier::from_request(req, payload)?;
@@ -684,17 +685,17 @@ impl FromRequest for CollectionRequest {
             "application/newlines" => ReplyFormat::Newlines,
             "application/json" | "" => ReplyFormat::Json,
             _ => {
-                return Err(ValidationErrorKind::FromDetails(
+                return Box::pin(ok(Err(ValidationErrorKind::FromDetails(
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
                     Some("accept".to_string()),
                     Some(tags),
                 )
-                .into());
+                .into())));
             }
         };
 
-        Ok(CollectionRequest {
+        Box::pin(future::ok(Ok(CollectionRequest {
             collection,
             db,
             user_id,
@@ -702,7 +703,7 @@ impl FromRequest for CollectionRequest {
             reply,
             metrics: metrics::Metrics::from(req),
             tags: Some(tags),
-        })
+        })))
     }
 }
 
@@ -722,7 +723,7 @@ pub struct CollectionPostRequest {
 impl FromRequest for CollectionPostRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = CollectionPostRequest, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<CollectionPostRequest, Self::Error>>;
 
     /// Extractor for Collection Posts (Batch BSO upload)
     ///
@@ -740,7 +741,7 @@ impl FromRequest for CollectionPostRequest {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -797,7 +798,7 @@ impl FromRequest for CollectionPostRequest {
                 Err(e) => return future::err(e),
             };
 
-            future::ok(CollectionPostRequest {
+            Box::pin(future::ok(CollectionPostRequest {
                 collection,
                 db,
                 user_id,
@@ -805,10 +806,10 @@ impl FromRequest for CollectionPostRequest {
                 bsos,
                 batch: batch.opt,
                 metrics: metrics::Metrics::from(&req),
-            })
+            }))
         });
 
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -828,7 +829,7 @@ pub struct BsoRequest {
 impl FromRequest for BsoRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let user_id = HawkIdentifier::from_request(req, payload)?;
@@ -837,14 +838,14 @@ impl FromRequest for BsoRequest {
         let collection = CollectionParam::from_request(req, payload)?.collection;
         let bso = BsoParam::from_request(req, payload)?;
 
-        Ok(BsoRequest {
+        Box::pin(future::ok(Ok(BsoRequest {
             collection,
             db,
             user_id,
             query,
             bso: bso.bso,
             metrics: metrics::Metrics::from(req),
-        })
+        })))
     }
 }
 
@@ -864,7 +865,7 @@ pub struct BsoPutRequest {
 impl FromRequest for BsoPutRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = BsoPutRequest, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<BsoPutRequest, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let metrics = metrics::Metrics::from(req);
@@ -905,7 +906,7 @@ impl FromRequest for BsoPutRequest {
                 metrics,
             })
         });
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -917,7 +918,7 @@ pub struct ConfigRequest {
 impl FromRequest for ConfigRequest {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let tags = {
@@ -932,18 +933,18 @@ impl FromRequest for ConfigRequest {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into());
+                .into())));
             }
         };
 
         let data = &state.limits;
-        Ok(Self {
+        Box::pin(future::ok(Ok(Self {
             limits: ServerLimits {
                 max_post_bytes: data.max_post_bytes,
                 max_post_records: data.max_post_records,
@@ -952,7 +953,7 @@ impl FromRequest for ConfigRequest {
                 max_total_bytes: data.max_total_bytes,
                 max_total_records: data.max_total_records,
             },
-        })
+        })))
     }
 }
 
@@ -965,7 +966,7 @@ pub struct HeartbeatRequest {
 impl FromRequest for HeartbeatRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let headers = req.headers().clone();
@@ -981,7 +982,7 @@ impl FromRequest for HeartbeatRequest {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::new(future::err(
+                return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -997,7 +998,7 @@ impl FromRequest for HeartbeatRequest {
             .get()
             .map_err(Into::into)
             .and_then(|db| Ok(HeartbeatRequest { headers, db }));
-        Box::new(fut)
+        Box::pin(fut)
     }
 }
 
@@ -1010,7 +1011,7 @@ pub struct TestErrorRequest {
 impl FromRequest for TestErrorRequest {
     type Config = ();
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let headers = req.headers().clone();
@@ -1022,7 +1023,7 @@ impl FromRequest for TestErrorRequest {
             }
         };
 
-        Box::new(future::ok(TestErrorRequest {
+        Box::pin(future::ok(TestErrorRequest {
             headers,
             tags: Some(tags),
         }))
@@ -1155,7 +1156,7 @@ impl HawkIdentifier {
 impl FromRequest for HawkIdentifier {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -1165,20 +1166,27 @@ impl FromRequest for HawkIdentifier {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into());
+                .into())));
             }
         };
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
         let connection_info = req.connection_info().clone();
         let method = req.method().as_str();
         let uri = req.uri();
-        Self::extrude(req, method, uri, &connection_info, &state, Some(tags))
+        Box::pin(future::ok(Self::extrude(
+            req,
+            method,
+            uri,
+            &connection_info,
+            &state,
+            Some(tags),
+        )))
     }
 }
 
@@ -1201,7 +1209,7 @@ pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
 impl FromRequest for Box<dyn Db> {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         extrude_db(&req.extensions())
@@ -1246,7 +1254,7 @@ pub struct BsoQueryParams {
 impl FromRequest for BsoQueryParams {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -1269,7 +1277,7 @@ impl FromRequest for BsoQueryParams {
                 Some(tags.clone()),
             )
         })?;
-        Ok(params)
+        Box::pin(future::ok(Ok(params)))
     }
 }
 
@@ -1295,7 +1303,7 @@ pub struct BatchRequestOpt {
 impl FromRequest for BatchRequestOpt {
     type Config = ();
     type Error = Error;
-    type Future = Result<BatchRequestOpt, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<BatchRequestOpt, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
@@ -1315,13 +1323,13 @@ impl FromRequest for BatchRequestOpt {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into());
+                .into())));
             }
         };
 
@@ -1408,12 +1416,12 @@ impl FromRequest for BatchRequestOpt {
             }
         };
 
-        Ok(Self {
+        Box::pin(future::ok(Ok(Self {
             opt: Some(BatchRequest {
                 id,
                 commit: params.commit.is_some(),
             }),
-        })
+        })))
     }
 }
 
@@ -1508,7 +1516,7 @@ impl PreConditionHeaderOpt {
 impl FromRequest for PreConditionHeaderOpt {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
@@ -1758,7 +1766,7 @@ mod tests {
 
         // Not sure why but sending req through *::extract loses the body.
         // Compose a payload here and call the *::from_request
-        let mut payload = actix_http::h1::Payload::empty();
+        let mut payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bod_str.as_bytes()));
 
         CollectionPostRequest::from_request(&req, &mut payload.into()).wait()
@@ -1915,7 +1923,7 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let mut payload = actix_http::h1::Payload::empty();
+        let mut payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bso_body.to_string().as_bytes()));
 
         let result = BsoPutRequest::from_request(&req, &mut payload.into())
@@ -2171,7 +2179,7 @@ mod tests {
             .data(state)
             .param("uid", &USER_ID_STR)
             .to_http_request();
-        let payload = actix_http::h1::Payload::empty();
+        let payload = Payload::None;
         HawkIdentifier::from_request(&req, &mut payload.into())
             .and_then(|result| {
                 assert_eq!(result.legacy_id, *USER_ID);

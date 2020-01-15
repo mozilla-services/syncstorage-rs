@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
-use futures::future::{self, Either, Future};
+use futures::future::{self, Either, Future, FutureExt, TryFutureExt};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -16,7 +16,7 @@ use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
 pub const ONE_KB: f64 = 1024.0;
 
-pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     meta.metrics.incr("request.get_collections");
     meta.db
         .get_collection_timestamps(meta.user_id)
@@ -28,7 +28,9 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Item = HttpResponse, Er
         })
 }
 
-pub fn get_collection_counts(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_collection_counts(
+    meta: MetaRequest,
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     meta.metrics.incr("request.get_collection_counts");
     meta.db
         .get_collection_counts(meta.user_id)
@@ -40,7 +42,9 @@ pub fn get_collection_counts(meta: MetaRequest) -> impl Future<Item = HttpRespon
         })
 }
 
-pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_collection_usage(
+    meta: MetaRequest,
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     meta.metrics.incr("request.get_collection_usage");
     meta.db
         .get_collection_usage(meta.user_id)
@@ -56,7 +60,7 @@ pub fn get_collection_usage(meta: MetaRequest) -> impl Future<Item = HttpRespons
         })
 }
 
-pub fn get_quota(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     meta.metrics.incr("request.get_quota");
     meta.db
         .get_storage_usage(meta.user_id)
@@ -64,7 +68,7 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = 
         .map(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
-pub fn delete_all(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     #![allow(clippy::unit_arg)]
     meta.metrics.incr("request.delete_all");
     meta.db
@@ -75,7 +79,7 @@ pub fn delete_all(meta: MetaRequest) -> impl Future<Item = HttpResponse, Error =
 
 pub fn delete_collection(
     coll: CollectionRequest,
-) -> impl Future<Item = HttpResponse, Error = Error> {
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     let delete_bsos = !coll.query.ids.is_empty();
     let metrics = coll.metrics.clone();
     let fut = if delete_bsos {
@@ -97,7 +101,7 @@ pub fn delete_collection(
         if e.is_collection_not_found() || e.is_bso_not_found() {
             coll.db.get_storage_timestamp(coll.user_id)
         } else {
-            Box::new(future::err(e))
+            Box::pin(future::err(e))
         }
     })
     .map_err(From::from)
@@ -110,7 +114,9 @@ pub fn delete_collection(
     })
 }
 
-pub fn get_collection(coll: CollectionRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_collection(
+    coll: CollectionRequest,
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     coll.metrics.clone().incr("request.get_collection");
     let params = params::GetBsos {
         user_id: coll.user_id.clone(),
@@ -119,20 +125,20 @@ pub fn get_collection(coll: CollectionRequest) -> impl Future<Item = HttpRespons
     };
     if coll.query.full {
         let fut = coll.db.get_bsos(params);
-        Either::A(finish_get_collection(coll, fut))
+        Either::Left(finish_get_collection(coll, fut))
     } else {
         // Changed to be a Paginated list of BSOs, need to extract IDs from them.
         let fut = coll.db.get_bso_ids(params);
-        Either::B(finish_get_collection(coll, fut))
+        Either::Right(finish_get_collection(coll, fut))
     }
 }
 
 fn finish_get_collection<F, T>(
     coll: CollectionRequest,
     fut: F,
-) -> impl Future<Item = HttpResponse, Error = Error>
+) -> impl Future<Output = Result<HttpResponse, Error>>
 where
-    F: Future<Item = Paginated<T>, Error = ApiError> + 'static,
+    F: Future<Output = Result<Paginated<T>, ApiError>> + 'static,
     T: Serialize + Default + 'static,
 {
     let reply_format = coll.reply;
@@ -180,12 +186,12 @@ where
 
 pub fn post_collection(
     coll: CollectionPostRequest,
-) -> impl Future<Item = HttpResponse, Error = Error> {
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     coll.metrics.clone().incr("request.post_collection");
     if coll.batch.is_some() {
-        return Either::A(post_collection_batch(coll));
+        return Either::Left(post_collection_batch(coll));
     }
-    Either::B(
+    Either::Right(
         coll.db
             .post_bsos(params::PostBsos {
                 user_id: coll.user_id,
@@ -204,7 +210,7 @@ pub fn post_collection(
 
 pub fn post_collection_batch(
     coll: CollectionPostRequest,
-) -> impl Future<Item = HttpResponse, Error = Error> {
+) -> impl Future<Output = Result<HttpResponse, Error>> {
     coll.metrics.clone().incr("request.post_collection_batch");
     // Bail early if we have nonsensical arguments
     let breq = match coll.batch.clone() {
@@ -212,13 +218,13 @@ pub fn post_collection_batch(
         None => {
             let err: DbError = DbErrorKind::BatchNotFound.into();
             let err: ApiError = err.into();
-            return Either::A(future::err(err.into()));
+            return Either::Left(future::err(err.into()));
         }
     };
 
     let fut = if let Some(id) = breq.id.clone() {
         // Validate the batch before attempting a full append (for efficiency)
-        Either::A(
+        Either::Left(
             coll.db
                 .validate_batch(params::ValidateBatch {
                     user_id: coll.user_id.clone(),
@@ -235,7 +241,7 @@ pub fn post_collection_batch(
                 }),
         )
     } else {
-        Either::B(coll.db.create_batch(params::CreateBatch {
+        Either::Right(coll.db.create_batch(params::CreateBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
             bsos: vec![],
@@ -247,7 +253,7 @@ pub fn post_collection_batch(
     let user_id = coll.user_id.clone();
     let collection = coll.collection.clone();
 
-    Either::B(
+    Either::Right(
         fut.and_then(move |id| {
             let mut success = vec![];
             let mut failed = coll.bsos.invalid.clone();
@@ -259,7 +265,7 @@ pub fn post_collection_batch(
                 // Spanner we would pay twice the mutations for those pending
                 // items (once writing them to to batch_bsos, then again
                 // writing them to bsos)
-                Either::A(
+                Either::Left(
                     coll.db
                         .post_bsos(params::PostBsos {
                             user_id: coll.user_id.clone(),
@@ -282,7 +288,7 @@ pub fn post_collection_batch(
                         .and_then(|_| future::ok(())),
                 )
             } else {
-                Either::B(coll.db.append_to_batch(params::AppendToBatch {
+                Either::Right(coll.db.append_to_batch(params::AppendToBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
                     id: id.clone(),
@@ -309,7 +315,7 @@ pub fn post_collection_batch(
 
             if !breq.commit {
                 resp["batch"] = json!(&id);
-                return Either::A(future::ok(HttpResponse::Accepted().json(resp)));
+                return Either::Left(future::ok(HttpResponse::Accepted().json(resp)));
             }
 
             let fut = db
@@ -329,7 +335,7 @@ pub fn post_collection_batch(
                         })
                     } else {
                         let err: DbError = DbErrorKind::BatchNotFound.into();
-                        Box::new(future::err(err.into()))
+                        Box::pin(future::err(err.into()))
                     }
                 })
                 .map_err(From::from)
@@ -339,12 +345,12 @@ pub fn post_collection_batch(
                         .header(X_LAST_MODIFIED, result.modified.as_header())
                         .json(resp)
                 });
-            Either::B(fut)
+            Either::Right(fut)
         }),
     )
 }
 
-pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     bso_req.metrics.incr("request.delete_bso");
     bso_req
         .db
@@ -357,7 +363,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error
         .map(|result| HttpResponse::Ok().json(json!({ "modified": result })))
 }
 
-pub fn get_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     bso_req.metrics.incr("request.get_bso");
     bso_req
         .db
@@ -375,7 +381,7 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Item = HttpResponse, Error = 
         })
 }
 
-pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     bso_req.metrics.incr("request.put_bso");
     bso_req
         .db
@@ -395,14 +401,14 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Item = HttpResponse, Error
         })
 }
 
-pub fn get_configuration(creq: ConfigRequest) -> impl Future<Item = HttpResponse, Error = Error> {
-    future::result(Ok(HttpResponse::Ok().json(creq.limits)))
+pub fn get_configuration(creq: ConfigRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+    future::ready(Ok(HttpResponse::Ok().json(creq.limits)))
 }
 
 /** Returns a status message indicating the state of the current server
  *
  */
-pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error = Error> {
+pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),
@@ -435,7 +441,7 @@ pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Item = HttpResponse, Error
 pub fn test_error(
     _req: HttpRequest,
     ter: TestErrorRequest,
-) -> impl Future<Item = HttpResponse, Error = ApiError> {
+) -> impl Future<Output = Result<HttpResponse, ApiError>> {
     // generate an error for sentry.
 
     /*  The various error log macros only can take a string.
@@ -456,5 +462,5 @@ pub fn test_error(
     // ApiError will call the middleware layer to auto-append the tags.
     let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
 
-    future::result(Err(err))
+    future::ready(Err(err))
 }

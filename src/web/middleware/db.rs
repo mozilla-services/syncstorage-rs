@@ -1,15 +1,14 @@
+use std::pin::Pin;
+use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
-use actix_service::{Service, Transform};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::{header::HeaderValue, Method},
     Error, HttpMessage, HttpResponse,
 };
-use futures::{
-    future::{self, Either, FutureResult},
-    Future, Poll,
-};
+use futures::future::{self, ok, Either, LocalBoxFuture, Ready};
+use std::task::Poll;
 
 use crate::db::params;
 use crate::server::{metrics, ServerState};
@@ -42,10 +41,10 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = DbTransactionMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(DbTransactionMiddleware {
+        ok(DbTransactionMiddleware {
             service: Rc::new(RefCell::new(service)),
         })
     }
@@ -65,10 +64,10 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(self.service.poll_ready()).boxed_local()
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -82,7 +81,7 @@ where
         info!(">>> testing db middleware"; "user_agent" => useragent);
         if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
             let mut service = Rc::clone(&self.service);
-            return Box::new(service.call(sreq));
+            return Box::pin(service.call(sreq));
         }
 
         let tags = match sreq.extensions().get::<Tags>() {
@@ -93,14 +92,12 @@ where
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
-                return Box::new(future::ok(
-                    sreq.into_response(
-                        HttpResponse::InternalServerError()
-                            .content_type("application/json")
-                            .body("Err: No State".to_owned())
-                            .into_body(),
-                    ),
-                ))
+                return Box::new(ok(sreq.into_response(
+                    HttpResponse::InternalServerError()
+                        .content_type("application/json")
+                        .body("Err: No State".to_owned())
+                        .into_body(),
+                )))
             }
         };
         let collection = match col_result {
@@ -109,14 +106,12 @@ where
                 // Semi-example to show how to use metrics inside of middleware.
                 metrics::Metrics::from(&state).incr("sync.error.collectionParam");
                 debug!("⚠️ CollectionParam err: {:?}", e);
-                return Box::new(future::ok(
-                    sreq.into_response(
-                        HttpResponse::InternalServerError()
-                            .content_type("application/json")
-                            .body("Err: invalid collection".to_owned())
-                            .into_body(),
-                    ),
-                ));
+                return Box::new(ok(sreq.into_response(
+                    HttpResponse::InternalServerError()
+                        .content_type("application/json")
+                        .body("Err: invalid collection".to_owned())
+                        .into_body(),
+                )));
             }
         };
         let method = sreq.method().clone();
@@ -124,14 +119,12 @@ where
             Ok(v) => v,
             Err(e) => {
                 debug!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
-                return Box::new(future::ok(
-                    sreq.into_response(
-                        HttpResponse::Unauthorized()
-                            .content_type("application/json")
-                            .body("Err: Invalid Authorization".to_owned())
-                            .into_body(),
-                    ),
-                ));
+                return Box::new(ok(sreq.into_response(
+                    HttpResponse::Unauthorized()
+                        .content_type("application/json")
+                        .body("Err: Invalid Authorization".to_owned())
+                        .into_body(),
+                )));
             }
         };
         let mut service = Rc::clone(&self.service);
@@ -144,12 +137,12 @@ where
                     user_id: hawk_user_id,
                     collection: collection.collection,
                 };
-                Either::A(match method {
+                Either::Left(match method {
                     Method::GET | Method::HEAD => db.lock_for_read(lc),
                     _ => db.lock_for_write(lc),
                 })
             } else {
-                Either::B(future::ok(()))
+                Either::Right(ok(()))
             }
             .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
             .map_err(Into::into)
@@ -169,6 +162,6 @@ where
                 })
             })
         });
-        Box::new(fut)
+        Box::pin(fut)
     }
 }

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use actix_service::Service;
-use actix_web::{http, http::StatusCode, test};
+use actix_web::{dev::Service, http, http::StatusCode, http::HeaderName test, Request};
 use base64;
 use bytes::Bytes;
 use chrono::offset::Utc;
@@ -80,7 +79,7 @@ fn create_request(
     path: &str,
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
-) -> actix_http::Request {
+) -> Request {
     let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
@@ -99,8 +98,8 @@ fn create_request(
     if let Some(h) = headers {
         for (k, v) in h {
             let ln = String::from(k).to_lowercase();
-            let hn = actix_http::http::HeaderName::from_lowercase(ln.as_bytes()).unwrap();
-            let hv = actix_http::http::HeaderValue::from_str(v.as_str()).unwrap();
+            let hn = HeaderName::from_lowercase(ln.as_bytes()).unwrap();
+            let hv = HeaderValue::from_str(v.as_str()).unwrap();
             req = req.header(hn, hv);
         }
     }

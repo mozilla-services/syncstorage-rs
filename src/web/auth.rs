@@ -12,8 +12,8 @@ use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
-use actix_http::http::Uri;
 use actix_web::dev::ConnectionInfo;
+use actix_web::http::Uri;
 
 use super::tags::Tags;
 use super::{

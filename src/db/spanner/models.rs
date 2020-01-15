@@ -1,5 +1,5 @@
 use futures::future;
-use futures::lazy;
+use futures::future::lazy;
 
 use diesel::r2d2::PooledConnection;
 
@@ -1439,8 +1439,8 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::new(self.thread_pool.spawn_handle(lazy(move || {
-                future::result(db.$sync_name(params).map_err(Into::into))
+            Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+                future::ready(db.$sync_name(params).map_err(Into::into))
             })))
         }
     };
@@ -1449,15 +1449,15 @@ macro_rules! sync_db_method {
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.commit_sync().map_err(Into::into))
+        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+            future::ready(db.commit_sync().map_err(Into::into))
         })))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.rollback_sync().map_err(Into::into))
+        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+            future::ready(db.rollback_sync().map_err(Into::into))
         })))
     }
 
@@ -1467,8 +1467,8 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.check_sync().map_err(Into::into))
+        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+            future::ready(db.check_sync().map_err(Into::into))
         })))
     }
 
@@ -1534,7 +1534,7 @@ impl Db for SpannerDb {
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.get_collection_id(&name).map_err(Into::into))
+            future::ready(db.get_collection_id(&name).map_err(Into::into))
         })))
     }
 
@@ -1542,7 +1542,7 @@ impl Db for SpannerDb {
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.create_collection(&name).map_err(Into::into))
+            future::ready(db.create_collection(&name).map_err(Into::into))
         })))
     }
 
@@ -1550,7 +1550,7 @@ impl Db for SpannerDb {
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(
+            future::ready(
                 db.touch_collection(&param.user_id, param.collection_id)
                     .map_err(Into::into),
             )

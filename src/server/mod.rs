@@ -72,30 +72,26 @@ macro_rules! build_app {
             .wrap(Cors::default())
             .service(
                 web::resource(&cfg_path("/info/collections"))
-                    .route(web::get().to_async(handlers::get_collections)),
+                    .route(web::get().to(handlers::get_collections)),
             )
             .service(
                 web::resource(&cfg_path("/info/collection_counts"))
-                    .route(web::get().to_async(handlers::get_collection_counts)),
+                    .route(web::get().to(handlers::get_collection_counts)),
             )
             .service(
                 web::resource(&cfg_path("/info/collection_usage"))
-                    .route(web::get().to_async(handlers::get_collection_usage)),
+                    .route(web::get().to(handlers::get_collection_usage)),
             )
             .service(
                 web::resource(&cfg_path("/info/configuration"))
-                    .route(web::get().to_async(handlers::get_configuration)),
+                    .route(web::get().to(handlers::get_configuration)),
             )
             .service(
-                web::resource(&cfg_path("/info/quota"))
-                    .route(web::get().to_async(handlers::get_quota)),
+                web::resource(&cfg_path("/info/quota")).route(web::get().to(handlers::get_quota)),
             )
+            .service(web::resource(&cfg_path("")).route(web::delete().to(handlers::delete_all)))
             .service(
-                web::resource(&cfg_path("")).route(web::delete().to_async(handlers::delete_all)),
-            )
-            .service(
-                web::resource(&cfg_path("/storage"))
-                    .route(web::delete().to_async(handlers::delete_all)),
+                web::resource(&cfg_path("/storage")).route(web::delete().to(handlers::delete_all)),
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}"))
@@ -110,9 +106,9 @@ macro_rules! build_app {
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
-                    .route(web::delete().to_async(handlers::delete_collection))
-                    .route(web::get().to_async(handlers::get_collection))
-                    .route(web::post().to_async(handlers::post_collection)),
+                    .route(web::delete().to(handlers::delete_collection))
+                    .route(web::get().to(handlers::get_collection))
+                    .route(web::post().to(handlers::post_collection)),
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
@@ -122,16 +118,14 @@ macro_rules! build_app {
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
-                    .route(web::delete().to_async(handlers::delete_bso))
-                    .route(web::get().to_async(handlers::get_bso))
-                    .route(web::put().to_async(handlers::put_bso)),
+                    .route(web::delete().to(handlers::delete_bso))
+                    .route(web::get().to(handlers::get_bso))
+                    .route(web::put().to(handlers::put_bso)),
             )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
-            .service(
-                web::resource("/__heartbeat__").route(web::get().to_async(handlers::heartbeat)),
-            )
+            .service(web::resource("/__heartbeat__").route(web::get().to(handlers::heartbeat)))
             .service(
                 web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
                     // used by the load balancers, just return OK.
@@ -149,7 +143,7 @@ macro_rules! build_app {
                         .body(include_str!("../../version.json"))
                 })),
             )
-            .service(web::resource("/__error__").route(web::get().to_async(handlers::test_error)))
+            .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
     };
 }
 

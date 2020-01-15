@@ -185,11 +185,6 @@ impl From<Context<ApiErrorKind>> for ApiError {
 }
 
 impl ResponseError for ApiError {
-    // Override the default which will force "text/plain" and use the error message.
-    fn render_response(&self) -> HttpResponse {
-        self.error_response()
-    }
-
     fn error_response(&self) -> HttpResponse {
         // To return a descriptive error response, this would work. We do not
         // unfortunately do that so that we can retain Sync 1.1 backwards compatibility
