@@ -885,7 +885,7 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+            Box::pin(self.thread_pool.spawn_handle(lazy(move |_| {
                 future::ready(db.$sync_name(params).map_err(Into::into))
             })))
         }

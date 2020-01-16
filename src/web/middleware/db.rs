@@ -7,7 +7,7 @@ use actix_web::{
     http::{header::HeaderValue, Method},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, ok, Either, LocalBoxFuture, Ready};
+use futures::future::{self, Either, LocalBoxFuture, Ready};
 use std::task::Poll;
 
 use crate::db::params;
@@ -44,7 +44,7 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(DbTransactionMiddleware {
+        future::ok(DbTransactionMiddleware {
             service: Rc::new(RefCell::new(service)),
         })
     }
@@ -66,8 +66,8 @@ where
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(self.service.poll_ready()).boxed_local()
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(self.service.poll_ready(cx)).boxed_local()
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -92,12 +92,14 @@ where
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
-                return Box::new(ok(sreq.into_response(
-                    HttpResponse::InternalServerError()
-                        .content_type("application/json")
-                        .body("Err: No State".to_owned())
-                        .into_body(),
-                )))
+                return Box::pin(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: No State".to_owned())
+                            .into_body(),
+                    ),
+                ))
             }
         };
         let collection = match col_result {
@@ -106,12 +108,14 @@ where
                 // Semi-example to show how to use metrics inside of middleware.
                 metrics::Metrics::from(&state).incr("sync.error.collectionParam");
                 debug!("⚠️ CollectionParam err: {:?}", e);
-                return Box::new(ok(sreq.into_response(
-                    HttpResponse::InternalServerError()
-                        .content_type("application/json")
-                        .body("Err: invalid collection".to_owned())
-                        .into_body(),
-                )));
+                return Box::pin(future::ok(
+                    sreq.into_response(
+                        HttpResponse::InternalServerError()
+                            .content_type("application/json")
+                            .body("Err: invalid collection".to_owned())
+                            .into_body(),
+                    ),
+                ));
             }
         };
         let method = sreq.method().clone();
@@ -119,12 +123,14 @@ where
             Ok(v) => v,
             Err(e) => {
                 debug!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
-                return Box::new(ok(sreq.into_response(
-                    HttpResponse::Unauthorized()
-                        .content_type("application/json")
-                        .body("Err: Invalid Authorization".to_owned())
-                        .into_body(),
-                )));
+                return Box::pin(future::ok(
+                    sreq.into_response(
+                        HttpResponse::Unauthorized()
+                            .content_type("application/json")
+                            .body("Err: Invalid Authorization".to_owned())
+                            .into_body(),
+                    ),
+                ));
             }
         };
         let mut service = Rc::clone(&self.service);
@@ -142,7 +148,7 @@ where
                     _ => db.lock_for_write(lc),
                 })
             } else {
-                Either::Right(ok(()))
+                Either::Right(future::ok(()))
             }
             .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
             .map_err(Into::into)

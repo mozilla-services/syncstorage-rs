@@ -685,7 +685,7 @@ impl FromRequest for CollectionRequest {
             "application/newlines" => ReplyFormat::Newlines,
             "application/json" | "" => ReplyFormat::Json,
             _ => {
-                return Box::pin(ok(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::ok(Err(ValidationErrorKind::FromDetails(
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
                     Some("accept".to_string()),
@@ -1212,7 +1212,7 @@ impl FromRequest for Box<dyn Db> {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        extrude_db(&req.extensions())
+        Box::pin(future::ok(extrude_db(&req.extensions())))
     }
 }
 
@@ -1366,28 +1366,28 @@ impl FromRequest for BatchRequestOpt {
                 err
             })?;
             if count > *limit {
-                return Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::ok(Err(ValidationErrorKind::FromDetails(
                     "size-limit-exceeded".to_owned(),
                     RequestErrorLocation::Header,
                     None,
                     Some(tags.clone()),
                 )
-                .into());
+                .into())));
             }
         }
 
         if params.batch.is_none() && params.commit.is_none() {
             // No batch options requested
-            return Ok(Self { opt: None });
+            return Box::pin(future::ok(Ok(Self { opt: None })));
         } else if params.batch.is_none() {
             // commit w/ no batch ID is an error
-            return Err(ValidationErrorKind::FromDetails(
+            return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
                 "Commit with no batch specified".to_string(),
                 RequestErrorLocation::Path,
                 None,
                 Some(tags),
             )
-            .into());
+            .into())));
         }
 
         params.validate().map_err(|e| {
@@ -1521,7 +1521,9 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
-        Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
+        Box::pin(future::ok(Ok(
+            Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
+        )))
     }
 }
 
