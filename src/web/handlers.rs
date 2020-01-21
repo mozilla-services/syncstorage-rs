@@ -23,9 +23,9 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpRes
         .map_err(From::from)
         .map(|result| {
             let result = result.unwrap();
-            HttpResponse::build(StatusCode::OK)
+            Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
-                .json(result)
+                .json(result))
         })
 }
 
@@ -38,9 +38,9 @@ pub fn get_collection_counts(
         .map_err(From::from)
         .map(|result| {
             let result = result.unwrap();
-            HttpResponse::build(StatusCode::OK)
+            Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
-                .json(result)
+                .json(result))
         })
 }
 
@@ -57,9 +57,9 @@ pub fn get_collection_usage(
                 .into_iter()
                 .map(|(coll, size)| (coll, size as f64 / ONE_KB))
                 .collect();
-            HttpResponse::build(StatusCode::OK)
+            Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, usage.len().to_string())
-                .json(usage)
+                .json(usage))
         })
 }
 
@@ -68,7 +68,10 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse,
     meta.db
         .get_storage_usage(meta.user_id)
         .map_err(From::from)
-        .map(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
+        .map(|usage| {
+            let usage = usage.unwrap();
+            Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
+        })
 }
 
 pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -77,7 +80,7 @@ pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse
     meta.db
         .delete_storage(meta.user_id)
         .map_err(From::from)
-        .map(|result| HttpResponse::Ok().json(result))
+        .map(|result| Ok(HttpResponse::Ok().json(result)))
 }
 
 pub fn delete_collection(
@@ -110,11 +113,11 @@ pub fn delete_collection(
     .map_err(From::from)
     .map(move |result| {
         let result = result.unwrap();
-        HttpResponse::Ok()
+        Ok(HttpResponse::Ok()
             .if_true(delete_bsos, |resp| {
                 resp.header(X_LAST_MODIFIED, result.as_header());
             })
-            .json(result)
+            .json(result))
     })
 }
 
@@ -205,9 +208,10 @@ pub fn post_collection(
             })
             .map_err(From::from)
             .map(|result| {
-                HttpResponse::build(StatusCode::OK)
+                let result = result.unwrap();
+                Ok(HttpResponse::build(StatusCode::OK)
                     .header(X_LAST_MODIFIED, result.modified.as_header())
-                    .json(result)
+                    .json(result))
             }),
     )
 }
@@ -344,6 +348,7 @@ pub fn post_collection_batch(
                 })
                 .map_err(From::from)
                 .map(|result| {
+                    let result = result.unwrap();
                     resp["modified"] = json!(result.modified);
                     HttpResponse::build(StatusCode::OK)
                         .header(X_LAST_MODIFIED, result.modified.as_header())
@@ -364,7 +369,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpRespon
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(|result| HttpResponse::Ok().json(json!({ "modified": result })))
+        .map(|result| Ok(HttpResponse::Ok().json(json!({ "modified": result }))))
 }
 
 pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -378,9 +383,10 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse,
         })
         .map_err(From::from)
         .map(|result| {
+            let result = result.unwrap();
             result.map_or_else(
-                || HttpResponse::NotFound().finish(),
-                |bso| HttpResponse::Ok().json(bso),
+                || Ok(HttpResponse::NotFound().finish()),
+                |bso| Ok(HttpResponse::Ok().json(bso)),
             )
         })
 }
@@ -400,9 +406,9 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpRespon
         .map_err(From::from)
         .map(|result| {
             let result = result.unwrap();
-            HttpResponse::build(StatusCode::OK)
+            Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_LAST_MODIFIED, result.as_header())
-                .json(result)
+                .json(result))
         })
 }
 
