@@ -14,8 +14,8 @@ use actix_web::{
     web::{Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-use futures::future;
-use futures::future::LocalBoxFuture;
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
+
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
 use regex::Regex;

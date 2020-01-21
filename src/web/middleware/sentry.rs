@@ -5,7 +5,7 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage,
 };
-use futures::future::{self, LocalBoxFuture};
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use std::task::Poll;
 
 use crate::error::ApiError;
@@ -62,7 +62,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(self.service.poll_ready(cx))
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -106,7 +106,7 @@ where
                     }
                 }
             }
-            sresp
+            future::ok(sresp)
         }))
     }
 }

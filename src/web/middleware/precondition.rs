@@ -14,7 +14,7 @@ use actix_web::{
     http::{header, StatusCode},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, Either, LocalBoxFuture};
+use futures::future::{self, Either, LocalBoxFuture, FutureExt, TryFutureExt};
 use std::task::Poll;
 
 #[derive(Debug)]
@@ -70,7 +70,7 @@ where
 
     // call super poll_ready()
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(self.service.poll_ready(cx))
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -95,7 +95,7 @@ where
             },
             Err(e) => {
                 debug!("⚠️ Precondition error {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
                             .content_type("application/json")
@@ -109,7 +109,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 debug!("⚠️ Hawk header error {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
                             .content_type("application/json")
@@ -124,7 +124,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 debug!("⚠️ Database access error {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -140,7 +140,7 @@ where
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
                 debug!("⚠️ Collection Error:  {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -180,6 +180,7 @@ where
 
                 // Make the call, then do all the post-processing steps.
                 Either::Right(service.call(sreq).map(move |mut resp| {
+                    let resp = resp.unwrap();
                     if resp.headers().contains_key(X_LAST_MODIFIED) {
                         return resp;
                     }

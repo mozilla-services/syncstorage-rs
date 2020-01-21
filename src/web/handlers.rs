@@ -22,6 +22,7 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpRes
         .get_collection_timestamps(meta.user_id)
         .map_err(From::from)
         .map(|result| {
+            let result = result.unwrap();
             HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
                 .json(result)
@@ -36,6 +37,7 @@ pub fn get_collection_counts(
         .get_collection_counts(meta.user_id)
         .map_err(From::from)
         .map(|result| {
+            let result = result.unwrap();
             HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
                 .json(result)
@@ -50,6 +52,7 @@ pub fn get_collection_usage(
         .get_collection_usage(meta.user_id)
         .map_err(From::from)
         .map(|usage| {
+            let usage = usage.unwrap();
             let usage: HashMap<_, _> = usage
                 .into_iter()
                 .map(|(coll, size)| (coll, size as f64 / ONE_KB))
@@ -106,6 +109,7 @@ pub fn delete_collection(
     })
     .map_err(From::from)
     .map(move |result| {
+        let result = result.unwrap();
         HttpResponse::Ok()
             .if_true(delete_bsos, |resp| {
                 resp.header(X_LAST_MODIFIED, result.as_header());
@@ -395,6 +399,7 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpRespon
         })
         .map_err(From::from)
         .map(|result| {
+            let result = result.unwrap();
             HttpResponse::build(StatusCode::OK)
                 .header(X_LAST_MODIFIED, result.as_header())
                 .json(result)

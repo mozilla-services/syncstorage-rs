@@ -169,8 +169,7 @@ impl Server {
             build_app!(state, limits)
         })
         .bind(format!("{}:{}", settings.host, settings.port))
-        .unwrap()
-        .start();
+        .unwrap();
         Ok(sys)
     }
 }

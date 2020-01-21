@@ -4,7 +4,7 @@ use std::{
     result::Result as StdResult,
 };
 
-use futures::stream::Wait;
+use futures::stream::{Wait, Stream};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,

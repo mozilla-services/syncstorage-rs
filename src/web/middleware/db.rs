@@ -7,7 +7,7 @@ use actix_web::{
     http::{header::HeaderValue, Method},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, Either, LocalBoxFuture, Ready};
+use futures::future::{self, Either, LocalBoxFuture, Ready, TryFutureExt};
 use std::task::Poll;
 
 use crate::db::params;
@@ -67,7 +67,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(self.service.poll_ready(cx)).boxed_local()
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {

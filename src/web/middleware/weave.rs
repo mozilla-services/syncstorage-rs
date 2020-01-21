@@ -6,7 +6,8 @@ use actix_web::{
     http::header::{self, HeaderMap},
     Error,
 };
-use futures::future::{self, LocalBoxFuture};
+
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use std::task::Poll;
 
 use crate::db::util::SyncTimestamp;
@@ -29,7 +30,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(self.service.poll_ready(cx))
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -94,7 +95,7 @@ impl Default for WeaveTimestamp {
     }
 }
 
-impl<S, B> Transform<S> for WeaveTimestamp
+impl<S: 'static, B> Transform<S> for WeaveTimestamp
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
