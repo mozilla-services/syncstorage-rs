@@ -1439,9 +1439,9 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+            Box::pin(self.thread_pool.spawn_handle(move || {
                 future::ready(db.$sync_name(params).map_err(Into::into))
-            })))
+            }))
         }
     };
 }
@@ -1449,16 +1449,16 @@ macro_rules! sync_db_method {
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+        Box::pin(self.thread_pool.spawn_handle(move || {
             future::ready(db.commit_sync().map_err(Into::into))
-        })))
+        }))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+        Box::pin(self.thread_pool.spawn_handle(move || {
             future::ready(db.rollback_sync().map_err(Into::into))
-        })))
+        }))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -1467,9 +1467,9 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+        Box::pin(self.thread_pool.spawn_handle(move || {
             future::ready(db.check_sync().map_err(Into::into))
-        })))
+        }))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1533,28 +1533,28 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+        Box::new(self.thread_pool.spawn_handle(move || {
             future::ready(db.get_collection_id(&name).map_err(Into::into))
-        })))
+        }))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+        Box::new(self.thread_pool.spawn_handle(move || {
             future::ready(db.create_collection(&name).map_err(Into::into))
-        })))
+        }))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
+        Box::new(self.thread_pool.spawn_handle(move || {
             future::ready(
                 db.touch_collection(&param.user_id, param.collection_id)
                     .map_err(Into::into),
             )
-        })))
+        }))
     }
 
     #[cfg(any(test, feature = "db_test"))]

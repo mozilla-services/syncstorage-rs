@@ -92,11 +92,11 @@ impl MysqlDbPool {
 impl DbPool for MysqlDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(lazy(move || {
+        Box::pin(self.thread_pool.spawn_handle(move || {
             pool.get_sync()
                 .map(|db| Box::new(db) as Box<dyn Db>)
                 .map_err(Into::into)
-        })))
+        }))
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
