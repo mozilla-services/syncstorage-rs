@@ -10,7 +10,7 @@ use diesel::{
     Connection,
 };
 use futures::future::lazy;
-use tokio_threadpool::ThreadPool;
+use futures::executor::ThreadPool;
 
 use super::models::{MysqlDb, Result};
 #[cfg(any(test, feature = "db_test"))]

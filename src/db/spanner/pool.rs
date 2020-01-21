@@ -9,7 +9,7 @@ use diesel::r2d2::Pool;
 
 use futures::future::lazy;
 use scheduled_thread_pool::ScheduledThreadPool;
-use tokio_threadpool::ThreadPool;
+use futures::executor::ThreadPool;
 
 use super::models::Result;
 #[cfg(any(test, feature = "db_test"))]
@@ -77,7 +77,7 @@ impl SpannerDbPool {
         Ok(Self {
             pool: builder.build(manager)?,
             thread_pool: Arc::new(
-                tokio_threadpool::Builder::new()
+                futures::executor::ThreadPool::new()
                     .pool_size(max_size as usize)
                     .build(),
             ),

@@ -98,7 +98,7 @@ pub struct SpannerDb {
 pub struct SpannerDbInner {
     pub(super) conn: Conn,
 
-    thread_pool: Arc<::tokio_threadpool::ThreadPool>,
+    thread_pool: Arc<futures::executor::ThreadPool>,
     pub(super) session: RefCell<SpannerDbSession>,
 }
 
@@ -127,7 +127,7 @@ macro_rules! batch_db_method {
 impl SpannerDb {
     pub fn new(
         conn: Conn,
-        thread_pool: Arc<::tokio_threadpool::ThreadPool>,
+        thread_pool: Arc<futures::executor::ThreadPool>,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
     ) -> Self {
