@@ -99,7 +99,7 @@ impl FromRequest for Tags {
             }
         };
 
-        Box::pin(future::ok(Ok(tags)))
+        Box::pin(future::ok(tags))
     }
 }
 

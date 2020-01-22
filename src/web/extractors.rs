@@ -592,7 +592,7 @@ impl FromRequest for CollectionParam {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
         if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
-            Box::pin(future::ok(Ok(collection)))
+            Box::pin(future::ok(collection))
         } else {
             Err(ValidationErrorKind::FromDetails(
                 "Missing Collection".to_owned(),
@@ -631,14 +631,14 @@ impl FromRequest for MetaRequest {
         };
         let user_id = HawkIdentifier::from_request(req, payload)?;
         let db = extrude_db(&req.extensions())?;
-        Box::pin(future::ok(Ok({
+        Box::pin(future::ok({
             MetaRequest {
                 user_id,
                 db,
                 metrics: metrics::Metrics::from(req),
                 tags,
             }
-        })))
+        }))
     }
 }
 
@@ -685,17 +685,17 @@ impl FromRequest for CollectionRequest {
             "application/newlines" => ReplyFormat::Newlines,
             "application/json" | "" => ReplyFormat::Json,
             _ => {
-                return Box::pin(future::ok(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(ValidationErrorKind::FromDetails(
                     "Invalid accept".to_string(),
                     RequestErrorLocation::Header,
                     Some("accept".to_string()),
                     Some(tags),
                 )
-                .into())));
+                .into()));
             }
         };
 
-        Box::pin(future::ok(Ok(CollectionRequest {
+        Box::pin(future::ok(CollectionRequest {
             collection,
             db,
             user_id,
@@ -703,7 +703,7 @@ impl FromRequest for CollectionRequest {
             reply,
             metrics: metrics::Metrics::from(req),
             tags: Some(tags),
-        })))
+        }))
     }
 }
 
@@ -838,14 +838,14 @@ impl FromRequest for BsoRequest {
         let collection = CollectionParam::from_request(req, payload)?.collection;
         let bso = BsoParam::from_request(req, payload)?;
 
-        Box::pin(future::ok(Ok(BsoRequest {
+        Box::pin(future::ok(BsoRequest {
             collection,
             db,
             user_id,
             query,
             bso: bso.bso,
             metrics: metrics::Metrics::from(req),
-        })))
+        }))
     }
 }
 
@@ -933,18 +933,18 @@ impl FromRequest for ConfigRequest {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into())));
+                .into()));
             }
         };
 
         let data = &state.limits;
-        Box::pin(future::ok(Ok(Self {
+        Box::pin(future::ok(Self {
             limits: ServerLimits {
                 max_post_bytes: data.max_post_bytes,
                 max_post_records: data.max_post_records,
@@ -953,7 +953,7 @@ impl FromRequest for ConfigRequest {
                 max_total_bytes: data.max_total_bytes,
                 max_total_records: data.max_total_records,
             },
-        })))
+        }))
     }
 }
 
@@ -1166,20 +1166,20 @@ impl FromRequest for HawkIdentifier {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into())));
+                .into()));
             }
         };
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
         let connection_info = req.connection_info().clone();
         let method = req.method().as_str();
         let uri = req.uri();
-        Box::pin(future::ok(Self::extrude(
+        Box::pin(future::result(Self::extrude(
             req,
             method,
             uri,
@@ -1212,7 +1212,7 @@ impl FromRequest for Box<dyn Db> {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(future::ok(extrude_db(&req.extensions())))
+        Box::pin(future::result(extrude_db(&req.extensions())))
     }
 }
 
@@ -1277,7 +1277,7 @@ impl FromRequest for BsoQueryParams {
                 Some(tags.clone()),
             )
         })?;
-        Box::pin(future::ok(Ok(params)))
+        Box::pin(future::ok(params))
     }
 }
 
@@ -1323,13 +1323,13 @@ impl FromRequest for BatchRequestOpt {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
                     Some("state".to_owned()),
                     Some(tags),
                 )
-                .into())));
+                .into()));
             }
         };
 
@@ -1366,28 +1366,28 @@ impl FromRequest for BatchRequestOpt {
                 err
             })?;
             if count > *limit {
-                return Box::pin(future::ok(Err(ValidationErrorKind::FromDetails(
+                return Box::pin(future::ok(ValidationErrorKind::FromDetails(
                     "size-limit-exceeded".to_owned(),
                     RequestErrorLocation::Header,
                     None,
                     Some(tags.clone()),
                 )
-                .into())));
+                .into()));
             }
         }
 
         if params.batch.is_none() && params.commit.is_none() {
             // No batch options requested
-            return Box::pin(future::ok(Ok(Self { opt: None })));
+            return Box::pin(future::ok(Self { opt: None }));
         } else if params.batch.is_none() {
             // commit w/ no batch ID is an error
-            return Box::pin(future::err(Err(ValidationErrorKind::FromDetails(
+            return Box::pin(future::err(ValidationErrorKind::FromDetails(
                 "Commit with no batch specified".to_string(),
                 RequestErrorLocation::Path,
                 None,
                 Some(tags),
             )
-            .into())));
+            .into()));
         }
 
         params.validate().map_err(|e| {
@@ -1416,12 +1416,12 @@ impl FromRequest for BatchRequestOpt {
             }
         };
 
-        Box::pin(future::ok(Ok(Self {
+        Box::pin(future::ok(Self {
             opt: Some(BatchRequest {
                 id,
                 commit: params.commit.is_some(),
             }),
-        })))
+        }))
     }
 }
 
@@ -1521,9 +1521,9 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
-        Box::pin(future::ok(Ok(
+        Box::pin(future::ok(
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
-        )))
+        ))
     }
 }
 
