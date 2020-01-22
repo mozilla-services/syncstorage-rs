@@ -517,7 +517,7 @@ impl FromRequest for BsoParam {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(Self::extrude(req.head(), &mut req.extensions_mut()))
+        Box::pin(future::ready(Self::extrude(req.head(), &mut req.extensions_mut())))
     }
 }
 
