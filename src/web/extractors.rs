@@ -1179,7 +1179,7 @@ impl FromRequest for HawkIdentifier {
         let connection_info = req.connection_info().clone();
         let method = req.method().as_str();
         let uri = req.uri();
-        Box::pin(future::result(Self::extrude(
+        Box::pin(future::ready(Self::extrude(
             req,
             method,
             uri,
@@ -1212,7 +1212,7 @@ impl FromRequest for Box<dyn Db> {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(future::result(extrude_db(&req.extensions())))
+        Box::pin(future::ready(extrude_db(&req.extensions())))
     }
 }
 
