@@ -180,7 +180,7 @@ def get_fxa_id(databases, user):
             WHERE uid = {uid}
     """.format(uid=user)
     try:
-        cursor = databases['mysql'].cursor()
+        cursor = databases.get('token', databases['mysql']).cursor()
         cursor.execute(sql)
         (email, generation, keys_changed_at, client_state) = cursor.next()
         fxa_uid = email.split('@')[0]
@@ -311,8 +311,7 @@ def move_user(databases, user, args):
             user, fxa_uid, fxa_kid))
         for (col, cid, bid, exp, mod, pay, sid) in mysql:
             databases['spanner'].run_in_transaction(spanner_transact)
-            if databases.get('token'):
-                update_token(databases, user)
+            update_token(databases, user)
             count += 1
             # Closing the with automatically calls `batch.commit()`
     except AlreadyExists:
