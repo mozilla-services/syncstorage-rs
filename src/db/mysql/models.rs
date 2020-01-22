@@ -17,7 +17,6 @@ use diesel::{
 };
 #[cfg(any(test, feature = "db_test"))]
 use diesel_logger::LoggingConnection;
-use futures::future;
 
 use super::{
     batch,
@@ -979,7 +978,7 @@ impl Db for MysqlDb {
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(block(move || {
+        Box::pin(block(move || {
             db.get_collection_id(&name).map_err(Into::into)
         }).map_err(Into::into))
     }
@@ -987,7 +986,7 @@ impl Db for MysqlDb {
     #[cfg(any(test, feature = "db_test"))]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(block(move || {
+        Box::pin(block(move || {
             db.create_collection(&name).map_err(Into::into)
         }).map_err(Into::into))
     }
@@ -995,7 +994,7 @@ impl Db for MysqlDb {
     #[cfg(any(test, feature = "db_test"))]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::new(block(move || {
+        Box::pin(block(move || {
             db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
                 .map_err(Into::into)
         }).map_err(Into::into))

@@ -17,7 +17,7 @@ use diesel::{
 use super::models::{MysqlDb, Result};
 #[cfg(any(test, feature = "db_test"))]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
+use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 

@@ -10,7 +10,6 @@ use std::{
 use diesel::r2d2;
 use diesel::r2d2::Pool;
 
-use futures::future::lazy;
 use scheduled_thread_pool::ScheduledThreadPool;
 
 use super::models::Result;
