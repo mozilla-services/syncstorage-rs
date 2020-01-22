@@ -14,7 +14,7 @@ use actix_web::{
     web::{Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, BoxFuture, LocalBoxFuture, TryFutureExt};
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -590,17 +590,24 @@ impl FromRequest for CollectionParam {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let tags = Tags::from_request(req, payload)?;
-        if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
-            Box::pin(future::ok(collection))
-        } else {
-            Err(ValidationErrorKind::FromDetails(
-                "Missing Collection".to_owned(),
-                RequestErrorLocation::Path,
-                Some("collection".to_owned()),
-                Some(tags),
-            ))?
-        }
+        Box::pin(Tags::from_request(req, payload).and_then(|tags| {
+            let coll = match Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags) {
+                Err(e) => {
+                    return future::err(e);
+                }
+                Ok(r) => r
+            };
+            if let Some(collection) = coll {
+                future::ok(collection)
+            } else {
+                return future::err(ValidationErrorKind::FromDetails(
+                    "Missing Collection".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("collection".to_owned()),
+                    Some(tags)).into(),
+                )
+            }
+        }))
     }
 }
 
