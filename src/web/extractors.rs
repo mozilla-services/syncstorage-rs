@@ -1400,17 +1400,17 @@ impl FromRequest for BatchRequestOpt {
 
         let id = match params.batch {
             None => None,
-            Some(ref batch) if batch == "" || TRUE_REGEX.is_match(batch) => None,
+            Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
             Some(batch) => {
                 let db = extrude_db(&req.extensions())?;
                 if db.validate_batch_id(batch.clone()).is_err() {
-                    return Err(ValidationErrorKind::FromDetails(
+                    return Box::pin(future::err(ValidationErrorKind::FromDetails(
                         format!(r#"Invalid batch ID: "{}""#, batch),
                         RequestErrorLocation::QueryString,
                         Some("batch".to_owned()),
                         Some(ftags),
                     )
-                    .into());
+                    .into()));
                 }
                 Some(batch)
             }
