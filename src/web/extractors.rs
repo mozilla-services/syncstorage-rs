@@ -1521,7 +1521,7 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let tags = Tags::from_request(req, payload)?;
-        Box::pin(future::ok(
+        Box::pin(future::ready(
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
         ))
     }
