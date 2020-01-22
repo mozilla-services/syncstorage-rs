@@ -6,7 +6,7 @@ use actix_web::{
     Error, FromRequest, HttpRequest,
 };
 use futures::future;
-use futures::future::LocalBoxFuture;
+use futures::future::Ready;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
@@ -88,7 +88,7 @@ impl Tags {
 impl FromRequest for Tags {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let tags = {
@@ -99,7 +99,7 @@ impl FromRequest for Tags {
             }
         };
 
-        Box::pin(future::ok(tags))
+        future::ok(tags)
     }
 }
 

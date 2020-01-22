@@ -14,7 +14,7 @@ use actix_web::{
     web::{Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-use futures::future::{self, LocalBoxFuture, TryFutureExt, Ready};
+use futures::future::{self, LocalBoxFuture, TryFutureExt, FutureExt, Ready};
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -587,11 +587,28 @@ impl CollectionParam {
 impl FromRequest for CollectionParam {
     type Config = ();
     type Error = Error;
+    //type Future = Ready<Result<Self, Self::Error>>;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        /*
+        // XXX: we can't use ?
+        let tags = Tags::from_request(req, payload)?;
+        if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
+            future::ok(collection)
+        } else {
+            future::err(ValidationErrorKind::FromDetails(
+                "Missing Collection".to_owned(),
+                RequestErrorLocation::Path,
+                Some("collection".to_owned()),
+                Some(tags),
+            ))?
+        }
+        */
+        let fut = Tags::from_request(req, payload);
+        let req = req.clone();
         Box::pin(async {
-            let tags = Tags::from_request(req, payload).await?;
+            let tags = fut.await?;
             if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
                 Ok(collection)
             } else {
@@ -623,24 +640,30 @@ impl FromRequest for MetaRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        // Call the precondition stuff to init database handles and what-not
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
-        let user_id = HawkIdentifier::from_request(req, payload)?;
-        let db = extrude_db(&req.extensions())?;
-        Box::pin(future::ok({
-            MetaRequest {
-                user_id,
-                db,
-                metrics: metrics::Metrics::from(req),
-                tags,
-            }
-        }))
+        let req = req.clone();
+        let payload = payload.take();
+        async move {
+            // Call the precondition stuff to init database handles and what-not
+            let tags = {
+                let exts = req.extensions();
+                match exts.get::<Tags>() {
+                    Some(t) => t.clone(),
+                    None => Tags::from_request_head(req.head()),
+                }
+            };
+            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
+            let db = extrude_db(&req.extensions())?;
+            //            Box::pin(future::ok({
+            Ok(
+                MetaRequest {
+                    user_id,
+                    db,
+                    metrics: metrics::Metrics::from(&req),
+                    tags,
+                }
+            )
+//            }))
+        }.boxed_local()
     }
 }
 
@@ -670,42 +693,49 @@ impl FromRequest for CollectionRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let user_id = HawkIdentifier::from_request(req, payload)?;
-        let db = <Box<dyn Db>>::from_request(req, payload)?;
-        let query = BsoQueryParams::from_request(req, payload)?;
-        let collection = CollectionParam::from_request(req, payload)?.collection;
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
+        let req = req.clone();
+        let payload = payload.take();
+        async move {
+            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
+            let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
+            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
+            let collection = CollectionParam::from_request(&req, &mut payload).await?.collection;
+            let tags = {
+                let exts = req.extensions();
+                match exts.get::<Tags>() {
+                    Some(t) => t.clone(),
+                    None => Tags::from_request_head(req.head()),
+                }
+            };
 
-        let accept = get_accepted(req, &ACCEPTED_CONTENT_TYPES, "application/json");
-        let reply = match accept.as_str() {
-            "application/newlines" => ReplyFormat::Newlines,
-            "application/json" | "" => ReplyFormat::Json,
-            _ => {
-                return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                    "Invalid accept".to_string(),
-                    RequestErrorLocation::Header,
-                    Some("accept".to_string()),
-                    Some(tags),
-                )
-                .into()));
-            }
-        };
+            let accept = get_accepted(&req, &ACCEPTED_CONTENT_TYPES, "application/json");
+            let reply = match accept.as_str() {
+                "application/newlines" => ReplyFormat::Newlines,
+                "application/json" | "" => ReplyFormat::Json,
+                _ => {
+                    //                    return Box::pin(future::err(ValidationErrorKind::FromDetails(
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid accept".to_string(),
+                        RequestErrorLocation::Header,
+                        Some("accept".to_string()),
+                        Some(tags),
+                    ).into());
+//                        .into()));
+                }
+            };
 
-        Box::pin(future::ok(CollectionRequest {
-            collection,
-            db,
-            user_id,
-            query,
-            reply,
-            metrics: metrics::Metrics::from(req),
-            tags: Some(tags),
-        }))
+            //            Box::pin(future::ok(CollectionRequest {
+            Ok(CollectionRequest {
+                collection,
+                db,
+                user_id,
+                query,
+                reply,
+                metrics: metrics::Metrics::from(&req),
+                tags: Some(tags),
+            })
+//            }))
+        }.boxed_local()
     }
 }
 
