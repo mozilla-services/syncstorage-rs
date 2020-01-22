@@ -795,7 +795,7 @@ impl FromRequest for CollectionPostRequest {
             // XXX: let's not use extract here (maybe convert to extrude?)
             let batch = match BatchRequestOpt::extract(&req) {
                 Ok(batch) => batch,
-                Err(e) => return Box::pin(future::err(e)),
+                Err(e) => return future::err(e),
             };
 
             future::ok(CollectionPostRequest {
