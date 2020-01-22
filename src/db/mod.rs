@@ -10,7 +10,7 @@ pub mod util;
 
 use std::fmt::Debug;
 
-use futures::future::{FutureExt, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, FutureExt, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use url::Url;
@@ -178,6 +178,8 @@ pub trait Db: Send + Debug {
                         } else {
                             Err(e)
                         }
+                    }).and_then(|r| {
+                        r.unwrap()
                     }),
                 )
             }

@@ -1,3 +1,7 @@
+use actix_web::web::block;
+
+use futures::future::TryFutureExt;
+
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{
@@ -14,7 +18,6 @@ use diesel::{
 #[cfg(any(test, feature = "db_test"))]
 use diesel_logger::LoggingConnection;
 use futures::future;
-use futures::future::lazy;
 
 use super::{
     batch,
@@ -30,6 +33,7 @@ use crate::db::{
 };
 use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+
 
 no_arg_sql_function!(last_insert_id, Integer);
 
@@ -69,7 +73,7 @@ struct MysqlDbSession {
 
 #[derive(Clone, Debug)]
 pub struct MysqlDb {
-    /// Synchronous Diesel calls are executed in a tokio ThreadPool to satisfy
+    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
@@ -96,8 +100,6 @@ pub struct MysqlDbInner {
     pub(super) conn: LoggingConnection<Conn>,
 
     session: RefCell<MysqlDbSession>,
-
-    thread_pool: Arc<::tokio_threadpool::ThreadPool>,
 }
 
 impl fmt::Debug for MysqlDbInner {
@@ -117,7 +119,6 @@ impl Deref for MysqlDb {
 impl MysqlDb {
     pub fn new(
         conn: Conn,
-        thread_pool: Arc<::tokio_threadpool::ThreadPool>,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
     ) -> Self {
@@ -127,7 +128,6 @@ impl MysqlDb {
             #[cfg(any(test, feature = "db_test"))]
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
-            thread_pool,
         };
         MysqlDb {
             inner: Arc::new(inner),
@@ -885,9 +885,9 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::pin(self.thread_pool.spawn_handle(move |_| {
-                future::ready(db.$sync_name(params).map_err(Into::into))
-            }))
+            Box::pin(block(move || {
+                db.$sync_name(params).map_err(Into::into)
+            }).map_err(Into::into))
         }
     };
 }
@@ -895,16 +895,16 @@ macro_rules! sync_db_method {
 impl Db for MysqlDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(move || {
-            future::ready(db.commit_sync().map_err(Into::into))
-        }))
+        Box::pin(block(move || {
+            db.commit_sync().map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(move || {
-            future::ready(db.rollback_sync().map_err(Into::into))
-        }))
+        Box::pin(block(move || {
+            db.rollback_sync().map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -913,9 +913,9 @@ impl Db for MysqlDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(self.thread_pool.spawn_handle(move || {
-            future::ready(db.check_sync().map_err(Into::into))
-        }))
+        Box::pin(block(move || {
+            db.check_sync().map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -979,28 +979,26 @@ impl Db for MysqlDb {
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(move || {
-            future::ready(db.get_collection_id(&name).map_err(Into::into))
-        }))
+        Box::new(block(move || {
+            db.get_collection_id(&name).map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(move || {
-            future::ready(db.create_collection(&name).map_err(Into::into))
-        }))
+        Box::new(block(move || {
+            db.create_collection(&name).map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(move || {
-            future::ready(
-                db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
-                    .map_err(Into::into),
-            )
-        }))
+        Box::new(block(move || {
+            db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
+                .map_err(Into::into)
+        }).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
