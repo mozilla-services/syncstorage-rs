@@ -91,6 +91,11 @@ def get_args():
         action="store_true",
         help="verbose logging"
     )
+    parser.add_argument(
+        '--quiet',
+        action="store_true",
+        help="silence logging"
+    )
     return parser.parse_args()
 
 
@@ -141,7 +146,6 @@ def update_token(databases, user):
         return
     logging.info("Updating token server for user: {}".format(user))
     try:
-        cursor = databases['token'].cursor()
         cursor = databases['token'].cursor()
         cursor.execute(
             """
@@ -200,13 +204,24 @@ def get_fxa_id(databases, user):
 
 
 def create_migration_table(database):
+    """create the syncstorage migration table
+
+    This table tells the syncstorage server to return a 5xx for a
+    given user. It's important that syncstorage NEVER returns a
+    2xx result for any user that's in migration, or only does
+    so after deleting the meta/global BSO record so that a full
+    reconcile happens. (Depends on
+    https://github.com/mozilla-services/server-syncstorage/pull/136)
+    """
     try:
         cursor = database.cursor()
         cursor.execute(
-            """create table if not exists migration (
-                fxa_uid varchar(255) NOT NULL PRIMARY KEY,
-                started BIGINT
-            )""")
+            """CREATE TABLE IF NOT EXISTS
+                migration (
+                    fxa_uid VARCHAR(255) NOT NULL PRIMARY KEY,
+                    started BIGINT NOT NULL
+                )
+            """)
         database.commit()
     finally:
         cursor.close()
@@ -277,7 +292,7 @@ def move_user(databases, user, args):
     # Genereate the Spanner Keys we'll need.
     (fxa_kid, fxa_uid) = get_fxa_id(databases, user)
     if not mark_user(databases, fxa_uid):
-        logging.error("User {} already being migratted?".format(fxa_uid))
+        logging.error("User {} already being migrated?".format(fxa_uid))
         return
 
     # Fetch the BSO data from the original storage.
@@ -379,7 +394,9 @@ def move_data(databases, users, args):
 def main():
     start = time.time()
     args = get_args()
-    log_level = logging.ERROR
+    log_level = logging.INFO
+    if args.quiet:
+        log_level = logging.ERROR
     if args.verbose:
         log_level = logging.DEBUG
     logging.basicConfig(
@@ -407,7 +424,7 @@ def main():
     rows = move_data(databases, users, args)
     logging.info(
         "Moved: {} rows in {} seconds".format(
-            rows, time.time() - start))
+            rows or 0, time.time() - start))
 
 
 if __name__ == "__main__":
