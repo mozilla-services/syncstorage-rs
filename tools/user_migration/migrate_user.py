@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 
 from mysql import connector
+from mysql.connector.errors import IntegrityError
 from google.cloud import spanner
 from google.api_core.exceptions import AlreadyExists
 from urllib.parse import urlparse
@@ -139,7 +140,9 @@ def update_token(databases, user):
         logging.warn("Skipping token update...")
         return
     logging.info("Updating token server for user: {}".format(user))
-    with databases['token'].cursor() as cursor:
+    try:
+        cursor = databases['token'].cursor()
+        cursor = databases['token'].cursor()
         cursor.execute(
             """
             UPDATE
@@ -154,6 +157,9 @@ def update_token(databases, user):
                 nodeid=SPANNER_NODE_ID,
                 uid=user)
             )
+        databases['token'].commit()
+    finally:
+        cursor.close()
 
 
 # The following two functions are taken from browserid.utils
@@ -193,6 +199,19 @@ def get_fxa_id(databases, user):
     return (fxa_kid, fxa_uid)
 
 
+def create_migration_table(database):
+    try:
+        cursor = database.cursor()
+        cursor.execute(
+            """create table if not exists migration (
+                fxa_uid varchar(255) NOT NULL PRIMARY KEY,
+                started BIGINT
+            )""")
+        database.commit()
+    finally:
+        cursor.close()
+
+
 def dumper(columns, values):
     """verbose column and data dumper. """
     result = ""
@@ -200,6 +219,23 @@ def dumper(columns, values):
         for i in range(0, len(columns)):
             result += " {} => {}\n".format(columns[i], row[i])
     return result
+
+
+def mark_user(databases, user):
+    """ mark a user in migration """
+    mysql = databases['mysql'].cursor()
+    try:
+        logging.info("Marking {} as migrating...".format(user))
+        mysql.execute(
+            "INSERT INTO migration (fxa_uid, started) VALUES (%s, %s)",
+            (user, int(time.time()),)
+        )
+        databases['mysql'].commit()
+    except IntegrityError:
+        return False
+    finally:
+        mysql.close()
+    return True
 
 
 def move_user(databases, user, args):
@@ -240,6 +276,9 @@ def move_user(databases, user, args):
 
     # Genereate the Spanner Keys we'll need.
     (fxa_kid, fxa_uid) = get_fxa_id(databases, user)
+    if not mark_user(databases, fxa_uid):
+        logging.error("User {} already being migratted?".format(fxa_uid))
+        return
 
     # Fetch the BSO data from the original storage.
     sql = """
@@ -249,7 +288,7 @@ def move_user(databases, user, args):
     FROM
         collections, bso
     WHERE
-        bso.userid = {} and collections.collectionid = bso.collection
+        bso.userid = %s and collections.collectionid = bso.collection
     ORDER BY
         modified DESC"""
 
@@ -302,11 +341,10 @@ def move_user(databases, user, args):
             columns=bso_columns,
             values=bso_values
         )
-
+    mysql = databases['mysql'].cursor()
     try:
         # Note: cursor() does not support __enter__()
-        mysql = databases['mysql'].cursor()
-        mysql.execute(sql.format(user))
+        mysql.execute(sql, (user,))
         logging.info("Processing... {} -> {}:{}".format(
             user, fxa_uid, fxa_kid))
         for (col, cid, bid, exp, mod, pay, sid) in mysql:
@@ -359,6 +397,11 @@ def main():
         databases['token'] = conf_db(dsn)
     if not databases.get('mysql') or not databases.get('spanner'):
         RuntimeError("Both mysql and spanner dsns must be specified")
+
+    # create the migration table if it's not already present.
+    # This table is used by the sync storage server to force a 500 return
+    # for a user in migration.
+    create_migration_table(databases['mysql'])
 
     logging.info("Starting:")
     rows = move_data(databases, users, args)
