@@ -178,7 +178,7 @@ impl FromRequest for BsoBodies {
 
         // Load the entire request into a String
         let fut = <String>::from_request(req, payload).map_err(|e| {
-            debug!("⚠️ Payload read error: {:?}", e);
+            warn!("⚠️ Payload read error: {:?}", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
                 RequestErrorLocation::Header,
@@ -207,7 +207,7 @@ impl FromRequest for BsoBodies {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -371,7 +371,7 @@ impl FromRequest for BsoBody {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -739,7 +739,7 @@ impl FromRequest for CollectionPostRequest {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -931,7 +931,7 @@ impl FromRequest for ConfigRequest {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
@@ -980,7 +980,7 @@ impl FromRequest for HeartbeatRequest {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Box::new(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -1068,7 +1068,7 @@ impl HawkIdentifier {
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
             u64::from_str(v).map_err(|e| {
-                info!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
+                warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
@@ -1078,7 +1078,7 @@ impl HawkIdentifier {
                 .into()
             })
         } else {
-            info!("⚠️ HawkIdentifier Error missing UID {:?}", uri);
+            warn!("⚠️ HawkIdentifier Error missing UID {:?}", uri);
             Err(ValidationErrorKind::FromDetails(
                 "Missing UID".to_owned(),
                 RequestErrorLocation::Path,
@@ -1133,7 +1133,7 @@ impl HawkIdentifier {
             HawkPayload::extrude(header, method, secrets, connection_info, uri, tags.clone())?;
         let puid = Self::uid_from_path(&uri, tags.clone())?;
         if payload.user_id != puid {
-            info!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
+            warn!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
@@ -1164,7 +1164,7 @@ impl FromRequest for HawkIdentifier {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
@@ -1193,7 +1193,7 @@ impl From<u32> for HawkIdentifier {
 
 pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     exts.get::<Box<dyn Db>>().cloned().ok_or_else(|| {
-        debug!("⚠️ DB Error: No db");
+        error!("DB Error: No db");
         ErrorInternalServerError("Unexpected Db error: No DB".to_owned())
     })
 }
@@ -1314,7 +1314,7 @@ impl FromRequest for BatchRequestOpt {
         let state = match req.app_data::<ServerState>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("Could not load the app state");
                 return Err(ValidationErrorKind::FromDetails(
                     "Internal error".to_owned(),
                     RequestErrorLocation::Unknown,
