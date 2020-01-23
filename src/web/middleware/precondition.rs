@@ -96,7 +96,7 @@ where
                 None => PreConditionHeader::NoHeader,
             },
             Err(e) => {
-                debug!("⚠️ Precondition error {:?}", e);
+                warn!("⚠️ Precondition error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
@@ -110,7 +110,7 @@ where
         let user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {
-                debug!("⚠️ Hawk header error {:?}", e);
+                warn!("⚠️ Hawk header error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
@@ -125,7 +125,7 @@ where
         let db = match edb {
             Ok(v) => v,
             Err(e) => {
-                debug!("⚠️ Database access error {:?}", e);
+                error!("Database access error {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -141,7 +141,7 @@ where
         let collection = match col_result {
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
-                debug!("⚠️ Collection Error:  {:?}", e);
+                warn!("⚠️ Collection Error:  {:?}", e);
                 return Box::new(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
