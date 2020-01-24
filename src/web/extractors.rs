@@ -2,7 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{self, collections::HashMap, str::FromStr};
+use std::{self, collections::HashMap, num::ParseIntError, str::FromStr};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -1208,6 +1208,45 @@ impl FromRequest for Box<dyn Db> {
     }
 }
 
+#[derive(Debug, Default, Clone, Deserialize, Validate)]
+#[serde(default)]
+pub struct Offset {
+    pub timestamp: Option<SyncTimestamp>,
+    pub offset: i64,
+}
+
+impl ToString for Offset {
+    fn to_string(&self) -> String {
+        match self.timestamp {
+            None => format!("{}", self.offset),
+            Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
+        }
+    }
+}
+
+impl FromStr for Offset {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let result = match s.chars().position(|c| c == ':') {
+            None => Offset {
+                timestamp: None,
+                offset: s.parse::<i64>()?,
+            },
+            Some(_colon_position) => {
+                let mut parts = s.split(':');
+                let timestamp_string = parts.next().unwrap_or("0");
+                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
+                let offset = parts.next().unwrap_or("0").parse::<i64>()?;
+                Offset {
+                    timestamp: Some(timestamp),
+                    offset,
+                }
+            }
+        };
+        Ok(result)
+    }
+}
+
 /// Validator to extract BSO search parameters from the query string.
 ///
 /// This validator will extract and validate the following search params used in
@@ -1231,7 +1270,8 @@ pub struct BsoQueryParams {
     pub limit: Option<u32>,
 
     /// position at which to restart search (string)
-    pub offset: Option<u64>,
+    #[serde(deserialize_with = "deserialize_offset")]
+    pub offset: Option<Offset>,
 
     /// a comma-separated list of BSO ids (list of strings)
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
@@ -1269,6 +1309,32 @@ impl FromRequest for BsoQueryParams {
                 Some(tags.clone()),
             )
         })?;
+        if params.sort != Sorting::Index {
+            if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
+                let bound = timestamp.as_i64();
+                if let Some(newer) = params.newer {
+                    if bound < newer.as_i64() {
+                        return Err(ValidationErrorKind::FromDetails(
+                            format!("Invalid Offset {} {}", bound, newer.as_i64()),
+                            RequestErrorLocation::QueryString,
+                            Some("newer".to_owned()),
+                            None,
+                        )
+                        .into());
+                    }
+                } else if let Some(older) = params.older {
+                    if bound > older.as_i64() {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Invalid Offset".to_owned(),
+                            RequestErrorLocation::QueryString,
+                            Some("older".to_owned()),
+                            None,
+                        )
+                        .into());
+                    }
+                }
+            }
+        }
         Ok(params)
     }
 }
@@ -1631,11 +1697,22 @@ where
 {
     let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
     if let Some(val) = maybe_str {
-        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom)?;
-        Ok(Some(result))
+        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom);
+        Ok(Some(result?))
     } else {
         Ok(None)
     }
+}
+
+fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<Offset>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
+    if let Some(val) = maybe_str {
+        return Ok(Some(Offset::from_str(&val).map_err(SerdeError::custom)?));
+    }
+    Ok(None)
 }
 
 #[cfg(test)]

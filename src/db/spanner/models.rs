@@ -21,7 +21,8 @@ use crate::db::{
     Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
 };
 use crate::server::metrics::Metrics;
-use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+
+use crate::web::extractors::{BsoQueryParams, HawkIdentifier, Offset};
 
 #[cfg(not(any(test, feature = "db_test")))]
 use super::support::{bso_to_insert_row, bso_to_update_row};
@@ -39,6 +40,8 @@ use googleapis_raw::spanner::v1::{
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
     type_pb::TypeCode,
 };
+
+#[allow(unused_imports)]
 use itertools::Itertools;
 
 #[allow(unused_imports)]
@@ -941,6 +944,26 @@ impl SpannerDb {
 
         let mut sqltypes = HashMap::new();
 
+        if !ids.is_empty() {
+            query = format!("{} AND bso_id IN UNNEST(@ids)", query);
+            sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
+        }
+
+        if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
+            query = match sort {
+                Sorting::Newest => {
+                    sqlparams.insert("older_eq".to_string(), as_value(timestamp.as_rfc3339()?));
+                    sqltypes.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    format!("{} AND modified <= @older_eq", query)
+                }
+                Sorting::Oldest => {
+                    sqlparams.insert("newer_eq".to_string(), as_value(timestamp.as_rfc3339()?));
+                    sqltypes.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    format!("{} AND modified >= @newer_eq", query)
+                }
+                _ => query,
+            };
+        }
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
@@ -951,12 +974,6 @@ impl SpannerDb {
             sqlparams.insert("newer".to_string(), as_value(newer.as_rfc3339()?));
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
-
-        if !ids.is_empty() {
-            query = format!("{} AND bso_id IN UNNEST(@ids)", query);
-            sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
-        }
-
         query = match sort {
             Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
             Sorting::Newest => format!("{} ORDER BY modified DESC", query),
@@ -964,30 +981,67 @@ impl SpannerDb {
             _ => query,
         };
 
-        let offset = offset.unwrap_or(0) as i64;
         if let Some(limit) = limit {
             // fetch an extra row to detect if there are more rows that match
             // the query conditions
             query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
-        } else if offset != 0 {
+        } else if let Some(ref offset) = offset {
             // Special case no limit specified but still required for an
             // offset. Spanner doesn't accept a simpler limit of -1 (common in
             // most databases) so we specify a max value with offset subtracted
             // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
             // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
-            query = format!("{} LIMIT {}", query, i64::max_value() - offset);
+            query = format!("{} LIMIT {}", query, i64::max_value() - offset.offset);
         };
 
-        if offset != 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = format!("{} OFFSET {}", query, offset);
+        if let Some(offset) = offset {
+            query = format!("{} OFFSET {}", query, offset.offset);
         }
-
         self.sql(&query)?
             .params(sqlparams)
             .param_types(sqltypes)
             .execute(&self.conn)
+    }
+
+    pub fn encode_next_offset(
+        &self,
+        sort: Sorting,
+        offset: i64,
+        timestamp: Option<i64>,
+        modifieds: Vec<i64>,
+    ) -> Option<String> {
+        let mut calc_offset = 1;
+        let mut i = (modifieds.len() as i64) - 2;
+
+        let prev_bound = match sort {
+            Sorting::Index => {
+                // Use a simple numeric offset for sortindex ordering.
+                return Some(
+                    Offset {
+                        offset: offset + modifieds.len() as i64,
+                        timestamp: None,
+                    }
+                    .to_string(),
+                );
+            }
+            Sorting::None => timestamp,
+            Sorting::Newest => timestamp,
+            Sorting::Oldest => timestamp,
+        };
+        // Find an appropriate upper bound for faster timestamp ordering.
+        let bound = *modifieds.last().unwrap_or(&0);
+        // Count how many previous items have that same timestamp, and hence
+        // will need to be skipped over.  The number of matches here is limited
+        // by upload batch size.
+        while i >= 0 && modifieds[i as usize] == bound {
+            calc_offset += 1;
+            i -= 1;
+        }
+        if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
+            calc_offset += offset;
+        }
+
+        Some(format!("{}:{}", bound, calc_offset))
     }
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
@@ -999,7 +1053,8 @@ impl SpannerDb {
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let offset = params.params.offset.unwrap_or(0) as i64;
+        let Offset { offset, timestamp } = params.params.offset.clone().unwrap_or_default();
+        let sort = params.params.sort;
 
         let mut bsos = self
             .bsos_query_sync(query, params)?
@@ -1015,7 +1070,8 @@ impl SpannerDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some(limit + offset)
+            let modifieds: Vec<i64> = bsos.iter().map(|r| r.modified.as_i64()).collect();
+            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
         } else {
             None
         };
@@ -1028,21 +1084,30 @@ impl SpannerDb {
 
     pub fn get_bso_ids_sync(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let offset = params.params.offset.unwrap_or(0) as i64;
+        let Offset { offset, timestamp } = params.params.offset.clone().unwrap_or_default();
+        let sort = params.params.sort;
 
         let query = "\
-            SELECT bso_id
+            SELECT bso_id, modified
               FROM bsos
              WHERE fxa_uid = @fxa_uid
                AND fxa_kid = @fxa_kid
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
 
-        let mut ids = self
-            .bsos_query_sync(query, params)?
-            .map_results(|row| row[0].get_string_value().to_owned())
+        let result = self.bsos_query_sync(query, params)?;
+
+        let zipped: Vec<(String, i64)> = result
+            .map_and_then(|r| {
+                Ok((
+                    r[0].get_string_value().to_owned(),
+                    SyncTimestamp::from_rfc3339(r[1].get_string_value())?.as_i64(),
+                ))
+            })
             .collect::<Result<Vec<_>>>()?;
 
+        let mut ids: Vec<String> = zipped.iter().map(|(id, _)| id.clone()).collect();
+        let mut modifieds: Vec<i64> = zipped.iter().map(|(_, modif)| *modif).collect();
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
         // trigger CollectionNotFound errors.  However it ultimately eats the
@@ -1052,7 +1117,8 @@ impl SpannerDb {
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
             ids.pop();
-            Some(limit + offset)
+            modifieds.pop();
+            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
         } else {
             None
         };

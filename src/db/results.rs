@@ -56,7 +56,7 @@ where
     T: Serialize,
 {
     pub items: Vec<T>,
-    pub offset: Option<i64>, // XXX: i64?
+    pub offset: Option<String>,
 }
 
 pub type GetBsos = Paginated<GetBso>;
