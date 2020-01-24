@@ -495,11 +495,12 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let offset = offset.unwrap_or(0) as i64;
-        if offset != 0 {
+        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+
+        if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(offset);
+            query = query.offset(numeric_offset);
         }
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
@@ -510,7 +511,7 @@ impl MysqlDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some(limit + offset)
+            Some((limit + numeric_offset).to_string())
         } else {
             None
         };
@@ -564,11 +565,11 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let offset = offset.unwrap_or(0) as i64;
-        if offset != 0 {
+        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(offset);
+            query = query.offset(numeric_offset);
         }
         let mut ids = query.load::<String>(&self.conn)?;
 
@@ -579,7 +580,7 @@ impl MysqlDb {
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
             ids.pop();
-            Some(limit + offset)
+            Some((limit + numeric_offset).to_string())
         } else {
             None
         };

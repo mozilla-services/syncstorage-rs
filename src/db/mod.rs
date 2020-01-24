@@ -228,7 +228,7 @@ impl Clone for Box<dyn Db> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,
