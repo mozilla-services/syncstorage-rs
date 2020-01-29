@@ -765,50 +765,47 @@ impl FromRequest for CollectionPostRequest {
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let tags = match req.extensions().get::<Tags>() {
-            Some(t) => t.clone(),
-            None => Tags::from_request_head(req.head()),
-        };
-        let state = match req.app_data::<ServerState>() {
-            Some(s) => s,
-            None => {
-                debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
-                        "Internal error".to_owned(),
-                        RequestErrorLocation::Unknown,
-                        Some("app_data".to_owned()),
-                        Some(tags),
-                    )
-                    .into(),
-                ));
-            }
-        };
-
-        let max_post_records = i64::from(state.limits.max_post_records);
-        let fut = <(
-            HawkIdentifier,
-            Box<dyn Db>,
-            CollectionParam,
-            BsoQueryParams,
-            BsoBodies,
-        )>::from_request(&req, payload)
-        .and_then(move |(user_id, db, collection, query, mut bsos)| {
+        let payload = payload.take();
+        Box::pin(async {
+            let tags = match req.extensions().get::<Tags>() {
+                Some(t) => t.clone(),
+                None => Tags::from_request_head(req.head()),
+            };
+            let state = match req.app_data::<ServerState>() {
+                Some(s) => s,
+                None => {
+                    debug!("⚠️ Could not load the app state");
+                    return Err(ValidationErrorKind::FromDetails(
+                            "Internal error".to_owned(),
+                            RequestErrorLocation::Unknown,
+                            Some("app_data".to_owned()),
+                            Some(tags),
+                        )
+                        .into());
+                }
+            };
+    
+            let max_post_records = i64::from(state.limits.max_post_records);
+            let (user_id, db, collection, query, mut bsos) = <(
+                HawkIdentifier,
+                Box<dyn Db>,
+                CollectionParam,
+                BsoQueryParams,
+                BsoBodies,
+            )>::from_request(&req, &mut payload).await.unwrap();
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
                 for bso in &bsos.valid {
                     if let Some(ref data) = bso.payload {
                         if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
-                            return future::err(
-                                ValidationErrorKind::FromDetails(
+                            return Err(ValidationErrorKind::FromDetails(
                                     "Known-bad BSO payload".to_owned(),
                                     RequestErrorLocation::Body,
                                     Some("bsos".to_owned()),
                                     Some(tags),
                                 )
-                                .into(),
-                            );
+                                .into());
                         }
                     }
                 }
@@ -825,12 +822,8 @@ impl FromRequest for CollectionPostRequest {
             }
 
             // XXX: let's not use extract here (maybe convert to extrude?)
-            let batch = match BatchRequestOpt::extract(&req) {
-                Ok(batch) => batch,
-                Err(e) => return future::err(e),
-            };
-
-            future::ok(CollectionPostRequest {
+            let batch = BatchRequestOpt::extract(&req).await?;
+            Ok(CollectionPostRequest {
                 collection,
                 db,
                 user_id,
@@ -839,9 +832,7 @@ impl FromRequest for CollectionPostRequest {
                 batch: batch.opt,
                 metrics: metrics::Metrics::from(&req),
             })
-        });
-
-        Box::pin(fut)
+        })
     }
 }
 
