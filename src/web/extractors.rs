@@ -1437,11 +1437,12 @@ impl FromRequest for BatchRequestOpt {
             }
 
             params.validate().map_err(|e| {
-                ValidationErrorKind::FromValidationErrors(
+                let err: ApiError = ValidationErrorKind::FromValidationErrors(
                     e,
                     RequestErrorLocation::QueryString,
                     Some(tags.clone())
-                ).into()
+                ).into();
+                err
             })?;
 
             let id = match params.batch {
