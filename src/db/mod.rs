@@ -174,12 +174,10 @@ pub trait Db: Send + Debug {
                     })
                     .or_else(|e| {
                         if e.is_collection_not_found() {
-                            Ok(SyncTimestamp::from_seconds(0f64))
+                            future::ok(SyncTimestamp::from_seconds(0f64))
                         } else {
-                            Err(e)
+                            future::err(e)
                         }
-                    }).and_then(|r| {
-                        r.unwrap()
                     }),
                 )
             }
@@ -192,9 +190,9 @@ pub trait Db: Send + Debug {
             })
             .or_else(|e| {
                 if e.is_collection_not_found() {
-                    Ok(SyncTimestamp::from_seconds(0f64))
+                    future::ok(SyncTimestamp::from_seconds(0f64))
                 } else {
-                    Err(e)
+                    future::err(e)
                 }
             }),
         )
