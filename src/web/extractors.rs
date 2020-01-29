@@ -1033,7 +1033,7 @@ impl FromRequest for HeartbeatRequest {
             .db_pool
             .get()
             .map_err(Into::into)
-            .and_then(|db| Ok(HeartbeatRequest { headers, db }));
+            .and_then(|db| future::ok(HeartbeatRequest { headers, db }));
         Box::pin(fut)
     }
 }
