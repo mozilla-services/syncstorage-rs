@@ -1563,10 +1563,12 @@ impl FromRequest for PreConditionHeaderOpt {
 
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let tags = Tags::from_request(req, payload)?;
-        Box::pin(future::ready(
+        let req = req.clone();
+        let payload = payload.take();
+        Box::pin(async {
+            let tags = Tags::from_request(&req, &mut payload).await?;
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
-        ))
+        })
     }
 }
 
