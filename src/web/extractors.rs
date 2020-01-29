@@ -1298,26 +1298,29 @@ impl FromRequest for BsoQueryParams {
 
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let tags = Tags::from_request(req, payload)?;
+        let req = req.clone();
+        let payload = payload.take();
+        Box::pin(async {
+            let tags = Tags::from_request(&req, &mut payload).await?;
 
-        let params = Query::<BsoQueryParams>::from_request(req, payload)
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
+            let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
+                .map_err(|e| {
+                    ValidationErrorKind::FromDetails(
+                        e.to_string(),
+                        RequestErrorLocation::QueryString,
+                        None,
+                        Some(tags.clone()),
+                    )
+                }).await?.into_inner();
+            params.validate().map_err(|e| {
+                ValidationErrorKind::FromValidationErrors(
+                    e,
                     RequestErrorLocation::QueryString,
-                    None,
                     Some(tags.clone()),
                 )
-            })?
-            .into_inner();
-        params.validate().map_err(|e| {
-            ValidationErrorKind::FromValidationErrors(
-                e,
-                RequestErrorLocation::QueryString,
-                Some(tags.clone()),
-            )
-        })?;
-        Box::pin(future::ok(params))
+            })?;
+            Ok(params)
+        })
     }
 }
 
