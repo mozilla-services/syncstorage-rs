@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
-use futures::future::{self, Either, Future, FutureExt, TryFutureExt};
+use futures::future::{self, Either, Future, FutureExt, TryFutureExt, LocalBoxFuture};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -143,19 +143,19 @@ pub fn get_collection(
 fn finish_get_collection<F, T>(
     coll: CollectionRequest,
     fut: F,
-) -> impl Future<Output = Result<HttpResponse, Error>>
+) -> LocalBoxFuture<'static, Result<HttpResponse, Error>>
 where
     F: Future<Output = Result<Paginated<T>, ApiError>> + 'static,
     T: Serialize + Default + 'static,
 {
     let reply_format = coll.reply;
-    fut.or_else(move |e| {
+    Box::pin(fut.or_else(move |e| {
         if e.is_collection_not_found() {
             // For b/w compat, non-existent collections must return an
             // empty list
-            Ok(Paginated::default())
+            future::ok(Paginated::default())
         } else {
-            Err(e)
+            future::err(e)
         }
     })
     .map_err(From::from)
@@ -163,9 +163,11 @@ where
         coll.db
             .extract_resource(coll.user_id, Some(coll.collection), None)
             .map_err(From::from)
-            .map(move |ts| (result, ts))
+            .map(move |ts| Ok((result, ts)))
     })
-    .map(move |(result, ts)| {
+    .map(move |r| {
+        let (result, ts) = r.unwrap();
+        let ts = ts.unwrap();
         let mut builder = HttpResponse::build(StatusCode::OK);
         let resp = builder
             .header(X_LAST_MODIFIED, ts.as_header())
@@ -174,7 +176,7 @@ where
                 resp.header(X_WEAVE_NEXT_OFFSET, offset.to_string());
             });
         match reply_format {
-            ReplyFormat::Json => resp.json(result.items),
+            ReplyFormat::Json => Ok(resp.json(result.items)),
             ReplyFormat::Newlines => {
                 let items: String = result
                     .items
@@ -183,12 +185,12 @@ where
                     .filter(|v| !v.is_empty())
                     .map(|v| v.replace("\n", "\\u000a") + "\n")
                     .collect();
-                resp.header("Content-Type", "application/newlines")
+                Ok(resp.header("Content-Type", "application/newlines")
                     .header("Content-Length", format!("{}", items.len()))
-                    .body(items)
+                    .body(items))
             }
         }
-    })
+    }))
 }
 
 pub fn post_collection(
@@ -350,9 +352,9 @@ pub fn post_collection_batch(
                 .map(|result| {
                     let result = result.unwrap();
                     resp["modified"] = json!(result.modified);
-                    HttpResponse::build(StatusCode::OK)
+                    Ok(HttpResponse::build(StatusCode::OK)
                         .header(X_LAST_MODIFIED, result.modified.as_header())
-                        .json(resp)
+                        .json(resp))
                 });
             Either::Right(fut)
         }),
