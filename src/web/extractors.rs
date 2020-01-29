@@ -1349,122 +1349,126 @@ impl FromRequest for BatchRequestOpt {
     type Future = LocalBoxFuture<'static, Result<BatchRequestOpt, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let tags = Tags::from_request(req, payload)?;
-        // let tags = Tags::from_request_head(req.head());
-        let ftags = tags.clone();
-        let params = Query::<BatchParams>::from_request(req, payload)
-            .map_err(|e| {
-                ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::QueryString,
-                    None,
-                    Some(tags.clone()),
-                )
-            })?
-            .into_inner();
-        let state = match req.app_data::<ServerState>() {
-            Some(s) => s,
-            None => {
-                debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                    "Internal error".to_owned(),
-                    RequestErrorLocation::Unknown,
-                    Some("state".to_owned()),
-                    Some(tags),
-                )
-                .into()));
-            }
-        };
-
-        let limits = &state.limits;
-
-        let checks = [
-            (X_WEAVE_RECORDS, limits.max_post_records),
-            ("X-Weave-Bytes", limits.max_post_bytes),
-            ("X-Weave-Total-Records", limits.max_total_records),
-            ("X-Weave-Total-Bytes", limits.max_total_bytes),
-        ];
-        for (header, limit) in &checks {
-            let value = match req.headers().get(*header) {
-                Some(value) => value.to_str().map_err(|e| {
-                    let err: ApiError = ValidationErrorKind::FromDetails(
+        let req = req.clone();
+        let payload = payload.take();
+        Box::pin(async {
+            let tags = Tags::from_request(&req, &mut payload).await?;
+            // let tags = Tags::from_request_head(req.head());
+            let ftags = tags.clone();
+            let params = Query::<BatchParams>::from_request(&req, &mut payload)
+                .map_err(|e| {
+                    ValidationErrorKind::FromDetails(
                         e.to_string(),
+                        RequestErrorLocation::QueryString,
+                        None,
+                        Some(tags.clone()),
+                    )
+                }).await?
+                .into_inner();
+            let state = match req.app_data::<ServerState>() {
+                Some(s) => s,
+                None => {
+                    debug!("⚠️ Could not load the app state");
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("state".to_owned()),
+                        Some(tags),
+                    )
+                    .into());
+                }
+            };
+
+            let limits = &state.limits;
+
+            let checks = [
+                (X_WEAVE_RECORDS, limits.max_post_records),
+                ("X-Weave-Bytes", limits.max_post_bytes),
+                ("X-Weave-Total-Records", limits.max_total_records),
+                ("X-Weave-Total-Bytes", limits.max_total_bytes),
+            ];
+            for (header, limit) in &checks {
+                let value = match req.headers().get(*header) {
+                    Some(value) => value.to_str().map_err(|e| {
+                        let err: ApiError = ValidationErrorKind::FromDetails(
+                            e.to_string(),
+                            RequestErrorLocation::Header,
+                            Some((*header).to_owned()),
+                            Some(tags.clone()),
+                        )
+                        .into();
+                        err
+                    })?,
+                    None => continue,
+                };
+                let count = value.parse::<u32>().map_err(|_| {
+                    let err: ApiError = ValidationErrorKind::FromDetails(
+                        format!("Invalid integer value: {}", value),
                         RequestErrorLocation::Header,
                         Some((*header).to_owned()),
                         Some(tags.clone()),
                     )
                     .into();
                     err
-                })?,
-                None => continue,
-            };
-            let count = value.parse::<u32>().map_err(|_| {
-                let err: ApiError = ValidationErrorKind::FromDetails(
-                    format!("Invalid integer value: {}", value),
-                    RequestErrorLocation::Header,
-                    Some((*header).to_owned()),
-                    Some(tags.clone()),
-                )
-                .into();
-                err
-            })?;
-            if count > *limit {
-                return Box::pin(future::ok(ValidationErrorKind::FromDetails(
-                    "size-limit-exceeded".to_owned(),
-                    RequestErrorLocation::Header,
-                    None,
-                    Some(tags.clone()),
-                )
-                .into()));
-            }
-        }
-
-        if params.batch.is_none() && params.commit.is_none() {
-            // No batch options requested
-            return Box::pin(future::ok(Self { opt: None }));
-        } else if params.batch.is_none() {
-            // commit w/ no batch ID is an error
-            return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                "Commit with no batch specified".to_string(),
-                RequestErrorLocation::Path,
-                None,
-                Some(tags),
-            )
-            .into()));
-        }
-
-        params.validate().map_err(|e| {
-            ValidationErrorKind::FromValidationErrors(
-                e,
-                RequestErrorLocation::QueryString,
-                Some(tags.clone()),
-            )
-        })?;
-
-        let id = match params.batch {
-            None => None,
-            Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
-            Some(batch) => {
-                let db = extrude_db(&req.extensions())?;
-                if db.validate_batch_id(batch.clone()).is_err() {
-                    return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                        format!(r#"Invalid batch ID: "{}""#, batch),
-                        RequestErrorLocation::QueryString,
-                        Some("batch".to_owned()),
-                        Some(ftags),
+                })?;
+                if count > *limit {
+                    return Err(ValidationErrorKind::FromDetails(
+                        "size-limit-exceeded".to_owned(),
+                        RequestErrorLocation::Header,
+                        None,
+                        Some(tags.clone()),
                     )
-                    .into()));
+                    .into());
                 }
-                Some(batch)
             }
-        };
 
-        Box::pin(future::ok(Self {
-            opt: Some(BatchRequest {
-                id,
-                commit: params.commit.is_some(),
-            }),
-        }))
+            if params.batch.is_none() && params.commit.is_none() {
+                // No batch options requested
+                return Ok(Self { opt: None });
+            } else if params.batch.is_none() {
+                // commit w/ no batch ID is an error
+                return Err(ValidationErrorKind::FromDetails(
+                    "Commit with no batch specified".to_string(),
+                    RequestErrorLocation::Path,
+                    None,
+                    Some(tags),
+                )
+                .into());
+            }
+
+            params.validate().map_err(|e| {
+                ValidationErrorKind::FromValidationErrors(
+                    e,
+                    RequestErrorLocation::QueryString,
+                    Some(tags.clone())
+                ).into()
+            })?;
+
+            let id = match params.batch {
+                None => None,
+                Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
+                Some(batch) => {
+                    let db = extrude_db(&req.extensions())?;
+                    if db.validate_batch_id(batch.clone()).is_err() {
+                        return Err(ValidationErrorKind::FromDetails(
+                            format!(r#"Invalid batch ID: "{}""#, batch),
+                            RequestErrorLocation::QueryString,
+                            Some("batch".to_owned()),
+                            Some(ftags),
+                        )
+                        .into());
+                    }
+                    Some(batch)
+                }
+            };
+
+            Ok(Self {
+                opt: Some(BatchRequest {
+                    id,
+                    commit: params.commit.is_some(),
+                }),
+            })
+        })
     }
 }
 

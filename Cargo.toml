@@ -14,7 +14,7 @@ debug = 1
 
 [dependencies]
 actix-web = "2"
-actix-rt = "0.2"
+actix-rt = "1"
 actix-cors = "0.2"
 base64 = "0.11.0"
 bytes = "0.4"
