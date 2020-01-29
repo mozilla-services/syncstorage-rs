@@ -154,7 +154,7 @@ where
         let bso_opt = bso.map(|b| b.bso);
 
         let mut service = Rc::clone(&self.service);
-        db.extract_resource(user_id, collection, bso_opt)
+        Box::pin(db.extract_resource(user_id, collection, bso_opt)
             .map_err(Into::into)
             .and_then(move |resource_ts| {
                 let status = match precondition {
@@ -182,7 +182,7 @@ where
                 Either::Right(service.call(sreq).map(move |mut resp| {
                     let resp = resp.unwrap();
                     if resp.headers().contains_key(X_LAST_MODIFIED) {
-                        return resp;
+                        return Ok(resp);
                     }
 
                     // See if we already extracted one and use that if possible
@@ -191,9 +191,8 @@ where
                         resp.headers_mut()
                             .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
                     }
-                    resp
+                    Ok(resp)
                 }))
-            })
-            .boxed_local()
+            }))
     }
 }
