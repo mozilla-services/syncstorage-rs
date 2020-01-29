@@ -864,20 +864,24 @@ impl FromRequest for BsoRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let user_id = HawkIdentifier::from_request(req, payload)?;
-        let db = <Box<dyn Db>>::from_request(req, payload)?;
-        let query = BsoQueryParams::from_request(req, payload)?;
-        let collection = CollectionParam::from_request(req, payload)?.collection;
-        let bso = BsoParam::from_request(req, payload)?;
+        let req = req.clone();
+        let payload = payload.take();
+        Box::pin(async {
+            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
+            let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
+            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
+            let collection = CollectionParam::from_request(&req, &mut payload).await?.collection;
+            let bso = BsoParam::from_request(&req, &mut payload).await?;
 
-        Box::pin(future::ok(BsoRequest {
-            collection,
-            db,
-            user_id,
-            query,
-            bso: bso.bso,
-            metrics: metrics::Metrics::from(req),
-        }))
+            Ok(BsoRequest {
+                collection,
+                db,
+                user_id,
+                query,
+                bso: bso.bso,
+                metrics: metrics::Metrics::from(&req),
+            })
+        })
     }
 }
 
