@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use actix_web::{dev::Service, http, http::StatusCode, http::HeaderName, http::HeaderValue, test, http::Request};
+use actix_web::{dev::Service, http, http::StatusCode, http::HeaderName, http::HeaderValue, test, test::TestRequest};
 use base64;
 use bytes::Bytes;
 use chrono::offset::Utc;
@@ -37,8 +37,7 @@ fn get_test_settings() -> Settings {
     let treq = test::TestRequest::with_uri("/").to_http_request();
     let port = treq
         .uri()
-        .port_part()
-        .map(|p| p.as_u16())
+        .port_u16()
         .unwrap_or(TEST_PORT);
     // Make sure that our poolsize is >= the
     let host = treq.uri().host().unwrap_or(TEST_HOST).to_owned();
@@ -79,7 +78,7 @@ fn create_request(
     path: &str,
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
-) -> Request {
+) -> TestRequest {
     let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
@@ -103,7 +102,7 @@ fn create_request(
             req = req.header(hn, hv);
         }
     }
-    req.to_request()
+    req
 }
 
 fn create_hawk_header(method: &str, port: u16, path: &str) -> String {

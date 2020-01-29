@@ -164,7 +164,7 @@ where
                         Some(_) => db2.rollback(),
                     }
                     .map_err(Into::into)
-                    .and_then(|_| resp)
+                    .and_then(|_| future::ok(resp))
                 })
             })
         });
