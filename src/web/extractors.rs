@@ -1196,33 +1196,37 @@ impl FromRequest for HawkIdentifier {
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let tags = Tags::from_request(req, payload)?;
+        let req = req.clone();
+        let payload = payload.take();
 
-        let state = match req.app_data::<ServerState>() {
-            Some(s) => s,
-            None => {
-                debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                    "Internal error".to_owned(),
-                    RequestErrorLocation::Unknown,
-                    Some("state".to_owned()),
-                    Some(tags),
-                )
-                .into()));
-            }
-        };
-        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-        let connection_info = req.connection_info().clone();
-        let method = req.method().as_str();
-        let uri = req.uri();
-        Box::pin(future::ready(Self::extrude(
-            req,
-            method,
-            uri,
-            &connection_info,
-            &state,
-            Some(tags),
-        )))
+        Box::pin(async {
+            let tags = Tags::from_request(&req, &mut payload).await?;
+            let state = match req.app_data::<ServerState>() {
+                Some(s) => s,
+                None => {
+                    debug!("⚠️ Could not load the app state");
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("state".to_owned()),
+                        Some(tags),
+                    )
+                    .into());
+                }
+            };
+            // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+            let connection_info = req.connection_info().clone();
+            let method = req.method().as_str();
+            let uri = req.uri();
+            Self::extrude(
+                &req,
+                method,
+                uri,
+                &connection_info,
+                &state,
+                Some(tags),
+            )
+        })
     }
 }
 
