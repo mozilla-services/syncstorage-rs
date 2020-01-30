@@ -165,7 +165,7 @@ where
             .map_err(From::from)
             .map(move |ts| Ok((result, ts)))
     })
-    .map(move |r| {
+    .map(move |r: std::result::Result<(Paginated<T>, std::result::Result<SyncTimestamp, Error>), Error>| {
         let (result, ts) = r.unwrap();
         let ts = ts.unwrap();
         let mut builder = HttpResponse::build(StatusCode::OK);
