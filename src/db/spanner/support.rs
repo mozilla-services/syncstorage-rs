@@ -124,7 +124,7 @@ impl ExecuteSqlRequestBuilder {
 /// outside of an event loop
 pub struct StreamedResultSet {
     /// Stream from execute_streaming_sql
-    stream: Compat01As03<ClientSStreamReceiver<PartialResultSet>>,
+    stream: Option<StreamFuture<Compat01As03<ClientSStreamReceiver<PartialResultSet>>>>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -140,7 +140,7 @@ pub struct StreamedResultSet {
 impl StreamedResultSet {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
-            stream: stream.compat(),
+            stream: Some(stream.compat().into_future()),
             metadata: None,
             stats: None,
             rows: Default::default(),
@@ -189,9 +189,8 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let fut = self.stream.into_future();
-        let (result, stream) = System::new("").block_on(fut);
-        self.stream = stream;
+        let (result, stream) = System::new("").block_on(self.stream.take().unwrap());
+        self.stream = Some(stream.into_future());
         let mut partial_rs = if let Some(result) = result {
             result?
         } else {
