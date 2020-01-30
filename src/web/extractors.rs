@@ -607,7 +607,7 @@ impl FromRequest for CollectionParam {
         */
         let fut = Tags::from_request(req, payload);
         let req = req.clone();
-        Box::pin(async {
+        Box::pin(async move {
             let tags = fut.await?;
             if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
                 Ok(collection)
@@ -766,7 +766,7 @@ impl FromRequest for CollectionPostRequest {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
-        Box::pin(async {
+        Box::pin(async move {
             let tags = match req.extensions().get::<Tags>() {
                 Some(t) => t.clone(),
                 None => Tags::from_request_head(req.head()),
@@ -857,7 +857,7 @@ impl FromRequest for BsoRequest {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
-        Box::pin(async {
+        Box::pin(async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
@@ -1190,7 +1190,7 @@ impl FromRequest for HawkIdentifier {
         let req = req.clone();
         let mut payload = payload.take();
 
-        Box::pin(async {
+        Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
             let state = match req.app_data::<ServerState>() {
                 Some(s) => s,
@@ -1291,7 +1291,7 @@ impl FromRequest for BsoQueryParams {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
-        Box::pin(async {
+        Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
 
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
@@ -1342,7 +1342,7 @@ impl FromRequest for BatchRequestOpt {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
-        Box::pin(async {
+        Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
             // let tags = Tags::from_request_head(req.head());
             let ftags = tags.clone();
@@ -1561,7 +1561,7 @@ impl FromRequest for PreConditionHeaderOpt {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
-        Box::pin(async {
+        Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
         })
