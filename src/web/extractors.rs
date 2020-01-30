@@ -641,7 +641,7 @@ impl FromRequest for MetaRequest {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         async move {
             // Call the precondition stuff to init database handles and what-not
             let tags = {
@@ -694,7 +694,7 @@ impl FromRequest for CollectionRequest {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
@@ -765,7 +765,7 @@ impl FromRequest for CollectionPostRequest {
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         Box::pin(async {
             let tags = match req.extensions().get::<Tags>() {
                 Some(t) => t.clone(),
@@ -856,7 +856,7 @@ impl FromRequest for BsoRequest {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         Box::pin(async {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
@@ -1188,7 +1188,7 @@ impl FromRequest for HawkIdentifier {
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
 
         Box::pin(async {
             let tags = Tags::from_request(&req, &mut payload).await?;
@@ -1290,7 +1290,7 @@ impl FromRequest for BsoQueryParams {
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         Box::pin(async {
             let tags = Tags::from_request(&req, &mut payload).await?;
 
@@ -1341,7 +1341,7 @@ impl FromRequest for BatchRequestOpt {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         Box::pin(async {
             let tags = Tags::from_request(&req, &mut payload).await?;
             // let tags = Tags::from_request_head(req.head());
@@ -1560,7 +1560,7 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let payload = payload.take();
+        let mut payload = payload.take();
         Box::pin(async {
             let tags = Tags::from_request(&req, &mut payload).await?;
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
@@ -1809,7 +1809,7 @@ mod tests {
 
         // Not sure why but sending req through *::extract loses the body.
         // Compose a payload here and call the *::from_request
-        let mut payload = Payload::None;
+        let payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bod_str.as_bytes()));
 
         CollectionPostRequest::from_request(&req, &mut payload.into()).wait()
@@ -1966,7 +1966,7 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let mut payload = Payload::None;
+        let payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bso_body.to_string().as_bytes()));
 
         let result = BsoPutRequest::from_request(&req, &mut payload.into())

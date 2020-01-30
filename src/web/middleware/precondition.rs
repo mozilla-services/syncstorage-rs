@@ -180,7 +180,7 @@ where
 
                 // Make the call, then do all the post-processing steps.
                 Either::Right(service.call(sreq).map(move |mut resp| {
-                    let resp = resp.unwrap();
+                    let mut resp = resp.unwrap();
                     if resp.headers().contains_key(X_LAST_MODIFIED) {
                         return Ok(resp);
                     }
