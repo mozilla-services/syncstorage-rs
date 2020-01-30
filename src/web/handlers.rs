@@ -6,7 +6,7 @@ use futures::future::{self, Either, Future, FutureExt, TryFutureExt, LocalBoxFut
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::db::{params, results::Paginated, DbError, DbErrorKind};
+use crate::db::{params, results::{Paginated, PostBsos, GetBso}, DbError, DbErrorKind, util::SyncTimestamp};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
@@ -21,7 +21,7 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpRes
     meta.db
         .get_collection_timestamps(meta.user_id)
         .map_err(From::from)
-        .map(|result| {
+        .map(|result: Result<std::collections::HashMap<std::string::String, SyncTimestamp>, Error>| {
             let result = result.unwrap();
             Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
@@ -36,7 +36,7 @@ pub fn get_collection_counts(
     meta.db
         .get_collection_counts(meta.user_id)
         .map_err(From::from)
-        .map(|result| {
+        .map(|result: std::result::Result<std::collections::HashMap<std::string::String, i64>, Error>| {
             let result = result.unwrap();
             Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_WEAVE_RECORDS, result.len().to_string())
@@ -51,7 +51,7 @@ pub fn get_collection_usage(
     meta.db
         .get_collection_usage(meta.user_id)
         .map_err(From::from)
-        .map(|usage| {
+        .map(|usage: std::result::Result<std::collections::HashMap<std::string::String, i64>, Error>| {
             let usage = usage.unwrap();
             let usage: HashMap<_, _> = usage
                 .into_iter()
@@ -68,7 +68,7 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse,
     meta.db
         .get_storage_usage(meta.user_id)
         .map_err(From::from)
-        .map(|usage| {
+        .map(|usage: std::result::Result<u64, Error>| {
             let usage = usage.unwrap();
             Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
         })
@@ -80,7 +80,7 @@ pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse
     meta.db
         .delete_storage(meta.user_id)
         .map_err(From::from)
-        .map(|result| Ok(HttpResponse::Ok().json(result)))
+        .map(|result: Result<(), Error>| Ok(HttpResponse::Ok().json(result.unwrap())))
 }
 
 pub fn delete_collection(
@@ -111,7 +111,7 @@ pub fn delete_collection(
         }
     })
     .map_err(From::from)
-    .map(move |result| {
+    .map(move |result: std::result::Result<SyncTimestamp, Error>| {
         let result = result.unwrap();
         Ok(HttpResponse::Ok()
             .if_true(delete_bsos, |resp| {
@@ -209,7 +209,7 @@ pub fn post_collection(
                 failed: coll.bsos.invalid,
             })
             .map_err(From::from)
-            .map(|result| {
+            .map(|result: std::result::Result<PostBsos, Error>| {
                 let result = result.unwrap();
                 Ok(HttpResponse::build(StatusCode::OK)
                     .header(X_LAST_MODIFIED, result.modified.as_header())
@@ -349,7 +349,7 @@ pub fn post_collection_batch(
                     }
                 })
                 .map_err(From::from)
-                .map(|result| {
+                .map(|result: std::result::Result<PostBsos, Error>| {
                     let result = result.unwrap();
                     resp["modified"] = json!(result.modified);
                     Ok(HttpResponse::build(StatusCode::OK)
@@ -371,7 +371,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpRespon
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(|result| Ok(HttpResponse::Ok().json(json!({ "modified": result }))))
+        .map(|result: std::result::Result<SyncTimestamp, Error>| Ok(HttpResponse::Ok().json(json!({ "modified": result.unwrap() }))))
 }
 
 pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -384,7 +384,7 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse,
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(|result| {
+        .map(|result: std::result::Result<std::option::Option<GetBso>, Error>| {
             let result = result.unwrap();
             result.map_or_else(
                 || Ok(HttpResponse::NotFound().finish()),
@@ -406,7 +406,7 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpRespon
             ttl: bso_req.body.ttl,
         })
         .map_err(From::from)
-        .map(|result| {
+        .map(|result: std::result::Result<SyncTimestamp, Error>| {
             let result = result.unwrap();
             Ok(HttpResponse::build(StatusCode::OK)
                 .header(X_LAST_MODIFIED, result.as_header())
