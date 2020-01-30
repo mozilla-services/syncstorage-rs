@@ -4,13 +4,14 @@ use std::{
     result::Result as StdResult,
 };
 
-use futures::stream::{Wait, Stream};
+use actix_rt::System;
+use futures::stream::{Stream, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
     type_pb::{StructType_Field, Type, TypeCode},
 };
-use grpcio::ClientSStreamReceiver;
+use grpcio::{ClientSStreamReceiver};
 use protobuf::{
     well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
@@ -118,11 +119,11 @@ impl ExecuteSqlRequestBuilder {
 
 /// Streams results from an ExecuteStreamingSql PartialResultSet
 ///
-/// Utilizies futures 0.1 `wait()`, so should *always* be called from a thread
+/// Utilizies block_on, so should *always* be called from a thread
 /// outside of an event loop
 pub struct StreamedResultSet {
     /// Stream from execute_streaming_sql
-    stream: Wait<ClientSStreamReceiver<PartialResultSet>>,
+    stream: ClientSStreamReceiver<PartialResultSet>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -138,8 +139,7 @@ pub struct StreamedResultSet {
 impl StreamedResultSet {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
-            // Note: wait() isn't futures 0.3 compatible
-            stream: stream.wait(),
+            stream: stream,
             metadata: None,
             stats: None,
             rows: Default::default(),
@@ -188,7 +188,9 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let mut partial_rs = if let Some(result) = self.stream.next() {
+        let fut = self.stream.into_future().compat();
+        let (result, stream) = System::new("").block_on(fut);
+        let mut partial_rs = if let Some(result) = result {
             result?
         } else {
             // Stream finished
