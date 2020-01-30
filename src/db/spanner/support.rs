@@ -5,7 +5,8 @@ use std::{
 };
 
 use actix_rt::System;
-use futures::stream::{Stream, StreamFuture};
+use futures::stream::{Stream, StreamFuture, StreamExt};
+use futures::compat::Stream01CompatExt;
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
@@ -188,7 +189,7 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let fut = self.stream.into_future().compat();
+        let fut = self.stream.compat().into_future();
         let (result, stream) = System::new("").block_on(fut);
         let mut partial_rs = if let Some(result) = result {
             result?
