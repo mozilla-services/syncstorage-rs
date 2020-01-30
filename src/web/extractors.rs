@@ -15,6 +15,7 @@ use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 use futures::future::{self, LocalBoxFuture, TryFutureExt, FutureExt, Ready};
+use futures::executor::block_on;
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -1747,7 +1748,7 @@ mod tests {
     }
 
     fn extract_body_as_str(sresponse: ServiceResponse) -> String {
-        String::from_utf8(test::read_body(sresponse).to_vec()).unwrap()
+        String::from_utf8(block_on(test::read_body(sresponse)).to_vec()).unwrap()
     }
 
     fn create_valid_hawk_header(
@@ -1812,7 +1813,7 @@ mod tests {
         let payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bod_str.as_bytes()));
 
-        CollectionPostRequest::from_request(&req, &mut payload.into()).wait()
+        block_on(CollectionPostRequest::from_request(&req, &mut payload.into()))
     }
 
     #[test]
@@ -1821,7 +1822,7 @@ mod tests {
         let req = TestRequest::with_uri("/?lower=-1.23&sort=whatever")
             .data(state)
             .to_http_request();
-        let result = BsoQueryParams::extract(&req);
+        let result = block_on(BsoQueryParams::extract(&req));
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
@@ -1884,7 +1885,7 @@ mod tests {
         let req = TestRequest::with_uri("/?ids=1,2&full=&sort=index&older=2.43")
             .data(make_state())
             .to_http_request();
-        let result = BsoQueryParams::extract(&req).unwrap();
+        let result = block_on(BsoQueryParams::extract(&req)).unwrap();
         assert_eq!(result.ids, vec!["1", "2"]);
         assert_eq!(result.sort, Sorting::Index);
         assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
@@ -1906,7 +1907,7 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = BsoRequest::extract(&req).unwrap();
+        let result = block_on(BsoRequest::extract(&req)).unwrap();
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
@@ -1928,7 +1929,7 @@ mod tests {
             .param("bso", INVALID_BSO_NAME)
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = BsoRequest::extract(&req);
+        let result = block_on(BsoRequest::extract(&req));
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
@@ -1969,8 +1970,7 @@ mod tests {
         let payload = Payload::None;
         payload.unread_data(bytes::Bytes::from(bso_body.to_string().as_bytes()));
 
-        let result = BsoPutRequest::from_request(&req, &mut payload.into())
-            .wait()
+        let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
             .unwrap();
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
@@ -1998,7 +1998,7 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = BsoPutRequest::extract(&req).wait();
+        let result = block_on(BsoPutRequest::extract(&req));
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(ServiceResponse::new(req, response));
@@ -2028,7 +2028,7 @@ mod tests {
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = CollectionRequest::extract(&req).unwrap();
+        let result = block_on(CollectionRequest::extract(&req)).unwrap();
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
     }
@@ -2049,7 +2049,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
 
-        let result = CollectionRequest::extract(&req);
+        let result = block_on(CollectionRequest::extract(&req));
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
@@ -2223,12 +2223,8 @@ mod tests {
             .param("uid", &USER_ID_STR)
             .to_http_request();
         let payload = Payload::None;
-        HawkIdentifier::from_request(&req, &mut payload.into())
-            .and_then(|result| {
-                assert_eq!(result.legacy_id, *USER_ID);
-                Ok(())
-            })
-            .unwrap();
+        let result = block_on(HawkIdentifier::from_request(&req, &mut payload.into())).unwrap();
+        assert_eq!(result.legacy_id, *USER_ID);
     }
 
     #[test]
@@ -2246,7 +2242,7 @@ mod tests {
             .method(Method::GET)
             .param("uid", mismatch_uid)
             .to_http_request();
-        let result = HawkIdentifier::extract(&req);
+        let result = block_on(HawkIdentifier::extract(&req));
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
         assert_eq!(response.status(), 400);
