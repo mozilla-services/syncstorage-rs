@@ -395,7 +395,7 @@ fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let mut app = block_on(test::init_service(build_app!(get_test_state(&settings), limits)));
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -412,7 +412,7 @@ fn invalid_content_type() {
         })),
     ).to_request();
 
-    let response = block_on(block_on(app).call(req)).unwrap();
+    let response = block_on(app.call(req)).unwrap();
 
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 
@@ -431,7 +431,7 @@ fn invalid_content_type() {
         }])),
     ).to_request();
 
-    let response = block_on(block_on(app).call(req)).unwrap();
+    let response = block_on(app.call(req)).unwrap();
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
 

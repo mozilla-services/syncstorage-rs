@@ -5,7 +5,7 @@
 use std::{self, collections::HashMap, str::FromStr};
 
 use actix_web::{
-    dev::{ConnectionInfo, Extensions, Payload, RequestHead},
+    dev::{ConnectionInfo, Extensions, RequestHead, Payload},
     error::ErrorInternalServerError,
     http::{
         header::{qitem, Accept, ContentType, Header, HeaderMap},
@@ -14,6 +14,8 @@ use actix_web::{
     web::{Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
+use actix_http::h1;
+
 use futures::future::{self, LocalBoxFuture, TryFutureExt, FutureExt, Ready};
 use futures::executor::block_on;
 
@@ -1802,7 +1804,7 @@ mod tests {
             .header("authorization", header)
             .header("content-type", "application/json; charset=UTF-8")
             .header("accept", "application/json;q=0.9,/;q=0.2")
-            .set_payload(bod_str.as_bytes())
+            .set_payload(bod_str.to_owned())
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .to_http_request();
@@ -1810,8 +1812,8 @@ mod tests {
 
         // Not sure why but sending req through *::extract loses the body.
         // Compose a payload here and call the *::from_request
-        let payload = Payload::None;
-        payload.unread_data(bytes::Bytes::from(bod_str.as_bytes()));
+        let (_sender, mut payload) = h1::Payload::create(true);
+        payload.unread_data(bytes::Bytes::from(bod_str.to_owned()));
 
         block_on(CollectionPostRequest::from_request(&req, &mut payload.into()))
     }
@@ -1967,8 +1969,8 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let payload = Payload::None;
-        payload.unread_data(bytes::Bytes::from(bso_body.to_string().as_bytes()));
+        let (_sender, mut payload) = h1::Payload::create(true);
+        payload.unread_data(bytes::Bytes::from(bso_body.as_str().unwrap().to_owned()));
 
         let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
             .unwrap();
