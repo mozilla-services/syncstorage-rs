@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use futures::executor::block_on;
 use actix_web::{dev::Service, http, http::StatusCode, http::HeaderName, http::HeaderValue, test, test::TestRequest};
 use base64;
 use bytes::Bytes;
@@ -158,14 +159,14 @@ fn test_endpoint(
     let limits = Arc::new(settings.limits.clone());
     let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
 
-    let req = create_request(method, path, None, None);
-    let sresp = test::block_on(app.call(req)).unwrap();
+    let req = create_request(method, path, None, None).to_request();
+    let sresp = block_on(block_on(app).call(req)).unwrap();
     match status {
         None => assert!(sresp.response().status().is_success()),
         Some(status) => assert!(sresp.response().status() == status),
     };
     if let Some(x_body) = expected_body {
-        let body = test::read_body(sresp);
+        let body = block_on(test::read_body(sresp));
         assert_eq!(body, x_body.as_bytes());
     }
 }
@@ -178,8 +179,8 @@ where
     let limits = Arc::new(settings.limits.clone());
     let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
 
-    let req = create_request(method, path, None, None);
-    let sresponse = match test::block_on(app.call(req)) {
+    let req = create_request(method, path, None, None).to_request();
+    let sresponse = match block_on(block_on(app).call(req)) {
         Ok(v) => v,
         Err(e) => {
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
@@ -193,7 +194,7 @@ where
             sresponse.response()
         );
     }
-    let body = test::read_body(sresponse);
+    let body = block_on(test::read_body(sresponse));
     let result: T = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -207,10 +208,10 @@ fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::V
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
     let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
-    let req = create_request(method, path, None, Some(body));
-    let sresponse = test::block_on(app.call(req)).unwrap();
+    let req = create_request(method, path, None, Some(body)).to_request();
+    let sresponse = block_on(block_on(app).call(req)).unwrap();
     assert!(sresponse.response().status().is_success());
-    test::read_body(sresponse)
+    block_on(test::read_body(sresponse))
 }
 
 #[test]
@@ -409,9 +410,9 @@ fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         })),
-    );
+    ).to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
+    let response = block_on(block_on(app).call(req)).unwrap();
 
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 
@@ -428,9 +429,9 @@ fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         }])),
-    );
+    ).to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
+    let response = block_on(block_on(app).call(req)).unwrap();
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
 
@@ -450,10 +451,10 @@ fn invalid_batch_post() {
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ])),
-    );
+    ).to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
+    let response = block_on(block_on(app).call(req)).unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let body = String::from_utf8(test::read_body(response).to_vec()).unwrap();
+    let body = String::from_utf8(block_on(test::read_body(response)).to_vec()).unwrap();
     assert_eq!(body, "0");
 }
