@@ -169,7 +169,7 @@ impl Server {
             build_app!(state, limits)
         })
         .bind(format!("{}:{}", settings.host, settings.port))
-        .unwrap();
+        .expect("Could not get Server in Server::with_settings");
         Ok(sys)
     }
 }

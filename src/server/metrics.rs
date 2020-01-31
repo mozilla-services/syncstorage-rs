@@ -170,7 +170,7 @@ pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
     Ok(req
         .app_data::<ServerState>()
         .ok_or_else(|| ErrorInternalServerError("Could not get state"))
-        .unwrap()
+        .expect("Could not get state in metrics_from_req")
         .metrics
         .clone())
 }

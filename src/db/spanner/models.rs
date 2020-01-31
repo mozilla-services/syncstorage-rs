@@ -1354,7 +1354,7 @@ impl SpannerDb {
             let now_millis = timestamp.as_i64();
             let ttl = bso
                 .ttl
-                .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().unwrap())
+                .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().expect("Could not get ttl in put_bso_sync (test)"))
                 * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(

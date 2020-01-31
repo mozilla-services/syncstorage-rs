@@ -179,8 +179,8 @@ where
                 };
 
                 // Make the call, then do all the post-processing steps.
-                Either::Right(service.call(sreq).map(move |mut resp| {
-                    let mut resp = resp.unwrap();
+                Either::Right(service.call(sreq).map(move |resp| {
+                    let mut resp = resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
                     if resp.headers().contains_key(X_LAST_MODIFIED) {
                         return Ok(resp);
                     }

@@ -189,7 +189,7 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let (result, stream) = System::new("").block_on(self.stream.take().unwrap());
+        let (result, stream) = System::new("").block_on(self.stream.take().expect("Could not get next stream element"));
         self.stream = Some(stream.into_future());
         let mut partial_rs = if let Some(result) = result {
             result?
