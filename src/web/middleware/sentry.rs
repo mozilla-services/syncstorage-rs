@@ -67,12 +67,14 @@ where
             // most values are either "=true" or a lower case hex string.
             static ref RE: regex::Regex = regex::Regex::new(r"=[a-z\d]{5,}").unwrap();
         }
+        // to satisify clippy and rustc.
+        let slash: &str = "/";
         let trimmed = uri
             .to_string()
-            .split('/')
+            .split(slash)
             .collect::<Vec<&str>>()
             .split_off(3)
-            .join('/');
+            .join(slash);
         RE.replace_all(&trimmed, "=###").to_owned().to_string()
     }
 }
