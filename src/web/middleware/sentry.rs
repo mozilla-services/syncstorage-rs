@@ -69,10 +69,10 @@ where
         }
         let trimmed = uri
             .to_string()
-            .split("/")
+            .split('/')
             .collect::<Vec<&str>>()
             .split_off(3)
-            .join("/");
+            .join('/');
         RE.replace_all(&trimmed, "=###").to_owned().to_string()
     }
 }
