@@ -640,9 +640,9 @@ impl FromRequest for MetaRequest {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
         async move {
             // Call the precondition stuff to init database handles and what-not
             let tags = {
@@ -695,7 +695,7 @@ impl FromRequest for CollectionRequest {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
@@ -1189,7 +1189,7 @@ impl FromRequest for HawkIdentifier {
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
 
         Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
@@ -1291,7 +1291,7 @@ impl FromRequest for BsoQueryParams {
     /// Extract and validate the query parameters
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
         Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
 
@@ -1342,7 +1342,7 @@ impl FromRequest for BatchRequestOpt {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
         Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
             // let tags = Tags::from_request_head(req.head());
@@ -1561,7 +1561,7 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = payload.take();
+        let mut payload = Payload::None;
         Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
             Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
