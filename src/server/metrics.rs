@@ -1,7 +1,7 @@
 use std::net::UdpSocket;
 use std::time::Instant;
 
-use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
+use actix_web::{error::ErrorInternalServerError, Error, HttpRequest, web::Data};
 use cadence::{
     BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
@@ -168,7 +168,7 @@ impl Metrics {
 
 pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
     Ok(req
-        .app_data::<ServerState>()
+        .app_data::<Data<ServerState>>()
         .ok_or_else(|| ErrorInternalServerError("Could not get state"))
         .expect("Could not get state in metrics_from_req")
         .metrics

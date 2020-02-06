@@ -11,7 +11,7 @@ use actix_web::{
         header::{qitem, Accept, ContentType, Header, HeaderMap},
         Uri,
     },
-    web::{Json, Query},
+    web::{Json, Query, Data},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 
@@ -206,7 +206,7 @@ impl FromRequest for BsoBodies {
         let newlines: bool = content_type == "application/newlines";
 
         // Grab the max sizes
-        let state = match req.app_data::<ServerState>() {
+        let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
@@ -370,7 +370,7 @@ impl FromRequest for BsoBody {
                 .into(),
             ));
         }
-        let state = match req.app_data::<ServerState>() {
+        let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
@@ -772,7 +772,7 @@ impl FromRequest for CollectionPostRequest {
                 Some(t) => t.clone(),
                 None => Tags::from_request_head(req.head()),
             };
-            let state = match req.app_data::<ServerState>() {
+            let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
                     debug!("⚠️ Could not load the app state");
@@ -957,7 +957,7 @@ impl FromRequest for ConfigRequest {
             }
         };
 
-        let state = match req.app_data::<ServerState>() {
+        let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
@@ -1006,7 +1006,7 @@ impl FromRequest for HeartbeatRequest {
             }
         };
 
-        let state = match req.app_data::<ServerState>() {
+        let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
@@ -1193,7 +1193,7 @@ impl FromRequest for HawkIdentifier {
 
         Box::pin(async move {
             let tags = Tags::from_request(&req, &mut payload).await?;
-            let state = match req.app_data::<ServerState>() {
+            let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
                     debug!("⚠️ Could not load the app state");
@@ -1357,7 +1357,7 @@ impl FromRequest for BatchRequestOpt {
                     )
                 }).await?
                 .into_inner();
-            let state = match req.app_data::<ServerState>() {
+            let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
                     debug!("⚠️ Could not load the app state");
