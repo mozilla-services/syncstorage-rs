@@ -312,11 +312,11 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> Result<Value> {
     Ok(as_value(merged))
 }
 
-pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
+pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
     let modified_string = &row[3].get_string_value();
     let modified = SyncTimestamp::from_rfc3339(modified_string)?;
     Ok(results::GetBso {
-        id: row[0].get_string_value().to_owned(),
+        id: row[0].take_string_value(),
         sortindex: if row[1].has_null_value() {
             None
         } else {
@@ -327,7 +327,7 @@ pub fn bso_from_row(row: Vec<Value>) -> Result<results::GetBso> {
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?,
             )
         },
-        payload: row[2].get_string_value().to_owned(),
+        payload: row[2].take_string_value(),
         modified,
         expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
     })
