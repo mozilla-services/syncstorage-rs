@@ -3,10 +3,9 @@
 use std::sync::Arc;
 
 use actix_cors::Cors;
-use actix_rt::{System, SystemRunner};
 use actix_web::{
     http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest, HttpResponse,
-    HttpServer,
+    HttpServer, dev
 };
 // use num_cpus;
 use crate::db::{pool_from_settings, DbPool};
@@ -148,15 +147,14 @@ macro_rules! build_app {
 }
 
 impl Server {
-    pub fn with_settings(settings: Settings) -> Result<SystemRunner, ApiError> {
-        let sys = System::new("syncserver");
+    pub fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let metrics = metrics::metrics_from_opts(&settings)?;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics))?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
-        HttpServer::new(move || {
+        let server = HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 db_pool: db_pool.clone(),
@@ -169,7 +167,8 @@ impl Server {
             build_app!(state, limits)
         })
         .bind(format!("{}:{}", settings.host, settings.port))
-        .expect("Could not get Server in Server::with_settings");
-        Ok(sys)
+        .expect("Could not get Server in Server::with_settings")
+        .run();
+        Ok(server)
     }
 }
