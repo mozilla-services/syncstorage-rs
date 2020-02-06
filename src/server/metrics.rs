@@ -65,7 +65,7 @@ impl From<&HttpRequest> for Metrics {
         let def_tags = Tags::from_request_head(req.head());
         let tags = exts.get::<Tags>().unwrap_or_else(|| &def_tags);
         Metrics {
-            client: match req.app_data::<ServerState>() {
+            client: match req.app_data::<Data<ServerState>>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
                     debug!("⚠️ metric error: No App State");
