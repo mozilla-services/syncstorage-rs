@@ -156,7 +156,7 @@ impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
     fn from(inner: actix_web::error::BlockingError<ApiError>) -> Self {
         match inner {
             actix_web::error::BlockingError::Error(e) => {
-                ApiErrorKind::Internal(format!("{:?}", e)).into()
+                e
             }
             actix_web::error::BlockingError::Canceled => {
                 ApiErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
