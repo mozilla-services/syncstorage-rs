@@ -793,7 +793,7 @@ impl FromRequest for CollectionPostRequest {
                 CollectionParam,
                 BsoQueryParams,
                 BsoBodies,
-            )>::from_request(&req, &mut payload).await.expect("Could not get data in CollectionPostRequest::from_request");
+            )>::from_request(&req, &mut payload).await?;
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
