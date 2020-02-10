@@ -111,13 +111,12 @@ pub fn delete_collection(
         }
     })
     .map_err(From::from)
-    .map(move |result: std::result::Result<SyncTimestamp, Error>| {
-        let result = result.expect("Could not get result in delete_collection");
-        Ok(HttpResponse::Ok()
-            .if_true(delete_bsos, |resp| {
-                resp.header(X_LAST_MODIFIED, result.as_header());
-            })
-            .json(result))
+    .map_ok(move |result: SyncTimestamp| {
+        HttpResponse::Ok()
+        .if_true(delete_bsos, |resp| {
+            resp.header(X_LAST_MODIFIED, result.as_header());
+        })
+        .json(result)
     })
 }
 
@@ -374,7 +373,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpRespon
         .map(|result: std::result::Result<SyncTimestamp, Error>| {
             match result {
                 Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
-                Err(e) => Ok(HttpResponse::NotFound().finish())
+                Err(_e) => Ok(HttpResponse::NotFound().finish())
             }            
         })
 }
