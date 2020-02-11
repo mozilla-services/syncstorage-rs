@@ -1983,7 +1983,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let (_sender, mut payload) = h1::Payload::create(true);
-        payload.unread_data(bytes::Bytes::from(bso_body.as_str().unwrap().to_owned()));
+        payload.unread_data(bytes::Bytes::from(bso_body.to_string().to_owned()));
         let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
             .expect("Could not get result in test_valid_bso_post_body");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
