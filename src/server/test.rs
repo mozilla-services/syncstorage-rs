@@ -219,10 +219,7 @@ fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::V
     let limits = Arc::new(settings.limits.clone());
     let app = test::init_service(build_app!(get_test_state(&settings), limits));
     let req = create_request(method, path, None, Some(body)).to_request();
-    let sresponse = block_on(block_on(app).call(req)).expect(&format!(
-        "Could not get sresponse in test_endpoint_with_body {}",
-        path
-    ));
+    let sresponse = block_on(block_on(app).call(req)).expect("Could not get sresponse in test_endpoint_with_body");
     assert!(sresponse.response().status().is_success());
     block_on(test::read_body(sresponse))
 }
