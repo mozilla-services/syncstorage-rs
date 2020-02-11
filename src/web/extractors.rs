@@ -666,7 +666,7 @@ impl FromRequest for MetaRequest {
             })
             //            }))
         }
-            .boxed_local()
+        .boxed_local()
     }
 }
 
@@ -742,7 +742,7 @@ impl FromRequest for CollectionRequest {
             })
             //            }))
         }
-            .boxed_local()
+        .boxed_local()
     }
 }
 
