@@ -1,7 +1,7 @@
 use std::net::UdpSocket;
 use std::time::Instant;
 
-use actix_web::{error::ErrorInternalServerError, Error, HttpRequest, web::Data};
+use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
 use cadence::{
     BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };

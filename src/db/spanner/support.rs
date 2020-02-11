@@ -5,14 +5,14 @@ use std::{
 };
 
 use actix_rt::System;
-use futures::stream::{Stream, StreamFuture, StreamExt};
-use futures::compat::{ Stream01CompatExt, Compat01As03 };
+use futures::compat::{Compat01As03, Stream01CompatExt};
+use futures::stream::{Stream, StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
     type_pb::{StructType_Field, Type, TypeCode},
 };
-use grpcio::{ClientSStreamReceiver};
+use grpcio::ClientSStreamReceiver;
 use protobuf::{
     well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
@@ -189,7 +189,11 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let (result, stream) = System::new("").block_on(self.stream.take().expect("Could not get next stream element"));
+        let (result, stream) = System::new("").block_on(
+            self.stream
+                .take()
+                .expect("Could not get next stream element"),
+        );
         self.stream = Some(stream.into_future());
         let mut partial_rs = if let Some(result) = result {
             result?

@@ -14,7 +14,7 @@ use actix_web::{
     http::{header, StatusCode},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, Either, LocalBoxFuture, FutureExt, TryFutureExt};
+use futures::future::{self, Either, FutureExt, LocalBoxFuture, TryFutureExt};
 use std::task::Poll;
 
 #[derive(Debug)]
@@ -154,45 +154,56 @@ where
         let bso_opt = bso.map(|b| b.bso);
 
         let mut service = Rc::clone(&self.service);
-        Box::pin(db.extract_resource(user_id, collection, bso_opt)
-            .map_err(Into::into)
-            .and_then(move |resource_ts| {
-                let status = match precondition {
-                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
-                        StatusCode::NOT_MODIFIED
-                    }
-                    PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
-                        StatusCode::PRECONDITION_FAILED
-                    }
-                    _ => StatusCode::OK,
-                };
-                if status != StatusCode::OK {
-                    return Either::Left(future::ok(
-                        sreq.into_response(
-                            HttpResponse::build(status)
-                                .content_type("application/json")
-                                .header(X_LAST_MODIFIED, resource_ts.as_header())
-                                .body("".to_owned())
-                                .into_body(),
-                        ),
-                    ));
-                };
+        Box::pin(
+            db.extract_resource(user_id, collection, bso_opt)
+                .map_err(Into::into)
+                .and_then(move |resource_ts| {
+                    let status = match precondition {
+                        PreConditionHeader::IfModifiedSince(header_ts)
+                            if resource_ts <= header_ts =>
+                        {
+                            StatusCode::NOT_MODIFIED
+                        }
+                        PreConditionHeader::IfUnmodifiedSince(header_ts)
+                            if resource_ts > header_ts =>
+                        {
+                            StatusCode::PRECONDITION_FAILED
+                        }
+                        _ => StatusCode::OK,
+                    };
+                    if status != StatusCode::OK {
+                        return Either::Left(future::ok(
+                            sreq.into_response(
+                                HttpResponse::build(status)
+                                    .content_type("application/json")
+                                    .header(X_LAST_MODIFIED, resource_ts.as_header())
+                                    .body("".to_owned())
+                                    .into_body(),
+                            ),
+                        ));
+                    };
 
-                // Make the call, then do all the post-processing steps.
-                Either::Right(service.call(sreq).map(move |resp| {
-                    let mut resp = resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
-                    if resp.headers().contains_key(X_LAST_MODIFIED) {
-                        return Ok(resp);
-                    }
+                    // Make the call, then do all the post-processing steps.
+                    Either::Right(service.call(sreq).map(move |resp| {
+                        let mut resp =
+                            resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
+                        if resp.headers().contains_key(X_LAST_MODIFIED) {
+                            return Ok(resp);
+                        }
 
-                    // See if we already extracted one and use that if possible
-                    if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-                        debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
-                        resp.headers_mut()
-                            .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
-                    }
-                    Ok(resp)
-                }))
-            }))
+                        // See if we already extracted one and use that if possible
+                        if let Ok(ts_header) =
+                            header::HeaderValue::from_str(&resource_ts.as_header())
+                        {
+                            debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+                            resp.headers_mut().insert(
+                                header::HeaderName::from_static(X_LAST_MODIFIED),
+                                ts_header,
+                            );
+                        }
+                        Ok(resp)
+                    }))
+                }),
+        )
     }
 }

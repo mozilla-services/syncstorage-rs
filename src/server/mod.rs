@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::{
-    http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest, HttpResponse,
-    HttpServer, dev
+    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
+    HttpResponse, HttpServer,
 };
 // use num_cpus;
 use crate::db::{pool_from_settings, DbPool};

@@ -1,7 +1,7 @@
 //! Error types and macros.
 #![allow(clippy::single_match)]
-use std::fmt;
 use std::convert::From;
+use std::fmt;
 
 use actix_web::{
     dev::{HttpResponseBuilder, ServiceResponse},
@@ -155,9 +155,7 @@ impl ApiError {
 impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
     fn from(inner: actix_web::error::BlockingError<ApiError>) -> Self {
         match inner {
-            actix_web::error::BlockingError::Error(e) => {
-                e
-            }
+            actix_web::error::BlockingError::Error(e) => e,
             actix_web::error::BlockingError::Canceled => {
                 ApiErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
             }

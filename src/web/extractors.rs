@@ -5,17 +5,17 @@
 use std::{self, collections::HashMap, str::FromStr};
 
 use actix_web::{
-    dev::{ConnectionInfo, Extensions, RequestHead, Payload},
+    dev::{ConnectionInfo, Extensions, Payload, RequestHead},
     error::ErrorInternalServerError,
     http::{
         header::{qitem, Accept, ContentType, Header, HeaderMap},
         Uri,
     },
-    web::{Json, Query, Data},
+    web::{Data, Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 
-use futures::future::{self, LocalBoxFuture, TryFutureExt, FutureExt, Ready};
+use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -105,8 +105,11 @@ impl BatchBsoBody {
 // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Accept, but some corners can absolutely be cut.
 // This will pull the first accepted content type listed, or the highest rated non-accepted type.
 fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> String {
-    let mut candidates = Accept::parse(req)
-        .unwrap_or_else(|_| Accept(vec![qitem(mime::Mime::from_str(default).expect("Could not get accept in get_accepted"))]));
+    let mut candidates = Accept::parse(req).unwrap_or_else(|_| {
+        Accept(vec![qitem(
+            mime::Mime::from_str(default).expect("Could not get accept in get_accepted"),
+        )])
+    });
     if candidates.is_empty() {
         return default.to_owned();
     }
@@ -655,16 +658,15 @@ impl FromRequest for MetaRequest {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = extrude_db(&req.extensions())?;
             //            Box::pin(future::ok({
-            Ok(
-                MetaRequest {
-                    user_id,
-                    db,
-                    metrics: metrics::Metrics::from(&req),
-                    tags,
-                }
-            )
-//            }))
-        }.boxed_local()
+            Ok(MetaRequest {
+                user_id,
+                db,
+                metrics: metrics::Metrics::from(&req),
+                tags,
+            })
+            //            }))
+        }
+            .boxed_local()
     }
 }
 
@@ -700,7 +702,9 @@ impl FromRequest for CollectionRequest {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?.collection;
+            let collection = CollectionParam::from_request(&req, &mut payload)
+                .await?
+                .collection;
             let tags = {
                 let exts = req.extensions();
                 match exts.get::<Tags>() {
@@ -720,8 +724,9 @@ impl FromRequest for CollectionRequest {
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
                         Some(tags),
-                    ).into());
-//                        .into()));
+                    )
+                    .into());
+                    //                        .into()));
                 }
             };
 
@@ -735,8 +740,9 @@ impl FromRequest for CollectionRequest {
                 metrics: metrics::Metrics::from(&req),
                 tags: Some(tags),
             })
-//            }))
-        }.boxed_local()
+            //            }))
+        }
+            .boxed_local()
     }
 }
 
@@ -777,23 +783,25 @@ impl FromRequest for CollectionPostRequest {
                 None => {
                     debug!("⚠️ Could not load the app state");
                     return Err(ValidationErrorKind::FromDetails(
-                            "Internal error".to_owned(),
-                            RequestErrorLocation::Unknown,
-                            Some("app_data".to_owned()),
-                            Some(tags),
-                        )
-                        .into());
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("app_data".to_owned()),
+                        Some(tags),
+                    )
+                    .into());
                 }
             };
 
             let max_post_records = i64::from(state.limits.max_post_records);
-            let (user_id, db, collection, query, mut bsos) = <(
-                HawkIdentifier,
-                Box<dyn Db>,
-                CollectionParam,
-                BsoQueryParams,
-                BsoBodies,
-            )>::from_request(&req, &mut payload).await?;
+            let (user_id, db, collection, query, mut bsos) =
+                <(
+                    HawkIdentifier,
+                    Box<dyn Db>,
+                    CollectionParam,
+                    BsoQueryParams,
+                    BsoBodies,
+                )>::from_request(&req, &mut payload)
+                .await?;
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -801,12 +809,12 @@ impl FromRequest for CollectionPostRequest {
                     if let Some(ref data) = bso.payload {
                         if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
                             return Err(ValidationErrorKind::FromDetails(
-                                    "Known-bad BSO payload".to_owned(),
-                                    RequestErrorLocation::Body,
-                                    Some("bsos".to_owned()),
-                                    Some(tags),
-                                )
-                                .into());
+                                "Known-bad BSO payload".to_owned(),
+                                RequestErrorLocation::Body,
+                                Some("bsos".to_owned()),
+                                Some(tags),
+                            )
+                            .into());
                         }
                     }
                 }
@@ -862,7 +870,9 @@ impl FromRequest for BsoRequest {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?.collection;
+            let collection = CollectionParam::from_request(&req, &mut payload)
+                .await?
+                .collection;
             let bso = BsoParam::from_request(&req, &mut payload).await?;
 
             Ok(BsoRequest {
@@ -961,13 +971,15 @@ impl FromRequest for ConfigRequest {
             Some(s) => s,
             None => {
                 debug!("⚠️ Could not load the app state");
-                return Box::pin(future::err(ValidationErrorKind::FromDetails(
-                    "Internal error".to_owned(),
-                    RequestErrorLocation::Unknown,
-                    Some("state".to_owned()),
-                    Some(tags),
-                )
-                .into()));
+                return Box::pin(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "Internal error".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("state".to_owned()),
+                        Some(tags),
+                    )
+                    .into(),
+                ));
             }
         };
 
@@ -1210,14 +1222,7 @@ impl FromRequest for HawkIdentifier {
             let connection_info = req.connection_info().clone();
             let method = req.method().as_str();
             let uri = req.uri();
-            Self::extrude(
-                &req,
-                method,
-                uri,
-                &connection_info,
-                &state,
-                Some(tags),
-            )
+            Self::extrude(&req, method, uri, &connection_info, &state, Some(tags))
         })
     }
 }
@@ -1303,7 +1308,9 @@ impl FromRequest for BsoQueryParams {
                         None,
                         Some(tags.clone()),
                     )
-                }).await?.into_inner();
+                })
+                .await?
+                .into_inner();
             params.validate().map_err(|e| {
                 ValidationErrorKind::FromValidationErrors(
                     e,
@@ -1355,7 +1362,8 @@ impl FromRequest for BatchRequestOpt {
                         None,
                         Some(tags.clone()),
                     )
-                }).await?
+                })
+                .await?
                 .into_inner();
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
@@ -1432,8 +1440,9 @@ impl FromRequest for BatchRequestOpt {
                 let err: ApiError = ValidationErrorKind::FromValidationErrors(
                     e,
                     RequestErrorLocation::QueryString,
-                    Some(tags.clone())
-                ).into();
+                    Some(tags.clone()),
+                )
+                .into();
                 err
             })?;
 
@@ -1787,7 +1796,10 @@ mod tests {
         format!("Hawk {}", request.make_header(&credentials).unwrap())
     }
 
-    async fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
+    async fn post_collection(
+        qs: &str,
+        body: &serde_json::Value,
+    ) -> Result<CollectionPostRequest, Error> {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let path = format!(
@@ -1909,7 +1921,8 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = block_on(BsoRequest::extract(&req)).expect("Could not get result in test_valid_bso_request");
+        let result = block_on(BsoRequest::extract(&req))
+            .expect("Could not get result in test_valid_bso_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(&result.bso, "asdf");
@@ -1970,8 +1983,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let (_sender, mut payload) = h1::Payload::create(true);
-        payload.unread_data(bytes::Bytes::from(bso_body.as_str().expect("Could not call unread_data in test_valid_bso_post_body").to_owned()));
-
+        payload.unread_data(bytes::Bytes::from(bso_body.as_str().unwrap().to_owned()));
         let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
             .expect("Could not get result in test_valid_bso_post_body");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
@@ -2001,7 +2013,10 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = block_on(BsoPutRequest::extract(&req));
-        let response: HttpResponse = result.err().expect("Could not get response in test_invalid_bso_post_body").into();
+        let response: HttpResponse = result
+            .err()
+            .expect("Could not get response in test_invalid_bso_post_body")
+            .into();
         assert_eq!(response.status(), 400);
         let body = extract_body_as_str(ServiceResponse::new(req, response));
         assert_eq!(body, "8")
@@ -2030,7 +2045,8 @@ mod tests {
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = block_on(CollectionRequest::extract(&req)).expect("Could not get result in test_valid_collection_request");
+        let result = block_on(CollectionRequest::extract(&req))
+            .expect("Could not get result in test_valid_collection_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
     }
@@ -2077,7 +2093,9 @@ mod tests {
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let result = post_collection("", &bso_body).await.expect("Could not get result in test_valid_collection_post_request");
+        let result = post_collection("", &bso_body)
+            .await
+            .expect("Could not get result in test_valid_collection_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
@@ -2091,14 +2109,16 @@ mod tests {
             {"id": "1", "sortindex": 23, "jump": 1},
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
-        let result = post_collection("", &bso_body).await.expect("Could not get result in test_invalid_collection_post_request");
+        let result = post_collection("", &bso_body)
+            .await
+            .expect("Could not get result in test_invalid_collection_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
     }
 
     #[actix_rt::test]
-//    #[test]
+    //    #[test]
     async fn test_valid_collection_batch_post_request() {
         // If the "batch" parameter is has no value or has a value of "true"
         // then a new batch will be created.
@@ -2106,21 +2126,33 @@ mod tests {
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let result = post_collection("batch=True", &bso_body).await.expect("Could not get result in test_valid_collection_batch_post_request");
+        let result = post_collection("batch=True", &bso_body)
+            .await
+            .expect("Could not get result in test_valid_collection_batch_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
-        let batch = result.batch.expect("Could not get batch in test_valid_collection_batch_post_request");
+        let batch = result
+            .batch
+            .expect("Could not get batch in test_valid_collection_batch_post_request");
         assert!(batch.id.is_none());
         assert_eq!(batch.commit, false);
 
-        let result2 = post_collection("batch", &bso_body).await.expect("Could not get result2 in test_valid_collection_batch_post_request");
-        let batch2 = result2.batch.expect("Could not get batch2 in test_valid_collection_batch_post_request");
+        let result2 = post_collection("batch", &bso_body)
+            .await
+            .expect("Could not get result2 in test_valid_collection_batch_post_request");
+        let batch2 = result2
+            .batch
+            .expect("Could not get batch2 in test_valid_collection_batch_post_request");
         assert!(batch2.id.is_none());
         assert_eq!(batch2.commit, false);
 
-        let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body).await.expect("Could not get result3 in test_valid_collection_batch_post_request");
-        let batch3 = result3.batch.expect("Could not get batch3 in test_valid_collection_batch_post_request");
+        let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body)
+            .await
+            .expect("Could not get result3 in test_valid_collection_batch_post_request");
+        let batch3 = result3
+            .batch
+            .expect("Could not get batch3 in test_valid_collection_batch_post_request");
         assert!(batch3.id.is_some());
         assert_eq!(batch3.commit, true);
     }
@@ -2226,7 +2258,8 @@ mod tests {
             .param("uid", &USER_ID_STR)
             .to_http_request();
         let payload = Payload::None;
-        let result = block_on(HawkIdentifier::from_request(&req, &mut payload.into())).expect("Could not get result in valid_header_with_valid_path");
+        let result = block_on(HawkIdentifier::from_request(&req, &mut payload.into()))
+            .expect("Could not get result in valid_header_with_valid_path");
         assert_eq!(result.legacy_id, *USER_ID);
     }
 

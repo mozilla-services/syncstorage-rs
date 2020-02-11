@@ -124,11 +124,7 @@ macro_rules! batch_db_method {
 }
 
 impl SpannerDb {
-    pub fn new(
-        conn: Conn,
-        coll_cache: Arc<CollectionCache>,
-        metrics: &Metrics,
-    ) -> Self {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
             session: RefCell::new(Default::default()),
@@ -1352,10 +1348,10 @@ impl SpannerDb {
                 as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
             );
             let now_millis = timestamp.as_i64();
-            let ttl = bso
-                .ttl
-                .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().expect("Could not get ttl in put_bso_sync (test)"))
-                * 1000;
+            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
+                ttl.try_into()
+                    .expect("Could not get ttl in put_bso_sync (test)")
+            }) * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(
                 "!!!!! INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
@@ -1446,16 +1442,12 @@ macro_rules! sync_db_method {
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.commit_sync().map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.commit_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.rollback_sync().map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -1464,9 +1456,7 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.check_sync().map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1530,26 +1520,25 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.get_collection_id(&name).map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.create_collection(&name).map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.touch_collection(&param.user_id, param.collection_id)
-                .map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(
+            block(move || {
+                db.touch_collection(&param.user_id, param.collection_id)
+                    .map_err(Into::into)
+            })
+            .map_err(Into::into),
+        )
     }
 
     #[cfg(any(test, feature = "db_test"))]

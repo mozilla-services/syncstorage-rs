@@ -1,4 +1,3 @@
-
 use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
@@ -71,7 +70,8 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        let no_agent = HeaderValue::from_str("NONE").expect("Could not get no_agent in DbTransactionMiddleware::call");
+        let no_agent = HeaderValue::from_str("NONE")
+            .expect("Could not get no_agent in DbTransactionMiddleware::call");
         let useragent = sreq
             .headers()
             .get("user-agent")
