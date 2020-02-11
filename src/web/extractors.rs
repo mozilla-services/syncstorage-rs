@@ -695,7 +695,7 @@ impl FromRequest for CollectionRequest {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
@@ -1199,7 +1199,7 @@ impl FromRequest for HawkIdentifier {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = Payload::None;
 
@@ -1294,7 +1294,7 @@ impl FromRequest for BsoQueryParams {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract and validate the query parameters
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
@@ -1347,7 +1347,7 @@ impl FromRequest for BatchRequestOpt {
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<BatchRequestOpt, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
@@ -1568,7 +1568,7 @@ impl FromRequest for PreConditionHeaderOpt {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract and validate the precondition headers
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
@@ -2257,8 +2257,8 @@ mod tests {
             .data(state)
             .param("uid", &USER_ID_STR)
             .to_http_request();
-        let payload = Payload::None;
-        let result = block_on(HawkIdentifier::from_request(&req, &mut payload.into()))
+        let mut payload = Payload::None;
+        let result = block_on(HawkIdentifier::from_request(&req, &mut payload))
             .expect("Could not get result in valid_header_with_valid_path");
         assert_eq!(result.legacy_id, *USER_ID);
     }

@@ -6,7 +6,7 @@ use std::{
 
 use actix_rt::System;
 use futures::compat::{Compat01As03, Stream01CompatExt};
-use futures::stream::{Stream, StreamExt, StreamFuture};
+use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
