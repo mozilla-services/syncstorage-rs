@@ -29,7 +29,7 @@ pub async fn db() -> Result<Box<dyn Db>> {
 
     let metrics = metrics::Metrics::noop();
     let pool = syncstorage::db::pool_from_settings(&settings, &metrics)?;
-    let db = pool.get().compat().await?;
+    let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it
     db.set_timestamp(SyncTimestamp::default());
