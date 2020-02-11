@@ -395,9 +395,7 @@ fn bsos_can_have_a_collection_field() {
         [bso1,
          {"id": "2", "collection": "foo", "payload": "SomePayload"},
     ]);
-    println!("HELLO");
     let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos);
-    println!("HELLO2");
     let result: PostBsos = serde_json::from_slice(&bytes.to_vec())
         .expect("Could not get result in bsos_can_have_a_collection_field");
     assert_eq!(result.success.len(), 2);
