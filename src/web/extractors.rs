@@ -149,6 +149,7 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
+        eprintln!("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -179,7 +180,17 @@ impl FromRequest for BsoBodies {
         }
 
         // Load the entire request into a String
+        match payload {
+            actix_http::Payload::None => eprintln!("NO PAYLOAD"),
+            actix_http::Payload::H1(_) => eprintln!("PAYLOAD H1"),
+            actix_http::Payload::H2(_) => eprintln!("PAYLOAD H2"),
+            actix_http::Payload::Stream(_) => eprintln!("PAYLOAD STREAM"),
+        };
+
         let fut = <String>::from_request(req, payload).map_err(|e| {
+        //let p = Payload::None;
+        //let fut = <String>::from_request(req, &mut p.into()).map_err(|e| {
+            eprintln!("E+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
             debug!("⚠️ Payload read error: {:?}", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
@@ -188,8 +199,12 @@ impl FromRequest for BsoBodies {
                 None,
             )
             .into()
+        }).map_ok(|result| {
+            eprintln!("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+            result
         });
 
+        eprintln!("+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
         // Avoid duplicating by defining our error func now, doesn't need the box wrapper
         fn make_error(tags: Option<Tags>) -> Error {
             ValidationErrorKind::FromDetails(
@@ -224,7 +239,9 @@ impl FromRequest for BsoBodies {
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
+        eprintln!("++BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
         let fut = fut.and_then(move |body| {
+        eprintln!("+++BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
             // Get all the raw / values
             let bsos: Vec<Value> = if newlines {
                 let mut bsos = Vec::new();
@@ -292,6 +309,7 @@ impl FromRequest for BsoBodies {
                         .into(),
                     );
                 };
+                eprintln!("++++BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOBODIES");
                 match BatchBsoBody::from_raw_bso(&bso) {
                     Ok(b) => {
                         // Is this record too large? Deny if it is.
@@ -316,6 +334,7 @@ impl FromRequest for BsoBodies {
             future::ok(BsoBodies { valid, invalid })
         });
 
+        eprintln!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
         Box::pin(fut)
     }
 }
@@ -609,10 +628,13 @@ impl FromRequest for CollectionParam {
         let fut = Tags::from_request(req, payload);
         let req = req.clone();
         Box::pin(async move {
+            eprintln!("COLLECTIONAPRAM");
             let tags = fut.await?;
             if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
+                eprintln!("+COLLECTIONAPRAM");
                 Ok(collection)
             } else {
+                eprintln!("++COLLECTIONAPRAM");
                 Err(ValidationErrorKind::FromDetails(
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
@@ -767,7 +789,9 @@ impl FromRequest for CollectionPostRequest {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         let mut payload = payload.take();
+        eprintln!("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
         Box::pin(async move {
+        eprintln!("+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
             let tags = match req.extensions().get::<Tags>() {
                 Some(t) => t.clone(),
                 None => Tags::from_request_head(req.head()),
@@ -785,8 +809,9 @@ impl FromRequest for CollectionPostRequest {
                         .into());
                 }
             };
-    
+
             let max_post_records = i64::from(state.limits.max_post_records);
+            eprintln!("++CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
             let (user_id, db, collection, query, mut bsos) = <(
                 HawkIdentifier,
                 Box<dyn Db>,
@@ -794,6 +819,7 @@ impl FromRequest for CollectionPostRequest {
                 BsoQueryParams,
                 BsoBodies,
             )>::from_request(&req, &mut payload).await?;
+            eprintln!("+++CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -822,6 +848,7 @@ impl FromRequest for CollectionPostRequest {
                 }
             }
 
+            eprintln!("++++CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC");
             // XXX: let's not use extract here (maybe convert to extrude?)
             let batch = BatchRequestOpt::extract(&req).await?;
             Ok(CollectionPostRequest {
@@ -1192,6 +1219,7 @@ impl FromRequest for HawkIdentifier {
         let mut payload = Payload::None;
 
         Box::pin(async move {
+            eprintln!("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHAWK");
             let tags = Tags::from_request(&req, &mut payload).await?;
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
@@ -1210,6 +1238,7 @@ impl FromRequest for HawkIdentifier {
             let connection_info = req.connection_info().clone();
             let method = req.method().as_str();
             let uri = req.uri();
+            eprintln!("+HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHAWK");
             Self::extrude(
                 &req,
                 method,
@@ -1244,7 +1273,10 @@ impl FromRequest for Box<dyn Db> {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(future::ready(extrude_db(&req.extensions())))
+        eprintln!("DB");
+        let r = Box::pin(future::ready(extrude_db(&req.extensions())));
+        eprintln!("+DB");
+        r
     }
 }
 
@@ -1293,6 +1325,7 @@ impl FromRequest for BsoQueryParams {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
+            eprintln!("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOQUERYPARAMS");
             let tags = Tags::from_request(&req, &mut payload).await?;
 
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
@@ -1304,6 +1337,7 @@ impl FromRequest for BsoQueryParams {
                         Some(tags.clone()),
                     )
                 }).await?.into_inner();
+            eprintln!("+BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOQUERYPARAMS");
             params.validate().map_err(|e| {
                 ValidationErrorKind::FromValidationErrors(
                     e,
@@ -1311,6 +1345,7 @@ impl FromRequest for BsoQueryParams {
                     Some(tags.clone()),
                 )
             })?;
+            eprintln!("++BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBSOQUERYPARAMS");
             Ok(params)
         })
     }
@@ -1787,7 +1822,8 @@ mod tests {
         format!("Hawk {}", request.make_header(&credentials).unwrap())
     }
 
-    fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
+    async fn post_collection(qs: &str, body: &serde_json::Value) -> Result<CollectionPostRequest, Error> {
+        eprintln!("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let path = format!(
@@ -1799,6 +1835,7 @@ mod tests {
         let bod_str = body.to_string();
         let header =
             create_valid_hawk_header(&payload, &state, "POST", &path, TEST_HOST, TEST_PORT);
+        eprintln!("+PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
         let req = TestRequest::with_uri(&format!("http://{}:{}{}", TEST_HOST, TEST_PORT, path))
             .data(state)
             .method(Method::POST)
@@ -1809,14 +1846,20 @@ mod tests {
             .param("uid", &USER_ID_STR)
             .param("collection", "tabs")
             .to_http_request();
+        eprintln!("++PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
         req.extensions_mut().insert(make_db());
 
         // Not sure why but sending req through *::extract loses the body.
         // Compose a payload here and call the *::from_request
-        let (_sender, mut payload) = h1::Payload::create(false);
+        let (_sender, mut payload) = h1::Payload::create(true);
         payload.unread_data(bytes::Bytes::from(bod_str.to_owned()));
-
-        block_on(CollectionPostRequest::from_request(&req, &mut payload.into()))
+        eprintln!("+++PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
+        //let fut = CollectionPostRequest::from_request(&req, &mut payload.into());
+        eprintln!("!+++PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP");
+        CollectionPostRequest::from_request(&req, &mut payload.into()).await
+        //actix_rt::System::new("test").block_on(fut)
+        //actix_rt::System::current().block_on(fut)
+        //block_on(CollectionPostRequest::from_request(&req, &mut payload.into()))
     }
 
     #[test]
@@ -1970,7 +2013,7 @@ mod tests {
             .param("bso", "asdf")
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let (_sender, mut payload) = h1::Payload::create(false);
+        let (_sender, mut payload) = h1::Payload::create(true);
         payload.unread_data(bytes::Bytes::from(bso_body.as_str().expect("Could not call unread_data in test_valid_bso_post_body").to_owned()));
 
         let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
@@ -2071,42 +2114,45 @@ mod tests {
         */
     }
 
-    #[test]
-    fn test_valid_collection_post_request() {
+    //#[test]
+    #[actix_rt::test]
+    async fn test_valid_collection_post_request() {
         // Batch requests require id's on each BSO
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let result = post_collection("", &bso_body).expect("Could not get result in test_valid_collection_post_request");
+        let result = post_collection("", &bso_body).await.expect("Could not get result in test_valid_collection_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
         assert!(result.batch.is_none());
     }
 
-    #[test]
-    fn test_invalid_collection_post_request() {
+    //#[test]
+    #[actix_rt::test]
+    async fn test_invalid_collection_post_request() {
         // Add extra fields, these will be invalid
         let bso_body = json!([
             {"id": "1", "sortindex": 23, "jump": 1},
             {"id": "2", "sortindex": -99, "hop": "low"}
         ]);
-        let result = post_collection("", &bso_body).expect("Could not get result in test_invalid_collection_post_request");
+        let result = post_collection("", &bso_body).await.expect("Could not get result in test_invalid_collection_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.invalid.len(), 2);
     }
 
-    #[test]
-    fn test_valid_collection_batch_post_request() {
+    #[actix_rt::test]
+//    #[test]
+    async fn test_valid_collection_batch_post_request() {
         // If the "batch" parameter is has no value or has a value of "true"
         // then a new batch will be created.
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ]);
-        let result = post_collection("batch=True", &bso_body).expect("Could not get result in test_valid_collection_batch_post_request");
+        let result = post_collection("batch=True", &bso_body).await.expect("Could not get result in test_valid_collection_batch_post_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
         assert_eq!(result.bsos.valid.len(), 2);
@@ -2114,19 +2160,21 @@ mod tests {
         assert!(batch.id.is_none());
         assert_eq!(batch.commit, false);
 
-        let result2 = post_collection("batch", &bso_body).expect("Could not get result2 in test_valid_collection_batch_post_request");
+        let result2 = post_collection("batch", &bso_body).await.expect("Could not get result2 in test_valid_collection_batch_post_request");
         let batch2 = result2.batch.expect("Could not get batch2 in test_valid_collection_batch_post_request");
         assert!(batch2.id.is_none());
         assert_eq!(batch2.commit, false);
 
-        let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body).expect("Could not get result3 in test_valid_collection_batch_post_request");
+        let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body).await.expect("Could not get result3 in test_valid_collection_batch_post_request");
         let batch3 = result3.batch.expect("Could not get batch3 in test_valid_collection_batch_post_request");
         assert!(batch3.id.is_some());
         assert_eq!(batch3.commit, true);
     }
 
-    #[test]
-    fn test_invalid_collection_batch_post_request() {
+    #[actix_rt::test]
+    async fn test_invalid_collection_batch_post_request() {
+    //fn test_invalid_collection_batch_post_request() {
+        eprintln!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         let bso_body = json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
@@ -2135,11 +2183,16 @@ mod tests {
             .method(Method::POST)
             .data(make_state())
             .to_http_request();
-        let result = post_collection("commit=true", &bso_body);
+        eprintln!("+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+        let result = post_collection("commit=true", &bso_body).await;
+        eprintln!("++AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         assert!(result.is_err());
         let response: HttpResponse = result.err().unwrap().into();
+        eprintln!("+++AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         assert_eq!(response.status(), 400);
+        eprintln!("++++AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         let body = extract_body_as_str(ServiceResponse::new(req, response));
+        eprintln!("+++++AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         assert_eq!(body, "0");
     }
 
