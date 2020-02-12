@@ -66,14 +66,20 @@ impl Tags {
         }
         // `uri.path` causes too much cardinality for influx.
         tags.insert("uri.method".to_owned(), req_head.method.to_string());
-        Tags { tags, extra: HashMap::new() }
+        Tags {
+            tags,
+            extra: HashMap::new(),
+        }
     }
 
     pub fn with_tags(tags: HashMap<String, String>) -> Tags {
         if tags.is_empty() {
             return Tags::default();
         }
-        Tags { tags, extra: HashMap::new() }
+        Tags {
+            tags,
+            extra: HashMap::new(),
+        }
     }
 
     pub fn get(&self, label: &str) -> String {
@@ -102,7 +108,6 @@ impl Tags {
         }
         result
     }
-
 }
 
 impl FromRequest for Tags {
