@@ -1,5 +1,9 @@
 //! Error types and macros.
-#![allow(clippy::single_match)]
+// TODO: Currently `Validation(#[cause] ValidationError)` may trigger some
+// performance issues. The suggested fix is to Box ValidationError, however
+// this cascades into Failure requiring std::error::Error being implemented
+// which is out of scope.
+#![allow(clippy::single_match, clippy::large_enum_variant)]
 use std::fmt;
 
 use actix_web::{
