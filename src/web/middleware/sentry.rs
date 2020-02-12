@@ -119,18 +119,19 @@ where
                     if let Some(t) = sresp.response().extensions().get::<Tags>() {
                         debug!("Found response tags: {:?}", &t.tags);
                         for (k, v) in t.tags.clone() {
-                            tags.tags.insert(k, v);
+                            tags.extra.insert(k, v);
                         }
                     };
                     // add the uri.path (which can cause influx to puke)
-                    tags.tags.insert("uri.path".to_owned(), uri);
+                    tags.extra.insert("uri.path".to_owned(), uri);
                     // deriving the sentry event from a fail directly from the error
                     // is not currently thread safe. Downcasting the error to an
                     // ApiError resolves this.
                     let apie: Option<&ApiError> = e.as_error();
                     if let Some(apie) = apie {
                         let mut event = sentry::integrations::failure::event_from_fail(apie);
-                        event.tags = tags.into();
+                        event.tags = tags.clone().tag_tree();
+                        event.extra = tags.extra_tree();
                         sentry::capture_event(event);
                     }
                 }
