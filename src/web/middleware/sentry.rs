@@ -92,7 +92,7 @@ where
                     if let Some(t) = sresp.response().extensions().get::<Tags>() {
                         debug!("Found response tags: {:?}", &t.tags);
                         for (k, v) in t.tags.clone() {
-                            tags.extra.insert(k, v);
+                            tags.tags.insert(k, v);
                         }
                     };
                     // add the uri.path (which can cause influx to puke)
