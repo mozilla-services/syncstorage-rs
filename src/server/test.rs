@@ -222,8 +222,8 @@ fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::V
     let app = test::init_service(build_app!(get_test_state(&settings), limits));
     let req = create_request(method, path, None, Some(body)).to_request();
     let mut app = block_on(app);
-    let sresponse = block_on(app.call(req))
-        .expect("Could not get sresponse in test_endpoint_with_body");
+    let sresponse =
+        block_on(app.call(req)).expect("Could not get sresponse in test_endpoint_with_body");
     assert!(sresponse.response().status().is_success());
     block_on(test::read_body(sresponse))
 }
@@ -481,8 +481,7 @@ fn invalid_batch_post() {
     .to_request();
 
     let mut app = block_on(app);
-    let response =
-        block_on(app.call(req)).expect("Could not get response in invalid_batch_post");
+    let response = block_on(app.call(req)).expect("Could not get response in invalid_batch_post");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = String::from_utf8(block_on(test::read_body(response)).to_vec())
         .expect("Could not get body in invalid_batch_post");
