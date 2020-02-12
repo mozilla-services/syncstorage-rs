@@ -25,6 +25,11 @@ SPANNER_NODE_ID = 800
 class BadDSNException(Exception):
     pass
 
+# From server_syncstorage
+class MigrationState:
+    UKNOWN = 0
+    IN_PROGRESS = 1
+    COMPLETE = 2
 
 class Collections:
     """Cache spanner collection list.
@@ -219,7 +224,8 @@ def create_migration_table(database):
             """CREATE TABLE IF NOT EXISTS
                 migration (
                     fxa_uid VARCHAR(255) NOT NULL PRIMARY KEY,
-                    started BIGINT NOT NULL
+                    started BIGINT NOT NULL,
+                    state SMALLINT
                 )
             """)
         database.commit()
@@ -236,18 +242,30 @@ def dumper(columns, values):
     return result
 
 
-def mark_user(databases, user):
+def mark_user(databases, user, state=MigrationState.IN_PROGRESS):
     """ mark a user in migration """
-    mysql = databases['mysql'].cursor()
     try:
-        logging.info("Marking {} as migrating...".format(user))
-        mysql.execute(
-            "INSERT INTO migration (fxa_uid, started) VALUES (%s, %s)",
-            (user, int(time.time()),)
-        )
-        databases['mysql'].commit()
-    except IntegrityError:
-        return False
+        mysql = databases['mysql'].cursor()
+        if state == MigrationState.IN_PROGRESS:
+            try:
+                logging.info("Marking {} as migrating...".format(user))
+                mysql.execute(
+                    "INSERT INTO migration (fxa_uid, started, state) VALUES (%s, %s, %s)",
+                    (user, int(time.time()), state)
+                )
+                databases['mysql'].commit()
+            except IntegrityError:
+                return False
+        if state == MigrationState.COMPLETE:
+            try:
+                logging.info("Marking {} as migrating...".format(user))
+                mysql.execute(
+                    "UPDATE migration SET state = %s WHERE fxa_uid = %s",
+                    (state, user)
+                )
+                databases['mysql'].commit()
+            except IntegrityError:
+                return False
     finally:
         mysql.close()
     return True
@@ -367,6 +385,7 @@ def move_user(databases, user, args):
             update_token(databases, user)
             count += 1
             # Closing the with automatically calls `batch.commit()`
+        mark_user(user, MigrationState.COMPLETE)
     except AlreadyExists:
         logging.warn(
             "User already imported fxa_uid:{} / fxa_kid:{}".format(
