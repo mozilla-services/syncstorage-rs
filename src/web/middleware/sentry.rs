@@ -3,7 +3,6 @@ use std::{cell::RefCell, rc::Rc};
 use actix_service::{Service, Transform};
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
-    http::uri::Uri,
     Error, HttpMessage,
 };
 use futures::{
@@ -13,8 +12,6 @@ use futures::{
 
 use crate::error::ApiError;
 use crate::web::tags::Tags;
-use lazy_static::lazy_static;
-use regex;
 
 pub struct SentryWrapper;
 
@@ -55,30 +52,6 @@ pub struct SentryWrapperMiddleware<S> {
     service: Rc<RefCell<S>>,
 }
 
-impl<S, B> SentryWrapperMiddleware<S>
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
-    B: 'static,
-{
-    fn clean_uri(&self, uri: &Uri) -> String {
-        // Remove the variable userID and batch tokens from the URI tags
-        lazy_static! {
-            // most values are either "=true" or a lower case hex string.
-            static ref RE: regex::Regex = regex::Regex::new(r"=[a-z\d]{5,}").unwrap();
-        }
-        // to satisify clippy and rustc.
-        let slash: &str = "/";
-        let trimmed = uri
-            .to_string()
-            .split(slash)
-            .collect::<Vec<&str>>()
-            .split_off(3)
-            .join(slash);
-        RE.replace_all(&trimmed, "=###").to_owned().to_string()
-    }
-}
-
 impl<S, B> Service for SentryWrapperMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
@@ -96,7 +69,7 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from_request_head(sreq.head());
-        let uri = self.clean_uri(&sreq.head().uri);
+        let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
         Box::new(self.service.call(sreq).and_then(move |sresp| {
