@@ -199,7 +199,7 @@ where
                     .header(X_LAST_MODIFIED, ts.as_header())
                     .header(X_WEAVE_RECORDS, result.items.len().to_string())
                     .if_some(result.offset, |offset, resp| {
-                        resp.header(X_WEAVE_NEXT_OFFSET, offset.to_string());
+                        resp.header(X_WEAVE_NEXT_OFFSET, offset);
                     });
                 match reply_format {
                     ReplyFormat::Json => Ok(resp.json(result.items)),
