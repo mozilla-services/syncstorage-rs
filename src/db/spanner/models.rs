@@ -70,7 +70,7 @@ pub const MAX_SPANNER_LOAD_SIZE: usize = 100_000_000;
 
 /// Per session Db metadata
 #[derive(Debug, Default)]
-pub(super) struct SpannerDbSession {
+struct SpannerDbSession {
     /// CURRENT_TIMESTAMP() from Spanner, used for timestamping this session's
     /// operations
     timestamp: Option<SyncTimestamp>,
@@ -81,7 +81,7 @@ pub(super) struct SpannerDbSession {
     transaction: Option<TransactionSelector>,
     /// Behind Vec so commit can take() it (maybe commit() should consume self
     /// instead?)
-    pub(super) mutations: Option<Vec<Mutation>>,
+    mutations: Option<Vec<Mutation>>,
     in_write_transaction: bool,
     execute_sql_count: u64,
     /// Whether touch_collection has already been called
@@ -102,7 +102,7 @@ pub struct SpannerDbInner {
     pub(super) conn: Conn,
 
     thread_pool: Arc<::tokio_threadpool::ThreadPool>,
-    pub(super) session: RefCell<SpannerDbSession>,
+    session: RefCell<SpannerDbSession>,
 }
 
 impl fmt::Debug for SpannerDbInner {
@@ -578,12 +578,12 @@ impl SpannerDb {
                 .params(params)
                 .execute(&self.conn)?;
             for row_result in rs {
-                let row = row_result?;
+                let mut row = row_result?;
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                let name = row[1].get_string_value().to_owned();
+                let name = row[1].take_string_value();
                 names.insert(id, name.clone());
                 if !self.in_write_transaction() {
                     self.coll_cache.put(id, name)?;
@@ -1094,20 +1094,15 @@ impl SpannerDb {
                AND fxa_kid = @fxa_kid
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
+        let stream = self.bsos_query_sync(query, params)?;
 
-        let result = self.bsos_query_sync(query, params)?;
-
-        let zipped: Vec<(String, i64)> = result
-            .map_and_then(|r| {
-                Ok((
-                    r[0].get_string_value().to_owned(),
-                    SyncTimestamp::from_rfc3339(r[1].get_string_value())?.as_i64(),
-                ))
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut ids: Vec<String> = zipped.iter().map(|(id, _)| id.clone()).collect();
-        let mut modifieds: Vec<i64> = zipped.iter().map(|(_, modif)| *modif).collect();
+        let mut ids = vec![];
+        let mut modifieds = vec![];
+        for result_row in stream {
+            let mut row = result_row?;
+            ids.push(row[0].take_string_value());
+            modifieds.push(SyncTimestamp::from_rfc3339(row[1].get_string_value())?.as_i64());
+        }
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
         // trigger CollectionNotFound errors.  However it ultimately eats the
@@ -1226,7 +1221,7 @@ impl SpannerDb {
             )?
             .params(sqlparams)
             .execute(&self.conn)?
-            .map_results(|row| row[0].get_string_value().to_owned())
+            .map_results(|mut row| row[0].take_string_value())
             .collect::<Result<Vec<_>>>()?;
 
         let mut inserts = vec![];
