@@ -11,18 +11,21 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use serde_json::value::Value;
 
 use crate::server::user_agent::parse_user_agent;
 
 #[derive(Clone, Debug)]
 pub struct Tags {
     pub tags: HashMap<String, String>,
+    pub extra: HashMap<String, String>,
 }
 
 impl Default for Tags {
     fn default() -> Tags {
         Tags {
             tags: HashMap::new(),
+            extra: HashMap::new(),
         }
     }
 }
@@ -65,14 +68,20 @@ impl Tags {
         }
         // `uri.path` causes too much cardinality for influx.
         tags.insert("uri.method".to_owned(), req_head.method.to_string());
-        Tags { tags }
+        Tags {
+            tags,
+            extra: HashMap::new(),
+        }
     }
 
     pub fn with_tags(tags: HashMap<String, String>) -> Tags {
         if tags.is_empty() {
             return Tags::default();
         }
-        Tags { tags }
+        Tags {
+            tags,
+            extra: HashMap::new(),
+        }
     }
 
     pub fn get(&self, label: &str) -> String {
@@ -82,6 +91,24 @@ impl Tags {
 
     pub fn extend(&mut self, tags: HashMap<String, String>) {
         self.tags.extend(tags);
+    }
+
+    pub fn tag_tree(self) -> BTreeMap<String, String> {
+        let mut result = BTreeMap::new();
+
+        for (k, v) in self.tags {
+            result.insert(k.clone(), v.clone());
+        }
+        result
+    }
+
+    pub fn extra_tree(self) -> BTreeMap<String, Value> {
+        let mut result = BTreeMap::new();
+
+        for (k, v) in self.extra {
+            result.insert(k.clone(), Value::from(v));
+        }
+        result
     }
 }
 
