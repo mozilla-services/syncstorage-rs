@@ -2,7 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{self, collections::HashMap, str::FromStr};
+use std::{self, collections::HashMap, num::ParseIntError, str::FromStr};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -183,7 +183,7 @@ impl FromRequest for BsoBodies {
 
         // Load the entire request into a String
         let fut = <String>::from_request(req, payload).map_err(|e| {
-            debug!("⚠️ Payload read error: {:?}", e);
+            warn!("⚠️ Payload read error: {:?}", e);
             ValidationErrorKind::FromDetails(
                 "Mimetype/encoding/content-length error".to_owned(),
                 RequestErrorLocation::Header,
@@ -212,7 +212,7 @@ impl FromRequest for BsoBodies {
         let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("⚠️ Could not load the app state");
                 return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -376,7 +376,7 @@ impl FromRequest for BsoBody {
         let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("⚠️ Could not load the app state");
                 return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -781,7 +781,7 @@ impl FromRequest for CollectionPostRequest {
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
-                    debug!("⚠️ Could not load the app state");
+                    error!("⚠️ Could not load the app state");
                     return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -970,7 +970,7 @@ impl FromRequest for ConfigRequest {
         let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("⚠️ Could not load the app state");
                 return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -1021,7 +1021,7 @@ impl FromRequest for HeartbeatRequest {
         let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
-                debug!("⚠️ Could not load the app state");
+                error!("⚠️ Could not load the app state");
                 return Box::pin(future::err(
                     ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
@@ -1081,7 +1081,6 @@ pub struct HawkIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
-    pub ua: String,
 }
 
 impl HawkIdentifier {
@@ -1099,7 +1098,6 @@ impl HawkIdentifier {
             legacy_id: 0,
             fxa_uid: "cmd".to_owned(),
             fxa_kid: "cmd".to_owned(),
-            ua: "".to_owned(),
         }
     }
 
@@ -1109,7 +1107,7 @@ impl HawkIdentifier {
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
             u64::from_str(v).map_err(|e| {
-                info!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
+                warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
@@ -1119,7 +1117,7 @@ impl HawkIdentifier {
                 .into()
             })
         } else {
-            info!("⚠️ HawkIdentifier Error missing UID {:?}", uri);
+            warn!("⚠️ HawkIdentifier Error missing UID {:?}", uri);
             Err(ValidationErrorKind::FromDetails(
                 "Missing UID".to_owned(),
                 RequestErrorLocation::Path,
@@ -1150,13 +1148,7 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let ua = match msg.headers().get("user-agent") {
-            Some(value) => value
-                .to_str()
-                .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?,
-            _ => "",
-        };
-        let identifier = Self::generate(&state.secrets, method, auth_header, ua, ci, uri, tags)?;
+        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri, tags)?;
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1165,7 +1157,6 @@ impl HawkIdentifier {
         secrets: &Secrets,
         method: &str,
         header: &str,
-        ua: &str,
         connection_info: &ConnectionInfo,
         uri: &Uri,
         tags: Option<Tags>,
@@ -1174,7 +1165,7 @@ impl HawkIdentifier {
             HawkPayload::extrude(header, method, secrets, connection_info, uri, tags.clone())?;
         let puid = Self::uid_from_path(&uri, tags.clone())?;
         if payload.user_id != puid {
-            info!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
+            warn!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
@@ -1187,7 +1178,6 @@ impl HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_uid: payload.fxa_uid,
             fxa_kid: payload.fxa_kid,
-            ua: ua.to_owned(),
         };
         Ok(user_id)
     }
@@ -1208,7 +1198,7 @@ impl FromRequest for HawkIdentifier {
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
-                    debug!("⚠️ Could not load the app state");
+                    error!("⚠️ Could not load the app state");
                     return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -1238,7 +1228,7 @@ impl From<u32> for HawkIdentifier {
 
 pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
     exts.get::<Box<dyn Db>>().cloned().ok_or_else(|| {
-        debug!("⚠️ DB Error: No db");
+        error!("DB Error: No db");
         ErrorInternalServerError("Unexpected Db error: No DB".to_owned())
     })
 }
@@ -1250,6 +1240,45 @@ impl FromRequest for Box<dyn Db> {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         Box::pin(future::ready(extrude_db(&req.extensions())))
+    }
+}
+
+#[derive(Debug, Default, Clone, Deserialize, Validate)]
+#[serde(default)]
+pub struct Offset {
+    pub timestamp: Option<SyncTimestamp>,
+    pub offset: i64,
+}
+
+impl ToString for Offset {
+    fn to_string(&self) -> String {
+        match self.timestamp {
+            None => format!("{}", self.offset),
+            Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
+        }
+    }
+}
+
+impl FromStr for Offset {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let result = match s.chars().position(|c| c == ':') {
+            None => Offset {
+                timestamp: None,
+                offset: s.parse::<i64>()?,
+            },
+            Some(_colon_position) => {
+                let mut parts = s.split(':');
+                let timestamp_string = parts.next().unwrap_or("0");
+                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
+                let offset = parts.next().unwrap_or("0").parse::<i64>()?;
+                Offset {
+                    timestamp: Some(timestamp),
+                    offset,
+                }
+            }
+        };
+        Ok(result)
     }
 }
 
@@ -1276,7 +1305,8 @@ pub struct BsoQueryParams {
     pub limit: Option<u32>,
 
     /// position at which to restart search (string)
-    pub offset: Option<u64>,
+    #[serde(deserialize_with = "deserialize_offset")]
+    pub offset: Option<Offset>,
 
     /// a comma-separated list of BSO ids (list of strings)
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
@@ -1368,7 +1398,7 @@ impl FromRequest for BatchRequestOpt {
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
-                    debug!("⚠️ Could not load the app state");
+                    error!("⚠️ Could not load the app state");
                     return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
@@ -1692,11 +1722,22 @@ where
 {
     let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
     if let Some(val) = maybe_str {
-        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom)?;
-        Ok(Some(result))
+        let result = SyncTimestamp::from_header(&val).map_err(SerdeError::custom);
+        Ok(Some(result?))
     } else {
         Ok(None)
     }
+}
+
+fn deserialize_offset<'de, D>(deserializer: D) -> Result<Option<Offset>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let maybe_str: Option<String> = Deserialize::deserialize(deserializer)?;
+    if let Some(val) = maybe_str {
+        return Ok(Some(Offset::from_str(&val).map_err(SerdeError::custom)?));
+    }
+    Ok(None)
 }
 
 #[cfg(test)]

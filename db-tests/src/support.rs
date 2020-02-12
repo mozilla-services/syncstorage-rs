@@ -1,12 +1,12 @@
 use env_logger;
 use futures::compat::Future01CompatExt;
-
+use std::str::FromStr;
 use syncstorage::{
     db::{params, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
     server::metrics,
     settings::{Secrets, ServerLimits, Settings},
-    web::extractors::{BsoQueryParams, HawkIdentifier},
+    web::extractors::{BsoQueryParams, HawkIdentifier, Offset},
 };
 
 pub type Result<T> = std::result::Result<T, ApiError>;
@@ -95,7 +95,7 @@ pub fn gbsos(
     newer: u64,
     sort: Sorting,
     limit: i64,
-    offset: i64,
+    offset: &str,
 ) -> params::GetBsos {
     params::GetBsos {
         user_id: hid(user_id),
@@ -106,7 +106,7 @@ pub fn gbsos(
             newer: Some(SyncTimestamp::from_milliseconds(newer)),
             sort,
             limit: Some(limit as u32),
-            offset: Some(offset as u64),
+            offset: Some(Offset::from_str(offset).unwrap_or_default()),
             full: true,
         },
     }

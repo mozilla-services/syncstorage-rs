@@ -48,7 +48,7 @@ impl Drop for Metrics {
                 match tagged.try_send() {
                     Err(e) => {
                         // eat the metric, but log the error
-                        debug!("⚠️ Metric {} error: {:?} ", &timer.label, e);
+                        warn!("⚠️ Metric {} error: {:?} ", &timer.label, e);
                     }
                     Ok(v) => {
                         trace!("⌚ {:?}", v.as_metric_str());
@@ -68,7 +68,7 @@ impl From<&HttpRequest> for Metrics {
             client: match req.app_data::<Data<ServerState>>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
-                    debug!("⚠️ metric error: No App State");
+                    warn!("⚠️ metric error: No App State");
                     None
                 }
             },
@@ -152,7 +152,7 @@ impl Metrics {
             match tagged.try_send() {
                 Err(e) => {
                     // eat the metric, but log the error
-                    debug!("⚠️ Metric {} error: {:?} ", label, e;
+                    warn!("⚠️ Metric {} error: {:?} ", label, e;
                         "ua.os.family" => mtags.get("ua.os.family"),
                         "ua.browser.family" => mtags.get("ua.browser.family"),
                         "ua.name" => mtags.get("ua.name"),
@@ -190,7 +190,7 @@ pub fn metrics_from_opts(opts: &Settings) -> Result<StatsdClient, ApiError> {
     };
     Ok(builder
         .with_error_handler(|err| {
-            debug!("⚠️ Metric send error:  {:?}", err);
+            warn!("⚠️ Metric send error:  {:?}", err);
         })
         .build())
 }
