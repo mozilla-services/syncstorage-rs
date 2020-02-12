@@ -170,7 +170,8 @@ fn test_endpoint(
     let app = test::init_service(build_app!(get_test_state(&settings), limits));
 
     let req = create_request(method, path, None, None).to_request();
-    let sresp = block_on(block_on(app).call(req)).expect("Could not get sresp in test_endpoint");
+    let mut app = block_on(app);
+    let sresp = block_on(app.call(req)).expect("Could not get sresp in test_endpoint");
     match status {
         None => assert!(sresp.response().status().is_success()),
         Some(status) => assert!(sresp.response().status() == status),
@@ -190,7 +191,8 @@ where
     let app = test::init_service(build_app!(get_test_state(&settings), limits));
 
     let req = create_request(method, path, None, None).to_request();
-    let sresponse = match block_on(block_on(app).call(req)) {
+    let mut app = block_on(app);
+    let sresponse = match block_on(app.call(req)) {
         Ok(v) => v,
         Err(e) => {
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
@@ -219,7 +221,8 @@ fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::V
     let limits = Arc::new(settings.limits.clone());
     let app = test::init_service(build_app!(get_test_state(&settings), limits));
     let req = create_request(method, path, None, Some(body)).to_request();
-    let sresponse = block_on(block_on(app).call(req))
+    let mut app = block_on(app);
+    let sresponse = block_on(app.call(req))
         .expect("Could not get sresponse in test_endpoint_with_body");
     assert!(sresponse.response().status().is_success());
     block_on(test::read_body(sresponse))
@@ -477,8 +480,9 @@ fn invalid_batch_post() {
     )
     .to_request();
 
+    let mut app = block_on(app);
     let response =
-        block_on(block_on(app).call(req)).expect("Could not get response in invalid_batch_post");
+        block_on(app.call(req)).expect("Could not get response in invalid_batch_post");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = String::from_utf8(block_on(test::read_body(response)).to_vec())
         .expect("Could not get body in invalid_batch_post");
