@@ -591,24 +591,10 @@ impl CollectionParam {
 impl FromRequest for CollectionParam {
     type Config = ();
     type Error = Error;
-    //type Future = Ready<Result<Self, Self::Error>>;
+
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        /*
-        // XXX: we can't use ?
-        let tags = Tags::from_request(req, payload)?;
-        if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
-            future::ok(collection)
-        } else {
-            future::err(ValidationErrorKind::FromDetails(
-                "Missing Collection".to_owned(),
-                RequestErrorLocation::Path,
-                Some("collection".to_owned()),
-                Some(tags),
-            ))?
-        }
-        */
         let fut = Tags::from_request(req, payload);
         let req = req.clone();
         Box::pin(async move {
