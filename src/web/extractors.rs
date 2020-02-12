@@ -1040,7 +1040,6 @@ pub struct HawkIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
-    pub ua: String,
 }
 
 impl HawkIdentifier {
@@ -1058,7 +1057,6 @@ impl HawkIdentifier {
             legacy_id: 0,
             fxa_uid: "cmd".to_owned(),
             fxa_kid: "cmd".to_owned(),
-            ua: "".to_owned(),
         }
     }
 
@@ -1109,13 +1107,7 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let ua = match msg.headers().get("user-agent") {
-            Some(value) => value
-                .to_str()
-                .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?,
-            _ => "",
-        };
-        let identifier = Self::generate(&state.secrets, method, auth_header, ua, ci, uri, tags)?;
+        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri, tags)?;
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1124,7 +1116,6 @@ impl HawkIdentifier {
         secrets: &Secrets,
         method: &str,
         header: &str,
-        ua: &str,
         connection_info: &ConnectionInfo,
         uri: &Uri,
         tags: Option<Tags>,
@@ -1146,7 +1137,6 @@ impl HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_uid: payload.fxa_uid,
             fxa_kid: payload.fxa_kid,
-            ua: ua.to_owned(),
         };
         Ok(user_id)
     }
