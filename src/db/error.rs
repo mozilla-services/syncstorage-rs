@@ -1,4 +1,3 @@
-
 use std::fmt;
 
 use actix_web::http::StatusCode;
