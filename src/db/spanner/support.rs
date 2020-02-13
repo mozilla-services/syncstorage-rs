@@ -2,9 +2,10 @@ use std::{
     collections::{HashMap, VecDeque},
     fmt, mem,
     result::Result as StdResult,
+    cell::RefCell,
 };
 
-use actix_rt::System;
+use actix_rt::{System, SystemRunner};
 use futures::stream::{Stream, StreamFuture, StreamExt};
 use futures::compat::{ Stream01CompatExt, Compat01As03 };
 use googleapis_raw::spanner::v1::{
@@ -137,6 +138,12 @@ pub struct StreamedResultSet {
     pending_chunk: Option<Value>,
 }
 
+thread_local! {
+    static SYSTEM: RefCell<SystemRunner> = {
+        RefCell::new(System::new(""))
+    };
+}
+
 impl StreamedResultSet {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
@@ -189,7 +196,11 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let (result, stream) = System::new("").block_on(self.stream.take().expect("Could not get next stream element"));
+        let (result, stream) = SYSTEM.with(|system| {
+            system.borrow_mut().block_on(
+                self.stream.take().expect("Could not get next stream element")
+            )
+        });
         self.stream = Some(stream.into_future());
         let mut partial_rs = if let Some(result) = result {
             result?
