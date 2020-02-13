@@ -15,7 +15,7 @@ use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 
-use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
+use futures::future::{self, FutureExt, LocalBoxFuture, TryFutureExt};
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -518,10 +518,13 @@ impl BsoParam {
 impl FromRequest for BsoParam {
     type Config = ();
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        future::ready(Self::extrude(req.head(), &mut req.extensions_mut()))
+        let req = req.clone();
+        Box::pin(async move {
+            Self::extrude(req.head(), &mut req.extensions_mut())
+        })
     }
 }
 
@@ -1040,19 +1043,21 @@ impl FromRequest for TestErrorRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let headers = req.headers().clone();
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
-
-        Box::pin(future::ok(TestErrorRequest {
-            headers,
-            tags: Some(tags),
-        }))
+        let req = req.clone();
+        Box::pin(async move {
+            let headers = req.headers().clone();
+            let tags = {
+                let exts = req.extensions();
+                match exts.get::<Tags>() {
+                    Some(t) => t.clone(),
+                    None => Tags::from_request_head(req.head()),
+                }
+            };
+            Ok(TestErrorRequest {
+                headers,
+                tags: Some(tags),
+            })
+        })
     }
 }
 
@@ -1225,7 +1230,10 @@ impl FromRequest for Box<dyn Db> {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(future::ready(extrude_db(&req.extensions())))
+        let req = req.clone();
+        Box::pin(async move {
+            extrude_db(&req.extensions())
+        })
     }
 }
 

@@ -39,9 +39,11 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(future::ok(SentryWrapperMiddleware {
-            service: Rc::new(RefCell::new(service)),
-        }))
+        Box::pin(async {
+            Ok(SentryWrapperMiddleware {
+                service: Rc::new(RefCell::new(service)),
+            })
+        })
     }
 }
 

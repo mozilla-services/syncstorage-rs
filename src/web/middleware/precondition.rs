@@ -46,10 +46,11 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(PreConditionCheckMiddleware {
-            service: Rc::new(RefCell::new(service)),
+        Box::pin(async {
+            Ok(PreConditionCheckMiddleware {
+                service: Rc::new(RefCell::new(service)),
+            })
         })
-        .boxed_local()
     }
 }
 

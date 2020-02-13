@@ -5,12 +5,14 @@ use actix_web::{
     http::header::USER_AGENT,
     Error, FromRequest, HttpRequest,
 };
-use futures::future;
-use futures::future::Ready;
+
+use futures::future::{LocalBoxFuture};
+
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+
 use serde_json::value::Value;
 
 use crate::server::user_agent::parse_user_agent;
@@ -115,18 +117,17 @@ impl Tags {
 impl FromRequest for Tags {
     type Config = ();
     type Error = Error;
-    type Future = Ready<Result<Self, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let tags = {
+        let req = req.clone();
+        Box::pin(async move {
             let exts = req.extensions();
             match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
+                Some(t) => Ok(t.clone()),
+                None => Ok(Tags::from_request_head(req.head())),
             }
-        };
-
-        future::ok(tags)
+        })
     }
 }
 
