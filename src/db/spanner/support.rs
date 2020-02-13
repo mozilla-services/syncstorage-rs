@@ -1,8 +1,8 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, VecDeque},
     fmt, mem,
     result::Result as StdResult,
-    cell::RefCell,
 };
 
 use actix_rt::{System, SystemRunner};
@@ -198,7 +198,9 @@ impl StreamedResultSet {
     fn consume_next(&mut self) -> Result<bool> {
         let (result, stream) = SYSTEM.with(|system| {
             system.borrow_mut().block_on(
-                self.stream.take().expect("Could not get next stream element")
+                self.stream
+                    .take()
+                    .expect("Could not get next stream element"),
             )
         });
         self.stream = Some(stream.into_future());
