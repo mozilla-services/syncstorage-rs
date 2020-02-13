@@ -1,4 +1,3 @@
-
 use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
@@ -71,7 +70,8 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        let no_agent = HeaderValue::from_str("NONE").expect("Could not get no_agent in DbTransactionMiddleware::call");
+        let no_agent = HeaderValue::from_str("NONE")
+            .expect("Could not get no_agent in DbTransactionMiddleware::call");
         let useragent = sreq
             .headers()
             .get("user-agent")
@@ -107,7 +107,7 @@ where
             Err(e) => {
                 // Semi-example to show how to use metrics inside of middleware.
                 metrics::Metrics::from(&state).incr("sync.error.collectionParam");
-                debug!("⚠️ CollectionParam err: {:?}", e);
+                warn!("⚠️ CollectionParam err: {:?}", e);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -122,7 +122,7 @@ where
         let hawk_user_id = match sreq.get_hawk_id() {
             Ok(v) => v,
             Err(e) => {
-                debug!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
+                warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()

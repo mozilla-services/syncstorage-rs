@@ -129,11 +129,11 @@ impl Settings {
                         "For example to set `database_url` use env var `{}_DATABASE_URL`\n",
                         PREFIX.to_uppercase()
                     );
-                    debug!("⚠️ Configuration error: Value undefined {:?}", &v);
+                    error!("Configuration error: Value undefined {:?}", &v);
                     return Err(ConfigError::NotFound(v));
                 }
                 _ => {
-                    debug!("⚠️ Other:  {:?}", &e);
+                    error!("Configuration error: Other: {:?}", &e);
                     return Err(e);
                 }
             },

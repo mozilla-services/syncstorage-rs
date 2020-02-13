@@ -10,7 +10,7 @@ pub mod util;
 
 use std::fmt::Debug;
 
-use futures::future::{self, FutureExt, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use url::Url;
@@ -228,7 +228,7 @@ impl Clone for Box<dyn Db> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,

@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use actix_cors::Cors;
 use actix_web::{
-    http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest, HttpResponse,
-    HttpServer, dev
+    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
+    HttpResponse, HttpServer,
 };
 // use num_cpus;
 use crate::db::{pool_from_settings, DbPool};
@@ -94,11 +94,11 @@ macro_rules! build_app {
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}"))
-                    .data(
+                    .app_data(
                         // Declare the payload limit for "normal" collections.
                         web::PayloadConfig::new($limits.max_request_bytes as usize),
                     )
-                    .data(
+                    .app_data(
                         // Declare the payload limits for "JSON" payloads
                         // (Specify "text/plain" for legacy client reasons)
                         web::JsonConfig::default()
@@ -111,8 +111,8 @@ macro_rules! build_app {
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .data(web::PayloadConfig::new($limits.max_request_bytes as usize))
-                    .data(
+                    .app_data(web::PayloadConfig::new($limits.max_request_bytes as usize))
+                    .app_data(
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
