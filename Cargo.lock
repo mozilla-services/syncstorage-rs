@@ -2542,7 +2542,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "actix-cors 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-http 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
