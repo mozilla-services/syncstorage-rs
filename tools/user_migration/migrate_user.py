@@ -25,11 +25,13 @@ SPANNER_NODE_ID = 800
 class BadDSNException(Exception):
     pass
 
+
 # From server_syncstorage
 class MigrationState:
     UKNOWN = 0
     IN_PROGRESS = 1
     COMPLETE = 2
+
 
 class Collections:
     """Cache spanner collection list.
@@ -250,22 +252,20 @@ def mark_user(databases, user, state=MigrationState.IN_PROGRESS):
             try:
                 logging.info("Marking {} as migrating...".format(user))
                 mysql.execute(
-                    "INSERT INTO migration (fxa_uid, started, state) VALUES (%s, %s, %s)",
+                    "INSERT INTO migration "
+                    "(fxa_uid, started, state) VALUES (%s, %s, %s)",
                     (user, int(time.time()), state)
                 )
                 databases['mysql'].commit()
             except IntegrityError:
                 return False
         if state == MigrationState.COMPLETE:
-            try:
-                logging.info("Marking {} as migrating...".format(user))
-                mysql.execute(
-                    "UPDATE migration SET state = %s WHERE fxa_uid = %s",
-                    (state, user)
-                )
-                databases['mysql'].commit()
-            except IntegrityError:
-                return False
+            logging.info("Marking {} as migrating...".format(user))
+            mysql.execute(
+                "UPDATE migration SET state = %s WHERE fxa_uid = %s",
+                (state, user)
+            )
+            databases['mysql'].commit()
     finally:
         mysql.close()
     return True
