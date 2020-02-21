@@ -1,7 +1,7 @@
 use std::net::UdpSocket;
 use std::time::Instant;
 
-use actix_web::{error::ErrorInternalServerError, Error, HttpRequest};
+use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
 use cadence::{
     BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
@@ -65,7 +65,7 @@ impl From<&HttpRequest> for Metrics {
         let def_tags = Tags::from_request_head(req.head());
         let tags = exts.get::<Tags>().unwrap_or_else(|| &def_tags);
         Metrics {
-            client: match req.app_data::<ServerState>() {
+            client: match req.app_data::<Data<ServerState>>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
                     warn!("⚠️ metric error: No App State");
@@ -168,9 +168,9 @@ impl Metrics {
 
 pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
     Ok(req
-        .app_data::<ServerState>()
+        .app_data::<Data<ServerState>>()
         .ok_or_else(|| ErrorInternalServerError("Could not get state"))
-        .unwrap()
+        .expect("Could not get state in metrics_from_req")
         .metrics
         .clone())
 }

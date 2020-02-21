@@ -23,7 +23,8 @@ struct Args {
     flag_config: Option<String>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[actix_rt::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
@@ -49,9 +50,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup and run the server
     let banner = settings.banner();
-    let sys = server::Server::with_settings(settings).unwrap();
+    let server = server::Server::with_settings(settings).unwrap();
     info!("Server running on {}", banner);
-    sys.run()?;
+    server.await?;
     info!("Server closing");
     logging::reset_logging();
 

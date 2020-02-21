@@ -1,10 +1,13 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, VecDeque},
     fmt, mem,
     result::Result as StdResult,
 };
 
-use futures::stream::{Stream, Wait};
+use actix_rt::{System, SystemRunner};
+use futures::compat::{Compat01As03, Stream01CompatExt};
+use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
@@ -118,11 +121,11 @@ impl ExecuteSqlRequestBuilder {
 
 /// Streams results from an ExecuteStreamingSql PartialResultSet
 ///
-/// Utilizies futures 0.1 `wait()`, so should *always* be called from a thread
+/// Utilizies block_on, so should *always* be called from a thread
 /// outside of an event loop
 pub struct StreamedResultSet {
     /// Stream from execute_streaming_sql
-    stream: Wait<ClientSStreamReceiver<PartialResultSet>>,
+    stream: Option<StreamFuture<Compat01As03<ClientSStreamReceiver<PartialResultSet>>>>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -135,11 +138,16 @@ pub struct StreamedResultSet {
     pending_chunk: Option<Value>,
 }
 
+thread_local! {
+    static SYSTEM: RefCell<SystemRunner> = {
+        RefCell::new(System::new("syncstorage"))
+    };
+}
+
 impl StreamedResultSet {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
-            // Note: wait() isn't futures 0.3 compatible
-            stream: stream.wait(),
+            stream: Some(stream.compat().into_future()),
             metadata: None,
             stats: None,
             rows: Default::default(),
@@ -188,7 +196,15 @@ impl StreamedResultSet {
     ///
     /// Returns false when the stream is finished
     fn consume_next(&mut self) -> Result<bool> {
-        let mut partial_rs = if let Some(result) = self.stream.next() {
+        let (result, stream) = SYSTEM.with(|system| {
+            system.borrow_mut().block_on(
+                self.stream
+                    .take()
+                    .expect("Could not get next stream element"),
+            )
+        });
+        self.stream = Some(stream.into_future());
+        let mut partial_rs = if let Some(result) = result {
             result?
         } else {
             // Stream finished
