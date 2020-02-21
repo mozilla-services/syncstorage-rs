@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use actix_web::{
     dev::Service,
-    http::{ self, HeaderName, HeaderValue, StatusCode, test },
+    http::{self, test, HeaderName, HeaderValue, StatusCode},
 };
 use base64;
 use bytes::Bytes;
