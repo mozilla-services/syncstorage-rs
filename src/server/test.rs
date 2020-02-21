@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use actix_web::{
-    dev::Service, http, http::HeaderName, http::HeaderValue, http::StatusCode, test,
-    test::TestRequest,
+    dev::Service,
+    http::{ self, HeaderName, HeaderValue, StatusCode, test },
 };
 use base64;
 use bytes::Bytes;
@@ -82,7 +82,7 @@ fn create_request(
     path: &str,
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
-) -> TestRequest {
+) -> test::TestRequest {
     let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
