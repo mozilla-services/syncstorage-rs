@@ -63,9 +63,6 @@ impl MysqlDbPool {
             builder
         };
 
-        // XXX: actix_web::web::block probably not the best option: db
-        // calls are longerish running/blocking
-        // XXX: allow configuring the ThreadPool size
         Ok(Self {
             pool: builder.build(manager)?,
             coll_cache: Default::default(),
