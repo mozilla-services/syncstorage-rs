@@ -6,7 +6,7 @@ use actix_web::{
     http::{header::HeaderValue, Method},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, Either, LocalBoxFuture, Ready, TryFutureExt};
+use futures::future::{self, Either, LocalBoxFuture, TryFutureExt};
 use std::task::Poll;
 
 use crate::db::params;
@@ -40,11 +40,13 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = DbTransactionMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(DbTransactionMiddleware {
-            service: Rc::new(RefCell::new(service)),
+        Box::pin(async {
+            Ok(DbTransactionMiddleware {
+                service: Rc::new(RefCell::new(service)),
+            })
         })
     }
 }
