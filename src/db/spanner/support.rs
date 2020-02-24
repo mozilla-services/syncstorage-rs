@@ -6,8 +6,8 @@ use std::{
 };
 
 use actix_rt::{System, SystemRunner};
-use futures::compat::{Compat01As03, Stream01CompatExt, Future01CompatExt};
-use futures::stream::{Stream, StreamExt, StreamFuture};
+use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
+use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
@@ -125,10 +125,14 @@ impl ExecuteSqlRequestBuilder {
         let rs = conn.client.execute_sql(&self.prepare_request(conn))?;
         Ok(rs.get_stats().get_row_count_exact())
     }
-    
+
     /// Execute a DML statement, returning the exact count of modified rows
     pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
-        let rs = conn.client.execute_sql_async(&self.prepare_request(conn))?.compat().await?;
+        let rs = conn
+            .client
+            .execute_sql_async(&self.prepare_request(conn))?
+            .compat()
+            .await?;
         Ok(rs.get_stats().get_row_count_exact())
     }
 }
