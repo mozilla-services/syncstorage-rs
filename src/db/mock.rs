@@ -15,7 +15,7 @@ impl MockDbPool {
 
 impl DbPool for MockDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
-        Box::new(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
+        Box::pin(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -39,18 +39,18 @@ macro_rules! mock_db_method {
     ($name:ident, $type:ident, $result:ty) => {
         fn $name(&self, _params: params::$type) -> DbFuture<$result> {
             let result: $result = Default::default();
-            Box::new(future::ok(result))
+            Box::pin(future::ok(result))
         }
     };
 }
 
 impl Db for MockDb {
     fn commit(&self) -> DbFuture<()> {
-        Box::new(future::ok(()))
+        Box::pin(future::ok(()))
     }
 
     fn rollback(&self) -> DbFuture<()> {
-        Box::new(future::ok(()))
+        Box::pin(future::ok(()))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -58,7 +58,7 @@ impl Db for MockDb {
     }
 
     fn check(&self) -> DbFuture<results::Check> {
-        Box::new(future::ok(true))
+        Box::pin(future::ok(true))
     }
 
     mock_db_method!(lock_for_read, LockCollection);
