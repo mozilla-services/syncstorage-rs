@@ -6,7 +6,7 @@ use actix_web::{
     Error, FromRequest, HttpRequest,
 };
 
-use futures::future::{LocalBoxFuture};
+use futures::future::LocalBoxFuture;
 
 use serde::{
     ser::{SerializeMap, Serializer},

@@ -109,9 +109,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(async {
-            Ok(WeaveTimestampMiddleware { service })
-        })
+        Box::pin(async { Ok(WeaveTimestampMiddleware { service }) })
     }
 }
 

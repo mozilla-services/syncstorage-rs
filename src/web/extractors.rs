@@ -522,9 +522,7 @@ impl FromRequest for BsoParam {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let req = req.clone();
-        Box::pin(async move {
-            Self::extrude(req.head(), &mut req.extensions_mut())
-        })
+        Box::pin(async move { Self::extrude(req.head(), &mut req.extensions_mut()) })
     }
 }
 
@@ -655,7 +653,7 @@ impl FromRequest for MetaRequest {
             })
             //            }))
         }
-        .boxed_local()
+            .boxed_local()
     }
 }
 
@@ -731,7 +729,7 @@ impl FromRequest for CollectionRequest {
             })
             //            }))
         }
-        .boxed_local()
+            .boxed_local()
     }
 }
 
@@ -1231,9 +1229,7 @@ impl FromRequest for Box<dyn Db> {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let req = req.clone();
-        Box::pin(async move {
-            extrude_db(&req.extensions())
-        })
+        Box::pin(async move { extrude_db(&req.extensions()) })
     }
 }
 
