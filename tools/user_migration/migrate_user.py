@@ -226,7 +226,7 @@ def create_migration_table(database):
             """CREATE TABLE IF NOT EXISTS
                 migration (
                     fxa_uid VARCHAR(255) NOT NULL PRIMARY KEY,
-                    started BIGINT NOT NULL,
+                    started_at BIGINT NOT NULL,
                     state SMALLINT
                 )
             """)
