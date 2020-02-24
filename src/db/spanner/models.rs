@@ -1,5 +1,5 @@
-use futures::future;
-use futures::lazy;
+use actix_web::web::block;
+use futures::future::TryFutureExt;
 
 use diesel::r2d2::PooledConnection;
 
@@ -101,7 +101,6 @@ pub struct SpannerDb {
 pub struct SpannerDbInner {
     pub(super) conn: Conn,
 
-    thread_pool: Arc<::tokio_threadpool::ThreadPool>,
     session: RefCell<SpannerDbSession>,
 }
 
@@ -128,15 +127,9 @@ macro_rules! batch_db_method {
 }
 
 impl SpannerDb {
-    pub fn new(
-        conn: Conn,
-        thread_pool: Arc<::tokio_threadpool::ThreadPool>,
-        coll_cache: Arc<CollectionCache>,
-        metrics: &Metrics,
-    ) -> Self {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
-            thread_pool,
             session: RefCell::new(Default::default()),
         };
         SpannerDb {
@@ -1416,10 +1409,10 @@ impl SpannerDb {
                 as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
             );
             let now_millis = timestamp.as_i64();
-            let ttl = bso
-                .ttl
-                .map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.try_into().unwrap())
-                * 1000;
+            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
+                ttl.try_into()
+                    .expect("Could not get ttl in put_bso_sync (test)")
+            }) * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(
                 "!!!!! INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
@@ -1500,9 +1493,9 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::new(self.thread_pool.spawn_handle(lazy(move || {
-                future::result(db.$sync_name(params).map_err(Into::into))
-            })))
+            Box::pin(block(move || {
+                db.$sync_name(params).map_err(Into::into)
+            }).map_err(Into::into))
         }
     };
 }
@@ -1510,16 +1503,12 @@ macro_rules! sync_db_method {
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.commit_sync().map_err(Into::into))
-        })))
+        Box::pin(block(move || db.commit_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.rollback_sync().map_err(Into::into))
-        })))
+        Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -1528,9 +1517,7 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.check_sync().map_err(Into::into))
-        })))
+        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1594,28 +1581,25 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.get_collection_id(&name).map_err(Into::into))
-        })))
+        Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.create_collection(&name).map_err(Into::into))
-        })))
+        Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(any(test, feature = "db_test"))]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(
+        Box::pin(
+            block(move || {
                 db.touch_collection(&param.user_id, param.collection_id)
-                    .map_err(Into::into),
-            )
-        })))
+                    .map_err(Into::into)
+            })
+            .map_err(Into::into),
+        )
     }
 
     #[cfg(any(test, feature = "db_test"))]

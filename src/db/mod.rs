@@ -10,7 +10,7 @@ pub mod util;
 
 use std::fmt::Debug;
 
-use futures::future::Future;
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use url::Url;
@@ -55,7 +55,7 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 /// DbPools' worker ThreadPool size
 pub const DB_THREAD_POOL_SIZE: usize = 50;
 
-type DbFuture<T> = Box<dyn Future<Item = T, Error = ApiError>>;
+type DbFuture<T> = LocalBoxFuture<'static, Result<T, ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
@@ -161,28 +161,28 @@ pub trait Db: Send + Debug {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::new(self.get_storage_timestamp(user_id)),
+            None => return Box::pin(self.get_storage_timestamp(user_id)),
         };
         // If there's no bso, return the collection
         let bso = match bso {
             Some(bso) => bso,
             None => {
-                return Box::new(
+                return Box::pin(
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
                     })
                     .or_else(|e| {
                         if e.is_collection_not_found() {
-                            Ok(SyncTimestamp::from_seconds(0f64))
+                            future::ok(SyncTimestamp::from_seconds(0f64))
                         } else {
-                            Err(e)
+                            future::err(e)
                         }
                     }),
                 )
             }
         };
-        Box::new(
+        Box::pin(
             self.get_bso_timestamp(params::GetBsoTimestamp {
                 user_id,
                 collection,
@@ -190,9 +190,9 @@ pub trait Db: Send + Debug {
             })
             .or_else(|e| {
                 if e.is_collection_not_found() {
-                    Ok(SyncTimestamp::from_seconds(0f64))
+                    future::ok(SyncTimestamp::from_seconds(0f64))
                 } else {
-                    Err(e)
+                    future::err(e)
                 }
             }),
         )

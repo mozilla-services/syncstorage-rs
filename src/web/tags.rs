@@ -5,6 +5,8 @@ use actix_web::{
     http::header::USER_AGENT,
     Error, FromRequest, HttpRequest,
 };
+use futures::future;
+use futures::future::Ready;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
@@ -113,7 +115,7 @@ impl Tags {
 impl FromRequest for Tags {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let tags = {
@@ -124,7 +126,7 @@ impl FromRequest for Tags {
             }
         };
 
-        Ok(tags)
+        future::ok(tags)
     }
 }
 

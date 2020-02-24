@@ -1,10 +1,14 @@
 use std::collections::HashMap;
 
-use actix_service::Service;
-use actix_web::{http, http::StatusCode, test};
+use actix_web::{
+    dev::Service,
+    http::{self, HeaderName, HeaderValue, StatusCode},
+    test,
+};
 use base64;
 use bytes::Bytes;
 use chrono::offset::Utc;
+use futures::executor::block_on;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -27,30 +31,28 @@ use crate::web::extractors::BsoBody;
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
-    static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("foo").unwrap());
+    static ref SECRETS: Arc<Secrets> =
+        Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/test.rs"));
 }
 
 const TEST_HOST: &str = "localhost";
 const TEST_PORT: u16 = 8080;
 
 fn get_test_settings() -> Settings {
-    let settings = Settings::with_env_and_config_file(&None).unwrap();
+    let settings = Settings::with_env_and_config_file(&None)
+        .expect("Could not get Settings in get_test_settings");
     let treq = test::TestRequest::with_uri("/").to_http_request();
-    let port = treq
-        .uri()
-        .port_part()
-        .map(|p| p.as_u16())
-        .unwrap_or(TEST_PORT);
+    let port = treq.uri().port_u16().unwrap_or(TEST_PORT);
     // Make sure that our poolsize is >= the
     let host = treq.uri().host().unwrap_or(TEST_HOST).to_owned();
     let pool_size = u32::from_str(
         std::env::var_os("RUST_TEST_THREADS")
             .unwrap_or_else(|| std::ffi::OsString::from("10"))
             .into_string()
-            .unwrap()
+            .expect("Could not get RUST_TEST_THREADS in get_test_settings")
             .as_str(),
     )
-    .unwrap();
+    .expect("Could not get pool_size in get_test_settings");
     Settings {
         debug: true,
         port,
@@ -67,7 +69,8 @@ fn get_test_settings() -> Settings {
 fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
     ServerState {
-        db_pool: pool_from_settings(&settings, &Metrics::from(&metrics)).unwrap(),
+        db_pool: pool_from_settings(&settings, &Metrics::from(&metrics))
+            .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
         metrics: Box::new(metrics),
@@ -80,7 +83,7 @@ fn create_request(
     path: &str,
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
-) -> actix_http::Request {
+) -> test::TestRequest {
     let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
@@ -99,12 +102,13 @@ fn create_request(
     if let Some(h) = headers {
         for (k, v) in h {
             let ln = String::from(k).to_lowercase();
-            let hn = actix_http::http::HeaderName::from_lowercase(ln.as_bytes()).unwrap();
-            let hv = actix_http::http::HeaderValue::from_str(v.as_str()).unwrap();
+            let hn = HeaderName::from_lowercase(ln.as_bytes())
+                .expect("Could not get hn in create_request");
+            let hv = HeaderValue::from_str(v.as_str()).expect("Could not get hv in create_request");
             req = req.header(hn, hv);
         }
     }
-    req.to_request()
+    req
 }
 
 fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
@@ -120,8 +124,10 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         fxa_kid: "xxx_test".to_owned(),
         device_id: "xxx_test".to_owned(),
     };
-    let payload = serde_json::to_string(&payload).unwrap();
-    let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret).unwrap();
+    let payload =
+        serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");
+    let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret)
+        .expect("Could not get signature in create_hawk_header");
     signature.input(payload.as_bytes());
     let signature = signature.result().code();
     let mut id: Vec<u8> = vec![];
@@ -137,16 +143,20 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
-        key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),
+        key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256)
+            .expect("Could not get key in create_hawk_header"),
     };
-    let header = request.make_header(&credentials).unwrap();
+    let header = request
+        .make_header(&credentials)
+        .expect("Could not get header in create_hawk_header");
     format!("Hawk {}", header)
 }
 
 fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
     let mut result = [0u8; 32];
     let hkdf = Hkdf::<Sha256>::new(salt, key);
-    hkdf.expand(info, &mut result).unwrap();
+    hkdf.expand(info, &mut result)
+        .expect("Could not hkdf.expand in hkdf_expand_32");
     result
 }
 
@@ -158,16 +168,17 @@ fn test_endpoint(
 ) {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = test::init_service(build_app!(get_test_state(&settings), limits));
 
-    let req = create_request(method, path, None, None);
-    let sresp = test::block_on(app.call(req)).unwrap();
+    let req = create_request(method, path, None, None).to_request();
+    let mut app = block_on(app);
+    let sresp = block_on(app.call(req)).expect("Could not get sresp in test_endpoint");
     match status {
         None => assert!(sresp.response().status().is_success()),
         Some(status) => assert!(sresp.response().status() == status),
     };
     if let Some(x_body) = expected_body {
-        let body = test::read_body(sresp);
+        let body = block_on(test::read_body(sresp));
         assert_eq!(body, x_body.as_bytes());
     }
 }
@@ -178,10 +189,11 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = test::init_service(build_app!(get_test_state(&settings), limits));
 
-    let req = create_request(method, path, None, None);
-    let sresponse = match test::block_on(app.call(req)) {
+    let req = create_request(method, path, None, None).to_request();
+    let mut app = block_on(app);
+    let sresponse = match block_on(app.call(req)) {
         Ok(v) => v,
         Err(e) => {
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
@@ -195,7 +207,7 @@ where
             sresponse.response()
         );
     }
-    let body = test::read_body(sresponse);
+    let body = block_on(test::read_body(sresponse));
     let result: T = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -208,11 +220,13 @@ where
 fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::Value) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
-    let req = create_request(method, path, None, Some(body));
-    let sresponse = test::block_on(app.call(req)).unwrap();
+    let app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let req = create_request(method, path, None, Some(body)).to_request();
+    let mut app = block_on(app);
+    let sresponse =
+        block_on(app.call(req)).expect("Could not get sresponse in test_endpoint_with_body");
     assert!(sresponse.response().status().is_success());
-    test::read_body(sresponse)
+    block_on(test::read_body(sresponse))
 }
 
 #[test]
@@ -251,7 +265,10 @@ fn configuration() {
         http::Method::GET,
         "/1.5/42/info/configuration",
         None,
-        Some(&serde_json::to_string(&ServerLimits::default()).unwrap()),
+        Some(
+            &serde_json::to_string(&ServerLimits::default())
+                .expect("Could not serde_json::to_string in test_endpoint"),
+        ),
     );
 }
 
@@ -334,7 +351,8 @@ fn post_collection() {
         ttl: Some(31_536_000),
     }]);
     let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/bookmarks", res_body);
-    let result: PostBsos = serde_json::from_slice(&bytes.to_vec()).unwrap();
+    let result: PostBsos =
+        serde_json::from_slice(&bytes.to_vec()).expect("Could not get result in post_collection");
     assert!(result.modified >= start);
     assert_eq!(result.success.len(), 1);
     assert_eq!(result.failed.len(), 0);
@@ -368,7 +386,7 @@ fn put_bso() {
         "/1.5/42/storage/bookmarks/wibble",
         json!(BsoBody::default()),
     );
-    let result: PutBso = serde_json::from_slice(&bytes).unwrap();
+    let result: PutBso = serde_json::from_slice(&bytes).expect("Could not get result in put_bso");
     assert!(result >= start);
 }
 
@@ -382,13 +400,15 @@ fn bsos_can_have_a_collection_field() {
          {"id": "2", "collection": "foo", "payload": "SomePayload"},
     ]);
     let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos);
-    let result: PostBsos = serde_json::from_slice(&bytes.to_vec()).unwrap();
+    let result: PostBsos = serde_json::from_slice(&bytes.to_vec())
+        .expect("Could not get result in bsos_can_have_a_collection_field");
     assert_eq!(result.success.len(), 2);
     assert_eq!(result.failed.len(), 0);
 
     let bytes = test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", bso1);
-    let result: PutBso = serde_json::from_slice(&bytes).unwrap();
-    assert!(result >= start);
+    let result2: PutBso = serde_json::from_slice(&bytes)
+        .expect("Could not get result2 in bsos_can_have_a_collection_field");
+    assert!(result2 >= start);
 }
 
 #[test]
@@ -396,7 +416,10 @@ fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let mut app = block_on(test::init_service(build_app!(
+        get_test_state(&settings),
+        limits
+    )));
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -411,9 +434,10 @@ fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         })),
-    );
+    )
+    .to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
+    let response = block_on(app.call(req)).expect("Could not get response in invalid_content_type");
 
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 
@@ -430,17 +454,19 @@ fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         }])),
-    );
+    )
+    .to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
-    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    let response2 =
+        block_on(app.call(req)).expect("Could not get response2 in invalid_content_type");
+    assert_eq!(response2.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
 
 #[test]
 fn invalid_batch_post() {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = test::init_service(build_app!(get_test_state(&settings), limits));
 
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
@@ -452,10 +478,13 @@ fn invalid_batch_post() {
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ])),
-    );
+    )
+    .to_request();
 
-    let response = test::block_on(app.call(req)).unwrap();
+    let mut app = block_on(app);
+    let response = block_on(app.call(req)).expect("Could not get response in invalid_batch_post");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let body = String::from_utf8(test::read_body(response).to_vec()).unwrap();
+    let body = String::from_utf8(block_on(test::read_body(response)).to_vec())
+        .expect("Could not get body in invalid_batch_post");
     assert_eq!(body, "0");
 }
