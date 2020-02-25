@@ -6,7 +6,7 @@ use std::{
 };
 
 use actix_rt::{System, SystemRunner};
-use futures::compat::{Compat01As03, Stream01CompatExt};
+use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
 use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
@@ -112,9 +112,27 @@ impl ExecuteSqlRequestBuilder {
         Ok(StreamedResultSet::new(stream))
     }
 
+    /// Execute a SQL read statement but return a non-blocking streaming result
+    pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
+        let stream = conn
+            .client
+            .execute_streaming_sql(&self.prepare_request(conn))?;
+        Ok(StreamedResultSetAsync::new(stream))
+    }
+
     /// Execute a DML statement, returning the exact count of modified rows
     pub fn execute_dml(self, conn: &Conn) -> Result<i64> {
         let rs = conn.client.execute_sql(&self.prepare_request(conn))?;
+        Ok(rs.get_stats().get_row_count_exact())
+    }
+
+    /// Execute a DML statement, returning the exact count of modified rows
+    pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
+        let rs = conn
+            .client
+            .execute_sql_async(&self.prepare_request(conn))?
+            .compat()
+            .await?;
         Ok(rs.get_stats().get_row_count_exact())
     }
 }
@@ -290,6 +308,149 @@ impl fmt::Debug for StreamedResultSet {
             .field("current_row", &self.current_row)
             .field("pending_chunk", &self.pending_chunk)
             .finish()
+    }
+}
+
+pub struct StreamedResultSetAsync {
+    /// Stream from execute_streaming_sql
+    stream: Option<StreamFuture<Compat01As03<ClientSStreamReceiver<PartialResultSet>>>>,
+
+    metadata: Option<ResultSetMetadata>,
+    stats: Option<ResultSetStats>,
+
+    /// Fully-processed rows
+    rows: VecDeque<Vec<Value>>,
+    /// Accumulated values for incomplete row
+    current_row: Vec<Value>,
+    /// Incomplete value
+    pending_chunk: Option<Value>,
+}
+
+impl StreamedResultSetAsync {
+    pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
+        Self {
+            stream: Some(stream.compat().into_future()),
+            metadata: None,
+            stats: None,
+            rows: Default::default(),
+            current_row: vec![],
+            pending_chunk: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn metadata(&self) -> Option<&ResultSetMetadata> {
+        self.metadata.as_ref()
+    }
+
+    #[allow(dead_code)]
+    pub fn stats(&self) -> Option<&ResultSetStats> {
+        self.stats.as_ref()
+    }
+
+    pub fn fields(&self) -> &[StructType_Field] {
+        match self.metadata {
+            Some(ref metadata) => metadata.get_row_type().get_fields(),
+            None => &[],
+        }
+    }
+
+    pub async fn one(&mut self) -> Result<Vec<Value>> {
+        if let Some(result) = self.one_or_none().await? {
+            Ok(result)
+        } else {
+            Err(DbError::internal("No rows matched the given query."))?
+        }
+    }
+
+    pub async fn one_or_none(&mut self) -> Result<Option<Vec<Value>>> {
+        let result = self.next_async().await;
+        if result.is_none() {
+            Ok(None)
+        } else if self.next_async().await.is_some() {
+            Err(DbError::internal("Execpted one result; got more."))?
+        } else {
+            result.transpose()
+        }
+    }
+
+    /// Pull and process the next values from the Stream
+    ///
+    /// Returns false when the stream is finished
+    async fn consume_next(&mut self) -> Result<bool> {
+        let (result, stream) = self
+            .stream
+            .take()
+            .expect("Could not get next stream element")
+            .await;
+
+        self.stream = Some(stream.into_future());
+        let mut partial_rs = if let Some(result) = result {
+            result?
+        } else {
+            // Stream finished
+            return Ok(false);
+        };
+
+        if self.metadata.is_none() && partial_rs.has_metadata() {
+            // first response
+            self.metadata = Some(partial_rs.take_metadata());
+        }
+        if partial_rs.has_stats() {
+            // last response
+            self.stats = Some(partial_rs.take_stats());
+        }
+
+        let mut values = partial_rs.take_values().into_vec();
+        if values.is_empty() {
+            // sanity check
+            return Ok(true);
+        }
+
+        if let Some(pending_chunk) = self.pending_chunk.take() {
+            let fields = self.fields();
+            let current_row_i = self.current_row.len();
+            if fields.len() <= current_row_i {
+                Err(DbErrorKind::Integrity(
+                    "Invalid PartialResultSet fields".to_owned(),
+                ))?;
+            }
+            let field = &fields[current_row_i];
+            values[0] = merge_by_type(pending_chunk, &values[0], field.get_field_type())?;
+        }
+        if partial_rs.get_chunked_value() {
+            self.pending_chunk = values.pop();
+        }
+
+        self.consume_values(values);
+        Ok(true)
+    }
+
+    fn consume_values(&mut self, values: Vec<Value>) {
+        let width = self.fields().len();
+        for value in values {
+            self.current_row.push(value);
+            if self.current_row.len() == width {
+                let current_row = mem::replace(&mut self.current_row, vec![]);
+                self.rows.push_back(current_row);
+            }
+        }
+    }
+
+    // We could implement Stream::poll_next instead of this, but
+    // this is easier for now and we can refactor into the trait later
+    async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
+        while self.rows.is_empty() {
+            match self.consume_next().await {
+                Ok(true) => (),
+                Ok(false) => return None,
+                // Note: Iteration may continue after an error. We may want to
+                // stop afterwards instead for safety sake (it's not really
+                // recoverable)
+                Err(e) => return Some(Err(e)),
+            }
+        }
+        Ok(self.rows.pop_front()).transpose()
     }
 }
 
