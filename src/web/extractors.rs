@@ -643,14 +643,12 @@ impl FromRequest for MetaRequest {
             };
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
             let db = extrude_db(&req.extensions())?;
-            //            Box::pin(future::ok({
             Ok(MetaRequest {
                 user_id,
                 db,
                 metrics: metrics::Metrics::from(&req),
                 tags,
             })
-            //            }))
         }
         .boxed_local()
     }
@@ -704,7 +702,6 @@ impl FromRequest for CollectionRequest {
                 "application/newlines" => ReplyFormat::Newlines,
                 "application/json" | "" => ReplyFormat::Json,
                 _ => {
-                    //                    return Box::pin(future::err(ValidationErrorKind::FromDetails(
                     return Err(ValidationErrorKind::FromDetails(
                         "Invalid accept".to_string(),
                         RequestErrorLocation::Header,
@@ -712,11 +709,9 @@ impl FromRequest for CollectionRequest {
                         Some(tags),
                     )
                     .into());
-                    //                        .into()));
                 }
             };
 
-            //            Box::pin(future::ok(CollectionRequest {
             Ok(CollectionRequest {
                 collection,
                 db,
@@ -726,7 +721,6 @@ impl FromRequest for CollectionRequest {
                 metrics: metrics::Metrics::from(&req),
                 tags: Some(tags),
             })
-            //            }))
         }
         .boxed_local()
     }
@@ -2145,7 +2139,6 @@ mod tests {
     }
 
     #[actix_rt::test]
-    //    #[test]
     async fn test_valid_collection_batch_post_request() {
         // If the "batch" parameter is has no value or has a value of "true"
         // then a new batch will be created.
