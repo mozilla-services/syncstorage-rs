@@ -295,7 +295,8 @@ impl SpannerDb {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute_async(&self.conn)?
-            .one_or_none().await?;
+            .one_or_none()
+            .await?;
 
         let timestamp = if let Some(result) = result {
             let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
@@ -314,7 +315,8 @@ impl SpannerDb {
             let result = self
                 .sql("SELECT CURRENT_TIMESTAMP()")?
                 .execute_async(&self.conn)?
-                .one().await?;
+                .one()
+                .await?;
             SyncTimestamp::from_rfc3339(result[0].get_string_value())?
         };
         self.set_timestamp(timestamp);
@@ -591,7 +593,8 @@ impl SpannerDb {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
             .execute_async(&self.conn)?
-            .one_or_none().await?
+            .one_or_none()
+            .await?
             .ok_or_else(|| DbErrorKind::CollectionNotFound)?;
         let modified = SyncTimestamp::from_rfc3339(&result[0].get_string_value())?;
         Ok(modified)
@@ -1668,7 +1671,9 @@ impl Db for SpannerDb {
     ) -> DbFuture<results::GetCollectionTimestamps> {
         let db = self.clone();
         Box::pin(async move {
-            db.get_collection_timestamps_async(user_id).map_err(Into::into).await
+            db.get_collection_timestamps_async(user_id)
+                .map_err(Into::into)
+                .await
         })
     }
 
@@ -1678,7 +1683,9 @@ impl Db for SpannerDb {
     ) -> DbFuture<results::GetCollectionCounts> {
         let db = self.clone();
         Box::pin(async move {
-            db.get_collection_counts_async(user_id).map_err(Into::into).await
+            db.get_collection_counts_async(user_id)
+                .map_err(Into::into)
+                .await
         })
     }
 
@@ -1688,7 +1695,9 @@ impl Db for SpannerDb {
     ) -> DbFuture<results::GetCollectionUsage> {
         let db = self.clone();
         Box::pin(async move {
-            db.get_collection_usage_async(user_id).map_err(Into::into).await
+            db.get_collection_usage_async(user_id)
+                .map_err(Into::into)
+                .await
         })
     }
 
