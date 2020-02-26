@@ -105,7 +105,21 @@ class Collections:
     truth regarding collection ids.
 
     """
-    _by_name = {}
+    _by_name = {
+        "clients":1,
+        "crypto":2,
+        "forms":3,
+        "history":4,
+        "keys":5,
+        "meta":6,
+        "bookmarks":7,
+        "prefs":8,
+        "tabs":9,
+        "passwords":10,
+        "addons":11,
+        "addresses":12,
+        "creditcards":13,
+    }
     spanner = None
 
     def __init__(self, databases):
@@ -158,6 +172,7 @@ class Collections:
                             ))
                         pass
         finally:
+            print (self._by_name)
             cursor.close()
 
     def get(self, name, collection_id=None):
