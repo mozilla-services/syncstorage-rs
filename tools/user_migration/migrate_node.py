@@ -189,6 +189,8 @@ class Collections:
         if id is None and collection_id is not None:
             logging.warn(
                 "Unknown collection {}:{} encountered!".format(name, collection_id))
+            # it would be swell to add these to the collection table, but that would mean
+            # an imbedded spanner transaction, and that's not allowed.
             id = collection_id
         return id
 
@@ -412,7 +414,6 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         else:
             raise
     except Exception as e:
-        import pdb; pdb.set_trace()
         logging.error("### batch failure:", e)
     finally:
         # cursor may complain about unread data, this should prevent
