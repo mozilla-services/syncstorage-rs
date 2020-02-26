@@ -20,7 +20,7 @@ from datetime import datetime
 
 from mysql import connector
 from google.cloud import spanner
-from google.api_core.exceptions import AlreadyExists
+from google.api_core.exceptions import AlreadyExists, InvalidArgument
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -119,6 +119,7 @@ class Collections:
         "addons":11,
         "addresses":12,
         "creditcards":13,
+        "reserved":100,
     }
     spanner = None
 
@@ -176,19 +177,18 @@ class Collections:
             cursor.close()
 
     def get(self, name, collection_id=None):
-        """Fetches the collection_id, adding if not already specified"""
+        """Fetches the collection_id"""
+
         def transact(transaction, values):
             transaction.insert(
                 'collections',
                 columns=('collection_id', 'name'),
                 values=values)
+
         id = self._by_name.get(name)
         if id is None and collection_id is not None:
             logging.warn(
-                "Unknown collection {} encountered!".format(name))
-            self._by_name[name] = collection_id
-            values = [(collection_id, name)]
-            self.spanner.run_in_transaction(transact, values)
+                "Unknown collection {}:{} encountered!".format(name, collection_id))
             id = collection_id
         return id
 
@@ -329,7 +329,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id != cid:
-                logging.warn(
+                logging.info(
                     "Remapping collection '{}' from {} to {}".format(
                         col, cid, collection_id))
             # columns from sync_schema3
@@ -403,7 +403,16 @@ def move_user(databases, user, collections, fxa, bso_num, args):
             "User already imported fxa_uid:{} / fxa_kid:{}".format(
                 fxa_uid, fxa_kid
             ))
+    except InvalidArgument as ex:
+        if "already inserted" in ex.args[0]:
+            logging.warn(
+                "User already imported fxa_uid:{} / fxa_kid:{}".format(
+                    fxa_uid, fxa_kid
+                ))
+        else:
+            raise
     except Exception as e:
+        import pdb; pdb.set_trace()
         logging.error("### batch failure:", e)
     finally:
         # cursor may complain about unread data, this should prevent
