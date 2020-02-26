@@ -439,7 +439,7 @@ impl StreamedResultSetAsync {
 
     // We could implement Stream::poll_next instead of this, but
     // this is easier for now and we can refactor into the trait later
-    async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
+    pub async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
         while self.rows.is_empty() {
             match self.consume_next().await {
                 Ok(true) => (),

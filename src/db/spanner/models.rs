@@ -624,7 +624,8 @@ impl SpannerDb {
             })
             .execute_async(&self.conn)?;
         let mut results = HashMap::new();
-        while let Some(row) = streaming.one_or_none().await? {
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
@@ -676,7 +677,8 @@ impl SpannerDb {
                 )?
                 .params(params)
                 .execute_async(&self.conn)?;
-            while let Some(mut row) = rs.one_or_none().await? {
+            while let Some(row) = rs.next_async().await {
+                let mut row = row?;
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -711,7 +713,8 @@ impl SpannerDb {
             })
             .execute_async(&self.conn)?;
         let mut counts = HashMap::new();
-        while let Some(row) = streaming.one_or_none().await? {
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
@@ -744,7 +747,8 @@ impl SpannerDb {
             })
             .execute_async(&self.conn)?;
         let mut usages = HashMap::new();
-        while let Some(row) = streaming.one_or_none().await? {
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
