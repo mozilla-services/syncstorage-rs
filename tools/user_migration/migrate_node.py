@@ -305,7 +305,6 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         collections, bso{} as bso
     WHERE
         bso.userid = %s
-            and collections.collectionid = bso.collection
             and bso.ttl > unix_timestamp()
     ORDER BY
         modified DESC""".format(bso_num)
