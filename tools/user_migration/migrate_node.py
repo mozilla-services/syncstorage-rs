@@ -52,20 +52,29 @@ class FXA_info:
         if not os.path.isfile(fxa_csv_file):
             raise IOError("{} not found".format(fxa_csv_file))
         with open(fxa_csv_file) as csv_file:
-            for (uid, email, generation,
-                 keys_changed_at, client_state) in csv.reader(
-                 csv_file, delimiter="\t"):
-                if uid == 'uid':
-                    # skip the header row.
-                    continue
-                fxa_uid = email.split('@')[0]
-                fxa_kid = self.format_key_id(
-                    int(keys_changed_at or generation),
-                    binascii.unhexlify(client_state))
-                logging.debug("Adding user {} => {} , {}".format(
-                    uid, fxa_kid, fxa_uid
-                ))
-                self.users[int(uid)] = (fxa_kid, fxa_uid)
+            try:
+                line = 0
+                for (uid, email, generation,
+                    keys_changed_at, client_state) in csv.reader(
+                    csv_file, delimiter="\t"):
+                    line += 1
+                    if uid == 'uid':
+                        # skip the header row.
+                        continue
+                    try:
+                        fxa_uid = email.split('@')[0]
+                        fxa_kid = self.format_key_id(
+                            int(keys_changed_at or generation),
+                            binascii.unhexlify(client_state))
+                        logging.debug("Adding user {} => {} , {}".format(
+                            uid, fxa_kid, fxa_uid
+                        ))
+                        self.users[int(uid)] = (fxa_kid, fxa_uid)
+                    except Exception as ex:
+                        logging.error("Skipping user {}: {}".format(uid, ex))
+            except Exception as ex:
+                logging.critical("Error in fxa file around line {}: {}".format(
+                    line, ex))
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):
@@ -274,7 +283,18 @@ def move_user(databases, user, collections, fxa, bso_num, args):
     )
 
     # Genereate the Spanner Keys we'll need.
-    (fxa_kid, fxa_uid) = fxa.get(user)
+    try:
+        (fxa_kid, fxa_uid) = fxa.get(user)
+    except TypeError:
+        logging.error("User not found: {} ".format(
+            user
+        ))
+        return 0
+    except Exception as ex:
+        logging.error("Could not move user: {} {}".format(
+            user, ex
+        ))
+        return 0
 
     # Fetch the BSO data from the original storage.
     sql = """
@@ -447,7 +467,7 @@ def get_args():
     parser.add_argument(
         '--deanon', action='store_false',
         dest='anon',
-        help="Anonymize the user data"
+        help="Do not anonymize the user data"
     )
     parser.add_argument(
         '--start_bso', default=0,
