@@ -368,7 +368,7 @@ impl StreamedResultSetAsync {
         if result.is_none() {
             Ok(None)
         } else if self.next_async().await.is_some() {
-            Err(DbError::internal("Execpted one result; got more."))?
+            Err(DbError::internal("Expected one result; got more."))?
         } else {
             result.transpose()
         }
