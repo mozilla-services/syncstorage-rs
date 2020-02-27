@@ -280,9 +280,6 @@ def move_user(databases, user, collections, fxa, bso_num, args):
     # payload_size => NONE
     # ttl => expiry
 
-    # user collections require a unique key.
-    unique_key_filter = set()
-
     uc_columns = (
         'fxa_kid',
         'fxa_uid',
@@ -330,6 +327,8 @@ def move_user(databases, user, collections, fxa, bso_num, args):
 
     def spanner_transact_uc(
             transaction, data, fxa_kid, fxa_uid, args):
+        # user collections require a unique key.
+        unique_key_filter = set()
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
