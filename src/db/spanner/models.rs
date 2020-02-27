@@ -839,7 +839,7 @@ impl SpannerDb {
         }
     }
 
-    pub fn get_storage_usage_sync(
+    pub async fn get_storage_usage_async(
         &self,
         user_id: params::GetStorageUsage,
     ) -> Result<results::GetStorageUsage> {
@@ -856,8 +856,8 @@ impl SpannerDb {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid
             })
-            .execute(&self.conn)?
-            .one_or_none()?;
+            .execute_async(&self.conn)?
+            .one_or_none().await?;
         if let Some(result) = result {
             let usage = result[0]
                 .get_string_value()
@@ -903,7 +903,7 @@ impl SpannerDb {
         Ok(self.timestamp()?)
     }
 
-    pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
+    pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> Result<()> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
         self.sql(
@@ -915,7 +915,7 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
         })
-        .execute_dml(&self.conn)?;
+        .execute_dml_async(&self.conn).await?;
         Ok(())
     }
 
@@ -1383,7 +1383,7 @@ impl SpannerDb {
         &self,
         params: params::GetBsoTimestamp,
     ) -> Result<SyncTimestamp> {
-        debug!("!!QQQ get_bso_timestamp_sync: {:?}", &params.collection);
+        debug!("!!QQQ get_bso_timestamp_async: {:?}", &params.collection);
         let collection_id = self.get_collection_id_async(&params.collection).await?;
 
         let result = self
@@ -1706,11 +1706,11 @@ impl SpannerDb {
         Ok(result)
     }
 
-    fn check_sync(&self) -> Result<results::Check> {
+    async fn check_async(&self) -> Result<results::Check> {
         // TODO: is there a better check than just fetching UTC?
         self.sql("SELECT CURRENT_TIMESTAMP()")?
-            .execute(&self.conn)?
-            .one()?;
+            .execute_async(&self.conn)?
+            .one().await?;
         Ok(true)
     }
 
@@ -1800,7 +1800,9 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
+        Box::pin(async move {
+            db.check_async().map_err(Into::into).await
+        })
     }
 
     fn get_collection_timestamps(
@@ -1839,8 +1841,29 @@ impl Db for SpannerDb {
         })
     }
 
-    sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
-    sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
+    fn get_storage_usage(
+        &self,
+        param: params::GetStorageUsage,
+    ) -> DbFuture<results::GetStorageUsage> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.get_storage_usage_async(param)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn delete_storage(
+        &self,
+        param: params::DeleteStorage,
+    ) -> DbFuture<results::DeleteStorage> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.delete_storage_async(param)
+                .map_err(Into::into)
+                .await
+        })
+    }
 
     fn delete_bso(&self, param: params::DeleteBso) -> DbFuture<results::DeleteBso> {
         let db = self.clone();
