@@ -222,7 +222,7 @@ impl SpannerDb {
         Ok(id)
     }
 
-    #[cfg(any(test))]
+    #[allow(dead_code)]
     pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
         // This should always run within a r/w transaction, so that: "If a
         // transaction successfully commits, then no other writer modified the
@@ -255,7 +255,8 @@ impl SpannerDb {
         Ok(id)
     }
 
-    #[cfg(any(test))]
+
+    #[allow(dead_code)]
     fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
         self.get_collection_id(name).or_else(|e| match e.kind() {
             DbErrorKind::CollectionNotFound => self.create_collection(name),
