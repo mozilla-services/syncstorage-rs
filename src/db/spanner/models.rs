@@ -118,14 +118,6 @@ impl Deref for SpannerDb {
     }
 }
 
-macro_rules! batch_db_method {
-    ($name:ident, $batch_name:ident, $type:ident) => {
-        pub fn $name(&self, params: params::$type) -> Result<results::$type> {
-            batch::$batch_name(self, params)
-        }
-    }
-}
-
 impl SpannerDb {
     pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
@@ -958,6 +950,8 @@ impl SpannerDb {
         }
     }
 
+    // I think we can remove this but I'm not 100% sure if the db tests use it or not.
+    #[allow(dead_code)]
     pub(super) fn touch_collection(
         &self,
         user_id: &HawkIdentifier,
@@ -1437,7 +1431,7 @@ impl SpannerDb {
             .await?;
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
-        let timestamp = self.touch_collection(&user_id, collection_id)?;
+        let timestamp = self.touch_collection_async(&user_id, collection_id).await?;
 
         let mut sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
@@ -1713,20 +1707,6 @@ impl SpannerDb {
             .one()?;
         Ok(true)
     }
-
-    batch_db_method!(create_batch_sync, create, CreateBatch);
-    batch_db_method!(validate_batch_sync, validate, ValidateBatch);
-    batch_db_method!(append_to_batch_sync, append, AppendToBatch);
-    batch_db_method!(commit_batch_sync, commit, CommitBatch);
-    pub fn validate_batch_id(&self, id: String) -> Result<()> {
-        batch::validate_batch_id(&id)
-    }
-    #[cfg(any(test, feature = "db_test"))]
-    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
-
-    pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-        batch::get(&self, params)
-    }
 }
 
 unsafe impl Send for SpannerDb {}
@@ -1885,19 +1865,71 @@ impl Db for SpannerDb {
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
     }
 
-    sync_db_method!(create_batch, create_batch_sync, CreateBatch);
-    sync_db_method!(validate_batch, validate_batch_sync, ValidateBatch);
-    sync_db_method!(append_to_batch, append_to_batch_sync, AppendToBatch);
-    sync_db_method!(
-        get_batch,
-        get_batch_sync,
-        GetBatch,
-        Option<results::GetBatch>
-    );
-    sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+    fn validate_batch_id(
+        &self,
+        id: String,
+    ) -> Result<()> {
+        batch::validate_batch_id(&id)
+    }
 
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
-        self.validate_batch_id(params)
+    fn create_batch(
+        &self,
+        param: params::CreateBatch,
+    ) -> DbFuture<results::CreateBatch> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::create_async(&db, param)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn validate_batch(
+        &self,
+        param: params::ValidateBatch,
+    ) -> DbFuture<results::ValidateBatch> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::validate_async(&db, param)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn append_to_batch(
+        &self,
+        param: params::AppendToBatch,
+    ) -> DbFuture<results::AppendToBatch> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::append_async(&db, param)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn get_batch(
+        &self,
+        param: params::GetBatch,
+    ) -> DbFuture<Option<results::GetBatch>> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::get_async(&db, param)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn commit_batch(
+        &self,
+        param: params::CommitBatch,
+    ) -> DbFuture<results::CommitBatch> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::commit_async(&db, param)
+                .map_err(Into::into)
+                .await
+        })
     }
 
     #[cfg(any(test, feature = "db_test"))]
@@ -1936,7 +1968,12 @@ impl Db for SpannerDb {
     }
 
     #[cfg(any(test, feature = "db_test"))]
-    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+    fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<results::DeleteBatch> {
+        let db = self.clone();
+        Box::pin(async move {
+            batch::delete_async(&db, param).map_err(Into::into).await
+        })
+    }
 
     #[cfg(any(test, feature = "db_test"))]
     fn clear_coll_cache(&self) {
