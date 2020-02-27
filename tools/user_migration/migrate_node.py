@@ -318,9 +318,11 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         collections.name, bso.collection,
         bso.id, bso.ttl, bso.modified, bso.payload, bso.sortindex
     FROM
-        collections, bso{} as bso
+        bso{} as bso,
+        collections
     WHERE
         bso.userid = %s
+            and collections.collectionid = bso.collection
             and bso.ttl > unix_timestamp()
     ORDER BY
         modified DESC""".format(bso_num)
