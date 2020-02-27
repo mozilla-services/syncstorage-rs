@@ -22,7 +22,6 @@ use protobuf::{
 use super::models::{Conn, Result};
 use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
 
-#[cfg(not(any(test, feature = "db_test")))]
 use crate::{
     db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
     web::extractors::HawkIdentifier,
@@ -510,7 +509,6 @@ pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
     })
 }
 
-#[cfg(not(any(test, feature = "db_test")))]
 pub fn bso_to_insert_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
@@ -538,7 +536,6 @@ pub fn bso_to_insert_row(
     Ok(row)
 }
 
-#[cfg(not(any(test, feature = "db_test")))]
 pub fn bso_to_update_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
