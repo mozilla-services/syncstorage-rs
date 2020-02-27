@@ -255,7 +255,6 @@ impl SpannerDb {
         Ok(id)
     }
 
-
     #[allow(dead_code)]
     fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
         self.get_collection_id(name).or_else(|e| match e.kind() {
