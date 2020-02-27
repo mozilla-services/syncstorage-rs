@@ -55,8 +55,8 @@ class FXA_info:
             try:
                 line = 0
                 for (uid, email, generation,
-                    keys_changed_at, client_state) in csv.reader(
-                    csv_file, delimiter="\t"):
+                     keys_changed_at, client_state) in csv.reader(
+                        csv_file, delimiter="\t"):
                     line += 1
                     if uid == 'uid':
                         # skip the header row.
@@ -71,7 +71,7 @@ class FXA_info:
                         ))
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
-                        logging.error("Skipping user {}: {}".format(uid, ex))
+                        logging.error("Skipping user {}:".format(uid), ex)
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}: {}".format(
                     line, ex))
@@ -106,20 +106,20 @@ class Collections:
 
     """
     _by_name = {
-        "clients":1,
-        "crypto":2,
-        "forms":3,
-        "history":4,
-        "keys":5,
-        "meta":6,
-        "bookmarks":7,
-        "prefs":8,
-        "tabs":9,
-        "passwords":10,
-        "addons":11,
-        "addresses":12,
-        "creditcards":13,
-        "reserved":100,
+        "clients": 1,
+        "crypto": 2,
+        "forms": 3,
+        "history": 4,
+        "keys": 5,
+        "meta": 6,
+        "bookmarks": 7,
+        "prefs": 8,
+        "tabs": 9,
+        "passwords": 10,
+        "addons": 11,
+        "addresses": 12,
+        "creditcards": 13,
+        "reserved": 100,
     }
     spanner = None
 
@@ -173,7 +173,6 @@ class Collections:
                             ))
                         pass
         finally:
-            print (self._by_name)
             cursor.close()
 
     def get(self, name, collection_id=None):
@@ -188,10 +187,12 @@ class Collections:
         id = self._by_name.get(name)
         if id is None and collection_id is not None:
             logging.warn(
-                "Unknown collection {}:{} encountered!".format(name, collection_id))
-            # it would be swell to add these to the collection table, but that would mean
+                "Unknown collection {}:{} encountered!".format(
+                    name, collection_id))
+            # it would be swell to add these to the collection table,
+            # but that would mean
             # an imbedded spanner transaction, and that's not allowed.
-            id = collection_id
+            return None
         return id
 
 
@@ -308,9 +309,10 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         ))
         return 0
     except Exception as ex:
-        logging.error("Could not move user: {} {}".format(
-            user, ex
-        ))
+        logging.error(
+            "Could not move user: {}".format(user),
+            exc_info=ex
+        )
         return 0
 
     # Fetch the BSO data from the original storage.
@@ -326,23 +328,18 @@ def move_user(databases, user, collections, fxa, bso_num, args):
     ORDER BY
         modified DESC""".format(bso_num)
 
-    def spanner_transact(transaction, data, fxa_kid, fxa_uid, args):
-        count = 0
+    def spanner_transact_uc(transaction, data, fxa_kid, fxa_uid, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
-            if collection_id != cid:
-                logging.info(
-                    "Remapping collection '{}' from {} to {}".format(
-                        col, cid, collection_id))
+            if collection_id is None:
+                next
             # columns from sync_schema3
             mod_v = datetime.utcfromtimestamp(mod/1000.0)
-            exp_v = datetime.utcfromtimestamp(exp)
             # User_Collection can only have unique values. Filter
             # non-unique keys and take the most recent modified
             # time. The join could be anything.
             uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, col)
             if uc_key not in unique_key_filter:
-                unique_key_filter.add(uc_key)
                 uc_values = [(
                     fxa_kid,
                     fxa_uid,
@@ -354,6 +351,22 @@ def move_user(databases, user, collections, fxa, bso_num, args):
                     columns=uc_columns,
                     values=uc_values
                 )
+                unique_key_filter.add(uc_key)
+
+    def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
+        count = 0
+        for (col, cid, bid, exp, mod, pay, sid) in data:
+            collection_id = collections.get(col, cid)
+            if collection_id is None:
+                next
+            if collection_id != cid:
+                logging.debug(
+                    "Remapping collection '{}' from {} to {}".format(
+                        col, cid, collection_id))
+            # columns from sync_schema3
+            mod_v = datetime.utcfromtimestamp(mod/1000.0)
+            exp_v = datetime.utcfromtimestamp(exp)
+
             # add the BSO values.
             if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
                 pay = alter_syncids(pay)
@@ -393,13 +406,26 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         for row in cursor:
             data.append(row)
         for bunch in divvy(data, args.readchunk or 1000):
-            count = databases['spanner'].run_in_transaction(
-                spanner_transact,
+            # Occasionally, there is a batch fail because a
+            # user collection is not found before a bso is written.
+            # to solve that, divide the UC updates from the
+            # BSO updates.
+            # Run through the list of UserCollection updates
+            databases['spanner'].run_in_transaction(
+                spanner_transact_uc,
                 bunch,
                 fxa_kid,
                 fxa_uid,
                 args,
             )
+            count += databases['spanner'].run_in_transaction(
+                spanner_transact_bso,
+                bunch,
+                fxa_kid,
+                fxa_uid,
+                args,
+            )
+
     except AlreadyExists:
         logging.warn(
             "User already imported fxa_uid:{} / fxa_kid:{}".format(
@@ -414,7 +440,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         else:
             raise
     except Exception as e:
-        logging.error("### batch failure:", e)
+        logging.error("### batch failure:", exc_info=e)
     finally:
         # cursor may complain about unread data, this should prevent
         # that warning.
@@ -439,7 +465,7 @@ def move_database(databases, collections, bso_num, fxa, args):
         cursor.execute(sql)
         users = [user for (user,) in cursor]
     except Exception as ex:
-        logging.error("Error moving database: {}".format(ex))
+        logging.error("Error moving database:", exc_info=ex)
         return rows
     finally:
         cursor.close()
