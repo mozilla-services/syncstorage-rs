@@ -17,7 +17,10 @@ use crate::{
     web::extractors::HawkIdentifier,
 };
 
-pub async fn create_async(db: &SpannerDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
+pub async fn create_async(
+    db: &SpannerDb,
+    params: params::CreateBatch,
+) -> Result<results::CreateBatch> {
     let batch_id = Uuid::new_v4().to_simple().to_string();
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let timestamp = db.timestamp()?.as_i64();
@@ -40,7 +43,8 @@ pub async fn create_async(db: &SpannerDb, params: params::CreateBatch) -> Result
     .param_types(param_types! {
         "expiry" => TypeCode::TIMESTAMP,
     })
-    .execute_dml_async(&db.conn).await?;
+    .execute_dml_async(&db.conn)
+    .await?;
 
     do_append_async(
         db,
@@ -48,7 +52,8 @@ pub async fn create_async(db: &SpannerDb, params: params::CreateBatch) -> Result
         collection_id,
         batch_id.clone(),
         params.bsos,
-    ).await?;
+    )
+    .await?;
     Ok(batch_id)
 }
 
@@ -71,7 +76,8 @@ pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Re
             "batch_id" => params.id,
         })
         .execute_async(&db.conn)?
-        .one_or_none().await?;
+        .one_or_none()
+        .await?;
     Ok(exists.is_some())
 }
 
@@ -86,7 +92,8 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
             collection: params.collection.clone(),
             id: params.id.clone(),
         },
-    ).await?;
+    )
+    .await?;
     if !exists {
         // NOTE: db_tests expects this but it doesn't seem necessary w/ the
         // handler validating the batch before appends
@@ -98,7 +105,10 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     Ok(())
 }
 
-pub async fn get_async(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
+pub async fn get_async(
+    db: &SpannerDb,
+    params: params::GetBatch,
+) -> Result<Option<results::GetBatch>> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let batch = db
         .sql(
@@ -117,7 +127,8 @@ pub async fn get_async(db: &SpannerDb, params: params::GetBatch) -> Result<Optio
             "batch_id" => params.id.clone(),
         })
         .execute_async(&db.conn)?
-        .one_or_none().await?
+        .one_or_none()
+        .await?
         .map(move |_| {
             params::Batch {
                 id: params.id,
@@ -148,18 +159,24 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result
         "collection_id" => collection_id.to_string(),
         "batch_id" => params.id,
     })
-    .execute_dml_async(&db.conn).await?;
+    .execute_dml_async(&db.conn)
+    .await?;
     Ok(())
 }
 
-pub async fn commit_async(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
+pub async fn commit_async(
+    db: &SpannerDb,
+    params: params::CommitBatch,
+) -> Result<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
     let collection_id = db.get_collection_id_async(&params.collection).await?;
 
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
-    let timestamp = db.touch_collection_async(&params.user_id, collection_id).await?;
+    let timestamp = db
+        .touch_collection_async(&params.user_id, collection_id)
+        .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
     // First, UPDATE existing rows in the bsos table with any new values
@@ -175,7 +192,8 @@ pub async fn commit_async(db: &SpannerDb, params: params::CommitBatch) -> Result
         .param_types(param_types! {
             "timestamp" => TypeCode::TIMESTAMP,
         })
-        .execute_dml_async(&db.conn).await?;
+        .execute_dml_async(&db.conn)
+        .await?;
 
     // Then INSERT INTO SELECT remaining rows from this batch into the bsos
     // table (that didn't already exist there)
@@ -192,7 +210,8 @@ pub async fn commit_async(db: &SpannerDb, params: params::CommitBatch) -> Result
             "timestamp" => TypeCode::TIMESTAMP,
             "default_bso_ttl" => TypeCode::INT64,
         })
-        .execute_dml_async(&db.conn).await?;
+        .execute_dml_async(&db.conn)
+        .await?;
 
     delete_async(
         db,
@@ -201,7 +220,8 @@ pub async fn commit_async(db: &SpannerDb, params: params::CommitBatch) -> Result
             collection: params.collection,
             id: params.batch.id,
         },
-    ).await?;
+    )
+    .await?;
     // XXX: returning results::PostBsos here isn't needed
     Ok(results::PostBsos {
         modified: timestamp,
@@ -292,7 +312,8 @@ pub async fn do_append_async(
     )?
     .params(sqlparams)
     .param_types(sqlparam_types)
-    .execute_dml_async(&db.conn).await?;
+    .execute_dml_async(&db.conn)
+    .await?;
 
     Ok(())
 }
@@ -305,7 +326,11 @@ pub async fn do_append_async(
 ///
 /// For the special case of a user creating a batch for a collection with no
 /// prior data.
-async fn pretouch_collection_async(db: &SpannerDb, user_id: &HawkIdentifier, collection_id: i32) -> Result<()> {
+async fn pretouch_collection_async(
+    db: &SpannerDb,
+    user_id: &HawkIdentifier,
+    collection_id: i32,
+) -> Result<()> {
     let mut sqlparams = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),
@@ -321,7 +346,8 @@ async fn pretouch_collection_async(db: &SpannerDb, user_id: &HawkIdentifier, col
         )?
         .params(sqlparams.clone())
         .execute_async(&db.conn)?
-        .one_or_none().await?;
+        .one_or_none()
+        .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
         db.sql(
@@ -332,7 +358,8 @@ async fn pretouch_collection_async(db: &SpannerDb, user_id: &HawkIdentifier, col
         .param_types(param_types! {
             "modified" => TypeCode::TIMESTAMP,
         })
-        .execute_dml_async(&db.conn).await?;
+        .execute_dml_async(&db.conn)
+        .await?;
     }
     Ok(())
 }

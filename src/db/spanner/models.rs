@@ -1865,71 +1865,33 @@ impl Db for SpannerDb {
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
     }
 
-    fn validate_batch_id(
-        &self,
-        id: String,
-    ) -> Result<()> {
+    fn validate_batch_id(&self, id: String) -> Result<()> {
         batch::validate_batch_id(&id)
     }
 
-    fn create_batch(
-        &self,
-        param: params::CreateBatch,
-    ) -> DbFuture<results::CreateBatch> {
+    fn create_batch(&self, param: params::CreateBatch) -> DbFuture<results::CreateBatch> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::create_async(&db, param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { batch::create_async(&db, param).map_err(Into::into).await })
     }
 
-    fn validate_batch(
-        &self,
-        param: params::ValidateBatch,
-    ) -> DbFuture<results::ValidateBatch> {
+    fn validate_batch(&self, param: params::ValidateBatch) -> DbFuture<results::ValidateBatch> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::validate_async(&db, param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { batch::validate_async(&db, param).map_err(Into::into).await })
     }
 
-    fn append_to_batch(
-        &self,
-        param: params::AppendToBatch,
-    ) -> DbFuture<results::AppendToBatch> {
+    fn append_to_batch(&self, param: params::AppendToBatch) -> DbFuture<results::AppendToBatch> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::append_async(&db, param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { batch::append_async(&db, param).map_err(Into::into).await })
     }
 
-    fn get_batch(
-        &self,
-        param: params::GetBatch,
-    ) -> DbFuture<Option<results::GetBatch>> {
+    fn get_batch(&self, param: params::GetBatch) -> DbFuture<Option<results::GetBatch>> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::get_async(&db, param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { batch::get_async(&db, param).map_err(Into::into).await })
     }
 
-    fn commit_batch(
-        &self,
-        param: params::CommitBatch,
-    ) -> DbFuture<results::CommitBatch> {
+    fn commit_batch(&self, param: params::CommitBatch) -> DbFuture<results::CommitBatch> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::commit_async(&db, param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { batch::commit_async(&db, param).map_err(Into::into).await })
     }
 
     #[cfg(any(test, feature = "db_test"))]
@@ -1970,9 +1932,7 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<results::DeleteBatch> {
         let db = self.clone();
-        Box::pin(async move {
-            batch::delete_async(&db, param).map_err(Into::into).await
-        })
+        Box::pin(async move { batch::delete_async(&db, param).map_err(Into::into).await })
     }
 
     #[cfg(any(test, feature = "db_test"))]
