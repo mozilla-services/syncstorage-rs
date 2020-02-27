@@ -1,3 +1,4 @@
+#[cfg(any(test, feature = "db_test"))]
 use actix_web::web::block;
 use futures::compat::Future01CompatExt;
 use futures::future::TryFutureExt;
@@ -1713,20 +1714,6 @@ impl SpannerDb {
 }
 
 unsafe impl Send for SpannerDb {}
-
-macro_rules! sync_db_method {
-    ($name:ident, $sync_name:ident, $type:ident) => {
-        sync_db_method!($name, $sync_name, $type, results::$type);
-    };
-    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<$result> {
-            let db = self.clone();
-            Box::pin(block(move || {
-                db.$sync_name(params).map_err(Into::into)
-            }).map_err(Into::into))
-        }
-    };
-}
 
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
