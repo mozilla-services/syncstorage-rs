@@ -462,15 +462,18 @@ def move_database(databases, collections, bso_num, fxa, args):
     rows = 0
     cursor = databases['mysql'].cursor()
     users = []
-    try:
-        sql = """select distinct userid from bso{};""".format(bso_num)
-        cursor.execute(sql)
-        users = [user for (user,) in cursor]
-    except Exception as ex:
-        logging.error("Error moving database:", exc_info=ex)
-        return rows
-    finally:
-        cursor.close()
+    if args.user:
+        users = [args.user]
+    else:
+        try:
+            sql = """select distinct userid from bso{};""".format(bso_num)
+            cursor.execute(sql)
+            users = [user for (user,) in cursor]
+        except Exception as ex:
+            logging.error("Error moving database:", exc_info=ex)
+            return rows
+        finally:
+            cursor.close()
     logging.info("Moving {} users".format(len(users)))
     for user in users:
         rows += move_user(
@@ -546,6 +549,12 @@ def get_args():
         help="how many rows per transaction for spanner"
     )
 
+    parser.add_argument(
+        '--user',
+        type=str,
+        help="BSO#:userId to move (EXPERIMENTAL)."
+    )
+
     return parser.parse_args()
 
 
@@ -564,6 +573,11 @@ def main():
     databases = {}
     rows = 0
 
+    if args.user:
+        (bso, userid) = args.user.split(':')
+        args.start_bso = int(bso)
+        args.end_bso = int(bso)
+        args.user = int(userid)
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme
