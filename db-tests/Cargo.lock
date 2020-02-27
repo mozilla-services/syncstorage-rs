@@ -750,7 +750,7 @@ dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "syncstorage 0.2.1",
+ "syncstorage 0.2.2",
 ]
 
 [[package]]
@@ -2659,7 +2659,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "actix-cors 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-http 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
