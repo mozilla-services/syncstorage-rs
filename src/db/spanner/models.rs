@@ -294,8 +294,9 @@ impl SpannerDb {
             .param_types(param_types! {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
-            .execute(&self.conn)?
-            .one_or_none()?;
+            .execute_async(&self.conn)?
+            .one_or_none()
+            .await?;
 
         let timestamp = if let Some(result) = result {
             let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
@@ -313,8 +314,9 @@ impl SpannerDb {
         } else {
             let result = self
                 .sql("SELECT CURRENT_TIMESTAMP()")?
-                .execute(&self.conn)?
-                .one()?;
+                .execute_async(&self.conn)?
+                .one()
+                .await?;
             SyncTimestamp::from_rfc3339(result[0].get_string_value())?
         };
         self.set_timestamp(timestamp);
@@ -384,6 +386,7 @@ impl SpannerDb {
             self.session.borrow().transaction.clone()
         })
     }
+
     /// Return the current transaction metadata (TransactionSelector) if one is active.
     async fn get_transaction_async(&self) -> Result<Option<TransactionSelector>> {
         Ok(if self.session.borrow().transaction.is_some() {
@@ -512,7 +515,7 @@ impl SpannerDb {
             if let Some(mutations) = self.session.borrow_mut().mutations.take() {
                 req.set_mutations(RepeatedField::from_vec(mutations));
             }
-            spanner.client.commit(&req)?;
+            spanner.client.commit_async(&req)?.compat().await?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to commit"))?
@@ -548,7 +551,7 @@ impl SpannerDb {
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
-            spanner.client.rollback(&req)?;
+            spanner.client.rollback_async(&req)?.compat().await?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to rollback"))?
@@ -589,18 +592,19 @@ impl SpannerDb {
             .param_types(param_types! {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
-            .execute(&self.conn)?
-            .one_or_none()?
+            .execute_async(&self.conn)?
+            .one_or_none()
+            .await?
             .ok_or_else(|| DbErrorKind::CollectionNotFound)?;
         let modified = SyncTimestamp::from_rfc3339(&result[0].get_string_value())?;
         Ok(modified)
     }
 
-    pub fn get_collection_timestamps_sync(
+    pub async fn get_collection_timestamps_async(
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> Result<results::GetCollectionTimestamps> {
-        let modifieds = self
+        let mut streaming = self
             .sql(
                 "SELECT collection_id, modified
                    FROM user_collections
@@ -618,21 +622,22 @@ impl SpannerDb {
             .param_types(param_types! {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
-            .execute(&self.conn)?
-            .map_and_then(|row| {
-                let collection_id = row[0]
-                    .get_string_value()
-                    .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                let modified = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
-                Ok((collection_id, modified))
-            })
-            .collect::<Result<HashMap<_, _>>>()?;
-        self.map_collection_names(modifieds)
+            .execute_async(&self.conn)?;
+        let mut results = HashMap::new();
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
+            let collection_id = row[0]
+                .get_string_value()
+                .parse::<i32>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            let modified = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
+            results.insert(collection_id, modified);
+        }
+        self.map_collection_names(results).await
     }
 
-    fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
-        let mut names = self.load_collection_names(by_id.keys())?;
+    async fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
+        let mut names = self.load_collection_names(by_id.keys()).await?;
         by_id
             .into_iter()
             .map(|(id, value)| {
@@ -644,7 +649,7 @@ impl SpannerDb {
             .collect()
     }
 
-    fn load_collection_names<'a>(
+    async fn load_collection_names<'a>(
         &self,
         collection_ids: impl Iterator<Item = &'a i32>,
     ) -> Result<HashMap<i32, String>> {
@@ -664,16 +669,16 @@ impl SpannerDb {
                 "ids".to_owned(),
                 as_list_value(uncached.into_iter().map(|id| id.to_string())),
             );
-            let rs = self
+            let mut rs = self
                 .sql(
                     "SELECT collection_id, name
                        FROM collections
                       WHERE collection_id IN UNNEST(@ids)",
                 )?
                 .params(params)
-                .execute(&self.conn)?;
-            for row_result in rs {
-                let mut row = row_result?;
+                .execute_async(&self.conn)?;
+            while let Some(row) = rs.next_async().await {
+                let mut row = row?;
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -689,11 +694,11 @@ impl SpannerDb {
         Ok(names)
     }
 
-    pub fn get_collection_counts_sync(
+    pub async fn get_collection_counts_async(
         &self,
         user_id: params::GetCollectionCounts,
     ) -> Result<results::GetCollectionCounts> {
-        let counts = self
+        let mut streaming = self
             .sql(
                 "SELECT collection_id, COUNT(collection_id)
                    FROM bsos
@@ -706,27 +711,28 @@ impl SpannerDb {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid,
             })
-            .execute(&self.conn)?
-            .map_and_then(|row| {
-                let collection_id = row[0]
-                    .get_string_value()
-                    .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                let count = row[1]
-                    .get_string_value()
-                    .parse::<i64>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                Ok((collection_id, count))
-            })
-            .collect::<Result<HashMap<_, _>>>()?;
-        self.map_collection_names(counts)
+            .execute_async(&self.conn)?;
+        let mut counts = HashMap::new();
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
+            let collection_id = row[0]
+                .get_string_value()
+                .parse::<i32>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            let count = row[1]
+                .get_string_value()
+                .parse::<i64>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            counts.insert(collection_id, count);
+        }
+        self.map_collection_names(counts).await
     }
 
-    pub fn get_collection_usage_sync(
+    pub async fn get_collection_usage_async(
         &self,
         user_id: params::GetCollectionUsage,
     ) -> Result<results::GetCollectionUsage> {
-        let usages = self
+        let mut streaming = self
             .sql(
                 "SELECT collection_id, SUM(LENGTH(payload))
                    FROM bsos
@@ -739,20 +745,21 @@ impl SpannerDb {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid
             })
-            .execute(&self.conn)?
-            .map_and_then(|row| {
-                let collection_id = row[0]
-                    .get_string_value()
-                    .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                let usage = row[1]
-                    .get_string_value()
-                    .parse::<i64>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                Ok((collection_id, usage))
-            })
-            .collect::<Result<HashMap<_, _>>>()?;
-        self.map_collection_names(usages)
+            .execute_async(&self.conn)?;
+        let mut usages = HashMap::new();
+        while let Some(row) = streaming.next_async().await {
+            let row = row?;
+            let collection_id = row[0]
+                .get_string_value()
+                .parse::<i32>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            let usage = row[1]
+                .get_string_value()
+                .parse::<i64>()
+                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            usages.insert(collection_id, usage);
+        }
+        self.map_collection_names(usages).await
     }
 
     pub async fn get_storage_timestamp(
@@ -872,7 +879,7 @@ impl SpannerDb {
             .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP() not read yet"))
     }
 
-    pub async fn delete_collection(
+    pub async fn delete_collection_async(
         &self,
         params: params::DeleteCollection,
     ) -> Result<results::DeleteCollection> {
@@ -1650,7 +1657,7 @@ impl Db for SpannerDb {
         param: params::DeleteCollection,
     ) -> DbFuture<results::DeleteCollection> {
         let db = self.clone();
-        Box::pin(async move { db.delete_collection(param).map_err(Into::into).await })
+        Box::pin(async move { db.delete_collection_async(param).map_err(Into::into).await })
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
@@ -1662,21 +1669,42 @@ impl Db for SpannerDb {
         Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
     }
 
-    sync_db_method!(
-        get_collection_timestamps,
-        get_collection_timestamps_sync,
-        GetCollectionTimestamps
-    );
-    sync_db_method!(
-        get_collection_counts,
-        get_collection_counts_sync,
-        GetCollectionCounts
-    );
-    sync_db_method!(
-        get_collection_usage,
-        get_collection_usage_sync,
-        GetCollectionUsage
-    );
+    fn get_collection_timestamps(
+        &self,
+        user_id: params::GetCollectionTimestamps,
+    ) -> DbFuture<results::GetCollectionTimestamps> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.get_collection_timestamps_async(user_id)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn get_collection_counts(
+        &self,
+        user_id: params::GetCollectionCounts,
+    ) -> DbFuture<results::GetCollectionCounts> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.get_collection_counts_async(user_id)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
+    fn get_collection_usage(
+        &self,
+        user_id: params::GetCollectionUsage,
+    ) -> DbFuture<results::GetCollectionUsage> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.get_collection_usage_async(user_id)
+                .map_err(Into::into)
+                .await
+        })
+    }
+
     sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
     sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
     sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
