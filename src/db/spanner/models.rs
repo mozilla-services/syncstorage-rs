@@ -849,7 +849,8 @@ impl SpannerDb {
                 "fxa_kid" => user_id.fxa_kid
             })
             .execute_async(&self.conn)?
-            .one_or_none().await?;
+            .one_or_none()
+            .await?;
         if let Some(result) = result {
             let usage = result[0]
                 .get_string_value()
@@ -907,7 +908,8 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
         })
-        .execute_dml_async(&self.conn).await?;
+        .execute_dml_async(&self.conn)
+        .await?;
         Ok(())
     }
 
@@ -1704,7 +1706,8 @@ impl SpannerDb {
         // TODO: is there a better check than just fetching UTC?
         self.sql("SELECT CURRENT_TIMESTAMP()")?
             .execute_async(&self.conn)?
-            .one().await?;
+            .one()
+            .await?;
         Ok(true)
     }
 }
@@ -1780,9 +1783,7 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(async move {
-            db.check_async().map_err(Into::into).await
-        })
+        Box::pin(async move { db.check_async().map_err(Into::into).await })
     }
 
     fn get_collection_timestamps(
@@ -1826,23 +1827,12 @@ impl Db for SpannerDb {
         param: params::GetStorageUsage,
     ) -> DbFuture<results::GetStorageUsage> {
         let db = self.clone();
-        Box::pin(async move {
-            db.get_storage_usage_async(param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { db.get_storage_usage_async(param).map_err(Into::into).await })
     }
 
-    fn delete_storage(
-        &self,
-        param: params::DeleteStorage,
-    ) -> DbFuture<results::DeleteStorage> {
+    fn delete_storage(&self, param: params::DeleteStorage) -> DbFuture<results::DeleteStorage> {
         let db = self.clone();
-        Box::pin(async move {
-            db.delete_storage_async(param)
-                .map_err(Into::into)
-                .await
-        })
+        Box::pin(async move { db.delete_storage_async(param).map_err(Into::into).await })
     }
 
     fn delete_bso(&self, param: params::DeleteBso) -> DbFuture<results::DeleteBso> {
