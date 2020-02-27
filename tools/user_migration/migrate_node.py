@@ -329,7 +329,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         modified DESC""".format(bso_num)
 
     def spanner_transact_uc(
-        transaction, data, fxa_kid, fxa_uid, args):
+            transaction, data, fxa_kid, fxa_uid, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
