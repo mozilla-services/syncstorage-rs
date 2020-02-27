@@ -332,7 +332,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
-                next
+                continue
             # columns from sync_schema3
             mod_v = datetime.utcfromtimestamp(mod/1000.0)
             # User_Collection can only have unique values. Filter
