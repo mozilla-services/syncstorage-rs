@@ -185,7 +185,7 @@ class Collections:
                 values=values)
 
         id = self._by_name.get(name)
-        if id is None and collection_id is not None:
+        if id is None:
             logging.warn(
                 "Unknown collection {}:{} encountered!".format(
                     name, collection_id))
