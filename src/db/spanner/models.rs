@@ -1864,9 +1864,7 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn put_bso(&self, param: params::PutBso) -> DbFuture<results::PutBso> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.put_bso_sync(param).map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.put_bso_sync(param).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(not(any(test, feature = "db_test")))]
@@ -1878,11 +1876,8 @@ impl Db for SpannerDb {
     #[cfg(any(test, feature = "db_test"))]
     fn post_bsos(&self, param: params::PostBsos) -> DbFuture<results::PostBsos> {
         let db = self.clone();
-        Box::pin(block(move || {
-            db.post_bsos_sync(param).map_err(Into::into)
-        }).map_err(Into::into))
+        Box::pin(block(move || db.post_bsos_sync(param).map_err(Into::into)).map_err(Into::into))
     }
-
 
     fn validate_batch_id(&self, id: String) -> Result<()> {
         batch::validate_batch_id(&id)
