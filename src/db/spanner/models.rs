@@ -1445,7 +1445,7 @@ impl SpannerDb {
             "ids".to_owned(),
             as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
         );
-        let existing = self
+        let mut streaming = self
             .sql(
                 "SELECT bso_id
                    FROM bsos
@@ -1455,9 +1455,12 @@ impl SpannerDb {
                     AND bso_id IN UNNEST(@ids)",
             )?
             .params(sqlparams)
-            .execute(&self.conn)?
-            .map_results(|mut row| row[0].take_string_value())
-            .collect::<Result<Vec<_>>>()?;
+            .execute_async(&self.conn)?;
+        let mut existing = vec![];
+        while let Some(row) = streaming.next_async().await {
+            let mut row = row?;
+            existing.push(row[0].take_string_value());
+        }
 
         let mut inserts = vec![];
         let mut updates = HashMap::new();
