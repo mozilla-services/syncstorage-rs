@@ -1,3 +1,4 @@
+#[cfg(any(test, feature = "db_test"))]
 use actix_web::web::block;
 use futures::compat::Future01CompatExt;
 use futures::future::TryFutureExt;
@@ -115,14 +116,6 @@ impl Deref for SpannerDb {
 
     fn deref(&self) -> &Self::Target {
         &self.inner
-    }
-}
-
-macro_rules! batch_db_method {
-    ($name:ident, $batch_name:ident, $type:ident) => {
-        pub fn $name(&self, params: params::$type) -> Result<results::$type> {
-            batch::$batch_name(self, params)
-        }
     }
 }
 
@@ -839,7 +832,7 @@ impl SpannerDb {
         }
     }
 
-    pub fn get_storage_usage_sync(
+    pub async fn get_storage_usage_async(
         &self,
         user_id: params::GetStorageUsage,
     ) -> Result<results::GetStorageUsage> {
@@ -856,8 +849,9 @@ impl SpannerDb {
                 "fxa_uid" => user_id.fxa_uid,
                 "fxa_kid" => user_id.fxa_kid
             })
-            .execute(&self.conn)?
-            .one_or_none()?;
+            .execute_async(&self.conn)?
+            .one_or_none()
+            .await?;
         if let Some(result) = result {
             let usage = result[0]
                 .get_string_value()
@@ -903,7 +897,7 @@ impl SpannerDb {
         Ok(self.timestamp()?)
     }
 
-    pub fn delete_storage_sync(&self, user_id: params::DeleteStorage) -> Result<()> {
+    pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> Result<()> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
         self.sql(
@@ -915,7 +909,8 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
         })
-        .execute_dml(&self.conn)?;
+        .execute_dml_async(&self.conn)
+        .await?;
         Ok(())
     }
 
@@ -958,6 +953,8 @@ impl SpannerDb {
         }
     }
 
+    // I think we can remove this but I'm not 100% sure if the db tests use it or not.
+    #[allow(dead_code)]
     pub(super) fn touch_collection(
         &self,
         user_id: &HawkIdentifier,
@@ -1383,7 +1380,7 @@ impl SpannerDb {
         &self,
         params: params::GetBsoTimestamp,
     ) -> Result<SyncTimestamp> {
-        debug!("!!QQQ get_bso_timestamp_sync: {:?}", &params.collection);
+        debug!("!!QQQ get_bso_timestamp_async: {:?}", &params.collection);
         let collection_id = self.get_collection_id_async(&params.collection).await?;
 
         let result = self
@@ -1437,7 +1434,7 @@ impl SpannerDb {
             .await?;
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
-        let timestamp = self.touch_collection(&user_id, collection_id)?;
+        let timestamp = self.touch_collection_async(&user_id, collection_id).await?;
 
         let mut sqlparams = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
@@ -1448,7 +1445,7 @@ impl SpannerDb {
             "ids".to_owned(),
             as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
         );
-        let existing = self
+        let mut streaming = self
             .sql(
                 "SELECT bso_id
                    FROM bsos
@@ -1458,9 +1455,12 @@ impl SpannerDb {
                     AND bso_id IN UNNEST(@ids)",
             )?
             .params(sqlparams)
-            .execute(&self.conn)?
-            .map_results(|mut row| row[0].take_string_value())
-            .collect::<Result<Vec<_>>>()?;
+            .execute_async(&self.conn)?;
+        let mut existing = vec![];
+        while let Some(row) = streaming.next_async().await {
+            let mut row = row?;
+            existing.push(row[0].take_string_value());
+        }
 
         let mut inserts = vec![];
         let mut updates = HashMap::new();
@@ -1706,44 +1706,17 @@ impl SpannerDb {
         Ok(result)
     }
 
-    fn check_sync(&self) -> Result<results::Check> {
+    async fn check_async(&self) -> Result<results::Check> {
         // TODO: is there a better check than just fetching UTC?
         self.sql("SELECT CURRENT_TIMESTAMP()")?
-            .execute(&self.conn)?
-            .one()?;
+            .execute_async(&self.conn)?
+            .one()
+            .await?;
         Ok(true)
-    }
-
-    batch_db_method!(create_batch_sync, create, CreateBatch);
-    batch_db_method!(validate_batch_sync, validate, ValidateBatch);
-    batch_db_method!(append_to_batch_sync, append, AppendToBatch);
-    batch_db_method!(commit_batch_sync, commit, CommitBatch);
-    pub fn validate_batch_id(&self, id: String) -> Result<()> {
-        batch::validate_batch_id(&id)
-    }
-    #[cfg(any(test, feature = "db_test"))]
-    batch_db_method!(delete_batch_sync, delete, DeleteBatch);
-
-    pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-        batch::get(&self, params)
     }
 }
 
 unsafe impl Send for SpannerDb {}
-
-macro_rules! sync_db_method {
-    ($name:ident, $sync_name:ident, $type:ident) => {
-        sync_db_method!($name, $sync_name, $type, results::$type);
-    };
-    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<$result> {
-            let db = self.clone();
-            Box::pin(block(move || {
-                db.$sync_name(params).map_err(Into::into)
-            }).map_err(Into::into))
-        }
-    };
-}
 
 impl Db for SpannerDb {
     fn commit(&self) -> DbFuture<()> {
@@ -1800,7 +1773,7 @@ impl Db for SpannerDb {
 
     fn check(&self) -> DbFuture<results::Check> {
         let db = self.clone();
-        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
+        Box::pin(async move { db.check_async().map_err(Into::into).await })
     }
 
     fn get_collection_timestamps(
@@ -1839,8 +1812,18 @@ impl Db for SpannerDb {
         })
     }
 
-    sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
-    sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
+    fn get_storage_usage(
+        &self,
+        param: params::GetStorageUsage,
+    ) -> DbFuture<results::GetStorageUsage> {
+        let db = self.clone();
+        Box::pin(async move { db.get_storage_usage_async(param).map_err(Into::into).await })
+    }
+
+    fn delete_storage(&self, param: params::DeleteStorage) -> DbFuture<results::DeleteStorage> {
+        let db = self.clone();
+        Box::pin(async move { db.delete_storage_async(param).map_err(Into::into).await })
+    }
 
     fn delete_bso(&self, param: params::DeleteBso) -> DbFuture<results::DeleteBso> {
         let db = self.clone();
@@ -1885,19 +1868,33 @@ impl Db for SpannerDb {
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
     }
 
-    sync_db_method!(create_batch, create_batch_sync, CreateBatch);
-    sync_db_method!(validate_batch, validate_batch_sync, ValidateBatch);
-    sync_db_method!(append_to_batch, append_to_batch_sync, AppendToBatch);
-    sync_db_method!(
-        get_batch,
-        get_batch_sync,
-        GetBatch,
-        Option<results::GetBatch>
-    );
-    sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
+    fn validate_batch_id(&self, id: String) -> Result<()> {
+        batch::validate_batch_id(&id)
+    }
 
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
-        self.validate_batch_id(params)
+    fn create_batch(&self, param: params::CreateBatch) -> DbFuture<results::CreateBatch> {
+        let db = self.clone();
+        Box::pin(async move { batch::create_async(&db, param).map_err(Into::into).await })
+    }
+
+    fn validate_batch(&self, param: params::ValidateBatch) -> DbFuture<results::ValidateBatch> {
+        let db = self.clone();
+        Box::pin(async move { batch::validate_async(&db, param).map_err(Into::into).await })
+    }
+
+    fn append_to_batch(&self, param: params::AppendToBatch) -> DbFuture<results::AppendToBatch> {
+        let db = self.clone();
+        Box::pin(async move { batch::append_async(&db, param).map_err(Into::into).await })
+    }
+
+    fn get_batch(&self, param: params::GetBatch) -> DbFuture<Option<results::GetBatch>> {
+        let db = self.clone();
+        Box::pin(async move { batch::get_async(&db, param).map_err(Into::into).await })
+    }
+
+    fn commit_batch(&self, param: params::CommitBatch) -> DbFuture<results::CommitBatch> {
+        let db = self.clone();
+        Box::pin(async move { batch::commit_async(&db, param).map_err(Into::into).await })
     }
 
     #[cfg(any(test, feature = "db_test"))]
@@ -1936,7 +1933,10 @@ impl Db for SpannerDb {
     }
 
     #[cfg(any(test, feature = "db_test"))]
-    sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
+    fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<results::DeleteBatch> {
+        let db = self.clone();
+        Box::pin(async move { batch::delete_async(&db, param).map_err(Into::into).await })
+    }
 
     #[cfg(any(test, feature = "db_test"))]
     fn clear_coll_cache(&self) {
