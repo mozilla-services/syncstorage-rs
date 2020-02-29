@@ -6,6 +6,8 @@ pub mod mysql;
 pub mod params;
 pub mod results;
 pub mod spanner;
+#[cfg(test)]
+mod tests;
 pub mod util;
 
 use std::fmt::Debug;
