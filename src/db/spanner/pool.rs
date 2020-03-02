@@ -13,7 +13,7 @@ use diesel::r2d2::Pool;
 use scheduled_thread_pool::ScheduledThreadPool;
 
 use super::models::Result;
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use super::test_util::SpannerTestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
@@ -66,7 +66,7 @@ impl SpannerDbPool {
         let mut metrics = metrics.clone();
         metrics.start_timer("storage.spanner.pool.get", None);
 
-        #[cfg(any(test, feature = "db_test"))]
+        #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
             builder.connection_customizer(Box::new(SpannerTestTransactionCustomizer))
         } else {
@@ -153,7 +153,7 @@ impl CollectionCache {
             .cloned())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn clear(&self) {
         self.by_name.write().expect("by_name write").clear();
         self.by_id.write().expect("by_id write").clear();

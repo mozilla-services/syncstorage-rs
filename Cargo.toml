@@ -71,5 +71,4 @@ woothee = "0.10"
 codegen = { version = "0.1.0", path = "codegen" }
 
 [features]
-db_test = []
 no_auth = []

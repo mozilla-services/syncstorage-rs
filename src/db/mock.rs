@@ -89,25 +89,25 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(get_collection_id, GetCollectionId);
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(create_collection, CreateCollection);
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(touch_collection, TouchCollection);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
         Default::default()
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, _: SyncTimestamp) {}
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(delete_batch, DeleteBatch);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self) {}
 }
 

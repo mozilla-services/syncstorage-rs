@@ -15,7 +15,7 @@ use diesel::{
 };
 
 use super::models::{MysqlDb, Result};
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
@@ -56,7 +56,7 @@ impl MysqlDbPool {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
-        #[cfg(any(test, feature = "db_test"))]
+        #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
             builder.connection_customizer(Box::new(TestTransactionCustomizer))
         } else {
@@ -143,7 +143,7 @@ impl CollectionCache {
             .cloned())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn clear(&self) {
         self.by_name.write().expect("by_name write").clear();
         self.by_id.write().expect("by_id write").clear();
