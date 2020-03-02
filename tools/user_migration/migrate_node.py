@@ -348,11 +348,14 @@ def move_user(databases, user, collections, fxa, bso_num, args):
                     collection_id,
                     mod_v,
                 )]
-                transaction.replace(
-                    'user_collections',
-                    columns=uc_columns,
-                    values=uc_values
-                )
+                if not args.dryrun:
+                    transaction.replace(
+                        'user_collections',
+                        columns=uc_columns,
+                        values=uc_values
+                    )
+                else:
+                    logging.debug("not writing {} => {}".format(uc_columns, uc_values))
                 unique_key_filter.add(uc_key)
 
     def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
@@ -383,17 +386,20 @@ def move_user(databases, user, collections, fxa, bso_num, args):
                     sid,
             ]]
 
-            logging.debug(
-                "###bso{} {}".format(
-                    bso_num,
-                    dumper(bso_columns, bso_values)
+            if not args.dryrun:
+                logging.debug(
+                    "###bso{} {}".format(
+                        bso_num,
+                        dumper(bso_columns, bso_values)
+                    )
                 )
-            )
-            transaction.insert(
-                'bsos',
-                columns=bso_columns,
-                values=bso_values
-            )
+                transaction.insert(
+                    'bsos',
+                    columns=bso_columns,
+                    values=bso_values
+                )
+            else:
+                logging.debug("not writing {} => {}".format(bso_columns, bso_values))
             count += 1
         return count
 
@@ -548,12 +554,17 @@ def get_args():
         default=1000,
         help="how many rows per transaction for spanner"
     )
-
     parser.add_argument(
         '--user',
         type=str,
         help="BSO#:userId to move (EXPERIMENTAL)."
     )
+    parser.add_argument(
+        '--dryrun',
+        action="store_true",
+        help="Do not write user records to spanner."
+    )
+
 
     return parser.parse_args()
 
@@ -589,6 +600,8 @@ def main():
     fxa_info = FXA_info(args.fxa_file, args)
     collections = Collections(databases)
     logging.info("Starting:")
+    if args.dryrun:
+        logging.info("=== DRY RUN MODE ===")
     start = time.time()
     for bso_num in range(args.start_bso, args.end_bso+1):
         logging.info("Moving users in bso # {}".format(bso_num))
