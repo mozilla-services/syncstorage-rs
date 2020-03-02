@@ -178,12 +178,6 @@ class Collections:
     def get(self, name, collection_id=None):
         """Fetches the collection_id"""
 
-        def transact(transaction, values):
-            transaction.insert(
-                'collections',
-                columns=('collection_id', 'name'),
-                values=values)
-
         id = self._by_name.get(name)
         if id is None:
             logging.warn(
