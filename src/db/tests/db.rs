@@ -1,13 +1,13 @@
+#![allow(clippy::cognitive_complexity)]
 use std::collections::HashMap;
 
-use futures::compat::Future01CompatExt;
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use codegen::async_test;
-use syncstorage::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
 
-use crate::support::{db, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, Result};
+use super::support::{db, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, Result};
+use crate::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
