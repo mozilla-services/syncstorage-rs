@@ -1328,6 +1328,33 @@ impl FromRequest for BsoQueryParams {
                     Some(tags.clone()),
                 )
             })?;
+            if params.sort != Sorting::Index {
+                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
+                {
+                    let bound = timestamp.as_i64();
+                    if let Some(newer) = params.newer {
+                        if bound < newer.as_i64() {
+                            return Err(ValidationErrorKind::FromDetails(
+                                format!("Invalid Offset {} {}", bound, newer.as_i64()),
+                                RequestErrorLocation::QueryString,
+                                Some("newer".to_owned()),
+                                None,
+                            )
+                            .into());
+                        }
+                    } else if let Some(older) = params.older {
+                        if bound > older.as_i64() {
+                            return Err(ValidationErrorKind::FromDetails(
+                                "Invalid Offset".to_owned(),
+                                RequestErrorLocation::QueryString,
+                                Some("older".to_owned()),
+                                None,
+                            )
+                            .into());
+                        }
+                    }
+                }
+            }
             Ok(params)
         })
     }
