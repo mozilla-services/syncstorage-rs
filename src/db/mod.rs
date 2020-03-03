@@ -6,6 +6,8 @@ pub mod mysql;
 pub mod params;
 pub mod results;
 pub mod spanner;
+#[cfg(test)]
+mod tests;
 pub mod util;
 
 use std::fmt::Debug;
@@ -200,25 +202,25 @@ pub trait Db: Send + Debug {
 
     /// Internal methods used by the db tests
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<SyncTimestamp>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, timestamp: SyncTimestamp);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<()>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self);
 }
 

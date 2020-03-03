@@ -1,4 +1,4 @@
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use actix_web::web::block;
 use futures::compat::Future01CompatExt;
 use futures::future::TryFutureExt;
@@ -185,7 +185,7 @@ impl SpannerDb {
         // This should always run within a r/w transaction, so that: "If a
         // transaction successfully commits, then no other writer modified the
         // data that was read in the transaction after it was read."
-        if !cfg!(any(test, feature = "db_test")) && !self.in_write_transaction() {
+        if !cfg!(test) && !self.in_write_transaction() {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
         let result = self
@@ -220,7 +220,7 @@ impl SpannerDb {
         // This should always run within a r/w transaction, so that: "If a
         // transaction successfully commits, then no other writer modified the
         // data that was read in the transaction after it was read."
-        if !cfg!(any(test, feature = "db_test")) && !self.in_write_transaction() {
+        if !cfg!(test) && !self.in_write_transaction() {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
         let result = self
@@ -516,7 +516,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
 
-        if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
+        if cfg!(test) && spanner.use_test_transactions {
             // don't commit test transactions
             return Ok(());
         }
@@ -543,7 +543,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
 
-        if cfg!(any(test, feature = "db_test")) && spanner.use_test_transactions {
+        if cfg!(test) && spanner.use_test_transactions {
             // don't commit test transactions
             return Ok(());
         }
@@ -970,7 +970,7 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.timestamp()?;
-        if !cfg!(any(test, feature = "db_test")) && self.session.borrow().touched_collection {
+        if !cfg!(test) && self.session.borrow().touched_collection {
             // No need to touch it again (except during tests where we
             // currently reuse Dbs for multiple requests)
             return Ok(timestamp);
@@ -1037,7 +1037,7 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.timestamp()?;
-        if !cfg!(any(test, feature = "db_test")) && self.session.borrow().touched_collection {
+        if !cfg!(test) && self.session.borrow().touched_collection {
             // No need to touch it again (except during tests where we
             // currently reuse Dbs for multiple requests)
             return Ok(timestamp);
@@ -1524,9 +1524,9 @@ impl SpannerDb {
         Ok(result)
     }
 
-    // NOTE: Currently this put_bso_sync impl. is only used during db_tests,
+    // NOTE: Currently this put_bso_sync impl. is only used during db tests,
     // see above for the non-tests version
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn put_bso_sync(&self, bso: params::PutBso) -> Result<results::PutBso> {
         use crate::db::util::to_rfc3339;
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
@@ -1679,9 +1679,9 @@ impl SpannerDb {
         Ok(touch)
     }
 
-    // NOTE: Currently this post_bso_sync impl. is only used during db_tests,
+    // NOTE: Currently this post_bso_sync impl. is only used during db tests,
     // see above for the non-tests version
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostBsos {
@@ -1858,25 +1858,25 @@ impl Db for SpannerDb {
         Box::pin(async move { db.get_bso_timestamp_async(param).map_err(Into::into).await })
     }
 
-    #[cfg(not(any(test, feature = "db_test")))]
+    #[cfg(not(test))]
     fn put_bso(&self, param: params::PutBso) -> DbFuture<results::PutBso> {
         let db = self.clone();
         Box::pin(async move { db.put_bso_async(param).map_err(Into::into).await })
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn put_bso(&self, param: params::PutBso) -> DbFuture<results::PutBso> {
         let db = self.clone();
         Box::pin(block(move || db.put_bso_sync(param).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(not(any(test, feature = "db_test")))]
+    #[cfg(not(test))]
     fn post_bsos(&self, param: params::PostBsos) -> DbFuture<results::PostBsos> {
         let db = self.clone();
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn post_bsos(&self, param: params::PostBsos) -> DbFuture<results::PostBsos> {
         let db = self.clone();
         Box::pin(block(move || db.post_bsos_sync(param).map_err(Into::into)).map_err(Into::into))
@@ -1911,19 +1911,19 @@ impl Db for SpannerDb {
         Box::pin(async move { batch::commit_async(&db, param).map_err(Into::into).await })
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::pin(
@@ -1935,24 +1935,24 @@ impl Db for SpannerDb {
         )
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
         self.timestamp()
             .expect("set_timestamp() not called yet for SpannerDb")
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
         SpannerDb::set_timestamp(self, timestamp)
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<results::DeleteBatch> {
         let db = self.clone();
         Box::pin(async move { batch::delete_async(&db, param).map_err(Into::into).await })
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
     }

@@ -15,7 +15,7 @@ use diesel::{
     sql_types::{BigInt, Integer, Nullable, Text},
     Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use diesel_logger::LoggingConnection;
 
 use super::{
@@ -92,9 +92,9 @@ pub struct MysqlDb {
 unsafe impl Send for MysqlDb {}
 
 pub struct MysqlDbInner {
-    #[cfg(not(any(test, feature = "db_test")))]
+    #[cfg(not(test))]
     pub(super) conn: Conn,
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub(super) conn: LoggingConnection<Conn>,
 
     session: RefCell<MysqlDbSession>,
@@ -117,9 +117,9 @@ impl Deref for MysqlDb {
 impl MysqlDb {
     pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = MysqlDbInner {
-            #[cfg(not(any(test, feature = "db_test")))]
+            #[cfg(not(test))]
             conn,
-            #[cfg(any(test, feature = "db_test"))]
+            #[cfg(test)]
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
         };
@@ -861,7 +861,7 @@ impl MysqlDb {
     pub fn validate_batch_id(&self, id: String) -> Result<()> {
         batch::validate_batch_id(&id)
     }
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
@@ -965,19 +965,19 @@ impl Db for MysqlDb {
         self.validate_batch_id(params)
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
         Box::pin(
@@ -989,20 +989,20 @@ impl Db for MysqlDb {
         )
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
         self.timestamp()
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
         self.session.borrow_mut().timestamp = timestamp;
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
     }

@@ -95,7 +95,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     )
     .await?;
     if !exists {
-        // NOTE: db_tests expects this but it doesn't seem necessary w/ the
+        // NOTE: db tests expects this but it doesn't seem necessary w/ the
         // handler validating the batch before appends
         Err(DbErrorKind::BatchNotFound)?
     }
