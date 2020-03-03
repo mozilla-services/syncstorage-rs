@@ -1329,7 +1329,8 @@ impl FromRequest for BsoQueryParams {
                 )
             })?;
             if params.sort != Sorting::Index {
-                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
+                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
+                {
                     let bound = timestamp.as_i64();
                     if let Some(newer) = params.newer {
                         if bound < newer.as_i64() {
