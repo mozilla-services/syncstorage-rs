@@ -67,6 +67,8 @@ validator = "0.10"
 validator_derive = "0.10"
 woothee = "0.10"
 
+[dev-dependencies]
+codegen = { version = "0.1.0", path = "codegen" }
+
 [features]
-db_test = []
 no_auth = []

@@ -1,14 +1,11 @@
-use futures::compat::Future01CompatExt;
-
 use codegen::async_test;
 use log::debug;
 
-use syncstorage::{
+use super::support::{db, gbso, hid, postbso, Result};
+use crate::{
     db::{error::DbErrorKind, params, util::SyncTimestamp, BATCH_LIFETIME},
     error::ApiErrorKind,
 };
-
-use crate::support::{db, gbso, hid, postbso, Result};
 
 fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
     params::CreateBatch {

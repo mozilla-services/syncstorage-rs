@@ -1,6 +1,7 @@
 //! Types for parsing and authenticating HAWK headers.
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
+#![cfg_attr(feature = "no_auth", allow(dead_code, unused_imports, unused_variables))]
 
 use base64;
 use chrono::offset::Utc;

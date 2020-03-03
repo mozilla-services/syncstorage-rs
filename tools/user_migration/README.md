@@ -1,16 +1,16 @@
-# User Migration Script
+ # User Migration Script
 
 This is a workspace for testing user migration from the old databases to the new durable one.
 
-Avro is a JSON like transport system. I'm not quite sure it's really needed. Mostly since
-it's basically "read a row/write a row" only with a middleman system. I wonder if it might
-be better to just iterate through mysql on a thread and write to spanner directly.
-
 There are several candidate scrips that you can use. More than likely, you want to use
 
-`migrate_user.py --dsns <file of database DSNs> --users <file of user ids>
-    [--token_dsn <tokenserver DSN>]`
-
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=credentials.json migrate_node.py \
+    [--dsns=move_dsns.lst] \
+    [--deanon --fxa_file=users.csv] \
+    [--start_bso=0] \
+    [--end_bso=19]
+```
 where:
 
 * *dsns* - a file containing the mysql and spanner DSNs for the users. Each DSN should be on a single line. Currently only one DSN of a given type is permitted.
@@ -22,26 +22,52 @@ mysql://test:test@localhost/syncstorage
 spanner://projects/sync-spanner-dev-225401/instances/spanner-test/databases/sync_schema3
 ```
 
-* *users* - A file containing the list of mysql userIDs to move. Each should be on a new line.
-
-(e.g.)
-
-```text
-1
-3
-1298127571
+* *users.csv* - a mysql dump of the token database. This file is only needed if the `--deanon` de-anonymization flag is set. By default, data is anononymized to prevent accidental movement.
+You can produce this file from the following:
+```bash
+mysql -e "select uid, email, generation, keys_changed_at, \
+ client_state from users;" > users.csv`
 ```
+The script will automatically skip the title row, and presumes that fields are tab separated.
 
-* *token_dsn* - An optional DSN to the Token Server DB. The script will automatically update the `users` table to indicate the user is now on the spanner node (`800`). If no *token_dsn* option is provided, the token_db is not altered, manual updates may be required.
-
-The other scripts (e.g. `dump_mysql.py`) dump the node database into Arvo compatible format. Additional work may be required to format the data for eventual import. Note that these scripts may require python 2.7 due to dependencies in the Arvo library.
+UserIDs are converted to fxa_uid/fxa_kid values and cached locally.
 
 ## installation
 
-`virtualenv venv && venv/bin/pip install -r requirements.txt`
+```bash
+virtualenv venv && venv/bin/pip install -r requirements.txt
+```
 
 ## running
 
-Since you will be connecting to the GCP Spanner API, you will need to have set the `GOOGLE_APPLICATION_CREDENTIALS` env var before running these scripts.
+Since you will be connecting to the GCP Spanner API, you will need to have set the `GOOGLE_APPLICATION_CREDENTIALS` env var before running these scripts. This environment variable should point to the exported Google Credentials acquired from the GCP console.
 
-`GOOGLE_APPLICATION_CREDENTIALS=path/to/creds.json venv/bin/python dump_avro.py`
+The script will take the following actions:
+
+1. fetch all users from a given node.
+1. compare and port all user_collections over (NOTE: this may involve remapping collecitonid values.)
+1. begin copying over user information from mysql to spanner
+
+Overall performance may be improved by "batching" BSOs to different
+processes using:
+
+`--start_bso` the BSO database (defaults to 0, inclusive) to begin
+copying from
+
+`--end_bso` the final BSO databse (defaults to 19, inclusive) to copy
+from
+
+Note that these are inclusive values. So to split between two
+processes, you would want to use
+
+```bash
+migrate_node.py --start_bso=0 --end_bso=9 &
+migrate_node.py --start_bso=10 --end_bso=19 &
+```
+
+(As short hand for this case, you could also do:
+```
+migrate_node.py --end_bso=9 &
+migrate_node.py --start_bso=10 &
+```
+and let the defaults handle the rest.)
