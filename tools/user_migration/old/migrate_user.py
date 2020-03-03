@@ -1,15 +1,18 @@
 #! venv/bin/python
 
-# painfully stupid script to check out dumping mysql databases to avro.
-# Avro is basically "JSON" for databases. It's not super complicated & it has
-# issues (one of which is that it requires Python2).
+# This file is historical.
+# This file will attempt to copy a user from an existing mysql database
+# to a spanner table. It requires access to the tokenserver db, which may
+# not be available in production environments.
 #
 #
 
 import argparse
 import logging
 import base64
+
 import sys
+import os
 import time
 from datetime import datetime
 
@@ -17,10 +20,13 @@ from mysql import connector
 from mysql.connector.errors import IntegrityError
 from google.cloud import spanner
 from google.api_core.exceptions import AlreadyExists
-from urllib.parse import urlparse
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
 
 SPANNER_NODE_ID = 800
-
+META_GLOBAL_COLLECTION_ID = 6
 
 class BadDSNException(Exception):
     pass
@@ -103,6 +109,11 @@ def get_args():
         action="store_true",
         help="silence logging"
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="force a full reconcile"
+    )
     return parser.parse_args()
 
 
@@ -149,7 +160,8 @@ def update_token(databases, user):
 
     """
     if 'token' not in databases:
-        logging.warn("Skipping token update...")
+        logging.warn(
+            "Skipping token update for user {}...".format(user))
         return
     logging.info("Updating token server for user: {}".format(user))
     try:
@@ -192,14 +204,15 @@ def get_fxa_id(databases, user):
     """
     sql = """
         SELECT
-            email, generation, keys_changed_at, client_state
+            email, generation, keys_changed_at, client_state, node
         FROM users
             WHERE uid = {uid}
     """.format(uid=user)
     try:
         cursor = databases.get('token', databases['mysql']).cursor()
         cursor.execute(sql)
-        (email, generation, keys_changed_at, client_state) = cursor.next()
+        (email, generation, keys_changed_at,
+         client_state, node) = cursor.next()
         fxa_uid = email.split('@')[0]
         fxa_kid = format_key_id(
             keys_changed_at or generation,
@@ -207,11 +220,11 @@ def get_fxa_id(databases, user):
         )
     finally:
         cursor.close()
-    return (fxa_kid, fxa_uid)
+    return (fxa_kid, fxa_uid, node)
 
 
 def create_migration_table(database):
-    """create the syncstorage migration table
+    """create the syncstorage table
 
     This table tells the syncstorage server to return a 5xx for a
     given user. It's important that syncstorage NEVER returns a
@@ -271,6 +284,47 @@ def mark_user(databases, user, state=MigrationState.IN_PROGRESS):
     return True
 
 
+def finish_user(databases, user):
+    """mark a user migration complete"""
+    # This is not wrapped into `start_user` so that I can reduce
+    # the number of db IO, since an upsert would just work instead
+    # of fail out with a dupe.
+    mysql = databases['mysql'].cursor()
+    try:
+        logging.info("Marking {} as migrating...".format(user))
+        mysql.execute(
+            """
+            UPDATE
+                migration
+            SET
+                state = "finished"
+            WHERE
+                fxa_uid = %s
+            """,
+            (user,)
+        )
+        databases['mysql'].commit()
+    except IntegrityError:
+        return False
+    finally:
+        mysql.close()
+    return True
+
+def newSyncID():
+    base64.urlsafe_b64encode(os.urandom(9))
+
+def alter_syncids(pay):
+    """Alter the syncIDs for the meta/global record, which will cause a sync
+    when the client reconnects
+
+
+    """
+    payload = json.loads(pay)
+    payload['syncID'] = newSyncID()
+    for item in payload['engines']:
+        payload['engines'][item]['syncID'] = newSyncID()
+    return json.dumps(payload)
+
 def move_user(databases, user, args):
     """copy user info from original storage to new storage."""
     # bso column mapping:
@@ -308,8 +362,8 @@ def move_user(databases, user, args):
     )
 
     # Genereate the Spanner Keys we'll need.
-    (fxa_kid, fxa_uid) = get_fxa_id(databases, user)
-    if not mark_user(databases, fxa_uid):
+    (fxa_kid, fxa_uid, original_node) = get_fxa_id(databases, user)
+    if not start_user(databases, fxa_uid):
         logging.error("User {} already being migrated?".format(fxa_uid))
         return
 
@@ -356,6 +410,8 @@ def move_user(databases, user, args):
                 values=uc_values
             )
         # add the BSO values.
+        if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
+            pay = alter_syncids(pay)
         bso_values = [[
                 collection_id,
                 fxa_kid,
@@ -383,6 +439,16 @@ def move_user(databases, user, args):
         for (col, cid, bid, exp, mod, pay, sid) in mysql:
             databases['spanner'].run_in_transaction(spanner_transact)
             update_token(databases, user)
+            (ck_kid, ck_uid, ck_node) = get_fxa_id(databases, user)
+            if ck_node != original_node:
+                logging.error(
+                    ("User's Node Changed! Aborting! "
+                    "fx_uid:{}, fx_kid:{}, node: {} => {}")
+                    .format(user, fxa_uid, fxa_kid,
+                            original_node, ck_node)
+                )
+                return
+            finish_user(databases, user)
             count += 1
             # Closing the with automatically calls `batch.commit()`
         mark_user(user, MigrationState.COMPLETE)
