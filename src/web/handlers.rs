@@ -76,9 +76,7 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse,
     meta.db
         .get_storage_usage(meta.user_id)
         .map_err(From::from)
-        .map_ok(|usage: u64| {
-            HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None])
-        })
+        .map_ok(|usage: u64| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
 pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -87,9 +85,7 @@ pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse
     meta.db
         .delete_storage(meta.user_id)
         .map_err(From::from)
-        .map_ok(|result: ()| {
-            HttpResponse::Ok().json(result)
-        })
+        .map_ok(|result: ()| HttpResponse::Ok().json(result))
 }
 
 pub fn delete_collection(
@@ -194,8 +190,7 @@ where
                             .filter(|v| !v.is_empty())
                             .map(|v| v.replace("\n", "\\u000a") + "\n")
                             .collect();
-                        resp
-                            .header("Content-Type", "application/newlines")
+                        resp.header("Content-Type", "application/newlines")
                             .header("Content-Length", format!("{}", items.len()))
                             .body(items)
                     }
@@ -399,14 +394,12 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse,
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map_ok(
-            |result: std::option::Option<GetBso>| {
-                result.map_or_else(
-                    || HttpResponse::NotFound().finish(),
-                    |bso| HttpResponse::Ok().json(bso),
-                )
-            },
-        )
+        .map_ok(|result: std::option::Option<GetBso>| {
+            result.map_or_else(
+                || HttpResponse::NotFound().finish(),
+                |bso| HttpResponse::Ok().json(bso),
+            )
+        })
 }
 
 pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
