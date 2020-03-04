@@ -179,39 +179,47 @@ pub async fn commit_async(
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
-    // First, UPDATE existing rows in the bsos table with any new values
-    // supplied in this batch
-    db.sql(include_str!("batch_commit_update.sql"))?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => params.batch.id.clone(),
-            "timestamp" => as_rfc3339.clone(),
-        })
-        .param_types(param_types! {
-            "timestamp" => TypeCode::TIMESTAMP,
-        })
-        .execute_dml_async(&db.conn)
-        .await?;
+    {
+        // First, UPDATE existing rows in the bsos table with any new values
+        // supplied in this batch
+        let mut timer2 = db.metrics.clone();
+        timer2.start_timer("storage.spanner.apply_batch_update", None);
+        db.sql(include_str!("batch_commit_update.sql"))?
+            .params(params! {
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
+                "collection_id" => collection_id.to_string(),
+                "batch_id" => params.batch.id.clone(),
+                "timestamp" => as_rfc3339.clone(),
+            })
+            .param_types(param_types! {
+                "timestamp" => TypeCode::TIMESTAMP,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
+    }
 
-    // Then INSERT INTO SELECT remaining rows from this batch into the bsos
-    // table (that didn't already exist there)
-    db.sql(include_str!("batch_commit_insert.sql"))?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => params.batch.id.clone(),
-            "timestamp" => as_rfc3339,
-            "default_bso_ttl" => DEFAULT_BSO_TTL.to_string(),
-        })
-        .param_types(param_types! {
-            "timestamp" => TypeCode::TIMESTAMP,
-            "default_bso_ttl" => TypeCode::INT64,
-        })
-        .execute_dml_async(&db.conn)
-        .await?;
+    {
+        // Then INSERT INTO SELECT remaining rows from this batch into the bsos
+        // table (that didn't already exist there)
+        let mut timer3 = db.metrics.clone();
+        timer3.start_timer("storage.spanner.apply_batch_insert", None);
+        db.sql(include_str!("batch_commit_insert.sql"))?
+            .params(params! {
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
+                "collection_id" => collection_id.to_string(),
+                "batch_id" => params.batch.id.clone(),
+                "timestamp" => as_rfc3339,
+                "default_bso_ttl" => DEFAULT_BSO_TTL.to_string(),
+            })
+            .param_types(param_types! {
+                "timestamp" => TypeCode::TIMESTAMP,
+                "default_bso_ttl" => TypeCode::INT64,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
+    }
 
     delete_async(
         db,
