@@ -157,41 +157,32 @@ where
             coll.db
                 .extract_resource(coll.user_id, Some(coll.collection), None)
                 .map_err(From::from)
-                .map(move |ts| Ok((result, ts)))
+                .map_ok(move |ts| (result, ts))
         })
-        .map_ok(
-            move |(result, ts): (Paginated<T>, Result<SyncTimestamp, Error>)| {
-                let ts = match ts {
-                    Err(e) => {
-                        return HttpResponse::InternalServerError()
-                            .body("ts was None in finish_get_collection");
-                    }
-                    Ok(ts) => ts,
-                };
-                let mut builder = HttpResponse::build(StatusCode::OK);
-                let resp = builder
-                    .header(X_LAST_MODIFIED, ts.as_header())
-                    .header(X_WEAVE_RECORDS, result.items.len().to_string())
-                    .if_some(result.offset, |offset, resp| {
-                        resp.header(X_WEAVE_NEXT_OFFSET, offset);
-                    });
-                match reply_format {
-                    ReplyFormat::Json => resp.json(result.items),
-                    ReplyFormat::Newlines => {
-                        let items: String = result
-                            .items
-                            .into_iter()
-                            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
-                            .filter(|v| !v.is_empty())
-                            .map(|v| v.replace("\n", "\\u000a") + "\n")
-                            .collect();
-                        resp.header("Content-Type", "application/newlines")
-                            .header("Content-Length", format!("{}", items.len()))
-                            .body(items)
-                    }
+        .map_ok(move |(result, ts): (Paginated<T>, SyncTimestamp)| {
+            let mut builder = HttpResponse::build(StatusCode::OK);
+            let resp = builder
+                .header(X_LAST_MODIFIED, ts.as_header())
+                .header(X_WEAVE_RECORDS, result.items.len().to_string())
+                .if_some(result.offset, |offset, resp| {
+                    resp.header(X_WEAVE_NEXT_OFFSET, offset);
+                });
+            match reply_format {
+                ReplyFormat::Json => resp.json(result.items),
+                ReplyFormat::Newlines => {
+                    let items: String = result
+                        .items
+                        .into_iter()
+                        .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
+                        .filter(|v| !v.is_empty())
+                        .map(|v| v.replace("\n", "\\u000a") + "\n")
+                        .collect();
+                    resp.header("Content-Type", "application/newlines")
+                        .header("Content-Length", format!("{}", items.len()))
+                        .body(items)
                 }
-            },
-        ),
+            }
+        }),
     )
 }
 
