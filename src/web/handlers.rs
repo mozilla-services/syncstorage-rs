@@ -6,12 +6,7 @@ use futures::future::{self, Either, Future, FutureExt, LocalBoxFuture, TryFuture
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::db::{
-    params,
-    results::{GetBso, Paginated, PostBsos},
-    util::SyncTimestamp,
-    DbError, DbErrorKind,
-};
+use crate::db::{params, results::Paginated, util::SyncTimestamp, DbError, DbErrorKind};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
@@ -26,17 +21,11 @@ pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpRes
     meta.db
         .get_collection_timestamps(meta.user_id)
         .map_err(From::from)
-        .map(
-            |result: Result<
-                std::collections::HashMap<std::string::String, SyncTimestamp>,
-                Error,
-            >| {
-                let result = result.expect("Could not get result in get_collections");
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, result.len().to_string())
-                    .json(result))
-            },
-        )
+        .map_ok(|result| {
+            HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .json(result)
+        })
 }
 
 pub fn get_collection_counts(
@@ -46,17 +35,11 @@ pub fn get_collection_counts(
     meta.db
         .get_collection_counts(meta.user_id)
         .map_err(From::from)
-        .map(
-            |result: std::result::Result<
-                std::collections::HashMap<std::string::String, i64>,
-                Error,
-            >| {
-                let result = result.expect("Could not get result in get_collection_counts");
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, result.len().to_string())
-                    .json(result))
-            },
-        )
+        .map_ok(|result| {
+            HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .json(result)
+        })
 }
 
 pub fn get_collection_usage(
@@ -66,21 +49,15 @@ pub fn get_collection_usage(
     meta.db
         .get_collection_usage(meta.user_id)
         .map_err(From::from)
-        .map(
-            |usage: std::result::Result<
-                std::collections::HashMap<std::string::String, i64>,
-                Error,
-            >| {
-                let usage = usage.expect("Could not get usage in get_collection_usage");
-                let usage: HashMap<_, _> = usage
-                    .into_iter()
-                    .map(|(coll, size)| (coll, size as f64 / ONE_KB))
-                    .collect();
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, usage.len().to_string())
-                    .json(usage))
-            },
-        )
+        .map_ok(|usage| {
+            let usage: HashMap<_, _> = usage
+                .into_iter()
+                .map(|(coll, size)| (coll, size as f64 / ONE_KB))
+                .collect();
+            HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, usage.len().to_string())
+                .json(usage)
+        })
 }
 
 pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -88,10 +65,7 @@ pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse,
     meta.db
         .get_storage_usage(meta.user_id)
         .map_err(From::from)
-        .map(|usage: std::result::Result<u64, Error>| {
-            let usage = usage.expect("Could not get usage in get_quota");
-            Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
-        })
+        .map_ok(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
 pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -100,9 +74,7 @@ pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse
     meta.db
         .delete_storage(meta.user_id)
         .map_err(From::from)
-        .map(|result: Result<(), Error>| {
-            Ok(HttpResponse::Ok().json(result.expect("Could not get result in delete_all")))
-        })
+        .map_ok(|result| HttpResponse::Ok().json(result))
 }
 
 pub fn delete_collection(
@@ -133,7 +105,7 @@ pub fn delete_collection(
         }
     })
     .map_err(From::from)
-    .map_ok(move |result: SyncTimestamp| {
+    .map_ok(move |result| {
         HttpResponse::Ok()
             .if_true(delete_bsos, |resp| {
                 resp.header(X_LAST_MODIFIED, result.as_header());
@@ -185,40 +157,32 @@ where
             coll.db
                 .extract_resource(coll.user_id, Some(coll.collection), None)
                 .map_err(From::from)
-                .map(move |ts| Ok((result, ts)))
+                .map_ok(move |ts| (result, ts))
         })
-        .map(
-            move |r: std::result::Result<
-                (Paginated<T>, std::result::Result<SyncTimestamp, Error>),
-                Error,
-            >| {
-                let (result, ts) = r.expect("Could not get r in finish_get_collection");
-                let ts = ts.expect("Could not get ts in finish_get_collection");
-                let mut builder = HttpResponse::build(StatusCode::OK);
-                let resp = builder
-                    .header(X_LAST_MODIFIED, ts.as_header())
-                    .header(X_WEAVE_RECORDS, result.items.len().to_string())
-                    .if_some(result.offset, |offset, resp| {
-                        resp.header(X_WEAVE_NEXT_OFFSET, offset);
-                    });
-                match reply_format {
-                    ReplyFormat::Json => Ok(resp.json(result.items)),
-                    ReplyFormat::Newlines => {
-                        let items: String = result
-                            .items
-                            .into_iter()
-                            .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
-                            .filter(|v| !v.is_empty())
-                            .map(|v| v.replace("\n", "\\u000a") + "\n")
-                            .collect();
-                        Ok(resp
-                            .header("Content-Type", "application/newlines")
-                            .header("Content-Length", format!("{}", items.len()))
-                            .body(items))
-                    }
+        .map_ok(move |(result, ts): (Paginated<T>, SyncTimestamp)| {
+            let mut builder = HttpResponse::build(StatusCode::OK);
+            let resp = builder
+                .header(X_LAST_MODIFIED, ts.as_header())
+                .header(X_WEAVE_RECORDS, result.items.len().to_string())
+                .if_some(result.offset, |offset, resp| {
+                    resp.header(X_WEAVE_NEXT_OFFSET, offset);
+                });
+            match reply_format {
+                ReplyFormat::Json => resp.json(result.items),
+                ReplyFormat::Newlines => {
+                    let items: String = result
+                        .items
+                        .into_iter()
+                        .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
+                        .filter(|v| !v.is_empty())
+                        .map(|v| v.replace("\n", "\\u000a") + "\n")
+                        .collect();
+                    resp.header("Content-Type", "application/newlines")
+                        .header("Content-Length", format!("{}", items.len()))
+                        .body(items)
                 }
-            },
-        ),
+            }
+        }),
     )
 }
 
@@ -238,11 +202,10 @@ pub fn post_collection(
                 failed: coll.bsos.invalid,
             })
             .map_err(From::from)
-            .map(|result: std::result::Result<PostBsos, Error>| {
-                let result = result.expect("Could not get result in post_collection");
-                Ok(HttpResponse::build(StatusCode::OK)
+            .map_ok(|result| {
+                HttpResponse::build(StatusCode::OK)
                     .header(X_LAST_MODIFIED, result.modified.as_header())
-                    .json(result))
+                    .json(result)
             }),
     )
 }
@@ -378,12 +341,11 @@ pub fn post_collection_batch(
                     }
                 })
                 .map_err(From::from)
-                .map(|result: std::result::Result<PostBsos, Error>| {
-                    let result = result.expect("Could not get result in post_collection_batch");
+                .map_ok(|result| {
                     resp["modified"] = json!(result.modified);
-                    Ok(HttpResponse::build(StatusCode::OK)
+                    HttpResponse::build(StatusCode::OK)
                         .header(X_LAST_MODIFIED, result.modified.as_header())
-                        .json(resp))
+                        .json(resp)
                 });
             Either::Right(fut)
         }),
@@ -400,12 +362,10 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpRespon
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(
-            |result: std::result::Result<SyncTimestamp, Error>| match result {
-                Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
-                Err(_e) => Ok(HttpResponse::NotFound().finish()),
-            },
-        )
+        .map(|result: Result<SyncTimestamp, Error>| match result {
+            Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
+            Err(_e) => Ok(HttpResponse::NotFound().finish()),
+        })
 }
 
 pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -418,15 +378,12 @@ pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse,
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(
-            |result: std::result::Result<std::option::Option<GetBso>, Error>| {
-                let result = result.expect("Could not get result in get_bso");
-                result.map_or_else(
-                    || Ok(HttpResponse::NotFound().finish()),
-                    |bso| Ok(HttpResponse::Ok().json(bso)),
-                )
-            },
-        )
+        .map_ok(|result| {
+            result.map_or_else(
+                || HttpResponse::NotFound().finish(),
+                |bso| HttpResponse::Ok().json(bso),
+            )
+        })
 }
 
 pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
@@ -442,11 +399,10 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpRespon
             ttl: bso_req.body.ttl,
         })
         .map_err(From::from)
-        .map(|result: std::result::Result<SyncTimestamp, Error>| {
-            let result = result.expect("Could not get result in put_bso");
-            Ok(HttpResponse::build(StatusCode::OK)
+        .map_ok(|result| {
+            HttpResponse::build(StatusCode::OK)
                 .header(X_LAST_MODIFIED, result.as_header())
-                .json(result))
+                .json(result)
         })
 }
 
