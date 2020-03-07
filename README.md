@@ -1,28 +1,30 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-
-- [Syncstorage-rs](#syncstorage-rs)
-  - [System Requirements](#system-requirements)
-  - [Local Setup](#local-setup)
-    - [MySQL](#mysql)
-    - [Spanner](#spanner)
-    - [Connecting to Firefox](#connecting-to-firefox)
-  - [Logging](#logging)
-  - [Tests](#tests)
-    - [Unit tests](#unit-tests)
-    - [End-to-End tests](#end-to-end-tests)
-  - [Creating Releases](#creating-releases)
-  - [Troubleshooting](#troubleshooting)
-  - [Related Documentation](#related-documentation)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci]
+[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
 # Syncstorage-rs
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org).
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+- [System Requirements](#system-requirements)
+- [Local Setup](#local-setup)
+  - [MySQL](#mysql)
+  - [Spanner](#spanner)
+  - [Running via Docker](#running-via-docker)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Logging](#logging)
+  - [Sentry:](#sentry)
+  - [RUST_LOG](#rust_log)
+- [Tests](#tests)
+  - [Unit tests](#unit-tests)
+  - [End-to-End tests](#end-to-end-tests)
+- [Creating Releases](#creating-releases)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## System Requirements
 
@@ -210,3 +212,5 @@ Once your PR merges, then go ahead and create an official [GitHub release](https
 [mpl]: https://opensource.org/licenses/MPL-2.0
 [circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
 [circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
+[matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
+[matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org
