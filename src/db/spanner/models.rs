@@ -975,10 +975,9 @@ impl SpannerDb {
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         query = match sort {
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
-            _ => query,
+            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
+            Sorting::Newest => format!("{} ORDER BY modified DESC, bso_id DESC", query),
+            Sorting::Oldest | Sorting::None => format!("{} ORDER BY modified ASC, bso_id ASC", query),
         };
 
         if let Some(limit) = limit {

@@ -484,10 +484,9 @@ impl MysqlDb {
         }
 
         query = match sort {
-            Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
-            _ => query,
+            Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
+            Sorting::Newest => query.order(bso::id.desc()).order(bso::modified.desc()),
+            Sorting::Oldest | Sorting::None => query.order(bso::id.asc()).order(bso::modified.asc()),
         };
 
         let limit = limit.map(i64::from).unwrap_or(-1);
