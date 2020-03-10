@@ -1,5 +1,11 @@
 //! Error types and macros.
-#![allow(clippy::single_match)]
+// TODO: Currently `Validation(#[cause] ValidationError)` may trigger some
+// performance issues. The suggested fix is to Box ValidationError, however
+// this cascades into Failure requiring std::error::Error being implemented
+// which is out of scope.
+#![allow(clippy::single_match, clippy::large_enum_variant)]
+
+use std::convert::From;
 use std::fmt;
 
 use actix_web::{
@@ -60,6 +66,9 @@ pub enum ApiErrorKind {
     #[fail(display = "HAWK authentication error: {}", _0)]
     Hawk(#[cause] HawkError),
 
+    #[fail(display = "No app_data ServerState")]
+    NoServerState,
+
     #[fail(display = "{}", _0)]
     Internal(String),
 
@@ -108,7 +117,12 @@ impl ApiError {
     fn weave_error_code(&self) -> WeaveError {
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
-                ValidationErrorKind::FromDetails(ref description, ref location, name) => {
+                ValidationErrorKind::FromDetails(
+                    ref description,
+                    ref location,
+                    name,
+                    ref _tags,
+                ) => {
                     if description == "size-limit-exceeded" {
                         return WeaveError::SizeLimitExceeded;
                     }
@@ -120,7 +134,7 @@ impl ApiError {
                     }
                     WeaveError::UnknownError
                 }
-                ValidationErrorKind::FromValidationErrors(ref _err, ref location) => {
+                ValidationErrorKind::FromValidationErrors(ref _err, ref location, ref _tags) => {
                     if *location == RequestErrorLocation::Body {
                         WeaveError::InvalidWbo
                     } else {
@@ -140,6 +154,17 @@ impl ApiError {
             res.request().clone(),
             resp.into_body(),
         )))
+    }
+}
+
+impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
+    fn from(inner: actix_web::error::BlockingError<ApiError>) -> Self {
+        match inner {
+            actix_web::error::BlockingError::Error(e) => e,
+            actix_web::error::BlockingError::Canceled => {
+                ApiErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
+            }
+        }
     }
 }
 
@@ -166,7 +191,9 @@ impl From<Context<ApiErrorKind>> for ApiError {
         let status = match inner.get_context() {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
-            ApiErrorKind::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             ApiErrorKind::Validation(error) => error.status,
         };
 
@@ -175,11 +202,6 @@ impl From<Context<ApiErrorKind>> for ApiError {
 }
 
 impl ResponseError for ApiError {
-    // Override the default which will force "text/plain" and use the error message.
-    fn render_response(&self) -> HttpResponse {
-        self.error_response()
-    }
-
     fn error_response(&self) -> HttpResponse {
         // To return a descriptive error response, this would work. We do not
         // unfortunately do that so that we can retain Sync 1.1 backwards compatibility
@@ -230,6 +252,9 @@ impl Serialize for ApiErrorKind {
                 serialize_string_to_array(serializer, description)
             }
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
+            ApiErrorKind::NoServerState => {
+                Serialize::serialize("No State information found", serializer)
+            }
         }
     }
 }

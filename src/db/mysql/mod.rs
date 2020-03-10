@@ -4,7 +4,7 @@ mod diesel_ext;
 pub mod models;
 pub mod pool;
 mod schema;
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 mod test;
 
 pub use self::pool::MysqlDbPool;

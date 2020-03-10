@@ -1,6 +1,7 @@
 //! Types for parsing and authenticating HAWK headers.
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
+#![cfg_attr(feature = "no_auth", allow(dead_code, unused_imports, unused_variables))]
 
 use base64;
 use chrono::offset::Utc;
@@ -12,9 +13,10 @@ use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
-use actix_http::http::Uri;
 use actix_web::dev::ConnectionInfo;
+use actix_web::http::Uri;
 
+use super::tags::Tags;
 use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
@@ -159,6 +161,7 @@ impl HawkPayload {
         secrets: &Secrets,
         ci: &ConnectionInfo,
         uri: &Uri,
+        tags: Option<Tags>,
     ) -> ApiResult<Self> {
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
@@ -168,6 +171,7 @@ impl HawkPayload {
                     "Invalid port (hostname:port) specified".to_owned(),
                     RequestErrorLocation::Header,
                     None,
+                    tags,
                 )
             })?
         } else if ci.scheme() == "https" {

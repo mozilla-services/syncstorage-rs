@@ -1,0 +1,13 @@
+{"namespace": "bso.avro",
+ "type": "record",
+ "name": "bso",
+ "fields": [
+     {"name": "collection_id", "type": ["null", "long"]},
+     {"name": "fxa_kid", "type": ["null", "string"]},
+     {"name": "fxa_uid", "type": ["null", "string"]},
+     {"name": "bso_id", "type": "string"},
+     {"name": "expiry", "type": "long"},
+     {"name": "modified", "type": "long"},
+     {"name": "payload", "type": "string"},
+     {"name": "sortindex", "type": ["null", "long"]}
+ ]}

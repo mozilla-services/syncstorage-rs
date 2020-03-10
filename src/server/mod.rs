@@ -3,14 +3,11 @@
 use std::sync::Arc;
 
 use actix_cors::Cors;
-use actix_rt::{System, SystemRunner};
 use actix_web::{
-    http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest, HttpResponse,
-    HttpServer,
+    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
+    HttpResponse, HttpServer,
 };
 // use num_cpus;
-use serde_json::json;
-
 use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
@@ -63,86 +60,71 @@ macro_rules! build_app {
         App::new()
             .data($state)
             // Middleware is applied LIFO
-
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
-            .wrap(middleware::PreConditionCheck::new())
-            .wrap(middleware::DbTransaction::new())
-            .wrap(middleware::WeaveTimestamp::new())
+            .wrap(middleware::precondition::PreConditionCheck::new())
+            .wrap(middleware::db::DbTransaction::new())
+            .wrap(middleware::weave::WeaveTimestamp::new())
+            .wrap(middleware::sentry::SentryWrapper::new())
             // Followed by the "official middleware" so they run first.
             .wrap(Cors::default())
             .service(
                 web::resource(&cfg_path("/info/collections"))
-                    .route(web::get().to_async(handlers::get_collections)),
+                    .route(web::get().to(handlers::get_collections)),
             )
             .service(
                 web::resource(&cfg_path("/info/collection_counts"))
-                    .route(web::get().to_async(handlers::get_collection_counts)),
+                    .route(web::get().to(handlers::get_collection_counts)),
             )
             .service(
                 web::resource(&cfg_path("/info/collection_usage"))
-                    .route(web::get().to_async(handlers::get_collection_usage)),
+                    .route(web::get().to(handlers::get_collection_usage)),
             )
             .service(
                 web::resource(&cfg_path("/info/configuration"))
-                    .route(web::get().to_async(handlers::get_configuration)),
+                    .route(web::get().to(handlers::get_configuration)),
             )
             .service(
-                web::resource(&cfg_path("/info/quota"))
-                    .route(web::get().to_async(handlers::get_quota)),
+                web::resource(&cfg_path("/info/quota")).route(web::get().to(handlers::get_quota)),
             )
+            .service(web::resource(&cfg_path("")).route(web::delete().to(handlers::delete_all)))
             .service(
-                web::resource(&cfg_path("")).route(web::delete().to_async(handlers::delete_all)),
-            )
-            .service(
-                web::resource(&cfg_path("/storage"))
-                    .route(web::delete().to_async(handlers::delete_all)),
+                web::resource(&cfg_path("/storage")).route(web::delete().to(handlers::delete_all)),
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}"))
-                    .data(
+                    .app_data(
                         // Declare the payload limit for "normal" collections.
                         web::PayloadConfig::new($limits.max_request_bytes as usize),
                     )
-                    .data(
+                    .app_data(
                         // Declare the payload limits for "JSON" payloads
                         // (Specify "text/plain" for legacy client reasons)
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
-                    .route(web::delete().to_async(handlers::delete_collection))
-                    .route(web::get().to_async(handlers::get_collection))
-                    .route(web::post().to_async(handlers::post_collection)),
+                    .route(web::delete().to(handlers::delete_collection))
+                    .route(web::get().to(handlers::get_collection))
+                    .route(web::post().to(handlers::post_collection)),
             )
             .service(
                 web::resource(&cfg_path("/storage/{collection}/{bso}"))
-                    .data(web::PayloadConfig::new(
-                        $limits.max_request_bytes as usize,
-                    ))
-                    .data(
+                    .app_data(web::PayloadConfig::new($limits.max_request_bytes as usize))
+                    .app_data(
                         web::JsonConfig::default()
                             .limit($limits.max_request_bytes as usize)
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
-                    .route(web::delete().to_async(handlers::delete_bso))
-                    .route(web::get().to_async(handlers::get_bso))
-                    .route(web::put().to_async(handlers::put_bso)),
+                    .route(web::delete().to(handlers::delete_bso))
+                    .route(web::get().to(handlers::get_bso))
+                    .route(web::put().to(handlers::put_bso)),
             )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
-            .service(
-                web::resource("/__heartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // if additional information is desired, point to an appropriate
-                    // handler.
-                    let body = json!({"status": "ok", "version": env!("CARGO_PKG_VERSION")});
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body.to_string())
-                })),
-            )
+            .service(web::resource("/__heartbeat__").route(web::get().to(handlers::heartbeat)))
             .service(
                 web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
                     // used by the load balancers, just return OK.
@@ -160,19 +142,19 @@ macro_rules! build_app {
                         .body(include_str!("../../version.json"))
                 })),
             )
+            .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
     };
 }
 
 impl Server {
-    pub fn with_settings(settings: Settings) -> Result<SystemRunner, ApiError> {
-        let sys = System::new("syncserver");
+    pub fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let metrics = metrics::metrics_from_opts(&settings)?;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics))?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
-        HttpServer::new(move || {
+        let server = HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 db_pool: db_pool.clone(),
@@ -185,8 +167,8 @@ impl Server {
             build_app!(state, limits)
         })
         .bind(format!("{}:{}", settings.host, settings.port))
-        .unwrap()
-        .start();
-        Ok(sys)
+        .expect("Could not get Server in Server::with_settings")
+        .run();
+        Ok(server)
     }
 }

@@ -1,3 +1,7 @@
+use actix_web::web::block;
+
+use futures::future::TryFutureExt;
+
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
 
 use diesel::{
@@ -11,9 +15,8 @@ use diesel::{
     sql_types::{BigInt, Integer, Nullable, Text},
     Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use diesel_logger::LoggingConnection;
-use futures::{future, lazy};
 
 use super::{
     batch,
@@ -68,7 +71,7 @@ struct MysqlDbSession {
 
 #[derive(Clone, Debug)]
 pub struct MysqlDb {
-    /// Synchronous Diesel calls are executed in a tokio ThreadPool to satisfy
+    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
@@ -89,14 +92,12 @@ pub struct MysqlDb {
 unsafe impl Send for MysqlDb {}
 
 pub struct MysqlDbInner {
-    #[cfg(not(any(test, feature = "db_test")))]
+    #[cfg(not(test))]
     pub(super) conn: Conn,
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub(super) conn: LoggingConnection<Conn>,
 
     session: RefCell<MysqlDbSession>,
-
-    thread_pool: Arc<::tokio_threadpool::ThreadPool>,
 }
 
 impl fmt::Debug for MysqlDbInner {
@@ -114,19 +115,13 @@ impl Deref for MysqlDb {
 }
 
 impl MysqlDb {
-    pub fn new(
-        conn: Conn,
-        thread_pool: Arc<::tokio_threadpool::ThreadPool>,
-        coll_cache: Arc<CollectionCache>,
-        metrics: &Metrics,
-    ) -> Self {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = MysqlDbInner {
-            #[cfg(not(any(test, feature = "db_test")))]
+            #[cfg(not(test))]
             conn,
-            #[cfg(any(test, feature = "db_test"))]
+            #[cfg(test)]
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
-            thread_pool,
         };
         MysqlDb {
             inner: Arc::new(inner),
@@ -495,11 +490,12 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let offset = offset.unwrap_or(0) as i64;
-        if offset != 0 {
+        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+
+        if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(offset);
+            query = query.offset(numeric_offset);
         }
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
@@ -510,7 +506,7 @@ impl MysqlDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some(limit + offset)
+            Some((limit + numeric_offset).to_string())
         } else {
             None
         };
@@ -564,11 +560,11 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let offset = offset.unwrap_or(0) as i64;
-        if offset != 0 {
+        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(offset);
+            query = query.offset(numeric_offset);
         }
         let mut ids = query.load::<String>(&self.conn)?;
 
@@ -579,7 +575,7 @@ impl MysqlDb {
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
             ids.pop();
-            Some(limit + offset)
+            Some((limit + numeric_offset).to_string())
         } else {
             None
         };
@@ -737,6 +733,12 @@ impl MysqlDb {
         self.map_collection_names(modifieds)
     }
 
+    fn check_sync(&self) -> Result<results::Check> {
+        // has the database been up for more than 0 seconds?
+        let result = sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.conn)?;
+        Ok(result as u64 > 0)
+    }
+
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> Result<HashMap<String, T>> {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
@@ -859,7 +861,7 @@ impl MysqlDb {
     pub fn validate_batch_id(&self, id: String) -> Result<()> {
         batch::validate_batch_id(&id)
     }
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
@@ -878,9 +880,9 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::new(self.thread_pool.spawn_handle(lazy(move || {
-                future::result(db.$sync_name(params).map_err(Into::into))
-            })))
+            Box::pin(block(move || {
+                db.$sync_name(params).map_err(Into::into)
+            }).map_err(Into::into))
         }
     };
 }
@@ -888,20 +890,21 @@ macro_rules! sync_db_method {
 impl Db for MysqlDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.commit_sync().map_err(Into::into))
-        })))
+        Box::pin(block(move || db.commit_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.rollback_sync().map_err(Into::into))
-        })))
+        Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
+    }
+
+    fn check(&self) -> DbFuture<results::Check> {
+        let db = self.clone();
+        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -962,47 +965,44 @@ impl Db for MysqlDb {
         self.validate_batch_id(params)
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.get_collection_id(&name).map_err(Into::into))
-        })))
+        Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(db.create_collection(&name).map_err(Into::into))
-        })))
+        Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
         let db = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            future::result(
+        Box::pin(
+            block(move || {
                 db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
-                    .map_err(Into::into),
-            )
-        })))
+                    .map_err(Into::into)
+            })
+            .map_err(Into::into),
+        )
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
         self.timestamp()
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, timestamp: SyncTimestamp) {
         self.session.borrow_mut().timestamp = timestamp;
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
     }

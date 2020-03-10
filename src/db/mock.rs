@@ -15,7 +15,7 @@ impl MockDbPool {
 
 impl DbPool for MockDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
-        Box::new(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
+        Box::pin(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -39,22 +39,26 @@ macro_rules! mock_db_method {
     ($name:ident, $type:ident, $result:ty) => {
         fn $name(&self, _params: params::$type) -> DbFuture<$result> {
             let result: $result = Default::default();
-            Box::new(future::ok(result))
+            Box::pin(future::ok(result))
         }
     };
 }
 
 impl Db for MockDb {
     fn commit(&self) -> DbFuture<()> {
-        Box::new(future::ok(()))
+        Box::pin(future::ok(()))
     }
 
     fn rollback(&self) -> DbFuture<()> {
-        Box::new(future::ok(()))
+        Box::pin(future::ok(()))
     }
 
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
+    }
+
+    fn check(&self) -> DbFuture<results::Check> {
+        Box::pin(future::ok(true))
     }
 
     mock_db_method!(lock_for_read, LockCollection);
@@ -85,25 +89,25 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(get_collection_id, GetCollectionId);
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(create_collection, CreateCollection);
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(touch_collection, TouchCollection);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
         Default::default()
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, _: SyncTimestamp) {}
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     mock_db_method!(delete_batch, DeleteBatch);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self) {}
 }
 

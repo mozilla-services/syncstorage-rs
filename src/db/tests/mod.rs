@@ -5,4 +5,4 @@ mod support;
 #[cfg(test)]
 mod batch;
 #[cfg(test)]
-mod db_tests;
+mod db;

@@ -1,4 +1,5 @@
-# Purge Expired TTLs
+# Count the number of users in the spanner database
+# Specifically, the number of unique fxa_uid found in the user_collections table
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -48,34 +49,19 @@ def spanner_read_data(request=None):
 
     logging.info("For {}:{}".format(instance_id, database_id))
 
-    # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
-    # IN PARENT batches ON DELETE CASCADE)
-    with statsd.timer("syncstorage.purge_ttl.batches_duration"):
-        batches_start = datetime.now()
-        query = 'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
-        result = database.execute_partitioned_dml(query)
-        batches_end = datetime.now()
-        logging.info("batches: removed {} rows, batches_duration: {}".format(
-            result, batches_end - batches_start))
-
-    # Delete BSOs
-    with statsd.timer("syncstorage.purge_ttl.bso_duration"):
-        bso_start = datetime.now()
-        query = 'DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()'
-        result = database.execute_partitioned_dml(query)
-        bso_end = datetime.now()
-        logging.info("bso: removed {} rows, bso_duration: {}".format(
-            result, bso_end - bso_start))
+    # Count users
+    with statsd.timer("syncstorage.count_users.duration"):
+        with database.snapshot() as snapshot:
+            query = 'SELECT COUNT (DISTINCT fxa_uid) FROM user_collections'
+            result = snapshot.execute_sql(query)
+            user_count = result.one()[0]
+            statsd.gauge("syncstorage.distinct_fxa_uid", user_count)
+            logging.info("Count found {} distinct users".format(user_count))
 
 
 if __name__ == "__main__":
-    with statsd.timer("syncstorage.purge_ttl.total_duration"):
-        start_time = datetime.now()
-        logging.info('Starting purge_ttl.py')
+    logging.info('Starting count_users.py')
 
-        spanner_read_data()
+    spanner_read_data()
 
-        end_time = datetime.now()
-        duration = end_time - start_time
-        logging.info(
-            'Completed purge_ttl.py, total_duration: {}'.format(duration))
+    logging.info('Completed count_users.py')

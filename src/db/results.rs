@@ -28,6 +28,7 @@ pub type GetBatch = params::Batch;
 pub type DeleteBatch = ();
 pub type CommitBatch = PostBsos;
 pub type ValidateBatchId = ();
+pub type Check = bool;
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {
@@ -42,7 +43,7 @@ pub struct GetBso {
     pub sortindex: Option<i32>,
     // NOTE: expiry (ttl) is never rendered to clients and only loaded for
     // tests: this and its associated queries/loading could be wrapped in
-    // #[cfg(any(test, feature = "db_test"))]
+    // #[cfg(test)]
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     #[sql_type = "BigInt"]
@@ -55,7 +56,7 @@ where
     T: Serialize,
 {
     pub items: Vec<T>,
-    pub offset: Option<i64>, // XXX: i64?
+    pub offset: Option<String>,
 }
 
 pub type GetBsos = Paginated<GetBso>;
@@ -68,11 +69,11 @@ pub struct PostBsos {
     pub failed: HashMap<String, String>,
 }
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type GetCollectionId = i32;
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type CreateCollection = i32;
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type TouchCollection = SyncTimestamp;

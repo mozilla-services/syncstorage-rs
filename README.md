@@ -1,27 +1,30 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-
-- [Syncstorage-rs](#syncstorage-rs)
-  - [System Requirements](#system-requirements)
-  - [Local Setup](#local-setup)
-    - [MySQL](#mysql)
-    - [Spanner](#spanner)
-  - [Logging](#logging)
-  - [Tests](#tests)
-    - [Unit tests](#unit-tests)
-    - [End-to-End tests](#end-to-end-tests)
-  - [Creating Releases](#creating-releases)
-  - [Troubleshooting](#troubleshooting)
-  - [Related Documentation](#related-documentation)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-[![License: MPL 2.0][mpl-svg]][mpl] [![Test Status][travis-badge]][travis] [![Build Status][circleci-badge]][circleci]
+[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
 # Syncstorage-rs
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org).
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+- [System Requirements](#system-requirements)
+- [Local Setup](#local-setup)
+  - [MySQL](#mysql)
+  - [Spanner](#spanner)
+  - [Running via Docker](#running-via-docker)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Logging](#logging)
+  - [Sentry:](#sentry)
+  - [RUST_LOG](#rust_log)
+- [Tests](#tests)
+  - [Unit tests](#unit-tests)
+  - [End-to-End tests](#end-to-end-tests)
+- [Creating Releases](#creating-releases)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## System Requirements
 
@@ -33,7 +36,10 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - Pkg-config
 - Openssl
 
-Depending on your OS, you may also need to install `libgrpcdev`, and `protobuf-compiler-grpc`.
+Depending on your OS, you may also need to install `libgrpcdev`,
+`libcurl4-openssl-dev`, and `protobuf-compiler-grpc`. *Note*: if the
+code complies cleanly, but generates a Segmentation Fault within
+Sentry init, you probably are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
@@ -67,8 +73,8 @@ select the correct project.
 - Select "_Create Key_" from the pop-up menu.
 - Select "JSON" from the Dialog Box.
 
-A proper Key file will be downloaded to your local directory. It's important to safeguard that key file. For this example, we're going to name the file
-`sync-spanner.json` and store it in a subdirectory called `./keys`
+A proper key file will be downloaded to your local directory. It's important to safeguard that key file. For this example, we're going to name the file
+`service-account.json`.
 
 The proper key file is in JSON format. An example file is provided below, with private information replaced by "`...`"
 
@@ -87,33 +93,76 @@ The proper key file is in JSON format. An example file is provided below, with p
 }
 ```
 
-You can then specify the path to the key file using the environment variable `GOOGLE_APPLICATION_CREDENTIALS` when running the application.
-
-e.g.
-
-```bash
-RUST_LOG=warn GOOGLE_APPLICATION_CREDENTIALS=`pwd`/keys/sync-spanner.json` cargo run -- --config sync.ini
-```
-
 Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+
+To point to a GCP hosted Spanner instance from your local machine, follow these steps:
+
+1. Download the key file as shown above.
+2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
+3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
+4. `make run_spanner`.
+5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
+
+### Running via Docker
+This currently requires access to the [mozilla-rust-sdk](https://github.com/mozilla-services/mozilla-rust-sdk) repo. If you don't have it, this will be made public soon; we'll update the README here when that happens.
+1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
+2. Copy the contents of mozilla-rust-sdk into top level root dir here.
+3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
+4. Comment out the `image` value under `syncstorage-rs` in docker-compose.yml, and add this instead:
+    ```
+      build:
+        context: .
+    ```
+5. Adjust the MySQL db creds in docker-compose.yml to match your local setup.
+6. `make docker_start` - You can verify it's working by visiting [localhost:8000/__heartbeat__](http://localhost:8000/__heartbeat__)
+
+### Connecting to Firefox
+
+This will walk you through the steps to connect this project to your local copy of Firefox. 
+
+1. Follow the steps outlined above for running this project using [MySQL](https://github.com/mozilla-services/syncstorage-rs#mysql).
+
+2. Setup a local copy of [syncserver](https://github.com/mozilla-services/syncserver), with a few special changes to [syncserver.ini](https://github.com/mozilla-services/syncserver/blob/master/syncserver.ini); make sure that you're using the following values (in addition to all of the other defaults):
+
+    ```
+    [server:main]
+    port = 5000
+
+    [syncserver]
+    public_url = http://localhost:5000/
+
+    # This value needs to match your "master_secret" for syncstorage-rs!
+    secret = INSERT_SECRET_KEY_HERE
+
+    [tokenserver]
+    node_url = http://localhost:8000
+    sqluri = pymysql://sample_user:sample_password@127.0.0.1/syncstorage_rs
+
+    [endpoints]
+    sync-1.5 = "http://localhost:8000/1.5/1"```
+
+
+3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/token/1.0/sync/1.5`.
+4. Restart Firefox. Now, try syncing. You should see new BSOs in your local MySQL instance.
 
 ## Logging
 
-- If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value, and `export SENTRY_DSN=DSN_VALUE_GOES_HERE` to the environment when running this project.
-- Using [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env var.
+### Sentry:
+1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value.
+2. Comment out the `human_logs` line in your `config/local.toml` file.
+3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
+4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run_local`.
+5. You may need to stop the local server after it hits the panic! before errors will appear in Sentry.
+
+### RUST_LOG
+
+We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env var.
 
 ## Tests
 
 ### Unit tests
 
-1. `cd db-tests`.
-2. Pass along your `SYNC_DATABASE_URL` to the test runner. Ie:
-
-```
-SYNC_DATABASE_URL="mysql://sample_user:sample_password@localhost/syncstorage_rs" && /
-RUST_TEST_THREADS=1 && /
-cargo test
-```
+`make test` - open the Makefile to adjust your `SYNC_DATABASE_URL` as needed.
 
 ### End-to-End tests
 
@@ -161,7 +210,7 @@ Once your PR merges, then go ahead and create an official [GitHub release](https
 
 [mpl-svg]: https://img.shields.io/badge/License-MPL%202.0-blue.svg
 [mpl]: https://opensource.org/licenses/MPL-2.0
-[travis-badge]: https://travis-ci.org/mozilla-services/syncstorage-rs.svg?branch=master
-[travis]: https://travis-ci.org/mozilla-services/syncstorage-rs
 [circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
 [circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
+[matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
+[matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org

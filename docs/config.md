@@ -24,7 +24,7 @@ $ cargo run -- --config sync.ini
 Options can be mixed between environment and configuration.
 
 ## Options
-The following configuration options are avaialble.
+The following configuration options are available.
 
 | Option | Default value |Description |
 | --- | --- | --- |

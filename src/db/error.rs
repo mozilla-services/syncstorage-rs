@@ -81,13 +81,7 @@ impl From<Context<DbErrorKind>> for DbError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        let error = Self { inner, status };
-
-        if status == StatusCode::INTERNAL_SERVER_ERROR {
-            sentry::integrations::failure::capture_fail(&error);
-        }
-
-        error
+        Self { inner, status }
     }
 }
 

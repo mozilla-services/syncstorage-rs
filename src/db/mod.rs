@@ -6,11 +6,13 @@ pub mod mysql;
 pub mod params;
 pub mod results;
 pub mod spanner;
+#[cfg(test)]
+mod tests;
 pub mod util;
 
 use std::fmt::Debug;
 
-use futures::future::Future;
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use url::Url;
@@ -55,7 +57,7 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 /// DbPools' worker ThreadPool size
 pub const DB_THREAD_POOL_SIZE: usize = 50;
 
-type DbFuture<T> = Box<dyn Future<Item = T, Error = ApiError>>;
+type DbFuture<T> = LocalBoxFuture<'static, Result<T, ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
@@ -147,6 +149,8 @@ pub trait Db: Send + Debug {
 
     fn box_clone(&self) -> Box<dyn Db>;
 
+    fn check(&self) -> DbFuture<results::Check>;
+
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.
@@ -159,28 +163,28 @@ pub trait Db: Send + Debug {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::new(self.get_storage_timestamp(user_id)),
+            None => return Box::pin(self.get_storage_timestamp(user_id)),
         };
         // If there's no bso, return the collection
         let bso = match bso {
             Some(bso) => bso,
             None => {
-                return Box::new(
+                return Box::pin(
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
                     })
                     .or_else(|e| {
                         if e.is_collection_not_found() {
-                            Ok(SyncTimestamp::from_seconds(0f64))
+                            future::ok(SyncTimestamp::from_seconds(0f64))
                         } else {
-                            Err(e)
+                            future::err(e)
                         }
                     }),
                 )
             }
         };
-        Box::new(
+        Box::pin(
             self.get_bso_timestamp(params::GetBsoTimestamp {
                 user_id,
                 collection,
@@ -188,9 +192,9 @@ pub trait Db: Send + Debug {
             })
             .or_else(|e| {
                 if e.is_collection_not_found() {
-                    Ok(SyncTimestamp::from_seconds(0f64))
+                    future::ok(SyncTimestamp::from_seconds(0f64))
                 } else {
-                    Err(e)
+                    future::err(e)
                 }
             }),
         )
@@ -198,25 +202,25 @@ pub trait Db: Send + Debug {
 
     /// Internal methods used by the db tests
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<SyncTimestamp>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn set_timestamp(&self, timestamp: SyncTimestamp);
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<()>;
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     fn clear_coll_cache(&self);
 }
 
@@ -226,7 +230,7 @@ impl Clone for Box<dyn Db> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,
