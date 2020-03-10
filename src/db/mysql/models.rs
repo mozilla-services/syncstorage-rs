@@ -485,7 +485,9 @@ impl MysqlDb {
 
         query = match sort {
             Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
-            Sorting::Newest | Sorting::None => query.order(bso::id.desc()).order(bso::modified.desc()),
+            Sorting::Newest | Sorting::None => {
+                query.order(bso::id.desc()).order(bso::modified.desc())
+            }
             Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
         };
 

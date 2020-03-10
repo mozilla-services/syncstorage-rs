@@ -976,7 +976,9 @@ impl SpannerDb {
         }
         query = match sort {
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
-            Sorting::Newest | Sorting::None => format!("{} ORDER BY modified DESC, bso_id DESC", query),
+            Sorting::Newest | Sorting::None => {
+                format!("{} ORDER BY modified DESC, bso_id DESC", query)
+            }
             Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
         };
 
