@@ -976,8 +976,8 @@ impl SpannerDb {
         }
         query = match sort {
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC, bso_id DESC", query),
-            Sorting::Oldest | Sorting::None => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            Sorting::Newest | Sorting::None => format!("{} ORDER BY modified DESC, bso_id DESC", query),
+            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
         };
 
         if let Some(limit) = limit {
