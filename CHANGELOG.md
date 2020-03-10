@@ -1,3 +1,13 @@
+<a name="0.2.4"></a>
+## 0.2.4 (2020-03-10)
+
+
+#### Bug Fixes
+
+*   GETs with a limit and no sort never advance X-Weave-Next-Offset ([c95f2ff2](https://github.com/mozilla-services/syncstorage-rs/commit/c95f2ff21a5e3b428b2715018e7e782b22a2dfa8))
+
+
+
 <a name="0.2.2"></a>
 ## 0.2.2 (2020-02-12)
 
