@@ -17,14 +17,17 @@ use crate::{
     web::extractors::HawkIdentifier,
 };
 
-pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
+pub async fn create_async(
+    db: &SpannerDb,
+    params: params::CreateBatch,
+) -> Result<results::CreateBatch> {
     let batch_id = Uuid::new_v4().to_simple().to_string();
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
     let timestamp = db.timestamp()?.as_i64();
 
     // Ensure a parent record exists in user_collections before writing to batches
     // (INTERLEAVE IN PARENT user_collections)
-    pretouch_collection(db, &params.user_id, collection_id)?;
+    pretouch_collection_async(db, &params.user_id, collection_id).await?;
 
     db.sql(
         "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, batch_id, expiry)
@@ -40,20 +43,22 @@ pub fn create(db: &SpannerDb, params: params::CreateBatch) -> Result<results::Cr
     .param_types(param_types! {
         "expiry" => TypeCode::TIMESTAMP,
     })
-    .execute_dml(&db.conn)?;
+    .execute_dml_async(&db.conn)
+    .await?;
 
-    do_append(
+    do_append_async(
         db,
         params.user_id,
         collection_id,
         batch_id.clone(),
         params.bsos,
-    )?;
+    )
+    .await?;
     Ok(batch_id)
 }
 
-pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
-    let collection_id = db.get_collection_id(&params.collection)?;
+pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
     let exists = db
         .sql(
             "SELECT 1
@@ -70,36 +75,41 @@ pub fn validate(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
             "collection_id" => collection_id.to_string(),
             "batch_id" => params.id,
         })
-        .execute(&db.conn)?
-        .one_or_none()?;
+        .execute_async(&db.conn)?
+        .one_or_none()
+        .await?;
     Ok(exists.is_some())
 }
 
-pub fn append(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
+pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
 
-    let exists = validate(
+    let exists = validate_async(
         db,
         params::ValidateBatch {
             user_id: params.user_id.clone(),
             collection: params.collection.clone(),
             id: params.id.clone(),
         },
-    )?;
+    )
+    .await?;
     if !exists {
-        // NOTE: db_tests expects this but it doesn't seem necessary w/ the
+        // NOTE: db tests expects this but it doesn't seem necessary w/ the
         // handler validating the batch before appends
         Err(DbErrorKind::BatchNotFound)?
     }
 
-    let collection_id = db.get_collection_id(&params.collection)?;
-    do_append(db, params.user_id, collection_id, params.id, params.bsos)?;
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    do_append_async(db, params.user_id, collection_id, params.id, params.bsos).await?;
     Ok(())
 }
 
-pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-    let collection_id = db.get_collection_id(&params.collection)?;
+pub async fn get_async(
+    db: &SpannerDb,
+    params: params::GetBatch,
+) -> Result<Option<results::GetBatch>> {
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
     let batch = db
         .sql(
             "SELECT 1
@@ -116,8 +126,9 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
             "collection_id" => collection_id.to_string(),
             "batch_id" => params.id.clone(),
         })
-        .execute(&db.conn)?
-        .one_or_none()?
+        .execute_async(&db.conn)?
+        .one_or_none()
+        .await?
         .map(move |_| {
             params::Batch {
                 id: params.id,
@@ -131,8 +142,8 @@ pub fn get(db: &SpannerDb, params: params::GetBatch) -> Result<Option<results::G
     Ok(batch)
 }
 
-pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
-    let collection_id = db.get_collection_id(&params.collection)?;
+pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
     // Also deletes child batch_bsos rows (INTERLEAVE IN PARENT batches ON
     // DELETE CASCADE)
     db.sql(
@@ -148,60 +159,77 @@ pub fn delete(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
         "collection_id" => collection_id.to_string(),
         "batch_id" => params.id,
     })
-    .execute_dml(&db.conn)?;
+    .execute_dml_async(&db.conn)
+    .await?;
     Ok(())
 }
 
-pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
+pub async fn commit_async(
+    db: &SpannerDb,
+    params: params::CommitBatch,
+) -> Result<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
 
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
-    let timestamp = db.touch_collection(&params.user_id, collection_id)?;
+    let timestamp = db
+        .touch_collection_async(&params.user_id, collection_id)
+        .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
-    // First, UPDATE existing rows in the bsos table with any new values
-    // supplied in this batch
-    db.sql(include_str!("batch_commit_update.sql"))?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => params.batch.id.clone(),
-            "timestamp" => as_rfc3339.clone(),
-        })
-        .param_types(param_types! {
-            "timestamp" => TypeCode::TIMESTAMP,
-        })
-        .execute_dml(&db.conn)?;
+    {
+        // First, UPDATE existing rows in the bsos table with any new values
+        // supplied in this batch
+        let mut timer2 = db.metrics.clone();
+        timer2.start_timer("storage.spanner.apply_batch_update", None);
+        db.sql(include_str!("batch_commit_update.sql"))?
+            .params(params! {
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
+                "collection_id" => collection_id.to_string(),
+                "batch_id" => params.batch.id.clone(),
+                "timestamp" => as_rfc3339.clone(),
+            })
+            .param_types(param_types! {
+                "timestamp" => TypeCode::TIMESTAMP,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
+    }
 
-    // Then INSERT INTO SELECT remaining rows from this batch into the bsos
-    // table (that didn't already exist there)
-    db.sql(include_str!("batch_commit_insert.sql"))?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid.clone(),
-            "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => params.batch.id.clone(),
-            "timestamp" => as_rfc3339,
-            "default_bso_ttl" => DEFAULT_BSO_TTL.to_string(),
-        })
-        .param_types(param_types! {
-            "timestamp" => TypeCode::TIMESTAMP,
-            "default_bso_ttl" => TypeCode::INT64,
-        })
-        .execute_dml(&db.conn)?;
+    {
+        // Then INSERT INTO SELECT remaining rows from this batch into the bsos
+        // table (that didn't already exist there)
+        let mut timer3 = db.metrics.clone();
+        timer3.start_timer("storage.spanner.apply_batch_insert", None);
+        db.sql(include_str!("batch_commit_insert.sql"))?
+            .params(params! {
+                "fxa_uid" => params.user_id.fxa_uid.clone(),
+                "fxa_kid" => params.user_id.fxa_kid.clone(),
+                "collection_id" => collection_id.to_string(),
+                "batch_id" => params.batch.id.clone(),
+                "timestamp" => as_rfc3339,
+                "default_bso_ttl" => DEFAULT_BSO_TTL.to_string(),
+            })
+            .param_types(param_types! {
+                "timestamp" => TypeCode::TIMESTAMP,
+                "default_bso_ttl" => TypeCode::INT64,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
+    }
 
-    delete(
+    delete_async(
         db,
         params::DeleteBatch {
             user_id: params.user_id,
             collection: params.collection,
             id: params.batch.id,
         },
-    )?;
+    )
+    .await?;
     // XXX: returning results::PostBsos here isn't needed
     Ok(results::PostBsos {
         modified: timestamp,
@@ -210,7 +238,7 @@ pub fn commit(db: &SpannerDb, params: params::CommitBatch) -> Result<results::Co
     })
 }
 
-pub fn do_append(
+pub async fn do_append_async(
     db: &SpannerDb,
     user_id: HawkIdentifier,
     collection_id: i32,
@@ -292,7 +320,8 @@ pub fn do_append(
     )?
     .params(sqlparams)
     .param_types(sqlparam_types)
-    .execute_dml(&db.conn)?;
+    .execute_dml_async(&db.conn)
+    .await?;
 
     Ok(())
 }
@@ -305,7 +334,11 @@ pub fn do_append(
 ///
 /// For the special case of a user creating a batch for a collection with no
 /// prior data.
-fn pretouch_collection(db: &SpannerDb, user_id: &HawkIdentifier, collection_id: i32) -> Result<()> {
+async fn pretouch_collection_async(
+    db: &SpannerDb,
+    user_id: &HawkIdentifier,
+    collection_id: i32,
+) -> Result<()> {
     let mut sqlparams = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),
@@ -320,8 +353,9 @@ fn pretouch_collection(db: &SpannerDb, user_id: &HawkIdentifier, collection_id: 
                 AND collection_id = @collection_id",
         )?
         .params(sqlparams.clone())
-        .execute(&db.conn)?
-        .one_or_none()?;
+        .execute_async(&db.conn)?
+        .one_or_none()
+        .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
         db.sql(
@@ -332,7 +366,8 @@ fn pretouch_collection(db: &SpannerDb, user_id: &HawkIdentifier, collection_id: 
         .param_types(param_types! {
             "modified" => TypeCode::TIMESTAMP,
         })
-        .execute_dml(&db.conn)?;
+        .execute_dml_async(&db.conn)
+        .await?;
     }
     Ok(())
 }

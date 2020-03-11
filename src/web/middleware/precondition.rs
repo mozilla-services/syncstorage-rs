@@ -1,15 +1,5 @@
+use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
-
-use actix_service::{Service, Transform};
-use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
-    http::{header, StatusCode},
-    Error, HttpMessage, HttpResponse,
-};
-use futures::{
-    future::{self, Either, FutureResult},
-    Future, Poll,
-};
 
 use crate::web::{
     extractors::{
@@ -19,6 +9,13 @@ use crate::web::{
     tags::Tags,
     DOCKER_FLOW_ENDPOINTS, X_LAST_MODIFIED,
 };
+use actix_web::{
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    http::{header, StatusCode},
+    Error, HttpMessage, HttpResponse,
+};
+use futures::future::{self, Either, FutureExt, LocalBoxFuture, TryFutureExt};
+use std::task::Poll;
 
 #[derive(Debug)]
 pub struct PreConditionCheck;
@@ -46,12 +43,13 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = PreConditionCheckMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         future::ok(PreConditionCheckMiddleware {
             service: Rc::new(RefCell::new(service)),
         })
+        .boxed_local()
     }
 }
 
@@ -68,17 +66,17 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     // call super poll_ready()
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
             let mut service = Rc::clone(&self.service);
-            return Box::new(service.call(sreq));
+            return Box::new(service.call(sreq)).boxed_local();
         }
 
         // Pre check
@@ -97,7 +95,7 @@ where
             },
             Err(e) => {
                 warn!("⚠️ Precondition error {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
                             .content_type("application/json")
@@ -111,7 +109,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 warn!("⚠️ Hawk header error {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
                             .content_type("application/json")
@@ -125,8 +123,8 @@ where
         let db = match edb {
             Ok(v) => v,
             Err(e) => {
-                error!("Database access error {:?}", e);
-                return Box::new(future::ok(
+                error!("⚠️ Database access error {:?}", e);
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -142,7 +140,7 @@ where
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
                 warn!("⚠️ Collection Error:  {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -156,7 +154,7 @@ where
         let bso_opt = bso.map(|b| b.bso);
 
         let mut service = Rc::clone(&self.service);
-        Box::new(
+        Box::pin(
             db.extract_resource(user_id, collection, bso_opt)
                 .map_err(Into::into)
                 .and_then(move |resource_ts| {
@@ -174,7 +172,7 @@ where
                         _ => StatusCode::OK,
                     };
                     if status != StatusCode::OK {
-                        return Either::A(future::ok(
+                        return Either::Left(future::ok(
                             sreq.into_response(
                                 HttpResponse::build(status)
                                     .content_type("application/json")
@@ -186,9 +184,11 @@ where
                     };
 
                     // Make the call, then do all the post-processing steps.
-                    Either::B(service.call(sreq).map(move |mut resp| {
+                    Either::Right(service.call(sreq).map(move |resp| {
+                        let mut resp =
+                            resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
                         if resp.headers().contains_key(X_LAST_MODIFIED) {
-                            return resp;
+                            return Ok(resp);
                         }
 
                         // See if we already extracted one and use that if possible
@@ -201,7 +201,7 @@ where
                                 ts_header,
                             );
                         }
-                        resp
+                        Ok(resp)
                     }))
                 }),
         )

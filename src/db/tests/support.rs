@@ -1,8 +1,9 @@
-use env_logger;
-use futures::compat::Future01CompatExt;
 use std::str::FromStr;
-use syncstorage::{
-    db::{params, util::SyncTimestamp, Db, Sorting},
+
+use env_logger;
+
+use crate::{
+    db::{params, pool_from_settings, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
     server::metrics,
     settings::{Secrets, ServerLimits, Settings},
@@ -28,8 +29,8 @@ pub async fn db() -> Result<Box<dyn Db>> {
     };
 
     let metrics = metrics::Metrics::noop();
-    let pool = syncstorage::db::pool_from_settings(&settings, &metrics)?;
-    let db = pool.get().compat().await?;
+    let pool = pool_from_settings(&settings, &metrics)?;
+    let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it
     db.set_timestamp(SyncTimestamp::default());

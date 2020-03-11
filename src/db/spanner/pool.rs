@@ -1,3 +1,6 @@
+use actix_web::web::block;
+use futures::future::TryFutureExt;
+
 use std::{
     collections::HashMap,
     fmt,
@@ -7,12 +10,10 @@ use std::{
 use diesel::r2d2;
 use diesel::r2d2::Pool;
 
-use futures::future::lazy;
 use scheduled_thread_pool::ScheduledThreadPool;
-use tokio_threadpool::ThreadPool;
 
 use super::models::Result;
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use super::test_util::SpannerTestTransactionCustomizer;
 use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
@@ -36,8 +37,6 @@ embed_migrations!();
 pub struct SpannerDbPool {
     /// Pool of db connections
     pool: Pool<SpannerConnectionManager>,
-    /// Thread Pool for running synchronous db calls
-    thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -67,7 +66,7 @@ impl SpannerDbPool {
         let mut metrics = metrics.clone();
         metrics.start_timer("storage.spanner.pool.get", None);
 
-        #[cfg(any(test, feature = "db_test"))]
+        #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
             builder.connection_customizer(Box::new(SpannerTestTransactionCustomizer))
         } else {
@@ -76,11 +75,6 @@ impl SpannerDbPool {
 
         Ok(Self {
             pool: builder.build(manager)?,
-            thread_pool: Arc::new(
-                tokio_threadpool::Builder::new()
-                    .pool_size(max_size as usize)
-                    .build(),
-            ),
             coll_cache: Default::default(),
             metrics,
         })
@@ -89,7 +83,6 @@ impl SpannerDbPool {
     pub fn get_sync(&self) -> Result<SpannerDb> {
         Ok(SpannerDb::new(
             self.pool.get()?,
-            Arc::clone(&self.thread_pool),
             Arc::clone(&self.coll_cache),
             &self.metrics,
         ))
@@ -99,11 +92,14 @@ impl SpannerDbPool {
 impl DbPool for SpannerDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            pool.get_sync()
-                .map(|db| Box::new(db) as Box<dyn Db>)
-                .map_err(Into::into)
-        })))
+        Box::pin(
+            block(move || {
+                pool.get_sync()
+                    .map(|db| Box::new(db) as Box<dyn Db>)
+                    .map_err(Into::into)
+            })
+            .map_err(Into::into),
+        )
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -157,7 +153,7 @@ impl CollectionCache {
             .cloned())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn clear(&self) {
         self.by_name.write().expect("by_name write").clear();
         self.by_id.write().expect("by_id write").clear();

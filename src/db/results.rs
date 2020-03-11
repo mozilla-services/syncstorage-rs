@@ -43,7 +43,7 @@ pub struct GetBso {
     pub sortindex: Option<i32>,
     // NOTE: expiry (ttl) is never rendered to clients and only loaded for
     // tests: this and its associated queries/loading could be wrapped in
-    // #[cfg(any(test, feature = "db_test"))]
+    // #[cfg(test)]
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     #[sql_type = "BigInt"]
@@ -69,11 +69,11 @@ pub struct PostBsos {
     pub failed: HashMap<String, String>,
 }
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type GetCollectionId = i32;
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type CreateCollection = i32;
 
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 pub type TouchCollection = SyncTimestamp;

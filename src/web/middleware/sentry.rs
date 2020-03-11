@@ -1,14 +1,12 @@
+use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
-use actix_service::{Service, Transform};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage,
 };
-use futures::{
-    future::{self, FutureResult},
-    Future, Poll,
-};
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use std::task::Poll;
 
 use crate::error::ApiError;
 use crate::web::tags::Tags;
@@ -38,12 +36,12 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = SentryWrapperMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(SentryWrapperMiddleware {
+        Box::pin(future::ok(SentryWrapperMiddleware {
             service: Rc::new(RefCell::new(service)),
-        })
+        }))
     }
 }
 
@@ -61,10 +59,10 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
@@ -72,7 +70,7 @@ where
         let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
-        Box::new(self.service.call(sreq).and_then(move |sresp| {
+        Box::pin(self.service.call(sreq).and_then(move |sresp| {
             // handed an actix_error::error::Error;
             // Fetch out the tags (in case any have been added.)
             match sresp.response().error() {
@@ -109,7 +107,7 @@ where
                     }
                 }
             }
-            sresp
+            future::ok(sresp)
         }))
     }
 }

@@ -1,28 +1,30 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-
-- [Syncstorage-rs](#syncstorage-rs)
-  - [System Requirements](#system-requirements)
-  - [Local Setup](#local-setup)
-    - [MySQL](#mysql)
-    - [Spanner](#spanner)
-    - [Connecting to Firefox](#connecting-to-firefox)
-  - [Logging](#logging)
-  - [Tests](#tests)
-    - [Unit tests](#unit-tests)
-    - [End-to-End tests](#end-to-end-tests)
-  - [Creating Releases](#creating-releases)
-  - [Troubleshooting](#troubleshooting)
-  - [Related Documentation](#related-documentation)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci]
+[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
 # Syncstorage-rs
 
 Mozilla Sync Storage built with [Rust](https://rust-lang.org).
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+- [System Requirements](#system-requirements)
+- [Local Setup](#local-setup)
+  - [MySQL](#mysql)
+  - [Spanner](#spanner)
+  - [Running via Docker](#running-via-docker)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Logging](#logging)
+  - [Sentry:](#sentry)
+  - [RUST_LOG](#rust_log)
+- [Tests](#tests)
+  - [Unit tests](#unit-tests)
+  - [End-to-End tests](#end-to-end-tests)
+- [Creating Releases](#creating-releases)
+- [Troubleshooting](#troubleshooting)
+- [Related Documentation](#related-documentation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## System Requirements
 
@@ -43,7 +45,7 @@ Sentry init, you probably are missing `libcurl4-openssl-dev`.
 
 1. Follow the instructions below to use either MySQL or Spanner as your DB.
 2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
-3. `make run_local` starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
+3. `make run` starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
 4. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
 ### MySQL
@@ -54,12 +56,12 @@ Durable sync needs only a valid mysql DSN in order to set up connections to a My
 
 To setup a fresh MySQL DB and user: (`mysql -u root`):
 
-    ```
-    CREATE USER "sample_user"@"localhost" IDENTIFIED BY "sample_password";
-    CREATE DATABASE syncstorage_rs;
+```
+CREATE USER "sample_user"@"localhost" IDENTIFIED BY "sample_password";
+CREATE DATABASE syncstorage_rs;
 
-    GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
-    ```
+GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
+```
 
 ### Spanner
 
@@ -149,7 +151,7 @@ This will walk you through the steps to connect this project to your local copy 
 1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value.
 2. Comment out the `human_logs` line in your `config/local.toml` file.
 3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
-4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run_local`.
+4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run`.
 5. You may need to stop the local server after it hits the panic! before errors will appear in Sentry.
 
 ### RUST_LOG
@@ -210,3 +212,5 @@ Once your PR merges, then go ahead and create an official [GitHub release](https
 [mpl]: https://opensource.org/licenses/MPL-2.0
 [circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
 [circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
+[matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
+[matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org
