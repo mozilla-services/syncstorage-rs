@@ -1520,7 +1520,9 @@ impl SpannerDb {
     #[cfg(test)]
     pub async fn put_bso_async_test(&self, bso: params::PutBso) -> Result<results::PutBso> {
         use crate::db::util::to_rfc3339;
-        let collection_id = self.get_or_create_collection_id_async(&bso.collection).await?;
+        let collection_id = self
+            .get_or_create_collection_id_async(&bso.collection)
+            .await?;
         let mut sqlparams = params! {
             "fxa_uid" => bso.user_id.fxa_uid.clone(),
             "fxa_kid" => bso.user_id.fxa_kid.clone(),
@@ -1528,7 +1530,9 @@ impl SpannerDb {
             "bso_id" => bso.id.to_string(),
         };
         let mut sqltypes = HashMap::new();
-        let touch = self.touch_collection_async(&bso.user_id, collection_id).await?;
+        let touch = self
+            .touch_collection_async(&bso.user_id, collection_id)
+            .await?;
         let timestamp = self.timestamp()?;
 
         let result = self
@@ -1542,7 +1546,8 @@ impl SpannerDb {
             )?
             .params(sqlparams.clone())
             .execute_async(&self.conn)?
-            .one_or_none().await?;
+            .one_or_none()
+            .await?;
         let exists = result.is_some();
 
         let sql = if exists {
@@ -1665,7 +1670,8 @@ impl SpannerDb {
         self.sql(&sql)?
             .params(sqlparams)
             .param_types(sqltypes)
-            .execute_dml_async(&self.conn).await?;
+            .execute_dml_async(&self.conn)
+            .await?;
 
         Ok(touch)
     }
@@ -1674,7 +1680,9 @@ impl SpannerDb {
     // see above for the non-tests version
     #[cfg(test)]
     pub async fn post_bsos_async_test(&self, input: params::PostBsos) -> Result<results::PostBsos> {
-        let collection_id = self.get_or_create_collection_id_async(&input.collection).await?;
+        let collection_id = self
+            .get_or_create_collection_id_async(&input.collection)
+            .await?;
         let mut result = results::PostBsos {
             modified: self.timestamp()?,
             success: Default::default(),
@@ -1690,10 +1698,12 @@ impl SpannerDb {
                 payload: pbso.payload,
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
-            }).await?;
+            })
+            .await?;
             result.success.push(id);
         }
-        self.touch_collection_async(&input.user_id, collection_id).await?;
+        self.touch_collection_async(&input.user_id, collection_id)
+            .await?;
         Ok(result)
     }
 
@@ -1905,17 +1915,13 @@ impl Db for SpannerDb {
     #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::pin(async move {
-            db.get_collection_id_async(&name).map_err(Into::into).await
-        })
+        Box::pin(async move { db.get_collection_id_async(&name).map_err(Into::into).await })
     }
 
     #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
-        Box::pin(async move {
-            db.create_collection_async(&name).map_err(Into::into).await
-        })
+        Box::pin(async move { db.create_collection_async(&name).map_err(Into::into).await })
     }
 
     #[cfg(test)]
