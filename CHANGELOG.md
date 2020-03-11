@@ -1,3 +1,13 @@
+<a name="0.2.5"></a>
+## 0.2.5 (2020-03-11)
+
+
+#### Bug Fixes
+
+*   relax MAX_TTL to 9 digits ([9b5bda50](https://github.com/mozilla-services/syncstorage-rs/commit/9b5bda5092ffa8852a812ba4f406358b0e6b780a), closes [#480](https://github.com/mozilla-services/syncstorage-rs/issues/480))
+
+
+
 <a name="0.2.4"></a>
 ## 0.2.4 (2020-03-10)
 
