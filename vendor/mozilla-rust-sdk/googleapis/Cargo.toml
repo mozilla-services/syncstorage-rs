@@ -1,0 +1,13 @@
+[package]
+name = "googleapis"
+version = "0.0.1"
+authors = ["Ferrous Systems"]
+edition = "2018"
+
+[dependencies]
+futures = "0.1.28"
+grpcio = "0.5.0-alpha.1"
+
+[dependencies.googleapis-raw]
+version = "0.0.1"
+path = "../googleapis-raw"

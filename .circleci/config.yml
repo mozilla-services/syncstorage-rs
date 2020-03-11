@@ -41,18 +41,8 @@ commands:
       - run:
           name: cargo build
           command: cargo build
-  checkout-gcp-grpc:
+  setup-gcp-grpc:
     steps:
-      - add_ssh_keys:
-          fingerprints:
-            - "f1:d3:a1:e0:b1:cc:60:80:e5:bd:fa:f9:9c:3f:93:6f"
-      - run:
-          name: Checkout gcp-grpc
-          command: git clone git@github.com:mozilla-services/mozilla-rust-sdk.git
-      - run:
-          name: Adjust gcp-grpc dep path
-          # Switch it into the working dir so it's sent to Docker
-          command: sed -i "s/..\/mozilla-rust-sdk/mozilla-rust-sdk/" Cargo.toml
       - run:
           name: Install grpcio dependencies
           command: sudo apt-get update && sudo apt-get install -y cmake golang-go
@@ -119,9 +109,9 @@ jobs:
       - image: circleci/rust:latest
     steps:
       - checkout
-      - checkout-gcp-grpc
       - setup-rust
       - setup-rust-check
+      - setup-gcp-grpc
       - rust-check
       - rust-clippy
 
@@ -141,8 +131,8 @@ jobs:
             MYSQL_DATABASE: syncstorage
     steps:
       - checkout
-      - checkout-gcp-grpc
       - setup-rust
+      - setup-gcp-grpc
       # XXX: currently the time needed to setup-sccache negates its savings
       #- setup-sccache
       #- restore-sccache-cache
