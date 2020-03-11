@@ -39,7 +39,7 @@ use crate::web::{
 const BATCH_MAX_IDS: usize = 100;
 
 // BSO const restrictions
-const BSO_MAX_TTL: u32 = 31_536_000;
+const BSO_MAX_TTL: u32 = 999_999_999;
 const BSO_MAX_SORTINDEX_VALUE: i32 = 999_999_999;
 const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 
@@ -2211,5 +2211,20 @@ mod tests {
         assert_eq!(err["errors"][0]["location"], "path");
         assert_eq!(err["errors"][0]["name"], "uid");
         */
+    }
+
+    #[test]
+    fn test_max_ttl() {
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23, "ttl": 94_608_000},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23, "ttl": 999_999_999},
+            {"id": "789", "payload": "xxxfoo", "sortindex": 23, "ttl": 1_000_000_000}
+        ]);
+        let result = post_collection("", &bso_body).unwrap();
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+        assert_eq!(result.bsos.invalid.len(), 1);
+        assert!(result.bsos.invalid.contains_key("789"));
     }
 }
