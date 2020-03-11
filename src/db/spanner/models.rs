@@ -155,6 +155,7 @@ impl SpannerDb {
         Ok(id)
     }
 
+    #[allow(dead_code)]
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
@@ -244,14 +245,6 @@ impl SpannerDb {
         })
         .execute_dml(&self.conn)?;
         Ok(id)
-    }
-
-    #[allow(dead_code)]
-    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
-        self.get_collection_id(name).or_else(|e| match e.kind() {
-            DbErrorKind::CollectionNotFound => self.create_collection(name),
-            _ => Err(e),
-        })
     }
 
     async fn get_or_create_collection_id_async(&self, name: &str) -> Result<i32> {
@@ -1913,7 +1906,7 @@ impl Db for SpannerDb {
     fn get_collection_id(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(async move {
-            db.get_collection_id(&name).map_err(Into::into).await
+            db.get_collection_id_async(&name).map_err(Into::into).await
         })
     }
 
@@ -1921,7 +1914,7 @@ impl Db for SpannerDb {
     fn create_collection(&self, name: String) -> DbFuture<i32> {
         let db = self.clone();
         Box::pin(async move {
-            db.create_collection(&name).map_err(Into::into).await
+            db.create_collection_async(&name).map_err(Into::into).await
         })
     }
 
