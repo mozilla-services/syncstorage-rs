@@ -1,0 +1,11 @@
+version: "3"
+services:
+  rust:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/googleapis-rs
+    tty: true
+    stdin_open: true
+    working_dir: /googleapis-rs
