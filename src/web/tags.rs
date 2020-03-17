@@ -12,7 +12,7 @@ use serde::{
     Serialize,
 };
 use serde_json::value::Value;
-use slog::{Key, KV, Record};
+use slog::{Key, Record, KV};
 
 use crate::server::user_agent::parse_user_agent;
 
