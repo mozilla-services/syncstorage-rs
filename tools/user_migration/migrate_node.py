@@ -338,7 +338,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
                         values=uc_values
                     )
                 else:
-                    logging.debug("not writing {} => {}".format(uc_columns, uc_values))
+                    logging.debug("not writing {} => {}".format(
+                        uc_columns, uc_values))
                 unique_key_filter.add(uc_key)
 
     def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
@@ -382,7 +383,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
                     values=bso_values
                 )
             else:
-                logging.debug("not writing {} => {}".format(bso_columns, bso_values))
+                logging.debug("not writing {} => {}".format(
+                    bso_columns, bso_values))
             count += 1
         return count
 
@@ -459,6 +461,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
         cursor.close()
     return count
 
+
 def get_users(args, databases, fxa, bso_num):
     users = []
     cursor = databases['mysql'].cursor()
@@ -466,20 +469,23 @@ def get_users(args, databases, fxa, bso_num):
         users = args.user
     else:
         try:
-            sql = """select distinct userid from bso{} order by userid""".format(bso_num)
+            sql = ("""select distinct userid from bso{}"""
+                   """ order by userid""".format(bso_num))
             if args.user_range:
                 (offset, limit) = args.user_range.split(':')
-                sql = "{} limit {} offset {}".format(sql, limit, offset)
+                sql = "{} limit {} offset {}".format(
+                    sql, limit, offset)
             cursor.execute(sql)
             for (user,) in cursor:
                 try:
                     (fxa_kid, fxa_uid) = fxa.get(user)
                     users.append((user, fxa_kid, fxa_uid))
                 except TypeError:
-                    logging.error("⚠️User not found in tokenserver data: {} ".format(
-                        user
-                    ))
-            users.sort(key=lambda tup: tup[2])
+                    logging.error(
+                        ("⚠️User not found in"
+                         "tokenserver data: {} ".format(user)))
+            if args.sort_users:
+                users.sort(key=lambda tup: tup[2])
         except Exception as ex:
             import pdb; pdb.set_trace()
             logging.error("Error moving database:", exc_info=ex)
@@ -495,7 +501,6 @@ def move_database(databases, collections, bso_num, fxa, args):
     # a new collection table since the last time we
     # fetched.
     rows = 0
-    cursor = databases['mysql'].cursor()
     if args.user:
         users = args.user
     else:
@@ -592,6 +597,10 @@ def get_args():
     parser.add_argument(
         '--user_range',
         help="Range of users to extract (offset:limit)"
+    )
+    parser.add_argument(
+        '--sort_users', action="store_true",
+        help="Sort the user"
     )
 
     return parser.parse_args()
