@@ -189,7 +189,7 @@ jobs:
           name: Deploy to Dockerhub
           command: |
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="latest"
+              DOCKER_TAG="${CIRCLE_SHA1}"
             fi
 
             if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
