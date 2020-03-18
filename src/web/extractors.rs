@@ -1353,7 +1353,30 @@ impl FromRequest for BsoQueryParams {
                             .into());
                         }
                     }
+                } else {
+                    if let Some(offset) = params.offset.as_ref() {
+                        if offset.offset == 0 {
+                            return Err(ValidationErrorKind::FromDetails(
+                                "Invalid offset: non-index sort should have an offset specified as a timestamp:offset pair".to_owned(),
+                                RequestErrorLocation::QueryString,
+                                Some("offset".to_owned()),
+                                None,
+                            )
+                            .into());
+                                }
+                    }
                 }
+            } else {
+                if let Some(_ts) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid offset: index sort should not have an offset specified as a timestamp:offset pair".to_owned(),
+                        RequestErrorLocation::QueryString,
+                        Some("offset".to_owned()),
+                        None,
+                    )
+                    .into());
+                }
+
             }
             Ok(params)
         })
@@ -1944,12 +1967,12 @@ mod tests {
 
     #[test]
     fn test_valid_query_args() {
-        let req = TestRequest::with_uri("/?ids=1,2&full=&sort=index&older=2.43")
+        let req = TestRequest::with_uri("/?ids=1,2&full=&sort=oldest&older=2.43")
             .data(make_state())
             .to_http_request();
         let result = block_on(BsoQueryParams::extract(&req)).unwrap();
         assert_eq!(result.ids, vec!["1", "2"]);
-        assert_eq!(result.sort, Sorting::Index);
+        assert_eq!(result.sort, Sorting::Oldest);
         assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
         assert_eq!(result.full, true);
     }
