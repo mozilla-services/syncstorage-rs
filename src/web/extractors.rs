@@ -1363,7 +1363,7 @@ impl FromRequest for BsoQueryParams {
                                 None,
                             )
                             .into());
-                                }
+                        }
                     }
                 }
             } else {
@@ -1376,7 +1376,6 @@ impl FromRequest for BsoQueryParams {
                     )
                     .into());
                 }
-
             }
             Ok(params)
         })
