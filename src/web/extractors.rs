@@ -1353,29 +1353,25 @@ impl FromRequest for BsoQueryParams {
                             .into());
                         }
                     }
-                } else {
-                    if let Some(offset) = params.offset.as_ref() {
-                        if offset.offset == 0 {
-                            return Err(ValidationErrorKind::FromDetails(
-                                "Invalid offset: non-index sort should have an offset specified as a timestamp:offset pair".to_owned(),
-                                RequestErrorLocation::QueryString,
-                                Some("offset".to_owned()),
-                                None,
-                            )
-                            .into());
-                        }
+                } else if let Some(offset) = params.offset.as_ref() {
+                    if offset.offset == 0 {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Invalid offset: non-index sort should have an offset specified as a timestamp:offset pair".to_owned(),
+                            RequestErrorLocation::QueryString,
+                            Some("offset".to_owned()),
+                            None,
+                        )
+                        .into());
                     }
                 }
-            } else {
-                if let Some(_ts) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
-                    return Err(ValidationErrorKind::FromDetails(
-                        "Invalid offset: index sort should not have an offset specified as a timestamp:offset pair".to_owned(),
-                        RequestErrorLocation::QueryString,
-                        Some("offset".to_owned()),
-                        None,
-                    )
-                    .into());
-                }
+            } else if let Some(_ts) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
+                return Err(ValidationErrorKind::FromDetails(
+                    "Invalid offset: index sort should not have an offset specified as a timestamp:offset pair".to_owned(),
+                    RequestErrorLocation::QueryString,
+                    Some("offset".to_owned()),
+                    None,
+                )
+                .into());
             }
             Ok(params)
         })
