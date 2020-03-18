@@ -308,7 +308,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             and collections.collectionid = bso.collection
             and bso.ttl > unix_timestamp()
     ORDER BY
-        modified DESC""".format(bso_num)
+        bso.collection, bso.id""".format(bso_num)
 
     def spanner_transact_uc(
             transaction, data, fxa_kid, fxa_uid, args):
@@ -347,7 +347,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
-                next
+                continue
             if collection_id != cid:
                 logging.debug(
                     "Remapping collection '{}' from {} to {}".format(
