@@ -12,6 +12,7 @@ use serde::{
     Serialize,
 };
 use serde_json::value::Value;
+use slog::{Key, Record, KV};
 
 use crate::server::user_agent::parse_user_agent;
 
@@ -139,5 +140,14 @@ impl Into<BTreeMap<String, String>> for Tags {
         }
 
         result
+    }
+}
+
+impl KV for Tags {
+    fn serialize(&self, _rec: &Record<'_>, serializer: &mut dyn slog::Serializer) -> slog::Result {
+        for (key, val) in &self.tags {
+            serializer.emit_str(Key::from(key.clone()), &val)?;
+        }
+        Ok(())
     }
 }
