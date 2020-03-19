@@ -114,7 +114,7 @@ This currently requires access to the [mozilla-rust-sdk](https://github.com/mozi
         context: .
     ```
 5. Adjust the MySQL db creds in docker-compose.yml to match your local setup.
-6. `make docker_start` - You can verify it's working by visiting [localhost:8000/__heartbeat__](http://localhost:8000/__heartbeat__)
+6. `make docker_start` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
 
 ### Connecting to Firefox
 
