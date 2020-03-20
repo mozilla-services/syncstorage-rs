@@ -1567,7 +1567,7 @@ impl SpannerDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            self.put_bso_async(params::PutBso {
+            self.put_bso_async_test(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
