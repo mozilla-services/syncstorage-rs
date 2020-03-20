@@ -14,6 +14,7 @@ static DEFAULT_OFFSET: u64 = 0;
 static DEFAULT_START_BSO: u64 = 0;
 static DEFAULT_END_BSO: u64 = 19;
 static DEFAULT_FXA_FILE: &str = "users.csv";
+static DEFAULT_SPANNER_POOL_SIZE: usize = 32;
 
 #[derive(Clone, Debug)]
 pub struct Dsns {
@@ -133,6 +134,7 @@ pub struct Settings {
     pub start_bso: Option<u64>,
     pub end_bso: Option<u64>,
     pub readchunk: Option<u64>,
+    pub spanner_pool_size: Option<usize>,
     #[structopt(long, parse(try_from_str=User::from_str))]
     pub user: Option<User>,
     #[structopt(long, parse(try_from_str=Abort::from_str))]
@@ -158,6 +160,7 @@ impl Default for Settings {
             start_bso: Some(DEFAULT_START_BSO),
             end_bso: Some(DEFAULT_END_BSO),
             readchunk: Some(DEFAULT_READ_CHUNK),
+            spanner_pool_size: Some(DEFAULT_SPANNER_POOL_SIZE),
             fxa_file: DEFAULT_FXA_FILE.to_owned(),
             user: None,
             abort: None,
