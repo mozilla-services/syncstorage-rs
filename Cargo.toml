@@ -39,7 +39,7 @@ itertools = "0.8.2"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 mozsvc-common = "0.1"
-num_cpus = "1.11"
+num_cpus = "1.12"
 # must match what's used by googleapis-raw
 protobuf = "2.7.0"
 openssl ="0.10"
