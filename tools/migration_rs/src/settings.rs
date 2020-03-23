@@ -11,8 +11,8 @@ use crate::error::{ApiError, ApiErrorKind};
 static DEFAULT_CHUNK_SIZE: u64 = 1_500_000;
 static DEFAULT_READ_CHUNK: u64 = 1_000;
 static DEFAULT_OFFSET: u64 = 0;
-static DEFAULT_START_BSO: u64 = 0;
-static DEFAULT_END_BSO: u64 = 19;
+static DEFAULT_START_BSO: u8 = 0;
+static DEFAULT_END_BSO: u8 = 19;
 static DEFAULT_FXA_FILE: &str = "users.csv";
 static DEFAULT_SPANNER_POOL_SIZE: usize = 32;
 
@@ -48,7 +48,7 @@ impl Dsns {
 
 #[derive(Clone, Debug)]
 pub struct User {
-    pub bso: String,
+    pub bso: u8,
     pub user_id: Vec<String>,
 }
 
@@ -58,7 +58,10 @@ impl User {
         if parts.len() == 1 {
             return Err(ApiErrorKind::Internal("bad user option".to_owned()).into());
         }
-        let bso = String::from(parts[0]);
+        let bso = match u8::from_str(parts[0]) {
+            Ok(v) => v,
+            Err(e) => return Err(ApiErrorKind::Internal(format!("invalid bso: {}", e)).into()),
+        };
         let s_ids = parts[1].split(',').collect::<Vec<&str>>();
         let mut user_id: Vec<String> = Vec::new();
         for id in s_ids {
@@ -71,7 +74,7 @@ impl User {
 
 #[derive(Clone, Debug)]
 pub struct Abort {
-    pub bso: String,
+    pub bso: u8,
     pub count: u64,
 }
 
@@ -81,8 +84,12 @@ impl Abort {
         if parts.len() == 1 {
             return Err(ApiErrorKind::Internal("Bad abort option".to_owned()).into());
         }
+        let bso = match u8::from_str(parts[0]) {
+            Ok(v) => v,
+            Err(e) => return Err(ApiErrorKind::Internal(format!("invalid bso: {}", e)).into()),
+        };
         Ok(Abort {
-            bso: String::from(parts[0]),
+            bso,
             count: u64::from_str(parts[1]).expect("Bad count for Abort"),
         })
     }
@@ -131,8 +138,8 @@ pub struct Settings {
     pub fxa_file: String,
     pub chunk_limit: Option<u64>,
     pub offset: Option<u64>,
-    pub start_bso: Option<u64>,
-    pub end_bso: Option<u64>,
+    pub start_bso: Option<u8>,
+    pub end_bso: Option<u8>,
     pub readchunk: Option<u64>,
     pub spanner_pool_size: Option<usize>,
     #[structopt(long, parse(try_from_str=User::from_str))]

@@ -53,6 +53,10 @@ impl FxaInfo {
         ))
     }
 
+    pub fn get_fxa_data(&self, uid: &u64) -> Option<FxaData> {
+        self.users.get(uid).map(|d| d.clone())
+    }
+
     pub fn new(settings: &Settings) -> ApiResult<Self> {
         if settings.deanon == false {
             return Ok(Self {
@@ -64,10 +68,13 @@ impl FxaInfo {
         let mut users = HashMap::<u64, FxaData>::new();
         for line in rdr.deserialize::<FxaCSVRecord>() {
             if let Ok(record) = line {
-                users.insert(record.uid, FxaData {
-                    fxa_uid: FxaInfo::gen_uid(&record)?,
-                    fxa_kid: FxaInfo::gen_kid(&record)?,
-                });
+                users.insert(
+                    record.uid,
+                    FxaData {
+                        fxa_uid: FxaInfo::gen_uid(&record)?,
+                        fxa_kid: FxaInfo::gen_kid(&record)?,
+                    },
+                );
             }
         }
         Ok(Self { users, anon: false })

@@ -11,19 +11,18 @@ use googleapis_raw::spanner::v1::{
 use grpcio::{
     CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, Environment, MetadataBuilder,
 };
-use pool::Pool;
 
 
 use crate::error::{ApiError, ApiErrorKind, ApiResult};
 use crate::settings::Settings;
+use crate::db::UserData;
 use crate::db::collections::Collections;
 
 const MAX_MESSAGE_LEN: i32 = 104_857_600;
 
 #[derive(Clone)]
-pub struct SpannerPool {
+pub struct Spanner {
     pub client: SpannerClient,
-    pub pool: Arc<Pool<Session>>,
 }
 
 fn get_path(raw: &str) -> ApiResult<String> {
@@ -46,7 +45,7 @@ fn create_session(client: &SpannerClient, database_name: &str) -> Result<Session
     client.create_session_opt(&req, opt)
 }
 
-impl SpannerPool {
+impl Spanner {
     pub fn new(settings: &Settings) -> ApiResult<Self> {
         if settings.dsns.spanner.is_none() ||
             settings.dsns.mysql.is_none() {
@@ -62,18 +61,17 @@ impl SpannerPool {
             .secure_connect(&spanner_path, creds);
         let client = SpannerClient::new(chan);
 
-        let pool = Pool::with_capacity(settings.spanner_pool_size.unwrap_or(1), 0, || {
-            create_session(&client, &database_name).expect("Could not create session")
-        });
-        Ok(Self { client, pool: Arc::new(pool) })
+        Ok(Self {client})
     }
 
     pub async fn transaction(mut self, sql: &str) -> ApiResult<ResultSet> {
         let mut opts = TransactionOptions::new();
         let mut req = BeginTransactionRequest::new();
-        let session = self.pool.checkout().unwrap();
-        let name = session.get_name().to_owned();
-        req.set_session(name.clone());
+        let sreq = CreateSessionRequest::new();
+        let mut meta = MetadataBuilder::new();
+        let sopt = CallOption::default().headers(meta.build());
+        let session = self.client.create_session_opt(&sreq, sopt).unwrap();
+        req.set_session(session.name.clone());
         req.set_options(opts);
 
         let mut txn = self.client.begin_transaction(&req).unwrap();
@@ -82,7 +80,7 @@ impl SpannerPool {
         txns.set_id(txn.take_id());
 
         let mut sreq = ExecuteSqlRequest::new();
-        sreq.set_session(name.clone());
+        sreq.set_session(session.name.clone());
         sreq.set_transaction(txns);
 
         sreq.set_sql(sql.to_owned());
@@ -95,7 +93,7 @@ impl SpannerPool {
     }
 
     pub async fn collections(&mut self) -> ApiResult<Collections> {
-        let result = self.transaction(
+        let result = self.clone().transaction(
             "SELECT
                 DISTINCT uc.collection, cc.name
             FROM
@@ -116,5 +114,9 @@ impl SpannerPool {
         }
         Ok(collections)
 
+    }
+
+    pub async fn update_user(&self, user: UserData) -> ApiResult<u64> {
+        Err(ApiErrorKind::Internal(format!("TODO: Incomplete")).into())
     }
 }
