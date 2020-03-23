@@ -28,18 +28,21 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 
 ## System Requirements
 
+- cmake
+- gcc
+- [golang](https://golang.org/doc/install)
+- libcurl4-openssl-dev
+- libssl-dev
+- make
+- pkg-config
 - [Rust stable](https://rustup.rs)
 - MySQL 5.7 (or compatible)
-  -\* libmysqlclient (`brew install mysql` on macOS, `apt-get install libmysqlclient-dev` on Ubuntu)
-- [Go](https://golang.org/doc/install)
-- Cmake
-- Pkg-config
-- Openssl
+  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
-`libcurl4-openssl-dev`, and `protobuf-compiler-grpc`. *Note*: if the
-code complies cleanly, but generates a Segmentation Fault within
-Sentry init, you probably are missing `libcurl4-openssl-dev`.
+and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
+but generates a Segmentation Fault within Sentry init, you probably
+are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
@@ -114,7 +117,7 @@ This currently requires access to the [mozilla-rust-sdk](https://github.com/mozi
         context: .
     ```
 5. Adjust the MySQL db creds in docker-compose.yml to match your local setup.
-6. `make docker_start` - You can verify it's working by visiting [localhost:8000/__heartbeat__](http://localhost:8000/__heartbeat__)
+6. `make docker_start` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
 
 ### Connecting to Firefox
 
