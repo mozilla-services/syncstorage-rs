@@ -1,3 +1,13 @@
+<a name="0.2.6"></a>
+## 0.2.6 (2020-03-24)
+
+
+#### Refactor
+
+*   rewrite purge_ttl in Rust ([57496aea](https://github.com/mozilla-services/syncstorage-rs/commit/57496aea3ceb6c281169f098d98a751c45446896))
+
+
+
 <a name="0.2.5"></a>
 ## 0.2.5 (2020-03-11)
 
