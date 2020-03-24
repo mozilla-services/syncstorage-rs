@@ -384,7 +384,7 @@ impl MysqlDb {
         let timestamp = self.timestamp().as_i64();
 
         self.conn.transaction(|| {
-            let payload = bso.payload.as_ref().map(Deref::deref).unwrap_or_default();
+            let payload = bso.payload.as_deref().unwrap_or_default();
             let sortindex = bso.sortindex;
             let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
             let q = format!(r#"
