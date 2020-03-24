@@ -52,7 +52,9 @@ commands:
       - run:
           name: Adjust gcp-grpc dep path
           # Switch it into the working dir so it's sent to Docker
-          command: sed -i "s/..\/mozilla-rust-sdk/mozilla-rust-sdk/" Cargo.toml
+          command: |
+            sed -i "s/..\/mozilla-rust-sdk/mozilla-rust-sdk/" Cargo.toml
+            sed -i "s/..\/mozilla-rust-sdk/mozilla-rust-sdk/" tools/spanner/purge_ttl/Cargo.toml
       - run:
           name: Install grpcio dependencies
           command: sudo apt-get update && sudo apt-get install -y cmake golang-go
