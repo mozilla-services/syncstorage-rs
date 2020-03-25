@@ -1328,9 +1328,17 @@ impl FromRequest for BsoQueryParams {
                     Some(tags.clone()),
                 )
             })?;
-            if params.sort != Sorting::Index {
-                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
-                {
+            if let Some(offset) = params.offset.as_ref() {
+                if let Some(timestamp) = offset.timestamp {
+                    if params.sort == Sorting::Index {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Invalid offset: index sort should not have an offset specified as a timestamp:offset pair".to_owned(),
+                            RequestErrorLocation::QueryString,
+                            Some("offset".to_owned()),
+                            None,
+                        )
+                        .into());
+                    }
                     let bound = timestamp.as_i64();
                     if let Some(newer) = params.newer {
                         if bound < newer.as_i64() {
@@ -1353,7 +1361,11 @@ impl FromRequest for BsoQueryParams {
                             .into());
                         }
                     }
-                } else if let Some(offset) = params.offset.as_ref() {
+                } else {
+                    // We need to check if offset.offset is 0 here because on the first call to
+                    // a non-index sort query, no offset variable will be passed and thus
+                    // offset.offset will be 0. offset.offset should probably be None instead,
+                    // but that's a more extensive refactoring.
                     if offset.offset == 0 {
                         return Err(ValidationErrorKind::FromDetails(
                             "Invalid offset: non-index sort should have an offset specified as a timestamp:offset pair".to_owned(),
@@ -1364,14 +1376,6 @@ impl FromRequest for BsoQueryParams {
                         .into());
                     }
                 }
-            } else if let Some(_ts) = params.offset.as_ref().and_then(|offset| offset.timestamp) {
-                return Err(ValidationErrorKind::FromDetails(
-                    "Invalid offset: index sort should not have an offset specified as a timestamp:offset pair".to_owned(),
-                    RequestErrorLocation::QueryString,
-                    Some("offset".to_owned()),
-                    None,
-                )
-                .into());
             }
             Ok(params)
         })
