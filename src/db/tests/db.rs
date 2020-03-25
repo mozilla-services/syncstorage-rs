@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
-use codegen::async_test;
+use futures_await_test::async_test;
 
 use super::support::{db, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, Result};
 use crate::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
