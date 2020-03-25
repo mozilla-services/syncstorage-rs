@@ -6,7 +6,7 @@ use base64;
 use csv;
 use serde::{self, Deserialize};
 
-use crate::error::{ApiError, ApiErrorKind, ApiResult};
+use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Settings;
 
 #[derive(Debug, Deserialize)]

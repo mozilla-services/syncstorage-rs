@@ -1,22 +1,21 @@
 use std::sync::Arc;
-use std::ops::Deref;
 use std::str::FromStr;
 
 use googleapis_raw::spanner::v1::{
     result_set::ResultSet,
-    spanner::{CreateSessionRequest, ExecuteSqlRequest, GetSessionRequest, Session, BeginTransactionRequest},
+    spanner::{CreateSessionRequest, ExecuteSqlRequest, BeginTransactionRequest},
     transaction::{TransactionOptions, TransactionSelector},
     spanner_grpc::SpannerClient,
 };
 use grpcio::{
-    CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, Environment, MetadataBuilder,
+    CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder,
 };
 
 
-use crate::error::{ApiError, ApiErrorKind, ApiResult};
+use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Settings;
-use crate::db::UserData;
-use crate::db::collections::Collections;
+use crate::db::{User, Bso};
+use crate::db::collections::{Collection, Collections};
 
 const MAX_MESSAGE_LEN: i32 = 104_857_600;
 
@@ -25,6 +24,7 @@ pub struct Spanner {
     pub client: SpannerClient,
 }
 
+/* Session related
 fn get_path(raw: &str) -> ApiResult<String> {
     let url = match url::Url::parse(raw){
         Ok(v) => v,
@@ -45,6 +45,8 @@ fn create_session(client: &SpannerClient, database_name: &str) -> Result<Session
     client.create_session_opt(&req, opt)
 }
 
+*/
+
 impl Spanner {
     pub fn new(settings: &Settings) -> ApiResult<Self> {
         if settings.dsns.spanner.is_none() ||
@@ -52,23 +54,24 @@ impl Spanner {
                 return Err(ApiErrorKind::Internal("No DSNs set".to_owned()).into())
             }
         let spanner_path = &settings.dsns.spanner.clone().unwrap();
-        let database_name = get_path(&spanner_path).unwrap();
+        // let database_name = get_path(&spanner_path).unwrap();
         let env = Arc::new(EnvBuilder::new().build());
         let creds = ChannelCredentials::google_default_credentials().unwrap();
         let chan = ChannelBuilder::new(env.clone())
             .max_send_message_len(MAX_MESSAGE_LEN)
             .max_receive_message_len(MAX_MESSAGE_LEN)
             .secure_connect(&spanner_path, creds);
+
         let client = SpannerClient::new(chan);
 
         Ok(Self {client})
     }
 
-    pub async fn transaction(mut self, sql: &str) -> ApiResult<ResultSet> {
-        let mut opts = TransactionOptions::new();
+    pub async fn transaction(&self, sql: &str) -> ApiResult<ResultSet> {
+        let opts = TransactionOptions::new();
         let mut req = BeginTransactionRequest::new();
         let sreq = CreateSessionRequest::new();
-        let mut meta = MetadataBuilder::new();
+        let meta = MetadataBuilder::new();
         let sopt = CallOption::default().headers(meta.build());
         let session = self.client.create_session_opt(&sreq, sopt).unwrap();
         req.set_session(session.name.clone());
@@ -92,10 +95,10 @@ impl Spanner {
         }
     }
 
-    pub async fn collections(&mut self) -> ApiResult<Collections> {
+    pub async fn get_collections(&self) -> ApiResult<Collections> {
         let result = self.clone().transaction(
             "SELECT
-                DISTINCT uc.collection, cc.name
+                DISTINCT uc.collection, cc.name,
             FROM
                 user_collections as uc,
                 collections as cc
@@ -104,19 +107,90 @@ impl Spanner {
             ORDER BY
                 uc.collection"
         ).await?;
+        // get the default base of collections (in case the original is missing them)
         let mut collections = Collections::default();
+        // back fill with the values from the collection db table, which is our source
+        // of truth.
         for row in result.get_rows() {
-            let id: u8 = u8::from_str(row.values[0].get_string_value()).unwrap();
+            let id: u16 = u16::from_str(row.values[0].get_string_value()).unwrap();
             let name:&str = row.values[1].get_string_value();
             if collections.get(name).is_none(){
-                collections.set(name, id);
+                collections.set(name,
+                Collection{
+                    name: name.to_owned(),
+                    collection: id,
+                    last_modified: 0,
+                });
             }
         }
         Ok(collections)
-
     }
 
-    pub async fn update_user(&self, user: UserData) -> ApiResult<u64> {
-        Err(ApiErrorKind::Internal(format!("TODO: Incomplete")).into())
+    pub async fn add_new_collections(&self, new_collections: Collections) -> ApiResult<ResultSet> {
+        // TODO: is there a more ORM way to do these rather than build the sql?
+        let header = "INSERT INTO collections (collection_id, name)";
+        let mut values = Vec::<String>::new();
+        for collection in new_collections.items() {
+            values.push(format!("(\"{}\", {})", collection.name, collection.collection));
+        };
+        self.transaction(&format!("{} VALUES {}", header, values.join(", "))).await
+    }
+
+    pub async fn load_user_collections(&mut self, user: &User, collections: Vec<Collection>) -> ApiResult<ResultSet> {
+        let mut values: Vec<String> = Vec::new();
+        let header = "
+            INSERT INTO
+                user_collections
+                (collection_id,
+                 fxa_kid,
+                 fxa_uid,
+                 modified)";
+        for collection in collections {
+            values.push(format!("({}, \"{}\", \"{}\", {})",
+            collection.collection,
+            user.fxa_data.fxa_kid,
+            user.fxa_data.fxa_uid,
+            collection.last_modified,
+            ));
+        }
+        self.transaction(&format!("{} VALUES {}", header, values.join(", "))).await
+    }
+
+    pub async fn add_user_bsos(&mut self, user: &User, bsos: &[Bso], collections: &Collections) -> ApiResult<ResultSet> {
+        let header = "
+        INSERT INTO
+            bso (
+                collection_id,
+                fxa_kid,
+                fxa_uid,
+                bso_id,
+                expiry,
+                modified,
+                payload,
+                sortindex
+            )
+            ";
+        let mut values:Vec<String> = Vec::new();
+        for bso in bsos{
+            let collection = collections
+                .get(&bso.col_name)
+                .unwrap_or(
+                    &Collection{
+                        collection: bso.col_id,
+                        name: bso.col_name.clone(),
+                        last_modified:0}).clone();
+            // blech
+            values.push(format!("({}, \"{}\", \"{}\", {}, {}, {}, \"{}\", {})",
+                collection.collection,
+                user.fxa_data.fxa_kid,
+                user.fxa_data.fxa_uid,
+                bso.bso_id,
+                bso.expiry,
+                bso.modify,
+                bso.payload,
+                bso.sort_index.unwrap_or(0)
+            ));
+        };
+        self.transaction(&format!("{} VALUES {}", header, values.join(", "))).await
     }
 }
