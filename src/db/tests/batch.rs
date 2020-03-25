@@ -1,4 +1,4 @@
-use codegen::async_test;
+use futures_await_test::async_test;
 use log::debug;
 
 use super::support::{db, gbso, hid, postbso, Result};
