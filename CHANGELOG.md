@@ -1,3 +1,13 @@
+<a name="0.2.8"></a>
+## 0.2.8 (2020-03-26)
+
+
+#### Bug Fixes
+
+*   allow hostnames for STATSD_HOST ([9c784055](https://github.com/mozilla-services/syncstorage-rs/commit/9c784055e109b49c808520fd1b02514c60a8f0d2), closes [#548](https://github.com/mozilla-services/syncstorage-rs/issues/548))
+
+
+
 <a name="0.2.7"></a>
 ## 0.2.7 (2020-03-24)
 
