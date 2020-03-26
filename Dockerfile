@@ -12,7 +12,9 @@ RUN \
     cargo --version && \
     rustc --version && \
     cargo install --path . --locked --root /app && \
-    cargo install --path tools/spanner/purge_ttl --locked --root /app
+    cargo install --path tools/spanner/purge_ttl --locked --root /app && \
+    cd tools/spanner/purge_ttl && \
+    cargo clean
 
 FROM debian:buster-slim
 WORKDIR /app
