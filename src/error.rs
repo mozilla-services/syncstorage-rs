@@ -4,6 +4,8 @@
 // this cascades into Failure requiring std::error::Error being implemented
 // which is out of scope.
 #![allow(clippy::single_match, clippy::large_enum_variant)]
+
+use std::convert::From;
 use std::fmt;
 
 use actix_web::{
@@ -155,6 +157,17 @@ impl ApiError {
     }
 }
 
+impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
+    fn from(inner: actix_web::error::BlockingError<ApiError>) -> Self {
+        match inner {
+            actix_web::error::BlockingError::Error(e) => e,
+            actix_web::error::BlockingError::Canceled => {
+                ApiErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
+            }
+        }
+    }
+}
+
 impl From<ApiError> for HttpResponse {
     fn from(inner: ApiError) -> Self {
         ResponseError::error_response(&inner)
@@ -189,11 +202,6 @@ impl From<Context<ApiErrorKind>> for ApiError {
 }
 
 impl ResponseError for ApiError {
-    // Override the default which will force "text/plain" and use the error message.
-    fn render_response(&self) -> HttpResponse {
-        self.error_response()
-    }
-
     fn error_response(&self) -> HttpResponse {
         // To return a descriptive error response, this would work. We do not
         // unfortunately do that so that we can retain Sync 1.1 backwards compatibility

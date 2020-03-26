@@ -1,15 +1,14 @@
 use std::fmt::Display;
+use std::task::Context;
 
-use actix_service::{Service, Transform};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::header::{self, HeaderMap},
     Error,
 };
-use futures::{
-    future::{self, FutureResult},
-    Future, Poll,
-};
+
+use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use std::task::Poll;
 
 use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
@@ -28,20 +27,20 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
-            return Box::new(self.service.call(sreq));
+            return Box::pin(self.service.call(sreq));
         }
 
         let ts = SyncTimestamp::default().as_seconds();
-        Box::new(self.service.call(sreq).and_then(move |mut resp| {
-            future::result(
+        Box::pin(self.service.call(sreq).and_then(move |mut resp| {
+            future::ready(
                 set_weave_timestamp(resp.headers_mut(), ts)
                     .map_err(Into::into)
                     .map(|_| resp),
@@ -96,7 +95,7 @@ impl Default for WeaveTimestamp {
     }
 }
 
-impl<S, B> Transform<S> for WeaveTimestamp
+impl<S: 'static, B> Transform<S> for WeaveTimestamp
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -107,10 +106,10 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = WeaveTimestampMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(WeaveTimestampMiddleware { service })
+        Box::pin(future::ok(WeaveTimestampMiddleware { service }))
     }
 }
 

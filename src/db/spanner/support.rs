@@ -1,10 +1,11 @@
 use std::{
     collections::{HashMap, VecDeque},
-    fmt, mem,
+    mem,
     result::Result as StdResult,
 };
 
-use futures::stream::{Stream, Wait};
+use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
+use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
@@ -19,7 +20,6 @@ use protobuf::{
 use super::models::{Conn, Result};
 use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
 
-#[cfg(not(any(test, feature = "db_test")))]
 use crate::{
     db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
     web::extractors::HawkIdentifier,
@@ -101,28 +101,28 @@ impl ExecuteSqlRequestBuilder {
         request
     }
 
-    /// Execute a SQL read statement
-    pub fn execute(self, conn: &Conn) -> Result<StreamedResultSet> {
+    /// Execute a SQL read statement but return a non-blocking streaming result
+    pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
         let stream = conn
             .client
             .execute_streaming_sql(&self.prepare_request(conn))?;
-        Ok(StreamedResultSet::new(stream))
+        Ok(StreamedResultSetAsync::new(stream))
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
-    pub fn execute_dml(self, conn: &Conn) -> Result<i64> {
-        let rs = conn.client.execute_sql(&self.prepare_request(conn))?;
+    pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
+        let rs = conn
+            .client
+            .execute_sql_async(&self.prepare_request(conn))?
+            .compat()
+            .await?;
         Ok(rs.get_stats().get_row_count_exact())
     }
 }
 
-/// Streams results from an ExecuteStreamingSql PartialResultSet
-///
-/// Utilizies futures 0.1 `wait()`, so should *always* be called from a thread
-/// outside of an event loop
-pub struct StreamedResultSet {
+pub struct StreamedResultSetAsync {
     /// Stream from execute_streaming_sql
-    stream: Wait<ClientSStreamReceiver<PartialResultSet>>,
+    stream: Option<StreamFuture<Compat01As03<ClientSStreamReceiver<PartialResultSet>>>>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -135,11 +135,10 @@ pub struct StreamedResultSet {
     pending_chunk: Option<Value>,
 }
 
-impl StreamedResultSet {
+impl StreamedResultSetAsync {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
-            // Note: wait() isn't futures 0.3 compatible
-            stream: stream.wait(),
+            stream: Some(stream.compat().into_future()),
             metadata: None,
             stats: None,
             rows: Default::default(),
@@ -165,20 +164,20 @@ impl StreamedResultSet {
         }
     }
 
-    pub fn one(&mut self) -> Result<Vec<Value>> {
-        if let Some(result) = self.one_or_none()? {
+    pub async fn one(&mut self) -> Result<Vec<Value>> {
+        if let Some(result) = self.one_or_none().await? {
             Ok(result)
         } else {
             Err(DbError::internal("No rows matched the given query."))?
         }
     }
 
-    pub fn one_or_none(&mut self) -> Result<Option<Vec<Value>>> {
-        let result = self.next();
+    pub async fn one_or_none(&mut self) -> Result<Option<Vec<Value>>> {
+        let result = self.next_async().await;
         if result.is_none() {
             Ok(None)
-        } else if self.next().is_some() {
-            Err(DbError::internal("Execpted one result; got more."))?
+        } else if self.next_async().await.is_some() {
+            Err(DbError::internal("Expected one result; got more."))?
         } else {
             result.transpose()
         }
@@ -187,8 +186,15 @@ impl StreamedResultSet {
     /// Pull and process the next values from the Stream
     ///
     /// Returns false when the stream is finished
-    fn consume_next(&mut self) -> Result<bool> {
-        let mut partial_rs = if let Some(result) = self.stream.next() {
+    async fn consume_next(&mut self) -> Result<bool> {
+        let (result, stream) = self
+            .stream
+            .take()
+            .expect("Could not get next stream element")
+            .await;
+
+        self.stream = Some(stream.into_future());
+        let mut partial_rs = if let Some(result) = result {
             result?
         } else {
             // Stream finished
@@ -239,20 +245,12 @@ impl StreamedResultSet {
             }
         }
     }
-}
 
-/// Iteration around the result stream
-///
-/// `Item` is a Result as errors may happen
-/// mid-stream. `itertools::IterTools::map_results` and
-/// `MapAndThenIterator::map_and_then` can aid in removing boilerplate around
-/// handling of said Results
-impl Iterator for StreamedResultSet {
-    type Item = Result<Vec<Value>>;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    // We could implement Stream::poll_next instead of this, but
+    // this is easier for now and we can refactor into the trait later
+    pub async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
         while self.rows.is_empty() {
-            match self.consume_next() {
+            match self.consume_next().await {
                 Ok(true) => (),
                 Ok(false) => return None,
                 // Note: Iteration may continue after an error. We may want to
@@ -262,18 +260,6 @@ impl Iterator for StreamedResultSet {
             }
         }
         Ok(self.rows.pop_front()).transpose()
-    }
-}
-
-impl fmt::Debug for StreamedResultSet {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("StreamedResultSet")
-            .field("metadata", &self.metadata)
-            .field("stats", &self.stats)
-            .field("rows", &self.rows)
-            .field("current_row", &self.current_row)
-            .field("pending_chunk", &self.pending_chunk)
-            .finish()
     }
 }
 
@@ -333,7 +319,6 @@ pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
     })
 }
 
-#[cfg(not(any(test, feature = "db_test")))]
 pub fn bso_to_insert_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
@@ -361,7 +346,6 @@ pub fn bso_to_insert_row(
     Ok(row)
 }
 
-#[cfg(not(any(test, feature = "db_test")))]
 pub fn bso_to_update_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
