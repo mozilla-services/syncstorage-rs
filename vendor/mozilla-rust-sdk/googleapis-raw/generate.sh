@@ -9,6 +9,16 @@
 set -e
 cd "$(dirname "$0")"
 
+## remove old files:
+echo "Purging old files..."
+find src -name "*.rs" -and -not \( -name "mod.rs" -or -name "lib.rs" \) -print -delete
+
+## updating plugins
+echo "Updating cargo..."
+cargo update
+echo "Updating plugin..."
+cargo install protobuf-codegen
+
 if ! [[ -x "$(command -v grpc_rust_plugin)" ]]; then
     echo "Error: grpc_rust_plugin was not found"
     echo
@@ -60,6 +70,7 @@ spanner/admin/instance/v1
 spanner/v1
 "
 SRC_ROOT=$PWD
+
 
 for dir in $proto_dirs; do
     mkdir -p "$SRC_ROOT/src/$dir"
