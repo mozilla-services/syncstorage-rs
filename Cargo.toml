@@ -5,6 +5,7 @@ license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
+  "Mozilla Services Engineering <services-engineering+code@mozilla.com>"
 ]
 edition = "2018"
 
@@ -17,54 +18,56 @@ actix-http = "1"
 actix-web = "2"
 actix-rt = "1"
 actix-cors = "0.2"
-base64 = "0.11.0"
+base64 = "0.12"
+bumpalo = "3.2.1"
 bytes = "0.5"
 cadence = "0.19.1"
 chrono = "0.4"
-config = "0.9.3"
-diesel = { version = "1.4.3", features = ["mysql", "r2d2"] }
+config = "0.10"
+diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.0"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 env_logger = "0.7.1"
-failure = "0.1.6"
+failure = "0.1.7"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
-grpcio = { version = "0.5.0-alpha.5" }
+grpcio = { version = "0.5.0" }
 lazy_static = "1.4.0"
-hawk = "3.0.0"
+hawk = "3.1.0"
 hkdf = "0.8.0"
 hmac = "0.7"
-itertools = "0.8.2"
+itertools = "0.9.0"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 mozsvc-common = "0.1"
-num_cpus = "1.11"
+num_cpus = "1.12"
 # must match what's used by googleapis-raw
-protobuf = "2.7.0"
+protobuf = "2.11"
 openssl ="0.10"
 rand = "0.7"
 regex = "1.3"
-sentry = { version = "0.17.0", features = ["with_curl_transport"] }
+sentry = { version = "0.18", features = ["with_curl_transport"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 serde_urlencoded = "0.6.1"
 scheduled-thread-pool = "0.2"
-sha2 = "0.8.0"
-slog = { version = "2.5", features = ["max_level_info", "release_max_level_info", "dynamic-keys"] }
-slog-async = "2.3"
+sha2 = "0.8"
+slog = { version = "2.5", features = ["max_level_trace", "release_max_level_error", "dynamic-keys"] }
+slog-async = "2.4"
 slog-envlogger = "2.2.0"
 slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.0"
-slog-term = "2.4"
-time = "0.1.42"
-url = "2.1.0"
+slog-term = "2.5"
+time = "0.2"
+tokio = "0.2"
+url = "2.1"
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 validator = "0.10"
 validator_derive = "0.10"
-woothee = "0.10"
+woothee = "0.11"
 
 [dev-dependencies]
 futures-await-test = "0.3.0"

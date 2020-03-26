@@ -14,6 +14,7 @@ pub struct Client {
     session: Session,
 }
 
+#[allow(dead_code)]
 impl Client {
     /// Creates a new Spanner client.
     ///

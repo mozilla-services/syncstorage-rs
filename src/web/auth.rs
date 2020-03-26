@@ -1,7 +1,12 @@
 //! Types for parsing and authenticating HAWK headers.
 //! Matches the [Python logic](https://github.com/mozilla-services/tokenlib).
 //! We may want to extract this to its own repo/crate in due course.
-#![cfg_attr(feature = "no_auth", allow(dead_code, unused_imports, unused_variables))]
+#![cfg_attr(
+    feature = "no_auth",
+    allow(dead_code, unused_imports, unused_variables)
+)]
+
+use std::convert::TryInto;
 
 use base64;
 use chrono::offset::Utc;
@@ -95,8 +100,8 @@ impl HawkPayload {
 
         #[cfg(not(feature = "no_auth"))]
         {
-            let mut duration = Duration::weeks(52)
-                .to_std()
+            let mut duration: std::time::Duration = Duration::weeks(52)
+                .try_into()
                 .map_err(|_| ApiErrorKind::Internal("Duration::weeks".to_owned()))?;
             if cfg!(test) {
                 // test cases are valid until 3018. Add millenia as required.

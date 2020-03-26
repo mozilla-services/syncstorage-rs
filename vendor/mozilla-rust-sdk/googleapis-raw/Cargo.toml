@@ -6,13 +6,13 @@ edition = "2018"
 
 [dependencies]
 futures = "0.1.28"
-grpcio = "0.5.0-alpha.1"
-protobuf = "= 2.7.0"
+grpcio = "0.5.0"
+protobuf = "2.11.0"
 
 [dev-dependencies]
-slog = "2.5.0"
-slog-scope = "4.1.1"
-slog-term = "2.4.1"
-slog-stdlog = "3.0.2"
-slog-async = "2.3.0"
-log = "0.4.7"
+slog = "2.5"
+slog-scope = "4.3"
+slog-term = "2.5"
+slog-stdlog = "4.0"
+slog-async = "2.5"
+log = "0.4"
