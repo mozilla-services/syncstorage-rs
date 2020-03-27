@@ -48,21 +48,6 @@ CREATE TABLE collections (
     CREATE UNIQUE INDEX CollectionName
         ON collections(name);
 
-INSERT INTO collections (collection_id, name) VALUES
-    ( 1, "clients"),
-    ( 2, "crypto"),
-    ( 3, "forms"),
-    ( 4, "history"),
-    ( 5, "keys"),
-    ( 6, "meta"),
-    ( 7, "bookmarks"),
-    ( 8, "prefs"),
-    ( 9, "tabs"),
-    (10, "passwords"),
-    (11, "addons"),
-    (12, "addresses"),
-    (13, "creditcards");
-
 CREATE TABLE batches (
   fxa_uid STRING(MAX)  NOT NULL,
   fxa_kid STRING(MAX)  NOT NULL,
@@ -92,3 +77,22 @@ CREATE TABLE batch_bsos (
 -- not set each individual field of each item. Also note that there's
 -- no "modified" column because the modification timestamp gets set on
 -- batch commit.
+
+-- 8< Cut Here >8 -- 
+-- Inserting values into table(s) should happen only
+-- after table creation.
+
+INSERT INTO collections (collection_id, name) VALUES
+    ( 1, "clients"),
+    ( 2, "crypto"),
+    ( 3, "forms"),
+    ( 4, "history"),
+    ( 5, "keys"),
+    ( 6, "meta"),
+    ( 7, "bookmarks"),
+    ( 8, "prefs"),
+    ( 9, "tabs"),
+    (10, "passwords"),
+    (11, "addons"),
+    (12, "addresses"),
+    (13, "creditcards");
