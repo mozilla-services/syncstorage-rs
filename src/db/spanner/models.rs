@@ -41,9 +41,6 @@ use googleapis_raw::spanner::v1::{
 };
 
 #[allow(unused_imports)]
-use itertools::Itertools;
-
-#[allow(unused_imports)]
 use protobuf::{well_known_types::ListValue, Message, RepeatedField};
 
 pub type TransactionSelector = transaction::TransactionSelector;

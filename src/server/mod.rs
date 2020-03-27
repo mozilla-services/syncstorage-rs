@@ -7,7 +7,6 @@ use actix_web::{
     dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
     HttpResponse, HttpServer,
 };
-// use num_cpus;
 use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
