@@ -15,6 +15,7 @@ use googleapis_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
 use log::{info, trace, warn};
+use url::Url;
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
@@ -95,13 +96,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::try_init()?;
 
     const DB_ENV: &str = "SYNC_DATABASE_URL";
-    let url = env::var(DB_ENV).map_err(|_| format!("Invalid or undefined {}", DB_ENV))?;
-    if !url.starts_with("spanner://") {
+    const INVALID_DB_ENV: String = format!("Invalid {}", DB_ENV);
+    let db_url = env::var(DB_ENV).map_err(|_| format!("Invalid or undefined {}", DB_ENV))?;
+    let url = Url::parse(&db_url).map_err(|e| format!("Invalid {}: {}", DB_ENV, e))?;
+    eprintln!("url: {}, host: {:?}, path: {:?}", url.to_string(), url.host(), url.path());
+    if url.scheme() != "spanner" {
         return Err(format!("Invalid {}", DB_ENV).into());
     }
 
-    let database = url["spanner://".len()..].to_owned();
-    info!("For {}", database);
+    let database = db_url["spanner://".len()..].to_owned();
+    let database2 = url.host().ok_or_else(|| format!("Invalid {}", DB_ENV))?.to_string() + url.path();
+    info!("For {} {}", database, database2);
 
     // Set up the gRPC environment.
     let env = Arc::new(EnvBuilder::new().build());
