@@ -22,7 +22,7 @@ use self::util::SyncTimestamp;
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
-use crate::web::extractors::HawkIdentifier;
+use crate::web::extractors::{HawkIdentifier, Offset};
 
 lazy_static! {
     /// For efficiency, it's possible to use fixed pre-determined IDs for
@@ -222,6 +222,44 @@ pub trait Db: Send + Debug {
 
     #[cfg(test)]
     fn clear_coll_cache(&self);
+}
+
+pub fn encode_next_offset(
+    sort: Sorting,
+    offset: i64,
+    timestamp: Option<i64>,
+    modifieds: Vec<i64>,
+) -> Option<String> {
+    let mut calc_offset = 1;
+    let mut i = (modifieds.len() as i64) - 2;
+
+    let prev_bound = match sort {
+        Sorting::Index => {
+            // Use a simple numeric offset for sortindex ordering.
+            return Some(
+                Offset {
+                    offset: offset + modifieds.len() as i64,
+                    timestamp: None,
+                }
+                .to_string(),
+            );
+        }
+        _ => timestamp,
+    };
+    // Find an appropriate upper bound for faster timestamp ordering.
+    let bound = *modifieds.last().unwrap_or(&0);
+    // Count how many previous items have that same timestamp, and hence
+    // will need to be skipped over.  The number of matches here is limited
+    // by upload batch size.
+    while i >= 0 && modifieds[i as usize] == bound {
+        calc_offset += 1;
+        i -= 1;
+    }
+    if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
+        calc_offset += offset;
+    }
+
+    Some(format!("{}:{}", bound, calc_offset))
 }
 
 impl Clone for Box<dyn Db> {

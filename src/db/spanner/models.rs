@@ -14,6 +14,7 @@ use super::manager::SpannerConnectionManager;
 use super::pool::CollectionCache;
 
 use crate::db::{
+    encode_next_offset,
     error::{DbError, DbErrorKind},
     params, results,
     spanner::support::{as_type, StreamedResultSetAsync},
@@ -1096,47 +1097,6 @@ impl SpannerDb {
             .execute_async(&self.conn)
     }
 
-    pub fn encode_next_offset(
-        &self,
-        sort: Sorting,
-        offset: i64,
-        timestamp: Option<i64>,
-        modifieds: Vec<i64>,
-    ) -> Option<String> {
-        let mut calc_offset = 1;
-        let mut i = (modifieds.len() as i64) - 2;
-
-        let prev_bound = match sort {
-            Sorting::Index => {
-                // Use a simple numeric offset for sortindex ordering.
-                return Some(
-                    Offset {
-                        offset: offset + modifieds.len() as i64,
-                        timestamp: None,
-                    }
-                    .to_string(),
-                );
-            }
-            Sorting::None => timestamp,
-            Sorting::Newest => timestamp,
-            Sorting::Oldest => timestamp,
-        };
-        // Find an appropriate upper bound for faster timestamp ordering.
-        let bound = *modifieds.last().unwrap_or(&0);
-        // Count how many previous items have that same timestamp, and hence
-        // will need to be skipped over.  The number of matches here is limited
-        // by upload batch size.
-        while i >= 0 && modifieds[i as usize] == bound {
-            calc_offset += 1;
-            i -= 1;
-        }
-        if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
-            calc_offset += offset;
-        }
-
-        Some(format!("{}:{}", bound, calc_offset))
-    }
-
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let query = "\
             SELECT bso_id, sortindex, payload, modified, expiry
@@ -1166,7 +1126,7 @@ impl SpannerDb {
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
             let modifieds: Vec<i64> = bsos.iter().map(|r| r.modified.as_i64()).collect();
-            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
+            encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
         } else {
             None
         };
@@ -1208,7 +1168,7 @@ impl SpannerDb {
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
             ids.pop();
             modifieds.pop();
-            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
+            encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
         } else {
             None
         };
