@@ -287,7 +287,7 @@ pub fn create_database_admin<S: DatabaseAdmin + Send + Clone + 'static>(s: S) ->
     builder = builder.add_unary_handler(&METHOD_DATABASE_ADMIN_GET_IAM_POLICY, move |ctx, req, resp| {
         instance.get_iam_policy(ctx, req, resp)
     });
-    let mut instance = s.clone();
+    let mut instance = s;
     builder = builder.add_unary_handler(&METHOD_DATABASE_ADMIN_TEST_IAM_PERMISSIONS, move |ctx, req, resp| {
         instance.test_iam_permissions(ctx, req, resp)
     });

@@ -41,9 +41,6 @@ use googleapis_raw::spanner::v1::{
 };
 
 #[allow(unused_imports)]
-use itertools::Itertools;
-
-#[allow(unused_imports)]
 use protobuf::{well_known_types::ListValue, Message, RepeatedField};
 
 pub type TransactionSelector = transaction::TransactionSelector;
@@ -1567,7 +1564,7 @@ impl SpannerDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            self.put_bso_async(params::PutBso {
+            self.put_bso_async_test(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
