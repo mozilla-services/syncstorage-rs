@@ -25,13 +25,14 @@ use super::{
     schema::{bso, collections, user_collections},
 };
 use crate::db::{
+    encode_next_offset,
     error::{DbError, DbErrorKind},
     params, results,
     util::SyncTimestamp,
     Db, DbFuture, Sorting,
 };
 use crate::server::metrics::Metrics;
-use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+use crate::web::extractors::{BsoQueryParams, HawkIdentifier, Offset};
 
 no_arg_sql_function!(last_insert_id, Integer);
 
@@ -468,10 +469,20 @@ impl MysqlDb {
             .into_boxed();
 
         if let Some(older) = older {
-            query = query.filter(bso::modified.lt(older.as_i64()));
+            if let Some(ref offset) = offset {
+                query =
+                    query.filter(bso::modified.lt(offset.timestamp.unwrap_or_default().as_i64()));
+            } else {
+                query = query.filter(bso::modified.lt(older.as_i64()));
+            }
         }
         if let Some(newer) = newer {
-            query = query.filter(bso::modified.gt(newer.as_i64()));
+            if let Some(ref offset) = offset {
+                query =
+                    query.filter(bso::modified.gt(offset.timestamp.unwrap_or_default().as_i64()));
+            } else {
+                query = query.filter(bso::modified.gt(newer.as_i64()));
+            }
         }
 
         if !ids.is_empty() {
@@ -491,23 +502,20 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset);
-
+        let numeric_offset = offset.clone().map_or(0, |offset| offset.offset);
         if numeric_offset != 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
             query = query.offset(numeric_offset);
         }
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in
         // python to trigger potential CollectionNotFoundErrors
-        //if bsos.len() == 0 {
-        //}
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             bsos.pop();
-            Some((limit + numeric_offset).to_string())
+            let modifieds: Vec<i64> = bsos.iter().map(|r| r.modified.as_i64()).collect();
+            let Offset { offset, timestamp } = offset.clone().unwrap_or_default();
+            encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
         } else {
             None
         };
