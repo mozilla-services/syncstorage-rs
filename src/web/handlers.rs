@@ -60,21 +60,16 @@ pub fn get_collection_usage(
         })
 }
 
-pub fn get_quota(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_quota(meta: MetaRequest) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_quota");
-    meta.db
-        .get_storage_usage(meta.user_id)
-        .map_err(From::from)
-        .map_ok(|usage| HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
+    let usage = meta.db.get_storage_usage(meta.user_id).await?;
+    Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
-pub fn delete_all(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
     #![allow(clippy::unit_arg)]
     meta.metrics.incr("request.delete_all");
-    meta.db
-        .delete_storage(meta.user_id)
-        .map_err(From::from)
-        .map_ok(|result| HttpResponse::Ok().json(result))
+    Ok(HttpResponse::Ok().json(meta.db.delete_storage(meta.user_id).await?))
 }
 
 pub fn delete_collection(
@@ -413,13 +408,14 @@ pub fn get_configuration(creq: ConfigRequest) -> impl Future<Output = Result<Htt
 /** Returns a status message indicating the state of the current server
  *
  */
-pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn heartbeat(hb: HeartbeatRequest) -> HttpResponse {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),
         Value::String(env!("CARGO_PKG_VERSION").to_owned()),
     );
-    hb.db.check().then(|response| match response {
+
+    match hb.db.check().await {
         Ok(result) => {
             if result {
                 checklist.insert("database".to_owned(), Value::from("Ok"));
@@ -440,13 +436,14 @@ pub fn heartbeat(hb: HeartbeatRequest) -> impl Future<Output = Result<HttpRespon
             checklist.insert("database".to_owned(), Value::from("Unknown"));
             HttpResponse::ServiceUnavailable().json(checklist)
         }
-    })
+    }
 }
 
-pub fn test_error(
+// try returning an API error
+pub async fn test_error(
     _req: HttpRequest,
     ter: TestErrorRequest,
-) -> impl Future<Output = Result<HttpResponse, ApiError>> {
+) -> Result<HttpResponse, ApiError> {
     // generate an error for sentry.
 
     /*  The various error log macros only can take a string.
@@ -463,5 +460,5 @@ pub fn test_error(
     // ApiError will call the middleware layer to auto-append the tags.
     let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
 
-    future::ready(Err(err))
+    Err(err)
 }
