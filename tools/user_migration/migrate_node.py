@@ -486,6 +486,19 @@ def get_users(args, databases, fxa, bso_num):
                          "tokenserver data: {} ".format(user)))
             if args.sort_users:
                 users.sort(key=lambda tup: tup[2])
+            # Take a block of percentage of the users.
+            if args.user_percent:
+                (block, percentage) = map(int, args.user_percent.split(':'))
+                total_count = len(users)
+                chunk_size = max(1, math.floor(total_count * (int(percentage) * .01)))
+                chunk_count = math.ceil(total_count / chunk_size)
+                chunk_start = max(block - 1, 0) * chunk_size
+                chunk_end = min(chunk_count, block) * chunk_size
+                if chunk_size * chunk_count > total_count:
+                    if block >= chunk_count - 1:
+                        chunk_end = total_count
+                users = users[chunk_start:chunk_end]
+                logging.debug("moving users: {} to {}".format(chunk_start, chunk_end))
         except Exception as ex:
             import pdb; pdb.set_trace()
             logging.error("Error moving database:", exc_info=ex)
@@ -539,12 +552,8 @@ def get_args():
         help="silence logging"
     )
     parser.add_argument(
-        '--chunk_limit', type=int, default=1500000,
-        dest='limit',
-        help="Limit each read chunk to n rows")
-    parser.add_argument(
         '--offset', type=int, default=0,
-        help="UID to start at")
+        help="UID to start at (default 0)")
     parser.add_argument(
         "--full",
         action="store_true",
@@ -558,17 +567,17 @@ def get_args():
     parser.add_argument(
         '--start_bso', default=0,
         type=int,
-        help="start dumping BSO database"
+        help="start dumping BSO database (default: 0)"
     )
     parser.add_argument(
         '--end_bso',
         type=int, default=19,
-        help="last BSO database to dump"
+        help="last BSO database to dump (default: 19)"
     )
     parser.add_argument(
         '--fxa_file',
         default="users.csv",
-        help="FXA User info in CSV format"
+        help="FXA User info in CSV format (default users.csv)"
     )
     parser.add_argument(
         '--skip_collections', action='store_false',
@@ -577,7 +586,7 @@ def get_args():
     parser.add_argument(
         '--readchunk',
         default=1000,
-        help="how many rows per transaction for spanner"
+        help="how many rows per transaction for spanner (default: 1000)"
     )
     parser.add_argument(
         '--user',
@@ -587,7 +596,7 @@ def get_args():
     parser.add_argument(
         '--dryrun',
         action="store_true",
-        help="Do not write user records to spanner."
+        help="Do not write user records to spanner"
     )
     parser.add_argument(
         '--abort',
@@ -597,6 +606,12 @@ def get_args():
     parser.add_argument(
         '--user_range',
         help="Range of users to extract (offset:limit)"
+    )
+    parser.add_argument(
+        "--user_percent", default="1:100",
+        help=("Offset and percent of users from this BSO"
+              "to move (e.g. 2:50 moves the second 50%) "
+              "(default 1:100)")
     )
     parser.add_argument(
         '--sort_users', action="store_true",
@@ -621,6 +636,10 @@ def main():
     databases = {}
     rows = 0
 
+    if args.user and args.user_percent:
+        RuntimeWarning("both --user and --user_percent specified!")
+    if args.user_range and args.user_percent:
+        RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
