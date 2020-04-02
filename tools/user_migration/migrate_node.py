@@ -58,6 +58,9 @@ class FXA_info:
                      keys_changed_at, client_state) in csv.reader(
                         csv_file, delimiter="\t"):
                     line += 1
+                    if args.user:
+                        if int(uid) not in args.user:
+                            continue
                     if uid == 'uid':
                         # skip the header row.
                         continue
@@ -263,7 +266,7 @@ def divvy(biglist, count):
     return lists
 
 
-def move_user(databases, user, collections, fxa, bso_num, args):
+def move_user(databases, user_data, collections, fxa, bso_num, args):
     """copy user info from original storage to new storage."""
     # bso column mapping:
     # id => bso_id
@@ -291,21 +294,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
             'sortindex',
     )
 
-    # Genereate the Spanner Keys we'll need.
-    try:
-        (fxa_kid, fxa_uid) = fxa.get(user)
-    except TypeError:
-        logging.error("User not found: {} ".format(
-            user
-        ))
-        return 0
-    except Exception as ex:
-        logging.error(
-            "Could not move user: {}".format(user),
-            exc_info=ex
-        )
-        return 0
-
+    (user, fxa_kid, fxa_uid) = user_data
     # Fetch the BSO data from the original storage.
     sql = """
     SELECT
@@ -319,7 +308,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
             and collections.collectionid = bso.collection
             and bso.ttl > unix_timestamp()
     ORDER BY
-        modified DESC""".format(bso_num)
+        bso.collection, bso.id""".format(bso_num)
 
     def spanner_transact_uc(
             transaction, data, fxa_kid, fxa_uid, args):
@@ -349,7 +338,8 @@ def move_user(databases, user, collections, fxa, bso_num, args):
                         values=uc_values
                     )
                 else:
-                    logging.debug("not writing {} => {}".format(uc_columns, uc_values))
+                    logging.debug("not writing {} => {}".format(
+                        uc_columns, uc_values))
                 unique_key_filter.add(uc_key)
 
     def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
@@ -357,7 +347,7 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
-                next
+                continue
             if collection_id != cid:
                 logging.debug(
                     "Remapping collection '{}' from {} to {}".format(
@@ -393,7 +383,8 @@ def move_user(databases, user, collections, fxa, bso_num, args):
                     values=bso_values
                 )
             else:
-                logging.debug("not writing {} => {}".format(bso_columns, bso_values))
+                logging.debug("not writing {} => {}".format(
+                    bso_columns, bso_values))
             count += 1
         return count
 
@@ -405,8 +396,26 @@ def move_user(databases, user, collections, fxa, bso_num, args):
             user, fxa_uid, fxa_kid))
         cursor.execute(sql, (user,))
         data = []
+        abort_col = None
+        abort_count = None
+        col_count = 0
+
+        if args.abort:
+            (abort_col, abort_count) = args.abort.split(":")
+            abort_count = int(abort_count)
         for row in cursor:
+            logging.debug("col: {}".format(row[0]))
+            if abort_col and int(row[1]) == int(abort_col):
+                col_count += 1
+                if col_count > abort_count:
+                    logging.debug("Skipping col: {}: {} of {}".format(
+                        row[0], col_count, abort_count))
+                    continue
             data.append(row)
+        if args.abort:
+            logging.info("Skipped {} of {} rows for {}".format(
+                abort_count, col_count, abort_col
+            ))
         for bunch in divvy(data, args.readchunk or 1000):
             # Occasionally, there is a batch fail because a
             # user collection is not found before a bso is written.
@@ -442,7 +451,8 @@ def move_user(databases, user, collections, fxa, bso_num, args):
         else:
             raise
     except Exception as e:
-        logging.error("### batch failure:", exc_info=e)
+        logging.error("### batch failure: {}:{}".format(
+            fxa_uid, fxa_kid), exc_info=e)
     finally:
         # cursor may complain about unread data, this should prevent
         # that warning.
@@ -452,33 +462,54 @@ def move_user(databases, user, collections, fxa, bso_num, args):
     return count
 
 
+def get_users(args, databases, fxa, bso_num):
+    users = []
+    cursor = databases['mysql'].cursor()
+    if args.user:
+        users = args.user
+    else:
+        try:
+            sql = ("""select distinct userid from bso{}"""
+                   """ order by userid""".format(bso_num))
+            if args.user_range:
+                (offset, limit) = args.user_range.split(':')
+                sql = "{} limit {} offset {}".format(
+                    sql, limit, offset)
+            cursor.execute(sql)
+            for (user,) in cursor:
+                try:
+                    (fxa_kid, fxa_uid) = fxa.get(user)
+                    users.append((user, fxa_kid, fxa_uid))
+                except TypeError:
+                    logging.error(
+                        ("⚠️User not found in"
+                         "tokenserver data: {} ".format(user)))
+            if args.sort_users:
+                users.sort(key=lambda tup: tup[2])
+        except Exception as ex:
+            import pdb; pdb.set_trace()
+            logging.error("Error moving database:", exc_info=ex)
+        finally:
+            cursor.close()
+    return users
+
+
 def move_database(databases, collections, bso_num, fxa, args):
     """iterate over provided users and move their data from old to new"""
     start = time.time()
-    cursor = databases['mysql'].cursor()
     # off chance that someone else might have written
     # a new collection table since the last time we
     # fetched.
     rows = 0
-    cursor = databases['mysql'].cursor()
-    users = []
     if args.user:
-        users = [args.user]
+        users = args.user
     else:
-        try:
-            sql = """select distinct userid from bso{};""".format(bso_num)
-            cursor.execute(sql)
-            users = [user for (user,) in cursor]
-        except Exception as ex:
-            logging.error("Error moving database:", exc_info=ex)
-            return rows
-        finally:
-            cursor.close()
+        users = get_users(args, databases, fxa, bso_num)
     logging.info("Moving {} users".format(len(users)))
     for user in users:
         rows += move_user(
             databases=databases,
-            user=user,
+            user_data=user,
             collections=collections,
             fxa=fxa,
             bso_num=bso_num,
@@ -551,14 +582,26 @@ def get_args():
     parser.add_argument(
         '--user',
         type=str,
-        help="BSO#:userId to move (EXPERIMENTAL)."
+        help="BSO#:userId[,userid,...] to move (EXPERIMENTAL)."
     )
     parser.add_argument(
         '--dryrun',
         action="store_true",
         help="Do not write user records to spanner."
     )
-
+    parser.add_argument(
+        '--abort',
+        type=str,
+        help="abort data in col after #rows (e.g. history:10)"
+    )
+    parser.add_argument(
+        '--user_range',
+        help="Range of users to extract (offset:limit)"
+    )
+    parser.add_argument(
+        '--sort_users', action="store_true",
+        help="Sort the user"
+    )
 
     return parser.parse_args()
 
@@ -582,7 +625,10 @@ def main():
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
         args.end_bso = int(bso)
-        args.user = int(userid)
+        user_list = []
+        for id in userid.split(','):
+            user_list.append(int(id))
+        args.user = user_list
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme

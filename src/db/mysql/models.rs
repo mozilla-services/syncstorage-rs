@@ -67,6 +67,7 @@ struct MysqlDbSession {
     coll_locks: HashMap<(u32, i32), CollectionLock>,
     /// Whether a transaction was started (begin() called)
     in_transaction: bool,
+    in_write_transaction: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -162,7 +163,7 @@ impl MysqlDb {
         }
 
         // Lock the db
-        self.begin()?;
+        self.begin(false)?;
         let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id as i32))
@@ -198,7 +199,7 @@ impl MysqlDb {
         }
 
         // Lock the db
-        self.begin()?;
+        self.begin(true)?;
         let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id as i32))
@@ -224,11 +225,14 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub(super) fn begin(&self) -> Result<()> {
+    pub(super) fn begin(&self, for_write: bool) -> Result<()> {
         self.conn
             .transaction_manager()
             .begin_transaction(&self.conn)?;
         self.session.borrow_mut().in_transaction = true;
+        if for_write {
+            self.session.borrow_mut().in_write_transaction = true;
+        }
         Ok(())
     }
 
@@ -269,7 +273,7 @@ impl MysqlDb {
 
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
         let user_id = user_id.legacy_id as i32;
-        self.begin()?;
+        self.begin(true)?;
         // Delete user data.
         delete(bso::table)
             .filter(bso::user_id.eq(user_id))
@@ -317,7 +321,6 @@ impl MysqlDb {
             .execute(&self.conn)?;
             collections::table.select(last_insert_id).first(&self.conn)
         })?;
-        self.coll_cache.put(id, name.to_owned())?;
         Ok(id)
     }
 
@@ -343,7 +346,9 @@ impl MysqlDb {
         .optional()?
         .ok_or(DbErrorKind::CollectionNotFound)?
         .id;
-        self.coll_cache.put(id, name.to_owned())?;
+        if !self.session.borrow().in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
         Ok(id)
     }
 
@@ -775,7 +780,9 @@ impl MysqlDb {
 
             for (id, name) in result {
                 names.insert(id, name.clone());
-                self.coll_cache.put(id, name)?;
+                if !self.session.borrow().in_write_transaction {
+                    self.coll_cache.put(id, name)?;
+                }
             }
         }
 

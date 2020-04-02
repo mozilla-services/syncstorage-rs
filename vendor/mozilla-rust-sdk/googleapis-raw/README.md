@@ -46,13 +46,8 @@ Useful links for setting up specific Google services:
 
 ## Generating Rust bindings from `.proto` files
 
-**NOTE:** You do not need to do this step. Rust bindings are already included in this repository.
-
-But if you still want to regenerate them from scratch, run:
-
-```
-./generate.sh
-```
+**NOTE:** You may need to update these bindings after protobuf updates.
+The process requires an update to the `protobuf-codegen` cargo plugin.
 
 This requires the installation of [protobuf](https://google.github.io/proto-lens/installing-protoc.html) library
 and [protoc-gen-rust](https://github.com/stepancheg/rust-protobuf/tree/master/protobuf-codegen), a plugin
@@ -62,8 +57,25 @@ Installation of the protoc-gen-rust plugin is done via `cargo`:
 ```
 cargo install protobuf-codegen
 ```
-
 Make sure the `protoc-gen-rust` binary is available in your `$PATH` env variable.
+
+Then:
+
+1) In the `/src` directory, remove all the `*.rs` that are not `mod.rs` [1]
+2) Run the `./generate.sh` script
+
+ensure that a proper build works by running `cargo build`.
+
+_[1] The `generate.sh` script will NOT generate the required `mod.rs` files for the directories. In addition, the generated rust modules will look for several modules that are `super` to their package. `protoc` may not overwrite an existing, generated rust file which could lead to complications. It's easiest if you simily leave the `mod.rs` files in place and remove the other rust files, or copy the `mod.rs` files from a backup. Running a `cargo build` will definitely identify the modules that may be missing and that you'll have to add via a line like:_
+
+```
+pub(crate) use crate::{
+    empty,
+    iam::v1::{iam_policy, policy},
+    longrunning::operations,
+};
+```
+_(which was taken from `src/rpc/spanner/admin/instance/v1/mod.rs`)_
 
 
 ## Google Cloud Console

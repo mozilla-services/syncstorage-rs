@@ -2,17 +2,16 @@
 
 use std::sync::Arc;
 
-use actix_cors::Cors;
-use actix_web::{
-    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
-    HttpResponse, HttpServer,
-};
-// use num_cpus;
 use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Secrets, ServerLimits, Settings};
 use crate::web::{handlers, middleware};
+use actix_cors::Cors;
+use actix_web::{
+    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
+    HttpResponse, HttpServer,
+};
 use cadence::StatsdClient;
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
