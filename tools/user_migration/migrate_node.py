@@ -416,7 +416,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             logging.info("Skipped {} of {} rows for {}".format(
                 abort_count, col_count, abort_col
             ))
-        for bunch in divvy(data, args.readchunk or 1000):
+        for bunch in divvy(data, args.chunk or 1000):
             # Occasionally, there is a batch fail because a
             # user collection is not found before a bso is written.
             # to solve that, divide the UC updates from the
@@ -436,6 +436,10 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
                 fxa_uid,
                 args,
             )
+            if args.ms_delay > 0:
+                logging.debug(
+                    "Sleeping for {} seconds".format(args.ms_delay * .01))
+                time.sleep(args.ms_delay * .01)
 
     except AlreadyExists:
         logging.warn(
@@ -584,7 +588,8 @@ def get_args():
         help="skip user_collections table"
     )
     parser.add_argument(
-        '--readchunk',
+        '--write_chunk',
+        dest="chunk",
         default=1000,
         help="how many rows per transaction for spanner (default: 1000)"
     )
@@ -616,6 +621,10 @@ def get_args():
     parser.add_argument(
         '--sort_users', action="store_true",
         help="Sort the user"
+    )
+    parser.add_argument(
+        '--ms_delay', type=int, default=0,
+        help="inject a sleep between writes to spanner as a throttle"
     )
 
     return parser.parse_args()
