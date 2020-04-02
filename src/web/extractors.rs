@@ -1747,6 +1747,23 @@ where
     Ok(None)
 }
 
+// Tokenserver extractor
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct TokenServerRequest {
+    // TODO extract required headers from the request into this struct.
+}
+
+impl FromRequest for TokenServerRequest {
+    type Config = ();
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    /// Extract and validate the precondition headers
+    fn from_request(_req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        Box::pin(async move { Ok(Self {}) })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use actix_http::h1;
