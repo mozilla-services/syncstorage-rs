@@ -1623,15 +1623,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2722,9 +2713,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.48"
+version = "1.0.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9371ade75d4c2d6cb154141b9752cf3781ec9c05e0e5cf35060e1e70ee7b9c25"
+checksum = "78a7a12c167809363ec3bd7329fc0a3369056996de43c4b37ef3cd54a6ce4867"
 dependencies = [
  "itoa",
  "ryu",
@@ -3026,14 +3017,13 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.2.5"
+version = "0.2.8"
 dependencies = [
  "actix-cors",
  "actix-http",
  "actix-rt",
  "actix-web",
  "base64 0.12.0",
- "bumpalo",
  "bytes 0.5.4",
  "cadence",
  "chrono",
@@ -3051,13 +3041,10 @@ dependencies = [
  "hawk",
  "hkdf",
  "hmac",
- "itertools",
  "lazy_static",
  "log",
  "mime",
  "mozsvc-common",
- "num_cpus",
- "openssl",
  "protobuf",
  "rand 0.7.3",
  "regex",
@@ -3066,7 +3053,6 @@ dependencies = [
  "serde 1.0.105",
  "serde_derive",
  "serde_json",
- "serde_urlencoded 0.6.1",
  "sha2",
  "slog",
  "slog-async",
@@ -3076,7 +3062,6 @@ dependencies = [
  "slog-stdlog",
  "slog-term",
  "time 0.2.9",
- "tokio 0.2.13",
  "url 2.1.1",
  "uuid 0.8.1",
  "validator",
