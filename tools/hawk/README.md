@@ -11,7 +11,7 @@ this will create a python virtual environment in the `/venv` directory.
 
 Once the virtual env is installed, run `. venv/bin/activate`. This
 will ensure that calls to python and python tools happen within this
-virutal environment.
+virtual environment.
 
 2) install the requirements using:
 

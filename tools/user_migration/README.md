@@ -46,7 +46,7 @@ The script will take the following actions:
 
 1. fetch all users from a given node.
 1. compare and port all user_collections over (NOTE: this may involve remapping collecitonid values.)
-1. begin copying over user information from mysql to spanner
+1. begin copying over user information from mysql to spanner.
 
 Overall performance may be improved by "batching" BSOs to different
 processes using:
@@ -54,8 +54,8 @@ processes using:
 `--start_bso` the BSO database (defaults to 0, inclusive) to begin
 copying from
 
-`--end_bso` the final BSO databse (defaults to 19, inclusive) to copy
-from
+`--end_bso` the final BSO database (defaults to 19, inclusive) to copy
+from.
 
 Note that these are inclusive values. So to split between two
 processes, you would want to use
