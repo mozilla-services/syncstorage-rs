@@ -484,11 +484,18 @@ impl MysqlDb {
         }
 
         query = match sort {
+            // issue559: Revert to previous sorting
+            /*
             Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
             Sorting::Newest | Sorting::None => {
                 query.order(bso::id.desc()).order(bso::modified.desc())
             }
             Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
+            */
+            Sorting::Index => query.order(bso::sortindex.desc()),
+            Sorting::Newest => query.order(bso::modified.desc()),
+            Sorting::Oldest => query.order(bso::modified.asc()),
+            _ => query,
         };
 
         let limit = limit.map(i64::from).unwrap_or(-1);
