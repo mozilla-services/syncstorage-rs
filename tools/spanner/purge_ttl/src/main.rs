@@ -1,6 +1,6 @@
 use std::env;
 use std::error::Error;
-use std::net::{IpAddr, UdpSocket};
+use std::net::UdpSocket;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -15,6 +15,9 @@ use googleapis_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
 use log::{info, trace, warn};
+use url::{Host, Url};
+
+const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
 pub struct MetricTimer {
     pub client: StatsdClient,
@@ -46,9 +49,7 @@ pub fn start_timer(client: &StatsdClient, label: &str) -> MetricTimer {
 }
 
 pub fn statsd_from_env() -> Result<StatsdClient, Box<dyn Error>> {
-    let statsd_host = env::var("STATSD_HOST")
-        .unwrap_or_else(|_| "127.0.0.1".to_string())
-        .parse::<IpAddr>()?;
+    let statsd_host = env::var("STATSD_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let statsd_port = match env::var("STATSD_PORT") {
         Ok(port) => port.parse::<u16>()?,
         Err(_) => DEFAULT_PORT,
@@ -56,7 +57,7 @@ pub fn statsd_from_env() -> Result<StatsdClient, Box<dyn Error>> {
 
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_nonblocking(true)?;
-    let host = (statsd_host, statsd_port);
+    let host = (statsd_host.as_str(), statsd_port);
     let udp_sink = BufferedUdpMetricSink::from(host, socket)?;
     let sink = QueuingMetricSink::from(udp_sink);
     let builder = StatsdClient::builder("syncstorage", sink);
@@ -94,15 +95,15 @@ fn prepare_request(
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::try_init()?;
 
-    let url = env::var("SYNC_DATABASE_URL")?;
-    if !url.starts_with("spanner://") {
-        return Err("Invalid SYNC_DAYABASE_URL".into());
+    const DB_ENV: &str = "SYNC_DATABASE_URL";
+    let db_url = env::var(DB_ENV).map_err(|_| format!("Invalid or undefined {}", DB_ENV))?;
+    let url = Url::parse(&db_url).map_err(|e| format!("Invalid {}: {}", DB_ENV, e))?;
+    if url.scheme() != "spanner" || url.host() != Some(Host::Domain("projects")) {
+        return Err(format!("Invalid {}", DB_ENV).into());
     }
 
-    let database = url["spanner://".len()..].to_owned();
+    let database = db_url["spanner://".len()..].to_owned();
     info!("For {}", database);
-
-    let endpoint = "spanner.googleapis.com:443";
 
     // Set up the gRPC environment.
     let env = Arc::new(EnvBuilder::new().build());
@@ -112,7 +113,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let chan = ChannelBuilder::new(env)
         .max_send_message_len(100 << 20)
         .max_receive_message_len(100 << 20)
-        .secure_connect(&endpoint, creds);
+        .secure_connect(SPANNER_ADDRESS, creds);
     let client = SpannerClient::new(chan);
 
     // Create a session
