@@ -383,7 +383,7 @@ pub fn create_spanner<S: Spanner + Send + Clone + 'static>(s: S) -> ::grpcio::Se
     builder = builder.add_unary_handler(&METHOD_SPANNER_PARTITION_QUERY, move |ctx, req, resp| {
         instance.partition_query(ctx, req, resp)
     });
-    let mut instance = s.clone();
+    let mut instance = s;
     builder = builder.add_unary_handler(&METHOD_SPANNER_PARTITION_READ, move |ctx, req, resp| {
         instance.partition_read(ctx, req, resp)
     });

@@ -147,7 +147,7 @@ pub fn create_operations<S: Operations + Send + Clone + 'static>(s: S) -> ::grpc
     builder = builder.add_unary_handler(&METHOD_OPERATIONS_DELETE_OPERATION, move |ctx, req, resp| {
         instance.delete_operation(ctx, req, resp)
     });
-    let mut instance = s.clone();
+    let mut instance = s;
     builder = builder.add_unary_handler(&METHOD_OPERATIONS_CANCEL_OPERATION, move |ctx, req, resp| {
         instance.cancel_operation(ctx, req, resp)
     });

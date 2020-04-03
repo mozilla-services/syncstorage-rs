@@ -1,0 +1,3 @@
+[submodule "vendor/mozilla-rust-sdk/googleapis-raw/grpc"]
+	path = vendor/mozilla-rust-sdk/googleapis-raw/grpc
+	url = https://github.com/grpc/grpc.git

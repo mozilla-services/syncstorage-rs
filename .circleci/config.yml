@@ -28,8 +28,8 @@ commands:
       - run:
           name: Core Rust Checks
           command: |
-            cargo audit
             cargo fmt -- --check
+            cargo audit
   rust-clippy:
     steps:
       - run:

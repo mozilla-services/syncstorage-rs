@@ -226,9 +226,9 @@ def dump_rows(bso_number, chunk_offset, db, writer, args):
                 (fxa_kid, fxa_uid) = get_fxa_id(userid, args.anon)
                 user = userid
             writer.append({
-                "collection_id": cid,
-                "fxa_kid": fxa_kid,
                 "fxa_uid": fxa_uid,
+                "fxa_kid": fxa_kid,
+                "collection_id": cid,
                 "bso_id": bid,
                 "expiry": exp,
                 "modified": mod,
