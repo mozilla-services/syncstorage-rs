@@ -590,8 +590,8 @@ def get_args():
     parser.add_argument(
         '--write_chunk',
         dest="chunk",
-        default=1000,
-        help="how many rows per transaction for spanner (default: 1000)"
+        default=1666,
+        help="how many rows per transaction for spanner (default: 1666)"
     )
     parser.add_argument(
         '--user',
@@ -646,9 +646,9 @@ def main():
     rows = 0
 
     if args.user and args.user_percent:
-        RuntimeWarning("both --user and --user_percent specified!")
+        raise RuntimeWarning("both --user and --user_percent specified!")
     if args.user_range and args.user_percent:
-        RuntimeWarning("both --user_range and --user_percent specified!")
+        raise RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
