@@ -27,6 +27,7 @@ except ImportError:
     from urlparse import urlparse
 
 META_GLOBAL_COLLECTION_ID = 6
+META_GLOBAL_COLLECTION_NAME = "meta"
 MAX_ROWS = 1500000
 
 
@@ -66,6 +67,9 @@ class FXA_info:
                         continue
                     try:
                         fxa_uid = email.split('@')[0]
+                        if client_state == "NULL":
+                            logging.warn("No client state found for user {} SKIPPING".format(uid))
+                            continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
                             binascii.unhexlify(client_state))
@@ -357,7 +361,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             exp_v = datetime.utcfromtimestamp(exp)
 
             # add the BSO values.
-            if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
+            if args.full and col == META_GLOBAL_COLLECTION_NAME:
                 pay = alter_syncids(pay)
             bso_values = [[
                     collection_id,
@@ -564,9 +568,8 @@ def get_args():
         help="force a full reconcile"
     )
     parser.add_argument(
-        '--deanon', action='store_false',
-        dest='anon',
-        help="Do not anonymize the user data"
+        '--anon', action='store_true',
+        help="Anonymize the user data"
     )
     parser.add_argument(
         '--start_bso', default=0,
