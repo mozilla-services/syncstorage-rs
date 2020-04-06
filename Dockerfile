@@ -2,6 +2,7 @@ FROM rust:1.40.0-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
+# temp removed --no-install-recommends due to CI docker build issue
 RUN apt-get -q update && \
     apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go && \
     rm -rf /var/lib/apt/lists/* && \
