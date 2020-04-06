@@ -450,16 +450,12 @@ pub fn test_error(
     // generate an error for sentry.
 
     /*  The various error log macros only can take a string.
-        Additional values can be expressed as KV (key value) after a `;`
+        Content of Tags struct can be logged as KV (key value) pairs after a `;`.
         e.g.
         ```
-        error!("Something Bad {:?}", err;
-                "ua.os.family" => wtags.get("ua.os.family"),
-                "ua.browser.family" => wtags.get("ua.browser.family"),
-                "ua.name" => wtags.get("ua.name"),
-                "ua.os.ver" => wtags.get("ua.os.ver"),
-                "ua.browser.ver" => wtags.get("ua.browser.ver"))
+        error!("Something Bad {:?}", err; wtags)
         ```
+
         TODO: find some way to transform Tags into error::KV
     */
     error!("Test Error: {:?}", &ter.tags);

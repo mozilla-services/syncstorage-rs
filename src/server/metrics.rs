@@ -31,12 +31,7 @@ impl Drop for Metrics {
         if let Some(client) = self.client.as_ref() {
             if let Some(timer) = self.timer.as_ref() {
                 let lapse = (Instant::now() - timer.start).as_millis() as u64;
-                trace!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse;
-                "ua.os.family" => tags.get("ua.os.family"),
-                "ua.browser.family" => tags.get("ua.browser.family"),
-                "ua.name" => tags.get("ua.name"),
-                "ua.os.ver" => tags.get("ua.os.ver"),
-                "ua.browser.ver" => tags.get("ua.browser.ver"));
+                trace!("⌚ Ending timer at nanos: {:?} : {:?}", &timer.label, lapse; &tags);
                 let mut tagged = client.time_with_tags(&timer.label, lapse);
                 // Include any "hard coded" tags.
                 // tagged = tagged.with_tag("version", env!("CARGO_PKG_VERSION"));
@@ -117,12 +112,7 @@ impl Metrics {
             mtags.extend(t.tags)
         }
 
-        trace!("⌚ Starting timer... {:?}", &label;
-            "ua.os.family" => mtags.get("ua.os.family"),
-            "ua.browser.family" => mtags.get("ua.browser.family"),
-            "ua.name" => mtags.get("ua.name"),
-            "ua.os.ver" => mtags.get("ua.os.ver"),
-            "ua.browser.ver" => mtags.get("ua.browser.ver"));
+        trace!("⌚ Starting timer... {:?}", &label; &mtags);
         self.timer = Some(MetricTimer {
             label: label.to_owned(),
             start: Instant::now(),
@@ -138,27 +128,21 @@ impl Metrics {
     pub fn incr_with_tags(self, label: &str, tags: Option<Tags>) {
         if let Some(client) = self.client.as_ref() {
             let mut tagged = client.incr_with_tags(label);
-            let mut mtags = self.tags.clone().unwrap_or_default().tags;
-            if let Some(t) = tags {
-                mtags.extend(t.tags)
+            let mut mtags = self.tags.clone().unwrap_or_default();
+            if let Some(tags) = tags {
+                mtags.extend(tags.tags);
             }
-            let tag_keys = mtags.keys();
-            for key in tag_keys.clone() {
-                // REALLY wants a static here, or at least a well defined ref.
-                tagged = tagged.with_tag(&key, &mtags.get(key).unwrap());
+            for key in mtags.tags.keys().clone() {
+                if let Some(val) = mtags.tags.get(key) {
+                    tagged = tagged.with_tag(&key, val.as_ref());
+                }
             }
             // Include any "hard coded" tags.
             // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
             match tagged.try_send() {
                 Err(e) => {
                     // eat the metric, but log the error
-                    warn!("⚠️ Metric {} error: {:?} ", label, e;
-                        "ua.os.family" => mtags.get("ua.os.family"),
-                        "ua.browser.family" => mtags.get("ua.browser.family"),
-                        "ua.name" => mtags.get("ua.name"),
-                        "ua.os.ver" => mtags.get("ua.os.ver"),
-                        "ua.browser.ver" => mtags.get("ua.browser.ver")
-                    );
+                    warn!("⚠️ Metric {} error: {:?} ", label, e; mtags);
                 }
                 Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
             }
