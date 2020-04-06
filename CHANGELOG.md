@@ -1,3 +1,28 @@
+<a name="0.2.8"></a>
+## 0.2.8 (2020-03-26)
+
+
+#### Bug Fixes
+
+*   allow hostnames for STATSD_HOST ([9c784055](https://github.com/mozilla-services/syncstorage-rs/commit/9c784055e109b49c808520fd1b02514c60a8f0d2), closes [#548](https://github.com/mozilla-services/syncstorage-rs/issues/548))
+
+
+
+<a name="0.2.7"></a>
+## 0.2.7 (2020-03-24)
+
+
+#### Chore
+
+*   adapt googleapis-raw dep to 0.2 branch ([58f2051f](https://github.com/mozilla-services/syncstorage-rs/commit/58f2051f42aec49006a3127a5f35a3b58b8e3a2d))
+
+#### Refactor
+
+*   clippy ([acadfc80](https://github.com/mozilla-services/syncstorage-rs/commit/acadfc80fd96b2d2f50d97733bdf3fa421462074))
+*   rewrite purge_ttl in Rust ([2d351956](https://github.com/mozilla-services/syncstorage-rs/commit/2d351956c2fc0c818e1089974e7a6c1528ab15a5))
+
+
+
 <a name="0.2.5"></a>
 ## 0.2.5 (2020-03-11)
 

@@ -451,12 +451,7 @@ impl BsoParam {
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
         if elem.is_none() || elem != Some(&"storage") || elements.len() != 6 {
-            warn!("⚠️ Unexpected BSO URI: {:?}", uri.path();
-            "ua.os.family" => tags.get("ua.os.family"),
-            "ua.browser.family" => tags.get("ua.browser.family"),
-            "ua.name" => tags.get("ua.name"),
-            "ua.os.ver" => tags.get("ua.os.ver"),
-            "ua.browser.ver" => tags.get("ua.browser.ver"));
+            warn!("⚠️ Unexpected BSO URI: {:?}", uri.path(); tags);
             return Err(ValidationErrorKind::FromDetails(
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
@@ -466,12 +461,7 @@ impl BsoParam {
         }
         if let Some(v) = elements.get(5) {
             let sv = String::from_str(v).map_err(|_| {
-                warn!("⚠️ Invalid BsoParam Error: {:?}", v;
-                "ua.os.family" => tags.get("ua.os.family"),
-                "ua.browser.family" => tags.get("ua.browser.family"),
-                "ua.name" => tags.get("ua.name"),
-                "ua.os.ver" => tags.get("ua.os.ver"),
-                "ua.browser.ver" => tags.get("ua.browser.ver"));
+                warn!("⚠️ Invalid BsoParam Error: {:?}", v; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -481,12 +471,7 @@ impl BsoParam {
             })?;
             Ok(Self { bso: sv })
         } else {
-            warn!("⚠️ Missing BSO: {:?}", uri.path();
-            "ua.os.family" => tags.get("ua.os.family"),
-            "ua.browser.family" => tags.get("ua.browser.family"),
-            "ua.name" => tags.get("ua.name"),
-            "ua.os.ver" => tags.get("ua.os.ver"),
-            "ua.browser.ver" => tags.get("ua.browser.ver"));
+            warn!("⚠️ Missing BSO: {:?}", uri.path(); tags);
             Err(ValidationErrorKind::FromDetails(
                 "Missing BSO".to_owned(),
                 RequestErrorLocation::Path,
