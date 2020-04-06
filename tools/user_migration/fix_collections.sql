@@ -13,4 +13,3 @@ INSERT IGNORE INTO weave0.collections (name, collectionid) VALUES
         ("addresses", 12),
         ("creditcards", 13),
         ("reserved", 99);
-
