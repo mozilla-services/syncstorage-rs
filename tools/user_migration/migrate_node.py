@@ -68,7 +68,10 @@ class FXA_info:
                     try:
                         fxa_uid = email.split('@')[0]
                         if client_state == "NULL":
-                            logging.warn("No client state found for user {} SKIPPING".format(uid))
+                            logging.warn(
+                                "No client state found "
+                                "for user {} SKIPPING".format(
+                                    uid))
                             continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
@@ -498,7 +501,8 @@ def get_users(args, databases, fxa, bso_num):
             if args.user_percent:
                 (block, percentage) = map(int, args.user_percent.split(':'))
                 total_count = len(users)
-                chunk_size = max(1, math.floor(total_count * (int(percentage) * .01)))
+                chunk_size = max(
+                    1, math.floor(total_count * (int(percentage) * .01)))
                 chunk_count = math.ceil(total_count / chunk_size)
                 chunk_start = max(block - 1, 0) * chunk_size
                 chunk_end = min(chunk_count, block) * chunk_size
@@ -506,7 +510,8 @@ def get_users(args, databases, fxa, bso_num):
                     if block >= chunk_count - 1:
                         chunk_end = total_count
                 users = users[chunk_start:chunk_end]
-                logging.debug("moving users: {} to {}".format(chunk_start, chunk_end))
+                logging.debug(
+                    "moving users: {} to {}".format(chunk_start, chunk_end))
         except Exception as ex:
             import pdb; pdb.set_trace()
             logging.error("Error moving database:", exc_info=ex)
