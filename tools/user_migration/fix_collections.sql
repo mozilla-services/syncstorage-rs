@@ -1,4 +1,4 @@
-INSERT IGNORE INTO collections (name, collectionid) VALUES
+INSERT IGNORE INTO weave0.collections (name, collectionid) VALUES
         ("clients", 1),
         ("crypto", 2),
         ("forms", 3),
@@ -13,3 +13,4 @@ INSERT IGNORE INTO collections (name, collectionid) VALUES
         ("addresses", 12),
         ("creditcards", 13),
         ("reserved", 99);
+
