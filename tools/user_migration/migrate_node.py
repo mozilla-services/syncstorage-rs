@@ -39,18 +39,18 @@ class Report:
     bso = "init"
 
     def __init__(self, args):
-        self.success = open(args.success_file, "w")
-        self.failure = open(args.failure_file, "w")
+        self._success = open(args.success_file, "w")
+        self._failure = open(args.failure_file, "w")
 
     def ok(self, uid):
-        self.success.write("{}\t{}\n".format(self.bso, uid))
+        self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid):
-        self.failure.write("{}\t{}\n".format(self.bso, uid))
+        self._failure.write("{}\t{}\n".format(self.bso, uid))
 
     def close(self):
-        self.success.close()
-        self.failure.close()
+        self._success.close()
+        self._failure.close()
 
 
 class FXA_info:
@@ -85,22 +85,26 @@ class FXA_info:
                         continue
                     try:
                         fxa_uid = email.split('@')[0]
-                        if client_state == "NULL":
-                            logging.warn(
-                                "No client state found "
-                                "for user {} SKIPPING".format(
-                                    uid))
+                        try:
+                            client_state = binascii.unhexlify(client_state)
+                        except binascii.Error as ex:
+                            logging.error(
+                                "Skipping user {}: "
+                                "Invalid client state: {} : {}".format(
+                                    uid, client_state, ex
+                                ))
                             report.fail(uid)
                             continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
-                            binascii.unhexlify(client_state))
+                            client_state
+                            )
                         logging.debug("Adding user {} => {} , {}".format(
                             uid, fxa_kid, fxa_uid
                         ))
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
-                        logging.error("Skipping user {}:".format(uid), ex)
+                        logging.error("Skipping user {}: {}".format(uid, ex))
                         report.fail(uid)
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}: {}".format(
