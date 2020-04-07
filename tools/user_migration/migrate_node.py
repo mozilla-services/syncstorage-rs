@@ -42,7 +42,7 @@ class Report:
         self._success = open(args.success_file, "w")
         self._failure = open(args.failure_file, "w")
 
-    def ok(self, uid):
+    def success(self, uid):
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid):
