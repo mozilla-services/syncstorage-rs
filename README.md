@@ -59,7 +59,7 @@ Durable sync needs only a valid mysql DSN in order to set up connections to a My
 
 To setup a fresh MySQL DB and user: (`mysql -u root`):
 
-```
+```sql
 CREATE USER "sample_user"@"localhost" IDENTIFIED BY "sample_password";
 CREATE DATABASE syncstorage_rs;
 
@@ -112,7 +112,7 @@ This currently requires access to the [mozilla-rust-sdk](https://github.com/mozi
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
 3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
 4. Comment out the `image` value under `syncstorage-rs` in docker-compose.yml, and add this instead:
-    ```
+    ```yml
       build:
         context: .
     ```
@@ -127,7 +127,7 @@ This will walk you through the steps to connect this project to your local copy 
 
 2. Setup a local copy of [syncserver](https://github.com/mozilla-services/syncserver), with a few special changes to [syncserver.ini](https://github.com/mozilla-services/syncserver/blob/master/syncserver.ini); make sure that you're using the following values (in addition to all of the other defaults):
 
-    ```
+    ```ini
     [server:main]
     port = 5000
 
