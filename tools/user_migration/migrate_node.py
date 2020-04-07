@@ -46,6 +46,7 @@ class Report:
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid):
+        logging.debug("Skipping user {}".format(uid))
         self._failure.write("{}\t{}\n".format(self.bso, uid))
 
     def close(self):
@@ -97,15 +98,16 @@ class FXA_info:
 
                         if (keys_changed_at or generation) == 0:
                             logging.warn(
-                                "user {} has no k_c_a or generation value".format(
+                                "user {} has no k_c_a or "
+                                "generation value".format(
                                     uid))
                         try:
                             client_state = binascii.unhexlify(client_state)
-                        except binascii.Error as ex:
+                        except binascii.Error:
                             logging.error(
-                                "Skipping user {}: "
-                                "Invalid client state: {} : {}".format(
-                                    uid, client_state, ex
+                                "User {} has "
+                                "invalid client state: {}".format(
+                                    uid, client_state
                                 ))
                             report.fail(uid)
                             continue
@@ -118,11 +120,13 @@ class FXA_info:
                         ))
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
-                        logging.error("Skipping user {}: {}".format(uid, ex))
+                        logging.error(
+                            "User {} Unexpected error".format(uid),
+                            exc_info=ex)
                         report.fail(uid)
             except Exception as ex:
-                logging.critical("Error in fxa file around line {}: {}".format(
-                    line, ex))
+                logging.critical("Error in fxa file around line {}".format(
+                    line), exc_info=ex)
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):
@@ -270,7 +274,7 @@ def conf_db(dsn):
      """
     if "mysql" in dsn.scheme:
         return conf_mysql(dsn)
-    if dsn.scheme == "spanner":
+    if "spanner" in dsn.scheme:
         return conf_spanner(dsn)
     raise RuntimeError("Unknown DSN type: {}".format(dsn.scheme))
 
@@ -292,7 +296,6 @@ def alter_syncids(pay):
     """Alter the syncIDs for the meta/global record, which will cause a sync
     when the client reconnects
 
-
     """
     payload = json.loads(pay)
     payload['syncID'] = newSyncID()
@@ -302,6 +305,7 @@ def alter_syncids(pay):
 
 
 def divvy(biglist, count):
+    """Partition a list into a set of equally sized slices"""
     lists = []
     biglen = len(biglist)
     start = 0
@@ -488,23 +492,23 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
 
     except AlreadyExists:
         logging.warn(
-            "User already imported fxa_uid:{} / fxa_kid:{}".format(
-                fxa_uid, fxa_kid
+            "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
+                uid, fxa_uid, fxa_kid
             ))
-        report.failure(uid)
+        report.fail(uid)
     except InvalidArgument as ex:
-        report.failure(uid)
+        report.fail(uid)
         if "already inserted" in ex.args[0]:
             logging.warn(
-                "User already imported fxa_uid:{} / fxa_kid:{}".format(
-                    fxa_uid, fxa_kid
+                "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
+                    uid, fxa_uid, fxa_kid
                 ))
         else:
             raise
-    except Exception as e:
-        report.failure(uid)
-        logging.error("### batch failure: {}:{}".format(
-            fxa_uid, fxa_kid), exc_info=e)
+    except Exception as ex:
+        report.fail(uid)
+        logging.error("Unexpected Batch failure: {}:{}".format(
+            fxa_uid, fxa_kid), exc_info=ex)
     finally:
         # cursor may complain about unread data, this should prevent
         # that warning.
@@ -516,57 +520,65 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
 
 
 def get_users(args, databases, fxa, bso_num, report):
+    """Fetch the user information from the Tokenserver Dump """
     users = []
     cursor = databases['mysql'].cursor()
-    if args.user:
-        for user in args.user:
-            try:
-                (fxa_kid, fxa_uid) = fxa.get(user)
-                users.append((user, fxa_kid, fxa_uid))
-            except TypeError:
-                logging.error(
-                    "⚠️User {} not found in "
-                    "tokenserver data.".format(user))
-                report.fail(user)
-    else:
-        try:
-            sql = ("""select distinct userid from bso{}"""
-                   """ order by userid""".format(bso_num))
-            if args.user_range:
-                (offset, limit) = args.user_range.split(':')
-                sql = "{} limit {} offset {}".format(
-                    sql, limit, offset)
-            cursor.execute(sql)
-            for (user,) in cursor:
+    try:
+        if args.user:
+            for user in args.user:
                 try:
                     (fxa_kid, fxa_uid) = fxa.get(user)
                     users.append((user, fxa_kid, fxa_uid))
+                    if args.sort_users:
+                        users.sort(key=lambda tup: tup[2])
                 except TypeError:
                     logging.error(
-                        ("⚠️User not found in "
-                         "tokenserver data: {} ".format(user)))
-            if args.sort_users:
-                users.sort(key=lambda tup: tup[2])
-            # Take a block of percentage of the users.
-            if args.user_percent:
-                (block, percentage) = map(int, args.user_percent.split(':'))
-                total_count = len(users)
-                chunk_size = max(
-                    1, math.floor(total_count * (int(percentage) * .01)))
-                chunk_count = math.ceil(total_count / chunk_size)
-                chunk_start = max(block - 1, 0) * chunk_size
-                chunk_end = min(chunk_count, block) * chunk_size
-                if chunk_size * chunk_count > total_count:
-                    if block >= chunk_count - 1:
-                        chunk_end = total_count
-                users = users[chunk_start:chunk_end]
-                logging.debug(
-                    "moving users: {} to {}".format(chunk_start, chunk_end))
-        except Exception as ex:
-            import pdb; pdb.set_trace()
-            logging.error("Error moving database:", exc_info=ex)
-        finally:
-            cursor.close()
+                        "User {} not found in "
+                        "tokenserver data.".format(user))
+                    report.fail(user)
+        else:
+            try:
+                sql = ("""select distinct userid from bso{}"""
+                       """ order by userid""".format(bso_num))
+                if args.user_range:
+                    (offset, limit) = args.user_range.split(':')
+                    sql = "{} limit {} offset {}".format(
+                        sql, limit, offset)
+                cursor.execute(sql)
+                for (user,) in cursor:
+                    try:
+                        (fxa_kid, fxa_uid) = fxa.get(user)
+                        users.append((user, fxa_kid, fxa_uid))
+                    except TypeError:
+                        report.fail(user)
+                        logging.error(
+                            ("User {} not found in "
+                                "tokenserver data".format(user)))
+                if args.sort_users:
+                    users.sort(key=lambda tup: tup[2])
+                # Take a block of percentage of the users.
+                if args.user_percent:
+                    (block, percentage) = map(
+                        int, args.user_percent.split(':'))
+                    total_count = len(users)
+                    chunk_size = max(
+                        1, math.floor(
+                            total_count * (int(percentage) * .01)))
+                    chunk_count = math.ceil(total_count / chunk_size)
+                    chunk_start = max(block - 1, 0) * chunk_size
+                    chunk_end = min(chunk_count, block) * chunk_size
+                    if chunk_size * chunk_count > total_count:
+                        if block >= chunk_count - 1:
+                            chunk_end = total_count
+                    users = users[chunk_start:chunk_end]
+                    logging.debug(
+                        "moving users: {} to {}".format(
+                            chunk_start, chunk_end))
+            finally:
+                cursor.close()
+    except Exception as ex:
+        logging.error("Unexpected Error moving database:", exc_info=ex)
+        exit(-1)
     return users
 
 
@@ -653,7 +665,7 @@ def get_args():
     parser.add_argument(
         '--user',
         type=str,
-        help="BSO#:userId[,userid,...] to move (EXPERIMENTAL)."
+        help="BSO#:userId[,userid,...] to move."
     )
     parser.add_argument(
         '--dryrun',
@@ -712,7 +724,7 @@ def main():
     rows = 0
 
     if args.user:
-        args.user_percent="1:100"
+        args.user_percent = "1:100"
     if args.user_range and args.user_percent:
         raise RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
