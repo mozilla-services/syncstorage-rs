@@ -592,6 +592,7 @@ def move_database(databases, collections, bso_num, fxa, args, report):
 
 
 def get_args():
+    pid = os.getpid()
     parser = argparse.ArgumentParser(
         description="move user from sql to spanner")
     parser.add_argument(
@@ -678,11 +679,11 @@ def get_args():
         help="inject a sleep between writes to spanner as a throttle"
     )
     parser.add_argument(
-        '--success_file', default="success.csv",
+        '--success_file', default="success_{}.csv".format(pid),
         help="File of successfully migrated userids"
     )
     parser.add_argument(
-        '--failure_file', default="failure.csv",
+        '--failure_file', default="failure_{}.csv".format(pid),
         help="File of unsuccessfully migrated userids"
     )
 
