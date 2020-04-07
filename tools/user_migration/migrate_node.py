@@ -26,13 +26,31 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-META_GLOBAL_COLLECTION_ID = 6
 META_GLOBAL_COLLECTION_NAME = "meta"
 MAX_ROWS = 1500000
 
 
 class BadDSNException(Exception):
     pass
+
+
+class Report:
+
+    bso = "init"
+
+    def __init__(self, args):
+        self.success = open(args.success_file, "w")
+        self.failure = open(args.failure_file, "w")
+
+    def ok(self, uid):
+        self.success.write("{}\t{}\n".format(self.bso, uid))
+
+    def fail(self, uid):
+        self.failure.write("{}\t{}\n".format(self.bso, uid))
+
+    def close(self):
+        self.success.close()
+        self.failure.close()
 
 
 class FXA_info:
@@ -45,7 +63,7 @@ class FXA_info:
     users = {}
     anon = False
 
-    def __init__(self, fxa_csv_file, args):
+    def __init__(self, fxa_csv_file, args, report):
         if args.anon:
             self.anon = True
             return
@@ -72,6 +90,7 @@ class FXA_info:
                                 "No client state found "
                                 "for user {} SKIPPING".format(
                                     uid))
+                            report.fail(uid)
                             continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
@@ -82,6 +101,7 @@ class FXA_info:
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
                         logging.error("Skipping user {}:".format(uid), ex)
+                        report.fail(uid)
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}: {}".format(
                     line, ex))
@@ -273,7 +293,7 @@ def divvy(biglist, count):
     return lists
 
 
-def move_user(databases, user_data, collections, fxa, bso_num, args):
+def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     """copy user info from original storage to new storage."""
     # bso column mapping:
     # id => bso_id
@@ -453,7 +473,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             "User already imported fxa_uid:{} / fxa_kid:{}".format(
                 fxa_uid, fxa_kid
             ))
+        report.failure(user.uid)
     except InvalidArgument as ex:
+        report.failure(user.uid)
         if "already inserted" in ex.args[0]:
             logging.warn(
                 "User already imported fxa_uid:{} / fxa_kid:{}".format(
@@ -462,6 +484,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
         else:
             raise
     except Exception as e:
+        report.failure(user.uid)
         logging.error("### batch failure: {}:{}".format(
             fxa_uid, fxa_kid), exc_info=e)
     finally:
@@ -470,6 +493,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
         for result in cursor:
             pass
         cursor.close()
+    report.success(user.uid)
     return count
 
 
@@ -520,7 +544,7 @@ def get_users(args, databases, fxa, bso_num):
     return users
 
 
-def move_database(databases, collections, bso_num, fxa, args):
+def move_database(databases, collections, bso_num, fxa, args, report):
     """iterate over provided users and move their data from old to new"""
     start = time.time()
     # off chance that someone else might have written
@@ -539,7 +563,8 @@ def move_database(databases, collections, bso_num, fxa, args):
             collections=collections,
             fxa=fxa,
             bso_num=bso_num,
-            args=args)
+            args=args,
+            report=report)
     logging.info("Finished BSO #{} ({} rows) in {} seconds".format(
         bso_num,
         rows,
@@ -634,6 +659,14 @@ def get_args():
         '--ms_delay', type=int, default=0,
         help="inject a sleep between writes to spanner as a throttle"
     )
+    parser.add_argument(
+        '--success_file', default="success.csv",
+        help="File of successfully migrated userids"
+    )
+    parser.add_argument(
+        '--failure_file', default="failure.csv",
+        help="File of unsuccessfully migrated userids"
+    )
 
     return parser.parse_args()
 
@@ -649,6 +682,7 @@ def main():
         stream=sys.stdout,
         level=log_level,
     )
+    report = Report(args)
     dsns = open(args.dsns).readlines()
     databases = {}
     rows = 0
@@ -673,7 +707,7 @@ def main():
         databases[scheme] = conf_db(dsn)
     if not databases.get('mysql') or not databases.get('spanner'):
         RuntimeError("Both mysql and spanner dsns must be specified")
-    fxa_info = FXA_info(args.fxa_file, args)
+    fxa_info = FXA_info(args.fxa_file, args, report)
     collections = Collections(databases)
     logging.info("Starting:")
     if args.dryrun:
@@ -681,8 +715,9 @@ def main():
     start = time.time()
     for bso_num in range(args.start_bso, args.end_bso+1):
         logging.info("Moving users in bso # {}".format(bso_num))
+        report.bso = bso_num
         rows += move_database(
-            databases, collections, bso_num, fxa_info, args)
+            databases, collections, bso_num, fxa_info, args, report)
     logging.info(
         "Moved: {} rows in {} seconds".format(
             rows or 0, time.time() - start))
