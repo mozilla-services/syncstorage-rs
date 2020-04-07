@@ -515,11 +515,19 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     return count
 
 
-def get_users(args, databases, fxa, bso_num):
+def get_users(args, databases, fxa, bso_num, report):
     users = []
     cursor = databases['mysql'].cursor()
     if args.user:
-        users = args.user
+        for user in args.user:
+            try:
+                (fxa_kid, fxa_uid) = fxa.get(user)
+                users.append((user, fxa_kid, fxa_uid))
+            except TypeError:
+                logging.error(
+                    "⚠️User {} not found in "
+                    "tokenserver data.".format(user))
+                report.fail(user)
     else:
         try:
             sql = ("""select distinct userid from bso{}"""
@@ -569,10 +577,7 @@ def move_database(databases, collections, bso_num, fxa, args, report):
     # a new collection table since the last time we
     # fetched.
     rows = 0
-    if args.user:
-        users = args.user
-    else:
-        users = get_users(args, databases, fxa, bso_num)
+    users = get_users(args, databases, fxa, bso_num, report)
     logging.info("Moving {} users".format(len(users)))
     for user in users:
         rows += move_user(
@@ -706,8 +711,8 @@ def main():
     databases = {}
     rows = 0
 
-    if args.user and args.user_percent:
-        raise RuntimeWarning("both --user and --user_percent specified!")
+    if args.user:
+        args.user_percent="1:100"
     if args.user_range and args.user_percent:
         raise RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
