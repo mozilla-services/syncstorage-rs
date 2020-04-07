@@ -95,7 +95,7 @@ class FXA_info:
                         except ValueError:
                             generation = 0
 
-                        if (keys_changed_at & generation) == 0:
+                        if (keys_changed_at or generation) == 0:
                             logging.warn(
                                 "user {} has no k_c_a or generation value".format(
                                     uid))
@@ -339,7 +339,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             'sortindex',
     )
 
-    (user, fxa_kid, fxa_uid) = user_data
+    (uid, fxa_kid, fxa_uid) = user_data
     # Fetch the BSO data from the original storage.
     sql = """
     SELECT
@@ -438,8 +438,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     try:
         # Note: cursor() does not support __enter__()
         logging.info("Processing... {} -> {}:{}".format(
-            user, fxa_uid, fxa_kid))
-        cursor.execute(sql, (user,))
+            uid, fxa_uid, fxa_kid))
+        cursor.execute(sql, (uid,))
         data = []
         abort_col = None
         abort_count = None
@@ -491,9 +491,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             "User already imported fxa_uid:{} / fxa_kid:{}".format(
                 fxa_uid, fxa_kid
             ))
-        report.failure(user.uid)
+        report.failure(uid)
     except InvalidArgument as ex:
-        report.failure(user.uid)
+        report.failure(uid)
         if "already inserted" in ex.args[0]:
             logging.warn(
                 "User already imported fxa_uid:{} / fxa_kid:{}".format(
@@ -502,7 +502,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         else:
             raise
     except Exception as e:
-        report.failure(user.uid)
+        report.failure(uid)
         logging.error("### batch failure: {}:{}".format(
             fxa_uid, fxa_kid), exc_info=e)
     finally:
@@ -511,7 +511,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         for result in cursor:
             pass
         cursor.close()
-    report.success(user.uid)
+    report.success(uid)
     return count
 
 
