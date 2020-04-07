@@ -5,6 +5,7 @@ pub mod extractors;
 pub mod handlers;
 pub mod middleware;
 pub mod tags;
+pub mod tokenserver;
 
 // header statics must be lower case, numbers and symbols per the RFC spec. This reduces chance of error.
 pub static X_LAST_MODIFIED: &str = "x-last-modified";
