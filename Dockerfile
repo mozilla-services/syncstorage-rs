@@ -23,7 +23,8 @@ RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
     apt-get -q update && \
-    apt-get -q install -y && \
+    apt-get -q install -y \
+    build-essential \
     default-libmysqlclient-dev libssl-dev ca-certificates libcurl4 python3-venv python3-pip && \
     python3 -m pip install setuptools wheel && \
     python3 -m pip install google-cloud-spanner statsd && \
