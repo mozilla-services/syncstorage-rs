@@ -1,15 +1,13 @@
+use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
-use actix_service::{Service, Transform};
 use actix_web::{
-    dev::{ServiceRequest, ServiceResponse},
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::{header::HeaderValue, Method},
     Error, HttpMessage, HttpResponse,
 };
-use futures::{
-    future::{self, Either, FutureResult},
-    Future, Poll,
-};
+use futures::future::{self, Either, LocalBoxFuture, Ready, TryFutureExt};
+use std::task::Poll;
 
 use crate::db::params;
 use crate::server::{metrics, ServerState};
@@ -42,7 +40,7 @@ where
     type Error = Error;
     type InitError = ();
     type Transform = DbTransactionMiddleware<S>;
-    type Future = FutureResult<Self::Transform, Self::InitError>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
         future::ok(DbTransactionMiddleware {
@@ -65,14 +63,15 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Box<dyn Future<Item = Self::Response, Error = Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(&mut self) -> Poll<(), Self::Error> {
-        self.service.poll_ready()
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        let no_agent = HeaderValue::from_str("NONE").unwrap();
+        let no_agent = HeaderValue::from_str("NONE")
+            .expect("Could not get no_agent in DbTransactionMiddleware::call");
         let useragent = sreq
             .headers()
             .get("user-agent")
@@ -82,7 +81,7 @@ where
         info!(">>> testing db middleware"; "user_agent" => useragent);
         if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
             let mut service = Rc::clone(&self.service);
-            return Box::new(service.call(sreq));
+            return Box::pin(service.call(sreq));
         }
 
         let tags = match sreq.extensions().get::<Tags>() {
@@ -93,7 +92,7 @@ where
         let state = match &sreq.app_data::<ServerState>() {
             Some(v) => v.clone(),
             None => {
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -109,7 +108,7 @@ where
                 // Semi-example to show how to use metrics inside of middleware.
                 metrics::Metrics::from(&state).incr("sync.error.collectionParam");
                 warn!("⚠️ CollectionParam err: {:?}", e);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
@@ -124,7 +123,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
-                return Box::new(future::ok(
+                return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
                             .content_type("application/json")
@@ -144,12 +143,12 @@ where
                     user_id: hawk_user_id,
                     collection: collection.collection,
                 };
-                Either::A(match method {
+                Either::Left(match method {
                     Method::GET | Method::HEAD => db.lock_for_read(lc),
                     _ => db.lock_for_write(lc),
                 })
             } else {
-                Either::B(future::ok(()))
+                Either::Right(future::ok(()))
             }
             .or_else(move |e| db.rollback().and_then(|_| future::err(e)))
             .map_err(Into::into)
@@ -165,10 +164,10 @@ where
                         Some(_) => db2.rollback(),
                     }
                     .map_err(Into::into)
-                    .and_then(|_| resp)
+                    .and_then(|_| future::ok(resp))
                 })
             })
         });
-        Box::new(fut)
+        Box::pin(fut)
     }
 }

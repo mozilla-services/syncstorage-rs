@@ -5,11 +5,14 @@ use actix_web::{
     http::header::USER_AGENT,
     Error, FromRequest, HttpRequest,
 };
+use futures::future;
+use futures::future::Ready;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
 use serde_json::value::Value;
+use slog::{Key, Record, KV};
 
 use crate::server::user_agent::parse_user_agent;
 
@@ -113,7 +116,7 @@ impl Tags {
 impl FromRequest for Tags {
     type Config = ();
     type Error = Error;
-    type Future = Result<Self, Self::Error>;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let tags = {
@@ -124,7 +127,7 @@ impl FromRequest for Tags {
             }
         };
 
-        Ok(tags)
+        future::ok(tags)
     }
 }
 
@@ -137,5 +140,14 @@ impl Into<BTreeMap<String, String>> for Tags {
         }
 
         result
+    }
+}
+
+impl KV for Tags {
+    fn serialize(&self, _rec: &Record<'_>, serializer: &mut dyn slog::Serializer) -> slog::Result {
+        for (key, val) in &self.tags {
+            serializer.emit_str(Key::from(key.clone()), &val)?;
+        }
+        Ok(())
     }
 }

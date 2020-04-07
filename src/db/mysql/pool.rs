@@ -1,3 +1,7 @@
+use actix_web::web::block;
+
+use futures::future::TryFutureExt;
+
 use std::{
     collections::HashMap,
     fmt,
@@ -9,13 +13,11 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
     Connection,
 };
-use futures::future::lazy;
-use tokio_threadpool::ThreadPool;
 
 use super::models::{MysqlDb, Result};
-#[cfg(any(test, feature = "db_test"))]
+#[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, DB_THREAD_POOL_SIZE, STD_COLLS};
+use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
@@ -35,7 +37,6 @@ pub struct MysqlDbPool {
     /// Pool of db connections
     pool: Pool<ConnectionManager<MysqlConnection>>,
     /// Thread Pool for running synchronous db calls
-    thread_pool: Arc<ThreadPool>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -55,25 +56,15 @@ impl MysqlDbPool {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
 
-        #[cfg(any(test, feature = "db_test"))]
+        #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
             builder.connection_customizer(Box::new(TestTransactionCustomizer))
         } else {
             builder
         };
 
-        // XXX: tokio_threadpool:ThreadPool probably not the best option: db
-        // calls are longerish running/blocking, so should likely run on
-        // ThreadPool's "backup threads", but it defaults scheduling to its
-        // "worker threads"
-        // XXX: allow configuring the ThreadPool size
         Ok(Self {
             pool: builder.build(manager)?,
-            thread_pool: Arc::new(
-                tokio_threadpool::Builder::new()
-                    .pool_size(DB_THREAD_POOL_SIZE)
-                    .build(),
-            ),
             coll_cache: Default::default(),
             metrics: metrics.clone(),
         })
@@ -82,7 +73,6 @@ impl MysqlDbPool {
     pub fn get_sync(&self) -> Result<MysqlDb> {
         Ok(MysqlDb::new(
             self.pool.get()?,
-            Arc::clone(&self.thread_pool),
             Arc::clone(&self.coll_cache),
             &self.metrics,
         ))
@@ -92,11 +82,14 @@ impl MysqlDbPool {
 impl DbPool for MysqlDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
-        Box::new(self.thread_pool.spawn_handle(lazy(move || {
-            pool.get_sync()
-                .map(|db| Box::new(db) as Box<dyn Db>)
-                .map_err(Into::into)
-        })))
+        Box::pin(
+            block(move || {
+                pool.get_sync()
+                    .map(|db| Box::new(db) as Box<dyn Db>)
+                    .map_err(Into::into)
+            })
+            .map_err(Into::into),
+        )
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -150,7 +143,7 @@ impl CollectionCache {
             .cloned())
     }
 
-    #[cfg(any(test, feature = "db_test"))]
+    #[cfg(test)]
     pub fn clear(&self) {
         self.by_name.write().expect("by_name write").clear();
         self.by_id.write().expect("by_id write").clear();

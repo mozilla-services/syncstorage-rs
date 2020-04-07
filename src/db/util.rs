@@ -63,8 +63,8 @@ impl SyncTimestamp {
         Ok(SyncTimestamp::from_milliseconds(val as u64))
     }
 
-    /// Exposed separately for db-tests
-    #[cfg(any(test, feature = "db_test"))]
+    /// Exposed separately for db tests
+    #[cfg(test)]
     pub fn _from_i64(val: i64) -> Result<Self, DbError> {
         SyncTimestamp::from_i64(val)
     }
