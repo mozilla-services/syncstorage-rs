@@ -86,6 +86,20 @@ class FXA_info:
                     try:
                         fxa_uid = email.split('@')[0]
                         try:
+                            keys_changed_at = int(keys_changed_at)
+                        except ValueError:
+                            keys_changed_at = 0
+
+                        try:
+                            generation = int(generation)
+                        except ValueError:
+                            generation = 0
+
+                        if (keys_changed_at & generation) == 0:
+                            logging.warn(
+                                "user {} has no k_c_a or generation value".format(
+                                    uid))
+                        try:
                             client_state = binascii.unhexlify(client_state)
                         except binascii.Error as ex:
                             logging.error(
@@ -521,7 +535,7 @@ def get_users(args, databases, fxa, bso_num):
                     users.append((user, fxa_kid, fxa_uid))
                 except TypeError:
                     logging.error(
-                        ("⚠️User not found in"
+                        ("⚠️User not found in "
                          "tokenserver data: {} ".format(user)))
             if args.sort_users:
                 users.sort(key=lambda tup: tup[2])
