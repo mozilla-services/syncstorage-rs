@@ -1227,6 +1227,13 @@ impl ToString for Offset {
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // issue559: Disable ':' support for now: simply parse as i64 as
+        // previously (it was u64 previously but i64's close enough)
+        let result = Offset {
+            timestamp: None,
+            offset: s.parse::<i64>()?,
+        };
+        /*
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
@@ -1243,6 +1250,7 @@ impl FromStr for Offset {
                 }
             }
         };
+        */
         Ok(result)
     }
 }
@@ -1313,33 +1321,36 @@ impl FromRequest for BsoQueryParams {
                     Some(tags.clone()),
                 )
             })?;
-            if params.sort != Sorting::Index {
-                if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
-                {
-                    let bound = timestamp.as_i64();
-                    if let Some(newer) = params.newer {
-                        if bound < newer.as_i64() {
-                            return Err(ValidationErrorKind::FromDetails(
-                                format!("Invalid Offset {} {}", bound, newer.as_i64()),
-                                RequestErrorLocation::QueryString,
-                                Some("newer".to_owned()),
-                                None,
-                            )
-                            .into());
-                        }
-                    } else if let Some(older) = params.older {
-                        if bound > older.as_i64() {
-                            return Err(ValidationErrorKind::FromDetails(
-                                "Invalid Offset".to_owned(),
-                                RequestErrorLocation::QueryString,
-                                Some("older".to_owned()),
-                                None,
-                            )
-                            .into());
-                        }
-                    }
-                }
-            }
+            // issue559: Dead code (timestamp always None)
+            /*
+               if params.sort != Sorting::Index {
+                   if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
+                   {
+                       let bound = timestamp.as_i64();
+                       if let Some(newer) = params.newer {
+                           if bound < newer.as_i64() {
+                               return Err(ValidationErrorKind::FromDetails(
+                                   format!("Invalid Offset {} {}", bound, newer.as_i64()),
+                                   RequestErrorLocation::QueryString,
+                                   Some("newer".to_owned()),
+                                   None,
+                               )
+                               .into());
+                           }
+                       } else if let Some(older) = params.older {
+                           if bound > older.as_i64() {
+                               return Err(ValidationErrorKind::FromDetails(
+                                   "Invalid Offset".to_owned(),
+                                   RequestErrorLocation::QueryString,
+                                   Some("older".to_owned()),
+                                   None,
+                               )
+                               .into());
+                           }
+                       }
+                   }
+               }
+            */
             Ok(params)
         })
     }
