@@ -6,7 +6,7 @@ use crate::db::{pool_from_settings, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Secrets, ServerLimits, Settings};
-use crate::web::{handlers, middleware};
+use crate::web::{handlers, middleware, tokenserver};
 use actix_cors::Cors;
 use actix_web::{
     dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
@@ -119,6 +119,10 @@ macro_rules! build_app {
                     .route(web::delete().to(handlers::delete_bso))
                     .route(web::get().to(handlers::get_bso))
                     .route(web::put().to(handlers::put_bso)),
+            )
+            // Tokenserver
+            .service(
+                web::resource(&cfg_path("/1.0/sync/1.5")).route(web::get().to(tokenserver::get)),
             )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS

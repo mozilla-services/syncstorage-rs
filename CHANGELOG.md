@@ -1,3 +1,13 @@
+<a name="0.2.9"></a>
+## 0.2.9 (2020-04-02)
+
+
+#### Features
+
+*   revert the GET collection sort order (c95f2ff) ([81b1e3f3](https://github.com/mozilla-services/syncstorage-rs/commit/81b1e3f3d1efcb82c25393222282560b6d09e64e), closes [#559](https://github.com/mozilla-services/syncstorage-rs/issues/559))
+
+
+
 <a name="0.2.8"></a>
 ## 0.2.8 (2020-03-26)
 

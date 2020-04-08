@@ -1038,6 +1038,8 @@ impl SpannerDb {
             sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
         }
 
+        // issue559: Dead code (timestamp always None)
+        /*
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
@@ -1053,6 +1055,7 @@ impl SpannerDb {
                 _ => query,
             };
         }
+        */
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
@@ -1064,11 +1067,18 @@ impl SpannerDb {
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         query = match sort {
+            // issue559: Revert to previous sorting
+            /*
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
             Sorting::Newest | Sorting::None => {
                 format!("{} ORDER BY modified DESC, bso_id DESC", query)
             }
             Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            */
+            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
+            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
+            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
+            _ => query,
         };
 
         if let Some(limit) = limit {
@@ -1095,11 +1105,22 @@ impl SpannerDb {
 
     pub fn encode_next_offset(
         &self,
-        sort: Sorting,
+        _sort: Sorting,
         offset: i64,
-        timestamp: Option<i64>,
+        _timestamp: Option<i64>,
         modifieds: Vec<i64>,
     ) -> Option<String> {
+        // issue559: Use a simple numeric offset everwhere as previously for
+        // now: was previously a value of "limit + offset", modifieds.len()
+        // always equals limit
+        Some(
+            Offset {
+                offset: offset + modifieds.len() as i64,
+                timestamp: None,
+            }
+            .to_string(),
+        )
+        /*
         let mut calc_offset = 1;
         let mut i = (modifieds.len() as i64) - 2;
 
@@ -1132,6 +1153,7 @@ impl SpannerDb {
         }
 
         Some(format!("{}:{}", bound, calc_offset))
+        */
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
