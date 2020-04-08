@@ -684,7 +684,7 @@ def get_args():
     parser.add_argument(
         "--user_percent", default="1:100",
         help=("Offset and percent of users from this BSO"
-              "to move (e.g. 2:50 moves the second 50%) "
+              "to move (e.g. 2:50 moves the second 50%%) "
               "(default 1:100)")
     )
     parser.add_argument(
