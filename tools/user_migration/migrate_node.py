@@ -45,9 +45,9 @@ class Report:
     def success(self, uid):
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
-    def fail(self, uid):
+    def fail(self, uid, reason=None):
         logging.debug("Skipping user {}".format(uid))
-        self._failure.write("{}\t{}\n".format(self.bso, uid))
+        self._failure.write("{}\t{}\t{}\n".format(self.bso, uid, reason or ""))
 
     def close(self):
         self._success.close()
@@ -109,7 +109,7 @@ class FXA_info:
                                 "invalid client state: {}".format(
                                     uid, client_state
                                 ))
-                            report.fail(uid)
+                            report.fail(uid, "bad client state")
                             continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
@@ -123,7 +123,7 @@ class FXA_info:
                         logging.error(
                             "User {} Unexpected error".format(uid),
                             exc_info=ex)
-                        report.fail(uid)
+                        report.fail(uid, "unexpected error")
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}".format(
                     line), exc_info=ex)
@@ -419,22 +419,22 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     sid,
             ]]
 
-            if not args.dryrun:
-                logging.debug(
-                    "###bso{} {}".format(
-                        bso_num,
-                        dumper(bso_columns, bso_values)
-                    )
-                )
-                transaction.insert(
-                    'bsos',
-                    columns=bso_columns,
-                    values=bso_values
-                )
-            else:
-                logging.debug("not writing {} => {}".format(
-                    bso_columns, bso_values))
             count += 1
+        if not args.dryrun:
+            logging.debug(
+                "###bso{} {}".format(
+                    bso_num,
+                    dumper(bso_columns, bso_values)
+                )
+            )
+            transaction.insert(
+                'bsos',
+                columns=bso_columns,
+                values=bso_values
+            )
+        else:
+            logging.debug("not writing {} => {}".format(
+                bso_columns, bso_values))
         return count
 
     cursor = databases['mysql'].cursor()
@@ -465,6 +465,17 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             logging.info("Skipped {} of {} rows for {}".format(
                 abort_count, col_count, abort_col
             ))
+        if args.hoard_limit and args.hoard_limit < len(data):
+            logging.warn(
+                "User {} => {}:{} has too many items: {} ".format(
+                    uid, fxa_uid, fxa_kid, len(data)
+                )
+            )
+            report.fail(uid, "hoarder: {}".format(len(data)))
+            return count
+        logging.info(
+            "Moving {} items for user {} => {}:{}".format(
+                len(data), uid, fxa_uid, fxa_kid))
         for bunch in divvy(data, args.chunk or 1000):
             # Occasionally, there is a batch fail because a
             # user collection is not found before a bso is written.
@@ -495,9 +506,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
                 uid, fxa_uid, fxa_kid
             ))
-        report.fail(uid)
+        report.fail(uid, "exists")
     except InvalidArgument as ex:
-        report.fail(uid)
+        report.fail(uid, "exists")
         if "already inserted" in ex.args[0]:
             logging.warn(
                 "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
@@ -506,7 +517,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         else:
             raise
     except Exception as ex:
-        report.fail(uid)
+        report.fail(uid, "unexpected batch error")
         logging.error("Unexpected Batch failure: {}:{}".format(
             fxa_uid, fxa_kid), exc_info=ex)
     finally:
@@ -535,7 +546,7 @@ def get_users(args, databases, fxa, bso_num, report):
                     logging.error(
                         "User {} not found in "
                         "tokenserver data.".format(user))
-                    report.fail(user)
+                    report.fail(user, "not found")
         else:
             try:
                 sql = ("""select distinct userid from bso{}"""
@@ -550,7 +561,7 @@ def get_users(args, databases, fxa, bso_num, report):
                         (fxa_kid, fxa_uid) = fxa.get(user)
                         users.append((user, fxa_kid, fxa_uid))
                     except TypeError:
-                        report.fail(user)
+                        report.fail(user, "not found")
                         logging.error(
                             ("User {} not found in "
                                 "tokenserver data".format(user)))
@@ -694,6 +705,10 @@ def get_args():
     parser.add_argument(
         '--ms_delay', type=int, default=0,
         help="inject a sleep between writes to spanner as a throttle"
+    )
+    parser.add_argument(
+        '--hoard_limit', type=int, default=0,
+        help="reject any user with more than this count of records"
     )
     parser.add_argument(
         '--success_file', default="success_{}.csv".format(pid),
