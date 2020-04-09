@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.2.8"
+version = "0.2.9"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -20,7 +20,7 @@ actix-rt = "1"
 actix-cors = "0.2"
 base64 = "0.12"
 bytes = "0.5"
-cadence = "0.19.1"
+cadence = "0.20.0"
 chrono = "0.4"
 config = "0.10"
 diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
