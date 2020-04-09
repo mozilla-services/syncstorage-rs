@@ -26,12 +26,32 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-META_GLOBAL_COLLECTION_ID = 6
+META_GLOBAL_COLLECTION_NAME = "meta"
 MAX_ROWS = 1500000
 
 
 class BadDSNException(Exception):
     pass
+
+
+class Report:
+
+    bso = "init"
+
+    def __init__(self, args):
+        self._success = open(args.success_file, "w")
+        self._failure = open(args.failure_file, "w")
+
+    def success(self, uid):
+        self._success.write("{}\t{}\n".format(self.bso, uid))
+
+    def fail(self, uid):
+        logging.debug("Skipping user {}".format(uid))
+        self._failure.write("{}\t{}\n".format(self.bso, uid))
+
+    def close(self):
+        self._success.close()
+        self._failure.close()
 
 
 class FXA_info:
@@ -44,7 +64,7 @@ class FXA_info:
     users = {}
     anon = False
 
-    def __init__(self, fxa_csv_file, args):
+    def __init__(self, fxa_csv_file, args, report):
         if args.anon:
             self.anon = True
             return
@@ -66,18 +86,47 @@ class FXA_info:
                         continue
                     try:
                         fxa_uid = email.split('@')[0]
+                        try:
+                            keys_changed_at = int(keys_changed_at)
+                        except ValueError:
+                            keys_changed_at = 0
+
+                        try:
+                            generation = int(generation)
+                        except ValueError:
+                            generation = 0
+
+                        if (keys_changed_at or generation) == 0:
+                            logging.warn(
+                                "user {} has no k_c_a or "
+                                "generation value".format(
+                                    uid))
+                        try:
+                            client_state = binascii.unhexlify(client_state)
+                        except binascii.Error:
+                            logging.error(
+                                "User {} has "
+                                "invalid client state: {}".format(
+                                    uid, client_state
+                                ))
+                            report.fail(uid)
+                            continue
                         fxa_kid = self.format_key_id(
                             int(keys_changed_at or generation),
-                            binascii.unhexlify(client_state))
+                            client_state
+                            )
                         logging.debug("Adding user {} => {} , {}".format(
                             uid, fxa_kid, fxa_uid
                         ))
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
-                        logging.error("Skipping user {}:".format(uid), ex)
+                        logging.error(
+                            "User {} Unexpected error".format(uid),
+                            exc_info=ex)
+                        report.fail(uid)
             except Exception as ex:
-                logging.critical("Error in fxa file around line {}: {}".format(
-                    line, ex))
+                logging.critical("Error in fxa file around line {}".format(
+                    line), exc_info=ex)
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):
@@ -225,7 +274,7 @@ def conf_db(dsn):
      """
     if "mysql" in dsn.scheme:
         return conf_mysql(dsn)
-    if dsn.scheme == "spanner":
+    if "spanner" in dsn.scheme:
         return conf_spanner(dsn)
     raise RuntimeError("Unknown DSN type: {}".format(dsn.scheme))
 
@@ -247,7 +296,6 @@ def alter_syncids(pay):
     """Alter the syncIDs for the meta/global record, which will cause a sync
     when the client reconnects
 
-
     """
     payload = json.loads(pay)
     payload['syncID'] = newSyncID()
@@ -257,6 +305,7 @@ def alter_syncids(pay):
 
 
 def divvy(biglist, count):
+    """Partition a list into a set of equally sized slices"""
     lists = []
     biglen = len(biglist)
     start = 0
@@ -266,7 +315,7 @@ def divvy(biglist, count):
     return lists
 
 
-def move_user(databases, user_data, collections, fxa, bso_num, args):
+def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     """copy user info from original storage to new storage."""
     # bso column mapping:
     # id => bso_id
@@ -294,7 +343,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             'sortindex',
     )
 
-    (user, fxa_kid, fxa_uid) = user_data
+    (uid, fxa_kid, fxa_uid) = user_data
     # Fetch the BSO data from the original storage.
     sql = """
     SELECT
@@ -357,7 +406,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             exp_v = datetime.utcfromtimestamp(exp)
 
             # add the BSO values.
-            if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
+            if args.full and col == META_GLOBAL_COLLECTION_NAME:
                 pay = alter_syncids(pay)
             bso_values = [[
                     collection_id,
@@ -393,8 +442,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
     try:
         # Note: cursor() does not support __enter__()
         logging.info("Processing... {} -> {}:{}".format(
-            user, fxa_uid, fxa_kid))
-        cursor.execute(sql, (user,))
+            uid, fxa_uid, fxa_kid))
+        cursor.execute(sql, (uid,))
         data = []
         abort_col = None
         abort_count = None
@@ -416,7 +465,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
             logging.info("Skipped {} of {} rows for {}".format(
                 abort_count, col_count, abort_col
             ))
-        for bunch in divvy(data, args.readchunk or 1000):
+        for bunch in divvy(data, args.chunk or 1000):
             # Occasionally, there is a batch fail because a
             # user collection is not found before a bso is written.
             # to solve that, divide the UC updates from the
@@ -436,75 +485,111 @@ def move_user(databases, user_data, collections, fxa, bso_num, args):
                 fxa_uid,
                 args,
             )
+            if args.ms_delay > 0:
+                logging.debug(
+                    "Sleeping for {} seconds".format(args.ms_delay * .01))
+                time.sleep(args.ms_delay * .01)
 
     except AlreadyExists:
         logging.warn(
-            "User already imported fxa_uid:{} / fxa_kid:{}".format(
-                fxa_uid, fxa_kid
+            "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
+                uid, fxa_uid, fxa_kid
             ))
+        report.fail(uid)
     except InvalidArgument as ex:
+        report.fail(uid)
         if "already inserted" in ex.args[0]:
             logging.warn(
-                "User already imported fxa_uid:{} / fxa_kid:{}".format(
-                    fxa_uid, fxa_kid
+                "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
+                    uid, fxa_uid, fxa_kid
                 ))
         else:
             raise
-    except Exception as e:
-        logging.error("### batch failure: {}:{}".format(
-            fxa_uid, fxa_kid), exc_info=e)
+    except Exception as ex:
+        report.fail(uid)
+        logging.error("Unexpected Batch failure: {}:{}".format(
+            fxa_uid, fxa_kid), exc_info=ex)
     finally:
         # cursor may complain about unread data, this should prevent
         # that warning.
         for result in cursor:
             pass
         cursor.close()
+    report.success(uid)
     return count
 
 
-def get_users(args, databases, fxa, bso_num):
+def get_users(args, databases, fxa, bso_num, report):
+    """Fetch the user information from the Tokenserver Dump """
     users = []
     cursor = databases['mysql'].cursor()
-    if args.user:
-        users = args.user
-    else:
-        try:
-            sql = ("""select distinct userid from bso{}"""
-                   """ order by userid""".format(bso_num))
-            if args.user_range:
-                (offset, limit) = args.user_range.split(':')
-                sql = "{} limit {} offset {}".format(
-                    sql, limit, offset)
-            cursor.execute(sql)
-            for (user,) in cursor:
+    try:
+        if args.user:
+            for user in args.user:
                 try:
                     (fxa_kid, fxa_uid) = fxa.get(user)
                     users.append((user, fxa_kid, fxa_uid))
+                    if args.sort_users:
+                        users.sort(key=lambda tup: tup[2])
                 except TypeError:
                     logging.error(
-                        ("⚠️User not found in"
-                         "tokenserver data: {} ".format(user)))
-            if args.sort_users:
-                users.sort(key=lambda tup: tup[2])
-        except Exception as ex:
-            import pdb; pdb.set_trace()
-            logging.error("Error moving database:", exc_info=ex)
-        finally:
-            cursor.close()
+                        "User {} not found in "
+                        "tokenserver data.".format(user))
+                    report.fail(user)
+        else:
+            try:
+                sql = ("""select distinct userid from bso{}"""
+                       """ order by userid""".format(bso_num))
+                if args.user_range:
+                    (offset, limit) = args.user_range.split(':')
+                    sql = "{} limit {} offset {}".format(
+                        sql, limit, offset)
+                cursor.execute(sql)
+                for (user,) in cursor:
+                    try:
+                        (fxa_kid, fxa_uid) = fxa.get(user)
+                        users.append((user, fxa_kid, fxa_uid))
+                    except TypeError:
+                        report.fail(user)
+                        logging.error(
+                            ("User {} not found in "
+                                "tokenserver data".format(user)))
+                if args.sort_users:
+                    users.sort(key=lambda tup: tup[2])
+                # Take a block of percentage of the users.
+                if args.user_percent:
+                    (block, percentage) = map(
+                        int, args.user_percent.split(':'))
+                    total_count = len(users)
+                    chunk_size = max(
+                        1, math.floor(
+                            total_count * (int(percentage) * .01)))
+                    chunk_count = math.ceil(total_count / chunk_size)
+                    chunk_start = max(block - 1, 0) * chunk_size
+                    chunk_end = min(chunk_count, block) * chunk_size
+                    if chunk_size * chunk_count > total_count:
+                        if block >= chunk_count - 1:
+                            chunk_end = total_count
+                    users = users[chunk_start:chunk_end]
+                    logging.debug(
+                        "moving users: {} to {}".format(
+                            chunk_start, chunk_end))
+            finally:
+                cursor.close()
+    except Exception as ex:
+        logging.error("Unexpected Error moving database:", exc_info=ex)
+        exit(-1)
     return users
 
 
-def move_database(databases, collections, bso_num, fxa, args):
+def move_database(databases, collections, bso_num, fxa, args, report):
     """iterate over provided users and move their data from old to new"""
     start = time.time()
     # off chance that someone else might have written
     # a new collection table since the last time we
     # fetched.
     rows = 0
-    if args.user:
-        users = args.user
-    else:
-        users = get_users(args, databases, fxa, bso_num)
+    users = get_users(args, databases, fxa, bso_num, report)
     logging.info("Moving {} users".format(len(users)))
     for user in users:
         rows += move_user(
@@ -513,7 +598,8 @@ def move_database(databases, collections, bso_num, fxa, args):
             collections=collections,
             fxa=fxa,
             bso_num=bso_num,
-            args=args)
+            args=args,
+            report=report)
     logging.info("Finished BSO #{} ({} rows) in {} seconds".format(
         bso_num,
         rows,
@@ -523,6 +609,7 @@ def move_database(databases, collections, bso_num, fxa, args):
 
 
 def get_args():
+    pid = os.getpid()
     parser = argparse.ArgumentParser(
         description="move user from sql to spanner")
     parser.add_argument(
@@ -539,55 +626,51 @@ def get_args():
         help="silence logging"
     )
     parser.add_argument(
-        '--chunk_limit', type=int, default=1500000,
-        dest='limit',
-        help="Limit each read chunk to n rows")
-    parser.add_argument(
         '--offset', type=int, default=0,
-        help="UID to start at")
+        help="UID to start at (default 0)")
     parser.add_argument(
         "--full",
         action="store_true",
         help="force a full reconcile"
     )
     parser.add_argument(
-        '--deanon', action='store_false',
-        dest='anon',
-        help="Do not anonymize the user data"
+        '--anon', action='store_true',
+        help="Anonymize the user data"
     )
     parser.add_argument(
         '--start_bso', default=0,
         type=int,
-        help="start dumping BSO database"
+        help="start dumping BSO database (default: 0)"
     )
     parser.add_argument(
         '--end_bso',
         type=int, default=19,
-        help="last BSO database to dump"
+        help="last BSO database to dump (default: 19)"
     )
     parser.add_argument(
         '--fxa_file',
         default="users.csv",
-        help="FXA User info in CSV format"
+        help="FXA User info in CSV format (default users.csv)"
     )
     parser.add_argument(
         '--skip_collections', action='store_false',
         help="skip user_collections table"
     )
     parser.add_argument(
-        '--readchunk',
-        default=1000,
-        help="how many rows per transaction for spanner"
+        '--write_chunk',
+        dest="chunk",
+        default=1666,
+        help="how many rows per transaction for spanner (default: 1666)"
     )
     parser.add_argument(
         '--user',
         type=str,
-        help="BSO#:userId[,userid,...] to move (EXPERIMENTAL)."
+        help="BSO#:userId[,userid,...] to move."
     )
     parser.add_argument(
         '--dryrun',
         action="store_true",
-        help="Do not write user records to spanner."
+        help="Do not write user records to spanner"
     )
     parser.add_argument(
         '--abort',
@@ -599,8 +682,26 @@ def get_args():
         help="Range of users to extract (offset:limit)"
     )
     parser.add_argument(
+        "--user_percent", default="1:100",
+        help=("Offset and percent of users from this BSO"
+              "to move (e.g. 2:50 moves the second 50%%) "
+              "(default 1:100)")
+    )
+    parser.add_argument(
         '--sort_users', action="store_true",
         help="Sort the user"
+    )
+    parser.add_argument(
+        '--ms_delay', type=int, default=0,
+        help="inject a sleep between writes to spanner as a throttle"
+    )
+    parser.add_argument(
+        '--success_file', default="success_{}.csv".format(pid),
+        help="File of successfully migrated userids"
+    )
+    parser.add_argument(
+        '--failure_file', default="failure_{}.csv".format(pid),
+        help="File of unsuccessfully migrated userids"
     )
 
     return parser.parse_args()
@@ -617,10 +718,15 @@ def main():
         stream=sys.stdout,
         level=log_level,
     )
+    report = Report(args)
     dsns = open(args.dsns).readlines()
     databases = {}
     rows = 0
 
+    if args.user:
+        args.user_percent = "1:100"
+    if args.user_range and args.user_percent:
+        raise RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
@@ -637,7 +743,7 @@ def main():
         databases[scheme] = conf_db(dsn)
     if not databases.get('mysql') or not databases.get('spanner'):
         RuntimeError("Both mysql and spanner dsns must be specified")
-    fxa_info = FXA_info(args.fxa_file, args)
+    fxa_info = FXA_info(args.fxa_file, args, report)
     collections = Collections(databases)
     logging.info("Starting:")
     if args.dryrun:
@@ -645,8 +751,9 @@ def main():
     start = time.time()
     for bso_num in range(args.start_bso, args.end_bso+1):
         logging.info("Moving users in bso # {}".format(bso_num))
+        report.bso = bso_num
         rows += move_database(
-            databases, collections, bso_num, fxa_info, args)
+            databases, collections, bso_num, fxa_info, args, report)
     logging.info(
         "Moved: {} rows in {} seconds".format(
             rows or 0, time.time() - start))
