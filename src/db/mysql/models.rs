@@ -503,7 +503,7 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
 
         if numeric_offset != 0 {
             // XXX: copy over this optimization:
@@ -573,7 +573,7 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
         if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
