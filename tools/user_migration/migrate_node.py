@@ -529,6 +529,24 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     report.success(uid)
     return count
 
+def get_percentage_users(users, user_percent):
+    (block, percentage) = map(
+        int, user_percent.split(':'))
+    total_count = len(users)
+    chunk_size = max(
+        1, math.floor(
+            total_count * (int(percentage) * .01)))
+    chunk_count = math.ceil(total_count / chunk_size)
+    chunk_start = max(block - 1, 0) * chunk_size
+    chunk_end = min(chunk_count, block) * chunk_size
+    if chunk_size * chunk_count > total_count:
+        if block >= chunk_count - 1:
+            chunk_end = total_count
+    users = users[chunk_start:chunk_end]
+    logging.debug(
+        "moving users: {} to {}".format(
+            chunk_start, chunk_end))
+    return users
 
 def get_users(args, databases, fxa, bso_num, report):
     """Fetch the user information from the Tokenserver Dump """
@@ -569,22 +587,7 @@ def get_users(args, databases, fxa, bso_num, report):
                     users.sort(key=lambda tup: tup[2])
                 # Take a block of percentage of the users.
                 if args.user_percent:
-                    (block, percentage) = map(
-                        int, args.user_percent.split(':'))
-                    total_count = len(users)
-                    chunk_size = max(
-                        1, math.floor(
-                            total_count * (int(percentage) * .01)))
-                    chunk_count = math.ceil(total_count / chunk_size)
-                    chunk_start = max(block - 1, 0) * chunk_size
-                    chunk_end = min(chunk_count, block) * chunk_size
-                    if chunk_size * chunk_count > total_count:
-                        if block >= chunk_count - 1:
-                            chunk_end = total_count
-                    users = users[chunk_start:chunk_end]
-                    logging.debug(
-                        "moving users: {} to {}".format(
-                            chunk_start, chunk_end))
+                    users = get_percentage_users(users, args.user_percent)
             finally:
                 cursor.close()
     except Exception as ex:
