@@ -8,6 +8,7 @@ authors = [
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>"
 ]
 edition = "2018"
+default-run = "syncstorage"
 
 [profile.release]
 # Enables line numbers in Sentry
