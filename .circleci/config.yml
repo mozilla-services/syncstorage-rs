@@ -130,11 +130,11 @@ jobs:
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
     steps:
-      - setup_remote_docker: 
-          docker_layer_caching: true 
       - checkout
       - setup-rust
       - setup-gcp-grpc
+      - setup_remote_docker: 
+          docker_layer_caching: true 
       # XXX: currently the time needed to setup-sccache negates its savings
       #- setup-sccache
       #- restore-sccache-cache
