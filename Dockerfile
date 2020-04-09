@@ -12,7 +12,7 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --locked --root /app && \
+    cargo install --path . --locked --root /app && \
     cargo install --bin purge_ttl --locked --root /app && \
     cd tools/spanner/purge_ttl && \
     cargo clean
