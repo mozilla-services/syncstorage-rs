@@ -347,14 +347,17 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     # Fetch the BSO data from the original storage.
     sql = """
     SELECT
-        collections.name, bso.collection,
+        collections.name, bso.collection, uc.last_modified,
         bso.id, bso.ttl, bso.modified, bso.payload, bso.sortindex
     FROM
         bso{} as bso,
-        collections
+        collections,
+        user_collections as uc
     WHERE
         bso.userid = %s
             and collections.collectionid = bso.collection
+            and uc.collection = bso.collection
+            and uc.userid = bso.userid
             and bso.ttl > unix_timestamp()
     ORDER BY
         bso.collection, bso.id""".format(bso_num)
@@ -363,14 +366,14 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     def spanner_transact_uc(
             transaction, data, fxa_kid, fxa_uid, args):
         # user collections require a unique key.
-        for (col, cid, bid, exp, mod, pay, sid) in data:
+        for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
                 continue
             # columns from sync_schema3
             # XXX: user_collections modified should come directly from
             # mysql user_collections.last_modified
-            mod_v = datetime.utcfromtimestamp(mod/1000.0)
+            mod_v = datetime.utcfromtimestamp(cmod/1000.0)
             # User_Collection can only have unique values. Filter
             # non-unique keys and take the most recent modified
             # time. The join could be anything.
@@ -396,7 +399,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
         count = 0
         bso_values = []
-        for (col, cid, bid, exp, mod, pay, sid) in data:
+        for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
                 continue
@@ -405,7 +408,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     "Remapping collection '{}' from {} to {}".format(
                         col, cid, collection_id))
             # columns from sync_schema3
-            mod_v = datetime.utcfromtimestamp(mod/1000.0)
+            mod_v = datetime.utcfromtimestamp(bmod/1000.0)
             exp_v = datetime.utcfromtimestamp(exp)
 
             # add the BSO values.
