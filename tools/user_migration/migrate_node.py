@@ -451,7 +451,6 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         abort_col = None
         abort_count = None
         col_count = 0
-        bso_count = 0
 
         if args.abort:
             (abort_col, abort_count) = args.abort.split(":")
@@ -525,6 +524,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     report.success(uid)
     return count
 
+
 def get_percentage_users(users, user_percent):
     (block, percentage) = map(
         int, user_percent.split(':'))
@@ -543,6 +543,7 @@ def get_percentage_users(users, user_percent):
         "moving users: {} to {}".format(
             chunk_start, chunk_end))
     return users
+
 
 def get_users(args, databases, fxa, bso_num, report):
     """Fetch the user information from the Tokenserver Dump """
@@ -575,7 +576,8 @@ def get_users(args, databases, fxa, bso_num, report):
                         (fxa_kid, fxa_uid) = fxa.get(user)
                         if args.hoard_limit and count > args.hoard_limit:
                             logging.warn(
-                                "User {} => {}:{} has too many items: {} ".format(
+                                "User {} => {}:{} has too "
+                                "many items: {} ".format(
                                     user, fxa_uid, fxa_kid, count
                                 )
                             )
