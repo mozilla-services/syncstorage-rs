@@ -130,6 +130,8 @@ jobs:
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
     steps:
+      - setup_remote_docker: 
+          docker_layer_caching: true 
       - checkout
       - setup-rust
       - setup-gcp-grpc
@@ -140,7 +142,6 @@ jobs:
       - cargo-build
       - run-tests
       #- save-sccache-cache
-      - setup_remote_docker
       - run:
           name: Build Docker image
           command: docker build -t app:build .
