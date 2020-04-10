@@ -8,6 +8,7 @@ authors = [
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>"
 ]
 edition = "2018"
+default-run = "syncstorage"
 
 [profile.release]
 # Enables line numbers in Sentry
@@ -68,3 +69,7 @@ futures-await-test = "0.3.0"
 
 [features]
 no_auth = []
+
+[[bin]]
+name = "purge_ttl"
+
