@@ -358,16 +358,18 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             and bso.ttl > unix_timestamp()
     ORDER BY
         bso.collection, bso.id""".format(bso_num)
+    unique_key_filter = set()
 
     def spanner_transact_uc(
             transaction, data, fxa_kid, fxa_uid, args):
         # user collections require a unique key.
-        unique_key_filter = set()
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
                 continue
             # columns from sync_schema3
+            # XXX: user_collections modified should come directly from
+            # mysql user_collections.last_modified
             mod_v = datetime.utcfromtimestamp(mod/1000.0)
             # User_Collection can only have unique values. Filter
             # non-unique keys and take the most recent modified
@@ -381,7 +383,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     mod_v,
                 )]
                 if not args.dryrun:
-                    transaction.replace(
+                    transaction.insert(
                         'user_collections',
                         columns=uc_columns,
                         values=uc_values
@@ -393,6 +395,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
 
     def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
         count = 0
+        bso_values = []
         for (col, cid, bid, exp, mod, pay, sid) in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
@@ -408,7 +411,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             # add the BSO values.
             if args.full and col == META_GLOBAL_COLLECTION_NAME:
                 pay = alter_syncids(pay)
-            bso_values = [[
+            bso_values.append([
                     collection_id,
                     fxa_kid,
                     fxa_uid,
@@ -417,7 +420,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     mod_v,
                     pay,
                     sid,
-            ]]
+            ])
 
             count += 1
         if not args.dryrun:
