@@ -1,4 +1,4 @@
-FROM rust:1.40.0-buster as builder
+FROM rust:1.42.0-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -13,9 +13,7 @@ RUN \
     cargo --version && \
     rustc --version && \
     cargo install --path . --locked --root /app && \
-    cargo install --path tools/spanner/purge_ttl --locked --root /app && \
-    cd tools/spanner/purge_ttl && \
-    cargo clean
+    cargo install --path . --bin purge_ttl --locked --root /app
 
 FROM debian:buster-slim
 WORKDIR /app
