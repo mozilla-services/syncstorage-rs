@@ -451,6 +451,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         abort_col = None
         abort_count = None
         col_count = 0
+        bso_count = 0
 
         if args.abort:
             (abort_col, abort_count) = args.abort.split(":")
@@ -468,14 +469,6 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             logging.info("Skipped {} of {} rows for {}".format(
                 abort_count, col_count, abort_col
             ))
-        if args.hoard_limit and args.hoard_limit < len(data):
-            logging.warn(
-                "User {} => {}:{} has too many items: {} ".format(
-                    uid, fxa_uid, fxa_kid, len(data)
-                )
-            )
-            report.fail(uid, "hoarder: {}".format(len(data)))
-            return count
         logging.info(
             "Moving {} items for user {} => {}:{}".format(
                 len(data), uid, fxa_uid, fxa_kid))
@@ -570,16 +563,24 @@ def get_users(args, databases, fxa, bso_num, report):
                     report.fail(user, "not found")
         else:
             try:
-                sql = ("""select distinct userid from bso{}"""
-                       """ order by userid""".format(bso_num))
+                sql = ("""select userid, count(*) as count from bso{}"""
+                       """ group by userid order by userid""".format(bso_num))
                 if args.user_range:
                     (offset, limit) = args.user_range.split(':')
                     sql = "{} limit {} offset {}".format(
                         sql, limit, offset)
                 cursor.execute(sql)
-                for (user,) in cursor:
+                for (user, count) in cursor:
                     try:
                         (fxa_kid, fxa_uid) = fxa.get(user)
+                        if args.hoard_limit and count > args.hoard_limit:
+                            logging.warn(
+                                "User {} => {}:{} has too many items: {} ".format(
+                                    user, fxa_uid, fxa_kid, count
+                                )
+                            )
+                            report.fail(user, "hoarder {}".format(count))
+                            continue
                         users.append((user, fxa_kid, fxa_uid))
                     except TypeError:
                         report.fail(user, "not found")
