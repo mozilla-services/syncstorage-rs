@@ -371,7 +371,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             if collection_id is None:
                 continue
             # columns from sync_schema3
-            # XXX: user_collections modified should come directly from
+            # user_collections modified should come directly from
             # mysql user_collections.last_modified
             mod_v = datetime.utcfromtimestamp(cmod/1000.0)
             # User_Collection can only have unique values. Filter
