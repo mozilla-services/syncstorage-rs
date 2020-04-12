@@ -15,7 +15,9 @@ use actix_web::{
     Error, FromRequest, HttpMessage, HttpRequest,
 };
 
-use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
+use futures::future::{self, Future, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
+
+use std::pin::Pin;
 
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
@@ -139,7 +141,7 @@ pub struct BsoBodies {
 impl FromRequest for BsoBodies {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<BsoBodies, Self::Error>>>>;
 
     /// Extract the BSO Bodies from the request
     ///
@@ -343,7 +345,8 @@ pub struct BsoBody {
 impl FromRequest for BsoBody {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
+    // type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<BsoBody, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
@@ -868,7 +871,7 @@ pub struct BsoPutRequest {
 impl FromRequest for BsoPutRequest {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<BsoPutRequest, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<BsoPutRequest, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let metrics = metrics::Metrics::from(req);
@@ -921,7 +924,7 @@ pub struct ConfigRequest {
 impl FromRequest for ConfigRequest {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<ConfigRequest, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let tags = {
@@ -971,7 +974,7 @@ pub struct HeartbeatRequest {
 impl FromRequest for HeartbeatRequest {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = Pin<Box<dyn Future<Output = Result<HeartbeatRequest, Self::Error>>>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let headers = req.headers().clone();
