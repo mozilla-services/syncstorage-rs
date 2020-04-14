@@ -157,30 +157,30 @@ impl FromRequest for BsoBodies {
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                return Box::pin(async move {
+                    Err(ValidationErrorKind::FromDetails(
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                         None,
                     )
-                    .into(),
-                ))
+                    .into())
+                })
             }
         };
         let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
         debug!("content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            return Box::pin(future::err(
-                ValidationErrorKind::FromDetails(
+            return Box::pin(async move {
+                Err(ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
                     None,
                 )
-                .into(),
-            ));
+                .into())
+            });
         }
 
         // Load the entire request into a String
@@ -215,15 +215,15 @@ impl FromRequest for BsoBodies {
             Some(s) => s,
             None => {
                 error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                return Box::pin(async {
+                    Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
                         None,
                     )
-                    .into(),
-                ));
+                    .into())
+                });
             }
         };
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
@@ -353,42 +353,42 @@ impl FromRequest for BsoBody {
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                return Box::pin(async move {
+                    Err(ValidationErrorKind::FromDetails(
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                         None,
                     )
-                    .into(),
-                ))
+                    .into())
+                })
             }
         };
         let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            return Box::pin(future::err(
-                ValidationErrorKind::FromDetails(
+            return Box::pin(async {
+                Err(ValidationErrorKind::FromDetails(
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
                     None,
                 )
-                .into(),
-            ));
+                .into())
+            });
         }
         let state = match req.app_data::<Data<ServerState>>() {
             Some(s) => s,
             None => {
                 error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                return Box::pin(async {
+                    Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
                         None,
                     )
-                    .into(),
-                ));
+                    .into())
+                });
             }
         };
 
@@ -897,7 +897,7 @@ impl FromRequest for BsoPutRequest {
                                 Some("bsos".to_owned()),
                                 Some(tags),
                             )
-                            .into(),
+                                .into(),
                         );
                     }
                 }
@@ -939,29 +939,33 @@ impl FromRequest for ConfigRequest {
             Some(s) => s,
             None => {
                 error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                return Box::pin(async {
+                    Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
                     )
-                    .into(),
-                ));
+                        .into())
+                });
             }
         };
 
         let data = &state.limits;
-        Box::pin(future::ok(Self {
-            limits: ServerLimits {
-                max_post_bytes: data.max_post_bytes,
-                max_post_records: data.max_post_records,
-                max_record_payload_bytes: data.max_record_payload_bytes,
-                max_request_bytes: data.max_request_bytes,
-                max_total_bytes: data.max_total_bytes,
-                max_total_records: data.max_total_records,
-            },
-        }))
+
+        // need to specify lifetimes
+        Box::pin(async move {
+            Ok(Self {
+                limits: ServerLimits {
+                    max_post_bytes: data.max_post_bytes,
+                    max_post_records: data.max_post_records,
+                    max_record_payload_bytes: data.max_record_payload_bytes,
+                    max_request_bytes: data.max_request_bytes,
+                    max_total_bytes: data.max_total_bytes,
+                    max_total_records: data.max_total_records,
+                },
+            })
+        })
     }
 }
 
