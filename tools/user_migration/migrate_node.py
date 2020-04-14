@@ -18,6 +18,7 @@ import os
 import time
 from datetime import datetime
 
+import grpc
 from mysql import connector
 from google.cloud import spanner
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
@@ -34,18 +35,35 @@ class BadDSNException(Exception):
     pass
 
 
+def tick(count):
+    mark = None
+    if not count % 100:
+        mark = "."
+    if not count % 1000:
+        mark = "|"
+    level = logging.getLogger().getEffectiveLevel()
+    if mark and level > logging.DEBUG:
+        print(mark, end='', flush=True)
+
+
 class Report:
 
     bso = "init"
+    _success = None
+    _failure = None
 
     def __init__(self, args):
-        self._success = open(args.success_file, "w")
-        self._failure = open(args.failure_file, "w")
+        self._success_file = args.success_file
+        self._failure_file = args.failure_file
 
     def success(self, uid):
+        if not self._success:
+            self._success = open(self._success_file, "w")
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid, reason=None):
+        if not self._failure:
+            self._failure = open(self._failure_file, "w")
         logging.debug("Skipping user {}".format(uid))
         self._failure.write("{}\t{}\t{}\n".format(self.bso, uid, reason or ""))
 
@@ -64,60 +82,27 @@ class FXA_info:
     users = {}
     anon = False
 
-    def __init__(self, fxa_csv_file, args, report):
+    def __init__(self, users_file, args, report):
         if args.anon:
             self.anon = True
             return
-        logging.debug("Processing token file...")
-        if not os.path.isfile(fxa_csv_file):
-            raise IOError("{} not found".format(fxa_csv_file))
-        with open(fxa_csv_file) as csv_file:
+        logging.info("Reading users file: {}".format(users_file))
+        if not os.path.isfile(users_file):
+            raise IOError("{} not found".format(users_file))
+        with open(users_file) as csv_file:
             try:
                 line = 0
-                for (uid, email, generation,
-                     keys_changed_at, client_state) in csv.reader(
+                for (uid, fxa_uid, fxa_kid) in csv.reader(
                         csv_file, delimiter="\t"):
-                    line += 1
                     if args.user:
                         if int(uid) not in args.user:
                             continue
+                    line += 1
+                    tick(line)
                     if uid == 'uid':
                         # skip the header row.
                         continue
                     try:
-                        fxa_uid = email.split('@')[0]
-                        try:
-                            keys_changed_at = int(keys_changed_at)
-                        except ValueError:
-                            keys_changed_at = 0
-
-                        try:
-                            generation = int(generation)
-                        except ValueError:
-                            generation = 0
-
-                        if (keys_changed_at or generation) == 0:
-                            logging.warn(
-                                "user {} has no k_c_a or "
-                                "generation value".format(
-                                    uid))
-                        try:
-                            client_state = binascii.unhexlify(client_state)
-                        except binascii.Error:
-                            logging.error(
-                                "User {} has "
-                                "invalid client state: {}".format(
-                                    uid, client_state
-                                ))
-                            report.fail(uid, "bad client state")
-                            continue
-                        fxa_kid = self.format_key_id(
-                            int(keys_changed_at or generation),
-                            client_state
-                            )
-                        logging.debug("Adding user {} => {} , {}".format(
-                            uid, fxa_kid, fxa_uid
-                        ))
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
                         logging.error(
@@ -127,16 +112,6 @@ class FXA_info:
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}".format(
                     line), exc_info=ex)
-
-    # The following two functions are taken from browserid.utils
-    def encode_bytes_b64(self, value):
-        return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
-
-    def format_key_id(self, keys_changed_at, key_hash):
-        return "{:013d}-{}".format(
-            keys_changed_at,
-            self.encode_bytes_b64(key_hash),
-        )
 
     def get(self, userid):
         if userid in self.users:
@@ -327,15 +302,15 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     # ttl => expiry
 
     uc_columns = (
-        'fxa_kid',
         'fxa_uid',
+        'fxa_kid',
         'collection_id',
         'modified',
     )
     bso_columns = (
             'collection_id',
-            'fxa_kid',
             'fxa_uid',
+            'fxa_kid',
             'bso_id',
             'expiry',
             'modified',
@@ -343,7 +318,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             'sortindex',
     )
 
-    (uid, fxa_kid, fxa_uid) = user_data
+    (uid, fxa_uid, fxa_kid) = user_data
     # Fetch the BSO data from the original storage.
     sql = """
     SELECT
@@ -364,7 +339,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     unique_key_filter = set()
 
     def spanner_transact_uc(
-            transaction, data, fxa_kid, fxa_uid, args):
+            transaction, data, fxa_uid, fxa_kid, args):
         # user collections require a unique key.
         for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
             collection_id = collections.get(col, cid)
@@ -380,8 +355,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, col)
             if uc_key not in unique_key_filter:
                 uc_values = [(
-                    fxa_kid,
                     fxa_uid,
+                    fxa_kid,
                     collection_id,
                     mod_v,
                 )]
@@ -396,7 +371,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                         uc_columns, uc_values))
                 unique_key_filter.add(uc_key)
 
-    def spanner_transact_bso(transaction, data, fxa_kid, fxa_uid, args):
+    def spanner_transact_bso(transaction, data, fxa_uid, fxa_kid, args):
         count = 0
         bso_values = []
         for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
@@ -416,8 +391,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                 pay = alter_syncids(pay)
             bso_values.append([
                     collection_id,
-                    fxa_kid,
                     fxa_uid,
+                    fxa_kid,
                     bid,
                     exp_v,
                     mod_v,
@@ -433,11 +408,19 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     dumper(bso_columns, bso_values)
                 )
             )
-            transaction.insert(
-                'bsos',
-                columns=bso_columns,
-                values=bso_values
-            )
+            for i in range(0, 5):
+                try:
+                    transaction.insert(
+                        'bsos',
+                        columns=bso_columns,
+                        values=bso_values
+                    )
+                    break
+                except grpc._channel_._InactiveRpcError as ex:
+                    logging.warn(
+                        "Could not write record (attempt {})".format(i),
+                        exc_info=ex)
+                    time.sleep(.5)
         else:
             logging.debug("not writing {} => {}".format(
                 bso_columns, bso_values))
@@ -483,15 +466,15 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             databases['spanner'].run_in_transaction(
                 spanner_transact_uc,
                 bunch,
-                fxa_kid,
                 fxa_uid,
+                fxa_kid,
                 args,
             )
             count += databases['spanner'].run_in_transaction(
                 spanner_transact_bso,
                 bunch,
-                fxa_kid,
                 fxa_uid,
+                fxa_kid,
                 args,
             )
             if args.ms_delay > 0:
@@ -505,6 +488,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                 uid, fxa_uid, fxa_kid
             ))
         report.fail(uid, "exists")
+        return count
     except InvalidArgument as ex:
         report.fail(uid, "exists")
         if "already inserted" in ex.args[0]:
@@ -512,6 +496,7 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                 "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
                     uid, fxa_uid, fxa_kid
                 ))
+            return count
         else:
             raise
     except Exception as ex:
@@ -551,56 +536,39 @@ def get_percentage_users(users, user_percent):
 def get_users(args, databases, fxa, bso_num, report):
     """Fetch the user information from the Tokenserver Dump """
     users = []
-    cursor = databases['mysql'].cursor()
     try:
         if args.user:
-            for user in args.user:
+            for uid in args.user:
                 try:
-                    (fxa_kid, fxa_uid) = fxa.get(user)
-                    users.append((user, fxa_kid, fxa_uid))
+                    (fxa_kid, fxa_uid) = fxa.get(uid)
+                    users.append((uid, fxa_uid, fxa_kid))
                     if args.sort_users:
-                        users.sort(key=lambda tup: tup[2])
+                        users.sort(key=lambda tup: tup[1])
                 except TypeError:
                     logging.error(
                         "User {} not found in "
-                        "tokenserver data.".format(user))
-                    report.fail(user, "not found")
+                        "tokenserver data.".format(uid))
+                    report.fail(uid, "not found")
         else:
             try:
-                sql = ("""select userid, count(*) as count from bso{}"""
-                       """ group by userid order by userid""".format(bso_num))
-                if args.user_range:
-                    (offset, limit) = args.user_range.split(':')
-                    sql = "{} limit {} offset {}".format(
-                        sql, limit, offset)
-                cursor.execute(sql)
-                for (user, count) in cursor:
-                    try:
-                        (fxa_kid, fxa_uid) = fxa.get(user)
-                        if args.hoard_limit and count > args.hoard_limit:
-                            logging.warn(
-                                "User {} => {}:{} has too "
-                                "many items: {} ".format(
-                                    user, fxa_uid, fxa_kid, count
-                                )
-                            )
-                            report.fail(user, "hoarder {}".format(count))
+                bso_user_file = args.bso_user_file.replace('#', bso_num)
+                with open(bso_user_file) as bso_file:
+                    line = 0
+                    for row in csv.reader(
+                        bso_file, delimiter="\t"
+                    ):
+                        if row[0] == "uid":
                             continue
-                        users.append((user, fxa_kid, fxa_uid))
-                    except TypeError:
-                        report.fail(user, "not found")
-                        logging.error(
-                            ("User {} not found in "
-                                "tokenserver data".format(user)))
-                if args.sort_users:
-                    users.sort(key=lambda tup: tup[2])
-                # Take a block of percentage of the users.
-                if args.user_percent:
-                    users = get_percentage_users(users, args.user_percent)
-            finally:
-                cursor.close()
+                        users.append(row)
+                        tick(line)
+                        line += 1
+            except Exception as ex:
+                logging.critical("Error reading BSO data", exc_info=ex)
+                exit(-1)
+            if args.user_percent:
+                users = get_percentage_users(users, args.user_percent)
     except Exception as ex:
-        logging.error("Unexpected Error moving database:", exc_info=ex)
+        logging.critical("Unexpected Error moving database:", exc_info=ex)
         exit(-1)
     return users
 
@@ -633,6 +601,7 @@ def move_database(databases, collections, bso_num, fxa, args, report):
 
 def get_args():
     pid = os.getpid()
+    today = datetime.now().strftime("%Y_%m_%d")
     parser = argparse.ArgumentParser(
         description="move user from sql to spanner")
     parser.add_argument(
@@ -671,15 +640,6 @@ def get_args():
         help="last BSO database to dump (default: 19)"
     )
     parser.add_argument(
-        '--fxa_file',
-        default="users.csv",
-        help="FXA User info in CSV format (default users.csv)"
-    )
-    parser.add_argument(
-        '--skip_collections', action='store_false',
-        help="skip user_collections table"
-    )
-    parser.add_argument(
         '--write_chunk',
         dest="chunk",
         default=1666,
@@ -689,6 +649,19 @@ def get_args():
         '--user',
         type=str,
         help="BSO#:userId[,userid,...] to move."
+    )
+    parser.add_argument(
+        '--bso_user_file',
+        default="bso_users_#_{}.lst".format(today),
+        help="name of the generated BSO user file. "
+            "(Will use bso number for `#` if present; "
+            "default: bso_users_#_{}.lst)".format(today),
+    )
+    parser.add_argument(
+        '--fxa_users_file',
+        default="fxa_users_{}.lst".format(today),
+        help="List of pre-generated FxA users. Only needed if specifying"
+            " the `--user` option; default: fxa_users_{}.lst)".format(today)
     )
     parser.add_argument(
         '--dryrun',
@@ -701,33 +674,21 @@ def get_args():
         help="abort data in col after #rows (e.g. history:10)"
     )
     parser.add_argument(
-        '--user_range',
-        help="Range of users to extract (offset:limit)"
-    )
-    parser.add_argument(
         "--user_percent", default="1:100",
         help=("Offset and percent of users from this BSO"
               "to move (e.g. 2:50 moves the second 50%%) "
               "(default 1:100)")
     )
     parser.add_argument(
-        '--sort_users', action="store_true",
-        help="Sort the user"
-    )
-    parser.add_argument(
         '--ms_delay', type=int, default=0,
         help="inject a sleep between writes to spanner as a throttle"
     )
     parser.add_argument(
-        '--hoard_limit', type=int, default=0,
-        help="reject any user with more than this count of records"
-    )
-    parser.add_argument(
-        '--success_file', default="success_{}.csv".format(pid),
+        '--success_file', default="success_{}.log".format(pid),
         help="File of successfully migrated userids"
     )
     parser.add_argument(
-        '--failure_file', default="failure_{}.csv".format(pid),
+        '--failure_file', default="failure_{}.log".format(pid),
         help="File of unsuccessfully migrated userids"
     )
 
@@ -752,8 +713,6 @@ def main():
 
     if args.user:
         args.user_percent = "1:100"
-    if args.user_range and args.user_percent:
-        raise RuntimeWarning("both --user_range and --user_percent specified!")
     if args.user:
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
@@ -770,7 +729,7 @@ def main():
         databases[scheme] = conf_db(dsn)
     if not databases.get('mysql') or not databases.get('spanner'):
         RuntimeError("Both mysql and spanner dsns must be specified")
-    fxa_info = FXA_info(args.fxa_file, args, report)
+    fxa_info = FXA_info(args.fxa_users_file, args, report)
     collections = Collections(databases)
     logging.info("Starting:")
     if args.dryrun:
