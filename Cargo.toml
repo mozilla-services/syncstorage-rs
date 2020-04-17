@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.2.8"
+version = "0.2.9"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -8,6 +8,7 @@ authors = [
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>"
 ]
 edition = "2018"
+default-run = "syncstorage"
 
 [profile.release]
 # Enables line numbers in Sentry
@@ -20,7 +21,7 @@ actix-rt = "1"
 actix-cors = "0.2"
 base64 = "0.12"
 bytes = "0.5"
-cadence = "0.19.1"
+cadence = "0.20.0"
 chrono = "0.4"
 config = "0.10"
 diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
@@ -31,7 +32,7 @@ env_logger = "0.7.1"
 failure = "0.1.7"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
-grpcio = { version = "0.5.0" }
+grpcio = { version = "0.5.1" }
 lazy_static = "1.4.0"
 hawk = "3.1.0"
 hkdf = "0.8.0"
@@ -68,3 +69,7 @@ futures-await-test = "0.3.0"
 
 [features]
 no_auth = []
+
+[[bin]]
+name = "purge_ttl"
+

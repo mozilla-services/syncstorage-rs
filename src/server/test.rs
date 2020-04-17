@@ -9,6 +9,7 @@ use base64;
 use bytes::Bytes;
 use chrono::offset::Utc;
 use futures::executor::block_on;
+use futures_await_test::async_test;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -76,6 +77,15 @@ fn get_test_state(settings: &Settings) -> ServerState {
         metrics: Box::new(metrics),
         port: settings.port,
     }
+}
+
+macro_rules! init_app {
+    () => {{
+        crate::logging::init_logging(false).unwrap();
+        let settings = get_test_settings();
+        let limits = Arc::new(settings.limits.clone());
+        test::init_service(build_app!(get_test_state(&settings), limits))
+    }};
 }
 
 fn create_request(
@@ -166,9 +176,7 @@ fn test_endpoint(
     status: Option<StatusCode>,
     expected_body: Option<&str>,
 ) {
-    let settings = get_test_settings();
-    let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = init_app!();
 
     let req = create_request(method, path, None, None).to_request();
     let mut app = block_on(app);
@@ -414,12 +422,7 @@ fn bsos_can_have_a_collection_field() {
 #[test]
 fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
-    let settings = get_test_settings();
-    let limits = Arc::new(settings.limits.clone());
-    let mut app = block_on(test::init_service(build_app!(
-        get_test_state(&settings),
-        limits
-    )));
+    let mut app = block_on(init_app!());
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -464,9 +467,7 @@ fn invalid_content_type() {
 
 #[test]
 fn invalid_batch_post() {
-    let settings = get_test_settings();
-    let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = init_app!();
 
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
@@ -486,5 +487,59 @@ fn invalid_batch_post() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = String::from_utf8(block_on(test::read_body(response)).to_vec())
         .expect("Could not get body in invalid_batch_post");
+    assert_eq!(body, "0");
+}
+
+#[async_test]
+async fn accept_new_ios() {
+    let mut app = init_app!().await;
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/23.0b17297 (iPhone; iPhone OS 12.4) (Firefox)".to_owned(),
+    );
+
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert!(response.status().is_success());
+}
+
+#[async_test]
+async fn reject_old_ios() {
+    let mut app = init_app!().await;
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))".to_owned(),
+    );
+
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers.clone()),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    let req = create_request(
+        http::Method::POST,
+        "/1.5/42/storage/tabs?batch=sammich",
+        Some(headers),
+        Some(json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+        ])),
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let body = String::from_utf8(test::read_body(response).await.to_vec()).unwrap();
     assert_eq!(body, "0");
 }
