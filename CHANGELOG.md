@@ -1,3 +1,13 @@
+<a name="0.3.1"></a>
+## 0.3.1 (2020-04-21)
+
+
+#### Bug Fixes
+
+*   restore delete_bso's handling of errors ([c11e7894](https://github.com/mozilla-services/syncstorage-rs/commit/c11e78948ef507b7eb74743a02df95f907ba9a08), closes [#599](https://github.com/mozilla-services/syncstorage-rs/issues/599))
+
+
+
 <a name="0.3.0"></a>
 ## 0.3.0 (2020-04-09)
 
