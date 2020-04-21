@@ -684,6 +684,11 @@ def get_args():
         help="last BSO database to dump (default: 19)"
     )
     parser.add_argument(
+        '--bso_num',
+        type=int,
+        help="only move this bso (equivalent to start_bso == end_bso)"
+    )
+    parser.add_argument(
         '--write_chunk',
         dest="chunk",
         default=1666,
@@ -771,6 +776,8 @@ def main():
         args.user = user_list
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
+    if args.bso_num:
+        args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme

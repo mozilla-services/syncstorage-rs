@@ -3,6 +3,7 @@
 
 import argparse
 import logging
+import threading
 import csv
 import sys
 import os
@@ -32,16 +33,21 @@ class Report:
     _failure = None
     _success = None
 
-    def __init__(self, args):
+    def __init__(self, args, lock=None):
         self._success_file = args.success_file
         self._failure_file = args.failure_file
+        self._lock = lock
 
     def success(self, uid):
+        if self.lock:
+            lock = self.lock.acquire()
         if not self._success:
             self._success = open(self._success_file, "w")
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid, reason=None):
+        if self.lock:
+            lock = self.lock.acquire()
         if not self._failure:
             self._failure = open(self._failure_file, "w")
         logging.debug("Skipping user {}".format(uid))
@@ -64,8 +70,8 @@ class BSO_Users:
 
     def __init__(self, args, report, dsn):
         self.args = args
+        self.dsn = dsn
         self.report = report
-        self.conf_mysql(dsn)
         self.get_users(args)
 
     def get_users(self, args):
@@ -90,17 +96,20 @@ class BSO_Users:
             )
             self.report.fail(uid, "Unexpected error {}".format(ex))
 
-    def run(self):
+    def run(self, bso_num=0):
+        connection = self.conf_mysql(self.dsn)
         out_users = []
-        logging.info("Fetching users from BSO dbinto {}".format(
-            self.args.bso_users_file,
+        bso_file = self.args.bso_users_file
+        bso_file = bso_file.replace("#", str(bso_num))
+        logging.info("Fetching users from BSO db into {}".format(
+            bso_file,
         ))
-        output_file = open(self.args.bso_users_file, "w")
+        output_file = open(bso_file, "w")
         try:
-            cursor = self.connection.cursor()
+            cursor = connection.cursor()
             sql = ("""select userid, count(*) as count from bso{}"""
                    """ group by userid order by userid""".format(
-                       self.args.bso_num))
+                       bso_num))
             if self.args.user_range:
                 (offset, limit) = self.args.user_range.split(':')
                 sql = "{} limit {} offset {}".format(
@@ -135,21 +144,28 @@ class BSO_Users:
                     uid, fxa_uid, fxa_kid
                 ))
                 tick(line)
-        finally:
             output_file.flush()
+        except connector.errors.ProgrammingError as ex:
+            logging.error(ex)
+            output_file.close()
+            os.unlink(bso_file)
+        except Exception as e:
+            logging.error("### Exception {}:{}", exc_info=e)
+            output_file.close()
+            os.unlink(bso_file)
+        finally:
             cursor.close()
 
     def conf_mysql(self, dsn):
         """create a connection to the original storage system """
         logging.debug("Configuring MYSQL: {}".format(dsn))
-        self.connection = connector.connect(
+        return connector.connect(
             user=dsn.username,
             password=dsn.password,
             host=dsn.hostname,
             port=dsn.port or 3306,
             database=dsn.path[1:]
         )
-        return self.connection
 
 
 def get_args():
@@ -160,14 +176,23 @@ def get_args():
         '--dsns', default="move_dsns.lst",
         help="file of new line separated DSNs")
     parser.add_argument(
+        '--start_bso',
+        default=0,
+        help="Start of BSO range (default 0)"
+    )
+    parser.add_argument(
+        '--end_bso',
+        default=19,
+        help="End of BSO range inclusive (default 19)"
+    )
+    parser.add_argument(
         '--bso_num',
-        default="0",
-        help="BSO database number"
+        help="Only read from this bso (default num)"
     )
     parser.add_argument(
         '--bso_users_file',
-        default="bso_users_{}_{}.lst".format(
-            0, datetime.now().strftime("%Y_%m_%d")),
+        default="bso_users_#_{}.lst".format(
+            datetime.now().strftime("%Y_%m_%d")),
         help="List of BSO users."
     )
     parser.add_argument(
@@ -209,6 +234,7 @@ def get_args():
 
 
 def main():
+    threads = []
     args = get_args()
     log_level = logging.INFO
     if args.quiet:
@@ -219,7 +245,9 @@ def main():
         stream=sys.stdout,
         level=log_level,
     )
-    report = Report(args)
+    if args.bso_num:
+        args.start_bso = args.end_bso = args.bso_num
+    report = Report(args, threading.Lock())
     dsns = open(args.dsns).readlines()
     db_dsn = None
     for line in dsns:
@@ -231,7 +259,13 @@ def main():
         RuntimeError("mysql dsn must be specified")
 
     bso = BSO_Users(args, report, db_dsn)
-    bso.run()
+    for bso_num in range(int(args.start_bso), int(args.end_bso) + 1):
+        t = threading.Thread(target=bso.run, args=(bso_num,))
+        threads.append(t)
+        t.start()
+
+    for thread in threads:
+        thread.join()
 
 
 if __name__ == "__main__":
