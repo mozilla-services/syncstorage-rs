@@ -96,7 +96,7 @@ class BSO_Users:
             )
             self.report.fail(uid, "Unexpected error {}".format(ex))
 
-    def run(self, bso_num=0):
+    def run(self, bso_num):
         connection = self.conf_mysql(self.dsn)
         out_users = []
         bso_file = self.args.bso_users_file
