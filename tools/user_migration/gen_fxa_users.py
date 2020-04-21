@@ -95,6 +95,16 @@ class FxA_Generate:
                                 "user {} has no k_c_a or "
                                 "generation value".format(
                                     uid))
+                        # trap for actually blank values
+                        if client_state is None or client_state == '':
+                            logging.error(
+                                "User {} "
+                                "has an invalid, empty client state".format(
+                                    uid
+                                )
+                            )
+                            report.fail(uid, "invalid client state")
+                            continue
                         try:
                             client_state = binascii.unhexlify(client_state)
                         except binascii.Error:

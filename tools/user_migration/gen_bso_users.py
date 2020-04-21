@@ -39,15 +39,15 @@ class Report:
         self._lock = lock
 
     def success(self, uid):
-        if self.lock:
-            lock = self.lock.acquire()
+        if self._lock:
+            lock = self._lock.acquire()
         if not self._success:
             self._success = open(self._success_file, "w")
         self._success.write("{}\t{}\n".format(self.bso, uid))
 
     def fail(self, uid, reason=None):
-        if self.lock:
-            lock = self.lock.acquire()
+        if self._lock:
+            lock = self._lock.acquire()
         if not self._failure:
             self._failure = open(self._failure_file, "w")
         logging.debug("Skipping user {}".format(uid))
