@@ -21,6 +21,7 @@ from datetime import datetime
 import grpc
 from mysql import connector
 from google.cloud import spanner
+from google.cloud.spanner_v1 import param_types
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
 try:
     from urllib.parse import urlparse
@@ -94,14 +95,14 @@ class FXA_info:
                 line = 0
                 for (uid, fxa_uid, fxa_kid) in csv.reader(
                         csv_file, delimiter="\t"):
-                    if args.user:
-                        if int(uid) not in args.user:
-                            continue
                     line += 1
                     tick(line)
                     if uid == 'uid':
                         # skip the header row.
                         continue
+                    if args.user:
+                        if int(uid) not in args.user:
+                            continue
                     try:
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
@@ -338,6 +339,42 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         bso.collection, bso.id""".format(bso_num)
     unique_key_filter = set()
 
+    def spanner_transact_wipe_user(
+            transaction, fxa_uid, fxa_kid, args):
+        result = transaction.execute_sql(
+            """
+        SELECT
+            uc.collection_id, c.name
+        FROM
+            user_collections as uc
+        LEFT JOIN
+            collections as c
+        ON
+            uc.collection_id = c.collection_id
+        WHERE
+            uc.fxa_uid = @fxa_uid
+        AND uc.fxa_kid = @fxa_kid
+            """,
+            params=dict(fxa_uid=fxa_uid, fxa_kid=fxa_kid),
+            param_types=dict(fxa_uid=param_types.STRING, fxa_kid=param_types.STRING),
+        )
+        cols = [(row[0], row[1]) for row in result]
+        if not args.dryrun:
+            logging.debug("Wiping user, collections: {}".format(cols))
+            transaction.execute_update(
+                """
+            DELETE FROM
+                user_collections
+            WHERE
+                fxa_uid = @fxa_uid
+            AND fxa_kid = @fxa_kid
+            """,
+                params=dict(fxa_uid=fxa_uid, fxa_kid=fxa_kid),
+                param_types=dict(fxa_uid=param_types.STRING, fxa_kid=param_types.STRING),
+            )
+        else:
+            logging.debug("Not wiping user, collections: {}".format(cols))
+
     def spanner_transact_uc(
             transaction, data, fxa_uid, fxa_kid, args):
         # user collections require a unique key.
@@ -457,6 +494,15 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         logging.info(
             "Moving {} items for user {} => {}:{}".format(
                 len(data), uid, fxa_uid, fxa_kid))
+
+        if args.wipe_user:
+            databases['spanner'].run_in_transaction(
+                spanner_transact_wipe_user,
+                fxa_uid,
+                fxa_kid,
+                args,
+            )
+
         for bunch in divvy(data, args.chunk or 1000):
             # Occasionally, there is a batch fail because a
             # user collection is not found before a bso is written.
@@ -542,8 +588,6 @@ def get_users(args, databases, fxa, bso_num, report):
                 try:
                     (fxa_kid, fxa_uid) = fxa.get(uid)
                     users.append((uid, fxa_uid, fxa_kid))
-                    if args.sort_users:
-                        users.sort(key=lambda tup: tup[1])
                 except TypeError:
                     logging.error(
                         "User {} not found in "
@@ -651,6 +695,11 @@ def get_args():
         help="BSO#:userId[,userid,...] to move."
     )
     parser.add_argument(
+        '--wipe_user',
+        action="store_true",
+        help="delete any pre-existing --user data on spanner before the migration"
+    )
+    parser.add_argument(
         '--bso_user_file',
         default="bso_users_#_{}.lst".format(today),
         help="name of the generated BSO user file. "
@@ -713,7 +762,6 @@ def main():
 
     if args.user:
         args.user_percent = "1:100"
-    if args.user:
         (bso, userid) = args.user.split(':')
         args.start_bso = int(bso)
         args.end_bso = int(bso)
@@ -721,6 +769,8 @@ def main():
         for id in userid.split(','):
             user_list.append(int(id))
         args.user = user_list
+    elif args.wipe_user:
+        raise RuntimeError("--wipe_user requires --user")
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme
@@ -728,7 +778,7 @@ def main():
             scheme = 'mysql'
         databases[scheme] = conf_db(dsn)
     if not databases.get('mysql') or not databases.get('spanner'):
-        RuntimeError("Both mysql and spanner dsns must be specified")
+        raise RuntimeError("Both mysql and spanner dsns must be specified")
     fxa_info = FXA_info(args.fxa_users_file, args, report)
     collections = Collections(databases)
     logging.info("Starting:")
