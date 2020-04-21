@@ -595,7 +595,7 @@ def get_users(args, databases, fxa, bso_num, report):
                     report.fail(uid, "not found")
         else:
             try:
-                bso_user_file = args.bso_user_file.replace('#', bso_num)
+                bso_user_file = args.bso_user_file.replace('#', str(bso_num))
                 with open(bso_user_file) as bso_file:
                     line = 0
                     for row in csv.reader(

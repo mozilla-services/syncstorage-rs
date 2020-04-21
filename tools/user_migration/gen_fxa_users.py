@@ -17,7 +17,7 @@ def tick(count):
         mark = "."
     if not count % 1000:
         mark = "|"
-    level = logging.getLogger().getEffectiveLevel
+    level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
         print(mark, end='', flush=True)
 

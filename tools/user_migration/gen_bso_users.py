@@ -78,7 +78,7 @@ class BSO_Users:
                 ):
                     if uid == "uid":
                         continue
-                    self.tick(line)
+                    tick(line)
                     logging.debug("Read: {} {}:{}".format(
                         uid, fxa_uid, fxa_kid))
                     self.users[int(uid)] = (fxa_uid, fxa_kid)
