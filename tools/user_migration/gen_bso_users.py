@@ -187,6 +187,8 @@ def get_args():
     )
     parser.add_argument(
         '--bso_num',
+        type=int,
+        default=0,
         help="Only read from this bso (default num)"
     )
     parser.add_argument(
@@ -230,6 +232,11 @@ def get_args():
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
         help="List of pre-generated FxA users."
     )
+    parser.add_argument(
+        '--threading',
+        action="store_true",
+        help="use threading"
+    )
     return parser.parse_args()
 
 
@@ -245,7 +252,7 @@ def main():
         stream=sys.stdout,
         level=log_level,
     )
-    if args.bso_num:
+    if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
     report = Report(args, threading.Lock())
     dsns = open(args.dsns).readlines()
@@ -259,10 +266,14 @@ def main():
         RuntimeError("mysql dsn must be specified")
 
     bso = BSO_Users(args, report, db_dsn)
-    for bso_num in range(int(args.start_bso), int(args.end_bso) + 1):
-        t = threading.Thread(target=bso.run, args=(bso_num,))
-        threads.append(t)
-        t.start()
+    # threading is currently in process.
+    if threading:
+        for bso_num in range(int(args.start_bso), int(args.end_bso) + 1):
+            t = threading.Thread(target=bso.run, args=(bso_num,))
+            threads.append(t)
+            t.start()
+    else:
+        bso.run(args.bso_num)
 
     for thread in threads:
         thread.join()
