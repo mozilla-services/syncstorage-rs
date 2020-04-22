@@ -70,6 +70,7 @@ class FxA_Generate:
         with open(args.users_file) as csv_file:
             try:
                 line = 0
+                success = 0
                 for (uid, email, generation,
                      keys_changed_at, client_state) in csv.reader(
                         csv_file, delimiter="\t"):
@@ -125,6 +126,7 @@ class FxA_Generate:
                         output_file.write(
                             "{}\t{}\t{}\n".format(
                                 uid, fxa_uid, fxa_kid))
+                        success += 1
                     except Exception as ex:
                         logging.error(
                             "User {} Unexpected error".format(uid),
@@ -133,6 +135,8 @@ class FxA_Generate:
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}".format(
                     line), exc_info=ex)
+        print("")
+        logging.info("Processed {} users, {} successful".format(line, success))
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):

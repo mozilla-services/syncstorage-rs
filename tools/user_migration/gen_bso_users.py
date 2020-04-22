@@ -89,6 +89,7 @@ class BSO_Users:
                         uid, fxa_uid, fxa_kid))
                     self.users[int(uid)] = (fxa_uid, fxa_kid)
                     line += 1
+            print("")
         except Exception as ex:
             logging.error(
                 "Unexpected error",
