@@ -13,10 +13,10 @@ from datetime import datetime
 
 def tick(count):
     mark = None
-    if not count % 100:
-        mark = "."
-    if not count % 1000:
+    if count % 1000 == 0:
         mark = "|"
+    elif count % 100 == 0:
+        mark = "."
     level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
         print(mark, end='', flush=True)

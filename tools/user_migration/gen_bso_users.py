@@ -18,10 +18,10 @@ except ImportError:
 
 def tick(count):
     mark = None
-    if not count % 100:
-        mark = "."
-    if not count % 1000:
+    if count % 1000 == 0:
         mark = "|"
+    elif count % 100 == 0:
+        mark = "."
     level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
         print(mark, end='', flush=True)
@@ -134,6 +134,7 @@ class BSO_Users:
                         ("User {} not found in "
                             "tokenserver data".format(uid)))
             if self.args.sort_users:
+                logging.info("Sorting users...")
                 out_users.sort(key=lambda tup: tup[1])
             # Take a block of percentage of the users.
             logging.info("Writing out {} users".format(len(out_users)))
@@ -144,7 +145,9 @@ class BSO_Users:
                     uid, fxa_uid, fxa_kid
                 ))
                 tick(line)
+                line += 1
             output_file.flush()
+            print("")
         except connector.errors.ProgrammingError as ex:
             logging.error(ex)
             output_file.close()
@@ -267,7 +270,7 @@ def main():
 
     bso = BSO_Users(args, report, db_dsn)
     # threading is currently in process.
-    if threading:
+    if args.threading:
         for bso_num in range(int(args.start_bso), int(args.end_bso) + 1):
             t = threading.Thread(target=bso.run, args=(bso_num,))
             threads.append(t)
