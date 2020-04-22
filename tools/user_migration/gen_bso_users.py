@@ -258,7 +258,10 @@ def main():
     )
     if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
-    report = Report(args, threading.Lock())
+    locker = None
+    if args.threading:
+        locker =  threading.Lock()
+    report = Report(args, locker)
     dsns = open(args.dsns).readlines()
     db_dsn = None
     for line in dsns:
