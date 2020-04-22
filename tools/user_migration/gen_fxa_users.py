@@ -60,14 +60,14 @@ class FxA_Generate:
 
     def __init__(self, args, report):
         logging.info("Processing token file: {} into {}".format(
-            args.fxa_file,
-            args.fxa_users_file,
+            args.users_file,
+            args.output_file,
         ))
-        output_file = open(args.fxa_users_file, "w")
+        output_file = open(args.output_file, "w")
         output_file.write("uid\tfxa_uid\tfxa_kid\n")
-        if not os.path.isfile(args.fxa_file):
-            raise IOError("{} not found".format(args.fxa_file))
-        with open(args.fxa_file) as csv_file:
+        if not os.path.isfile(args.users_file):
+            raise IOError("{} not found".format(args.users_file))
+        with open(args.users_file) as csv_file:
             try:
                 line = 0
                 for (uid, email, generation,
@@ -150,12 +150,12 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Generate FxA user id info")
     parser.add_argument(
-        '--fxa_file',
+        '--users_file',
         default="users.csv",
         help="FXA User info in CSV format (default users.csv)"
     )
     parser.add_argument(
-        '--fxa_users_file',
+        '--output_file',
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
         help="List of FxA users."
     )

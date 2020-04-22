@@ -99,7 +99,7 @@ class BSO_Users:
     def run(self, bso_num):
         connection = self.conf_mysql(self.dsn)
         out_users = []
-        bso_file = self.args.bso_users_file
+        bso_file = self.args.output_file
         bso_file = bso_file.replace("#", str(bso_num))
         logging.info("Fetching users from BSO db into {}".format(
             bso_file,
@@ -195,7 +195,7 @@ def get_args():
         help="Only read from this bso (default num)"
     )
     parser.add_argument(
-        '--bso_users_file',
+        '--output_file',
         default="bso_users_#_{}.lst".format(
             datetime.now().strftime("%Y_%m_%d")),
         help="List of BSO users."
