@@ -85,41 +85,34 @@ pub enum RequestType {
     PartitionedDml,
 }
 
-fn prepare_request(
+fn begin_transaction(
     client: &SpannerClient,
     session: &Session,
     request_type: RequestType,
-    transaction_id: Option<Vec<u8>>,
 ) -> Result<(ExecuteSqlRequest, Vec<u8>), Box<dyn Error>> {
-    let id = match transaction_id {
-        Some(id) => id,
-        None => {
-            // Create a transaction
-            let mut opt = TransactionOptions::new();
-            match request_type {
-                RequestType::ReadWrite => {
-                    opt.set_read_write(TransactionOptions_ReadWrite::new());
-                }
-                RequestType::ReadOnly => {
-                    opt.set_read_only(TransactionOptions_ReadOnly::new());
-                }
-                RequestType::PartitionedDml => {
-                    opt.set_partitioned_dml(TransactionOptions_PartitionedDml::new())
-                }
-            }
-
-            let mut req = BeginTransactionRequest::new();
-            req.set_session(session.get_name().to_owned());
-            req.set_options(opt);
-            let mut txn = client.begin_transaction(&req)?;
-
-            txn.take_id()
+    // Create a transaction
+    let mut opt = TransactionOptions::new();
+    match request_type {
+        RequestType::ReadWrite => {
+            opt.set_read_write(TransactionOptions_ReadWrite::new());
         }
-    };
+        RequestType::ReadOnly => {
+            opt.set_read_only(TransactionOptions_ReadOnly::new());
+        }
+        RequestType::PartitionedDml => {
+            opt.set_partitioned_dml(TransactionOptions_PartitionedDml::new());
+        }
+    }
+
+    let mut req = BeginTransactionRequest::new();
+    req.set_session(session.get_name().to_owned());
+    req.set_options(opt);
+    let mut txn = client.begin_transaction(&req)?;
+
+    let id = txn.take_id();
     let mut ts = TransactionSelector::new();
     ts.set_id(id.clone());
 
-    // Create an SQL request
     let mut req = ExecuteSqlRequest::new();
     req.set_session(session.get_name().to_string());
     req.set_transaction(ts);
@@ -127,7 +120,19 @@ fn prepare_request(
     Ok((req, id))
 }
 
-fn commit_request(
+fn continue_transaction(
+    session: &Session,
+    transaction_id: Vec<u8>,
+) -> Result<ExecuteSqlRequest, Box<dyn Error>> {
+    let mut ts = TransactionSelector::new();
+    ts.set_id(transaction_id);
+    let mut req = ExecuteSqlRequest::new();
+    req.set_session(session.get_name().to_string());
+    req.set_transaction(ts);
+    Ok(req)
+}
+
+fn commit_transaction(
     client: &SpannerClient,
     session: &Session,
     txn: Vec<u8>,
@@ -170,7 +175,7 @@ fn delete_incremental(
     column: String,
     chunk_size: u64,
 ) -> Result<(), Box<dyn Error>> {
-    let (mut req, mut txn) = prepare_request(&client, &session, RequestType::ReadWrite, None)?;
+    let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
     let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
     trace!("Selecting rows to delete: {}", select_sql);
     req.set_sql(select_sql.clone());
@@ -195,11 +200,11 @@ fn delete_incremental(
             let collection_id = row[2].get_string_value().parse::<i32>().unwrap();
             let id = row[3].get_string_value().to_owned();
             trace!(
-                "Selected row for delete: i={} collection_id={} fxa_kid={} fxa_uid={} {}={}",
+                "Selected row for delete: i={} fxa_uid={} fxa_kid={} collection_id={} {}={}",
                 total,
-                collection_id,
-                fxa_kid,
                 fxa_uid,
+                fxa_kid,
+                collection_id,
                 column,
                 id
             );
@@ -212,14 +217,13 @@ fn delete_incremental(
         }
         delete_sql = format!("{}('', '', 0, ''))", delete_sql);
         trace!("Deleting chunk with: {}", delete_sql);
-        let (mut delete_req, _txn2) =
-            prepare_request(&client, &session, RequestType::ReadWrite, Some(txn.clone()))?;
+        let mut delete_req = continue_transaction(&session, txn.clone())?;
         delete_req.set_sql(delete_sql);
         client.execute_sql(&delete_req)?;
         info!("{}: removed {} rows", table, total);
-        commit_request(&client, &session, txn)?;
+        commit_transaction(&client, &session, txn)?;
 
-        let (newreq, newtxn) = prepare_request(&client, &session, RequestType::ReadWrite, None)?;
+        let (newreq, newtxn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
         req = newreq;
         txn = newtxn;
 
@@ -230,7 +234,7 @@ fn delete_incremental(
     }
 
     info!("{}: removed {} rows in total.", table, total);
-    commit_request(&client, &session, txn)?;
+    commit_transaction(&client, &session, txn)?;
     Ok(())
 }
 
@@ -239,7 +243,7 @@ fn delete_all(
     session: &Session,
     table: String,
 ) -> Result<(), Box<dyn Error>> {
-    let (mut req, _txn) = prepare_request(client, session, RequestType::PartitionedDml, None)?;
+    let (mut req, _txn) = begin_transaction(client, session, RequestType::PartitionedDml)?;
     req.set_sql(format!(
         "DELETE FROM {} WHERE expiry < CURRENT_TIMESTAMP()",
         table
@@ -256,14 +260,14 @@ fn delete_all(
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::try_init()?;
 
-    let chunk_size: u64 = env::var("PURGE_TTL_BATCH_SIZE")
+    let chunk_size: u64 = env::var("PURGE_TTL_CHUNK_SIZE")
         .unwrap_or_else(|_| "1000".to_string())
         .parse()
         .unwrap();
 
     const INCREMENTAL_ENV: &str = "SYNC_INCREMENTAL";
     let incremental = env::var(INCREMENTAL_ENV)
-        .map(|x| x == "1" || x == "true")
+        .map(|x| x == "1" || x.to_lowercase() == "true")
         .unwrap_or(false);
     info!("INCREMENTAL: {:?}", incremental);
 
@@ -331,7 +335,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 delete_all(&client, &session, "bsos".to_owned())?;
             }
         }
-        info!("Completed purge_ttl")
+        info!("Completed purge_ttl");
     }
 
     Ok(())
