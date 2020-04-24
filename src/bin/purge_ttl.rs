@@ -24,9 +24,6 @@ use url::{Host, Url};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
-type ResultSet = googleapis_raw::spanner::v1::result_set::ResultSet;
-type ResultSetStats = googleapis_raw::spanner::v1::result_set::ResultSetStats;
-
 use protobuf::well_known_types::Value;
 
 pub struct MetricTimer {
@@ -145,13 +142,7 @@ fn commit_transaction(
 }
 
 pub struct SyncResultSet {
-    result: ResultSet,
-}
-
-impl SyncResultSet {
-    pub fn stats(&self) -> Option<&ResultSetStats> {
-        self.result.stats.as_ref()
-    }
+    result: googleapis_raw::spanner::v1::result_set::ResultSet,
 }
 
 impl Iterator for SyncResultSet {
