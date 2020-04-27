@@ -167,7 +167,7 @@ fn delete_incremental(
     chunk_size: u64,
     max_to_delete: u64,
 ) -> Result<(), Box<dyn Error>> {
-    let mut total: usize = 1;
+    let mut total: u64 = 1;
     let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
     loop {
         let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
