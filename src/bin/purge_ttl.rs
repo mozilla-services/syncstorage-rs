@@ -166,17 +166,17 @@ fn delete_incremental(
     column: String,
     chunk_size: u64,
 ) -> Result<(), Box<dyn Error>> {
-    let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
-    let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
-    trace!("Selecting rows to delete: {}", select_sql);
-    req.set_sql(select_sql.clone());
-    let mut result = SyncResultSet {
-        result: client.execute_sql(&req)?,
-    };
-
     let mut total: usize = 1;
-    while total < 1_000_000 {
-        if result.result.rows.is_empty() {
+    let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
+    loop {
+        let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
+        trace!("Selecting rows to delete: {}", select_sql);
+        req.set_sql(select_sql.clone());
+        let mut result = SyncResultSet {
+            result: client.execute_sql(&req)?,
+        };
+    
+        if result.result.rows.is_empty() || total > 1_000_000 {
             info!("{}: done", table);
             break;
         }
@@ -206,26 +206,18 @@ fn delete_incremental(
 
             total += 1;
         }
-        delete_sql = format!("{}('', '', 0, ''))", delete_sql);
+        delete_sql = delete_sql.trim_end_matches(&", ".to_string()).to_string();
         trace!("Deleting chunk with: {}", delete_sql);
         let mut delete_req = continue_transaction(&session, txn.clone())?;
         delete_req.set_sql(delete_sql);
         client.execute_sql(&delete_req)?;
         info!("{}: removed {} rows", table, total);
-        commit_transaction(&client, &session, txn)?;
-
+        commit_transaction(&client, &session, txn.clone())?;
         let (newreq, newtxn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
         req = newreq;
         txn = newtxn;
-
-        req.set_sql(select_sql.clone());
-        result = SyncResultSet {
-            result: client.execute_sql(&req)?,
-        };
     }
 
-    info!("{}: removed {} rows in total.", table, total);
-    commit_transaction(&client, &session, txn)?;
     Ok(())
 }
 
