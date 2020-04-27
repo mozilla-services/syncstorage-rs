@@ -176,7 +176,7 @@ fn delete_incremental(
         let mut result = SyncResultSet {
             result: client.execute_sql(&req)?,
         };
-    
+
         if result.result.rows.is_empty() || total > max_to_delete {
             info!("{}: done", table);
             break;
@@ -207,7 +207,10 @@ fn delete_incremental(
 
             total += 1;
         }
-        delete_sql = format!("{})", delete_sql.trim_end_matches(&", ".to_string()).to_string());
+        delete_sql = format!(
+            "{})",
+            delete_sql.trim_end_matches(&", ".to_string()).to_string()
+        );
         trace!("Deleting chunk with: {}", delete_sql);
         let mut delete_req = continue_transaction(&session, txn.clone())?;
         delete_req.set_sql(delete_sql);
