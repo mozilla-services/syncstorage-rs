@@ -165,6 +165,7 @@ fn delete_incremental(
     table: String,
     column: String,
     chunk_size: u64,
+    max_to_delete: u64,
 ) -> Result<(), Box<dyn Error>> {
     let mut total: usize = 1;
     let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
@@ -176,7 +177,7 @@ fn delete_incremental(
             result: client.execute_sql(&req)?,
         };
     
-        if result.result.rows.is_empty() || total > 1_000_000 {
+        if result.result.rows.is_empty() || total > max_to_delete {
             info!("{}: done", table);
             break;
         }
@@ -247,8 +248,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or_else(|_| "1000".to_string())
         .parse()
         .unwrap();
+    let max_to_delete: u64 = env::var("PURGE_TTL_MAX_TO_DELETE")
+        .unwrap_or_else(|_| "1000".to_string())
+        .parse()
+        .unwrap();
 
-    const INCREMENTAL_ENV: &str = "SYNC_INCREMENTAL";
+    const INCREMENTAL_ENV: &str = "PURGE_TTL_INCREMENTAL";
     let incremental = env::var(INCREMENTAL_ENV)
         .map(|x| x == "1" || x.to_lowercase() == "true")
         .unwrap_or(false);
@@ -298,6 +303,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     "batches".to_owned(),
                     "batch_id".to_owned(),
                     chunk_size,
+                    max_to_delete,
                 )?;
             } else {
                 delete_all(&client, &session, "batches".to_owned())?;
@@ -313,6 +319,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     "bsos".to_owned(),
                     "bso_id".to_owned(),
                     chunk_size,
+                    max_to_delete,
                 )?;
             } else {
                 delete_all(&client, &session, "bsos".to_owned())?;
