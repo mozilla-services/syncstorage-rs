@@ -595,8 +595,8 @@ def get_users(args, databases, fxa, bso_num, report):
                     report.fail(uid, "not found")
         else:
             try:
-                bso_user_file = args.bso_user_file.replace('#', str(bso_num))
-                with open(bso_user_file) as bso_file:
+                bso_users_file = args.bso_users_file.replace('#', str(bso_num))
+                with open(bso_users_file) as bso_file:
                     line = 0
                     for row in csv.reader(
                         bso_file, delimiter="\t"
@@ -705,7 +705,7 @@ def get_args():
         help="delete any pre-existing --user data on spanner before the migration"
     )
     parser.add_argument(
-        '--bso_user_file',
+        '--bso_users_file',
         default="bso_users_#_{}.lst".format(today),
         help="name of the generated BSO user file. "
             "(Will use bso number for `#` if present; "
