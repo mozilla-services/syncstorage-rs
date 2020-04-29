@@ -1,7 +1,5 @@
 use std::str::FromStr;
 
-use env_logger;
-
 use crate::{
     db::{params, pool_from_settings, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
