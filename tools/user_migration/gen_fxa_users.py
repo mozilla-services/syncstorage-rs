@@ -13,11 +13,11 @@ from datetime import datetime
 
 def tick(count):
     mark = None
-    if not count % 100:
-        mark = "."
-    if not count % 1000:
+    if count % 1000 == 0:
         mark = "|"
-    level = logging.getLogger().getEffectiveLevel
+    elif count % 100 == 0:
+        mark = "."
+    level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
         print(mark, end='', flush=True)
 
@@ -60,16 +60,17 @@ class FxA_Generate:
 
     def __init__(self, args, report):
         logging.info("Processing token file: {} into {}".format(
-            args.fxa_file,
-            args.fxa_users_file,
+            args.users_file,
+            args.output_file,
         ))
-        output_file = open(args.fxa_users_file, "w")
+        output_file = open(args.output_file, "w")
         output_file.write("uid\tfxa_uid\tfxa_kid\n")
-        if not os.path.isfile(args.fxa_file):
-            raise IOError("{} not found".format(args.fxa_file))
-        with open(args.fxa_file) as csv_file:
+        if not os.path.isfile(args.users_file):
+            raise IOError("{} not found".format(args.users_file))
+        with open(args.users_file) as csv_file:
             try:
                 line = 0
+                success = 0
                 for (uid, email, generation,
                      keys_changed_at, client_state) in csv.reader(
                         csv_file, delimiter="\t"):
@@ -95,6 +96,16 @@ class FxA_Generate:
                                 "user {} has no k_c_a or "
                                 "generation value".format(
                                     uid))
+                        # trap for actually blank values
+                        if client_state is None or client_state == '':
+                            logging.error(
+                                "User {} "
+                                "has an invalid, empty client state".format(
+                                    uid
+                                )
+                            )
+                            report.fail(uid, "invalid client state")
+                            continue
                         try:
                             client_state = binascii.unhexlify(client_state)
                         except binascii.Error:
@@ -115,6 +126,7 @@ class FxA_Generate:
                         output_file.write(
                             "{}\t{}\t{}\n".format(
                                 uid, fxa_uid, fxa_kid))
+                        success += 1
                     except Exception as ex:
                         logging.error(
                             "User {} Unexpected error".format(uid),
@@ -123,6 +135,8 @@ class FxA_Generate:
             except Exception as ex:
                 logging.critical("Error in fxa file around line {}".format(
                     line), exc_info=ex)
+        print("")
+        logging.info("Processed {} users, {} successful".format(line, success))
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):
@@ -140,12 +154,12 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Generate FxA user id info")
     parser.add_argument(
-        '--fxa_file',
+        '--users_file',
         default="users.csv",
         help="FXA User info in CSV format (default users.csv)"
     )
     parser.add_argument(
-        '--fxa_users_file',
+        '--output_file',
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
         help="List of FxA users."
     )
