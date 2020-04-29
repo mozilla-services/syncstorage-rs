@@ -1,8 +1,6 @@
 use std::fmt;
 
 use actix_web::http::StatusCode;
-use diesel;
-use diesel_migrations;
 use failure::{Backtrace, Context, Fail};
 
 #[derive(Debug)]

@@ -13,7 +13,6 @@ use serde::{
     Serialize,
 };
 use serde_json::{Error as JsonError, Value};
-use validator;
 
 use super::extractors::RequestErrorLocation;
 use super::tags::Tags;
