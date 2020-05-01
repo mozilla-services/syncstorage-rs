@@ -2529,17 +2529,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustversion"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3bba175698996010c4f6dce5e7f173b6eb781fce25d2cfc45e27091ce0b79f6"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "ryu"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2907,9 +2896,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "standback"
-version = "0.2.1"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4edf667ea8f60afc06d6aeec079d20d5800351109addec1faea678a8663da4e1"
+checksum = "47e4b8c631c998468961a9ea159f064c5c8499b95b5e4a34b77849d45949d540"
 
 [[package]]
 name = "static_assertions"
@@ -3044,7 +3033,7 @@ dependencies = [
  "slog-scope",
  "slog-stdlog",
  "slog-term",
- "time 0.2.9",
+ "time 0.2.12",
  "url 2.1.1",
  "uuid 0.8.1",
  "validator",
@@ -3134,16 +3123,16 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.2.9"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6329a7835505d46f5f3a9a2c237f8d6bf5ca6f0015decb3698ba57fcdbb609ba"
+checksum = "b360ea5d21fa3f84cb059710501698e91a63dd49fbcc5d0491e4241f5019ee0c"
 dependencies = [
  "cfg-if",
  "libc",
- "rustversion",
  "standback",
  "stdweb",
  "time-macros",
+ "version_check 0.9.1",
  "winapi 0.3.8",
 ]
 
