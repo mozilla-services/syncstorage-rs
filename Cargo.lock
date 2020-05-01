@@ -1316,11 +1316,11 @@ dependencies = [
 
 [[package]]
 name = "hawk"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2706f480fb19dea88925385f596c870dcd5e30d21cf0e9bd0753f7149e87ca36"
+checksum = "57528ce5133f688e1bc4daadc3e50bf9093d40e8a1f64c6e506ccbae005e57e6"
 dependencies = [
- "base64 0.11.0",
+ "base64 0.12.0",
  "failure",
  "log",
  "once_cell",
