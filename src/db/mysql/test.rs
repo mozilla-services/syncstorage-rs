@@ -6,7 +6,6 @@ use diesel::{
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection, ExpressionMethods, QueryDsl, RunQueryDsl,
 };
-use env_logger;
 use url::Url;
 
 use crate::db::mysql::{
