@@ -1,8 +1,8 @@
 //! Main application server
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use crate::db::{pool_from_settings, DbPool};
+use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Secrets, ServerLimits, Settings};
@@ -157,6 +157,8 @@ impl Server {
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
+
+        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone());
 
         let server = HttpServer::new(move || {
             // Setup the server state
