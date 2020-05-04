@@ -184,5 +184,5 @@ macro_rules! batch_db_method {
         pub fn $name(&self, params: params::$type) -> Result<results::$type> {
             batch::$batch_name(self, params)
         }
-    }
+    };
 }

@@ -2,7 +2,8 @@ use std::env;
 use std::error::Error;
 use std::net::UdpSocket;
 use std::sync::Arc;
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use cadence::{
     BufferedUdpMetricSink, Metric, QueuingMetricSink, StatsdClient, Timed, DEFAULT_PORT,
@@ -18,6 +19,8 @@ use log::{info, trace, warn};
 use url::{Host, Url};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
+const RETRY_ENV_VAR: &str = "RETRY_COUNT";  // Default value = 10
+const SLEEP_ENV_VAR: &str = "RETRY_SLEEP_MILLIS";  // Default value = 0
 
 pub struct MetricTimer {
     pub client: StatsdClient,
@@ -101,8 +104,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     if url.scheme() != "spanner" || url.host() != Some(Host::Domain("projects")) {
         return Err(format!("Invalid {}", DB_ENV).into());
     }
+    let retries: u64 =
+        str::parse::<u64>(&env::var(RETRY_ENV_VAR).unwrap_or("10".to_owned())).unwrap_or(10);
+    let nap_time: Duration = Duration::from_millis(
+        str::parse::<u64>(&env::var(SLEEP_ENV_VAR).unwrap_or("0".to_owned())).unwrap_or(0),
+    );
 
     let database = db_url["spanner://".len()..].to_owned();
+    info!("Retries: {}, sleep: {}ms", retries, nap_time.as_millis());
     info!("For {}", database);
 
     // Set up the gRPC environment.
@@ -133,21 +142,58 @@ fn main() -> Result<(), Box<dyn Error>> {
             let _timer_batches = start_timer(&statsd, "purge_ttl.batches_duration");
             let mut req = prepare_request(&client, &session)?;
             req.set_sql("DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()".to_string());
-            let result = client.execute_sql(&req)?;
-            info!(
-                "batches: removed {} rows",
-                result.get_stats().get_row_count_lower_bound()
-            )
+            let mut success = false;
+            for i in 0..retries {
+                match client.execute_sql(&req) {
+                    Ok(result) => {
+                        info!(
+                            "batches: removed {} rows",
+                            result.get_stats().get_row_count_lower_bound()
+                        );
+                        success = true;
+                        break;
+                    }
+                    Err(e) => {
+                        info!("Batch transaction error: {}: {:?}", i, e);
+                        if nap_time.as_secs() > 0 {
+                            thread::sleep(nap_time);
+                        }
+                    }
+                }
+            }
+            if !success {
+                panic!(
+                    "Could not delete expired batches after {} attempts",
+                    retries
+                );
+            }
         }
         {
             let _timer_bso = start_timer(&statsd, "purge_ttl.bso_duration");
             let mut req = prepare_request(&client, &session)?;
             req.set_sql("DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()".to_string());
-            let result = client.execute_sql(&req)?;
-            info!(
-                "bso: removed {} rows",
-                result.get_stats().get_row_count_lower_bound()
-            )
+            let mut success = false;
+            for i in 0..retries {
+                match client.execute_sql(&req) {
+                    Ok(result) => {
+                        info!(
+                            "bso: removed {} rows",
+                            result.get_stats().get_row_count_lower_bound()
+                        );
+                        success = true;
+                        break;
+                    }
+                    Err(e) => {
+                        info!("BSO transaction error {}: {:?}", i, e);
+                        if nap_time.as_secs() > 0 {
+                            thread::sleep(nap_time);
+                        }
+                    }
+                }
+            }
+            if !success {
+                panic!("Could not delete expired bsos after {} attempts", retries);
+            }
         }
         info!("Completed purge_ttl")
     }
