@@ -357,10 +357,7 @@ pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpRespon
             id: bso_req.bso,
         })
         .map_err(From::from)
-        .map(|result: Result<SyncTimestamp, Error>| match result {
-            Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
-            Err(_e) => Ok(HttpResponse::NotFound().finish()),
-        })
+        .map_ok(|result| HttpResponse::Ok().json(json!({ "modified": result })))
 }
 
 pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {

@@ -595,8 +595,8 @@ def get_users(args, databases, fxa, bso_num, report):
                     report.fail(uid, "not found")
         else:
             try:
-                bso_user_file = args.bso_user_file.replace('#', bso_num)
-                with open(bso_user_file) as bso_file:
+                bso_users_file = args.bso_users_file.replace('#', str(bso_num))
+                with open(bso_users_file) as bso_file:
                     line = 0
                     for row in csv.reader(
                         bso_file, delimiter="\t"
@@ -684,6 +684,11 @@ def get_args():
         help="last BSO database to dump (default: 19)"
     )
     parser.add_argument(
+        '--bso_num',
+        type=int,
+        help="only move this bso (equivalent to start_bso == end_bso)"
+    )
+    parser.add_argument(
         '--write_chunk',
         dest="chunk",
         default=1666,
@@ -700,7 +705,7 @@ def get_args():
         help="delete any pre-existing --user data on spanner before the migration"
     )
     parser.add_argument(
-        '--bso_user_file',
+        '--bso_users_file',
         default="bso_users_#_{}.lst".format(today),
         help="name of the generated BSO user file. "
             "(Will use bso number for `#` if present; "
@@ -771,6 +776,8 @@ def main():
         args.user = user_list
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
+    if args.bso_num:
+        args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme
