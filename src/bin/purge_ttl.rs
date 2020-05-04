@@ -272,9 +272,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err(format!("Invalid {}", DB_ENV).into());
     }
     let retries: u64 =
-        str::parse::<u64>(&env::var(RETRY_ENV_VAR).unwrap_or("10".to_owned())).unwrap_or(10);
+        str::parse::<u64>(&env::var(RETRY_ENV_VAR).unwrap_or_else(|_| "10".to_owned()))
+            .unwrap_or(10);
     let nap_time: Duration = Duration::from_millis(
-        str::parse::<u64>(&env::var(SLEEP_ENV_VAR).unwrap_or("0".to_owned())).unwrap_or(0),
+        str::parse::<u64>(&env::var(SLEEP_ENV_VAR).unwrap_or_else(|_| "0".to_owned())).unwrap_or(0),
     );
 
     let database = db_url["spanner://".len()..].to_owned();
