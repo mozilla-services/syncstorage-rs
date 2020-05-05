@@ -895,9 +895,7 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<$result> {
             let db = self.clone();
-            Box::pin(block(move || {
-                db.$sync_name(params).map_err(Into::into)
-            }).map_err(Into::into))
+            Box::pin(block(move || db.$sync_name(params).map_err(Into::into)).map_err(Into::into))
         }
     };
 }

@@ -10,8 +10,9 @@ pub mod spanner;
 mod tests;
 pub mod util;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
+use cadence::{Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -61,6 +62,9 @@ type DbFuture<T> = LocalBoxFuture<'static, Result<T, ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
+
+    fn state(&self) -> results::PoolState;
+
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
@@ -258,4 +262,30 @@ pub fn pool_from_settings(
         "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics)?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
+}
+
+/// Emit DbPool metrics periodically
+pub fn spawn_pool_periodic_reporter(
+    interval: Duration,
+    metrics: StatsdClient,
+    pool: Box<dyn DbPool>,
+) {
+    actix_rt::spawn(async move {
+        loop {
+            let results::PoolState {
+                connections,
+                idle_connections,
+            } = pool.state();
+            metrics
+                .gauge(
+                    "storage.pool.connections.active",
+                    (connections - idle_connections) as u64,
+                )
+                .ok();
+            metrics
+                .gauge("storage.pool.connections.idle", idle_connections as u64)
+                .ok();
+            actix_rt::time::delay_for(interval).await;
+        }
+    });
 }

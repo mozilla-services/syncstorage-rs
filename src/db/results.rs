@@ -69,6 +69,22 @@ pub struct PostBsos {
     pub failed: HashMap<String, String>,
 }
 
+#[derive(Debug, Default)]
+/// A mockable r2d2::State
+pub struct PoolState {
+    pub connections: u32,
+    pub idle_connections: u32,
+}
+
+impl From<diesel::r2d2::State> for PoolState {
+    fn from(state: diesel::r2d2::State) -> PoolState {
+        PoolState {
+            connections: state.connections,
+            idle_connections: state.idle_connections,
+        }
+    }
+}
+
 #[cfg(test)]
 pub type GetCollectionId = i32;
 
