@@ -1778,7 +1778,6 @@ mod tests {
         test::{self, TestRequest},
         Error, HttpResponse,
     };
-    use base64;
     use hawk::{Credentials, Key, RequestBuilder};
     use hmac::{Hmac, Mac};
     use rand::{thread_rng, Rng};

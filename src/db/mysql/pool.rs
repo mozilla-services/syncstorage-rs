@@ -17,7 +17,7 @@ use diesel::{
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
@@ -90,6 +90,10 @@ impl DbPool for MysqlDbPool {
             })
             .map_err(Into::into),
         )
+    }
+
+    fn state(&self) -> results::PoolState {
+        self.pool.state().into()
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {

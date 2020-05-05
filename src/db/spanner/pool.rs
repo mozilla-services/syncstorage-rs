@@ -15,7 +15,7 @@ use scheduled_thread_pool::ScheduledThreadPool;
 use super::models::Result;
 #[cfg(test)]
 use super::test_util::SpannerTestTransactionCustomizer;
-use crate::db::{error::DbError, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
@@ -63,8 +63,6 @@ impl SpannerDbPool {
         let builder = r2d2::Pool::builder()
             .max_size(max_size)
             .thread_pool(Arc::new(ScheduledThreadPool::new(r2d2_thread_pool_size)));
-        let mut metrics = metrics.clone();
-        metrics.start_timer("storage.spanner.pool.get", None);
 
         #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
@@ -76,7 +74,7 @@ impl SpannerDbPool {
         Ok(Self {
             pool: builder.build(manager)?,
             coll_cache: Default::default(),
-            metrics,
+            metrics: metrics.clone(),
         })
     }
 
@@ -100,6 +98,10 @@ impl DbPool for SpannerDbPool {
             })
             .map_err(Into::into),
         )
+    }
+
+    fn state(&self) -> results::PoolState {
+        self.pool.state().into()
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
