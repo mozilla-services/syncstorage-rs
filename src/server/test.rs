@@ -5,7 +5,6 @@ use actix_web::{
     http::{self, HeaderName, HeaderValue, StatusCode},
     test,
 };
-use base64;
 use bytes::Bytes;
 use chrono::offset::Utc;
 use futures::executor::block_on;
@@ -15,7 +14,6 @@ use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
-use serde_json;
 use serde_json::json;
 use sha2::Sha256;
 use std::str::FromStr;
