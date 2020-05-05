@@ -8,13 +8,11 @@
 
 use std::convert::TryInto;
 
-use base64;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use sha2::Sha256;
 use time::Duration;
 
