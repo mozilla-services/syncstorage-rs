@@ -1,3 +1,17 @@
+<a name="0.3.2"></a>
+## 0.3.2 (2020-05-05)
+
+
+#### Chore
+
+*   cargo fmt/clippy ([c17682fa](https://github.com/mozilla-services/syncstorage-rs/commit/c17682fa464c89faea4cb2e384a6c8747834d2dc))
+
+#### Features
+
+*   emit Db pool metrics periodically (#605) ([1761f7c7](https://github.com/mozilla-services/syncstorage-rs/commit/1761f7c7f1ee40de0563ebca2a23d50b0995fcee), closes [#406](https://github.com/mozilla-services/syncstorage-rs/issues/406))
+
+
+
 <a name="0.3.1"></a>
 ## 0.3.1 (2020-04-21)
 
