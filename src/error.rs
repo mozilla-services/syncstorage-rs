@@ -104,8 +104,8 @@ impl ApiError {
     }
 
     pub fn is_conflict(&self) -> bool {
-    // Is this error a record conflict?
-    match self.kind() {
+        // Is this error a record conflict?
+        match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::Conflict => return true,
                 _ => (),
@@ -116,8 +116,8 @@ impl ApiError {
     }
 
     pub fn is_reportable(&self) -> bool {
-    // Should we report this error to sentry?
-    match self.kind() {
+        // Should we report this error to sentry?
+        match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::Conflict => return false,
                 _ => (),
