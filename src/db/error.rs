@@ -99,6 +99,11 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
         {
             DbErrorKind::Conflict
         }
+        grpcio::Error::RpcFailure(ref status)
+            if status.status == grpcio::RpcStatusCode::ALREADY_EXISTS =>
+        {
+            DbErrorKind::Conflict
+        }
         _ => DbErrorKind::SpannerGrpc(inner),
     }
 });
