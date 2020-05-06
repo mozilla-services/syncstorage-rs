@@ -15,6 +15,7 @@ use std::{fmt::Debug, time::Duration};
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
+use mozsvc_common::get_hostname;
 use serde::Deserialize;
 use url::Url;
 
@@ -269,7 +270,8 @@ pub fn spawn_pool_periodic_reporter(
     interval: Duration,
     metrics: StatsdClient,
     pool: Box<dyn DbPool>,
-) {
+) -> Result<(), DbError> {
+    let hostname = get_hostname().ok_or_else(|| DbError::internal("Couldn't get_hostname"))?;
     actix_rt::spawn(async move {
         loop {
             let results::PoolState {
@@ -277,15 +279,18 @@ pub fn spawn_pool_periodic_reporter(
                 idle_connections,
             } = pool.state();
             metrics
-                .gauge(
+                .gauge_with_tags(
                     "storage.pool.connections.active",
                     (connections - idle_connections) as u64,
                 )
-                .ok();
+                .with_tag("hostname", &hostname)
+                .send();
             metrics
-                .gauge("storage.pool.connections.idle", idle_connections as u64)
-                .ok();
+                .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
+                .with_tag("hostname", &hostname)
+                .send();
             actix_rt::time::delay_for(interval).await;
         }
     });
+    Ok(())
 }
