@@ -24,8 +24,8 @@ use log::{info, trace, warn};
 use url::{Host, Url};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
-const RETRY_ENV_VAR: &str = "RETRY_COUNT"; // Default value = 10
-const SLEEP_ENV_VAR: &str = "RETRY_SLEEP_MILLIS"; // Default value = 0
+const RETRY_ENV_VAR: &str = "PURGE_TTL_RETRY_COUNT"; // Default value = 10
+const SLEEP_ENV_VAR: &str = "PURGE_TTL_RETRY_SLEEP_MILLIS"; // Default value = 0
 
 use protobuf::well_known_types::Value;
 
@@ -89,7 +89,7 @@ fn begin_transaction(
     client: &SpannerClient,
     session: &Session,
     request_type: RequestType,
-) -> Result<(ExecuteSqlRequest, Vec<u8>), Box<dyn Error>> {
+) -> Result<(ExecuteSqlRequest, Vec<u8>), Box<grpcio::Error>> {
     // Create a transaction
     let mut opt = TransactionOptions::new();
     match request_type {
@@ -123,7 +123,7 @@ fn begin_transaction(
 fn continue_transaction(
     session: &Session,
     transaction_id: Vec<u8>,
-) -> Result<ExecuteSqlRequest, Box<dyn Error>> {
+) -> Result<ExecuteSqlRequest, Box<grpcio::Error>> {
     let mut ts = TransactionSelector::new();
     ts.set_id(transaction_id);
     let mut req = ExecuteSqlRequest::new();
@@ -136,7 +136,7 @@ fn commit_transaction(
     client: &SpannerClient,
     session: &Session,
     txn: Vec<u8>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<grpcio::Error>> {
     let mut req = CommitRequest::new();
     req.set_session(session.get_name().to_owned());
     req.set_transaction_id(txn);
@@ -169,7 +169,7 @@ fn delete_incremental(
     column: String,
     chunk_size: u64,
     max_to_delete: u64,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<grpcio::Error>> {
     let mut total: u64 = 0;
     let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
     loop {
@@ -232,7 +232,7 @@ fn delete_all(
     client: &SpannerClient,
     session: &Session,
     table: String,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), Box<grpcio::Error>> {
     let (mut req, _txn) = begin_transaction(client, session, RequestType::PartitionedDml)?;
     req.set_sql(format!(
         "DELETE FROM {} WHERE expiry < CURRENT_TIMESTAMP()",
@@ -245,6 +245,23 @@ fn delete_all(
         result.get_stats().get_row_count_lower_bound()
     );
     Ok(())
+}
+
+fn retryable(err: &grpcio::Error) -> bool {
+    // if it is NOT an ABORT, we should not retry this function.
+    match err {
+        grpcio::Error::RpcFailure(ref status)
+            if status.status == grpcio::RpcStatusCode::ABORTED =>
+        {
+            true
+        }
+        grpcio::Error::RpcFinished(Some(ref status))
+            if status.status == grpcio::RpcStatusCode::ABORTED =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -328,7 +345,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     Err(e) => {
                         warn!("Batch transaction error: {}: {:?}", i, e);
-                        if nap_time.as_secs() > 0 {
+                        if !retryable(&e) {
+                            return Err(e);
+                        }
+                        if nap_time.as_millis() > 0 {
                             thread::sleep(nap_time);
                         }
                     }
@@ -363,7 +383,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     Err(e) => {
                         warn!("BSO transaction error {}: {:?}", i, e);
-                        if nap_time.as_secs() > 0 {
+                        if nap_time.as_millis() > 0 {
                             thread::sleep(nap_time);
                         }
                     }
