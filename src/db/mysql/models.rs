@@ -236,6 +236,10 @@ impl MysqlDb {
         Ok(())
     }
 
+    pub async fn begin_async(&self, for_write: bool) -> Result<()> {
+        self.begin(for_write)
+    }
+
     pub fn commit_sync(&self) -> Result<()> {
         if self.session.borrow().in_transaction {
             self.conn
@@ -909,6 +913,11 @@ impl Db for MysqlDb {
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
+    }
+
+    fn begin(&self, for_write: bool) -> DbFuture<()> {
+        let db = self.clone();
+        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
     fn box_clone(&self) -> Box<dyn Db> {

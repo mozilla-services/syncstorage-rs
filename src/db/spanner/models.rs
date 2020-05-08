@@ -1639,6 +1639,11 @@ impl Db for SpannerDb {
         Box::pin(async move { db.lock_for_write_async(param).map_err(Into::into).await })
     }
 
+    fn begin(&self, for_write: bool) -> DbFuture<()> {
+        let db = self.clone();
+        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
+    }
+
     fn get_collection_timestamp(
         &self,
         param: params::GetCollectionTimestamp,
