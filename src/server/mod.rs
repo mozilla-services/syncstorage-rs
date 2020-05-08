@@ -158,7 +158,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
-        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone());
+        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
         let server = HttpServer::new(move || {
             // Setup the server state
