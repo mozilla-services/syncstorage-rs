@@ -79,6 +79,8 @@ pub trait Db: Send + Debug {
 
     fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<()>;
 
+    fn begin(&self, for_write: bool) -> DbFuture<()>;
+
     fn commit(&self) -> DbFuture<()>;
 
     fn rollback(&self) -> DbFuture<()>;
