@@ -1,3 +1,13 @@
+<a name="0.3.3"></a>
+## 0.3.3 (2020-05-11)
+
+
+#### Features
+
+*   include a hostname tag w/ pool metrics (#627) ([f11c04b5](https://github.com/mozilla-services/syncstorage-rs/commit/f11c04b530ef738703d87b8ea9c882bbfe21df80), closes [#555](https://github.com/mozilla-services/syncstorage-rs/issues/555))
+
+
+
 <a name="0.3.2"></a>
 ## 0.3.2 (2020-05-05)
 
