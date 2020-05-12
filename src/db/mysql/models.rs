@@ -211,6 +211,7 @@ impl MysqlDb {
             let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
             if modified >= self.timestamp() {
+                self.metrics.clone().incr("db.conflict");
                 Err(DbErrorKind::Conflict)?
             }
             self.session
