@@ -48,4 +48,3 @@ UPDATE bsos
           AND collection_id = @collection_id
           AND batch_id = @batch_id
    )
-   AND expiry > CURRENT_TIMESTAMP()
