@@ -1,3 +1,13 @@
+<a name="0.3.4"></a>
+## 0.3.4 (2020-05-13)
+
+
+#### Bug Fixes
+
+*   don't consider expiry during batch commit (#632) ([90ff7485](https://github.com/mozilla-services/syncstorage-rs/commit/90ff74858f10f5e52f1acd60a57f6a2ead46c891))
+
+
+
 <a name="0.3.3"></a>
 ## 0.3.3 (2020-05-11)
 
