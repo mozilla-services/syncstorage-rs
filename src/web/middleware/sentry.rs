@@ -76,6 +76,13 @@ where
             match sresp.response().error() {
                 None => {}
                 Some(e) => {
+                    let apie: Option<&ApiError> = e.as_error();
+                    if let Some(apie) = apie {
+                        if !apie.is_reportable() {
+                            debug!("Not reporting error to sentry: {:?}", apie);
+                            return future::ok(sresp);
+                        }
+                    }
                     // The extensions defined in the request do not get populated
                     // into the response. There can be two different, and depending
                     // on where a tag may be set, only one set may be available.
@@ -98,7 +105,6 @@ where
                     // deriving the sentry event from a fail directly from the error
                     // is not currently thread safe. Downcasting the error to an
                     // ApiError resolves this.
-                    let apie: Option<&ApiError> = e.as_error();
                     if let Some(apie) = apie {
                         let mut event = sentry::integrations::failure::event_from_fail(apie);
                         event.tags = tags.clone().tag_tree();

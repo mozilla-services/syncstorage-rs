@@ -14,7 +14,7 @@ use super::{
 use crate::db::{params, results, DbError, DbErrorKind, BATCH_LIFETIME};
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
-    let user_id = params.user_id.legacy_id as i32;
+    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp().as_i64();
     let bsos = bsos_to_batch_string(&params.bsos)?;
@@ -39,7 +39,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
     let id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i32;
+    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     let exists = batches::table
         .select(sql::<Integer>("1"))
@@ -54,7 +54,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
 
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     let id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i32;
+    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     let bsos = bsos_to_batch_string(&params.bsos)?;
     let affected_rows = update(batches::table)
@@ -80,7 +80,7 @@ pub struct Batch {
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
     let id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i32;
+    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     Ok(batches::table
         .select((batches::id, batches::bsos, batches::expiry))
@@ -99,7 +99,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     let id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i32;
+    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     diesel::delete(batches::table)
         .filter(batches::user_id.eq(&user_id))

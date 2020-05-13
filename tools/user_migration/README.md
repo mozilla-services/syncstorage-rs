@@ -1,19 +1,17 @@
  # User Migration Script
 
-This is a workspace for testing user migration from the old databases to the new durable one.
+This is a workspace for testing user migration from the old databases
+to the new durable one.
 
-There are several candidate scrips that you can use. More than likely, you want to use
+There are several candidate scripts that you can use.
 
-```bash
-GOOGLE_APPLICATION_CREDENTIALS=credentials.json migrate_node.py \
-    [--dsns=move_dsns.lst] \
-    [--deanon --fxa_file=users.csv] \
-    [--start_bso=0] \
-    [--end_bso=19]
-```
-where:
+These progress off of each other in order to provide cached results.
 
-* *dsns* - a file containing the mysql and spanner DSNs for the users. Each DSN should be on a single line. Currently only one DSN of a given type is permitted.
+There are a few base files you'll want to declare:
+
+* *dsns* - a file containing the mysql and spanner DSNs for the users.
+  Each DSN should be on a single line. Currently only one DSN of a
+given type is permitted.
 
 (e.g.)
 
@@ -30,7 +28,36 @@ mysql -e "select uid, email, generation, keys_changed_at, \
 ```
 The script will automatically skip the title row, and presumes that fields are tab separated.
 
-UserIDs are converted to fxa_uid/fxa_kid values and cached locally.
+
+With those files you can now run:
+
+```bash
+gen_fxa_users.py
+```
+which will take the `users.csv` raw data and generate a
+`fxa_users_{date}.lst` file.
+
+```bash
+gen_bso_users.py --bso_num #
+```
+which will automatically read in the `fxa_users_{date}.lst` file,
+connect to the mysql database, and geneate a list of sorted users
+taken from the `bso#` table. This will create the
+`bso_users_{bso_num}_{date}.lst` file
+
+and finally:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=credentials.json migrate_node.py \
+    [--start_bso=0] \
+    [--end_bso=19] \
+    [--user_percent 1:100]
+```
+
+Which will read the `bso_users_#_{date}.lst` files and move the users
+based on `--user_percent`
+
+More importantly `--help` is your friend. feel free to use liberally.
 
 ## installation
 
@@ -42,7 +69,7 @@ virtualenv venv && venv/bin/pip install -r requirements.txt
 
 Since you will be connecting to the GCP Spanner API, you will need to have set the `GOOGLE_APPLICATION_CREDENTIALS` env var before running these scripts. This environment variable should point to the exported Google Credentials acquired from the GCP console.
 
-The script will take the following actions:
+The scripts will take the following actions:
 
 1. fetch all users from a given node.
 1. compare and port all user_collections over (NOTE: this may involve remapping collecitonid values.)

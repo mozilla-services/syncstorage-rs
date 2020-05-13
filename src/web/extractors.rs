@@ -1212,7 +1212,7 @@ impl FromRequest for Box<dyn Db> {
 #[serde(default)]
 pub struct Offset {
     pub timestamp: Option<SyncTimestamp>,
-    pub offset: i64,
+    pub offset: u64,
 }
 
 impl ToString for Offset {
@@ -1231,19 +1231,19 @@ impl FromStr for Offset {
         // previously (it was u64 previously but i64's close enough)
         let result = Offset {
             timestamp: None,
-            offset: s.parse::<i64>()?,
+            offset: s.parse::<u64>()?,
         };
         /*
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
-                offset: s.parse::<i64>()?,
+                offset: s.parse::<u64>()?,
             },
             Some(_colon_position) => {
                 let mut parts = s.split(':');
                 let timestamp_string = parts.next().unwrap_or("0");
                 let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
-                let offset = parts.next().unwrap_or("0").parse::<i64>()?;
+                let offset = parts.next().unwrap_or("0").parse::<u64>()?;
                 Offset {
                     timestamp: Some(timestamp),
                     offset,

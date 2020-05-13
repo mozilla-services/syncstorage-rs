@@ -141,7 +141,7 @@ impl MysqlDb {
     /// than explicit locking, but our ops team have expressed concerns about
     /// the efficiency of that approach at scale.
     pub fn lock_for_read_sync(&self, params: params::LockCollection) -> Result<()> {
-        let user_id = params.user_id.legacy_id as u32;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id =
             self.get_collection_id(&params.collection)
                 .or_else(|e| match e.kind() {
@@ -156,7 +156,7 @@ impl MysqlDb {
             .session
             .borrow()
             .coll_locks
-            .get(&(user_id, collection_id))
+            .get(&(user_id as u32, collection_id))
             .is_some()
         {
             return Ok(());
@@ -166,7 +166,7 @@ impl MysqlDb {
         self.begin(false)?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .lock_in_share_mode()
             .first(&self.conn)
@@ -176,24 +176,24 @@ impl MysqlDb {
             self.session
                 .borrow_mut()
                 .coll_modified_cache
-                .insert((user_id, collection_id), modified);
+                .insert((user_id as u32, collection_id), modified); // why does it still expect a u32 int?
         }
         // XXX: who's responsible for unlocking (removing the entry)
         self.session
             .borrow_mut()
             .coll_locks
-            .insert((user_id, collection_id), CollectionLock::Read);
+            .insert((user_id as u32, collection_id), CollectionLock::Read);
         Ok(())
     }
 
     pub fn lock_for_write_sync(&self, params: params::LockCollection) -> Result<()> {
-        let user_id = params.user_id.legacy_id as u32;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
             .session
             .borrow()
             .coll_locks
-            .get(&(user_id, collection_id))
+            .get(&(user_id as u32, collection_id))
         {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
@@ -202,7 +202,7 @@ impl MysqlDb {
         self.begin(true)?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first(&self.conn)
@@ -211,17 +211,18 @@ impl MysqlDb {
             let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
             if modified >= self.timestamp() {
+                self.metrics.clone().incr("db.conflict");
                 Err(DbErrorKind::Conflict)?
             }
             self.session
                 .borrow_mut()
                 .coll_modified_cache
-                .insert((user_id, collection_id), modified);
+                .insert((user_id as u32, collection_id), modified);
         }
         self.session
             .borrow_mut()
             .coll_locks
-            .insert((user_id, collection_id), CollectionLock::Write);
+            .insert((user_id as u32, collection_id), CollectionLock::Write);
         Ok(())
     }
 
@@ -234,6 +235,10 @@ impl MysqlDb {
             self.session.borrow_mut().in_write_transaction = true;
         }
         Ok(())
+    }
+
+    pub async fn begin_async(&self, for_write: bool) -> Result<()> {
+        self.begin(for_write)
     }
 
     pub fn commit_sync(&self) -> Result<()> {
@@ -264,7 +269,7 @@ impl MysqlDb {
             collection_id = COLLECTION_ID,
             modified = LAST_MODIFIED
         ))
-        .bind::<Integer, _>(user_id)
+        .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(TOMBSTONE)
         .bind::<BigInt, _>(self.timestamp().as_i64())
         .execute(&self.conn)?;
@@ -272,7 +277,7 @@ impl MysqlDb {
     }
 
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
-        let user_id = user_id.legacy_id as i32;
+        let user_id = user_id.legacy_id as i64;
         self.begin(true)?;
         // Delete user data.
         delete(bso::table)
@@ -292,14 +297,14 @@ impl MysqlDb {
         &self,
         params: params::DeleteCollection,
     ) -> Result<SyncTimestamp> {
-        let user_id = params.user_id.legacy_id;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let mut count = delete(bso::table)
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .execute(&self.conn)?;
         count += delete(user_collections::table)
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(&collection_id))
             .execute(&self.conn)?;
         if count == 0 {
@@ -433,7 +438,7 @@ impl MysqlDb {
             );
 
             sql_query(q)
-                .bind::<Integer, _>(user_id as i32) // XXX:
+                .bind::<BigInt, _>(user_id as i64) // XXX:
                 .bind::<Integer, _>(&collection_id)
                 .bind::<Text, _>(&bso.id)
                 .bind::<Nullable<Integer>, _>(sortindex)
@@ -447,7 +452,7 @@ impl MysqlDb {
     }
 
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
-        let user_id = params.user_id.legacy_id as i32;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let BsoQueryParams {
             newer,
@@ -503,7 +508,7 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
 
         if numeric_offset != 0 {
             // XXX: copy over this optimization:
@@ -531,7 +536,7 @@ impl MysqlDb {
     }
 
     pub fn get_bso_ids_sync(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
-        let user_id = params.user_id.legacy_id as i32;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let BsoQueryParams {
             newer,
@@ -573,7 +578,7 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset);
+        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
         if numeric_offset != 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
@@ -600,7 +605,7 @@ impl MysqlDb {
     }
 
     pub fn get_bso_sync(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
-        let user_id = params.user_id.legacy_id;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         Ok(bso::table
             .select((
@@ -610,7 +615,7 @@ impl MysqlDb {
                 bso::sortindex,
                 bso::expiry,
             ))
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&params.id))
             .filter(bso::expiry.ge(self.timestamp().as_i64()))
@@ -622,7 +627,7 @@ impl MysqlDb {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection)?;
         let affected_rows = delete(bso::table)
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(params.id))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
@@ -634,10 +639,10 @@ impl MysqlDb {
     }
 
     pub fn delete_bsos_sync(&self, params: params::DeleteBsos) -> Result<results::DeleteBsos> {
-        let user_id = params.user_id.legacy_id;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         delete(bso::table)
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq_any(params.ids))
             .execute(&self.conn)?;
@@ -678,7 +683,7 @@ impl MysqlDb {
     }
 
     pub fn get_storage_timestamp_sync(&self, user_id: HawkIdentifier) -> Result<SyncTimestamp> {
-        let user_id = user_id.legacy_id as i32;
+        let user_id = user_id.legacy_id as i64;
         let modified = user_collections::table
             .select(max(user_collections::modified))
             .filter(user_collections::user_id.eq(user_id))
@@ -703,7 +708,7 @@ impl MysqlDb {
         }
         user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id as i32))
+            .filter(user_collections::user_id.eq(user_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .first(&self.conn)
             .optional()?
@@ -711,11 +716,11 @@ impl MysqlDb {
     }
 
     pub fn get_bso_timestamp_sync(&self, params: params::GetBsoTimestamp) -> Result<SyncTimestamp> {
-        let user_id = params.user_id.legacy_id;
+        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let modified = bso::table
             .select(bso::modified)
-            .filter(bso::user_id.eq(user_id as i32))
+            .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&params.id))
             .first::<i64>(&self.conn)
@@ -737,7 +742,7 @@ impl MysqlDb {
             user_id = USER_ID,
             modified = LAST_MODIFIED
         ))
-        .bind::<Integer, _>(user_id.legacy_id as i32)
+        .bind::<BigInt, _>(user_id.legacy_id as i64)
         .bind::<Integer, _>(TOMBSTONE)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
@@ -813,7 +818,7 @@ impl MysqlDb {
             modified = LAST_MODIFIED
         );
         sql_query(upsert)
-            .bind::<Integer, _>(user_id as i32)
+            .bind::<BigInt, _>(user_id as i64)
             .bind::<Integer, _>(&collection_id)
             .bind::<BigInt, _>(&self.timestamp().as_i64())
             .bind::<BigInt, _>(&self.timestamp().as_i64())
@@ -827,7 +832,7 @@ impl MysqlDb {
     ) -> Result<results::GetStorageUsage> {
         let total_size = bso::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
-            .filter(bso::user_id.eq(user_id.legacy_id as i32))
+            .filter(bso::user_id.eq(user_id.legacy_id as i64))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .get_result::<Option<i64>>(&self.conn)?;
         Ok(total_size.unwrap_or_default() as u64)
@@ -839,7 +844,7 @@ impl MysqlDb {
     ) -> Result<results::GetCollectionUsage> {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
-            .filter(bso::user_id.eq(user_id.legacy_id as i32))
+            .filter(bso::user_id.eq(user_id.legacy_id as i64))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -860,7 +865,7 @@ impl MysqlDb {
                     collection_id = COLLECTION_ID
                 )),
             ))
-            .filter(bso::user_id.eq(user_id.legacy_id as i32))
+            .filter(bso::user_id.eq(user_id.legacy_id as i64))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .group_by(bso::collection_id)
             .load(&self.conn)?
@@ -909,6 +914,11 @@ impl Db for MysqlDb {
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
+    }
+
+    fn begin(&self, for_write: bool) -> DbFuture<()> {
+        let db = self.clone();
+        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
     fn box_clone(&self) -> Box<dyn Db> {

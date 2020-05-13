@@ -57,6 +57,10 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
+    fn begin(&self, _for_write: bool) -> DbFuture<()> {
+        Box::pin(future::ok(()))
+    }
+
     fn box_clone(&self) -> Box<dyn Db> {
         Box::new(self.clone())
     }
