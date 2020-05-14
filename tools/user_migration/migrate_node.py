@@ -776,7 +776,7 @@ def main():
         args.user = user_list
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
-    if args.bso_num:
+    if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
         dsn = urlparse(line.strip())
