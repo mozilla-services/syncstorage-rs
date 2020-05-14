@@ -18,6 +18,10 @@ impl DbPool for MockDbPool {
         Box::pin(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
     }
 
+    fn state(&self) -> results::PoolState {
+        results::PoolState::default()
+    }
+
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
     }
@@ -50,6 +54,10 @@ impl Db for MockDb {
     }
 
     fn rollback(&self) -> DbFuture<()> {
+        Box::pin(future::ok(()))
+    }
+
+    fn begin(&self, _for_write: bool) -> DbFuture<()> {
         Box::pin(future::ok(()))
     }
 

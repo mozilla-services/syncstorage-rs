@@ -104,6 +104,7 @@ impl ApiError {
     }
 
     pub fn is_conflict(&self) -> bool {
+        // Is this error a record conflict?
         match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::Conflict => return true,
@@ -112,6 +113,18 @@ impl ApiError {
             _ => (),
         }
         false
+    }
+
+    pub fn is_reportable(&self) -> bool {
+        // Should we report this error to sentry?
+        match self.kind() {
+            ApiErrorKind::Db(dbe) => match dbe.kind() {
+                DbErrorKind::Conflict => return false,
+                _ => (),
+            },
+            _ => (),
+        }
+        true
     }
 
     fn weave_error_code(&self) -> WeaveError {
