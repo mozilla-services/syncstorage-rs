@@ -107,7 +107,8 @@ To point to a GCP hosted Spanner instance from your local machine, follow these 
 5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
 ### Running via Docker
-This currently requires access to the [mozilla-rust-sdk](https://github.com/mozilla-services/mozilla-rust-sdk) repo. If you don't have it, this will be made public soon; we'll update the README here when that happens.
+This requires access to the mozilla-rust-sdk which is now available at `/vendor/mozilla-rust-adk`.
+
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
 3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
@@ -116,7 +117,7 @@ This currently requires access to the [mozilla-rust-sdk](https://github.com/mozi
       build:
         context: .
     ```
-5. Adjust the MySQL db creds in docker-compose.yml to match your local setup.
+5. Adjust the MySQL db credentials in docker-compose.yml to match your local setup.
 6. `make docker_start` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
 
 ### Connecting to Firefox
@@ -151,7 +152,7 @@ This will walk you through the steps to connect this project to your local copy 
 ## Logging
 
 ### Sentry:
-1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value.
+1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-local/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-local/keys/). Copy the `DSN` value.
 2. Comment out the `human_logs` line in your `config/local.toml` file.
 3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
 4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run`.

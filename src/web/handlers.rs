@@ -69,7 +69,12 @@ pub async fn get_quota(meta: MetaRequest) -> Result<HttpResponse, Error> {
 pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
     #![allow(clippy::unit_arg)]
     meta.metrics.incr("request.delete_all");
-    Ok(HttpResponse::Ok().json(meta.db.delete_storage(meta.user_id).await?))
+    let db = meta.db;
+    db.begin(true).await?;
+    match db.delete_storage(meta.user_id).await {
+        Ok(r) => Ok(HttpResponse::Ok().json(r)),
+        Err(e) => Err(e.into()),
+    }
 }
 
 pub fn delete_collection(

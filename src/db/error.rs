@@ -1,8 +1,6 @@
 use std::fmt;
 
 use actix_web::http::StatusCode;
-use diesel;
-use diesel_migrations;
 use failure::{Backtrace, Context, Fail};
 
 #[derive(Debug)]
@@ -98,6 +96,11 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
     match inner {
         grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
             if status.status == grpcio::RpcStatusCode::ABORTED =>
+        {
+            DbErrorKind::Conflict
+        }
+        grpcio::Error::RpcFailure(ref status)
+            if status.status == grpcio::RpcStatusCode::ALREADY_EXISTS =>
         {
             DbErrorKind::Conflict
         }
