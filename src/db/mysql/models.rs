@@ -211,6 +211,7 @@ impl MysqlDb {
             let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
             if modified >= self.timestamp() {
+                self.metrics.clone().incr("db.conflict");
                 Err(DbErrorKind::Conflict)?
             }
             self.session
@@ -234,6 +235,10 @@ impl MysqlDb {
             self.session.borrow_mut().in_write_transaction = true;
         }
         Ok(())
+    }
+
+    pub async fn begin_async(&self, for_write: bool) -> Result<()> {
+        self.begin(for_write)
     }
 
     pub fn commit_sync(&self) -> Result<()> {
@@ -909,6 +914,11 @@ impl Db for MysqlDb {
     fn rollback(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
+    }
+
+    fn begin(&self, for_write: bool) -> DbFuture<()> {
+        let db = self.clone();
+        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
     fn box_clone(&self) -> Box<dyn Db> {

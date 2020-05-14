@@ -276,6 +276,7 @@ impl SpannerDb {
             // Forbid the write if it would not properly incr the modified
             // timestamp
             if modified >= now {
+                self.metrics.clone().incr("db.conflict");
                 Err(DbErrorKind::Conflict)?
             }
             self.session
@@ -1637,6 +1638,11 @@ impl Db for SpannerDb {
     fn lock_for_write(&self, param: params::LockCollection) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(async move { db.lock_for_write_async(param).map_err(Into::into).await })
+    }
+
+    fn begin(&self, for_write: bool) -> DbFuture<()> {
+        let db = self.clone();
+        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
     fn get_collection_timestamp(

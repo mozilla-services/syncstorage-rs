@@ -152,7 +152,7 @@ This will walk you through the steps to connect this project to your local copy 
 ## Logging
 
 ### Sentry:
-1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-dev/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-dev/keys/). Copy the `DSN` value.
+1. If you want to connect to the existing [Sentry project](https://sentry.prod.mozaws.net/operations/syncstorage-local/) for local development, login to Sentry, and go to the page with [api keys](https://sentry.prod.mozaws.net/settings/operations/syncstorage-local/keys/). Copy the `DSN` value.
 2. Comment out the `human_logs` line in your `config/local.toml` file.
 3. You can force an error to appear in Sentry by adding a `panic!` into main.rs, just before the final `Ok(())`.
 4. Now, `SENTRY_DSN={INSERT_DSN_FROM_STEP_1_HERE} make run`.
