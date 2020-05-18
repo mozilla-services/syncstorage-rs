@@ -361,7 +361,7 @@ pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
             collection: bso_req.collection,
             id: bso_req.bso,
         })
-        .await
+        .await?
     {
         Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
         Err(_e) => Ok(HttpResponse::NotFound().finish()),
