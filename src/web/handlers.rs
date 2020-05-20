@@ -354,18 +354,15 @@ pub fn post_collection_batch(
 
 pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.delete_bso");
-    match bso_req
+    let result = bso_req
         .db
         .delete_bso(params::DeleteBso {
             user_id: bso_req.user_id,
             collection: bso_req.collection,
             id: bso_req.bso,
         })
-        .await?
-    {
-        Ok(result) => Ok(HttpResponse::Ok().json(json!({ "modified": result }))),
-        Err(_e) => Ok(HttpResponse::NotFound().finish()),
-    }
+        .await?;
+    Ok(HttpResponse::Ok().json(json!({ "modified": result })))
 }
 
 pub async fn get_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
