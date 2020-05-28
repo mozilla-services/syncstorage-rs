@@ -352,40 +352,39 @@ pub fn post_collection_batch(
     )
 }
 
-pub fn delete_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.delete_bso");
-    bso_req
+    let result = bso_req
         .db
         .delete_bso(params::DeleteBso {
             user_id: bso_req.user_id,
             collection: bso_req.collection,
             id: bso_req.bso,
         })
-        .map_err(From::from)
-        .map_ok(|result| HttpResponse::Ok().json(json!({ "modified": result })))
+        .await?;
+    Ok(HttpResponse::Ok().json(json!({ "modified": result })))
 }
 
-pub fn get_bso(bso_req: BsoRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.get_bso");
-    bso_req
+    let result = bso_req
         .db
         .get_bso(params::GetBso {
             user_id: bso_req.user_id,
             collection: bso_req.collection,
             id: bso_req.bso,
         })
-        .map_err(From::from)
-        .map_ok(|result| {
-            result.map_or_else(
-                || HttpResponse::NotFound().finish(),
-                |bso| HttpResponse::Ok().json(bso),
-            )
-        })
+        .await?;
+
+    Ok(result.map_or_else(
+        || HttpResponse::NotFound().finish(),
+        |bso| HttpResponse::Ok().json(bso),
+    ))
 }
 
-pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn put_bso(bso_req: BsoPutRequest) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.put_bso");
-    bso_req
+    let result = bso_req
         .db
         .put_bso(params::PutBso {
             user_id: bso_req.user_id,
@@ -395,12 +394,11 @@ pub fn put_bso(bso_req: BsoPutRequest) -> impl Future<Output = Result<HttpRespon
             payload: bso_req.body.payload,
             ttl: bso_req.body.ttl,
         })
-        .map_err(From::from)
-        .map_ok(|result| {
-            HttpResponse::build(StatusCode::OK)
-                .header(X_LAST_MODIFIED, result.as_header())
-                .json(result)
-        })
+        .await?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_LAST_MODIFIED, result.as_header())
+        .json(result))
 }
 
 pub fn get_configuration(creq: ConfigRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
