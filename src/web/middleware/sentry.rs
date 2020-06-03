@@ -101,7 +101,7 @@ where
         let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
-        Box::pin(self.service.call(sreq).and_then(move |sresp| {
+        Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
             // handed an actix_error::error::Error;
             // Fetch out the tags (in case any have been added.) NOTE: request extensions
             // are NOT automatically passed to responses. You need to check both.
@@ -123,16 +123,22 @@ where
                 None => {
                     // Middleware errors are eaten by current versions of Actix. Errors are now added
                     // to the extensions. Need to check both for any errors and report them.
-                    if let Some(events) = sresp.request().extensions().get::<Vec<Event<'static>>>()
+                    if let Some(events) = sresp
+                        .request()
+                        .extensions_mut()
+                        .remove::<Vec<Event<'static>>>()
                     {
-                        for event in events.clone() {
+                        for event in events {
                             debug!("Found an error in request: {:?}", &event);
                             report(&tags, event);
                         }
                     }
-                    if let Some(events) = sresp.response().extensions().get::<Vec<Event<'static>>>()
+                    if let Some(events) = sresp
+                        .response_mut()
+                        .extensions_mut()
+                        .remove::<Vec<Event<'static>>>()
                     {
-                        for event in events.clone() {
+                        for event in events {
                             debug!("Found an error in response: {:?}", &event);
                             report(&tags, event);
                         }
