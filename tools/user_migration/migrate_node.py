@@ -72,6 +72,19 @@ class Report:
         self._success.close()
         self._failure.close()
 
+    def read_failure(self, input):
+        start = 19
+        end = 0
+        users = []
+        for line in open(input).readlines():
+            line = line.strip()
+            if line[0] in "#;/":
+                continue
+            (bso, user, reason) = line.split("\t")
+            start = min(start, int(bso))
+            end = max(end, int(bso))
+            users.append(user)
+        return (int(start), int(end), users)
 
 class FXA_info:
     """User information from Tokenserver database.
@@ -226,7 +239,8 @@ def conf_mysql(dsn):
         password=dsn.password,
         host=dsn.hostname,
         port=dsn.port or 3306,
-        database=dsn.path[1:]
+        database=dsn.path[1:],
+        auth_plugin="mysql_native_password"
     )
     return connection
 
@@ -642,7 +656,6 @@ def move_database(databases, collections, bso_num, fxa, args, report):
     ))
     return rows
 
-
 def get_args():
     pid = os.getpid()
     today = datetime.now().strftime("%Y_%m_%d")
@@ -698,6 +711,11 @@ def get_args():
         '--user',
         type=str,
         help="BSO#:userId[,userid,...] to move."
+    )
+    parser.add_argument(
+        '--retry_file',
+        type=str,
+        help="Copy of failure file to read user IDs to retry."
     )
     parser.add_argument(
         '--wipe_user',
@@ -776,6 +794,9 @@ def main():
         args.user = user_list
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
+    if args.retry_file:
+        (args.start_bso, args.end_bso, args.user) = report.read_failure(
+            args.retry_file)
     if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
