@@ -1,0 +1,2 @@
+google-cloud-spanner >=1.16.0
+statsd
