@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use cadence::{
     BufferedUdpMetricSink, Metric, QueuingMetricSink, StatsdClient, Timed, DEFAULT_PORT,
 };
-
 use googleapis_raw::spanner::v1::{
     spanner::{
         BeginTransactionRequest, CommitRequest, CreateSessionRequest, ExecuteSqlRequest, Session,
