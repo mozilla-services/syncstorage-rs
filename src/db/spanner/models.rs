@@ -395,7 +395,7 @@ impl SpannerDb {
         self.session
             .borrow_mut()
             .mutations
-            .get_or_insert_with(|| vec![])
+            .get_or_insert_with(Vec::new)
             .push(mutation);
     }
 
@@ -405,7 +405,7 @@ impl SpannerDb {
         self.session
             .borrow_mut()
             .mutations
-            .get_or_insert_with(|| vec![])
+            .get_or_insert_with(Vec::new)
             .push(mutation);
     }
 
@@ -416,7 +416,7 @@ impl SpannerDb {
         self.session
             .borrow_mut()
             .mutations
-            .get_or_insert_with(|| vec![])
+            .get_or_insert_with(Vec::new)
             .push(mutation);
     }
 
@@ -1362,10 +1362,7 @@ impl SpannerDb {
             if existing.contains(&bso.id) {
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
-                updates
-                    .entry(columns)
-                    .or_insert_with(|| vec![])
-                    .push(values);
+                updates.entry(columns).or_insert_with(Vec::new).push(values);
             } else {
                 let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
