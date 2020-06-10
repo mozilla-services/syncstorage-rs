@@ -73,7 +73,7 @@ impl HawkPayload {
         secrets: &Secrets,
         expiry: u64,
     ) -> ApiResult<HawkPayload> {
-        if &header[0..5] != "Hawk " {
+        if header.len() < 5 || &header[0..5] != "Hawk " {
             Err(HawkErrorKind::MissingPrefix)?;
         }
 
@@ -269,6 +269,23 @@ mod tests {
 
         let result = HawkPayload::new(
             &fixture.header.to_string()[1..],
+            &fixture.request.method,
+            &fixture.request.path,
+            &fixture.request.host,
+            fixture.request.port,
+            &fixture.settings.master_secret,
+            fixture.expected.expires.round() as u64 - 1,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn bad_short_header() {
+        let fixture = TestFixture::new();
+
+        let result = HawkPayload::new(
+            "True",
             &fixture.request.method,
             &fixture.request.path,
             &fixture.request.host,
