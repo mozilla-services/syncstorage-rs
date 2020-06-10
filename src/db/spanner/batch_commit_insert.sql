@@ -23,5 +23,4 @@ SELECT
         WHERE fxa_uid = @fxa_uid
           AND fxa_kid = @fxa_kid
           AND collection_id = @collection_id
-          AND expiry > CURRENT_TIMESTAMP()
    )
