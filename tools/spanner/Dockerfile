@@ -6,4 +6,5 @@ RUN pip install -r /app/requirements.txt
 
 USER nobody
 
-ENTRYPOINT ["/usr/local/bin/python", "/app/purge_ttl.py"]
+ENTRYPOINT ["/usr/local/bin/python"]
+CMD ["/app/purge_ttl.py"]

@@ -185,7 +185,6 @@ jobs:
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
-
       - run:
           name: Deploy to Dockerhub
           command: |
@@ -216,12 +215,11 @@ jobs:
       - image: docker:18.02.0-ce
     steps:
       - setup_remote_docker
-      - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
       - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-
+          name: Build python utils image
+          command: |
+            cd tools/spanner
+            docker build -t utils:build .
       - run:
           name: Deploy to Dockerhub
           command: |
@@ -241,7 +239,7 @@ jobs:
             if [ -n "${DOCKER_TAG}" ]; then
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker tag utils:build ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
               docker images
               docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
             else
