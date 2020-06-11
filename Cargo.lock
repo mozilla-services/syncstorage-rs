@@ -1251,9 +1251,9 @@ dependencies = [
 
 [[package]]
 name = "grpcio"
-version = "0.5.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a779eb8dc982fa4a552eb21e2962b2d927ea9037cb21be8645034c9e79ee4a29"
+checksum = "7a60cc544face71ebbc053d821fdf880b809340b67d19f5d07d6b829e9e36e63"
 dependencies = [
  "futures 0.1.29",
  "grpcio-sys",
@@ -1264,9 +1264,9 @@ dependencies = [
 
 [[package]]
 name = "grpcio-sys"
-version = "0.5.0"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48b1b6365d95c795aa3840b19c5364ad0a4bf82bfd48b2f9185719b9f8e614a7"
+checksum = "8ae317d29eb55297b760ca3641662f140e17b9dc36e3f23a3e7e7327e3c33c7e"
 dependencies = [
  "bindgen",
  "cc",
