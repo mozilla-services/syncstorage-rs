@@ -217,12 +217,7 @@ jobs:
       - setup_remote_docker
       - checkout
       - run:
-          name: Build python utils image
-          command: |
-            cd tools/spanner
-            docker build -t utils:build .
-      - run:
-          name: Deploy to Dockerhub
+          name: Build and deploy to Dockerhub
           command: |
             export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
@@ -240,11 +235,12 @@ jobs:
             if [ -n "${DOCKER_TAG}" ]; then
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag utils:build ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
+              cd tools/spanner
+              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
               docker images
               docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
             else
-              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+              echo "Not building or pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
 
 workflows:
