@@ -1,6 +1,7 @@
 use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
+use crate::web::middleware::sentry::queue_report;
 use crate::web::{
     extractors::{
         extrude_db, BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
@@ -9,6 +10,7 @@ use crate::web::{
     tags::Tags,
     DOCKER_FLOW_ENDPOINTS, X_LAST_MODIFIED,
 };
+
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::{header, StatusCode},
@@ -95,6 +97,7 @@ where
             },
             Err(e) => {
                 warn!("⚠️ Precondition error {:?}", e);
+                queue_report(sreq.extensions_mut(), &e);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::BadRequest()
@@ -109,6 +112,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 warn!("⚠️ Hawk header error {:?}", e);
+                queue_report(sreq.extensions_mut(), &e);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::Unauthorized()
@@ -124,6 +128,7 @@ where
             Ok(v) => v,
             Err(e) => {
                 error!("⚠️ Database access error {:?}", e);
+                queue_report(sreq.extensions_mut(), &e);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()
@@ -140,6 +145,7 @@ where
             Ok(v) => v.map(|c| c.collection),
             Err(e) => {
                 warn!("⚠️ Collection Error:  {:?}", e);
+                queue_report(sreq.extensions_mut(), &e);
                 return Box::pin(future::ok(
                     sreq.into_response(
                         HttpResponse::InternalServerError()

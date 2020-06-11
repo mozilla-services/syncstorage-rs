@@ -8,8 +8,7 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use actix_web::dev::ServiceRequest;
-use actix_web::Error;
+use actix_web::{dev::ServiceRequest, Error};
 
 use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
