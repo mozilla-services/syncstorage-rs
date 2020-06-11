@@ -1,3 +1,13 @@
+<a name="0.4.1"></a>
+## 0.4.1 (2020-06-11)
+
+
+#### Bug Fixes
+
+*   python image build needs stable docker git container ([93edc9f6](https://github.com/mozilla-services/syncstorage-rs/commit/93edc9f6d20300dc2355cf80850ebf6d67143f5c))
+
+
+
 <a name="0.4.0"></a>
 ## 0.4.0 (2020-06-11)
 
