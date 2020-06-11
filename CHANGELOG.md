@@ -1,3 +1,47 @@
+<a name="0.4.0"></a>
+## 0.4.0 (2020-06-11)
+
+
+#### Doc
+
+*   update per sentry dev's rename to local (#628) ([456c857d](https://github.com/mozilla-services/syncstorage-rs/commit/456c857dc06192d671516bd17f474d59f51cae30))
+*   Update instructions for running syncstorage-rs via Docker (#624) ([eb5fa003](https://github.com/mozilla-services/syncstorage-rs/commit/eb5fa003d183b81b146c12afd498e8bf3555f334))
+
+#### Refactor
+
+*   quiet clippy warnings ([b08a90f1](https://github.com/mozilla-services/syncstorage-rs/commit/b08a90f14ab8db1bf1c7dedfc35d59d0fb05d2ee))
+*   Convert actix-web frontend *_bso calls to async await (#638) ([7203b8fb](https://github.com/mozilla-services/syncstorage-rs/commit/7203b8fb7f4ccaf6bfbd47cd5d21876ad641f653), closes [#543](https://github.com/mozilla-services/syncstorage-rs/issues/543))
+*   convert actix-web front-end calls to async ([300f2852](https://github.com/mozilla-services/syncstorage-rs/commit/300f28524677c0d4200ed3f440ed48f06dd21899), closes [#541](https://github.com/mozilla-services/syncstorage-rs/issues/541), [#541](https://github.com/mozilla-services/syncstorage-rs/issues/541), [#541](https://github.com/mozilla-services/syncstorage-rs/issues/541), [#541](https://github.com/mozilla-services/syncstorage-rs/issues/541), [#541](https://github.com/mozilla-services/syncstorage-rs/issues/541))
+*   use u64 instead of i64 for Offset.offset ([8f4f4407](https://github.com/mozilla-services/syncstorage-rs/commit/8f4f4407a6f03d8d3ee90539dff8b8e6836198a1), closes [#414](https://github.com/mozilla-services/syncstorage-rs/issues/414))
+
+#### Features
+
+*   build spanner python utils image (#661) ([2060601c](https://github.com/mozilla-services/syncstorage-rs/commit/2060601c483a09c50ae6c7809d5b658980ad3ad8))
+*   log messages from middleware to sentry (#604) ([b6ced47a](https://github.com/mozilla-services/syncstorage-rs/commit/b6ced47a39c5932cfc25a37008f78ba03c3e2655), closes [#504](https://github.com/mozilla-services/syncstorage-rs/issues/504))
+*   Allow for failure "replay" from failure file (#644) ([b0f1590f](https://github.com/mozilla-services/syncstorage-rs/commit/b0f1590f4a289163b7043d01af06968b082d02ac), closes [#642](https://github.com/mozilla-services/syncstorage-rs/issues/642))
+*   Don't report Conflict errors to sentry (#623) ([b2d93418](https://github.com/mozilla-services/syncstorage-rs/commit/b2d9341824d3bb7b722e75a5aaaa2e4096007e20), closes [#614](https://github.com/mozilla-services/syncstorage-rs/issues/614))
+*   add async to `delete_all` (#621) ([fdb366da](https://github.com/mozilla-services/syncstorage-rs/commit/fdb366da3837ad74ec7fe6e67ad02c62af790c85), closes [#615](https://github.com/mozilla-services/syncstorage-rs/issues/615))
+*   emit Db pool metrics periodically (#605) ([c3d6946e](https://github.com/mozilla-services/syncstorage-rs/commit/c3d6946e041a321fc1e11783a02b767f8e73dbe1), closes [#406](https://github.com/mozilla-services/syncstorage-rs/issues/406))
+*   add a --wipe_user mode ([16058f20](https://github.com/mozilla-services/syncstorage-rs/commit/16058f20a42564398f0f27a6adfc686ed774531d), closes [#596](https://github.com/mozilla-services/syncstorage-rs/issues/596))
+*   latest ops requests ([edd0017d](https://github.com/mozilla-services/syncstorage-rs/commit/edd0017d2cf7cbade3225fc640d2df8377d55938))
+*   Enable circleci remote docker layer caching, speeding up the ci builds. ([7d9d521a](https://github.com/mozilla-services/syncstorage-rs/commit/7d9d521ab675db112f9ec66fe54ba028543c8ead))
+
+#### Bug Fixes
+
+*   range check the header to avoid a panic (#664) ([b73e6ee2](https://github.com/mozilla-services/syncstorage-rs/commit/b73e6ee2c7bd0aef080fa04af1d60fb41946837f), closes [#647](https://github.com/mozilla-services/syncstorage-rs/issues/647))
+*   Make `bso_num` in migrate_node less truthy (#637) ([fa96964f](https://github.com/mozilla-services/syncstorage-rs/commit/fa96964f0703c731ea11f4a05d31a81c16669ce7), closes [#636](https://github.com/mozilla-services/syncstorage-rs/issues/636))
+*   don't classify AlreadyExists as a ConflictError (#635) ([07276667](https://github.com/mozilla-services/syncstorage-rs/commit/07276667a30bba299f1085a6c1b16465250894a2), closes [#633](https://github.com/mozilla-services/syncstorage-rs/issues/633))
+*   Add retry and sleep to purge_ttl attempts (#620) ([38c3295b](https://github.com/mozilla-services/syncstorage-rs/commit/38c3295b16a3250d474ff2024e855675c803f1a4))
+*   don't replace user_collections ([d6b2dc21](https://github.com/mozilla-services/syncstorage-rs/commit/d6b2dc2187de5a1877b79e2354aa5ac746ce823a))
+*   convert user_id into bigint ([ab2606da](https://github.com/mozilla-services/syncstorage-rs/commit/ab2606daeb3f5a9def697b4f16ded02af4290329), closes [#470](https://github.com/mozilla-services/syncstorage-rs/issues/470))
+*   convert user_id into bigint ([8b951137](https://github.com/mozilla-services/syncstorage-rs/commit/8b951137374218ac6d2ec23e5f2c975b45fc2105), closes [#470](https://github.com/mozilla-services/syncstorage-rs/issues/470))
+
+#### Chore
+
+*   default-run syncstorage ([24b600dd](https://github.com/mozilla-services/syncstorage-rs/commit/24b600dd45b883563d06a2545f8c305ad1331fd3))
+
+
+
 <a name="0.3.4"></a>
 ## 0.3.4 (2020-05-13)
 
