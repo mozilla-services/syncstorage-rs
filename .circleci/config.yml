@@ -130,8 +130,8 @@ jobs:
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
     steps:
-      - setup_remote_docker: 
-          docker_layer_caching: true 
+      - setup_remote_docker:
+          docker_layer_caching: true
       - checkout
       - setup-rust
       - setup-gcp-grpc
@@ -185,7 +185,6 @@ jobs:
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
-
       - run:
           name: Deploy to Dockerhub
           command: |
@@ -211,6 +210,39 @@ jobs:
               echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
 
+  deploy-python-utils:
+    docker:
+      - image: docker:18.02.0-ce
+    steps:
+      - setup_remote_docker
+      - checkout
+      - run:
+          name: Build and deploy to Dockerhub
+          command: |
+            export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              DOCKER_TAG="${CIRCLE_SHA1}"
+            fi
+
+            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+              DOCKER_TAG="${CIRCLE_BRANCH}"
+            fi
+
+            if [ -n "${CIRCLE_TAG}" ]; then
+              DOCKER_TAG="$CIRCLE_TAG"
+            fi
+
+            if [ -n "${DOCKER_TAG}" ]; then
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
+              cd tools/spanner
+              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
+              docker images
+              docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
+            else
+              echo "Not building or pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+            fi
+
 workflows:
   version: 2
   build-deploy:
@@ -230,6 +262,12 @@ workflows:
             tags:
               only: /.*/
       - deploy:
+          requires:
+            - e2e-tests
+          filters:
+            tags:
+              only: /.*/
+      - deploy-python-utils:
           requires:
             - e2e-tests
           filters:
