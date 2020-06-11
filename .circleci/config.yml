@@ -212,7 +212,7 @@ jobs:
 
   deploy-python-utils:
     docker:
-      - image: docker:18.02.0-ce
+      - image: docker:stable-git
     steps:
       - setup_remote_docker
       - checkout
