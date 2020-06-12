@@ -3017,6 +3017,7 @@ dependencies = [
  "log",
  "mime",
  "mozsvc-common",
+ "num_cpus",
  "protobuf",
  "rand 0.7.3",
  "regex",
