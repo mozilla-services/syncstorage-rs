@@ -25,21 +25,20 @@ logging.basicConfig(
 client = spanner.Client()
 
 
-def from_env(url):
+def use_dsn(args):
     try:
-        if not url:
+        if not args.sync_database_url:
             raise Exception("no url")
+        url = args.sync_database_url
         purl = parse.urlparse(url)
         if purl.scheme == "spanner":
             path = purl.path.split("/")
-            instance_id = path[-3]
-            database_id = path[-1]
+            args.instance_id = path[-3]
+            args.database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
         print("Exception {}".format(e))
-        instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
-        database_id = os.environ.get("DATABASE_ID", "sync_stage")
-    return (instance_id, database_id)
+    return args
 
 
 def deleter(database, name, query):
@@ -48,8 +47,9 @@ def deleter(database, name, query):
         start = datetime.now()
         result = database.execute_partitioned_dml(query)
         end = datetime.now()
-        logging.info("{}: removed {} rows, batches_duration: {}".format(
-            name, result, end - start))
+        logging.info(
+            "{name}: removed {result} rows, {name}_duration: {time}".format(
+            name=name, result=result, time=end - start))
 
 
 def add_conditions(args, query):
@@ -125,10 +125,9 @@ def get_args():
     if not isinstance(collections, list):
         collections = [collections]
     args.collection_ids = collections
-    if args.sync_database_url and not (
-            args.instance_id and args.database_id):
-        (args.instance_id,
-         args.collection_id) = from_env(args.sync_database_url)
+    # override using the DSN URL:
+    if args.sync_database_url:
+        args = use_dsn(args)
     return args
 
 
