@@ -68,10 +68,7 @@ def spanner_purge(args, request=None):
     database = instance.database(args.database_id)
 
     logging.info("For {}:{}".format(args.instance_id, args.database_id))
-    batch_query = add_conditions(
-            args,
-            'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
-        )
+    batch_query = 'DELETE FROM batches WHERE expiry < CURRENT_TIMESTAMP()'
     bso_query = add_conditions(
             args,
             'DELETE FROM bsos WHERE expiry < CURRENT_TIMESTAMP()'
