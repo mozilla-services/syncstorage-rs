@@ -29,12 +29,12 @@ diesel_logger = "0.1.0"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 env_logger = "0.7.1"
-failure = "0.1.7"
+failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
 grpcio = { version = "0.5.1" }
 lazy_static = "1.4.0"
-hawk = "3.1.1"
+hawk = "3.2"
 hkdf = "0.8.0"
 hmac = "0.7"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
@@ -56,7 +56,7 @@ slog-envlogger = "2.2.0"
 slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.0"
-slog-term = "2.5"
+slog-term = "2.6"
 time = "0.2"
 url = "2.1"
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
@@ -72,4 +72,3 @@ no_auth = []
 
 [[bin]]
 name = "purge_ttl"
-
