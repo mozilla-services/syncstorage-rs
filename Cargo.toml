@@ -34,7 +34,7 @@ futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
 grpcio = { version = "0.5.1" }
 lazy_static = "1.4.0"
-hawk = "3.1.1"
+hawk = "3.2.0"
 hkdf = "0.8.0"
 hmac = "0.7"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
