@@ -3045,7 +3045,7 @@ dependencies = [
  "slog-scope",
  "slog-stdlog",
  "slog-term",
- "time 0.2.12",
+ "time 0.2.16",
  "url 2.1.1",
  "uuid 0.8.1",
  "validator",
@@ -3155,9 +3155,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.2.12"
+version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b360ea5d21fa3f84cb059710501698e91a63dd49fbcc5d0491e4241f5019ee0c"
+checksum = "3a51cadc5b1eec673a685ff7c33192ff7b7603d0b75446fb354939ee615acb15"
 dependencies = [
  "cfg-if",
  "libc",
