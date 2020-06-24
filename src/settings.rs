@@ -1,5 +1,5 @@
 //! Application settings objects and initialization
-use std::cmp::min;
+use std::{cmp::min, env};
 
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
@@ -116,6 +116,18 @@ impl Settings {
                     ms.limits.max_total_bytes =
                         min(ms.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
                     return Ok(ms);
+                }
+
+                if !s.uses_spanner() {
+                    if let Some(database_pool_max_size) = s.database_pool_max_size {
+                        // Db backends w/ blocking calls block via
+                        // actix-threadpool: grow its size to accommodate the
+                        // full number of connections
+                        let default = num_cpus::get() * 5;
+                        if (database_pool_max_size as usize) > default {
+                            env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
+                        }
+                    }
                 }
                 s
             }

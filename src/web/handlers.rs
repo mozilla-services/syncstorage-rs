@@ -67,14 +67,14 @@ pub async fn get_quota(meta: MetaRequest) -> Result<HttpResponse, Error> {
 }
 
 pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
-    #![allow(clippy::unit_arg)]
     meta.metrics.incr("request.delete_all");
     let db = meta.db;
+    // The db middleware won't implicitly begin a write transaction
+    // for DELETE /storage because it lacks a collection. So it's done
+    // manually here, partly to not further complicate the unit test's
+    // transactions
     db.begin(true).await?;
-    match db.delete_storage(meta.user_id).await {
-        Ok(r) => Ok(HttpResponse::Ok().json(r)),
-        Err(e) => Err(e.into()),
-    }
+    Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
 }
 
 pub fn delete_collection(
