@@ -278,7 +278,6 @@ impl MysqlDb {
 
     pub fn delete_storage_sync(&self, user_id: HawkIdentifier) -> Result<()> {
         let user_id = user_id.legacy_id as i64;
-        self.begin(true)?;
         // Delete user data.
         delete(bso::table)
             .filter(bso::user_id.eq(user_id))
