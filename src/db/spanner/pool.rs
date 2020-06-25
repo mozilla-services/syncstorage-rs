@@ -7,10 +7,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use diesel::r2d2;
-use diesel::r2d2::Pool;
-
-use scheduled_thread_pool::ScheduledThreadPool;
+use bb8;
+use bb8::Pool;
 
 use super::models::Result;
 #[cfg(test)]
@@ -19,7 +17,7 @@ use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
-use super::manager::SpannerConnectionManager;
+use super::manager::{SpannerConnectionManager, SpannerSession};
 use super::models::SpannerDb;
 
 embed_migrations!();
@@ -36,7 +34,7 @@ embed_migrations!();
 #[derive(Clone)]
 pub struct SpannerDbPool {
     /// Pool of db connections
-    pool: Pool<SpannerConnectionManager>,
+    pool: Pool<SpannerConnectionManager<SpannerSession>>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -44,25 +42,17 @@ pub struct SpannerDbPool {
 }
 
 impl SpannerDbPool {
-    /// Creates a new pool of Mysql db connections.
-    ///
-    /// Also initializes the Mysql db, ensuring all migrations are ran.
+    /// Creates a new pool of Spanner db connections.
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         //run_embedded_migrations(settings)?;
         Self::new_without_migrations(settings, metrics)
     }
 
-    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let manager = SpannerConnectionManager::new(settings)?;
+    pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+        let manager = SpannerConnectionManager::<SpannerSession>::new(settings)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        // r2d2 creates max_size count of db connections on creation via its
-        // own thread_pool. increase its default size to quicken their
-        // creation, accommodating large max_size values (otherwise it may
-        // timeout)
-        let r2d2_thread_pool_size = ((max_size as f32 * 0.05) as usize).max(3);
-        let builder = r2d2::Pool::builder()
-            .max_size(max_size)
-            .thread_pool(Arc::new(ScheduledThreadPool::new(r2d2_thread_pool_size)));
+        let builder = bb8::Pool::builder()
+            .max_size(max_size);
 
         #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
@@ -72,15 +62,15 @@ impl SpannerDbPool {
         };
 
         Ok(Self {
-            pool: builder.build(manager)?,
+            pool: builder.build(manager).await?,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
         })
     }
 
-    pub fn get_sync(&self) -> Result<SpannerDb> {
+    pub async fn get_async(&self) -> Result<SpannerDb> {
         Ok(SpannerDb::new(
-            self.pool.get()?,
+            self.pool.get().await?,
             Arc::clone(&self.coll_cache),
             &self.metrics,
         ))
@@ -91,10 +81,12 @@ impl DbPool for SpannerDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
         Box::pin(
-            block(move || {
-                pool.get_sync()
-                    .map(|db| Box::new(db) as Box<dyn Db>)
-                    .map_err(Into::into)
+            block(|| {
+                async {
+                    pool.get_async().await
+                        .map(|db| Box::new(db) as Box<dyn Db>)
+                        .map_err(Into::into)
+                }
             })
             .map_err(Into::into),
         )

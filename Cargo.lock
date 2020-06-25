@@ -321,9 +321,9 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
 name = "async-trait"
-version = "0.1.26"
+version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a03abb7c9b93ae229356151a083d26218c0358866a2a59d4280c856e9482e6"
+checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -424,6 +424,17 @@ name = "base64"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e223af0dc48c96d4f8342ec01a4974f139df863896b316681efd36742f22cc67"
+
+[[package]]
+name = "bb8"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "374bba43fc924d90393ee7768e6f75d223a98307a488fe5bc34b66c3e96932a6"
+dependencies = [
+ "async-trait",
+ "futures 0.3.5",
+ "tokio 0.2.13",
+]
 
 [[package]]
 name = "bindgen"
@@ -3006,7 +3017,9 @@ dependencies = [
  "actix-http",
  "actix-rt",
  "actix-web",
+ "async-trait",
  "base64 0.12.2",
+ "bb8",
  "bytes 0.5.4",
  "cadence",
  "chrono",

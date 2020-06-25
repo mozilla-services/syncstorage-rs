@@ -1,7 +1,7 @@
 use futures::compat::Future01CompatExt;
 use futures::future::TryFutureExt;
 
-use diesel::r2d2::PooledConnection;
+use bb8::PooledConnection;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -10,7 +10,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use super::manager::SpannerConnectionManager;
+use super::manager::{SpannerConnectionManager, SpannerSession};
 use super::pool::CollectionCache;
 
 use crate::db::{
@@ -51,7 +51,7 @@ pub enum CollectionLock {
     Write,
 }
 
-pub(super) type Conn = PooledConnection<SpannerConnectionManager>;
+pub(super) type Conn = PooledConnection<'static, SpannerConnectionManager<SpannerSession>>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)

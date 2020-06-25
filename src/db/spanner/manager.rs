@@ -1,6 +1,8 @@
 use std::{fmt, sync::Arc};
+use std::marker::PhantomData;
 
-use diesel::r2d2::ManageConnection;
+use async_trait::async_trait;
+use bb8::ManageConnection;
 use googleapis_raw::spanner::v1::{
     spanner::{CreateSessionRequest, GetSessionRequest, Session},
     spanner_grpc::SpannerClient,
@@ -16,13 +18,14 @@ use crate::{
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
-pub struct SpannerConnectionManager {
+pub struct SpannerConnectionManager<T> {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
+    phantom: PhantomData<T>,
 }
 
-impl fmt::Debug for SpannerConnectionManager {
+impl<_T> fmt::Debug for SpannerConnectionManager<_T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("SpannerConnectionManager")
             .field("database_name", &self.database_name)
@@ -30,7 +33,7 @@ impl fmt::Debug for SpannerConnectionManager {
     }
 }
 
-impl SpannerConnectionManager {
+impl<T> SpannerConnectionManager<T> {
     pub fn new(settings: &Settings) -> Result<Self, DbError> {
         let url = &settings.database_url;
         if !url.starts_with("spanner://") {
@@ -38,7 +41,11 @@ impl SpannerConnectionManager {
         }
         let database_name = url["spanner://".len()..].to_owned();
         let env = Arc::new(EnvBuilder::new().build());
-        Ok(SpannerConnectionManager { database_name, env })
+        Ok(SpannerConnectionManager::<T> {
+            database_name,
+            env,
+            phantom: PhantomData
+        })
     }
 }
 
@@ -49,11 +56,13 @@ pub struct SpannerSession {
     pub(super) use_test_transactions: bool,
 }
 
-impl ManageConnection for SpannerConnectionManager {
+#[async_trait]
+impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection for SpannerConnectionManager<T>
+{
     type Connection = SpannerSession;
     type Error = grpcio::Error;
 
-    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
         // Requires GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
         let creds = ChannelCredentials::google_default_credentials()?;
 
@@ -74,7 +83,7 @@ impl ManageConnection for SpannerConnectionManager {
         })
     }
 
-    fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         let mut req = GetSessionRequest::new();
         req.set_name(conn.session.get_name().to_owned());
         if let Err(e) = conn.client.get_session(&req) {
