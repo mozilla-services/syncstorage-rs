@@ -1,4 +1,5 @@
-use actix_web::web::block;
+use bb8;
+use bb8::Pool;
 use futures::future::TryFutureExt;
 
 use std::{
@@ -6,9 +7,6 @@ use std::{
     fmt,
     sync::{Arc, RwLock},
 };
-
-use bb8;
-use bb8::Pool;
 
 use super::models::Result;
 #[cfg(test)]
@@ -43,9 +41,9 @@ pub struct SpannerDbPool {
 
 impl SpannerDbPool {
     /// Creates a new pool of Spanner db connections.
-    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub async fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         //run_embedded_migrations(settings)?;
-        Self::new_without_migrations(settings, metrics)
+        Self::new_without_migrations(settings, metrics).await
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
@@ -69,27 +67,24 @@ impl SpannerDbPool {
     }
 
     pub async fn get_async(&self) -> Result<SpannerDb> {
+        let conn = self.pool.get().await?;
         Ok(SpannerDb::new(
-            self.pool.get().await?,
+            conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
         ))
-    }
+}
 }
 
 impl DbPool for SpannerDbPool {
     fn get(&self) -> DbFuture<Box<dyn Db>> {
         let pool = self.clone();
-        Box::pin(
-            block(|| {
-                async {
-                    pool.get_async().await
-                        .map(|db| Box::new(db) as Box<dyn Db>)
-                        .map_err(Into::into)
-                }
-            })
-            .map_err(Into::into),
-        )
+        Box::pin(async {
+            pool.get_async()
+                .await
+                .map(|db| Box::new(db) as Box<dyn Db>)
+                .map_err(Into::into)
+        })
     }
 
     fn state(&self) -> results::PoolState {

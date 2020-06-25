@@ -254,7 +254,7 @@ impl Default for Sorting {
 
 /// Create/initialize a pool of managed Db connections
 // XXX: should likely return a Future?
-pub fn pool_from_settings(
+pub async fn pool_from_settings(
     settings: &Settings,
     metrics: &Metrics,
 ) -> Result<Box<dyn DbPool>, DbError> {
@@ -262,7 +262,7 @@ pub fn pool_from_settings(
         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
     Ok(match url.scheme() {
         "mysql" => Box::new(mysql::pool::MysqlDbPool::new(&settings, &metrics)?),
-        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics)?),
+        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics).await?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }
