@@ -76,9 +76,10 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
+        let mut service = Rc::clone(&self.service);
+
         async move {
             if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
-                let mut service = Rc::clone(&self.service);
                 return service.call(sreq).await;
             }
 
@@ -156,7 +157,6 @@ where
             let bso = BsoParam::extrude(sreq.head(), &mut sreq.extensions_mut()).ok();
             let bso_opt = bso.map(|b| b.bso);
 
-            let mut service = Rc::clone(&self.service);
             let resource_ts = db.extract_resource(user_id, collection, bso_opt).await?;
             let status = match precondition {
                 PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {

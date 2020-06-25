@@ -610,7 +610,7 @@ pub struct MetaRequest<'a> {
     pub tags: Tags,
 }
 
-impl FromRequest for MetaRequest<'_> {
+impl<'a> FromRequest for MetaRequest<'a> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -628,7 +628,12 @@ impl FromRequest for MetaRequest<'_> {
                 }
             };
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = extrude_db(&req).await?;
+            let state = req.app_data::<ServerState>().ok_or_else(|| {
+                error!("DB Error: No server state");
+                ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
+            })?;
+
+            let db = state.db_pool.get().await?;
             Ok(MetaRequest {
                 user_id,
                 db,
