@@ -1616,7 +1616,7 @@ impl<'a> SpannerDb<'a> {
 
 unsafe impl Send for SpannerDb<'_> {}
 
-impl Db for SpannerDb<'_> {
+impl<'a> Db<'a> for SpannerDb<'a> {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(async move { db.commit_async().map_err(Into::into).await })
@@ -1670,7 +1670,7 @@ impl Db for SpannerDb<'_> {
         Box::pin(async move { db.delete_collection_async(param).map_err(Into::into).await })
     }
 
-    fn box_clone(&self) -> Box<dyn Db + '_> {
+    fn box_clone(&self) -> Box<dyn Db<'a>> {
         Box::new(self.clone())
     }
 

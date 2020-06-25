@@ -904,7 +904,7 @@ macro_rules! sync_db_method {
     };
 }
 
-impl Db for MysqlDb {
+impl<'a> Db<'a> for MysqlDb {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(block(move || db.commit_sync().map_err(Into::into)).map_err(Into::into))
@@ -920,7 +920,7 @@ impl Db for MysqlDb {
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
-    fn box_clone(&self) -> Box<dyn Db> {
+    fn box_clone(&self) -> Box<dyn Db<'a>> {
         Box::new(self.clone())
     }
 

@@ -12,6 +12,7 @@ pub mod util;
 
 use std::{fmt::Debug, time::Duration};
 
+use async_trait::async_trait;
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
@@ -21,7 +22,7 @@ use url::Url;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 use crate::web::extractors::HawkIdentifier;
@@ -61,8 +62,9 @@ pub const DB_THREAD_POOL_SIZE: usize = 50;
 
 type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
 
+#[async_trait(?Send)]
 pub trait DbPool: Sync + Send + Debug {
-    fn get(&self) -> DbFuture<Box<dyn Db>>;
+    async fn get(&self) -> ApiResult<Box<dyn Db<'_>>>;
 
     fn state(&self) -> results::PoolState;
 
@@ -75,7 +77,7 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
-pub trait Db: Send + Debug {
+pub trait Db<'a>: Send + Debug + 'a {
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<()>;
 
     fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<()>;
@@ -154,7 +156,7 @@ pub trait Db: Send + Debug {
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
 
-    fn box_clone(&self) -> Box<dyn Db + '_>;
+    fn box_clone(&self) -> Box<dyn Db<'a>>;
 
     fn check(&self) -> DbFuture<results::Check>;
 
@@ -231,8 +233,8 @@ pub trait Db: Send + Debug {
     fn clear_coll_cache(&self);
 }
 
-impl<'a> Clone for Box<dyn Db + 'a> {
-    fn clone(&self) -> Box<dyn Db + 'a> {
+impl<'a> Clone for Box<dyn Db<'a>> {
+    fn clone(&self) -> Box<dyn Db<'a>> {
         self.box_clone()
     }
 }

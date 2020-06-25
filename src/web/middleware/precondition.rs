@@ -76,140 +76,122 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
-            let mut service = Rc::clone(&self.service);
-            return Box::new(service.call(sreq)).boxed_local();
-        }
+        async move {
+            if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
+                let mut service = Rc::clone(&self.service);
+                return service.call(sreq).await;
+            }
 
-        // Pre check
-        let tags = {
-            let exts = sreq.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(sreq.head()),
-            }
-        };
-        let precondition = match PreConditionHeaderOpt::extrude(&sreq.headers(), Some(tags.clone()))
-        {
-            Ok(precond) => match precond.opt {
-                Some(p) => p,
-                None => PreConditionHeader::NoHeader,
-            },
-            Err(e) => {
-                warn!("⚠️ Precondition error {:?}", e);
-                queue_report(sreq.extensions_mut(), &e);
-                return Box::pin(future::ok(
-                    sreq.into_response(
-                        HttpResponse::BadRequest()
-                            .content_type("application/json")
-                            .body("An error occurred in preprocessing".to_owned())
-                            .into_body(),
-                    ),
-                ));
-            }
-        };
-        let user_id = match sreq.get_hawk_id() {
-            Ok(v) => v,
-            Err(e) => {
-                warn!("⚠️ Hawk header error {:?}", e);
-                queue_report(sreq.extensions_mut(), &e);
-                return Box::pin(future::ok(
-                    sreq.into_response(
+            // Pre check
+            let tags = {
+                let exts = sreq.extensions();
+                match exts.get::<Tags>() {
+                    Some(t) => t.clone(),
+                    None => Tags::from_request_head(sreq.head()),
+                }
+            };
+            let precondition =
+                match PreConditionHeaderOpt::extrude(&sreq.headers(), Some(tags.clone())) {
+                    Ok(precond) => match precond.opt {
+                        Some(p) => p,
+                        None => PreConditionHeader::NoHeader,
+                    },
+                    Err(e) => {
+                        warn!("⚠️ Precondition error {:?}", e);
+                        queue_report(sreq.extensions_mut(), &e);
+                        return Ok(sreq.into_response(
+                            HttpResponse::BadRequest()
+                                .content_type("application/json")
+                                .body("An error occurred in preprocessing".to_owned())
+                                .into_body(),
+                        ));
+                    }
+                };
+            let user_id = match sreq.get_hawk_id() {
+                Ok(v) => v,
+                Err(e) => {
+                    warn!("⚠️ Hawk header error {:?}", e);
+                    queue_report(sreq.extensions_mut(), &e);
+                    return Ok(sreq.into_response(
                         HttpResponse::Unauthorized()
                             .content_type("application/json")
                             .body("Invalid Authorization".to_owned())
                             .into_body(),
-                    ),
-                ));
-            }
-        };
-        let edb = extrude_db(&sreq.extensions());
-        let db = match edb {
-            Ok(v) => v,
-            Err(e) => {
-                error!("⚠️ Database access error {:?}", e);
-                queue_report(sreq.extensions_mut(), &e);
-                return Box::pin(future::ok(
-                    sreq.into_response(
+                    ));
+                }
+            };
+
+            let (req, payload) = sreq.into_parts();
+            let edb = extrude_db(&req).await;
+            let sreq = ServiceRequest::from_parts(req, payload)
+                .unwrap_or_else(|_| panic!("TODO: this should never happen"));
+            let db = match edb {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("⚠️ Database access error {:?}", e);
+                    queue_report(sreq.extensions_mut(), &e);
+                    return Ok(sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
                             .body("Err: database access error".to_owned())
                             .into_body(),
-                    ),
-                ));
-            }
-        };
-        let uri = &sreq.uri();
-        let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut(), &tags);
-        let collection = match col_result {
-            Ok(v) => v.map(|c| c.collection),
-            Err(e) => {
-                warn!("⚠️ Collection Error:  {:?}", e);
-                queue_report(sreq.extensions_mut(), &e);
-                return Box::pin(future::ok(
-                    sreq.into_response(
+                    ));
+                }
+            };
+            let uri = &sreq.uri();
+            let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut(), &tags);
+            let collection = match col_result {
+                Ok(v) => v.map(|c| c.collection),
+                Err(e) => {
+                    warn!("⚠️ Collection Error:  {:?}", e);
+                    queue_report(sreq.extensions_mut(), &e);
+                    return Ok(sreq.into_response(
                         HttpResponse::InternalServerError()
                             .content_type("application/json")
                             .body("Err: bad collection".to_owned())
                             .into_body(),
-                    ),
+                    ));
+                }
+            };
+            let bso = BsoParam::extrude(sreq.head(), &mut sreq.extensions_mut()).ok();
+            let bso_opt = bso.map(|b| b.bso);
+
+            let mut service = Rc::clone(&self.service);
+            let resource_ts = db.extract_resource(user_id, collection, bso_opt).await?;
+            let status = match precondition {
+                PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
+                    StatusCode::NOT_MODIFIED
+                }
+                PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > header_ts => {
+                    StatusCode::PRECONDITION_FAILED
+                }
+                _ => StatusCode::OK,
+            };
+            if status != StatusCode::OK {
+                return Ok(sreq.into_response(
+                    HttpResponse::build(status)
+                        .content_type("application/json")
+                        .header(X_LAST_MODIFIED, resource_ts.as_header())
+                        .body("".to_owned())
+                        .into_body(),
                 ));
+            };
+
+            // Make the call, then do all the post-processing steps.
+            let resp = service.call(sreq).await;
+            let mut resp = resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
+            if resp.headers().contains_key(X_LAST_MODIFIED) {
+                return Ok(resp);
             }
-        };
-        let bso = BsoParam::extrude(sreq.head(), &mut sreq.extensions_mut()).ok();
-        let bso_opt = bso.map(|b| b.bso);
 
-        let mut service = Rc::clone(&self.service);
-        Box::pin(
-            db.extract_resource(user_id, collection, bso_opt)
-                .map_err(Into::into)
-                .and_then(move |resource_ts| {
-                    let status = match precondition {
-                        PreConditionHeader::IfModifiedSince(header_ts)
-                            if resource_ts <= header_ts =>
-                        {
-                            StatusCode::NOT_MODIFIED
-                        }
-                        PreConditionHeader::IfUnmodifiedSince(header_ts)
-                            if resource_ts > header_ts =>
-                        {
-                            StatusCode::PRECONDITION_FAILED
-                        }
-                        _ => StatusCode::OK,
-                    };
-                    if status != StatusCode::OK {
-                        return Either::Left(future::ok(
-                            sreq.into_response(
-                                HttpResponse::build(status)
-                                    .content_type("application/json")
-                                    .header(X_LAST_MODIFIED, resource_ts.as_header())
-                                    .body("".to_owned())
-                                    .into_body(),
-                            ),
-                        ));
-                    };
-
-                    // Make the call, then do all the post-processing steps.
-                    Either::Right(service.call(sreq).map(move |resp| {
-                        let mut resp =
-                            resp.expect("Could not get resp in PreConditionCheckMiddleware::call");
-                        if resp.headers().contains_key(X_LAST_MODIFIED) {
-                            return Ok(resp);
-                        }
-
-                        // See if we already extracted one and use that if possible
-                        if let Ok(ts_header) =
-                            header::HeaderValue::from_str(&resource_ts.as_header())
-                        {
-                            debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
-                            resp.headers_mut().insert(
-                                header::HeaderName::from_static(X_LAST_MODIFIED),
-                                ts_header,
-                            );
-                        }
-                        Ok(resp)
-                    }))
-                }),
-        )
+            // See if we already extracted one and use that if possible
+            if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+                resp.headers_mut()
+                    .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+            }
+            Ok(resp)
+        }
+        .boxed_local()
     }
 }

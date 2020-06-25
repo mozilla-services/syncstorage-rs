@@ -16,7 +16,7 @@ use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
 pub const ONE_KB: f64 = 1024.0;
 
-pub async fn get_collections(meta: MetaRequest) -> Result<HttpResponse, Error> {
+pub async fn get_collections(meta: MetaRequest<'_>) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collections");
     let result = meta.db.get_collection_timestamps(meta.user_id).await?;
 
@@ -25,7 +25,7 @@ pub async fn get_collections(meta: MetaRequest) -> Result<HttpResponse, Error> {
         .json(result))
 }
 
-pub async fn get_collection_counts(meta: MetaRequest) -> Result<HttpResponse, Error> {
+pub async fn get_collection_counts(meta: MetaRequest<'_>) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collection_counts");
     let result = meta.db.get_collection_counts(meta.user_id).await?;
 
@@ -34,7 +34,7 @@ pub async fn get_collection_counts(meta: MetaRequest) -> Result<HttpResponse, Er
         .json(result))
 }
 
-pub async fn get_collection_usage(meta: MetaRequest) -> Result<HttpResponse, Error> {
+pub async fn get_collection_usage(meta: MetaRequest<'_>) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collection_usage");
     let usage: HashMap<_, _> = meta
         .db
@@ -49,13 +49,13 @@ pub async fn get_collection_usage(meta: MetaRequest) -> Result<HttpResponse, Err
         .json(usage))
 }
 
-pub async fn get_quota(meta: MetaRequest) -> Result<HttpResponse, Error> {
+pub async fn get_quota(meta: MetaRequest<'_>) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_quota");
     let usage = meta.db.get_storage_usage(meta.user_id).await?;
     Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
 }
 
-pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
+pub async fn delete_all(meta: MetaRequest<'_>) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.delete_all");
     let db = meta.db;
     // The db middleware won't implicitly begin a write transaction
@@ -66,7 +66,7 @@ pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
 }
 
-pub async fn delete_collection(coll: CollectionRequest) -> Result<HttpResponse, Error> {
+pub async fn delete_collection(coll: CollectionRequest<'_>) -> Result<HttpResponse, Error> {
     let delete_bsos = !coll.query.ids.is_empty();
     let metrics = coll.metrics.clone();
     let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
@@ -106,7 +106,7 @@ pub async fn delete_collection(coll: CollectionRequest) -> Result<HttpResponse, 
         .json(timestamp))
 }
 
-pub async fn get_collection(coll: CollectionRequest) -> Result<HttpResponse, Error> {
+pub async fn get_collection(coll: CollectionRequest<'_>) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.get_collection");
     let params = params::GetBsos {
         user_id: coll.user_id.clone(),
@@ -124,7 +124,7 @@ pub async fn get_collection(coll: CollectionRequest) -> Result<HttpResponse, Err
 }
 
 async fn finish_get_collection<T>(
-    coll: &CollectionRequest,
+    coll: &CollectionRequest<'_>,
     result: Result<Paginated<T>, ApiError>,
 ) -> Result<HttpResponse, Error>
 where
@@ -172,7 +172,7 @@ where
     }
 }
 
-pub async fn post_collection(coll: CollectionPostRequest) -> Result<HttpResponse, Error> {
+pub async fn post_collection(coll: CollectionPostRequest<'_>) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection");
     if coll.batch.is_some() {
         return post_collection_batch(coll).await;
@@ -193,7 +193,7 @@ pub async fn post_collection(coll: CollectionPostRequest) -> Result<HttpResponse
         .json(result))
 }
 
-pub async fn post_collection_batch(coll: CollectionPostRequest) -> Result<HttpResponse, Error> {
+pub async fn post_collection_batch(coll: CollectionPostRequest<'_>) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection_batch");
     // Bail early if we have nonsensical arguments
     let breq = match coll.batch.clone() {
@@ -323,7 +323,7 @@ pub async fn post_collection_batch(coll: CollectionPostRequest) -> Result<HttpRe
         .json(resp))
 }
 
-pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
+pub async fn delete_bso(bso_req: BsoRequest<'_>) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.delete_bso");
     let result = bso_req
         .db
@@ -336,7 +336,7 @@ pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(json!({ "modified": result })))
 }
 
-pub async fn get_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
+pub async fn get_bso(bso_req: BsoRequest<'_>) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.get_bso");
     let result = bso_req
         .db
@@ -353,7 +353,7 @@ pub async fn get_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {
     ))
 }
 
-pub async fn put_bso(bso_req: BsoPutRequest) -> Result<HttpResponse, Error> {
+pub async fn put_bso(bso_req: BsoPutRequest<'_>) -> Result<HttpResponse, Error> {
     bso_req.metrics.incr("request.put_bso");
     let result = bso_req
         .db
@@ -379,7 +379,7 @@ pub fn get_configuration(creq: ConfigRequest) -> impl Future<Output = Result<Htt
 /** Returns a status message indicating the state of the current server
  *
  */
-pub async fn heartbeat(hb: HeartbeatRequest) -> HttpResponse {
+pub async fn heartbeat(hb: HeartbeatRequest<'_>) -> HttpResponse {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),

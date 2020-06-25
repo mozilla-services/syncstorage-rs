@@ -37,6 +37,7 @@ use crate::web::{
     tags::Tags,
     X_WEAVE_RECORDS,
 };
+use actix_web::dev::ServiceRequest;
 
 const BATCH_MAX_IDS: usize = 100;
 
@@ -602,14 +603,14 @@ impl FromRequest for CollectionParam {
 ///
 /// Only the database and user identifier is required for information
 /// requests: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html#general-info
-pub struct MetaRequest {
+pub struct MetaRequest<'a> {
     pub user_id: HawkIdentifier,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
     pub metrics: metrics::Metrics,
     pub tags: Tags,
 }
 
-impl FromRequest for MetaRequest {
+impl FromRequest for MetaRequest<'_> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -627,7 +628,7 @@ impl FromRequest for MetaRequest {
                 }
             };
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = extrude_db(&req.extensions())?;
+            let db = extrude_db(&req).await?;
             Ok(MetaRequest {
                 user_id,
                 db,
@@ -649,9 +650,9 @@ pub enum ReplyFormat {
 /// Collection Request Delete/Get extractor
 ///
 /// Extracts/validates information needed for collection delete/get requests.
-pub struct CollectionRequest {
+pub struct CollectionRequest<'a> {
     pub collection: String,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub reply: ReplyFormat,
@@ -659,7 +660,7 @@ pub struct CollectionRequest {
     pub tags: Option<Tags>,
 }
 
-impl FromRequest for CollectionRequest {
+impl FromRequest for CollectionRequest<'_> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -714,9 +715,9 @@ impl FromRequest for CollectionRequest {
 /// Collection Request Post extractor
 ///
 /// Extracts/validates information needed for batch collection POST requests.
-pub struct CollectionPostRequest {
+pub struct CollectionPostRequest<'a> {
     pub collection: String,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
@@ -724,10 +725,10 @@ pub struct CollectionPostRequest {
     pub metrics: metrics::Metrics,
 }
 
-impl FromRequest for CollectionPostRequest {
+impl<'a> FromRequest for CollectionPostRequest<'a> {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<CollectionPostRequest, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extractor for Collection Posts (Batch BSO upload)
     ///
@@ -758,15 +759,13 @@ impl FromRequest for CollectionPostRequest {
             };
 
             let max_post_records = i64::from(state.limits.max_post_records);
-            let (user_id, db, collection, query, mut bsos) =
-                <(
-                    HawkIdentifier,
-                    Box<dyn Db>,
-                    CollectionParam,
-                    BsoQueryParams,
-                    BsoBodies,
-                )>::from_request(&req, &mut payload)
-                .await?;
+
+            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
+            let db = Box::<dyn Db<'a>>::from_request(&req, &mut payload).await?;
+            let collection = CollectionParam::from_request(&req, &mut payload).await?;
+            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
+            let mut bsos = BsoBodies::from_request(&req, &mut payload).await?;
+
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
@@ -814,16 +813,16 @@ impl FromRequest for CollectionPostRequest {
 ///
 /// Extracts/validates information needed for BSO delete/get requests.
 #[derive(Debug)]
-pub struct BsoRequest {
+pub struct BsoRequest<'a> {
     pub collection: String,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
     pub metrics: metrics::Metrics,
 }
 
-impl FromRequest for BsoRequest {
+impl FromRequest for BsoRequest<'_> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -855,9 +854,9 @@ impl FromRequest for BsoRequest {
 /// BSO Request Put extractor
 ///
 /// Extracts/validates information needed for BSO put requests.
-pub struct BsoPutRequest {
+pub struct BsoPutRequest<'a> {
     pub collection: String,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -865,41 +864,41 @@ pub struct BsoPutRequest {
     pub metrics: metrics::Metrics,
 }
 
-impl FromRequest for BsoPutRequest {
+impl<'a> FromRequest for BsoPutRequest<'a> {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<BsoPutRequest, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         let metrics = metrics::Metrics::from(req);
-        let fut = <(
-            HawkIdentifier,
-            Box<dyn Db>,
-            CollectionParam,
-            BsoQueryParams,
-            BsoParam,
-            BsoBody,
-            Tags,
-        )>::from_request(req, payload)
-        .and_then(|(user_id, db, collection, query, bso, body, tags)| {
+        let req = req.clone();
+        let mut payload = payload.take();
+
+        async move {
+            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
+            let db = Box::<dyn Db<'a>>::from_request(&req, &mut payload).await?;
+            let collection = CollectionParam::from_request(&req, &mut payload).await?;
+            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
+            let bso = BsoParam::from_request(&req, &mut payload).await?;
+            let body = BsoBody::from_request(&req, &mut payload).await?;
+            let tags = Tags::from_request(&req, &mut payload).await?;
+
             let collection = collection.collection;
             if collection == "crypto" {
                 // Verify the client didn't mess up the crypto if we have a payload
                 if let Some(ref data) = body.payload {
                     if KNOWN_BAD_PAYLOAD_REGEX.is_match(data) {
-                        return future::err(
-                            ValidationErrorKind::FromDetails(
-                                "Known-bad BSO payload".to_owned(),
-                                RequestErrorLocation::Body,
-                                Some("bsos".to_owned()),
-                                Some(tags),
-                            )
-                            .into(),
-                        );
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Known-bad BSO payload".to_owned(),
+                            RequestErrorLocation::Body,
+                            Some("bsos".to_owned()),
+                            Some(tags),
+                        )
+                        .into());
                     }
                 }
             }
-            future::ok(BsoPutRequest {
+            Ok(BsoPutRequest {
                 collection,
                 db,
                 user_id,
@@ -908,8 +907,8 @@ impl FromRequest for BsoPutRequest {
                 body,
                 metrics,
             })
-        });
-        Box::pin(fut)
+        }
+        .boxed_local()
     }
 }
 
@@ -963,47 +962,46 @@ impl FromRequest for ConfigRequest {
 }
 
 #[derive(Clone, Debug)]
-pub struct HeartbeatRequest {
+pub struct HeartbeatRequest<'a> {
     pub headers: HeaderMap,
-    pub db: Box<dyn Db>,
+    pub db: Box<dyn Db<'a>>,
 }
 
-impl FromRequest for HeartbeatRequest {
+impl<'a> FromRequest for HeartbeatRequest<'a> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let headers = req.headers().clone();
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
+        let req = req.clone();
 
-        let state = match req.app_data::<Data<ServerState>>() {
-            Some(s) => s,
-            None => {
-                error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+        async move {
+            let headers = req.headers().clone();
+            let tags = {
+                let exts = req.extensions();
+                match exts.get::<Tags>() {
+                    Some(t) => t.clone(),
+                    None => Tags::from_request_head(req.head()),
+                }
+            };
+
+            let state = match req.app_data::<Data<ServerState>>() {
+                Some(s) => s,
+                None => {
+                    error!("⚠️ Could not load the app state");
+                    return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
                     )
-                    .into(),
-                ));
-            }
-        };
-        let fut = state
-            .db_pool
-            .get()
-            .map_err(Into::into)
-            .and_then(|db| future::ok(HeartbeatRequest { headers, db }));
-        Box::pin(fut)
+                    .into());
+                }
+            };
+            let db = state.db_pool.get().await?;
+            Ok(HeartbeatRequest { headers, db })
+        }
+        .boxed_local()
     }
 }
 
@@ -1191,20 +1189,26 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-pub fn extrude_db(exts: &Extensions) -> Result<Box<dyn Db>, Error> {
-    exts.get::<Box<dyn Db>>().cloned().ok_or_else(|| {
-        error!("DB Error: No db");
-        ErrorInternalServerError("Unexpected Db error: No DB".to_owned())
-    })
+pub async fn extrude_db(req: &HttpRequest) -> Result<Box<dyn Db<'_>>, Error> {
+    Box::<dyn Db<'_>>::extract(req).await
 }
 
-impl FromRequest for Box<dyn Db> {
+impl FromRequest for Box<dyn Db<'_>> {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        Box::pin(future::ready(extrude_db(&req.extensions())))
+        let req = req.clone();
+        async move {
+            let state = req.app_data::<ServerState>().ok_or_else(|| {
+                error!("DB Error: No server state");
+                ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
+            })?;
+
+            state.db_pool.get().await.map_err(Into::into)
+        }
+        .boxed_local()
     }
 }
 
@@ -1483,7 +1487,7 @@ impl FromRequest for BatchRequestOpt {
                 None => None,
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
-                    let db = extrude_db(&req.extensions())?;
+                    let db = extrude_db(&req).await?;
                     if db.validate_batch_id(batch.clone()).is_err() {
                         return Err(ValidationErrorKind::FromDetails(
                             format!(r#"Invalid batch ID: "{}""#, batch),

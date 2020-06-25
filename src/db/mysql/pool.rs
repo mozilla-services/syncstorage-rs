@@ -1,5 +1,6 @@
 use actix_web::web::block;
 
+use async_trait::async_trait;
 use futures::future::TryFutureExt;
 
 use std::{
@@ -18,8 +19,11 @@ use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
 use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
+use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
+use actix_web::dev::Service;
+use futures::StreamExt;
 
 embed_migrations!();
 
@@ -79,17 +83,13 @@ impl MysqlDbPool {
     }
 }
 
+#[async_trait(?Send)]
 impl DbPool for MysqlDbPool {
-    fn get(&self) -> DbFuture<Box<dyn Db>> {
+    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         let pool = self.clone();
-        Box::pin(
-            block(move || {
-                pool.get_sync()
-                    .map(|db| Box::new(db) as Box<dyn Db>)
-                    .map_err(Into::into)
-            })
-            .map_err(Into::into),
-        )
+        let db = block(move || pool.get_sync().map_err(ApiError::from)).await?;
+
+        Ok(Box::new(db) as Box<dyn Db<'a>>)
     }
 
     fn state(&self) -> results::PoolState {

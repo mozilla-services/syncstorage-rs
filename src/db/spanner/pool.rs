@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use bb8;
 use bb8::Pool;
 use futures::future::TryFutureExt;
@@ -17,6 +18,7 @@ use crate::settings::Settings;
 
 use super::manager::{SpannerConnectionManager, SpannerSession};
 use super::models::SpannerDb;
+use crate::error::ApiResult;
 
 embed_migrations!();
 
@@ -75,15 +77,13 @@ impl SpannerDbPool {
     }
 }
 
+#[async_trait(?Send)]
 impl DbPool for SpannerDbPool {
-    fn get(&self) -> DbFuture<Box<dyn Db>> {
-        let pool = self.clone();
-        Box::pin(async {
-            pool.get_async()
-                .await
-                .map(|db| Box::new(db) as Box<dyn Db>)
-                .map_err(Into::into)
-        })
+    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
+        self.get_async()
+            .await
+            .map(|db| Box::new(db) as Box<dyn Db<'a>>)
+            .map_err(Into::into)
     }
 
     fn state(&self) -> results::PoolState {

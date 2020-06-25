@@ -1,6 +1,7 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
-use futures::future;
+use async_trait::async_trait;
+use futures::{future, FutureExt};
 
 use super::*;
 
@@ -13,9 +14,10 @@ impl MockDbPool {
     }
 }
 
+#[async_trait(?Send)]
 impl DbPool for MockDbPool {
-    fn get(&self) -> DbFuture<Box<dyn Db>> {
-        Box::pin(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
+    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
+        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)
     }
 
     fn state(&self) -> results::PoolState {
@@ -48,7 +50,7 @@ macro_rules! mock_db_method {
     };
 }
 
-impl Db for MockDb {
+impl<'a> Db<'a> for MockDb {
     fn commit(&self) -> DbFuture<()> {
         Box::pin(future::ok(()))
     }
@@ -61,7 +63,7 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
-    fn box_clone(&self) -> Box<dyn Db> {
+    fn box_clone(&self) -> Box<dyn Db<'a>> {
         Box::new(self.clone())
     }
 
