@@ -51,7 +51,7 @@ pub enum CollectionLock {
     Write,
 }
 
-pub(super) type Conn = PooledConnection<'static, SpannerConnectionManager<SpannerSession>>;
+pub(super) type Conn<'a> = PooledConnection<'a, SpannerConnectionManager<SpannerSession>>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
@@ -86,7 +86,7 @@ struct SpannerDbSession {
 
 #[derive(Clone, Debug)]
 pub struct SpannerDb {
-    pub(super) inner: Arc<SpannerDbInner>,
+    pub(super) inner: Arc<SpannerDbInner<'static>>,
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -94,28 +94,28 @@ pub struct SpannerDb {
     pub metrics: Metrics,
 }
 
-pub struct SpannerDbInner {
-    pub(super) conn: Conn,
+pub struct SpannerDbInner<'a> {
+    pub(super) conn: Conn<'a>,
 
     session: RefCell<SpannerDbSession>,
 }
 
-impl fmt::Debug for SpannerDbInner {
+impl fmt::Debug for SpannerDbInner<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SpannerDbInner")
     }
 }
 
-impl Deref for SpannerDb {
-    type Target = SpannerDbInner;
+impl<'a> Deref for SpannerDb {
+    type Target = SpannerDbInner<'a>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl SpannerDb {
-    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
+impl<'a> SpannerDb {
+    pub fn new(conn: Conn<'_>, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
             session: RefCell::new(Default::default()),
@@ -620,7 +620,7 @@ impl SpannerDb {
             .collect()
     }
 
-    async fn load_collection_names<'a>(
+    async fn load_collection_names(
         &self,
         collection_ids: impl Iterator<Item = &'a i32>,
     ) -> Result<HashMap<i32, String>> {
