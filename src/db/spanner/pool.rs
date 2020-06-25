@@ -49,8 +49,7 @@ impl SpannerDbPool {
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = SpannerConnectionManager::<SpannerSession>::new(settings)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        let builder = bb8::Pool::builder()
-            .max_size(max_size);
+        let builder = bb8::Pool::builder().max_size(max_size);
 
         #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
@@ -66,14 +65,14 @@ impl SpannerDbPool {
         })
     }
 
-    pub async fn get_async(&self) -> Result<SpannerDb> {
+    pub async fn get_async(&self) -> Result<SpannerDb<'_>> {
         let conn = self.pool.get().await?;
         Ok(SpannerDb::new(
             conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
         ))
-}
+    }
 }
 
 impl DbPool for SpannerDbPool {

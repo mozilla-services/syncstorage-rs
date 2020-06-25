@@ -7,7 +7,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::db::{params, results::Paginated, util::SyncTimestamp, DbError, DbErrorKind};
-use crate::error::{ApiError, ApiErrorKind};
+use crate::error::{ApiError, ApiErrorKind, ApiResult};
 use crate::web::extractors::{
     BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
     HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
@@ -16,48 +16,37 @@ use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
 pub const ONE_KB: f64 = 1024.0;
 
-pub fn get_collections(meta: MetaRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_collections(meta: MetaRequest) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collections");
-    meta.db
-        .get_collection_timestamps(meta.user_id)
-        .map_err(From::from)
-        .map_ok(|result| {
-            HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, result.len().to_string())
-                .json(result)
-        })
+    let result = meta.db.get_collection_timestamps(meta.user_id).await?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_WEAVE_RECORDS, result.len().to_string())
+        .json(result))
 }
 
-pub fn get_collection_counts(
-    meta: MetaRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_collection_counts(meta: MetaRequest) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collection_counts");
-    meta.db
-        .get_collection_counts(meta.user_id)
-        .map_err(From::from)
-        .map_ok(|result| {
-            HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, result.len().to_string())
-                .json(result)
-        })
+    let result = meta.db.get_collection_counts(meta.user_id).await?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_WEAVE_RECORDS, result.len().to_string())
+        .json(result))
 }
 
-pub fn get_collection_usage(
-    meta: MetaRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_collection_usage(meta: MetaRequest) -> Result<HttpResponse, Error> {
     meta.metrics.incr("request.get_collection_usage");
-    meta.db
+    let usage: HashMap<_, _> = meta
+        .db
         .get_collection_usage(meta.user_id)
-        .map_err(From::from)
-        .map_ok(|usage| {
-            let usage: HashMap<_, _> = usage
-                .into_iter()
-                .map(|(coll, size)| (coll, size as f64 / ONE_KB))
-                .collect();
-            HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, usage.len().to_string())
-                .json(usage)
-        })
+        .await?
+        .into_iter()
+        .map(|(coll, size)| (coll, size as f64 / ONE_KB))
+        .collect();
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_WEAVE_RECORDS, usage.len().to_string())
+        .json(usage))
 }
 
 pub async fn get_quota(meta: MetaRequest) -> Result<HttpResponse, Error> {
@@ -77,46 +66,47 @@ pub async fn delete_all(meta: MetaRequest) -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
 }
 
-pub fn delete_collection(
-    coll: CollectionRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn delete_collection(coll: CollectionRequest) -> Result<HttpResponse, Error> {
     let delete_bsos = !coll.query.ids.is_empty();
     let metrics = coll.metrics.clone();
-    let fut = if delete_bsos {
+    let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
         metrics.incr("request.delete_bsos");
-        coll.db.delete_bsos(params::DeleteBsos {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            ids: coll.query.ids.clone(),
-        })
+        coll.db
+            .delete_bsos(params::DeleteBsos {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                ids: coll.query.ids.clone(),
+            })
+            .await
     } else {
         metrics.incr("request.delete_collection");
-        coll.db.delete_collection(params::DeleteCollection {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-        })
+        coll.db
+            .delete_collection(params::DeleteCollection {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+            })
+            .await
     };
 
-    fut.or_else(move |e| {
-        if e.is_collection_not_found() || e.is_bso_not_found() {
-            coll.db.get_storage_timestamp(coll.user_id)
-        } else {
-            Box::pin(future::err(e))
+    let timestamp = match timestamp {
+        Ok(timestamp) => timestamp,
+        Err(e) => {
+            if e.is_collection_not_found() || e.is_bso_not_found() {
+                coll.db.get_storage_timestamp(coll.user_id).await?
+            } else {
+                return Err(e.into());
+            }
         }
-    })
-    .map_err(From::from)
-    .map_ok(move |result| {
-        HttpResponse::Ok()
-            .if_true(delete_bsos, |resp| {
-                resp.header(X_LAST_MODIFIED, result.as_header());
-            })
-            .json(result)
-    })
+    };
+
+    Ok(HttpResponse::Ok()
+        .if_true(delete_bsos, |resp| {
+            resp.header(X_LAST_MODIFIED, timestamp.as_header());
+        })
+        .json(timestamp))
 }
 
-pub fn get_collection(
-    coll: CollectionRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn get_collection(coll: CollectionRequest) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.get_collection");
     let params = params::GetBsos {
         user_id: coll.user_id.clone(),
@@ -124,95 +114,86 @@ pub fn get_collection(
         collection: coll.collection.clone(),
     };
     if coll.query.full {
-        let fut = coll.db.get_bsos(params);
-        Either::Left(finish_get_collection(coll, fut))
+        let result = coll.db.get_bsos(params).await;
+        finish_get_collection(&coll, result).await
     } else {
         // Changed to be a Paginated list of BSOs, need to extract IDs from them.
-        let fut = coll.db.get_bso_ids(params);
-        Either::Right(finish_get_collection(coll, fut))
+        let result = coll.db.get_bso_ids(params).await;
+        finish_get_collection(&coll, result).await
     }
 }
 
-fn finish_get_collection<F, T>(
-    coll: CollectionRequest,
-    fut: F,
-) -> LocalBoxFuture<'static, Result<HttpResponse, Error>>
+async fn finish_get_collection<T>(
+    coll: &CollectionRequest,
+    result: Result<Paginated<T>, ApiError>,
+) -> Result<HttpResponse, Error>
 where
-    F: Future<Output = Result<Paginated<T>, ApiError>> + 'static,
     T: Serialize + Default + 'static,
 {
-    let reply_format = coll.reply;
-    Box::pin(
-        fut.or_else(move |e| {
-            if e.is_collection_not_found() {
-                // For b/w compat, non-existent collections must return an
-                // empty list
-                future::ok(Paginated::default())
-            } else {
-                future::err(e)
-            }
-        })
-        .map_err(From::from)
-        .and_then(|result| {
-            coll.db
-                .extract_resource(coll.user_id, Some(coll.collection), None)
-                .map_err(From::from)
-                .map_ok(move |ts| (result, ts))
-        })
-        .map_ok(move |(result, ts): (Paginated<T>, SyncTimestamp)| {
-            let mut builder = HttpResponse::build(StatusCode::OK);
-            let resp = builder
-                .header(X_LAST_MODIFIED, ts.as_header())
-                .header(X_WEAVE_RECORDS, result.items.len().to_string())
-                .if_some(result.offset, |offset, resp| {
-                    resp.header(X_WEAVE_NEXT_OFFSET, offset);
-                });
-            match reply_format {
-                ReplyFormat::Json => resp.json(result.items),
-                ReplyFormat::Newlines => {
-                    let items: String = result
-                        .items
-                        .into_iter()
-                        .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
-                        .filter(|v| !v.is_empty())
-                        .map(|v| v.replace("\n", "\\u000a") + "\n")
-                        .collect();
-                    resp.header("Content-Type", "application/newlines")
-                        .header("Content-Length", format!("{}", items.len()))
-                        .body(items)
-                }
-            }
-        }),
-    )
+    let result = result.or_else(|e| {
+        if e.is_collection_not_found() {
+            // For b/w compat, non-existent collections must return an
+            // empty list
+            Ok(Paginated::default())
+        } else {
+            Err(e)
+        }
+    })?;
+
+    let ts = coll
+        .db
+        .extract_resource(coll.user_id.clone(), Some(coll.collection.clone()), None)
+        .await?;
+
+    let mut builder = HttpResponse::build(StatusCode::OK);
+    let resp = builder
+        .header(X_LAST_MODIFIED, ts.as_header())
+        .header(X_WEAVE_RECORDS, result.items.len().to_string())
+        .if_some(result.offset, |offset, resp| {
+            resp.header(X_WEAVE_NEXT_OFFSET, offset);
+        });
+
+    match coll.reply {
+        ReplyFormat::Json => Ok(resp.json(result.items)),
+        ReplyFormat::Newlines => {
+            let items: String = result
+                .items
+                .into_iter()
+                .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
+                .filter(|v| !v.is_empty())
+                .map(|v| v.replace("\n", "\\u000a") + "\n")
+                .collect();
+
+            Ok(resp
+                .header("Content-Type", "application/newlines")
+                .header("Content-Length", format!("{}", items.len()))
+                .body(items))
+        }
+    }
 }
 
-pub fn post_collection(
-    coll: CollectionPostRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn post_collection(coll: CollectionPostRequest) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection");
     if coll.batch.is_some() {
-        return Either::Left(post_collection_batch(coll));
+        return post_collection_batch(coll).await;
     }
-    Either::Right(
-        coll.db
-            .post_bsos(params::PostBsos {
-                user_id: coll.user_id,
-                collection: coll.collection,
-                bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-                failed: coll.bsos.invalid,
-            })
-            .map_err(From::from)
-            .map_ok(|result| {
-                HttpResponse::build(StatusCode::OK)
-                    .header(X_LAST_MODIFIED, result.modified.as_header())
-                    .json(result)
-            }),
-    )
+
+    let result = coll
+        .db
+        .post_bsos(params::PostBsos {
+            user_id: coll.user_id,
+            collection: coll.collection,
+            bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+            failed: coll.bsos.invalid,
+        })
+        .await?;
+
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_LAST_MODIFIED, result.modified.as_header())
+        .json(result))
 }
 
-pub fn post_collection_batch(
-    coll: CollectionPostRequest,
-) -> impl Future<Output = Result<HttpResponse, Error>> {
+pub async fn post_collection_batch(coll: CollectionPostRequest) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection_batch");
     // Bail early if we have nonsensical arguments
     let breq = match coll.batch.clone() {
@@ -220,34 +201,35 @@ pub fn post_collection_batch(
         None => {
             let err: DbError = DbErrorKind::BatchNotFound.into();
             let err: ApiError = err.into();
-            return Either::Left(future::err(err.into()));
+            return Err(err.into());
         }
     };
 
-    let fut = if let Some(id) = breq.id.clone() {
+    let id = if let Some(id) = breq.id.clone() {
         // Validate the batch before attempting a full append (for efficiency)
-        Either::Left(
-            coll.db
-                .validate_batch(params::ValidateBatch {
-                    user_id: coll.user_id.clone(),
-                    collection: coll.collection.clone(),
-                    id: id.clone(),
-                })
-                .and_then(move |is_valid| {
-                    if is_valid {
-                        future::ok(id)
-                    } else {
-                        let err: DbError = DbErrorKind::BatchNotFound.into();
-                        future::err(err.into())
-                    }
-                }),
-        )
+        let is_valid = coll
+            .db
+            .validate_batch(params::ValidateBatch {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                id: id.clone(),
+            })
+            .await?;
+
+        if is_valid {
+            id
+        } else {
+            let err: DbError = DbErrorKind::BatchNotFound.into();
+            return Err(ApiError::from(err).into());
+        }
     } else {
-        Either::Right(coll.db.create_batch(params::CreateBatch {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            bsos: vec![],
-        }))
+        coll.db
+            .create_batch(params::CreateBatch {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                bsos: vec![],
+            })
+            .await?
     };
 
     let commit = breq.commit;
@@ -255,101 +237,90 @@ pub fn post_collection_batch(
     let user_id = coll.user_id.clone();
     let collection = coll.collection.clone();
 
-    Either::Right(
-        fut.and_then(move |id| {
-            let mut success = vec![];
-            let mut failed = coll.bsos.invalid.clone();
-            let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
+    let mut success = vec![];
+    let mut failed = coll.bsos.invalid.clone();
+    let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
-            if commit && !coll.bsos.valid.is_empty() {
-                // There's pending items to append to the batch but since we're
-                // committing, write them to bsos immediately. Otherwise under
-                // Spanner we would pay twice the mutations for those pending
-                // items (once writing them to to batch_bsos, then again
-                // writing them to bsos)
-                Either::Left(
-                    coll.db
-                        .post_bsos(params::PostBsos {
-                            user_id: coll.user_id.clone(),
-                            collection: coll.collection.clone(),
-                            // XXX: why does BatchBsoBody exist (it's the same struct
-                            // as PostCollectionBso)?
-                            bsos: coll
-                                .bsos
-                                .valid
-                                .into_iter()
-                                .map(|batch_bso| params::PostCollectionBso {
-                                    id: batch_bso.id,
-                                    sortindex: batch_bso.sortindex,
-                                    payload: batch_bso.payload,
-                                    ttl: batch_bso.ttl,
-                                })
-                                .collect(),
-                            failed: Default::default(),
-                        })
-                        .and_then(|_| future::ok(())),
-                )
-            } else {
-                Either::Right(coll.db.append_to_batch(params::AppendToBatch {
-                    user_id: coll.user_id.clone(),
-                    collection: coll.collection.clone(),
-                    id: id.clone(),
-                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-                }))
-            }
-            .then(move |result| {
-                match result {
-                    Ok(_) => success.extend(bso_ids),
-                    Err(e) if e.is_conflict() => return future::err(e),
-                    Err(_) => {
-                        failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
-                    }
-                };
-                future::ok((id, success, failed))
+    let result = if commit && !coll.bsos.valid.is_empty() {
+        // There's pending items to append to the batch but since we're
+        // committing, write them to bsos immediately. Otherwise under
+        // Spanner we would pay twice the mutations for those pending
+        // items (once writing them to to batch_bsos, then again
+        // writing them to bsos)
+        coll.db
+            .post_bsos(params::PostBsos {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                // XXX: why does BatchBsoBody exist (it's the same struct
+                // as PostCollectionBso)?
+                bsos: coll
+                    .bsos
+                    .valid
+                    .into_iter()
+                    .map(|batch_bso| params::PostCollectionBso {
+                        id: batch_bso.id,
+                        sortindex: batch_bso.sortindex,
+                        payload: batch_bso.payload,
+                        ttl: batch_bso.ttl,
+                    })
+                    .collect(),
+                failed: Default::default(),
             })
+            .and_then(|_| future::ok(()))
+            .await
+    } else {
+        coll.db
+            .append_to_batch(params::AppendToBatch {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                id: id.clone(),
+                bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+            })
+            .await
+    };
+
+    match result {
+        Ok(_) => success.extend(bso_ids),
+        Err(e) if e.is_conflict() => return Err(e.into()),
+        Err(_) => failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned()))),
+    };
+
+    let mut resp = json!({
+        "success": success,
+        "failed": failed,
+    });
+
+    if !breq.commit {
+        resp["batch"] = json!(&id);
+        return Ok(HttpResponse::Accepted().json(resp));
+    }
+
+    let batch = db
+        .get_batch(params::GetBatch {
+            user_id: user_id.clone(),
+            collection: collection.clone(),
+            id,
         })
-        .map_err(From::from)
-        .and_then(move |(id, success, failed)| {
-            let mut resp = json!({
-                "success": success,
-                "failed": failed,
-            });
+        .await?;
 
-            if !breq.commit {
-                resp["batch"] = json!(&id);
-                return Either::Left(future::ok(HttpResponse::Accepted().json(resp)));
-            }
+    // TODO: validate *actual* sizes of the batch items
+    // (max_total_records, max_total_bytes)
+    let result = if let Some(batch) = batch {
+        db.commit_batch(params::CommitBatch {
+            user_id: user_id.clone(),
+            collection: collection.clone(),
+            batch,
+        })
+        .await?
+    } else {
+        let err: DbError = DbErrorKind::BatchNotFound.into();
+        return Err(ApiError::from(err).into());
+    };
 
-            let fut = db
-                .get_batch(params::GetBatch {
-                    user_id: user_id.clone(),
-                    collection: collection.clone(),
-                    id,
-                })
-                .and_then(move |batch| {
-                    // TODO: validate *actual* sizes of the batch items
-                    // (max_total_records, max_total_bytes)
-                    if let Some(batch) = batch {
-                        db.commit_batch(params::CommitBatch {
-                            user_id: user_id.clone(),
-                            collection: collection.clone(),
-                            batch,
-                        })
-                    } else {
-                        let err: DbError = DbErrorKind::BatchNotFound.into();
-                        Box::pin(future::err(err.into()))
-                    }
-                })
-                .map_err(From::from)
-                .map_ok(|result| {
-                    resp["modified"] = json!(result.modified);
-                    HttpResponse::build(StatusCode::OK)
-                        .header(X_LAST_MODIFIED, result.modified.as_header())
-                        .json(resp)
-                });
-            Either::Right(fut)
-        }),
-    )
+    resp["modified"] = json!(result.modified);
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header(X_LAST_MODIFIED, result.modified.as_header())
+        .json(resp))
 }
 
 pub async fn delete_bso(bso_req: BsoRequest) -> Result<HttpResponse, Error> {

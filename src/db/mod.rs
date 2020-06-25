@@ -59,7 +59,7 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 /// DbPools' worker ThreadPool size
 pub const DB_THREAD_POOL_SIZE: usize = 50;
 
-type DbFuture<T> = LocalBoxFuture<'static, Result<T, ApiError>>;
+type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
 
 pub trait DbPool: Sync + Send + Debug {
     fn get(&self) -> DbFuture<Box<dyn Db>>;
@@ -154,7 +154,7 @@ pub trait Db: Send + Debug {
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
 
-    fn box_clone(&self) -> Box<dyn Db>;
+    fn box_clone(&self) -> Box<dyn Db + '_>;
 
     fn check(&self) -> DbFuture<results::Check>;
 
@@ -231,8 +231,8 @@ pub trait Db: Send + Debug {
     fn clear_coll_cache(&self);
 }
 
-impl Clone for Box<dyn Db> {
-    fn clone(&self) -> Box<dyn Db> {
+impl<'a> Clone for Box<dyn Db + 'a> {
+    fn clone(&self) -> Box<dyn Db + 'a> {
         self.box_clone()
     }
 }

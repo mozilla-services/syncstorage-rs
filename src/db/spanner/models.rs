@@ -85,8 +85,8 @@ struct SpannerDbSession {
 }
 
 #[derive(Clone, Debug)]
-pub struct SpannerDb {
-    pub(super) inner: Arc<SpannerDbInner<'static>>,
+pub struct SpannerDb<'a> {
+    pub(super) inner: Arc<SpannerDbInner<'a>>,
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -106,7 +106,7 @@ impl fmt::Debug for SpannerDbInner<'_> {
     }
 }
 
-impl<'a> Deref for SpannerDb {
+impl<'a> Deref for SpannerDb<'a> {
     type Target = SpannerDbInner<'a>;
 
     fn deref(&self) -> &Self::Target {
@@ -114,8 +114,8 @@ impl<'a> Deref for SpannerDb {
     }
 }
 
-impl<'a> SpannerDb {
-    pub fn new(conn: Conn<'_>, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
+impl<'a> SpannerDb<'a> {
+    pub fn new(conn: Conn<'a>, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
             session: RefCell::new(Default::default()),
@@ -622,7 +622,7 @@ impl<'a> SpannerDb {
 
     async fn load_collection_names(
         &self,
-        collection_ids: impl Iterator<Item = &'a i32>,
+        collection_ids: impl Iterator<Item = &i32>,
     ) -> Result<HashMap<i32, String>> {
         let mut names = HashMap::new();
         let mut uncached = Vec::new();
@@ -1614,9 +1614,9 @@ impl<'a> SpannerDb {
     }
 }
 
-unsafe impl Send for SpannerDb {}
+unsafe impl Send for SpannerDb<'_> {}
 
-impl Db for SpannerDb {
+impl Db for SpannerDb<'_> {
     fn commit(&self) -> DbFuture<()> {
         let db = self.clone();
         Box::pin(async move { db.commit_async().map_err(Into::into).await })
@@ -1670,7 +1670,7 @@ impl Db for SpannerDb {
         Box::pin(async move { db.delete_collection_async(param).map_err(Into::into).await })
     }
 
-    fn box_clone(&self) -> Box<dyn Db> {
+    fn box_clone(&self) -> Box<dyn Db + '_> {
         Box::new(self.clone())
     }
 
