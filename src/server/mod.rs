@@ -63,7 +63,7 @@ macro_rules! build_app {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap(middleware::precondition::PreConditionCheck::new())
-            .wrap(middleware::db::DbTransaction::new())
+            // .wrap(middleware::db::DbTransaction::new())
             .wrap(middleware::weave::WeaveTimestamp::new())
             .wrap(middleware::sentry::SentryWrapper::new())
             .wrap(middleware::rejectua::RejectUA::default())
@@ -153,10 +153,7 @@ macro_rules! build_app {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let metrics = metrics::metrics_from_opts(&settings)?;
-        let db_pool = pool_from_settings(
-            &settings,
-            &Metrics::from(&metrics)
-        ).await?;
+        let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
         let limits = Arc::new(settings.limits);
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;

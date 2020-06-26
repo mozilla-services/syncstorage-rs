@@ -87,7 +87,7 @@ where
                     }
                 };
                 debug!("Rejecting User-Agent: {:?}", header);
-                Metrics::from(&state).incr("error.rejectua");
+                Metrics::from(state.as_ref()).incr("error.rejectua");
 
                 Either::Left(future::ok(
                     sreq.into_response(

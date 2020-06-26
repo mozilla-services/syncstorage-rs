@@ -8,6 +8,7 @@ pub mod results;
 pub mod spanner;
 #[cfg(test)]
 mod tests;
+pub mod transaction;
 pub mod util;
 
 use std::{fmt::Debug, time::Duration};

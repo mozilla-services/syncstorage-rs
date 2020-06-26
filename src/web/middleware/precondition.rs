@@ -4,7 +4,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::web::middleware::sentry::queue_report;
 use crate::web::{
     extractors::{
-        extrude_db, BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
+        extrude_db_pool, BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
     },
     middleware::SyncServerRequest,
     tags::Tags,
@@ -123,7 +123,8 @@ where
             };
 
             let (req, payload) = sreq.into_parts();
-            let edb = extrude_db(&req).await;
+            let db_pool = extrude_db_pool(&req).await?;
+            let edb = db_pool.get().await.map_err(Error::from);
             let sreq = ServiceRequest::from_parts(req, payload)
                 .unwrap_or_else(|_| panic!("TODO: this should never happen"));
             let db = match edb {

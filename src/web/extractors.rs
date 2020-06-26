@@ -27,8 +27,8 @@ use serde::{
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use crate::db::{util::SyncTimestamp, Db, Sorting};
-use crate::error::ApiError;
+use crate::db::{util::SyncTimestamp, Db, DbPool, Sorting};
+use crate::error::{ApiError, ApiResult};
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
 use crate::web::{
@@ -64,7 +64,7 @@ pub struct UidParam {
     uid: u64,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
     #[validate(custom = "validate_body_bso_id")]
     pub id: String,
@@ -131,7 +131,7 @@ fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> 
     "invalid".to_string()
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Clone, Default, Deserialize)]
 pub struct BsoBodies {
     pub valid: Vec<BatchBsoBody>,
     pub invalid: HashMap<String, String>,
@@ -603,14 +603,13 @@ impl FromRequest for CollectionParam {
 ///
 /// Only the database and user identifier is required for information
 /// requests: https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html#general-info
-pub struct MetaRequest<'a> {
+pub struct MetaRequest {
     pub user_id: HawkIdentifier,
-    pub db: Box<dyn Db<'a>>,
     pub metrics: metrics::Metrics,
     pub tags: Tags,
 }
 
-impl<'a> FromRequest for MetaRequest<'a> {
+impl FromRequest for MetaRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -628,15 +627,9 @@ impl<'a> FromRequest for MetaRequest<'a> {
                 }
             };
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let state = req.app_data::<ServerState>().ok_or_else(|| {
-                error!("DB Error: No server state");
-                ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
-            })?;
 
-            let db = state.db_pool.get().await?;
             Ok(MetaRequest {
                 user_id,
-                db,
                 metrics: metrics::Metrics::from(&req),
                 tags,
             })
@@ -655,9 +648,8 @@ pub enum ReplyFormat {
 /// Collection Request Delete/Get extractor
 ///
 /// Extracts/validates information needed for collection delete/get requests.
-pub struct CollectionRequest<'a> {
+pub struct CollectionRequest {
     pub collection: String,
-    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub reply: ReplyFormat,
@@ -665,7 +657,7 @@ pub struct CollectionRequest<'a> {
     pub tags: Option<Tags>,
 }
 
-impl FromRequest for CollectionRequest<'_> {
+impl FromRequest for CollectionRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -675,7 +667,6 @@ impl FromRequest for CollectionRequest<'_> {
         let mut payload = Payload::None;
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let collection = CollectionParam::from_request(&req, &mut payload)
                 .await?
@@ -705,7 +696,6 @@ impl FromRequest for CollectionRequest<'_> {
 
             Ok(CollectionRequest {
                 collection,
-                db,
                 user_id,
                 query,
                 reply,
@@ -720,9 +710,8 @@ impl FromRequest for CollectionRequest<'_> {
 /// Collection Request Post extractor
 ///
 /// Extracts/validates information needed for batch collection POST requests.
-pub struct CollectionPostRequest<'a> {
+pub struct CollectionPostRequest {
     pub collection: String,
-    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
@@ -730,7 +719,7 @@ pub struct CollectionPostRequest<'a> {
     pub metrics: metrics::Metrics,
 }
 
-impl<'a> FromRequest for CollectionPostRequest<'a> {
+impl FromRequest for CollectionPostRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -766,7 +755,6 @@ impl<'a> FromRequest for CollectionPostRequest<'a> {
             let max_post_records = i64::from(state.limits.max_post_records);
 
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = Box::<dyn Db<'a>>::from_request(&req, &mut payload).await?;
             let collection = CollectionParam::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let mut bsos = BsoBodies::from_request(&req, &mut payload).await?;
@@ -803,7 +791,6 @@ impl<'a> FromRequest for CollectionPostRequest<'a> {
             let batch = BatchRequestOpt::extract(&req).await?;
             Ok(CollectionPostRequest {
                 collection,
-                db,
                 user_id,
                 query,
                 bsos,
@@ -818,16 +805,15 @@ impl<'a> FromRequest for CollectionPostRequest<'a> {
 ///
 /// Extracts/validates information needed for BSO delete/get requests.
 #[derive(Debug)]
-pub struct BsoRequest<'a> {
+pub struct BsoRequest {
     pub collection: String,
-    pub db: Box<dyn Db<'a>>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
     pub metrics: metrics::Metrics,
 }
 
-impl FromRequest for BsoRequest<'_> {
+impl FromRequest for BsoRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -837,7 +823,6 @@ impl FromRequest for BsoRequest<'_> {
         let mut payload = payload.take();
         Box::pin(async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = <Box<dyn Db>>::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let collection = CollectionParam::from_request(&req, &mut payload)
                 .await?
@@ -846,7 +831,6 @@ impl FromRequest for BsoRequest<'_> {
 
             Ok(BsoRequest {
                 collection,
-                db,
                 user_id,
                 query,
                 bso: bso.bso,
@@ -859,9 +843,9 @@ impl FromRequest for BsoRequest<'_> {
 /// BSO Request Put extractor
 ///
 /// Extracts/validates information needed for BSO put requests.
-pub struct BsoPutRequest<'a> {
+pub struct BsoPutRequest {
     pub collection: String,
-    pub db: Box<dyn Db<'a>>,
+    pub db_pool: Box<dyn DbPool>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -869,7 +853,7 @@ pub struct BsoPutRequest<'a> {
     pub metrics: metrics::Metrics,
 }
 
-impl<'a> FromRequest for BsoPutRequest<'a> {
+impl FromRequest for BsoPutRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -881,7 +865,7 @@ impl<'a> FromRequest for BsoPutRequest<'a> {
 
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db = Box::<dyn Db<'a>>::from_request(&req, &mut payload).await?;
+            let db_pool = extrude_db_pool(&req).await?;
             let collection = CollectionParam::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let bso = BsoParam::from_request(&req, &mut payload).await?;
@@ -905,7 +889,7 @@ impl<'a> FromRequest for BsoPutRequest<'a> {
             }
             Ok(BsoPutRequest {
                 collection,
-                db,
+                db_pool,
                 user_id,
                 query,
                 bso: bso.bso,
@@ -967,12 +951,12 @@ impl FromRequest for ConfigRequest {
 }
 
 #[derive(Clone, Debug)]
-pub struct HeartbeatRequest<'a> {
+pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    pub db: Box<dyn Db<'a>>,
+    pub db_pool: Box<dyn DbPool>,
 }
 
-impl<'a> FromRequest for HeartbeatRequest<'a> {
+impl FromRequest for HeartbeatRequest {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -1003,8 +987,8 @@ impl<'a> FromRequest for HeartbeatRequest<'a> {
                     .into());
                 }
             };
-            let db = state.db_pool.get().await?;
-            Ok(HeartbeatRequest { headers, db })
+            let db_pool = state.db_pool.clone();
+            Ok(HeartbeatRequest { headers, db_pool })
         }
         .boxed_local()
     }
@@ -1194,26 +1178,25 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-pub async fn extrude_db(req: &HttpRequest) -> Result<Box<dyn Db<'_>>, Error> {
-    Box::<dyn Db<'_>>::extract(req).await
+pub async fn extrude_db_pool(req: &HttpRequest) -> Result<Box<dyn DbPool>, Error> {
+    Box::<dyn DbPool>::extract(req).await
 }
 
-impl FromRequest for Box<dyn Db<'_>> {
+impl FromRequest for Box<dyn DbPool> {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = future::Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let req = req.clone();
-        async move {
-            let state = req.app_data::<ServerState>().ok_or_else(|| {
-                error!("DB Error: No server state");
-                ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
-            })?;
+        let state = match req.app_data::<ServerState>().ok_or_else(|| {
+            error!("DB Error: No server state");
+            ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
+        }) {
+            Ok(state) => state,
+            Err(e) => return future::err(e),
+        };
 
-            state.db_pool.get().await.map_err(Into::into)
-        }
-        .boxed_local()
+        future::ok(state.db_pool.clone())
     }
 }
 
@@ -1492,7 +1475,8 @@ impl FromRequest for BatchRequestOpt {
                 None => None,
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
-                    let db = extrude_db(&req).await?;
+                    let pool = extrude_db_pool(&req).await?;
+                    let db = pool.get().await?;
                     if db.validate_batch_id(batch.clone()).is_err() {
                         return Err(ValidationErrorKind::FromDetails(
                             format!(r#"Invalid batch ID: "{}""#, batch),
