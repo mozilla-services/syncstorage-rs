@@ -32,7 +32,7 @@ env_logger = "0.7.1"
 failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
-grpcio = { version = "0.5.1" }
+grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
 hkdf = "0.8.0"

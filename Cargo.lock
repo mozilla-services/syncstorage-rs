@@ -1255,20 +1255,34 @@ name = "googleapis-raw"
 version = "0.0.1"
 dependencies = [
  "futures 0.1.29",
- "grpcio",
+ "grpcio 0.5.3",
  "protobuf",
 ]
 
 [[package]]
 name = "grpcio"
-version = "0.5.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a779eb8dc982fa4a552eb21e2962b2d927ea9037cb21be8645034c9e79ee4a29"
+checksum = "7a60cc544face71ebbc053d821fdf880b809340b67d19f5d07d6b829e9e36e63"
 dependencies = [
  "futures 0.1.29",
- "grpcio-sys",
+ "grpcio-sys 0.5.3",
  "libc",
  "log",
+ "protobuf",
+]
+
+[[package]]
+name = "grpcio"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63fac32f9f74fa1fd78215d04b47f134c1ee5a535c237a54d52bf18cf65ac983"
+dependencies = [
+ "futures 0.3.5",
+ "grpcio-sys 0.6.0",
+ "libc",
+ "log",
+ "parking_lot 0.10.0",
  "protobuf",
 ]
 
@@ -1277,6 +1291,21 @@ name = "grpcio-sys"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ae317d29eb55297b760ca3641662f140e17b9dc36e3f23a3e7e7327e3c33c7e"
+dependencies = [
+ "bindgen",
+ "cc",
+ "cmake",
+ "libc",
+ "libz-sys",
+ "pkg-config",
+ "walkdir",
+]
+
+[[package]]
+name = "grpcio-sys"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12d4e9309f1151c9ebcd07622858c4a504b6ea6cd2821524fe74ccde8ea830d7"
 dependencies = [
  "bindgen",
  "cc",
@@ -3020,7 +3049,7 @@ dependencies = [
  "futures 0.3.5",
  "futures-await-test",
  "googleapis-raw",
- "grpcio",
+ "grpcio 0.6.0",
  "hawk",
  "hkdf",
  "hmac",
