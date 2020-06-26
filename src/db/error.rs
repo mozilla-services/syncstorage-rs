@@ -54,7 +54,7 @@ pub enum DbErrorKind {
     Internal(String),
 
     #[fail(display = "bb8 error: {}", _0)]
-    Bb8Error(bb8::RunError<grpcio::Error>)
+    Bb8Error(bb8::RunError<grpcio::Error>),
 }
 
 impl DbError {
@@ -111,8 +111,4 @@ from_error!(
     DbError,
     DbErrorKind::Migration
 );
-from_error!(
-    bb8::RunError<grpcio::Error>,
-    DbError,
-    DbErrorKind::Bb8Error
-);
+from_error!(bb8::RunError<grpcio::Error>, DbError, DbErrorKind::Bb8Error);
