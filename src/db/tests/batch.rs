@@ -1,7 +1,7 @@
 use futures_await_test::async_test;
 use log::debug;
 
-use super::support::{db, gbso, hid, postbso, Result};
+use super::support::{db_pool, gbso, hid, postbso, test_db, Result};
 use crate::{
     db::{error::DbErrorKind, params, util::SyncTimestamp, BATCH_LIFETIME},
     error::ApiErrorKind,
@@ -47,7 +47,8 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 
 #[async_test]
 async fn create_delete() -> Result<()> {
-    let db = db().await?;
+    let pool = db_pool().await?;
+    let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -66,7 +67,8 @@ async fn create_delete() -> Result<()> {
 
 #[async_test]
 async fn expiry() -> Result<()> {
-    let db = db().await?;
+    let pool = db_pool().await?;
+    let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -92,7 +94,8 @@ async fn expiry() -> Result<()> {
 
 #[async_test]
 async fn update() -> Result<()> {
-    let db = db().await?;
+    let pool = db_pool().await?;
+    let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -115,7 +118,8 @@ async fn update() -> Result<()> {
 
 #[async_test]
 async fn append_commit() -> Result<()> {
-    let db = db().await?;
+    let pool = db_pool().await?;
+    let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
     let coll = "clients";

@@ -1,5 +1,5 @@
-use std::{fmt, sync::Arc};
 use std::marker::PhantomData;
+use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
 use bb8::ManageConnection;
@@ -22,6 +22,7 @@ pub struct SpannerConnectionManager<T> {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
+    test_transactions: bool,
     phantom: PhantomData<T>,
 }
 
@@ -41,10 +42,17 @@ impl<T> SpannerConnectionManager<T> {
         }
         let database_name = url["spanner://".len()..].to_owned();
         let env = Arc::new(EnvBuilder::new().build());
+
+        #[cfg(not(test))]
+        let test_transactions = false;
+        #[cfg(test)]
+        let test_transactions = settings.database_use_test_transactions;
+
         Ok(SpannerConnectionManager::<T> {
             database_name,
             env,
-            phantom: PhantomData
+            test_transactions,
+            phantom: PhantomData,
         })
     }
 }
@@ -57,7 +65,8 @@ pub struct SpannerSession {
 }
 
 #[async_trait]
-impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection for SpannerConnectionManager<T>
+impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
+    for SpannerConnectionManager<T>
 {
     type Connection = SpannerSession;
     type Error = grpcio::Error;
@@ -79,7 +88,7 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection for Sp
         Ok(SpannerSession {
             client,
             session,
-            use_test_transactions: false,
+            use_test_transactions: self.test_transactions,
         })
     }
 

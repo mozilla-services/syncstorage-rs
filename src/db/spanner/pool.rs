@@ -10,8 +10,6 @@ use std::{
 };
 
 use super::models::Result;
-#[cfg(test)]
-use super::test_util::SpannerTestTransactionCustomizer;
 use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
@@ -52,13 +50,6 @@ impl SpannerDbPool {
         let manager = SpannerConnectionManager::<SpannerSession>::new(settings)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
         let builder = bb8::Pool::builder().max_size(max_size);
-
-        #[cfg(test)]
-        let builder = if settings.database_use_test_transactions {
-            builder.connection_customizer(Box::new(SpannerTestTransactionCustomizer))
-        } else {
-            builder
-        };
 
         Ok(Self {
             pool: builder.build(manager).await?,

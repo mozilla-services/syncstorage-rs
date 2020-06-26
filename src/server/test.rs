@@ -68,7 +68,7 @@ fn get_test_settings() -> Settings {
 fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
     ServerState {
-        db_pool: pool_from_settings(&settings, &Metrics::from(&metrics))
+        db_pool: block_on(pool_from_settings(&settings, &Metrics::from(&metrics)))
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),

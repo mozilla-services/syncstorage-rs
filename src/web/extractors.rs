@@ -1797,7 +1797,7 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db> {
+    fn make_db() -> Box<dyn Db<'static>> {
         Box::new(MockDb::new())
     }
 
