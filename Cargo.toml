@@ -32,7 +32,7 @@ env_logger = "0.7.1"
 failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
-grpcio = { version = "0.5.1" }
+grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
 hkdf = "0.8.0"
@@ -42,7 +42,7 @@ mime = "0.3"
 mozsvc-common = "0.1"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.12"
+protobuf = "2.15"
 rand = "0.7"
 regex = "1.3"
 sentry = { version = "0.18", features = ["with_curl_transport"] }
