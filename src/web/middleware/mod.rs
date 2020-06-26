@@ -14,6 +14,7 @@ use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
 use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
+use actix_web::web::Data;
 
 /// The resource in question's Timestamp
 pub struct ResourceTimestamp(SyncTimestamp);
@@ -48,9 +49,11 @@ impl SyncServerRequest for HttpRequest {
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
         let ci = &self.connection_info().clone();
-        let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
-            ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
-        })?;
+        let state = &self
+            .app_data::<Data<ServerState>>()
+            .ok_or_else(|| -> ApiError {
+                ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
+            })?;
         let tags = Tags::from_request_head(self.head());
         HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state, Some(tags))
     }

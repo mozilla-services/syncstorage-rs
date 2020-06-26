@@ -9,6 +9,7 @@ use crate::web::tags::Tags;
 use actix_http::http::{HeaderValue, Method};
 use actix_http::Error;
 use actix_web::dev::{Payload, PayloadStream};
+use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
@@ -76,11 +77,11 @@ impl FromRequest for DbTransactionPool {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
     type Config = ();
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload<PayloadStream>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload<PayloadStream>) -> Self::Future {
         let req = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
-                .expect("Could not get no_agent in DbTransactionMiddleware::call");
+                .expect("Could not get no_agent in DbTransactionPool::from_request");
             let useragent = req
                 .headers()
                 .get("user-agent")
@@ -94,7 +95,7 @@ impl FromRequest for DbTransactionPool {
                 None => Tags::from_request_head(req.head()),
             };
             let col_result = CollectionParam::extrude(&req.uri(), &mut req.extensions_mut(), &tags);
-            let state = match req.app_data::<ServerState>() {
+            let state = match req.app_data::<Data<ServerState>>() {
                 Some(v) => v,
                 None => {
                     let apie: ApiError = ApiErrorKind::NoServerState.into();
@@ -105,7 +106,7 @@ impl FromRequest for DbTransactionPool {
                 Ok(v) => v,
                 Err(e) => {
                     // Semi-example to show how to use metrics inside of middleware.
-                    Metrics::from(state).incr("sync.error.collectionParam");
+                    Metrics::from(state.as_ref()).incr("sync.error.collectionParam");
                     warn!("⚠️ CollectionParam err: {:?}", e);
                     return Err(e);
                 }

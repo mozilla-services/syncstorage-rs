@@ -1188,7 +1188,7 @@ impl FromRequest for Box<dyn DbPool> {
     type Future = future::Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let state = match req.app_data::<ServerState>().ok_or_else(|| {
+        let state = match req.app_data::<Data<ServerState>>().ok_or_else(|| {
             error!("DB Error: No server state");
             ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
         }) {
