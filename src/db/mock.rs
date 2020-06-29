@@ -1,7 +1,7 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
-use futures::{future, FutureExt};
+use futures::future;
 
 use super::*;
 
@@ -43,7 +43,7 @@ macro_rules! mock_db_method {
         mock_db_method!($name, $type, results::$type);
     };
     ($name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<$result> {
+        fn $name(&self, _params: params::$type) -> DbFuture<'_, $result> {
             let result: $result = Default::default();
             Box::pin(future::ok(result))
         }
@@ -51,15 +51,15 @@ macro_rules! mock_db_method {
 }
 
 impl<'a> Db<'a> for MockDb {
-    fn commit(&self) -> DbFuture<()> {
+    fn commit(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn rollback(&self) -> DbFuture<()> {
+    fn rollback(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn begin(&self, _for_write: bool) -> DbFuture<()> {
+    fn begin(&self, _for_write: bool) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
@@ -67,7 +67,7 @@ impl<'a> Db<'a> for MockDb {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check> {
         Box::pin(future::ok(true))
     }
 

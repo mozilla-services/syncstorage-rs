@@ -16,7 +16,7 @@ use actix_web::{
     http::{header, StatusCode},
     Error, HttpMessage, HttpResponse,
 };
-use futures::future::{self, Either, FutureExt, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, FutureExt, LocalBoxFuture};
 use std::task::Poll;
 
 #[derive(Debug)]

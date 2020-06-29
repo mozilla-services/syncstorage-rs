@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
-use futures::future::{self, Either, Future, FutureExt, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, Future, TryFutureExt};
 use serde::Serialize;
 use serde_json::{json, Value};
 

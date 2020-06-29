@@ -1617,27 +1617,27 @@ impl<'a> SpannerDb<'a> {
 unsafe impl Send for SpannerDb<'_> {}
 
 impl<'a> Db<'a> for SpannerDb<'a> {
-    fn commit(&self) -> DbFuture<()> {
+    fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.commit_async().map_err(Into::into).await })
     }
 
-    fn rollback(&self) -> DbFuture<()> {
+    fn rollback(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.rollback_async().map_err(Into::into).await })
     }
 
-    fn lock_for_read(&self, param: params::LockCollection) -> DbFuture<()> {
+    fn lock_for_read(&self, param: params::LockCollection) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.lock_for_read_async(param).map_err(Into::into).await })
     }
 
-    fn lock_for_write(&self, param: params::LockCollection) -> DbFuture<()> {
+    fn lock_for_write(&self, param: params::LockCollection) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.lock_for_write_async(param).map_err(Into::into).await })
     }
 
-    fn begin(&self, for_write: bool) -> DbFuture<()> {
+    fn begin(&self, for_write: bool) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
@@ -1645,7 +1645,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_collection_timestamp(
         &self,
         param: params::GetCollectionTimestamp,
-    ) -> DbFuture<results::GetCollectionTimestamp> {
+    ) -> DbFuture<'_, results::GetCollectionTimestamp> {
         let db = self.clone();
         Box::pin(async move {
             db.get_collection_timestamp_async(param)
@@ -1657,7 +1657,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_storage_timestamp(
         &self,
         param: params::GetStorageTimestamp,
-    ) -> DbFuture<results::GetStorageTimestamp> {
+    ) -> DbFuture<'_, results::GetStorageTimestamp> {
         let db = self.clone();
         Box::pin(async move { db.get_storage_timestamp(param).map_err(Into::into).await })
     }
@@ -1665,7 +1665,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn delete_collection(
         &self,
         param: params::DeleteCollection,
-    ) -> DbFuture<results::DeleteCollection> {
+    ) -> DbFuture<'_, results::DeleteCollection> {
         let db = self.clone();
         Box::pin(async move { db.delete_collection_async(param).map_err(Into::into).await })
     }
@@ -1674,7 +1674,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
         Box::pin(async move { db.check_async().map_err(Into::into).await })
     }
@@ -1682,7 +1682,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_collection_timestamps(
         &self,
         user_id: params::GetCollectionTimestamps,
-    ) -> DbFuture<results::GetCollectionTimestamps> {
+    ) -> DbFuture<'_, results::GetCollectionTimestamps> {
         let db = self.clone();
         Box::pin(async move {
             db.get_collection_timestamps_async(user_id)
@@ -1694,7 +1694,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_collection_counts(
         &self,
         user_id: params::GetCollectionCounts,
-    ) -> DbFuture<results::GetCollectionCounts> {
+    ) -> DbFuture<'_, results::GetCollectionCounts> {
         let db = self.clone();
         Box::pin(async move {
             db.get_collection_counts_async(user_id)
@@ -1706,7 +1706,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_collection_usage(
         &self,
         user_id: params::GetCollectionUsage,
-    ) -> DbFuture<results::GetCollectionUsage> {
+    ) -> DbFuture<'_, results::GetCollectionUsage> {
         let db = self.clone();
         Box::pin(async move {
             db.get_collection_usage_async(user_id)
@@ -1718,37 +1718,37 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_storage_usage(
         &self,
         param: params::GetStorageUsage,
-    ) -> DbFuture<results::GetStorageUsage> {
+    ) -> DbFuture<'_, results::GetStorageUsage> {
         let db = self.clone();
         Box::pin(async move { db.get_storage_usage_async(param).map_err(Into::into).await })
     }
 
-    fn delete_storage(&self, param: params::DeleteStorage) -> DbFuture<results::DeleteStorage> {
+    fn delete_storage(&self, param: params::DeleteStorage) -> DbFuture<'_, results::DeleteStorage> {
         let db = self.clone();
         Box::pin(async move { db.delete_storage_async(param).map_err(Into::into).await })
     }
 
-    fn delete_bso(&self, param: params::DeleteBso) -> DbFuture<results::DeleteBso> {
+    fn delete_bso(&self, param: params::DeleteBso) -> DbFuture<'_, results::DeleteBso> {
         let db = self.clone();
         Box::pin(async move { db.delete_bso_async(param).map_err(Into::into).await })
     }
 
-    fn delete_bsos(&self, param: params::DeleteBsos) -> DbFuture<results::DeleteBsos> {
+    fn delete_bsos(&self, param: params::DeleteBsos) -> DbFuture<'_, results::DeleteBsos> {
         let db = self.clone();
         Box::pin(async move { db.delete_bsos_async(param).map_err(Into::into).await })
     }
 
-    fn get_bsos(&self, param: params::GetBsos) -> DbFuture<results::GetBsos> {
+    fn get_bsos(&self, param: params::GetBsos) -> DbFuture<'_, results::GetBsos> {
         let db = self.clone();
         Box::pin(async move { db.get_bsos_async(param).map_err(Into::into).await })
     }
 
-    fn get_bso_ids(&self, param: params::GetBsoIds) -> DbFuture<results::GetBsoIds> {
+    fn get_bso_ids(&self, param: params::GetBsoIds) -> DbFuture<'_, results::GetBsoIds> {
         let db = self.clone();
         Box::pin(async move { db.get_bso_ids_async(param).map_err(Into::into).await })
     }
 
-    fn get_bso(&self, param: params::GetBso) -> DbFuture<Option<results::GetBso>> {
+    fn get_bso(&self, param: params::GetBso) -> DbFuture<'_, Option<results::GetBso>> {
         let db = self.clone();
         Box::pin(async move { db.get_bso_async(param).map_err(Into::into).await })
     }
@@ -1756,31 +1756,31 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     fn get_bso_timestamp(
         &self,
         param: params::GetBsoTimestamp,
-    ) -> DbFuture<results::GetBsoTimestamp> {
+    ) -> DbFuture<'_, results::GetBsoTimestamp> {
         let db = self.clone();
         Box::pin(async move { db.get_bso_timestamp_async(param).map_err(Into::into).await })
     }
 
     #[cfg(not(test))]
-    fn put_bso(&self, param: params::PutBso) -> DbFuture<results::PutBso> {
+    fn put_bso(&self, param: params::PutBso) -> DbFuture<'_, results::PutBso> {
         let db = self.clone();
         Box::pin(async move { db.put_bso_async(param).map_err(Into::into).await })
     }
 
     #[cfg(test)]
-    fn put_bso(&self, param: params::PutBso) -> DbFuture<results::PutBso> {
+    fn put_bso(&self, param: params::PutBso) -> DbFuture<'_, results::PutBso> {
         let db = self.clone();
         Box::pin(async move { db.put_bso_async_test(param).map_err(Into::into).await })
     }
 
     #[cfg(not(test))]
-    fn post_bsos(&self, param: params::PostBsos) -> DbFuture<results::PostBsos> {
+    fn post_bsos(&self, param: params::PostBsos) -> DbFuture<'_, results::PostBsos> {
         let db = self.clone();
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
     }
 
     #[cfg(test)]
-    fn post_bsos(&self, param: params::PostBsos) -> DbFuture<results::PostBsos> {
+    fn post_bsos(&self, param: params::PostBsos) -> DbFuture<'_, results::PostBsos> {
         let db = self.clone();
         Box::pin(async move { db.post_bsos_async_test(param).map_err(Into::into).await })
     }
@@ -1789,45 +1789,48 @@ impl<'a> Db<'a> for SpannerDb<'a> {
         batch::validate_batch_id(&id)
     }
 
-    fn create_batch(&self, param: params::CreateBatch) -> DbFuture<results::CreateBatch> {
+    fn create_batch(&self, param: params::CreateBatch) -> DbFuture<'_, results::CreateBatch> {
         let db = self.clone();
         Box::pin(async move { batch::create_async(&db, param).map_err(Into::into).await })
     }
 
-    fn validate_batch(&self, param: params::ValidateBatch) -> DbFuture<results::ValidateBatch> {
+    fn validate_batch(&self, param: params::ValidateBatch) -> DbFuture<'_, results::ValidateBatch> {
         let db = self.clone();
         Box::pin(async move { batch::validate_async(&db, param).map_err(Into::into).await })
     }
 
-    fn append_to_batch(&self, param: params::AppendToBatch) -> DbFuture<results::AppendToBatch> {
+    fn append_to_batch(
+        &self,
+        param: params::AppendToBatch,
+    ) -> DbFuture<'_, results::AppendToBatch> {
         let db = self.clone();
         Box::pin(async move { batch::append_async(&db, param).map_err(Into::into).await })
     }
 
-    fn get_batch(&self, param: params::GetBatch) -> DbFuture<Option<results::GetBatch>> {
+    fn get_batch(&self, param: params::GetBatch) -> DbFuture<'_, Option<results::GetBatch>> {
         let db = self.clone();
         Box::pin(async move { batch::get_async(&db, param).map_err(Into::into).await })
     }
 
-    fn commit_batch(&self, param: params::CommitBatch) -> DbFuture<results::CommitBatch> {
+    fn commit_batch(&self, param: params::CommitBatch) -> DbFuture<'_, results::CommitBatch> {
         let db = self.clone();
         Box::pin(async move { batch::commit_async(&db, param).map_err(Into::into).await })
     }
 
     #[cfg(test)]
-    fn get_collection_id(&self, name: String) -> DbFuture<i32> {
+    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(async move { db.get_collection_id_async(&name).map_err(Into::into).await })
     }
 
     #[cfg(test)]
-    fn create_collection(&self, name: String) -> DbFuture<i32> {
+    fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(async move { db.create_collection_async(&name).map_err(Into::into).await })
     }
 
     #[cfg(test)]
-    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
+    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
         Box::pin(async move {
             db.touch_collection_async(&param.user_id, param.collection_id)
@@ -1848,7 +1851,7 @@ impl<'a> Db<'a> for SpannerDb<'a> {
     }
 
     #[cfg(test)]
-    fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<results::DeleteBatch> {
+    fn delete_batch(&self, param: params::DeleteBatch) -> DbFuture<'_, results::DeleteBatch> {
         let db = self.clone();
         Box::pin(async move { batch::delete_async(&db, param).map_err(Into::into).await })
     }

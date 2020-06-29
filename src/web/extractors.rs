@@ -27,8 +27,8 @@ use serde::{
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
-use crate::db::{util::SyncTimestamp, Db, DbPool, Sorting};
-use crate::error::{ApiError, ApiResult};
+use crate::db::{util::SyncTimestamp, DbPool, Sorting};
+use crate::error::ApiError;
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
 use crate::web::{
@@ -37,7 +37,9 @@ use crate::web::{
     tags::Tags,
     X_WEAVE_RECORDS,
 };
-use actix_web::dev::ServiceRequest;
+
+#[cfg(test)]
+use crate::db::Db;
 
 const BATCH_MAX_IDS: usize = 100;
 

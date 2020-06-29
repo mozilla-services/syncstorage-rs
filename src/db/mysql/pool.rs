@@ -1,7 +1,6 @@
 use actix_web::web::block;
 
 use async_trait::async_trait;
-use futures::future::TryFutureExt;
 
 use std::{
     collections::HashMap,
@@ -18,12 +17,10 @@ use diesel::{
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
-use actix_web::dev::Service;
-use futures::StreamExt;
 
 embed_migrations!();
 

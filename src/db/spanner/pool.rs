@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use bb8;
 use bb8::Pool;
-use futures::future::TryFutureExt;
 
 use std::{
     collections::HashMap,
@@ -10,7 +8,7 @@ use std::{
 };
 
 use super::models::Result;
-use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
