@@ -4,7 +4,6 @@ use std::{
     result::Result as StdResult,
 };
 
-use futures::compat::{Compat01As03, Future01CompatExt, Stream01CompatExt};
 use futures::stream::{StreamExt, StreamFuture};
 use googleapis_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
@@ -114,7 +113,6 @@ impl ExecuteSqlRequestBuilder {
         let rs = conn
             .client
             .execute_sql_async(&self.prepare_request(conn))?
-            .compat()
             .await?;
         Ok(rs.get_stats().get_row_count_exact())
     }
@@ -122,7 +120,7 @@ impl ExecuteSqlRequestBuilder {
 
 pub struct StreamedResultSetAsync {
     /// Stream from execute_streaming_sql
-    stream: Option<StreamFuture<Compat01As03<ClientSStreamReceiver<PartialResultSet>>>>,
+    stream: Option<StreamFuture<ClientSStreamReceiver<PartialResultSet>>>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -138,7 +136,7 @@ pub struct StreamedResultSetAsync {
 impl StreamedResultSetAsync {
     pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
         Self {
-            stream: Some(stream.compat().into_future()),
+            stream: Some(stream.into_future()),
             metadata: None,
             stats: None,
             rows: Default::default(),
