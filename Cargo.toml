@@ -25,7 +25,7 @@ cadence = "0.20.0"
 chrono = "0.4"
 config = "0.10"
 diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
-diesel_logger = "0.1.0"
+diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 env_logger = "0.7.1"
