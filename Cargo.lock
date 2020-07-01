@@ -2176,9 +2176,9 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.15.0"
+version = "2.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e2ccb6b8f7e175f2d2401e7a5988b0630000164d221262c4fe50ae729513202"
+checksum = "e4951a8253c06334be9fe320bbcf73f14949fde62a0c8128d697eec1ff0fa8cd"
 
 [[package]]
 name = "publicsuffix"
