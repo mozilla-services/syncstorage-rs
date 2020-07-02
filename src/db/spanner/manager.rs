@@ -95,7 +95,7 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     async fn is_valid(&self, conn: Self::Connection) -> Result<Self::Connection, Self::Error> {
         let mut req = GetSessionRequest::new();
         req.set_name(conn.session.get_name().to_owned());
-        if let Err(e) = conn.client.get_session(&req) {
+        if let Err(e) = conn.client.get_session_async(&req)?.await {
             return Err(e);
         }
         Ok(conn)
