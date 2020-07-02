@@ -15,6 +15,7 @@ use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use std::future::Future;
 
+#[derive(Clone)]
 pub struct DbTransactionPool {
     pool: Box<dyn DbPool>,
     lock_collection: Option<params::LockCollection>,
@@ -78,6 +79,11 @@ impl FromRequest for DbTransactionPool {
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload<PayloadStream>) -> Self::Future {
+        // Cache in extensions to avoid parsing for the lock info multiple times
+        if let Some(pool) = req.extensions().get::<Self>() {
+            return futures::future::ok(pool.clone()).boxed_local();
+        }
+
         let req = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
@@ -134,12 +140,15 @@ impl FromRequest for DbTransactionPool {
                 (None, true)
             };
 
-            Ok(Self {
+            let pool = Self {
                 pool: state.db_pool.clone(),
                 lock_collection: lc,
                 is_read,
                 tags,
-            })
+            };
+
+            req.extensions_mut().insert(pool.clone());
+            Ok(pool)
         }
         .boxed_local()
     }
