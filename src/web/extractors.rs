@@ -27,6 +27,7 @@ use serde::{
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
+use crate::db::transaction::DbTransactionPool;
 use crate::db::{util::SyncTimestamp, DbPool, Sorting};
 use crate::error::ApiError;
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
@@ -847,7 +848,6 @@ impl FromRequest for BsoRequest {
 /// Extracts/validates information needed for BSO put requests.
 pub struct BsoPutRequest {
     pub collection: String,
-    pub db_pool: Box<dyn DbPool>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -867,7 +867,6 @@ impl FromRequest for BsoPutRequest {
 
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db_pool = extrude_db_pool(&req).await?;
             let collection = CollectionParam::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let bso = BsoParam::from_request(&req, &mut payload).await?;
@@ -891,7 +890,6 @@ impl FromRequest for BsoPutRequest {
             }
             Ok(BsoPutRequest {
                 collection,
-                db_pool,
                 user_id,
                 query,
                 bso: bso.bso,
@@ -1477,18 +1475,22 @@ impl FromRequest for BatchRequestOpt {
                 None => None,
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
-                    let pool = extrude_db_pool(&req).await?;
-                    let db = pool.get().await?;
-                    if db.validate_batch_id(batch.clone()).is_err() {
-                        return Err(ValidationErrorKind::FromDetails(
-                            format!(r#"Invalid batch ID: "{}""#, batch),
-                            RequestErrorLocation::QueryString,
-                            Some("batch".to_owned()),
-                            Some(ftags),
-                        )
-                        .into());
-                    }
-                    Some(batch)
+                    let transaction_pool = DbTransactionPool::extract(&req).await?;
+
+                    transaction_pool
+                        .transaction(|db| async move {
+                            if db.validate_batch_id(batch.clone()).is_err() {
+                                return Err(ValidationErrorKind::FromDetails(
+                                    format!(r#"Invalid batch ID: "{}""#, batch),
+                                    RequestErrorLocation::QueryString,
+                                    Some("batch".to_owned()),
+                                    Some(ftags),
+                                )
+                                .into());
+                            }
+                            Ok(Some(batch))
+                        })
+                        .await?
                 }
             };
 

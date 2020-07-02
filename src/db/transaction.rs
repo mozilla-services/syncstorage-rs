@@ -15,6 +15,7 @@ use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use std::future::Future;
 
+#[derive(Clone)]
 pub struct DbTransactionPool {
     pool: Box<dyn DbPool>,
     lock_collection: Option<params::LockCollection>,
@@ -23,49 +24,112 @@ pub struct DbTransactionPool {
 }
 
 impl DbTransactionPool {
-    pub async fn transaction<'a, A, F>(&'a self, action: A) -> Result<HttpResponse, Error>
+    /// Perform an action inside of a DB transaction. If the action fails, the
+    /// transaction is rolled back. If the action succeeds, the transaction is
+    /// NOT committed. Further processing is required before we are sure the
+    /// action has succeeded (ex. check HTTP response for internal error).
+    async fn transaction_internal<'a, A, R, F>(
+        &'a self,
+        action: A,
+    ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
-        F: Future<Output = Result<HttpResponse, Error>> + 'a,
+        F: Future<Output = Result<R, Error>> + 'a,
     {
+        // Get connection from pool
         let db = self.pool.get().await?;
         let db2 = db.clone();
 
+        // Lock for transaction
         let result = match (self.lock_collection.clone(), self.is_read) {
             (Some(lc), true) => db.lock_for_read(lc).await,
             (Some(lc), false) => db.lock_for_write(lc).await,
             _ => Ok(()),
         };
 
+        // Handle lock error
         if let Err(e) = result {
             db.rollback().await?;
             return Err(e.into());
         }
 
-        let resp = action(db).await?;
+        // Perform the action
+        let resp = action(db).await;
 
         // XXX: lock_for_x usually begins transactions but Dbs
         // may also implicitly create them, so commit/rollback
         // are always called to finish them. They noop when no
         // implicit transaction was created (maybe rename them
         // to maybe_commit/rollback?)
+        match resp {
+            Ok(resp) => Ok((resp, db2)),
+            Err(e) => {
+                let result = db2.rollback().await;
+
+                // Handle rollback error
+                if let Err(e) = result {
+                    self.report_error(&e);
+                    Err(e.into())
+                } else {
+                    Err(e)
+                }
+            }
+        }
+    }
+
+    /// Perform an action inside of a DB transaction.
+    pub async fn transaction<'a, A, R, F>(&'a self, action: A) -> Result<R, Error>
+    where
+        A: FnOnce(Box<dyn Db<'a>>) -> F,
+        F: Future<Output = Result<R, Error>> + 'a,
+    {
+        let (resp, db) = self.transaction_internal(action).await?;
+
+        // No further processing before commit is possible
+        let result = db.commit().await;
+
+        // Handle commit error
+        if let Err(e) = result {
+            self.report_error(&e);
+            return Err(e.into());
+        }
+
+        Ok(resp)
+    }
+
+    /// Report an error to sentry, if possible
+    fn report_error(&self, error: &ApiError) {
+        // we can't queue_report here (no access to extensions)
+        // so just report it immediately with tags on hand
+        if error.is_reportable() {
+            report(
+                &self.tags,
+                sentry::integrations::failure::event_from_fail(error),
+            );
+        } else {
+            debug!("Not reporting error: {:?}", error);
+        }
+    }
+
+    /// Perform an action inside of a DB transaction. This method will rollback
+    /// if the HTTP response is an error.
+    pub async fn transaction_http<'a, A, F>(&'a self, action: A) -> Result<HttpResponse, Error>
+    where
+        A: FnOnce(Box<dyn Db<'a>>) -> F,
+        F: Future<Output = Result<HttpResponse, Error>> + 'a,
+    {
+        let (resp, db) = self.transaction_internal(action).await?;
+
+        // HttpResponse can contain an internal error
         let result = match resp.error() {
-            None => db2.commit().await,
-            Some(_) => db2.rollback().await,
+            None => db.commit().await,
+            Some(_) => db.rollback().await,
         };
 
-        if let Err(apie) = result {
-            // we can't queue_report here (no access to extensions)
-            // so just report it immediately with tags on hand
-            if apie.is_reportable() {
-                report(
-                    &self.tags,
-                    sentry::integrations::failure::event_from_fail(&apie),
-                );
-            } else {
-                debug!("Not reporting error: {:?}", apie);
-            }
-            return Err(apie.into());
+        // Handle commit/rollback error
+        if let Err(e) = result {
+            self.report_error(&e);
+            return Err(e.into());
         }
 
         Ok(resp)
@@ -78,6 +142,11 @@ impl FromRequest for DbTransactionPool {
     type Config = ();
 
     fn from_request(req: &HttpRequest, _: &mut Payload<PayloadStream>) -> Self::Future {
+        // Cache in extensions to avoid parsing for the lock info multiple times
+        if let Some(pool) = req.extensions().get::<Self>() {
+            return futures::future::ok(pool.clone()).boxed_local();
+        }
+
         let req = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
@@ -134,12 +203,15 @@ impl FromRequest for DbTransactionPool {
                 (None, true)
             };
 
-            Ok(Self {
+            let pool = Self {
                 pool: state.db_pool.clone(),
                 lock_collection: lc,
                 is_read,
                 tags,
-            })
+            };
+
+            req.extensions_mut().insert(pool.clone());
+            Ok(pool)
         }
         .boxed_local()
     }

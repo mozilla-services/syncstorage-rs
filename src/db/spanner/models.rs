@@ -1609,8 +1609,6 @@ impl<'a> SpannerDb<'a> {
     }
 }
 
-unsafe impl Send for SpannerDb<'_> {}
-
 impl<'a> Db<'a> for SpannerDb<'a> {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
