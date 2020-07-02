@@ -22,7 +22,7 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             meta.metrics.incr("request.get_collections");
             let result = db.get_collection_timestamps(meta.user_id).await?;
 
@@ -38,7 +38,7 @@ pub async fn get_collection_counts(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             meta.metrics.incr("request.get_collection_counts");
             let result = db.get_collection_counts(meta.user_id).await?;
 
@@ -54,7 +54,7 @@ pub async fn get_collection_usage(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             meta.metrics.incr("request.get_collection_usage");
             let usage: HashMap<_, _> = db
                 .get_collection_usage(meta.user_id)
@@ -75,7 +75,7 @@ pub async fn get_quota(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             meta.metrics.incr("request.get_quota");
             let usage = db.get_storage_usage(meta.user_id).await?;
             Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
@@ -88,7 +88,7 @@ pub async fn delete_all(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             meta.metrics.incr("request.delete_all");
             // The db middleware won't implicitly begin a write transaction
             // for DELETE /storage because it lacks a collection. So it's done
@@ -105,7 +105,7 @@ pub async fn delete_collection(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             let delete_bsos = !coll.query.ids.is_empty();
             let metrics = coll.metrics.clone();
             let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
@@ -150,7 +150,7 @@ pub async fn get_collection(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             coll.metrics.clone().incr("request.get_collection");
             let params = params::GetBsos {
                 user_id: coll.user_id.clone(),
@@ -226,7 +226,7 @@ pub async fn post_collection(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             coll.metrics.clone().incr("request.post_collection");
 
             if coll.batch.is_some() {
@@ -389,7 +389,7 @@ pub async fn delete_bso(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             bso_req.metrics.incr("request.delete_bso");
             let result = db
                 .delete_bso(params::DeleteBso {
@@ -408,7 +408,7 @@ pub async fn get_bso(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             bso_req.metrics.incr("request.get_bso");
             let result = db
                 .get_bso(params::GetBso {
@@ -431,7 +431,7 @@ pub async fn put_bso(
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction(|db| async move {
+        .transaction_http(|db| async move {
             bso_req.metrics.incr("request.put_bso");
             let result = db
                 .put_bso(params::PutBso {

@@ -27,6 +27,7 @@ use serde::{
 use serde_json::Value;
 use validator::{Validate, ValidationError};
 
+use crate::db::transaction::DbTransactionPool;
 use crate::db::{util::SyncTimestamp, DbPool, Sorting};
 use crate::error::ApiError;
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
@@ -1474,18 +1475,23 @@ impl FromRequest for BatchRequestOpt {
                 None => None,
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
-                    let pool = extrude_db_pool(&req).await?;
-                    let db = pool.get().await?;
-                    if db.validate_batch_id(batch.clone()).is_err() {
-                        return Err(ValidationErrorKind::FromDetails(
-                            format!(r#"Invalid batch ID: "{}""#, batch),
-                            RequestErrorLocation::QueryString,
-                            Some("batch".to_owned()),
-                            Some(ftags),
-                        )
-                        .into());
-                    }
-                    Some(batch)
+                    let transaction_pool: DbTransactionPool =
+                        DbTransactionPool::extract(&req).await?;
+
+                    transaction_pool
+                        .transaction(|db| async move {
+                            if db.validate_batch_id(batch.clone()).is_err() {
+                                return Err(ValidationErrorKind::FromDetails(
+                                    format!(r#"Invalid batch ID: "{}""#, batch),
+                                    RequestErrorLocation::QueryString,
+                                    Some("batch".to_owned()),
+                                    Some(ftags),
+                                )
+                                .into());
+                            }
+                            Ok(Some(batch))
+                        })
+                        .await?
                 }
             };
 

@@ -3,18 +3,17 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::web::middleware::sentry::queue_report;
 use crate::web::{
-    extractors::{
-        extrude_db_pool, BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
-    },
+    extractors::{BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt},
     middleware::SyncServerRequest,
     tags::Tags,
     DOCKER_FLOW_ENDPOINTS, X_LAST_MODIFIED,
 };
 
+use crate::db::transaction::DbTransactionPool;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::{header, StatusCode},
-    Error, HttpMessage, HttpResponse,
+    Error, FromRequest, HttpMessage, HttpResponse,
 };
 use futures::future::{self, FutureExt, LocalBoxFuture};
 use std::task::Poll;
@@ -122,24 +121,6 @@ where
                 }
             };
 
-            let (req, payload) = sreq.into_parts();
-            let db_pool = extrude_db_pool(&req).await?;
-            let edb = db_pool.get().await.map_err(Error::from);
-            let sreq = ServiceRequest::from_parts(req, payload)
-                .unwrap_or_else(|_| panic!("TODO: this should never happen"));
-            let db = match edb {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("⚠️ Database access error {:?}", e);
-                    queue_report(sreq.extensions_mut(), &e);
-                    return Ok(sreq.into_response(
-                        HttpResponse::InternalServerError()
-                            .content_type("application/json")
-                            .body("Err: database access error".to_owned())
-                            .into_body(),
-                    ));
-                }
-            };
             let uri = &sreq.uri();
             let col_result = CollectionParam::extrude(&uri, &mut sreq.extensions_mut(), &tags);
             let collection = match col_result {
@@ -158,7 +139,18 @@ where
             let bso = BsoParam::extrude(sreq.head(), &mut sreq.extensions_mut()).ok();
             let bso_opt = bso.map(|b| b.bso);
 
-            let resource_ts = db.extract_resource(user_id, collection, bso_opt).await?;
+            let (req, payload) = sreq.into_parts();
+            let transaction_pool: DbTransactionPool = DbTransactionPool::extract(&req).await?;
+            let resource_ts = transaction_pool
+                .transaction(|db| async move {
+                    db.extract_resource(user_id, collection, bso_opt)
+                        .await
+                        .map_err(Into::into)
+                })
+                .await?;
+            let sreq = ServiceRequest::from_parts(req, payload)
+                .unwrap_or_else(|_| panic!("TODO: this should never happen"));
+
             let status = match precondition {
                 PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= header_ts => {
                     StatusCode::NOT_MODIFIED
