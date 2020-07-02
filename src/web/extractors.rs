@@ -847,7 +847,6 @@ impl FromRequest for BsoRequest {
 /// Extracts/validates information needed for BSO put requests.
 pub struct BsoPutRequest {
     pub collection: String,
-    pub db_pool: Box<dyn DbPool>,
     pub user_id: HawkIdentifier,
     pub query: BsoQueryParams,
     pub bso: String,
@@ -867,7 +866,6 @@ impl FromRequest for BsoPutRequest {
 
         async move {
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let db_pool = extrude_db_pool(&req).await?;
             let collection = CollectionParam::from_request(&req, &mut payload).await?;
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let bso = BsoParam::from_request(&req, &mut payload).await?;
@@ -891,7 +889,6 @@ impl FromRequest for BsoPutRequest {
             }
             Ok(BsoPutRequest {
                 collection,
-                db_pool,
                 user_id,
                 query,
                 bso: bso.bso,
