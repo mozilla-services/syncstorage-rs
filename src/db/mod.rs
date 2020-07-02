@@ -78,7 +78,7 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
-pub trait Db<'a>: Send + Debug + 'a {
+pub trait Db<'a>: Debug + 'a {
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
 
     fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
