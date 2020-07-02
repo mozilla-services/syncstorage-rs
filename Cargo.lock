@@ -872,9 +872,9 @@ dependencies = [
 
 [[package]]
 name = "diesel_logger"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d73a791d0f0fff4bc6244bd8b70776a45b1140716411efe1364be9a868cbea7"
+checksum = "1793935ad14586bf2aa51574a7157932640c345205ccfb2db431846d846e3db7"
 dependencies = [
  "diesel",
  "log",
