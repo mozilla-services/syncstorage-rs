@@ -1475,8 +1475,7 @@ impl FromRequest for BatchRequestOpt {
                 None => None,
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
-                    let transaction_pool: DbTransactionPool =
-                        DbTransactionPool::extract(&req).await?;
+                    let transaction_pool = DbTransactionPool::extract(&req).await?;
 
                     transaction_pool
                         .transaction(|db| async move {

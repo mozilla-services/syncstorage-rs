@@ -140,7 +140,7 @@ where
             let bso_opt = bso.map(|b| b.bso);
 
             let (req, payload) = sreq.into_parts();
-            let transaction_pool: DbTransactionPool = DbTransactionPool::extract(&req).await?;
+            let transaction_pool = DbTransactionPool::extract(&req).await?;
             let resource_ts = transaction_pool
                 .transaction(|db| async move {
                     db.extract_resource(user_id, collection, bso_opt)
