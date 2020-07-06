@@ -61,7 +61,9 @@ Make sure the `protoc-gen-rust` binary is available in your `$PATH` env variable
 
 Then:
 
-1) In the `/src` directory, remove all the `*.rs` that are not `mod.rs` [1]
+1) In the `./src` directory, remove all the `*.rs` that are not
+`mod.rs` [1]. You may wish to run the `prepare.sh` script.
+
 2) Run the `./generate.sh` script
 
 ensure that a proper build works by running `cargo build`.
