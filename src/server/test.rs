@@ -492,7 +492,7 @@ fn invalid_batch_post() {
 }
 
 #[async_test]
-async fn accept_new_ios() {
+async fn accept_new_or_dev_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
@@ -509,6 +509,40 @@ async fn accept_new_ios() {
     .to_request();
     let response = app.call(req).await.unwrap();
     // println!("{:?}", response);
+    assert!(response.status().is_success());
+
+    let mut app = init_app!().await;
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/0.0.1b1 (iPhone; iPhone OS 13.5) (Fennec (eoger))".to_owned(),
+    );
+
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    assert!(response.status().is_success());
+
+    let mut app = init_app!().await;
+    let mut headers = HashMap::new();
+    headers.insert(
+        "User-Agent",
+        "Firefox-iOS-Sync/dev (iPhone; iPhone OS 13.5) (Fennec (eoger))".to_owned(),
+    );
+
+    let req = create_request(
+        http::Method::GET,
+        "/1.5/42/info/collections",
+        Some(headers),
+        None,
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 }
 

@@ -107,6 +107,10 @@ where
 /// firefox-ios < v20 suffers from a bug where our response headers
 /// can cause it to crash. They're sent an error response instead that
 /// avoids the crash.
+///
+/// Dev builds were originally labeled as v0 (or now "Firefox-iOS-Sync/dev") so
+/// we don't reject those.
+///
 /// https://github.com/mozilla-services/syncstorage-rs/issues/293
 fn should_reject(ua: &str) -> bool {
     let major = IOS_UA_REGEX
@@ -114,5 +118,5 @@ fn should_reject(ua: &str) -> bool {
         .and_then(|captures| captures.name("major"))
         .and_then(|major| major.as_str().parse::<u32>().ok())
         .unwrap_or(20);
-    major < 20
+    0 < major && major < 20
 }
