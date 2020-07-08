@@ -35,8 +35,8 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
-hkdf = "0.8.0"
-hmac = "0.7"
+hkdf = "0.9"
+hmac = "0.8.1"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 mozsvc-common = "0.1"
@@ -50,7 +50,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 scheduled-thread-pool = "0.2"
-sha2 = "0.8"
+sha2 = "0.9.1"
 slog = { version = "2.5", features = ["max_level_info", "release_max_level_info", "dynamic-keys"] }
 slog-async = "2.5"
 slog-envlogger = "2.2.0"
