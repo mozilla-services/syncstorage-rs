@@ -9,9 +9,9 @@
 use std::convert::TryInto;
 
 use chrono::offset::Utc;
-use hmac::crypto_mac::NewMac;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hkdf::Hkdf;
+use hmac::crypto_mac::NewMac;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
