@@ -1,3 +1,13 @@
+<a name="0.4.2"></a>
+## 0.4.2 (2020-06-24)
+
+
+#### Bug Fixes
+
+*   don't reject firefox-ios dev builds ([f6f4a15e](https://github.com/mozilla-services/syncstorage-rs/commit/f6f4a15e3325f8dec18ee0e9b705a0eaf9ceafa8), closes [#683](https://github.com/mozilla-services/syncstorage-rs/issues/683))
+
+
+
 <a name="0.4.1"></a>
 ## 0.4.1 (2020-06-11)
 
