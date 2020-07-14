@@ -35,7 +35,7 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
-hkdf = "0.8.0"
+hkdf = "0.9.0"
 hmac = "0.7"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
