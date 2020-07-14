@@ -6,7 +6,6 @@ use std::{self, collections::HashMap, num::ParseIntError, str::FromStr};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
-    error::ErrorInternalServerError,
     http::{
         header::{qitem, Accept, ContentType, Header, HeaderMap},
         Uri,
@@ -1454,21 +1453,18 @@ impl FromRequest for BatchRequestOpt {
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
+                    let pool = transaction_pool.get_pool().await?;
 
-                    transaction_pool
-                        .transaction(|db| async move {
-                            if db.validate_batch_id(batch.clone()).is_err() {
-                                return Err(ValidationErrorKind::FromDetails(
-                                    format!(r#"Invalid batch ID: "{}""#, batch),
-                                    RequestErrorLocation::QueryString,
-                                    Some("batch".to_owned()),
-                                    Some(ftags),
-                                )
-                                .into());
-                            }
-                            Ok(Some(batch))
-                        })
-                        .await?
+                    if pool.validate_batch_id(batch.clone()).is_err() {
+                        return Err(ValidationErrorKind::FromDetails(
+                            format!(r#"Invalid batch ID: "{}""#, batch),
+                            RequestErrorLocation::QueryString,
+                            Some("batch".to_owned()),
+                            Some(ftags),
+                        )
+                        .into());
+                    }
+                    Some(batch)
                 }
             };
 

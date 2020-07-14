@@ -1778,10 +1778,6 @@ impl<'a> Db<'a> for SpannerDb<'a> {
         Box::pin(async move { db.post_bsos_async_test(param).map_err(Into::into).await })
     }
 
-    fn validate_batch_id(&self, id: String) -> Result<()> {
-        batch::validate_batch_id(&id)
-    }
-
     fn create_batch(&self, param: params::CreateBatch) -> DbFuture<'_, results::CreateBatch> {
         let db = self.clone();
         Box::pin(async move { batch::create_async(&db, param).map_err(Into::into).await })

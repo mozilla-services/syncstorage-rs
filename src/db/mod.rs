@@ -69,6 +69,8 @@ pub trait DbPool: Sync + Send + Debug {
 
     fn state(&self) -> results::PoolState;
 
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
+
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
@@ -159,8 +161,6 @@ pub trait Db<'a>: Debug + 'a {
     fn get_batch(&self, params: params::GetBatch) -> DbFuture<'_, Option<results::GetBatch>>;
 
     fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<'_, results::CommitBatch>;
-
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
 
     fn box_clone(&self) -> Box<dyn Db<'a>>;
 

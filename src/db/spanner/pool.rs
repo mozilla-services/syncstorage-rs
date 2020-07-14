@@ -79,6 +79,10 @@ impl DbPool for SpannerDbPool {
         self.pool.state().into()
     }
 
+    fn validate_batch_id(&self, id: String) -> Result<()> {
+        super::batch::validate_batch_id(&id)
+    }
+
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
     }
