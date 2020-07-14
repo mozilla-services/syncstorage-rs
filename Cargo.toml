@@ -42,7 +42,7 @@ mime = "0.3"
 mozsvc-common = "0.1"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.15"
+protobuf = "2.16.2"
 rand = "0.7"
 regex = "1.3"
 sentry = { version = "0.18", features = ["with_curl_transport"] }

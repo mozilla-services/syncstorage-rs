@@ -507,13 +507,29 @@ impl MysqlDb {
         // match the query conditions
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
-        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
+        let mut numeric_offset = 0;
 
-        if numeric_offset != 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(numeric_offset);
+        if let Some(offset) = offset {
+            numeric_offset = offset.offset as i64;
+            query = match sort {
+                Sorting::Index | Sorting::None => query.offset(numeric_offset),
+                Sorting::Newest => {
+                    if let Some(timestamp) = offset.timestamp {
+                        query.filter(bso::modified.le(timestamp.as_i64()))
+                    } else {
+                        query
+                    }
+                }
+                Sorting::Oldest => {
+                    if let Some(timestamp) = offset.timestamp {
+                        query.filter(bso::modified.ge(timestamp.as_i64()))
+                    } else {
+                        query
+                    }
+                }
+            }
         }
+
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in
@@ -522,8 +538,17 @@ impl MysqlDb {
         //}
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
-            bsos.pop();
-            Some((limit + numeric_offset).to_string())
+            if let Some(last) = bsos.pop() {
+                let start_next = limit + numeric_offset;
+                match sort {
+                    Sorting::Index | Sorting::None => Some(start_next.to_string()),
+                    Sorting::Newest | Sorting::Oldest => {
+                        Some(format!("{}:{}", last.modified.as_i64(), start_next))
+                    }
+                }
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -578,11 +603,17 @@ impl MysqlDb {
         query = query.limit(if limit >= 0 { limit + 1 } else { limit });
 
         let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
-        if numeric_offset != 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(numeric_offset);
-        }
+
+        query = if numeric_offset != 0 {
+            match sort {
+                Sorting::Index => query.offset(numeric_offset),
+                Sorting::Newest => query.filter(bso::modified.gt(numeric_offset)),
+                Sorting::Oldest => query.filter(bso::modified.lt(numeric_offset)),
+                _ => query,
+            }
+        } else {
+            query
+        };
         let mut ids = query.load::<String>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in

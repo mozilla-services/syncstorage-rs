@@ -180,6 +180,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
     assert_eq!(bsos.items[0].id, "11");
     assert_eq!(bsos.items[4].id, "7");
 
+    let offset = bsos.offset.unwrap();
     let bsos2 = db
         .get_bsos(gbsos(
             uid,
@@ -189,7 +190,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             newer,
             Sorting::Newest,
             limit,
-            &bsos.offset.unwrap(),
+            &offset,
         ))
         .await?;
     assert_eq!(bsos2.items.len(), 5 as usize);
