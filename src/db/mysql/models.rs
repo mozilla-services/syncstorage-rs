@@ -33,8 +33,6 @@ use crate::db::{
 use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
-no_arg_sql_function!(last_insert_id, Integer);
-
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
