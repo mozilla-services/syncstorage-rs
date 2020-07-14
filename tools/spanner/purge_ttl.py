@@ -60,6 +60,8 @@ def add_conditions(args, query):
         else:
             query += " in ({})".format(
                 ', '.join(map(str, args.collection_ids)))
+    if args.uid_starts:
+        query += " AND fxa_uid LIKE \"{}%\"".format(args.uid_starts)
     return query
 
 
@@ -68,13 +70,15 @@ def spanner_purge(args, request=None):
     database = instance.database(args.database_id)
 
     logging.info("For {}:{}".format(args.instance_id, args.database_id))
-    batch_query = ('DELETE FROM batches WHERE '
-                   'expiry < TIMESTAMP_TRUNC(CURRENT_DATE(), DAY, "UTC")')
+    batch_query = (
+        'DELETE FROM batches WHERE '
+        'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
+    )
     bso_query = add_conditions(
-            args,
-            'DELETE FROM bsos WHERE '
-            'expiry < TIMESTAMP_TRUNC(CURRENT_DATE(), DAY, "UTC")'
-        )
+        args,
+        'DELETE FROM bsos WHERE '
+        'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
+    )
 
     # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
     # IN PARENT batches ON DELETE CASCADE)
@@ -118,6 +122,11 @@ def get_args():
         "--collection_ids",
         default=os.environ.get("COLLECTION_IDS", "[]"),
         help="JSON array of collection IDs to purge"
+    )
+    parser.add_argument(
+        "--uid_starts",
+        type=str,
+        help="Limit to UIDs starting with specified characters"
     )
     args = parser.parse_args()
     collections = json.loads(args.collection_ids)
