@@ -90,7 +90,7 @@ pub async fn delete_all(
     db_pool
         .transaction_http(|db| async move {
             meta.metrics.incr("request.delete_all");
-            // The db middleware won't implicitly begin a write transaction
+            // transaction_http won't implicitly begin a write transaction
             // for DELETE /storage because it lacks a collection. So it's done
             // manually here, partly to not further complicate the unit test's
             // transactions

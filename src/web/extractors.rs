@@ -1178,28 +1178,6 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-pub async fn extrude_db_pool(req: &HttpRequest) -> Result<Box<dyn DbPool>, Error> {
-    Box::<dyn DbPool>::extract(req).await
-}
-
-impl FromRequest for Box<dyn DbPool> {
-    type Config = ();
-    type Error = Error;
-    type Future = future::Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let state = match req.app_data::<Data<ServerState>>().ok_or_else(|| {
-            error!("DB Error: No server state");
-            ErrorInternalServerError("Unexpected Db error: No server state".to_owned())
-        }) {
-            Ok(state) => state,
-            Err(e) => return future::err(e),
-        };
-
-        future::ok(state.db_pool.clone())
-    }
-}
-
 #[derive(Debug, Default, Clone, Deserialize, Validate)]
 #[serde(default)]
 pub struct Offset {

@@ -261,7 +261,6 @@ impl Default for Sorting {
 }
 
 /// Create/initialize a pool of managed Db connections
-// XXX: should likely return a Future?
 pub async fn pool_from_settings(
     settings: &Settings,
     metrics: &Metrics,

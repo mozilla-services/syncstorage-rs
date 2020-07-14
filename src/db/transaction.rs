@@ -157,7 +157,6 @@ impl FromRequest for DbTransactionPool {
                 .unwrap_or(&no_agent)
                 .to_str()
                 .unwrap_or("NONE");
-            info!(">>> testing db middleware"; "user_agent" => useragent);
 
             let tags = match req.extensions().get::<Tags>() {
                 Some(t) => t.clone(),

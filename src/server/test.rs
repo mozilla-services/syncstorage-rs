@@ -508,7 +508,6 @@ async fn accept_new_or_dev_ios() {
     )
     .to_request();
     let response = app.call(req).await.unwrap();
-    // println!("{:?}", response);
     assert!(response.status().is_success());
 
     let mut app = init_app!().await;
