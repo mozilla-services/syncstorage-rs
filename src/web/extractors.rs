@@ -1453,7 +1453,7 @@ impl FromRequest for BatchRequestOpt {
                 Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
-                    let pool = transaction_pool.get_pool().await?;
+                    let pool = transaction_pool.get_pool()?;
 
                     if pool.validate_batch_id(batch.clone()).is_err() {
                         return Err(ValidationErrorKind::FromDetails(

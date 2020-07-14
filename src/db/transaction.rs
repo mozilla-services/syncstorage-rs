@@ -77,7 +77,7 @@ impl DbTransactionPool {
         }
     }
 
-    pub async fn get_pool(&self) -> Result<Box<dyn DbPool>, Error> {
+    pub fn get_pool(&self) -> Result<Box<dyn DbPool>, Error> {
         Ok(self.pool.clone())
     }
 
