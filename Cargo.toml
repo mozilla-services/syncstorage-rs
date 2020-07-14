@@ -36,7 +36,7 @@ grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
 hkdf = "0.8.0"
-hmac = "0.7"
+hmac = "0.8"
 log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 mozsvc-common = "0.1"
