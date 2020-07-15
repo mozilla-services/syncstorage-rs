@@ -497,7 +497,7 @@ fn invalid_batch_post() {
     assert_eq!(body, "0");
 }
 
-#[tokio::test]
+#[actix_rt::test]
 async fn accept_new_or_dev_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
@@ -551,7 +551,7 @@ async fn accept_new_or_dev_ios() {
     assert!(response.status().is_success());
 }
 
-#[tokio::test]
+#[actix_rt::test]
 async fn reject_old_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
