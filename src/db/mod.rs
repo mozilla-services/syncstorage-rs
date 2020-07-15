@@ -186,8 +186,8 @@ pub trait Db<'a>: Debug + 'a {
             None => {
                 return Box::pin(
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
-                        user_id: user_id,
-                        collection: collection,
+                        user_id,
+                        collection,
                     })
                     .or_else(|e| {
                         if e.is_collection_not_found() {
@@ -201,8 +201,8 @@ pub trait Db<'a>: Debug + 'a {
         };
         Box::pin(
             self.get_bso_timestamp(params::GetBsoTimestamp {
-                user_id: user_id,
-                collection: collection,
+                user_id,
+                collection,
                 id: bso,
             })
             .or_else(|e| {

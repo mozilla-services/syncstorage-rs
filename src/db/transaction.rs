@@ -156,8 +156,7 @@ impl DbTransactionPool {
                     .content_type("application/json")
                     .header(X_LAST_MODIFIED, resource_ts.as_header())
                     .body("".to_owned())
-                    .into_body(),
-                );
+                    .into_body());
             };
         }
         let (mut resp, db) = self.transaction_internal(db, action).await?;
@@ -180,9 +179,9 @@ impl DbTransactionPool {
 
         // See if we already extracted one and use that if possible
         if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-             debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
-             resp.headers_mut()
-                 .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+            debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+            resp.headers_mut()
+                .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
         }
         Ok(resp)
     }
