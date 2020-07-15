@@ -8,7 +8,6 @@ use actix_web::{
 use bytes::Bytes;
 use chrono::offset::Utc;
 use futures::executor::block_on;
-use futures_await_test::async_test;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -168,7 +167,7 @@ fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> [u8; 32] {
     result
 }
 
-fn test_endpoint(
+async fn test_endpoint(
     method: http::Method,
     path: &str,
     status: Option<StatusCode>,
@@ -177,14 +176,17 @@ fn test_endpoint(
     let app = init_app!();
 
     let req = create_request(method, path, None, None).to_request();
-    let mut app = block_on(app);
-    let sresp = block_on(app.call(req)).expect("Could not get sresp in test_endpoint");
+    let mut app = app.await;
+    let sresp = app
+        .call(req)
+        .await
+        .expect("Could not get sresp in test_endpoint");
     match status {
         None => assert!(sresp.response().status().is_success()),
         Some(status) => assert!(sresp.response().status() == status),
     };
     if let Some(x_body) = expected_body {
-        let body = block_on(test::read_body(sresp));
+        let body = test::read_body(sresp).await;
         assert_eq!(body, x_body.as_bytes());
     }
 }
@@ -235,38 +237,41 @@ fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::V
     block_on(test::read_body(sresponse))
 }
 
-#[test]
-fn collections() {
+#[actix_rt::test]
+async fn collections() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/info/collections",
         None,
         Some("{}"),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn collection_counts() {
+#[actix_rt::test]
+async fn collection_counts() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/info/collection_counts",
         None,
         Some("{}"),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn collection_usage() {
+#[actix_rt::test]
+async fn collection_usage() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/info/collection_usage",
         None,
         Some("{}"),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn configuration() {
+#[actix_rt::test]
+async fn configuration() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/info/configuration",
@@ -275,23 +280,25 @@ fn configuration() {
             &serde_json::to_string(&ServerLimits::default())
                 .expect("Could not serde_json::to_string in test_endpoint"),
         ),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn quota() {
+#[actix_rt::test]
+async fn quota() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/info/quota",
         None,
         Some("[0.0,null]"),
-    );
+    )
+    .await;
 }
 
-#[test]
-fn delete_all() {
-    test_endpoint(http::Method::DELETE, "/1.5/42", None, Some("null"));
-    test_endpoint(http::Method::DELETE, "/1.5/42/storage", None, Some("null"));
+#[actix_rt::test]
+async fn delete_all() {
+    test_endpoint(http::Method::DELETE, "/1.5/42", None, Some("null")).await;
+    test_endpoint(http::Method::DELETE, "/1.5/42/storage", None, Some("null")).await;
 }
 
 #[test]
@@ -364,24 +371,26 @@ fn post_collection() {
     assert_eq!(result.failed.len(), 0);
 }
 
-#[test]
-fn delete_bso() {
+#[actix_rt::test]
+async fn delete_bso() {
     test_endpoint(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks/wibble",
         Some(StatusCode::NOT_FOUND),
         None,
     )
+    .await;
 }
 
-#[test]
-fn get_bso() {
+#[actix_rt::test]
+async fn get_bso() {
     test_endpoint(
         http::Method::GET,
         "/1.5/42/storage/bookmarks/wibble",
         Some(StatusCode::NOT_FOUND),
         None,
     )
+    .await;
 }
 
 #[test]
@@ -488,7 +497,7 @@ fn invalid_batch_post() {
     assert_eq!(body, "0");
 }
 
-#[async_test]
+#[tokio::test]
 async fn accept_new_or_dev_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
@@ -542,7 +551,7 @@ async fn accept_new_or_dev_ios() {
     assert!(response.status().is_success());
 }
 
-#[async_test]
+#[tokio::test]
 async fn reject_old_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
