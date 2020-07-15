@@ -36,15 +36,15 @@ impl DbTransactionPool {
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
     /// action has succeeded (ex. check HTTP response for internal error).
-    async fn transaction_internal<'a, A, R, F>(
+    async fn transaction_internal<'a, A: 'a, R, F>(
         &'a self,
-        db: Box<dyn Db<'a>>,
         action: A,
     ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
+        let db = self.pool.get().await?;
         let db2 = db.clone();
 
         // Lock for transaction
@@ -60,15 +60,12 @@ impl DbTransactionPool {
             return Err(e.into());
         }
 
-        // Perform the action
-        let resp = action(db).await;
-
         // XXX: lock_for_x usually begins transactions but Dbs
         // may also implicitly create them, so commit/rollback
         // are always called to finish them. They noop when no
         // implicit transaction was created (maybe rename them
         // to maybe_commit/rollback?)
-        match resp {
+        match action(db).await {
             Ok(resp) => Ok((resp, db2)),
             Err(e) => {
                 let result = db2.rollback().await;
@@ -89,14 +86,13 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A, R, F>(&'a self, action: A) -> Result<R, Error>
+    pub async fn transaction<'a, A: 'a, R, F>(&'a self, action: A) -> Result<R, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
         // Get connection from pool
-        let db = self.pool.get().await?;
-        let (resp, db) = self.transaction_internal(db, action).await?;
+        let (resp, db) = self.transaction_internal(action).await?;
 
         // No further processing before commit is possible
         let result = db.commit().await;
@@ -126,40 +122,59 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A, F>(&'a self, action: A) -> Result<HttpResponse, Error>
+    pub async fn transaction_http<'a, A: 'a, F>(&'a self, action: A) -> Result<HttpResponse, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
     {
         // Get connection from pool
-        let db = self.pool.get().await?;
-        let resource_ts = db
-            .extract_resource(
-                self.user_id.clone(),
-                self.collection.clone(),
-                self.bso_opt.clone(),
-            )
-            .await?;
+        let check_precondition = move |db: Box<dyn Db<'a>>| {
+            async move {
+                let resource_ts = db
+                .extract_resource(
+                    self.user_id.clone(),
+                    self.collection.clone(),
+                    self.bso_opt.clone(),
+                )
+                .await?;
 
-        if let Some(precondition) = &self.precondition.opt {
-            let status = match precondition {
-                PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
-                    StatusCode::NOT_MODIFIED
+                if let Some(precondition) = &self.precondition.opt {
+                    let status = match precondition {
+                        PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                            StatusCode::NOT_MODIFIED
+                        }
+                        PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > *header_ts => {
+                            StatusCode::PRECONDITION_FAILED
+                        }
+                        _ => StatusCode::OK,
+                    };
+                    if status != StatusCode::OK {
+                        return Ok(HttpResponse::build(status)
+                            .content_type("application/json")
+                            .header(X_LAST_MODIFIED, resource_ts.as_header())
+                            .body("".to_owned())
+                            .into_body());
+                    };
                 }
-                PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > *header_ts => {
-                    StatusCode::PRECONDITION_FAILED
+
+                let mut resp = action(db).await?;
+
+                if resp.headers().contains_key(X_LAST_MODIFIED) {
+                    return Ok(resp);
                 }
-                _ => StatusCode::OK,
-            };
-            if status != StatusCode::OK {
-                return Ok(HttpResponse::build(status)
-                    .content_type("application/json")
-                    .header(X_LAST_MODIFIED, resource_ts.as_header())
-                    .body("".to_owned())
-                    .into_body());
-            };
-        }
-        let (mut resp, db) = self.transaction_internal(db, action).await?;
+
+                // See if we already extracted one and use that if possible
+                if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                    debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+                    resp.headers_mut()
+                        .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+                }
+
+                Ok(resp)
+            }
+        };
+
+        let (resp, db) = self.transaction_internal(check_precondition).await?;
 
         // HttpResponse can contain an internal error
         let result = match resp.error() {
@@ -172,17 +187,7 @@ impl DbTransactionPool {
             self.report_error(&e);
             return Err(e.into());
         }
-
-        if resp.headers().contains_key(X_LAST_MODIFIED) {
-            return Ok(resp);
-        }
-
-        // See if we already extracted one and use that if possible
-        if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-            debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
-            resp.headers_mut()
-                .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
-        }
+        
         Ok(resp)
     }
 }
