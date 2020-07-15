@@ -8,7 +8,6 @@ use actix_web::{
 use bytes::Bytes;
 use chrono::offset::Utc;
 use futures::executor::block_on;
-use futures_await_test::async_test;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -491,7 +490,7 @@ fn invalid_batch_post() {
     assert_eq!(body, "0");
 }
 
-#[async_test]
+#[tokio::test]
 async fn accept_new_or_dev_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
@@ -545,7 +544,7 @@ async fn accept_new_or_dev_ios() {
     assert!(response.status().is_success());
 }
 
-#[async_test]
+#[tokio::test]
 async fn reject_old_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();

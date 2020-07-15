@@ -1,4 +1,3 @@
-use futures_await_test::async_test;
 use log::debug;
 
 use super::support::{db_pool, gbso, hid, postbso, test_db, Result};
@@ -45,7 +44,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
     }
 }
 
-#[async_test]
+#[tokio::test]
 async fn create_delete() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
@@ -65,7 +64,7 @@ async fn create_delete() -> Result<()> {
     Ok(())
 }
 
-#[async_test]
+#[tokio::test]
 async fn expiry() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
@@ -92,7 +91,7 @@ async fn expiry() -> Result<()> {
     Ok(())
 }
 
-#[async_test]
+#[tokio::test]
 async fn update() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
@@ -116,7 +115,7 @@ async fn update() -> Result<()> {
     Ok(())
 }
 
-#[async_test]
+#[tokio::test]
 async fn append_commit() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
