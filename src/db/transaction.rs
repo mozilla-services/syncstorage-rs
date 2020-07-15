@@ -131,19 +131,23 @@ impl DbTransactionPool {
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
                 let resource_ts = db
-                .extract_resource(
-                    self.user_id.clone(),
-                    self.collection.clone(),
-                    self.bso_opt.clone(),
-                )
-                .await?;
+                    .extract_resource(
+                        self.user_id.clone(),
+                        self.collection.clone(),
+                        self.bso_opt.clone(),
+                    )
+                    .await?;
 
                 if let Some(precondition) = &self.precondition.opt {
                     let status = match precondition {
-                        PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                        PreConditionHeader::IfModifiedSince(header_ts)
+                            if resource_ts <= *header_ts =>
+                        {
                             StatusCode::NOT_MODIFIED
                         }
-                        PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > *header_ts => {
+                        PreConditionHeader::IfUnmodifiedSince(header_ts)
+                            if resource_ts > *header_ts =>
+                        {
                             StatusCode::PRECONDITION_FAILED
                         }
                         _ => StatusCode::OK,
@@ -187,7 +191,7 @@ impl DbTransactionPool {
             self.report_error(&e);
             return Err(e.into());
         }
-        
+
         Ok(resp)
     }
 }
