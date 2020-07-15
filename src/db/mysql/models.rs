@@ -517,14 +517,14 @@ impl MysqlDb {
                     if let Some(timestamp) = offset.timestamp {
                         query.filter(bso::modified.le(timestamp.as_i64()))
                     } else {
-                        query
+                        query.offset(numeric_offset)
                     }
                 }
                 Sorting::Oldest => {
                     if let Some(timestamp) = offset.timestamp {
                         query.filter(bso::modified.ge(timestamp.as_i64()))
                     } else {
-                        query
+                        query.offset(numeric_offset)
                     }
                 }
             }

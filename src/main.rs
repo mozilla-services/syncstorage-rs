@@ -25,7 +25,6 @@ struct Args {
 
 #[actix_rt::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    println!("Go...");
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
