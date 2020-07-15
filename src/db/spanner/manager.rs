@@ -92,11 +92,18 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
         })
     }
 
-    async fn is_valid(&self, conn: Self::Connection) -> Result<Self::Connection, Self::Error> {
+    async fn is_valid(&self, mut conn: Self::Connection) -> Result<Self::Connection, Self::Error> {
         let mut req = GetSessionRequest::new();
         req.set_name(conn.session.get_name().to_owned());
-        if let Err(e) = conn.client.get_session_async(&req)?.await {
-            return Err(e);
+        if let Err(e) = conn.client.get_session(&req) {
+            match e {
+                grpcio::Error::RpcFailure(ref status)
+                    if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
+                {
+                    conn.session = create_session(&conn.client, &self.database_name)?;
+                }
+                _ => return Err(e),
+            }
         }
         Ok(conn)
     }
