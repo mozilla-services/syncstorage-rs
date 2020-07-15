@@ -2,13 +2,17 @@ use crate::db::{params, Db, DbPool};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
-use crate::web::extractors::CollectionParam;
+use crate::web::extractors::{
+    BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
+};
 use crate::web::middleware::sentry::report;
 use crate::web::middleware::SyncServerRequest;
 use crate::web::tags::Tags;
-use actix_http::http::{HeaderValue, Method};
+use crate::web::X_LAST_MODIFIED;
+use actix_http::http::{HeaderValue, Method, StatusCode};
 use actix_http::Error;
 use actix_web::dev::{Payload, PayloadStream};
+use actix_web::http::header;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
@@ -21,6 +25,10 @@ pub struct DbTransactionPool {
     lock_collection: Option<params::LockCollection>,
     is_read: bool,
     tags: Tags,
+    user_id: HawkIdentifier,
+    collection: Option<String>,
+    bso_opt: Option<String>,
+    precondition: PreConditionHeaderOpt,
 }
 
 impl DbTransactionPool {
@@ -30,14 +38,13 @@ impl DbTransactionPool {
     /// action has succeeded (ex. check HTTP response for internal error).
     async fn transaction_internal<'a, A, R, F>(
         &'a self,
+        db: Box<dyn Db<'a>>,
         action: A,
     ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        // Get connection from pool
-        let db = self.pool.get().await?;
         let db2 = db.clone();
 
         // Lock for transaction
@@ -87,7 +94,9 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(action).await?;
+        // Get connection from pool
+        let db = self.pool.get().await?;
+        let (resp, db) = self.transaction_internal(db, action).await?;
 
         // No further processing before commit is possible
         let result = db.commit().await;
@@ -122,7 +131,36 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(action).await?;
+        // Get connection from pool
+        let db = self.pool.get().await?;
+        let resource_ts = db
+            .extract_resource(
+                self.user_id.clone(),
+                self.collection.clone(),
+                self.bso_opt.clone(),
+            )
+            .await?;
+
+        if let Some(precondition) = &self.precondition.opt {
+            let status = match precondition {
+                PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                    StatusCode::NOT_MODIFIED
+                }
+                PreConditionHeader::IfUnmodifiedSince(header_ts) if resource_ts > *header_ts => {
+                    StatusCode::PRECONDITION_FAILED
+                }
+                _ => StatusCode::OK,
+            };
+            if status != StatusCode::OK {
+                return Ok(HttpResponse::build(status)
+                    .content_type("application/json")
+                    .header(X_LAST_MODIFIED, resource_ts.as_header())
+                    .body("".to_owned())
+                    .into_body(),
+                );
+            };
+        }
+        let (mut resp, db) = self.transaction_internal(db, action).await?;
 
         // HttpResponse can contain an internal error
         let result = match resp.error() {
@@ -136,6 +174,16 @@ impl DbTransactionPool {
             return Err(e.into());
         }
 
+        if resp.headers().contains_key(X_LAST_MODIFIED) {
+            return Ok(resp);
+        }
+
+        // See if we already extracted one and use that if possible
+        if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+             debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+             resp.headers_mut()
+                 .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+        }
         Ok(resp)
     }
 }
@@ -184,16 +232,19 @@ impl FromRequest for DbTransactionPool {
                 }
             };
             let method = req.method().clone();
-            let hawk_user_id = match req.get_hawk_id() {
+            let user_id = match req.get_hawk_id() {
                 Ok(v) => v,
                 Err(e) => {
                     warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
                     return Err(e);
                 }
             };
+            let bso = BsoParam::extrude(req.head(), &mut req.extensions_mut()).ok();
+            let bso_opt = bso.map(|b| b.bso);
+
             let (lc, is_read) = if let Some(collection) = collection {
                 let lc = params::LockCollection {
-                    user_id: hawk_user_id,
+                    user_id: user_id.clone(),
                     collection: collection.collection,
                 };
                 let is_read = match method {
@@ -205,12 +256,17 @@ impl FromRequest for DbTransactionPool {
             } else {
                 (None, true)
             };
-
+            let collection = lc.clone().map(|c| c.collection);
+            let precondition = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()))?;
             let pool = Self {
                 pool: state.db_pool.clone(),
                 lock_collection: lc,
                 is_read,
                 tags,
+                user_id,
+                collection,
+                bso_opt,
+                precondition,
             };
 
             req.extensions_mut().insert(pool.clone());
