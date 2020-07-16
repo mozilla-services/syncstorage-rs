@@ -193,11 +193,8 @@ async fn test_endpoint(
     }
 }
 
-async fn test_endpoint_with_response<T>(
-    method: http::Method,
-    path: &str,
-    assertions: &dyn Fn(T) -> (),
-) where
+async fn test_endpoint_with_response<T>(method: http::Method, path: &str, assertions: &dyn Fn(T))
+where
     T: DeserializeOwned,
 {
     let settings = get_test_settings();
