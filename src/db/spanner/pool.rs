@@ -47,7 +47,9 @@ impl SpannerDbPool {
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = SpannerConnectionManager::<SpannerSession>::new(settings)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        let builder = bb8::Pool::builder().max_size(max_size);
+        let builder = bb8::Pool::builder()
+            .max_size(max_size)
+            .min_idle(settings.database_pool_min_idle);
 
         Ok(Self {
             pool: builder.build(manager).await?,

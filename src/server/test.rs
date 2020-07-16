@@ -176,10 +176,9 @@ async fn test_endpoint(
     status: Option<StatusCode>,
     expected_body: Option<&str>,
 ) {
-    let app = init_app!();
+    let mut app = init_app!().await;
 
     let req = create_request(method, path, None, None).to_request();
-    let mut app = app.await;
     let sresp = app
         .call(req)
         .await
@@ -194,17 +193,19 @@ async fn test_endpoint(
     }
 }
 
-fn test_endpoint_with_response<T>(method: http::Method, path: &str, assertions: &dyn Fn(T) -> ())
-where
+async fn test_endpoint_with_response<T>(
+    method: http::Method,
+    path: &str,
+    assertions: &dyn Fn(T) -> (),
+) where
     T: DeserializeOwned,
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits));
+    let mut app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits)).await;
 
     let req = create_request(method, path, None, None).to_request();
-    let mut app = block_on(app);
-    let sresponse = match block_on(app.call(req)) {
+    let sresponse = match app.call(req).await {
         Ok(v) => v,
         Err(e) => {
             panic!("test_endpoint_with_response: Block failed: {:?}", e);
@@ -218,7 +219,7 @@ where
             sresponse.response()
         );
     }
-    let body = block_on(test::read_body(sresponse));
+    let body = test::read_body(sresponse).await;
     let result: T = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -228,16 +229,21 @@ where
     assertions(result)
 }
 
-fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::Value) -> Bytes {
+async fn test_endpoint_with_body(
+    method: http::Method,
+    path: &str,
+    body: serde_json::Value,
+) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits));
+    let mut app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits)).await;
     let req = create_request(method, path, None, Some(body)).to_request();
-    let mut app = block_on(app);
-    let sresponse =
-        block_on(app.call(req)).expect("Could not get sresponse in test_endpoint_with_body");
+    let sresponse = app
+        .call(req)
+        .await
+        .expect("Could not get sresponse in test_endpoint_with_body");
     assert!(sresponse.response().status().is_success());
-    block_on(test::read_body(sresponse))
+    test::read_body(sresponse).await
 }
 
 #[actix_rt::test]
@@ -304,8 +310,8 @@ async fn delete_all() {
     test_endpoint(http::Method::DELETE, "/1.5/42/storage", None, Some("null")).await;
 }
 
-#[test]
-fn delete_collection() {
+#[actix_rt::test]
+async fn delete_collection() {
     let start = SyncTimestamp::default();
     test_endpoint_with_response(
         http::Method::DELETE,
@@ -316,7 +322,8 @@ fn delete_collection() {
                 format!("Bad Bookmarks {:?} != 0", result)
             );
         },
-    );
+    )
+    .await;
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,",
@@ -326,7 +333,8 @@ fn delete_collection() {
                 format!("Bad Bookmarks ids {:?} < {:?}", result, start)
             );
         },
-    );
+    )
+    .await;
     test_endpoint_with_response(
         http::Method::DELETE,
         "/1.5/42/storage/bookmarks?ids=1,2,3",
@@ -336,29 +344,32 @@ fn delete_collection() {
                 format!("Bad Bookmarks ids, m {:?} < {:?}", result, start)
             );
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn get_collection() {
+#[actix_rt::test]
+async fn get_collection() {
     test_endpoint_with_response(
         http::Method::GET,
         "/1.5/42/storage/bookmarks",
         &move |collection: Vec<GetBso>| {
             assert_eq!(collection.len(), 0);
         },
-    );
+    )
+    .await;
     test_endpoint_with_response(
         http::Method::GET,
         "/1.5/42/storage/nonexistent",
         &move |collection: Vec<GetBso>| {
             assert_eq!(collection.len(), 0);
         },
-    );
+    )
+    .await;
 }
 
-#[test]
-fn post_collection() {
+#[actix_rt::test]
+async fn post_collection() {
     let start = SyncTimestamp::default();
     let res_body = json!([params::PostCollectionBso {
         id: "foo".to_string(),
@@ -366,7 +377,8 @@ fn post_collection() {
         payload: Some("bar".to_string()),
         ttl: Some(31_536_000),
     }]);
-    let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/bookmarks", res_body);
+    let bytes =
+        test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/bookmarks", res_body).await;
     let result: PostBsos =
         serde_json::from_slice(&bytes.to_vec()).expect("Could not get result in post_collection");
     assert!(result.modified >= start);
@@ -396,20 +408,21 @@ async fn get_bso() {
     .await;
 }
 
-#[test]
-fn put_bso() {
+#[actix_rt::test]
+async fn put_bso() {
     let start = SyncTimestamp::default();
     let bytes = test_endpoint_with_body(
         http::Method::PUT,
         "/1.5/42/storage/bookmarks/wibble",
         json!(BsoBody::default()),
-    );
+    )
+    .await;
     let result: PutBso = serde_json::from_slice(&bytes).expect("Could not get result in put_bso");
     assert!(result >= start);
 }
 
-#[test]
-fn bsos_can_have_a_collection_field() {
+#[actix_rt::test]
+async fn bsos_can_have_a_collection_field() {
     let start = SyncTimestamp::default();
     // test that "collection" is accepted, even if ignored
     let bso1 = json!({"id": "global", "collection": "meta", "payload": "SomePayload"});
@@ -417,22 +430,23 @@ fn bsos_can_have_a_collection_field() {
         [bso1,
          {"id": "2", "collection": "foo", "payload": "SomePayload"},
     ]);
-    let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos);
+    let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos).await;
     let result: PostBsos = serde_json::from_slice(&bytes.to_vec())
         .expect("Could not get result in bsos_can_have_a_collection_field");
     assert_eq!(result.success.len(), 2);
     assert_eq!(result.failed.len(), 0);
 
-    let bytes = test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", bso1);
+    let bytes =
+        test_endpoint_with_body(http::Method::PUT, "/1.5/42/storage/meta/global", bso1).await;
     let result2: PutBso = serde_json::from_slice(&bytes)
         .expect("Could not get result2 in bsos_can_have_a_collection_field");
     assert!(result2 >= start);
 }
 
-#[test]
-fn invalid_content_type() {
+#[actix_rt::test]
+async fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
-    let mut app = block_on(init_app!());
+    let mut app = init_app!().await;
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -450,7 +464,10 @@ fn invalid_content_type() {
     )
     .to_request();
 
-    let response = block_on(app.call(req)).expect("Could not get response in invalid_content_type");
+    let response = app
+        .call(req)
+        .await
+        .expect("Could not get response in invalid_content_type");
 
     assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 
@@ -470,14 +487,16 @@ fn invalid_content_type() {
     )
     .to_request();
 
-    let response2 =
-        block_on(app.call(req)).expect("Could not get response2 in invalid_content_type");
+    let response2 = app
+        .call(req)
+        .await
+        .expect("Could not get response2 in invalid_content_type");
     assert_eq!(response2.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
 
-#[test]
-fn invalid_batch_post() {
-    let app = init_app!();
+#[actix_rt::test]
+async fn invalid_batch_post() {
+    let mut app = init_app!().await;
 
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
@@ -492,10 +511,12 @@ fn invalid_batch_post() {
     )
     .to_request();
 
-    let mut app = block_on(app);
-    let response = block_on(app.call(req)).expect("Could not get response in invalid_batch_post");
+    let response = app
+        .call(req)
+        .await
+        .expect("Could not get response in invalid_batch_post");
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let body = String::from_utf8(block_on(test::read_body(response)).to_vec())
+    let body = String::from_utf8(test::read_body(response).await.to_vec())
         .expect("Could not get body in invalid_batch_post");
     assert_eq!(body, "0");
 }

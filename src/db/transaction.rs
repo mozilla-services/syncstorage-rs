@@ -5,7 +5,6 @@ use crate::server::ServerState;
 use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
-use crate::web::middleware::sentry::report;
 use crate::web::middleware::SyncServerRequest;
 use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
@@ -44,6 +43,7 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
+        // Get connection from pool
         let db = self.pool.get().await?;
         let db2 = db.clone();
 
@@ -60,23 +60,15 @@ impl DbTransactionPool {
             return Err(e.into());
         }
 
-        // XXX: lock_for_x usually begins transactions but Dbs
-        // may also implicitly create them, so commit/rollback
-        // are always called to finish them. They noop when no
-        // implicit transaction was created (maybe rename them
-        // to maybe_commit/rollback?)
+        // XXX: lock_for_x usually begins transactions but Dbs may also
+        // implicitly create them, so commit/rollback are always called to
+        // finish them. They noop when no implicit transaction was created
+        // (maybe rename them to maybe_commit/rollback?)
         match action(db).await {
             Ok(resp) => Ok((resp, db2)),
             Err(e) => {
-                let result = db2.rollback().await;
-
-                // Handle rollback error
-                if let Err(e) = result {
-                    self.report_error(&e);
-                    Err(e.into())
-                } else {
-                    Err(e)
-                }
+                db2.rollback().await?;
+                Err(e)
             }
         }
     }
@@ -91,33 +83,11 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        // Get connection from pool
         let (resp, db) = self.transaction_internal(action).await?;
 
         // No further processing before commit is possible
-        let result = db.commit().await;
-
-        // Handle commit error
-        if let Err(e) = result {
-            self.report_error(&e);
-            return Err(e.into());
-        }
-
+        db.commit().await?;
         Ok(resp)
-    }
-
-    /// Report an error to sentry, if possible
-    fn report_error(&self, error: &ApiError) {
-        // we can't queue_report here (no access to extensions)
-        // so just report it immediately with tags on hand
-        if error.is_reportable() {
-            report(
-                &self.tags,
-                sentry::integrations::failure::event_from_fail(error),
-            );
-        } else {
-            debug!("Not reporting error: {:?}", error);
-        }
     }
 
     /// Perform an action inside of a DB transaction. This method will rollback
@@ -127,7 +97,6 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
     {
-        // Get connection from pool
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
                 let resource_ts = db
@@ -181,17 +150,10 @@ impl DbTransactionPool {
         let (resp, db) = self.transaction_internal(check_precondition).await?;
 
         // HttpResponse can contain an internal error
-        let result = match resp.error() {
-            None => db.commit().await,
-            Some(_) => db.rollback().await,
+        match resp.error() {
+            None => db.commit().await?,
+            Some(_) => db.rollback().await?,
         };
-
-        // Handle commit/rollback error
-        if let Err(e) = result {
-            self.report_error(&e);
-            return Err(e.into());
-        }
-
         Ok(resp)
     }
 }
