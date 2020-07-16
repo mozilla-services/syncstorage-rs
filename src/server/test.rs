@@ -7,7 +7,6 @@ use actix_web::{
 };
 use bytes::Bytes;
 use chrono::offset::Utc;
-use futures::executor::block_on;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -199,7 +198,7 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits)).await;
+    let mut app = test::init_service(build_app!(get_test_state(&settings).await, limits)).await;
 
     let req = create_request(method, path, None, None).to_request();
     let sresponse = match app.call(req).await {
@@ -233,7 +232,7 @@ async fn test_endpoint_with_body(
 ) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits)).await;
+    let mut app = test::init_service(build_app!(get_test_state(&settings).await, limits)).await;
     let req = create_request(method, path, None, Some(body)).to_request();
     let sresponse = app
         .call(req)
