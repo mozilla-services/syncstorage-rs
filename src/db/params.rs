@@ -7,7 +7,7 @@ use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
     ($name:ident {$($property:ident: $type:ty,)*}) => {
-        #[derive(Debug)]
+        #[derive(Clone, Debug)]
         pub struct $name {
             $(pub $property: $type,)*
         }
@@ -99,7 +99,7 @@ bso_data! {
     GetBsoTimestamp {},
 }
 
-#[derive(Debug, Default, Queryable)]
+#[derive(Clone, Debug, Default, Queryable)]
 pub struct Batch {
     pub id: String,
     pub bsos: String,
@@ -116,7 +116,7 @@ pub struct PutBso {
     pub ttl: Option<u32>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PostCollectionBso {
     pub id: String,
     pub sortindex: Option<i32>,

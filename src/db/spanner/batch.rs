@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub async fn create_async(
-    db: &SpannerDb,
+    db: &SpannerDb<'_>,
     params: params::CreateBatch,
 ) -> Result<results::CreateBatch> {
     let batch_id = Uuid::new_v4().to_simple().to_string();
@@ -57,7 +57,7 @@ pub async fn create_async(
     Ok(batch_id)
 }
 
-pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
+pub async fn validate_async(db: &SpannerDb<'_>, params: params::ValidateBatch) -> Result<bool> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let exists = db
         .sql(
@@ -81,7 +81,7 @@ pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Re
     Ok(exists.is_some())
 }
 
-pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
+pub async fn append_async(db: &SpannerDb<'_>, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
 
@@ -106,7 +106,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
 }
 
 pub async fn get_async(
-    db: &SpannerDb,
+    db: &SpannerDb<'_>,
     params: params::GetBatch,
 ) -> Result<Option<results::GetBatch>> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
@@ -142,7 +142,7 @@ pub async fn get_async(
     Ok(batch)
 }
 
-pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
+pub async fn delete_async(db: &SpannerDb<'_>, params: params::DeleteBatch) -> Result<()> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     // Also deletes child batch_bsos rows (INTERLEAVE IN PARENT batches ON
     // DELETE CASCADE)
@@ -165,7 +165,7 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result
 }
 
 pub async fn commit_async(
-    db: &SpannerDb,
+    db: &SpannerDb<'_>,
     params: params::CommitBatch,
 ) -> Result<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
@@ -239,7 +239,7 @@ pub async fn commit_async(
 }
 
 pub async fn do_append_async(
-    db: &SpannerDb,
+    db: &SpannerDb<'_>,
     user_id: HawkIdentifier,
     collection_id: i32,
     batch_id: String,
@@ -335,7 +335,7 @@ pub async fn do_append_async(
 /// For the special case of a user creating a batch for a collection with no
 /// prior data.
 async fn pretouch_collection_async(
-    db: &SpannerDb,
+    db: &SpannerDb<'_>,
     user_id: &HawkIdentifier,
     collection_id: i32,
 ) -> Result<()> {

@@ -8,7 +8,6 @@ use actix_web::{
 use bytes::Bytes;
 use chrono::offset::Utc;
 use futures::executor::block_on;
-use futures_await_test::async_test;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
@@ -65,10 +64,11 @@ fn get_test_settings() -> Settings {
     }
 }
 
-fn get_test_state(settings: &Settings) -> ServerState {
+async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
     ServerState {
         db_pool: pool_from_settings(&settings, &Metrics::from(&metrics))
+            .await
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         secrets: Arc::clone(&SECRETS),
@@ -78,12 +78,14 @@ fn get_test_state(settings: &Settings) -> ServerState {
 }
 
 macro_rules! init_app {
-    () => {{
-        crate::logging::init_logging(false).unwrap();
-        let settings = get_test_settings();
-        let limits = Arc::new(settings.limits.clone());
-        test::init_service(build_app!(get_test_state(&settings), limits))
-    }};
+    () => {
+        async {
+            crate::logging::init_logging(false).unwrap();
+            let settings = get_test_settings();
+            let limits = Arc::new(settings.limits.clone());
+            test::init_service(build_app!(get_test_state(&settings).await, limits)).await
+        }
+    };
 }
 
 fn create_request(
@@ -195,7 +197,7 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits));
 
     let req = create_request(method, path, None, None).to_request();
     let mut app = block_on(app);
@@ -226,7 +228,7 @@ where
 fn test_endpoint_with_body(method: http::Method, path: &str, body: serde_json::Value) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let app = test::init_service(build_app!(get_test_state(&settings), limits));
+    let app = test::init_service(build_app!(block_on(get_test_state(&settings)), limits));
     let req = create_request(method, path, None, Some(body)).to_request();
     let mut app = block_on(app);
     let sresponse =
@@ -488,7 +490,7 @@ fn invalid_batch_post() {
     assert_eq!(body, "0");
 }
 
-#[async_test]
+#[tokio::test]
 async fn accept_new_or_dev_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();
@@ -542,7 +544,7 @@ async fn accept_new_or_dev_ios() {
     assert!(response.status().is_success());
 }
 
-#[async_test]
+#[tokio::test]
 async fn reject_old_ios() {
     let mut app = init_app!().await;
     let mut headers = HashMap::new();

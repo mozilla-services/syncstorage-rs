@@ -83,8 +83,8 @@ impl From<&StatsdClient> for Metrics {
     }
 }
 
-impl From<&actix_web::web::Data<ServerState>> for Metrics {
-    fn from(state: &actix_web::web::Data<ServerState>) -> Self {
+impl From<&ServerState> for Metrics {
+    fn from(state: &ServerState) -> Self {
         Metrics {
             client: Some(*state.metrics.clone()),
             tags: None,
@@ -121,11 +121,11 @@ impl Metrics {
     }
 
     // increment a counter with no tags data.
-    pub fn incr(self, label: &str) {
+    pub fn incr(&self, label: &str) {
         self.incr_with_tags(label, None)
     }
 
-    pub fn incr_with_tags(self, label: &str, tags: Option<Tags>) {
+    pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
         if let Some(client) = self.client.as_ref() {
             let mut tagged = client.incr_with_tags(label);
             let mut mtags = self.tags.clone().unwrap_or_default();
