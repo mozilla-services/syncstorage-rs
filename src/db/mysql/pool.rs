@@ -55,7 +55,9 @@ impl MysqlDbPool {
 
     pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        let builder = Pool::builder()
+            .max_size(settings.database_pool_max_size.unwrap_or(10))
+            .min_idle(settings.database_pool_min_idle);
 
         #[cfg(test)]
         let builder = if settings.database_use_test_transactions {

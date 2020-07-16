@@ -28,6 +28,7 @@ pub struct Settings {
     pub host: String,
     pub database_url: String,
     pub database_pool_max_size: Option<u32>,
+    pub database_pool_min_idle: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
@@ -53,6 +54,7 @@ impl Default for Settings {
             host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
             database_pool_max_size: None,
+            database_pool_min_idle: None,
             #[cfg(test)]
             database_use_test_transactions: false,
             limits: ServerLimits::default(),

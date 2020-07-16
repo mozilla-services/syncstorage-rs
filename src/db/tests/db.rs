@@ -403,9 +403,9 @@ async fn get_storage_timestamp() -> Result<()> {
     let db = test_db(pool.as_ref()).await?;
 
     let uid = *UID;
-    db.create_collection("col1".to_owned()).await?;
-    let col2 = db.create_collection("col2".to_owned()).await?;
-    db.create_collection("col3".to_owned()).await?;
+    db.create_collection("NewCollection1".to_owned()).await?;
+    let col2 = db.create_collection("NewCollection2".to_owned()).await?;
+    db.create_collection("NewCollection3".to_owned()).await?;
 
     with_delta!(&db, 100_000, {
         db.touch_collection(params::TouchCollection {
