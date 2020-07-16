@@ -1,3 +1,25 @@
+<a name="0.5.0"></a>
+## 0.5.0 (2020-07-16)
+
+
+#### Features
+
+*   option to limit purgettl to range of fxa_uids ([695722a9](https://github.com/mozilla-services/syncstorage-rs/commit/695722a9b5286eab62b7f541a3479da5f2dd0a07), closes [#713](https://github.com/mozilla-services/syncstorage-rs/issues/713))
+*   limit purge ttl to prior midnight (#708) ([198eb816](https://github.com/mozilla-services/syncstorage-rs/commit/198eb816bc4a090d987aa933b492ec187de1e8e8), closes [#707](https://github.com/mozilla-services/syncstorage-rs/issues/707))
+*   add conditions, args to purge_ttl script (#668) ([2a14eb29](https://github.com/mozilla-services/syncstorage-rs/commit/2a14eb2973997e2637ff0894e593642ba9a729f3))
+
+#### Refactor
+
+*   clear new clippy warnings ([d918550a](https://github.com/mozilla-services/syncstorage-rs/commit/d918550a8cf5b72631d79fc2232050418dd101ec))
+
+#### Bug Fixes
+
+*   remove report_error from the transaction handler ([f0e4c62e](https://github.com/mozilla-services/syncstorage-rs/commit/f0e4c62e3cff366edc9fc798cbe7c94377cc4a8a), closes [#723](https://github.com/mozilla-services/syncstorage-rs/issues/723))
+*   Replace batch index to resolve hot table problem (#720) ([c3ca80e6](https://github.com/mozilla-services/syncstorage-rs/commit/c3ca80e66e4084ebc9b6c6efd41dff361b466fb8), closes [#719](https://github.com/mozilla-services/syncstorage-rs/issues/719))
+*   don't call begin twice for mysql's delete_all (#673) ([c93db759](https://github.com/mozilla-services/syncstorage-rs/commit/c93db75976eaaf262c6c972566e80cfc3809e810), closes [#639](https://github.com/mozilla-services/syncstorage-rs/issues/639), [#441](https://github.com/mozilla-services/syncstorage-rs/issues/441))
+
+
+
 <a name="0.4.2"></a>
 ## 0.4.2 (2020-06-24)
 
