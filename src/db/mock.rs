@@ -1,5 +1,6 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
+use async_trait::async_trait;
 use futures::future;
 
 use super::*;
@@ -13,13 +14,18 @@ impl MockDbPool {
     }
 }
 
+#[async_trait(?Send)]
 impl DbPool for MockDbPool {
-    fn get(&self) -> DbFuture<Box<dyn Db>> {
-        Box::pin(future::ok(Box::new(MockDb::new()) as Box<dyn Db>))
+    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
+        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)
     }
 
     fn state(&self) -> results::PoolState {
         results::PoolState::default()
+    }
+
+    fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
+        Ok(())
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -41,31 +47,31 @@ macro_rules! mock_db_method {
         mock_db_method!($name, $type, results::$type);
     };
     ($name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<$result> {
+        fn $name(&self, _params: params::$type) -> DbFuture<'_, $result> {
             let result: $result = Default::default();
             Box::pin(future::ok(result))
         }
     };
 }
 
-impl Db for MockDb {
-    fn commit(&self) -> DbFuture<()> {
+impl<'a> Db<'a> for MockDb {
+    fn commit(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn rollback(&self) -> DbFuture<()> {
+    fn rollback(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn begin(&self, _for_write: bool) -> DbFuture<()> {
+    fn begin(&self, _for_write: bool) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn box_clone(&self) -> Box<dyn Db> {
+    fn box_clone(&self) -> Box<dyn Db<'a>> {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check> {
         Box::pin(future::ok(true))
     }
 
@@ -92,10 +98,6 @@ impl Db for MockDb {
     mock_db_method!(append_to_batch, AppendToBatch);
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
-
-    fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
-        Ok(())
-    }
 
     #[cfg(test)]
     mock_db_method!(get_collection_id, GetCollectionId);

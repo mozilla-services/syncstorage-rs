@@ -52,6 +52,9 @@ pub enum DbErrorKind {
 
     #[fail(display = "Unexpected error: {}", _0)]
     Internal(String),
+
+    #[fail(display = "bb8 error: {}", _0)]
+    Bb8Error(bb8::RunError<grpcio::Error>),
 }
 
 impl DbError {
@@ -108,3 +111,4 @@ from_error!(
     DbError,
     DbErrorKind::Migration
 );
+from_error!(bb8::RunError<grpcio::Error>, DbError, DbErrorKind::Bb8Error);

@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup and run the server
     let banner = settings.banner();
-    let server = server::Server::with_settings(settings).unwrap();
+    let server = server::Server::with_settings(settings).await.unwrap();
     info!("Server running on {}", banner);
     server.await?;
     info!("Server closing");
