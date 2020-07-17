@@ -8,20 +8,21 @@ pub mod results;
 pub mod spanner;
 #[cfg(test)]
 mod tests;
+pub mod transaction;
 pub mod util;
 
 use std::{fmt::Debug, time::Duration};
 
+use async_trait::async_trait;
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
-use mozsvc_common::get_hostname;
 use serde::Deserialize;
 use url::Url;
 
 pub use self::error::{DbError, DbErrorKind};
 use self::util::SyncTimestamp;
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 use crate::web::extractors::HawkIdentifier;
@@ -59,12 +60,15 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 /// DbPools' worker ThreadPool size
 pub const DB_THREAD_POOL_SIZE: usize = 50;
 
-type DbFuture<T> = LocalBoxFuture<'static, Result<T, ApiError>>;
+type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
 
+#[async_trait(?Send)]
 pub trait DbPool: Sync + Send + Debug {
-    fn get(&self) -> DbFuture<Box<dyn Db>>;
+    async fn get(&self) -> ApiResult<Box<dyn Db<'_>>>;
 
     fn state(&self) -> results::PoolState;
+
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
 
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
@@ -75,88 +79,91 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
-pub trait Db: Send + Debug {
-    fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<()>;
+pub trait Db<'a>: Debug + 'a {
+    fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
 
-    fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<()>;
+    fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
 
-    fn begin(&self, for_write: bool) -> DbFuture<()>;
+    fn begin(&self, for_write: bool) -> DbFuture<'_, ()>;
 
-    fn commit(&self) -> DbFuture<()>;
+    fn commit(&self) -> DbFuture<'_, ()>;
 
-    fn rollback(&self) -> DbFuture<()>;
+    fn rollback(&self) -> DbFuture<'_, ()>;
 
     fn get_collection_timestamps(
         &self,
         params: params::GetCollectionTimestamps,
-    ) -> DbFuture<results::GetCollectionTimestamps>;
+    ) -> DbFuture<'_, results::GetCollectionTimestamps>;
 
     fn get_collection_timestamp(
         &self,
         params: params::GetCollectionTimestamp,
-    ) -> DbFuture<results::GetCollectionTimestamp>;
+    ) -> DbFuture<'_, results::GetCollectionTimestamp>;
 
     fn get_collection_counts(
         &self,
         params: params::GetCollectionCounts,
-    ) -> DbFuture<results::GetCollectionCounts>;
+    ) -> DbFuture<'_, results::GetCollectionCounts>;
 
     fn get_collection_usage(
         &self,
         params: params::GetCollectionUsage,
-    ) -> DbFuture<results::GetCollectionUsage>;
+    ) -> DbFuture<'_, results::GetCollectionUsage>;
 
     fn get_storage_timestamp(
         &self,
         params: params::GetStorageTimestamp,
-    ) -> DbFuture<results::GetStorageTimestamp>;
+    ) -> DbFuture<'_, results::GetStorageTimestamp>;
 
     fn get_storage_usage(
         &self,
         params: params::GetStorageUsage,
-    ) -> DbFuture<results::GetStorageUsage>;
+    ) -> DbFuture<'_, results::GetStorageUsage>;
 
-    fn delete_storage(&self, params: params::DeleteStorage) -> DbFuture<results::DeleteStorage>;
+    fn delete_storage(&self, params: params::DeleteStorage)
+        -> DbFuture<'_, results::DeleteStorage>;
 
     fn delete_collection(
         &self,
         params: params::DeleteCollection,
-    ) -> DbFuture<results::DeleteCollection>;
+    ) -> DbFuture<'_, results::DeleteCollection>;
 
-    fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<results::DeleteBsos>;
+    fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<'_, results::DeleteBsos>;
 
-    fn get_bsos(&self, params: params::GetBsos) -> DbFuture<results::GetBsos>;
+    fn get_bsos(&self, params: params::GetBsos) -> DbFuture<'_, results::GetBsos>;
 
-    fn get_bso_ids(&self, params: params::GetBsos) -> DbFuture<results::GetBsoIds>;
+    fn get_bso_ids(&self, params: params::GetBsos) -> DbFuture<'_, results::GetBsoIds>;
 
-    fn post_bsos(&self, params: params::PostBsos) -> DbFuture<results::PostBsos>;
+    fn post_bsos(&self, params: params::PostBsos) -> DbFuture<'_, results::PostBsos>;
 
-    fn delete_bso(&self, params: params::DeleteBso) -> DbFuture<results::DeleteBso>;
+    fn delete_bso(&self, params: params::DeleteBso) -> DbFuture<'_, results::DeleteBso>;
 
-    fn get_bso(&self, params: params::GetBso) -> DbFuture<Option<results::GetBso>>;
+    fn get_bso(&self, params: params::GetBso) -> DbFuture<'_, Option<results::GetBso>>;
 
     fn get_bso_timestamp(
         &self,
         params: params::GetBsoTimestamp,
-    ) -> DbFuture<results::GetBsoTimestamp>;
+    ) -> DbFuture<'_, results::GetBsoTimestamp>;
 
-    fn put_bso(&self, params: params::PutBso) -> DbFuture<results::PutBso>;
+    fn put_bso(&self, params: params::PutBso) -> DbFuture<'_, results::PutBso>;
 
-    fn create_batch(&self, params: params::CreateBatch) -> DbFuture<results::CreateBatch>;
+    fn create_batch(&self, params: params::CreateBatch) -> DbFuture<'_, results::CreateBatch>;
 
-    fn validate_batch(&self, params: params::ValidateBatch) -> DbFuture<results::ValidateBatch>;
+    fn validate_batch(&self, params: params::ValidateBatch)
+        -> DbFuture<'_, results::ValidateBatch>;
 
-    fn append_to_batch(&self, params: params::AppendToBatch) -> DbFuture<results::AppendToBatch>;
+    fn append_to_batch(
+        &self,
+        params: params::AppendToBatch,
+    ) -> DbFuture<'_, results::AppendToBatch>;
 
-    fn get_batch(&self, params: params::GetBatch) -> DbFuture<Option<results::GetBatch>>;
+    fn get_batch(&self, params: params::GetBatch) -> DbFuture<'_, Option<results::GetBatch>>;
 
-    fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<results::CommitBatch>;
+    fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<'_, results::CommitBatch>;
 
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
+    fn box_clone(&self) -> Box<dyn Db<'a>>;
 
-    fn box_clone(&self) -> Box<dyn Db>;
-
-    fn check(&self) -> DbFuture<results::Check>;
+    fn check(&self) -> DbFuture<'_, results::Check>;
 
     /// Retrieve the timestamp for an item/collection
     ///
@@ -166,7 +173,7 @@ pub trait Db: Send + Debug {
         user_id: HawkIdentifier,
         collection: Option<String>,
         bso: Option<String>,
-    ) -> DbFuture<SyncTimestamp> {
+    ) -> DbFuture<'_, SyncTimestamp> {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
@@ -210,13 +217,13 @@ pub trait Db: Send + Debug {
     /// Internal methods used by the db tests
 
     #[cfg(test)]
-    fn get_collection_id(&self, name: String) -> DbFuture<i32>;
+    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]
-    fn create_collection(&self, name: String) -> DbFuture<i32>;
+    fn create_collection(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]
-    fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<SyncTimestamp>;
+    fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<'_, SyncTimestamp>;
 
     #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;
@@ -225,14 +232,14 @@ pub trait Db: Send + Debug {
     fn set_timestamp(&self, timestamp: SyncTimestamp);
 
     #[cfg(test)]
-    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<()>;
+    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<'_, ()>;
 
     #[cfg(test)]
     fn clear_coll_cache(&self);
 }
 
-impl Clone for Box<dyn Db> {
-    fn clone(&self) -> Box<dyn Db> {
+impl<'a> Clone for Box<dyn Db<'a>> {
+    fn clone(&self) -> Box<dyn Db<'a>> {
         self.box_clone()
     }
 }
@@ -253,8 +260,7 @@ impl Default for Sorting {
 }
 
 /// Create/initialize a pool of managed Db connections
-// XXX: should likely return a Future?
-pub fn pool_from_settings(
+pub async fn pool_from_settings(
     settings: &Settings,
     metrics: &Metrics,
 ) -> Result<Box<dyn DbPool>, DbError> {
@@ -262,7 +268,7 @@ pub fn pool_from_settings(
         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
     Ok(match url.scheme() {
         "mysql" => Box::new(mysql::pool::MysqlDbPool::new(&settings, &metrics)?),
-        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics)?),
+        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics).await?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }
@@ -273,7 +279,10 @@ pub fn spawn_pool_periodic_reporter(
     metrics: StatsdClient,
     pool: Box<dyn DbPool>,
 ) -> Result<(), DbError> {
-    let hostname = get_hostname().ok_or_else(|| DbError::internal("Couldn't get_hostname"))?;
+    let hostname = hostname::get()
+        .expect("Couldn't get hostname")
+        .into_string()
+        .expect("Couldn't get hostname");
     actix_rt::spawn(async move {
         loop {
             let results::PoolState {
