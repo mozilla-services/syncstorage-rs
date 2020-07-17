@@ -33,8 +33,6 @@ use crate::db::{
 use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
-no_arg_sql_function!(last_insert_id, Integer);
-
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
@@ -314,25 +312,27 @@ impl MysqlDb {
         self.get_storage_timestamp_sync(params.user_id)
     }
 
-    pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
-        // XXX: handle concurrent attempts at inserts
-        let id = self.conn.transaction(|| {
-            sql_query(
-                "INSERT INTO collections (name)
-                 VALUES (?)",
-            )
-            .bind::<Text, _>(name)
-            .execute(&self.conn)?;
-            collections::table.select(last_insert_id).first(&self.conn)
-        })?;
-        Ok(id)
-    }
+    pub(super) fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
 
-    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
-        self.get_collection_id(name).or_else(|e| match e.kind() {
-            DbErrorKind::CollectionNotFound => self.create_collection(name),
-            _ => Err(e),
-        })
+        let id = self.conn.transaction(|| {
+            diesel::insert_or_ignore_into(collections::table)
+                .values(collections::name.eq(name))
+                .execute(&self.conn)?;
+
+            collections::table
+                .select(collections::id)
+                .filter(collections::name.eq(name))
+                .first(&self.conn)
+        })?;
+
+        if !self.session.borrow().in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+
+        Ok(id)
     }
 
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
@@ -989,7 +989,10 @@ impl<'a> Db<'a> for MysqlDb {
     #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
+        Box::pin(
+            block(move || db.get_or_create_collection_id(&name).map_err(Into::into))
+                .map_err(Into::into),
+        )
     }
 
     #[cfg(test)]
