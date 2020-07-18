@@ -72,18 +72,23 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     type Error = grpcio::Error;
 
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        // Requires GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-        let creds = ChannelCredentials::google_default_credentials()?;
+        let chan = {
+            // Requires
+            // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+            // XXX: issue732: Could google_default_credentials (or
+            // ChannelBuilder::secure_connect) block?!
+            let creds = ChannelCredentials::google_default_credentials()?;
 
-        // Create a Spanner client.
-        let chan = ChannelBuilder::new(self.env.clone())
-            .max_send_message_len(100 << 20)
-            .max_receive_message_len(100 << 20)
-            .secure_connect(SPANNER_ADDRESS, creds);
+            // Create a Spanner client.
+            ChannelBuilder::new(self.env.clone())
+                .max_send_message_len(100 << 20)
+                .max_receive_message_len(100 << 20)
+                .secure_connect(SPANNER_ADDRESS, creds)
+        };
         let client = SpannerClient::new(chan);
 
         // Connect to the instance and create a Spanner session.
-        let session = create_session(&client, &self.database_name)?;
+        let session = create_session(&client, &self.database_name).await?;
 
         Ok(SpannerSession {
             client,
@@ -100,7 +105,7 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
                 grpcio::Error::RpcFailure(ref status)
                     if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
                 {
-                    conn.session = create_session(&conn.client, &self.database_name)?;
+                    conn.session = create_session(&conn.client, &self.database_name).await?;
                 }
                 _ => return Err(e),
             }
@@ -113,12 +118,15 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     }
 }
 
-fn create_session(client: &SpannerClient, database_name: &str) -> Result<Session, grpcio::Error> {
+async fn create_session(
+    client: &SpannerClient,
+    database_name: &str,
+) -> Result<Session, grpcio::Error> {
     let mut req = CreateSessionRequest::new();
     req.database = database_name.to_owned();
     let mut meta = MetadataBuilder::new();
     meta.add_str("google-cloud-resource-prefix", database_name)?;
     meta.add_str("x-goog-api-client", "gcp-grpc-rs")?;
     let opt = CallOption::default().headers(meta.build());
-    client.create_session_opt(&req, opt)
+    client.create_session_async_opt(&req, opt)?.await
 }
