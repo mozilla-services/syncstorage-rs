@@ -1,12 +1,25 @@
 table! {
-    batches (user_id, collection_id, id) {
+    batch_uploads (batch_id, user_id) {
+        #[sql_name="batch"]
+        batch_id -> Bigint,
         #[sql_name="userid"]
-        user_id -> BigInt,
+        user_id -> Bigint,
         #[sql_name="collection"]
         collection_id -> Integer,
-        id -> Bigint,
-        bsos -> Longtext,
-        expiry -> Bigint,
+    }
+}
+
+table! {
+    batch_upload_items (batch_id, user_id, id) {
+        #[sql_name="batch"]
+        batch_id -> Bigint,
+        #[sql_name="userid"]
+        user_id -> Bigint,
+        id -> Varchar,
+        sortindex -> Nullable<Integer>,
+        payload -> Nullable<Mediumtext>,
+        payload_size -> Nullable<Bigint>,
+        ttl_offset -> Nullable<Integer>,
     }
 }
 
@@ -45,4 +58,10 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(batches, bso, collections, user_collections);
+allow_tables_to_appear_in_same_query!(
+    batch_uploads,
+    batch_upload_items,
+    bso,
+    collections,
+    user_collections,
+);
