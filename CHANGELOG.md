@@ -1,3 +1,17 @@
+<a name="0.5.1"></a>
+## 0.5.1 (2020-07-21)
+
+
+#### Features
+
+*   make migrations play nice with existing databases. (#721) ([40b97fc3](https://github.com/mozilla-services/syncstorage-rs/commit/40b97fc331d088462e09cbc5949b961ef5b6d4a5), closes [#663](https://github.com/mozilla-services/syncstorage-rs/issues/663))
+
+#### Bug Fixes
+
+*   switch create_session to async (#733) ([7cd04bc9](https://github.com/mozilla-services/syncstorage-rs/commit/7cd04bc9b4245bfb2ffca5e09de99cf3dd5753a8), closes [#731](https://github.com/mozilla-services/syncstorage-rs/issues/731))
+
+
+
 <a name="0.5.0"></a>
 ## 0.5.0 (2020-07-16)
 

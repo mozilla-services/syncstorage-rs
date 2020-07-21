@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.5.0"
+version = "0.5.1"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
