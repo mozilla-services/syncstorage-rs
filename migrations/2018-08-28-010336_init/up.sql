@@ -2,7 +2,7 @@
 
 -- DROP TABLE IF EXISTS `bso`;
 -- XXX: bsov1, etc
-CREATE TABLE `bso` (
+CREATE TABLE IF NOT EXISTS `bso`(
     `user_id` INT                           NOT NULL,
     `collection_id` INT                     NOT NULL,
     `id` VARCHAR(64)                        NOT NULL,
@@ -22,8 +22,8 @@ CREATE TABLE `bso` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
--- DROP TABLE IF EXISTS `collections`;
-CREATE TABLE `collections` (
+DROP TABLE IF EXISTS `collections`;
+CREATE TABLE `collections`(
     `id` INT PRIMARY KEY      NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(32) UNIQUE NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
@@ -44,7 +44,7 @@ INSERT INTO collections (id, name) VALUES
 
 
 -- DROP TABLE IF EXISTS `user_collections`;
-CREATE TABLE `user_collections` (
+CREATE TABLE IF NOT EXISTS `user_collections`(
     `user_id` INT       NOT NULL,
     `collection_id` INT NOT NULL,
     -- last modified time in milliseconds since epoch
@@ -55,7 +55,7 @@ CREATE TABLE `user_collections` (
 
 -- XXX: based on the go version (bsos is a concatenated blob of BSO jsons separated by newlines)
 -- DROP TABLE IF EXISTS `batches`;
-CREATE TABLE `batches` (
+CREATE TABLE IF NOT EXISTS `batches`(
     `user_id` INT                           NOT NULL,
     `collection_id` INT                     NOT NULL,
     `id` BIGINT                             NOT NULL,

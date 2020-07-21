@@ -93,7 +93,7 @@ fn static_collection_id() -> Result<()> {
         assert_eq!(result, *id);
     }
 
-    let cid = db.create_collection("col1")?;
+    let cid = db.get_or_create_collection_id("col1")?;
     assert!(cid >= 100);
     Ok(())
 }
