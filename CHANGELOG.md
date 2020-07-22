@@ -1,3 +1,17 @@
+<a name="0.5.2"></a>
+## 0.5.2 (2020-07-22)
+
+
+#### Chore
+
+*   Update Docker rust to 1.45 (#734) ([538abe4b](https://github.com/mozilla-services/syncstorage-rs/commit/538abe4badf7a17200cd1400ed85b0504dadc865))
+
+#### Bug Fixes
+
+*   avoid unneeded clones ([9c1c19f2](https://github.com/mozilla-services/syncstorage-rs/commit/9c1c19f262afb4057f1bc3473d77bc4c84592d35), closes [#736](https://github.com/mozilla-services/syncstorage-rs/issues/736))
+
+
+
 <a name="0.5.1"></a>
 ## 0.5.1 (2020-07-21)
 
