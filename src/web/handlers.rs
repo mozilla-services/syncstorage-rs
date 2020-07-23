@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
-use futures::future::{self, Future, TryFutureExt};
+use futures::future::{self, Future};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -230,7 +230,7 @@ pub async fn post_collection(
             coll.metrics.clone().incr("request.post_collection");
 
             if coll.batch.is_some() {
-                return post_collection_batch(&coll, db).await;
+                return post_collection_batch(coll, db).await;
             }
 
             let result = db
@@ -250,7 +250,7 @@ pub async fn post_collection(
 }
 
 pub async fn post_collection_batch(
-    coll: &CollectionPostRequest,
+    coll: CollectionPostRequest,
     db: Box<dyn Db<'_> + '_>,
 ) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection_batch");
@@ -294,7 +294,7 @@ pub async fn post_collection_batch(
     let collection = coll.collection.clone();
 
     let mut success = vec![];
-    let mut failed = coll.bsos.invalid.clone();
+    let mut failed = coll.bsos.invalid;
     let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
     let result = if commit && !coll.bsos.valid.is_empty() {
@@ -311,7 +311,6 @@ pub async fn post_collection_batch(
             bsos: coll
                 .bsos
                 .valid
-                .clone()
                 .into_iter()
                 .map(|batch_bso| params::PostCollectionBso {
                     id: batch_bso.id,
@@ -322,20 +321,14 @@ pub async fn post_collection_batch(
                 .collect(),
             failed: Default::default(),
         })
-        .and_then(|_| future::ok(()))
         .await
+        .map(|_| ())
     } else {
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
             id: id.clone(),
-            bsos: coll
-                .bsos
-                .valid
-                .clone()
-                .into_iter()
-                .map(From::from)
-                .collect(),
+            bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
         })
         .await
     };

@@ -226,7 +226,7 @@ impl FromRequest for DbTransactionPool {
             } else {
                 (None, true)
             };
-            let collection = lc.clone().map(|c| c.collection);
+            let collection = lc.as_ref().map(|c| c.collection.clone());
             let precondition = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()))?;
             let pool = Self {
                 pool: state.db_pool.clone(),
