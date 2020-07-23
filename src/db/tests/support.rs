@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use crate::db::DbPool;
+use crate::error::ApiResult;
 use crate::{
     db::{params, pool_from_settings, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
@@ -10,7 +12,7 @@ use crate::{
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
-pub async fn db() -> Result<Box<dyn Db>> {
+pub async fn db_pool() -> Result<Box<dyn DbPool>> {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
     let settings = Settings::with_env_and_config_file(&None).unwrap();
@@ -27,7 +29,11 @@ pub async fn db() -> Result<Box<dyn Db>> {
     };
 
     let metrics = metrics::Metrics::noop();
-    let pool = pool_from_settings(&settings, &metrics)?;
+    let pool = pool_from_settings(&settings, &metrics).await?;
+    Ok(pool)
+}
+
+pub async fn test_db(pool: &dyn DbPool) -> ApiResult<Box<dyn Db<'_>>> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

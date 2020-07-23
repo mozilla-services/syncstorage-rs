@@ -85,6 +85,15 @@ impl From<diesel::r2d2::State> for PoolState {
     }
 }
 
+impl From<bb8::State> for PoolState {
+    fn from(state: bb8::State) -> PoolState {
+        PoolState {
+            connections: state.connections,
+            idle_connections: state.idle_connections,
+        }
+    }
+}
+
 #[cfg(test)]
 pub type GetCollectionId = i32;
 

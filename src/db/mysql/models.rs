@@ -33,8 +33,6 @@ use crate::db::{
 use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 
-no_arg_sql_function!(last_insert_id, Integer);
-
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
@@ -314,25 +312,27 @@ impl MysqlDb {
         self.get_storage_timestamp_sync(params.user_id)
     }
 
-    pub(super) fn create_collection(&self, name: &str) -> Result<i32> {
-        // XXX: handle concurrent attempts at inserts
-        let id = self.conn.transaction(|| {
-            sql_query(
-                "INSERT INTO collections (name)
-                 VALUES (?)",
-            )
-            .bind::<Text, _>(name)
-            .execute(&self.conn)?;
-            collections::table.select(last_insert_id).first(&self.conn)
-        })?;
-        Ok(id)
-    }
+    pub(super) fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
 
-    fn get_or_create_collection_id(&self, name: &str) -> Result<i32> {
-        self.get_collection_id(name).or_else(|e| match e.kind() {
-            DbErrorKind::CollectionNotFound => self.create_collection(name),
-            _ => Err(e),
-        })
+        let id = self.conn.transaction(|| {
+            diesel::insert_or_ignore_into(collections::table)
+                .values(collections::name.eq(name))
+                .execute(&self.conn)?;
+
+            collections::table
+                .select(collections::id)
+                .filter(collections::name.eq(name))
+                .first(&self.conn)
+        })?;
+
+        if !self.session.borrow().in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+
+        Ok(id)
     }
 
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
@@ -745,7 +745,7 @@ impl MysqlDb {
         .bind::<Integer, _>(TOMBSTONE)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
-        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).and_then(|ts| Ok((cr.collection, ts))))
+        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).map(|ts| (cr.collection, ts)))
         .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
@@ -877,9 +877,6 @@ impl MysqlDb {
     batch_db_method!(validate_batch_sync, validate, ValidateBatch);
     batch_db_method!(append_to_batch_sync, append, AppendToBatch);
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
-    pub fn validate_batch_id(&self, id: String) -> Result<()> {
-        batch::validate_batch_id(&id)
-    }
     #[cfg(test)]
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
@@ -897,34 +894,34 @@ macro_rules! sync_db_method {
         sync_db_method!($name, $sync_name, $type, results::$type);
     };
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<$result> {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
             let db = self.clone();
             Box::pin(block(move || db.$sync_name(params).map_err(Into::into)).map_err(Into::into))
         }
     };
 }
 
-impl Db for MysqlDb {
-    fn commit(&self) -> DbFuture<()> {
+impl<'a> Db<'a> for MysqlDb {
+    fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(block(move || db.commit_sync().map_err(Into::into)).map_err(Into::into))
     }
 
-    fn rollback(&self) -> DbFuture<()> {
+    fn rollback(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(block(move || db.rollback_sync().map_err(Into::into)).map_err(Into::into))
     }
 
-    fn begin(&self, for_write: bool) -> DbFuture<()> {
+    fn begin(&self, for_write: bool) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
-    fn box_clone(&self) -> Box<dyn Db> {
+    fn box_clone(&self) -> Box<dyn Db<'a>> {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
         Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
     }
@@ -983,24 +980,23 @@ impl Db for MysqlDb {
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<()> {
-        self.validate_batch_id(params)
-    }
-
     #[cfg(test)]
-    fn get_collection_id(&self, name: String) -> DbFuture<i32> {
+    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
     #[cfg(test)]
-    fn create_collection(&self, name: String) -> DbFuture<i32> {
+    fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(block(move || db.create_collection(&name).map_err(Into::into)).map_err(Into::into))
+        Box::pin(
+            block(move || db.get_or_create_collection_id(&name).map_err(Into::into))
+                .map_err(Into::into),
+        )
     }
 
     #[cfg(test)]
-    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<SyncTimestamp> {
+    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
         Box::pin(
             block(move || {

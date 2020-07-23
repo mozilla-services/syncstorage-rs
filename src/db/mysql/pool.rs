@@ -1,6 +1,6 @@
 use actix_web::web::block;
 
-use futures::future::TryFutureExt;
+use async_trait::async_trait;
 
 use std::{
     collections::HashMap,
@@ -17,7 +17,8 @@ use diesel::{
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, results, Db, DbFuture, DbPool, STD_COLLS};
+use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
+use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
@@ -54,7 +55,9 @@ impl MysqlDbPool {
 
     pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        let builder = Pool::builder().max_size(settings.database_pool_max_size.unwrap_or(10));
+        let builder = Pool::builder()
+            .max_size(settings.database_pool_max_size.unwrap_or(10))
+            .min_idle(settings.database_pool_min_idle);
 
         #[cfg(test)]
         let builder = if settings.database_use_test_transactions {
@@ -79,21 +82,21 @@ impl MysqlDbPool {
     }
 }
 
+#[async_trait(?Send)]
 impl DbPool for MysqlDbPool {
-    fn get(&self) -> DbFuture<Box<dyn Db>> {
+    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         let pool = self.clone();
-        Box::pin(
-            block(move || {
-                pool.get_sync()
-                    .map(|db| Box::new(db) as Box<dyn Db>)
-                    .map_err(Into::into)
-            })
-            .map_err(Into::into),
-        )
+        let db = block(move || pool.get_sync().map_err(ApiError::from)).await?;
+
+        Ok(Box::new(db) as Box<dyn Db<'a>>)
     }
 
     fn state(&self) -> results::PoolState {
         self.pool.state().into()
+    }
+
+    fn validate_batch_id(&self, id: String) -> Result<()> {
+        super::batch::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
