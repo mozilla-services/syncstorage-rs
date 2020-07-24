@@ -66,6 +66,15 @@ pub struct UidParam {
     uid: u64,
 }
 
+pub fn clean_element(v: &str) -> Result<String, urlencoding::FromUrlEncodingError> {
+    // Some systems are wrapping elements with "{}". While not strictly prohibited,
+    // and there are no cases in the wild , it  may cause some problems for data
+    // storage and retrival. Normalize these by removing these charcters.
+    let decoded = urlencoding::decode(v)?;
+    let fixed = decoded.replace("\"", "").replace("{", "").replace("}", "");
+    Ok(fixed)
+}
+
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
     #[validate(custom = "validate_body_bso_id")]
@@ -530,7 +539,15 @@ impl CollectionParam {
             return Ok(None);
         }
         if let Some(v) = elements.get(4) {
-            let sv = String::from_str(v).map_err(|_e| {
+            let mut sv = String::from_str(v).map_err(|_e| {
+                ValidationErrorKind::FromDetails(
+                    "Missing Collection".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("collection".to_owned()),
+                    Some(tags.clone()),
+                )
+            })?;
+            sv = clean_element(&sv).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
@@ -1057,7 +1074,20 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            u64::from_str(v).map_err(|e| {
+            let clean = match clean_element(v) {
+                Err(e) => {
+                    warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid UID".to_owned(),
+                        RequestErrorLocation::Path,
+                        Some("uid".to_owned()),
+                        tags,
+                    )
+                    .into());
+                }
+                Ok(v) => v,
+            };
+            u64::from_str(&clean).map_err(|e| {
                 warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
@@ -2080,6 +2110,37 @@ mod tests {
             .expect("Could not get result in test_valid_collection_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
+    }
+
+    #[test]
+    fn test_quoted_id() {
+        let payload = HawkPayload::test_default(*USER_ID);
+        lazy_static! {
+            // Some libraries encode the bso id as "{guid}" which, is technically allowed
+            // since the spec says that bso ids could be any character. However, this can
+            // screw some things up, and while we've not seen occurances of this in the
+            // wild, we're going to transcode these to "normal" GUIDs.
+            static ref ALTERED_ID: String = format!("\"{{{}}}\"", *USER_ID).to_string();
+        }
+        let state = make_state();
+        let uri = format!(
+            "/1.5/{}/storage/tabs",
+            urlencoding::encode(ALTERED_ID.as_str())
+        );
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
+            .header("authorization", header)
+            .header("accept", "application/json,text/plain:q=0.5")
+            .method(Method::GET)
+            .param("uid", &ALTERED_ID)
+            .param("collection", "tabs")
+            .to_http_request();
+        req.extensions_mut().insert(make_db());
+        let result = block_on(CollectionRequest::extract(&req))
+            .expect("Could not get result in test_valid_collection_request");
+        // make sure the altered bsoid matches the unaltered one, without the quotes and cury braces.
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
     }
 
     #[test]
