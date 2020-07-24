@@ -2120,7 +2120,7 @@ mod tests {
             // since the spec says that bso ids could be any character. However, this can
             // screw some things up, and while we've not seen occurances of this in the
             // wild, we're going to transcode these to "normal" GUIDs.
-            static ref ALTERED_ID: String = format!("\"{{{}}}\"", *USER_ID).to_string();
+            static ref ALTERED_ID: String = format!("\"{{{}}}\"", *USER_ID);
         }
         let state = make_state();
         let uri = format!(
