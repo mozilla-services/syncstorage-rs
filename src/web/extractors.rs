@@ -549,7 +549,7 @@ impl CollectionParam {
             })?;
             sv = clean_element(&sv).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
-                    "Missing Collection".to_owned(),
+                    "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                     Some(tags.clone()),
