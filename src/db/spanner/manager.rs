@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::{fmt, sync::Arc};
 
+use actix_web::web::block;
 use async_trait::async_trait;
 use bb8::ManageConnection;
 use googleapis_raw::spanner::v1::{
@@ -13,6 +14,7 @@ use grpcio::{
 
 use crate::{
     db::error::{DbError, DbErrorKind},
+    server::metrics::Metrics,
     settings::Settings,
 };
 
@@ -22,6 +24,7 @@ pub struct SpannerConnectionManager<T> {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
+    metrics: Metrics,
     test_transactions: bool,
     phantom: PhantomData<T>,
 }
@@ -35,7 +38,7 @@ impl<_T> fmt::Debug for SpannerConnectionManager<_T> {
 }
 
 impl<T> SpannerConnectionManager<T> {
-    pub fn new(settings: &Settings) -> Result<Self, DbError> {
+    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
         let url = &settings.database_url;
         if !url.starts_with("spanner://") {
             Err(DbErrorKind::InvalidUrl(url.to_owned()))?;
@@ -51,6 +54,7 @@ impl<T> SpannerConnectionManager<T> {
         Ok(SpannerConnectionManager::<T> {
             database_name,
             env,
+            metrics: metrics.clone(),
             test_transactions,
             phantom: PhantomData,
         })
@@ -69,22 +73,30 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     for SpannerConnectionManager<T>
 {
     type Connection = SpannerSession;
-    type Error = grpcio::Error;
+    type Error = DbError;
 
     async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let chan = {
+        let env = self.env.clone();
+        let mut metrics = self.metrics.clone();
+        // XXX: issue732: Could google_default_credentials (or
+        // ChannelBuilder::secure_connect) block?!
+        let chan = block(move || -> Result<grpcio::Channel, grpcio::Error> {
+            metrics.start_timer("storage.pool.grpc_auth", None);
             // Requires
             // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-            // XXX: issue732: Could google_default_credentials (or
-            // ChannelBuilder::secure_connect) block?!
             let creds = ChannelCredentials::google_default_credentials()?;
-
-            // Create a Spanner client.
-            ChannelBuilder::new(self.env.clone())
+            Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
                 .max_receive_message_len(100 << 20)
-                .secure_connect(SPANNER_ADDRESS, creds)
-        };
+                .secure_connect(SPANNER_ADDRESS, creds))
+        })
+        .await
+        .map_err(|e| match e {
+            actix_web::error::BlockingError::Error(e) => e.into(),
+            actix_web::error::BlockingError::Canceled => {
+                DbError::internal("web::block Manager operation canceled")
+            }
+        })?;
         let client = SpannerClient::new(chan);
 
         // Connect to the instance and create a Spanner session.
@@ -107,7 +119,7 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
                 {
                     conn.session = create_session(&conn.client, &self.database_name).await?;
                 }
-                _ => return Err(e),
+                _ => return Err(e.into()),
             }
         }
         Ok(conn)
