@@ -2154,7 +2154,11 @@ mod tests {
             static ref ALTERED_BSO: String = format!("\"{{{}}}\"", *USER_ID);
         }
         let state = make_state();
-        let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, urlencoding::encode(ALTERED_BSO.as_str()));
+        let uri = format!(
+            "/1.5/{}/storage/tabs/{}",
+            *USER_ID,
+            urlencoding::encode(ALTERED_BSO.as_str())
+        );
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
