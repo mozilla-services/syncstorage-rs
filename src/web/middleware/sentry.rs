@@ -7,6 +7,7 @@ use std::{
 use actix_http::Extensions;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    web::Data,
     Error, HttpMessage,
 };
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
@@ -14,6 +15,7 @@ use sentry::protocol::Event;
 use std::task::Poll;
 
 use crate::error::ApiError;
+use crate::server::{metrics::Metrics, ServerState};
 use crate::web::tags::Tags;
 
 pub struct SentryWrapper;
@@ -147,6 +149,11 @@ where
                 Some(e) => {
                     let apie: Option<&ApiError> = e.as_error();
                     if let Some(apie) = apie {
+                        if apie.is_conflict() {
+                            if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
+                                Metrics::from(state.as_ref()).incr("db.conflict");
+                            };
+                        }
                         if !apie.is_reportable() {
                             debug!("Not reporting error to sentry: {:?}", apie);
                             return future::ok(sresp);

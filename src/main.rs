@@ -34,20 +34,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
+    // Commented out with sentry 0.19
+    // looks like this may no longer be a problem?
+    /*
     let curl_transport_factory = |options: &sentry::ClientOptions| {
         // Note: set options.debug = true when diagnosing sentry issues.
         Box::new(sentry::transports::CurlHttpTransport::new(&options))
             as Box<dyn sentry::internals::Transport>
     };
-    let sentry = sentry::init(sentry::ClientOptions {
-        transport: Box::new(curl_transport_factory),
+    */
+    let _sentry = sentry::init(sentry::ClientOptions {
+        // transport: Some(Box::new(curl_transport_factory)),
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
+    /*
     if sentry.is_enabled() {
-        sentry::integrations::panic::register_panic_handler();
+        // automatically added witn sentry 0.19
+        // sentry::integrations::panic::register_panic_handler();
     }
-
+    */
     // Setup and run the server
     let banner = settings.banner();
     let server = server::Server::with_settings(settings).await.unwrap();
