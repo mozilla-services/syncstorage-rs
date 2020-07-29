@@ -62,10 +62,10 @@ macro_rules! build_app {
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
-            // .wrap(middleware::db::DbTransaction::new())
             .wrap(middleware::weave::WeaveTimestamp::new())
             .wrap(middleware::sentry::SentryWrapper::new())
             .wrap(middleware::rejectua::RejectUA::default())
+            .wrap(middleware::debug_client::DebugClient::default())
             // Followed by the "official middleware" so they run first.
             .wrap(Cors::default())
             .service(

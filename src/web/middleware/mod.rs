@@ -2,6 +2,8 @@
 pub mod rejectua;
 pub mod sentry;
 pub mod weave;
+pub mod debug_client;
+
 
 // # Web Middleware
 //

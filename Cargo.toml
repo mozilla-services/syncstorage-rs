@@ -44,10 +44,10 @@ log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.15"
+protobuf = "2.16.2"
 rand = "0.7"
 regex = "1.3"
-sentry = { version = "0.18", features = ["with_curl_transport"] }
+sentry = { version = "0.19", features = ["debug-logs", "with_curl_transport"] }
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
