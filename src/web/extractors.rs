@@ -28,7 +28,7 @@ use validator::{Validate, ValidationError};
 
 use crate::db::transaction::DbTransactionPool;
 use crate::db::{util::SyncTimestamp, DbPool, Sorting};
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::{Secrets, ServerLimits};
 use crate::web::{
@@ -66,6 +66,23 @@ pub struct UidParam {
     uid: u64,
 }
 
+fn clean_entry(s: &str) -> Result<String, ApiError> {
+    println!("### GOT: {:?}", s);
+    // URL decode and check that the string is all ascii.
+    let decoded: String = match urlencoding::decode(s) {
+        Ok(v) => v,
+        Err(e) => {
+            debug!("unclean entry: {:?} {:?}", s, e);
+            return Err(ApiErrorKind::Internal(e.to_string()).into());
+        }
+    };
+    if !decoded.is_ascii() {
+        debug!("unclean entry, non-ascii value in {:?}", decoded);
+        return Err(ApiErrorKind::InvalidSubmission("invalid value".into()).into());
+    };
+    println!("### Returning {:?}", &decoded);
+    Ok(decoded)
+}
 
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
@@ -273,7 +290,7 @@ impl FromRequest for BsoBodies {
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
-                    let id = match urlencoding::decode(&id.to_string()){
+                    let id = match clean_entry(&id.to_string()) {
                         Ok(v) => v,
                         Err(_) => {
                             return future::err(
@@ -477,7 +494,7 @@ impl BsoParam {
             ))?;
         }
         if let Some(v) = elements.get(5) {
-            let sv = urlencoding::decode(&String::from_str(v).map_err(|e| {
+            let sv = clean_entry(&String::from_str(v).map_err(|e| {
                 warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
@@ -485,7 +502,8 @@ impl BsoParam {
                     Some("bso".to_owned()),
                     Some(tags.clone()),
                 )
-            })?).map_err(|e| {
+            })?)
+            .map_err(|e| {
                 warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
@@ -560,7 +578,7 @@ impl CollectionParam {
                     Some(tags.clone()),
                 )
             })?;
-            sv = urlencoding::decode(&sv).map_err(|_e| {
+            sv = clean_entry(&sv).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
                     "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
@@ -1087,7 +1105,7 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            let clean = match urlencoding::decode(v) {
+            let clean = match clean_entry(v) {
                 Err(e) => {
                     warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                     return Err(ValidationErrorKind::FromDetails(
@@ -1687,9 +1705,8 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
 
 /// Verifies the BSO id string is valid
 fn validate_body_bso_id(id: &str) -> Result<(), ValidationError> {
-    let clean = urlencoding::decode(id).map_err(|_| {
-        request_error("Invalid id", RequestErrorLocation::Body)
-    })?;
+    let clean =
+        clean_entry(id).map_err(|_| request_error("Invalid id", RequestErrorLocation::Body))?;
     if !VALID_ID_REGEX.is_match(&clean) {
         return Err(request_error("Invalid id", RequestErrorLocation::Body));
     }
@@ -2129,34 +2146,33 @@ mod tests {
     }
 
     #[test]
-    fn test_quoted_id() {
+    fn test_quoted_bso() {
         let payload = HawkPayload::test_default(*USER_ID);
         lazy_static! {
             // Some libraries encode the bso id as "{guid}" which, is technically allowed
             // since the spec says that bso ids could be any character. However, this can
             // screw some things up, and while we've not seen occurances of this in the
             // wild, we're going to transcode these to "normal" GUIDs.
-            static ref ALTERED_ID: String = format!("\"{{{}}}\"", *USER_ID);
+            static ref ALTERED_BSO: String = format!("\"{{{}}}\"", *USER_ID);
         }
         let state = make_state();
-        let uri = format!(
-            "/1.5/{}/storage/tabs",
-            urlencoding::encode(ALTERED_ID.as_str())
-        );
+        let uri = format!("/1.5/{}/storage/{}", *USER_ID, urlencoding::encode(ALTERED_BSO.as_str()));
+        println!("### {:?}", uri);
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .header("authorization", header)
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
-            .param("uid", &ALTERED_ID)
-            .param("collection", "tabs")
+            .param("uid", &USER_ID_STR)
+            .param("collection", &ALTERED_BSO)
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = block_on(CollectionRequest::extract(&req))
             .expect("Could not get result in test_valid_collection_request");
         // make sure the altered bsoid matches the unaltered one, without the quotes and cury braces.
         assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(result.collection, *ALTERED_BSO);
     }
 
     #[test]
