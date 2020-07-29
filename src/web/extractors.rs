@@ -67,7 +67,6 @@ pub struct UidParam {
 }
 
 fn clean_entry(s: &str) -> Result<String, ApiError> {
-    println!("### GOT: {:?}", s);
     // URL decode and check that the string is all ascii.
     let decoded: String = match urlencoding::decode(s) {
         Ok(v) => v,
@@ -80,7 +79,6 @@ fn clean_entry(s: &str) -> Result<String, ApiError> {
         debug!("unclean entry, non-ascii value in {:?}", decoded);
         return Err(ApiErrorKind::InvalidSubmission("invalid value".into()).into());
     };
-    println!("### Returning {:?}", &decoded);
     Ok(decoded)
 }
 
@@ -2156,8 +2154,7 @@ mod tests {
             static ref ALTERED_BSO: String = format!("\"{{{}}}\"", *USER_ID);
         }
         let state = make_state();
-        let uri = format!("/1.5/{}/storage/{}", *USER_ID, urlencoding::encode(ALTERED_BSO.as_str()));
-        println!("### {:?}", uri);
+        let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, urlencoding::encode(ALTERED_BSO.as_str()));
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
@@ -2165,14 +2162,15 @@ mod tests {
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
             .param("uid", &USER_ID_STR)
-            .param("collection", &ALTERED_BSO)
+            .param("collection", "tabs")
+            .param("bso", &ALTERED_BSO)
             .to_http_request();
         req.extensions_mut().insert(make_db());
-        let result = block_on(CollectionRequest::extract(&req))
+        let result = block_on(BsoRequest::extract(&req))
             .expect("Could not get result in test_valid_collection_request");
         // make sure the altered bsoid matches the unaltered one, without the quotes and cury braces.
         assert_eq!(result.user_id.legacy_id, *USER_ID);
-        assert_eq!(result.collection, *ALTERED_BSO);
+        assert_eq!(ALTERED_BSO.as_str(), result.bso);
     }
 
     #[test]
