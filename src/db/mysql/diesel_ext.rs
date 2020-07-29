@@ -1,6 +1,6 @@
 use diesel::{
     mysql::Mysql,
-    query_builder::{AstPass, QueryFragment},
+    query_builder::{AstPass, QueryFragment, InsertStatement},
     query_dsl::methods::LockingDsl,
     result::QueryResult,
 };
@@ -31,6 +31,26 @@ pub struct LockInShareMode;
 impl QueryFragment<Mysql> for LockInShareMode {
     fn walk_ast(&self, mut out: AstPass<'_, Mysql>) -> QueryResult<()> {
         out.push_sql(" LOCK IN SHARE MODE");
+        Ok(())
+    }
+}
+/// Emit 'ON DUPLICATE KEY UPDATE'
+pub trait OnDuplicateKeyUpdateDsl<T> {
+    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T>;
+}
+impl<T, U> OnDuplicateKeyUpdateDsl<U> for InsertStatement<T, U> {
+    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<U> {
+        OnDuplicateKeyUpdate(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, QueryId)]
+pub struct OnDuplicateKeyUpdate<T>(T);
+
+impl QueryFragment<Mysql> for OnDuplicateKeyUpdate<InsertStatement<T, U>> {
+    fn walk_ast(&self, mut out:AstPass<'_, Mysql>) -> QueryResult<()> {
+        self.0.walk_ast(out);
+        out.push_sql(" ON DUPLICATE KEY UPDATE");
         Ok(())
     }
 }
