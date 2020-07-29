@@ -66,14 +66,6 @@ pub struct UidParam {
     uid: u64,
 }
 
-pub fn clean_element(v: &str) -> Result<String, urlencoding::FromUrlEncodingError> {
-    // Some systems are wrapping elements with "{}". While not strictly prohibited,
-    // and there are no cases in the wild , it  may cause some problems for data
-    // storage and retrival. Normalize these by removing these charcters.
-    let decoded = urlencoding::decode(v)?;
-    let fixed = decoded.replace("\"", "").replace("{", "").replace("}", "");
-    Ok(fixed)
-}
 
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
@@ -281,7 +273,20 @@ impl FromRequest for BsoBodies {
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
-                    let id = id.to_string();
+                    let id = match urlencoding::decode(&id.to_string()){
+                        Ok(v) => v,
+                        Err(_) => {
+                            return future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "Invalid BSO ID".to_owned(),
+                                    RequestErrorLocation::Body,
+                                    Some("bsos".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            );
+                        }
+                    };
                     if bso_ids.contains(&id) {
                         return future::err(
                             ValidationErrorKind::FromDetails(
@@ -472,8 +477,16 @@ impl BsoParam {
             ))?;
         }
         if let Some(v) = elements.get(5) {
-            let sv = String::from_str(v).map_err(|_| {
-                warn!("⚠️ Invalid BsoParam Error: {:?}", v; tags);
+            let sv = urlencoding::decode(&String::from_str(v).map_err(|e| {
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
+                ValidationErrorKind::FromDetails(
+                    "Invalid BSO".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("bso".to_owned()),
+                    Some(tags.clone()),
+                )
+            })?).map_err(|e| {
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -547,7 +560,7 @@ impl CollectionParam {
                     Some(tags.clone()),
                 )
             })?;
-            sv = clean_element(&sv).map_err(|_e| {
+            sv = urlencoding::decode(&sv).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
                     "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
@@ -1074,7 +1087,7 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            let clean = match clean_element(v) {
+            let clean = match urlencoding::decode(v) {
                 Err(e) => {
                     warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                     return Err(ValidationErrorKind::FromDetails(
@@ -1674,7 +1687,10 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
 
 /// Verifies the BSO id string is valid
 fn validate_body_bso_id(id: &str) -> Result<(), ValidationError> {
-    if !VALID_ID_REGEX.is_match(id) {
+    let clean = urlencoding::decode(id).map_err(|_| {
+        request_error("Invalid id", RequestErrorLocation::Body)
+    })?;
+    if !VALID_ID_REGEX.is_match(&clean) {
         return Err(request_error("Invalid id", RequestErrorLocation::Body));
     }
     Ok(())
