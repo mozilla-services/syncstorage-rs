@@ -3,6 +3,7 @@
 extern crate slog_scope;
 
 use std::error::Error;
+use std::sync::Arc;
 
 use docopt::Docopt;
 use serde_derive::Deserialize;
@@ -34,17 +35,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
-    // Commented out with sentry 0.19
-    // looks like this may no longer be a problem?
-    /*
     let curl_transport_factory = |options: &sentry::ClientOptions| {
         // Note: set options.debug = true when diagnosing sentry issues.
-        Box::new(sentry::transports::CurlHttpTransport::new(&options))
-            as Box<dyn sentry::internals::Transport>
+        Arc::new(sentry::transports::CurlHttpTransport::new(&options))
+            as Arc<dyn sentry::internals::Transport>
     };
-    */
     let _sentry = sentry::init(sentry::ClientOptions {
-        // transport: Some(Box::new(curl_transport_factory)),
+        transport: Some(Arc::new(curl_transport_factory)),
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
