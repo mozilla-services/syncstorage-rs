@@ -2146,18 +2146,12 @@ mod tests {
     #[test]
     fn test_quoted_bso() {
         let payload = HawkPayload::test_default(*USER_ID);
-        lazy_static! {
-            // Some libraries encode the bso id as "{guid}" which, is technically allowed
-            // since the spec says that bso ids could be any character. However, this can
-            // screw some things up, and while we've not seen occurances of this in the
-            // wild, we're going to transcode these to "normal" GUIDs.
-            static ref ALTERED_BSO: String = format!("\"{{{}}}\"", *USER_ID);
-        }
+        let altered_bso= format!("\"{{{}}}\"", *USER_ID);
         let state = make_state();
         let uri = format!(
             "/1.5/{}/storage/tabs/{}",
             *USER_ID,
-            urlencoding::encode(ALTERED_BSO.as_str())
+            urlencoding::encode(&altered_bso)
         );
         let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
@@ -2165,16 +2159,13 @@ mod tests {
             .header("authorization", header)
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
-            .param("uid", &USER_ID_STR)
-            .param("collection", "tabs")
-            .param("bso", &ALTERED_BSO)
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let result = block_on(BsoRequest::extract(&req))
             .expect("Could not get result in test_valid_collection_request");
         // make sure the altered bsoid matches the unaltered one, without the quotes and cury braces.
         assert_eq!(result.user_id.legacy_id, *USER_ID);
-        assert_eq!(ALTERED_BSO.as_str(), result.bso);
+        assert_eq!(altered_bso.as_str(), result.bso);
     }
 
     #[test]
