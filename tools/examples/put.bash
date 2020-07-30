@@ -2,8 +2,10 @@
 NODE="http://localhost:8000"
 URI="/1.5/1/storage/col2/DEADBEEF"
 METHOD="PUT"
-SYNC_MASTER_SECRET="INSERT_SECRET_KEY_HERE"
-AUTH=`../hawk/venv/bin/python ../hawk/make_hawk_token.py --node $NODE --uri $URI --method $METHOD --secret=$SYNC_MASTER_SECRET --as_header`
+#SYNC_MASTER_SECRET="INSERT_SECRET_KEY_HERE"
+SYNC_MASTER_SECRET=Ted_Koppel_is_a_robot
+AUTH=`../venv/bin/python ../hawk/make_hawk_token.py --node $NODE --uri $URI --method $METHOD --secret=$SYNC_MASTER_SECRET --as_header`
+echo $AUTH
 curl -vv -X PUT "$NODE$URI" \
     -H "$AUTH" \
     -H 'Content-Type: application/json' \

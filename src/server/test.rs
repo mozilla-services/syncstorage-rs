@@ -418,6 +418,34 @@ async fn put_bso() {
 }
 
 #[actix_rt::test]
+async fn put_bso_client_debug() {
+    let mut settings = get_test_settings();
+    settings.human_logs = true;
+    settings.limits = ServerLimits {
+        debug_client: Some(Vec::from(["123abc".to_owned()])),
+        ..Default::default()
+    };
+
+    let limits = Arc::new(settings.limits.clone());
+    let mut app = test::init_service(build_app!(get_test_state(&settings).await, limits)).await;
+    let req = create_request(
+        http::Method::PUT,
+        "/1.5/123abc/storage/bookmarks/wibble",
+        None,
+        Some(json!(BsoBody::default())),
+    )
+    .to_request();
+    let sresponse = app
+        .call(req)
+        .await
+        .expect("Could not get sresponse in test_endpoint_with_body");
+    let bytes = test::read_body(sresponse).await;
+    //    let result: PutBso = serde_json::from_slice(&bytes);
+    dbg!(String::from_utf8_lossy(&bytes.to_vec()));
+    //    assert!(result >= start);
+}
+
+#[actix_rt::test]
 async fn bsos_can_have_a_collection_field() {
     let start = SyncTimestamp::default();
     // test that "collection" is accepted, even if ignored
