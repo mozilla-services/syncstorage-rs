@@ -400,6 +400,7 @@ impl FromRequest for BsoBody {
                     Ok(v) => {
                         if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
                             debug!("### returning quota exceeded.");
+                            error!("Returning over quota for {:?}", v);
                             return Box::pin(future::err(
                                 ValidationErrorKind::FromDetails(
                                     "size-limit-exceeded".to_owned(),
