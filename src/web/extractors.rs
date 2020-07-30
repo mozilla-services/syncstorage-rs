@@ -2146,7 +2146,7 @@ mod tests {
     #[test]
     fn test_quoted_bso() {
         let payload = HawkPayload::test_default(*USER_ID);
-        let altered_bso= format!("\"{{{}}}\"", *USER_ID);
+        let altered_bso = format!("\"{{{}}}\"", *USER_ID);
         let state = make_state();
         let uri = format!(
             "/1.5/{}/storage/tabs/{}",
