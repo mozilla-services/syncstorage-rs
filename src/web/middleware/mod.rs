@@ -1,9 +1,8 @@
 // pub mod db;
+pub mod debug_client;
 pub mod rejectua;
 pub mod sentry;
 pub mod weave;
-pub mod debug_client;
-
 
 // # Web Middleware
 //

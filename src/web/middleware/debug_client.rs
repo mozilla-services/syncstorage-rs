@@ -37,7 +37,7 @@ pub struct RespondWith {
     status: u16,
     code: Option<u8>,
     message: Option<String>,
-    headers: Option<HashMap<String,String>>,
+    headers: Option<HashMap<String, String>>,
 }
 
 impl Default for RespondWith {
@@ -72,7 +72,7 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         if let Some(header) = sreq.headers().get("Client-Debug".to_owned()) {
-            info!("### Header: {:?} {:?}", &header, &header.to_str());
+            debug!("### Providing debug header {:?}", header);
             let resp_data: RespondWith =
                 serde_json::from_str(header.to_str().unwrap_or_default()).expect("Invalid header");
             let mut builder = HttpResponse::build(
@@ -90,10 +90,10 @@ where
                     .body(format!("{:?}", code))
                     .into_body()
             } else if let Some(message) = resp_data.message {
-                    builder
-                        .content_type("application/json")
-                        .body(format!("{:?}", message))
-                        .into_body()
+                builder
+                    .content_type("application/json")
+                    .body(format!("{:?}", message))
+                    .into_body()
             } else {
                 builder.body("").into_body()
             };
