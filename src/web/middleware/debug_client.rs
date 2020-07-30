@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 use std::collections::HashMap;
 use std::task::{Context, Poll};
 
