@@ -45,12 +45,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
-    /*
-    if sentry.is_enabled() {
-        // automatically added witn sentry 0.19
-        // sentry::integrations::panic::register_panic_handler();
-    }
-    */
     // Setup and run the server
     let banner = settings.banner();
     let server = server::Server::with_settings(settings).await.unwrap();
