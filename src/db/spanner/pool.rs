@@ -45,7 +45,7 @@ impl SpannerDbPool {
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let manager = SpannerConnectionManager::<SpannerSession>::new(settings)?;
+        let manager = SpannerConnectionManager::<SpannerSession>::new(settings, metrics)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
         let builder = bb8::Pool::builder()
             .max_size(max_size)
@@ -59,7 +59,10 @@ impl SpannerDbPool {
     }
 
     pub async fn get_async(&self) -> Result<SpannerDb<'_>> {
-        let conn = self.pool.get().await?;
+        let conn = self.pool.get().await.map_err(|e| match e {
+            bb8::RunError::User(dbe) => dbe,
+            bb8::RunError::TimedOut => DbError::internal("bb8:TimedOut"),
+        })?;
         Ok(SpannerDb::new(
             conn,
             Arc::clone(&self.coll_cache),
