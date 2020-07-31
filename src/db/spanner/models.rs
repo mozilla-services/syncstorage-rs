@@ -272,7 +272,6 @@ impl<'a> SpannerDb<'a> {
             // Forbid the write if it would not properly incr the modified
             // timestamp
             if modified >= now {
-                self.metrics.clone().incr("db.conflict");
                 Err(DbErrorKind::Conflict)?
             }
             self.session

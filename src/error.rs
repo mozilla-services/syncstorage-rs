@@ -13,6 +13,7 @@ use actix_web::{
     error::ResponseError,
     http::StatusCode,
     middleware::errhandlers::ErrorHandlerResponse,
+    web::Data,
     HttpResponse, Result,
 };
 use failure::{Backtrace, Context, Fail};
@@ -22,6 +23,8 @@ use serde::{
 };
 
 use crate::db::error::{DbError, DbErrorKind};
+use crate::server::metrics::Metrics;
+use crate::server::ServerState;
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
@@ -125,6 +128,12 @@ impl ApiError {
             _ => (),
         }
         true
+    }
+
+    pub fn on_response(&self, state: &Data<ServerState>) {
+        if self.is_conflict() {
+            Metrics::from(state.as_ref()).incr("storage.confict")
+        }
     }
 
     fn weave_error_code(&self) -> WeaveError {
