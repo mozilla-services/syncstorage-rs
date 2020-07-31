@@ -394,7 +394,7 @@ impl FromRequest for BsoBody {
 
         // ### debug_client
         if let Some(uids) = &state.limits.debug_client {
-            for uid in uids.split(",") {
+            for uid in uids.split(',') {
                 debug!("### checking uaid: {:?}", &uid);
                 match u64::from_str(uid.trim()) {
                     Ok(v) => {
