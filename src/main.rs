@@ -45,6 +45,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
+
     // Setup and run the server
     let banner = settings.banner();
     let server = server::Server::with_settings(settings).await.unwrap();
