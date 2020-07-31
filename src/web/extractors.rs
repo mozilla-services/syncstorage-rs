@@ -227,6 +227,34 @@ impl FromRequest for BsoBodies {
                 ));
             }
         };
+
+        // ### debug_client
+        if let Some(uids) = &state.limits.debug_client {
+            for uid in uids.split(',') {
+                debug!("### checking uaid: {:?}", &uid);
+                match u64::from_str(uid.trim()) {
+                    Ok(v) => {
+                        if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
+                            debug!("### returning quota exceeded.");
+                            error!("Returning over quota for {:?}", v);
+                            return Box::pin(future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "size-limit-exceeded".to_owned(),
+                                    RequestErrorLocation::Unknown,
+                                    Some("size-limit-exceeded".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            ));
+                        }
+                    }
+                    Err(_) => {
+                        debug!("{:?} is not a u64", uid);
+                    }
+                };
+            }
+        }
+
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
