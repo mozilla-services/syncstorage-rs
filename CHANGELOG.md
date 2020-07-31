@@ -1,3 +1,22 @@
+<a name="0.5.3"></a>
+## 0.5.3 (2020-07-31)
+
+
+#### Features
+
+*   force client to rec'v over quota error ([81c00c31](https://github.com/mozilla-services/syncstorage-rs/commit/81c00c31b89c21d20563aef9d31a351a7d581c3c), closes [#746](https://github.com/mozilla-services/syncstorage-rs/issues/746))
+*   add metric for db conflicts ([1595f27f](https://github.com/mozilla-services/syncstorage-rs/commit/1595f27f4d4061c610078cb569790a1bdc52fc50))
+
+#### Bug Fixes
+
+*   defer grpc auth to actix-web's thread pool ([7a79fe07](https://github.com/mozilla-services/syncstorage-rs/commit/7a79fe0766790d2e799070046ffa7aa21e06cbd5), closes [#745](https://github.com/mozilla-services/syncstorage-rs/issues/745))
+
+#### Chore
+
+*   Update vendored SDK to use protobuf 2.16.2 (#747) ([39519bb8](https://github.com/mozilla-services/syncstorage-rs/commit/39519bb821fdf58ecf5842c6b818a58d53167135))
+
+
+
 <a name="0.5.2"></a>
 ## 0.5.2 (2020-07-22)
 
