@@ -7,6 +7,7 @@ use std::{
 use actix_http::Extensions;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    web::Data,
     Error, HttpMessage,
 };
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
@@ -14,6 +15,7 @@ use sentry::protocol::Event;
 use std::task::Poll;
 
 use crate::error::ApiError;
+use crate::server::ServerState;
 use crate::web::tags::Tags;
 
 pub struct SentryWrapper;
@@ -145,14 +147,14 @@ where
                     }
                 }
                 Some(e) => {
-                    let apie: Option<&ApiError> = e.as_error();
-                    if let Some(apie) = apie {
+                    if let Some(apie) = e.as_error::<ApiError>() {
+                        if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
+                            apie.on_response(state);
+                        };
                         if !apie.is_reportable() {
                             debug!("Not reporting error to sentry: {:?}", apie);
                             return future::ok(sresp);
                         }
-                    }
-                    if let Some(apie) = apie {
                         report(&tags, sentry::integrations::failure::event_from_fail(apie));
                     }
                 }
