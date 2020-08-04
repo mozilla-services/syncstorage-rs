@@ -67,6 +67,9 @@ validator = "0.10"
 validator_derive = "0.10"
 woothee = "0.11"
 
+[target.'cfg(target_vendor="ubuntu")'.dependencies]
+grpcio = { version="0.6", features=["openssl"] }
+
 [dev-dependencies]
 tokio = { version = "0.2", features = ["macros"] }
 
