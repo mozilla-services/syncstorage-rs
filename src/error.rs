@@ -13,7 +13,6 @@ use actix_web::{
     error::ResponseError,
     http::StatusCode,
     middleware::errhandlers::ErrorHandlerResponse,
-    web::Data,
     HttpResponse, Result,
 };
 use failure::{Backtrace, Context, Fail};
@@ -130,9 +129,9 @@ impl ApiError {
         true
     }
 
-    pub fn on_response(&self, state: &Data<ServerState>) {
+    pub fn on_response(&self, state: &ServerState) {
         if self.is_conflict() {
-            Metrics::from(state.as_ref()).incr("storage.confict")
+            Metrics::from(state).incr("storage.confict")
         }
     }
 
