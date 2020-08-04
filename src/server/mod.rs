@@ -2,17 +2,18 @@
 
 use std::{sync::Arc, time::Duration};
 
-use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
-use crate::error::ApiError;
-use crate::server::metrics::Metrics;
-use crate::settings::{Secrets, ServerLimits, Settings};
-use crate::web::{handlers, middleware, tokenserver};
 use actix_cors::Cors;
 use actix_web::{
     dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
     HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
+
+use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
+use crate::error::ApiError;
+use crate::server::metrics::Metrics;
+use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::web::{handlers, middleware, tokenserver};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
@@ -31,6 +32,9 @@ pub struct ServerState {
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
+
+    /// limits rendered as JSON
+    pub limits_json: String,
 
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
@@ -154,6 +158,8 @@ impl Server {
         let metrics = metrics::metrics_from_opts(&settings)?;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
         let limits = Arc::new(settings.limits);
+        let limits_json =
+            serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
 
@@ -164,6 +170,7 @@ impl Server {
             let state = ServerState {
                 db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
+                limits_json: limits_json.clone(),
                 secrets: Arc::clone(&secrets),
                 metrics: Box::new(metrics.clone()),
                 port,

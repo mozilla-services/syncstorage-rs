@@ -1,18 +1,25 @@
 //! API Handlers
 use std::collections::HashMap;
 
-use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
+use actix_web::{http::StatusCode, web::Data, Error, HttpRequest, HttpResponse};
 use serde::Serialize;
 use serde_json::{json, Value};
 
-use crate::db::transaction::DbTransactionPool;
-use crate::db::{params, results::Paginated, util::SyncTimestamp, Db, DbError, DbErrorKind};
-use crate::error::{ApiError, ApiErrorKind, ApiResult};
-use crate::web::extractors::{
-    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, ConfigRequest,
-    HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+use crate::{
+    db::{
+        params, results::Paginated, transaction::DbTransactionPool, util::SyncTimestamp, Db,
+        DbError, DbErrorKind,
+    },
+    error::{ApiError, ApiErrorKind, ApiResult},
+    server::ServerState,
+    web::{
+        extractors::{
+            BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, HeartbeatRequest,
+            MetaRequest, ReplyFormat, TestErrorRequest,
+        },
+        X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS,
+    },
 };
-use crate::web::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -443,8 +450,17 @@ pub async fn put_bso(
         .await
 }
 
-pub async fn get_configuration(creq: ConfigRequest) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().json(creq.limits))
+pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
+    // With no DbConnection (via a `transaction_http` call) needed here, we
+    // miss out on a couple things it does:
+    // 1. Ensuring an X-Last-Modified (always 0.00) is returned
+    // 2. Handling precondition checks
+    // The precondition checks don't make sense against hardcoded to the
+    // service limits data + a 0.00 timestamp, so just ensure #1 is handled
+    HttpResponse::Ok()
+        .header(X_LAST_MODIFIED, "0.00")
+        .content_type("application/json")
+        .body(&state.limits_json)
 }
 
 /** Returns a status message indicating the state of the current server

@@ -30,7 +30,7 @@ use crate::db::transaction::DbTransactionPool;
 use crate::db::{util::SyncTimestamp, DbPool, Sorting};
 use crate::error::ApiError;
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
-use crate::settings::{Secrets, ServerLimits};
+use crate::settings::Secrets;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
@@ -955,56 +955,6 @@ impl FromRequest for BsoPutRequest {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub struct ConfigRequest {
-    pub limits: ServerLimits,
-}
-
-impl FromRequest for ConfigRequest {
-    type Config = ();
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
-
-        let state = match req.app_data::<Data<ServerState>>() {
-            Some(s) => s,
-            None => {
-                error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
-                        "Internal error".to_owned(),
-                        RequestErrorLocation::Unknown,
-                        Some("state".to_owned()),
-                        Some(tags),
-                    )
-                    .into(),
-                ));
-            }
-        };
-
-        let data = &state.limits;
-        Box::pin(future::ok(Self {
-            limits: ServerLimits {
-                max_post_bytes: data.max_post_bytes,
-                max_post_records: data.max_post_records,
-                max_record_payload_bytes: data.max_record_payload_bytes,
-                max_request_bytes: data.max_request_bytes,
-                max_total_bytes: data.max_total_bytes,
-                max_total_records: data.max_total_records,
-                debug_client: None,
-            },
-        }))
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
@@ -1840,6 +1790,7 @@ mod tests {
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
+            limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
