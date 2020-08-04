@@ -76,6 +76,9 @@ pub enum ApiErrorKind {
 
     #[fail(display = "{}", _0)]
     Validation(#[cause] ValidationError),
+
+    #[fail(display = "Invalid Submission: {}", _0)]
+    InvalidSubmission(String),
 }
 
 impl ApiError {
@@ -216,6 +219,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             ApiErrorKind::Validation(error) => error.status,
+            ApiErrorKind::InvalidSubmission(_) => StatusCode::BAD_REQUEST,
         };
 
         Self { inner, status }
@@ -269,7 +273,8 @@ impl Serialize for ApiErrorKind {
         match *self {
             ApiErrorKind::Db(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Hawk(ref error) => serialize_string_to_array(serializer, error),
-            ApiErrorKind::Internal(ref description) => {
+            ApiErrorKind::Internal(ref description)
+            | ApiErrorKind::InvalidSubmission(ref description) => {
                 serialize_string_to_array(serializer, description)
             }
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
