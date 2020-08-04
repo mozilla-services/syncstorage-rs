@@ -2,7 +2,6 @@
 use std::collections::HashMap;
 
 use actix_web::{http::StatusCode, Error, HttpRequest, HttpResponse};
-use futures::future::{self, Future};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -444,8 +443,8 @@ pub async fn put_bso(
         .await
 }
 
-pub fn get_configuration(creq: ConfigRequest) -> impl Future<Output = Result<HttpResponse, Error>> {
-    future::ready(Ok(HttpResponse::Ok().json(creq.limits)))
+pub async fn get_configuration(creq: ConfigRequest) -> Result<HttpResponse, Error> {
+    Ok(HttpResponse::Ok().json(creq.limits))
 }
 
 /** Returns a status message indicating the state of the current server

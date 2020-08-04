@@ -193,6 +193,9 @@ pub struct ServerLimits {
 
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
+
+    // ### debug_client - for testing client
+    pub debug_client: Option<String>,
 }
 
 impl Default for ServerLimits {
@@ -205,6 +208,7 @@ impl Default for ServerLimits {
             max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
+            debug_client: None,
         }
     }
 }

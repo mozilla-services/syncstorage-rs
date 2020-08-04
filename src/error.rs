@@ -22,6 +22,8 @@ use serde::{
 };
 
 use crate::db::error::{DbError, DbErrorKind};
+use crate::server::metrics::Metrics;
+use crate::server::ServerState;
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
@@ -128,6 +130,12 @@ impl ApiError {
             _ => (),
         }
         true
+    }
+
+    pub fn on_response(&self, state: &ServerState) {
+        if self.is_conflict() {
+            Metrics::from(state).incr("storage.confict")
+        }
     }
 
     fn weave_error_code(&self) -> WeaveError {
