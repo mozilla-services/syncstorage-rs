@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.4.2"
+version = "0.5.4"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -62,10 +62,14 @@ slog-stdlog = "4.0"
 slog-term = "2.6"
 time = "0.2"
 url = "2.1"
+urlencoding = "1.1"
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 validator = "0.10"
 validator_derive = "0.10"
 woothee = "0.11"
+
+[target.'cfg(target_vendor="ubuntu")'.dependencies]
+grpcio = { version="0.6", features=["openssl"] }
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["macros"] }

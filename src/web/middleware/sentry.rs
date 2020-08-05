@@ -149,7 +149,7 @@ where
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
                         if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
-                            apie.on_response(state);
+                            apie.on_response(state.as_ref());
                         };
                         if !apie.is_reportable() {
                             debug!("Not reporting error to sentry: {:?}", apie);

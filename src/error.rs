@@ -13,7 +13,6 @@ use actix_web::{
     error::ResponseError,
     http::StatusCode,
     middleware::errhandlers::ErrorHandlerResponse,
-    web::Data,
     HttpResponse, Result,
 };
 use failure::{Backtrace, Context, Fail};
@@ -77,6 +76,9 @@ pub enum ApiErrorKind {
 
     #[fail(display = "{}", _0)]
     Validation(#[cause] ValidationError),
+
+    #[fail(display = "Invalid Submission: {}", _0)]
+    InvalidSubmission(String),
 }
 
 impl ApiError {
@@ -130,9 +132,9 @@ impl ApiError {
         true
     }
 
-    pub fn on_response(&self, state: &Data<ServerState>) {
+    pub fn on_response(&self, state: &ServerState) {
         if self.is_conflict() {
-            Metrics::from(state.as_ref()).incr("storage.confict")
+            Metrics::from(state).incr("storage.confict")
         }
     }
 
@@ -217,6 +219,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             ApiErrorKind::Validation(error) => error.status,
+            ApiErrorKind::InvalidSubmission(_) => StatusCode::BAD_REQUEST,
         };
 
         Self { inner, status }
@@ -270,7 +273,8 @@ impl Serialize for ApiErrorKind {
         match *self {
             ApiErrorKind::Db(ref error) => serialize_string_to_array(serializer, error),
             ApiErrorKind::Hawk(ref error) => serialize_string_to_array(serializer, error),
-            ApiErrorKind::Internal(ref description) => {
+            ApiErrorKind::Internal(ref description)
+            | ApiErrorKind::InvalidSubmission(ref description) => {
                 serialize_string_to_array(serializer, description)
             }
             ApiErrorKind::Validation(ref error) => Serialize::serialize(error, serializer),
