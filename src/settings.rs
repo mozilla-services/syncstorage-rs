@@ -108,7 +108,12 @@ impl Settings {
         }
 
         // Merge the environment overrides
-        s.merge(Environment::with_prefix(PREFIX))?;
+        // While the prefix is currently case insensitive, it's traditional that
+        // environment vars be UPPERCASE, this ensures that will continue should
+        // Environment ever change their policy about case insensitivity.
+        // This will accept environment variables specified as
+        // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
+        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
         Ok(match s.try_into::<Self>() {
             Ok(s) => {
