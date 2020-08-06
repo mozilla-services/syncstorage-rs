@@ -1045,7 +1045,7 @@ impl FromRequest for ConfigRequest {
                 max_request_bytes: data.max_request_bytes,
                 max_total_bytes: data.max_total_bytes,
                 max_total_records: data.max_total_records,
-                debug_client: None,
+                debug_client: data.debug_client.clone(),
             },
         }))
     }
