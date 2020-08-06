@@ -1,3 +1,17 @@
+<a name="0.5.5"></a>
+### 0.5.5 (2020-08-06)
+
+#### Chore
+
+*   tag 0.5.4 release (#760) ([655c02e5](https://github.com/mozilla-services/syncstorage-rs/commit/655c02e501637ba9cd3d786d2ddcc6df8fc88204))
+
+
+#### Bug Fixes
+
+*   set config env separator to double underscore. (#763) ([f1d88fea](https://github.com/mozilla-services/syncstorage-rs/commit/f1d88feae60d7fea15b7575ac2108f0f80ff42b4), closes [#762](https://github.com/mozilla-services/syncstorage-rs/issues/762))
+
+
+
 <a name="0.5.4"></a>
 ### 0.5.4 (2020-08-04)
 
