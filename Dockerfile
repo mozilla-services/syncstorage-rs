@@ -13,7 +13,8 @@ RUN \
     cargo --version && \
     rustc --version && \
     cargo install --path . --locked --root /app && \
-    cargo install --path . --bin purge_ttl --locked --root /app
+    cargo install --path . --bin purge_ttl --locked --root /app && \
+    cargo tree -e features -i -p grpcio
 
 FROM debian:buster-slim
 WORKDIR /app
