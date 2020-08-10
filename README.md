@@ -122,7 +122,7 @@ This requires access to the mozilla-rust-sdk which is now available at `/vendor/
 
 ### Connecting to Firefox
 
-This will walk you through the steps to connect this project to your local copy of Firefox. 
+This will walk you through the steps to connect this project to your local copy of Firefox.
 
 1. Follow the steps outlined above for running this project using [MySQL](https://github.com/mozilla-services/syncstorage-rs#mysql).
 
@@ -201,10 +201,12 @@ Open a PR after doing the following:
 
 Once your PR merges, then go ahead and create an official [GitHub release](https://github.com/mozilla-services/syncstorage-rs/releases).
 
-
 ## Troubleshooting
 
 - `rm Cargo.lock; cargo clean;` - Try this if you're having problems compiling.
+
+- Some versions of OpenSSL 1.1.1 can conflict with grpcio's built in BoringSSL. These errors can cause syncstorage to fail to run or compile.
+If you see a problem related to `libssl` you may need to specify the `cargo` option `--features grpcio/openssl`  to force grpcio to use OpenSSL.
 
 ## Related Documentation
 

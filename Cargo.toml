@@ -34,6 +34,9 @@ env_logger = "0.7.1"
 failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
+# Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
+# syncserver to either fail to either compile, or start. In those cases, try
+# `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
 hawk = "3.2"
@@ -67,9 +70,6 @@ uuid = { version = "0.8.1", features = ["serde", "v4"] }
 validator = "0.10"
 validator_derive = "0.10"
 woothee = "0.11"
-
-[target.'cfg(target_vendor="ubuntu")'.dependencies]
-grpcio = { version="0.6", features=["openssl"] }
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["macros"] }
