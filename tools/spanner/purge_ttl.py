@@ -65,19 +65,32 @@ def add_conditions(args, query):
     return query
 
 
+def get_expiry_condition(args):
+    """
+    Get the expiry SQL WHERE condition to use
+    :param args: The program arguments
+    :return: A SQL snippet to use in the WHERE clause
+    """
+    if args.expiry_mode == "now":
+        return 'expiry < CURRENT_TIMESTAMP()'
+    elif args.expiry_mode == "midnight":
+        return 'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
+    else:
+        raise Exception("Invalid expiry mode: {}".format(args.expiry_mode))
+
+
 def spanner_purge(args):
     instance = client.instance(args.instance_id)
     database = instance.database(args.database_id)
 
     logging.info("For {}:{}".format(args.instance_id, args.database_id))
+    expiry_condition = get_expiry_condition(args)
     batch_query = (
-        'DELETE FROM batches WHERE '
-        'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
+        'DELETE FROM batches WHERE {}'.format(expiry_condition)
     )
     bso_query = add_conditions(
         args,
-        'DELETE FROM bsos WHERE '
-        'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
+        'DELETE FROM bsos WHERE {}'.format(expiry_condition)
     )
 
     if args.mode in ["batches", "both"]:
@@ -136,6 +149,13 @@ def get_args():
         choices=["batches", "bsos", "both"],
         default=os.environ.get("PURGE_MODE", "both"),
         help="Purge TTLs in batches, bsos, or both"
+    )
+    parser.add_argument(
+        "--expiry_mode",
+        type=str,
+        choices=["now", "midnight"],
+        default=os.environ.get("PURGE_EXPIRY_MODE", "midnight"),
+        help="Choose the timestamp used to check if an entry is expired"
     )
     args = parser.parse_args()
     collections = json.loads(args.collection_ids)
