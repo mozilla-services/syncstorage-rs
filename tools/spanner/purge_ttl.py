@@ -65,7 +65,7 @@ def add_conditions(args, query):
     return query
 
 
-def spanner_purge(args, request=None):
+def spanner_purge(args):
     instance = client.instance(args.instance_id)
     database = instance.database(args.database_id)
 
@@ -80,20 +80,22 @@ def spanner_purge(args, request=None):
         'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
     )
 
-    # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
-    # IN PARENT batches ON DELETE CASCADE)
+    if args.mode in ["batches", "both"]:
+        # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
+        # IN PARENT batches ON DELETE CASCADE)
+        deleter(
+            database,
+            name="batches",
+            query=batch_query
+        )
 
-    deleter(
-        database,
-        name="batches",
-        query=batch_query
-    )
-    # Delete BSOs
-    deleter(
-        database,
-        name="bso",
-        query=bso_query
-    )
+    if args.mode in ["bsos", "both"]:
+        # Delete BSOs
+        deleter(
+            database,
+            name="bso",
+            query=bso_query
+        )
 
 
 def get_args():
@@ -127,6 +129,13 @@ def get_args():
         "--uid_starts",
         type=str,
         help="Limit to UIDs starting with specified characters"
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["batches", "bsos", "both"],
+        default=os.environ.get("PURGE_MODE", "both"),
+        help="Purge TTLs in batches, bsos, or both"
     )
     args = parser.parse_args()
     collections = json.loads(args.collection_ids)
