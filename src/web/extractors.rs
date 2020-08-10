@@ -255,9 +255,9 @@ impl FromRequest for BsoBodies {
                             error!("Returning over quota for {:?}", v);
                             return Box::pin(future::err(
                                 ValidationErrorKind::FromDetails(
-                                    "size-limit-exceeded".to_owned(),
+                                    "over-quota".to_owned(),
                                     RequestErrorLocation::Unknown,
-                                    Some("size-limit-exceeded".to_owned()),
+                                    Some("over-quota".to_owned()),
                                     None,
                                 )
                                 .into(),
@@ -460,9 +460,9 @@ impl FromRequest for BsoBody {
                             error!("Returning over quota for {:?}", v);
                             return Box::pin(future::err(
                                 ValidationErrorKind::FromDetails(
-                                    "size-limit-exceeded".to_owned(),
+                                    "over-quota".to_owned(),
                                     RequestErrorLocation::Unknown,
-                                    Some("size-limit-exceeded".to_owned()),
+                                    Some("over-quota".to_owned()),
                                     None,
                                 )
                                 .into(),
