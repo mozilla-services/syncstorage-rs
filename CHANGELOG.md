@@ -1,3 +1,19 @@
+<a name="0.5.6"></a>
+## 0.5.6 (2020-08-11)
+
+
+#### Features
+
+*   More purge_ttl features (#776) ([59aa28a4](https://github.com/mozilla-services/syncstorage-rs/commit/59aa28a4e5fdcfe2acc3f767487066d30b998af0), closes [#735](https://github.com/mozilla-services/syncstorage-rs/issues/735), [#743](https://github.com/mozilla-services/syncstorage-rs/issues/743))
+
+#### Bug Fixes
+
+*   remove ubuntu target for grpcio (#775) ([7d1061f7](https://github.com/mozilla-services/syncstorage-rs/commit/7d1061f7197a56936a6cff9a438997640892d6c6), closes [#774](https://github.com/mozilla-services/syncstorage-rs/issues/774))
+*   Return WeaveError::OverQuota for over quota responses (#773) ([38cd5ddd](https://github.com/mozilla-services/syncstorage-rs/commit/38cd5dddc36ae0aeda159fea88ba6128a8e85181), closes [#769](https://github.com/mozilla-services/syncstorage-rs/issues/769))
+*   ensure an X-Last-Modified for /info/configuration (#761) ([36533f85](https://github.com/mozilla-services/syncstorage-rs/commit/36533f8566c39e8c82ccb5a2bc8ae62fb254129a), closes [#759](https://github.com/mozilla-services/syncstorage-rs/issues/759))
+
+
+
 <a name="0.5.5"></a>
 ### 0.5.5 (2020-08-06)
 
