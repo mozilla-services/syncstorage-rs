@@ -51,7 +51,7 @@ impl DbTransactionPool {
         let result = match (self.lock_collection.clone(), self.is_read) {
             (Some(lc), true) => db.lock_for_read(lc).await,
             (Some(lc), false) => db.lock_for_write(lc).await,
-            _ => Ok(()),
+            (None, is_read) => db.begin(!is_read).await,
         };
 
         // Handle lock error
