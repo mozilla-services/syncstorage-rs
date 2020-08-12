@@ -3,6 +3,7 @@
 extern crate slog_scope;
 
 use std::error::Error;
+use std::sync::Arc;
 
 use docopt::Docopt;
 use serde_derive::Deserialize;
@@ -36,17 +37,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // likely grpcio's boringssl
     let curl_transport_factory = |options: &sentry::ClientOptions| {
         // Note: set options.debug = true when diagnosing sentry issues.
-        Box::new(sentry::transports::CurlHttpTransport::new(&options))
-            as Box<dyn sentry::internals::Transport>
+        Arc::new(sentry::transports::CurlHttpTransport::new(&options))
+            as Arc<dyn sentry::internals::Transport>
     };
-    let sentry = sentry::init(sentry::ClientOptions {
-        transport: Box::new(curl_transport_factory),
+    let _sentry = sentry::init(sentry::ClientOptions {
+        transport: Some(Arc::new(curl_transport_factory)),
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
     });
-    if sentry.is_enabled() {
-        sentry::integrations::panic::register_panic_handler();
-    }
 
     // Setup and run the server
     let banner = settings.banner();
