@@ -1,5 +1,6 @@
 //! Application settings objects and initialization
-use std::cmp::min;
+use std::str::FromStr;
+use std::{cmp::min, collections::HashSet};
 
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
@@ -106,18 +107,33 @@ impl Settings {
         }
 
         // Merge the environment overrides
-        s.merge(Environment::with_prefix(PREFIX))?;
+        // While the prefix is currently case insensitive, it's traditional that
+        // environment vars be UPPERCASE, this ensures that will continue should
+        // Environment ever change their policy about case insensitivity.
+        // This will accept environment variables specified as
+        // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
+        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
         Ok(match s.try_into::<Self>() {
             Ok(s) => {
+                let mut ms = s;
                 // Adjust the max values if required.
-                if s.uses_spanner() {
-                    let mut ms = s;
+                if let Some(uid_list) = &ms.limits.debug_client {
+                    let mut clients: HashSet<u64> = HashSet::new();
+
+                    for uid in uid_list.split(',') {
+                        u64::from_str(uid.trim())
+                            .map(|v| clients.insert(v))
+                            .expect("Invalid UID specified for debug_client");
+                    }
+                    ms.limits.debug_clients = Some(clients);
+                }
+                if ms.uses_spanner() {
                     ms.limits.max_total_bytes =
                         min(ms.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
                     return Ok(ms);
                 }
-                s
+                ms
             }
             Err(e) => match e {
                 // Configuration errors are not very sysop friendly, Try to make them
@@ -179,6 +195,10 @@ pub struct ServerLimits {
 
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
+
+    // ### debug_client - for testing client
+    pub debug_client: Option<String>,
+    pub debug_clients: Option<HashSet<u64>>,
 }
 
 impl Default for ServerLimits {
@@ -191,6 +211,8 @@ impl Default for ServerLimits {
             max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
+            debug_client: None,
+            debug_clients: None,
         }
     }
 }

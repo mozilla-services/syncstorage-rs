@@ -224,6 +224,26 @@ impl FromRequest for BsoBodies {
                 ));
             }
         };
+
+        // ### debug_client
+        if let Some(uids) = &state.limits.debug_clients {
+            let tested =
+                HawkIdentifier::uid_from_path(req.uri(), Some(Tags::from_request_head(req.head())))
+                    .unwrap_or(0);
+            if uids.contains(&tested) {
+                error!("Returning over quota for {:?}", tested);
+                return Box::pin(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "over-quota".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("over-quota".to_owned()),
+                        None,
+                    )
+                    .into(),
+                ));
+            }
+        }
+
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
@@ -388,6 +408,25 @@ impl FromRequest for BsoBody {
                 ));
             }
         };
+
+        // ### debug_client
+        if let Some(uids) = &state.limits.debug_clients {
+            let tested =
+                HawkIdentifier::uid_from_path(req.uri(), Some(Tags::from_request_head(req.head())))
+                    .unwrap_or(0);
+            if uids.contains(&tested) {
+                error!("Returning over quota for {:?}", tested);
+                return Box::pin(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "over-quota".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("over-quota".to_owned()),
+                        None,
+                    )
+                    .into(),
+                ));
+            }
+        }
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
@@ -957,6 +996,8 @@ impl FromRequest for ConfigRequest {
                 max_request_bytes: data.max_request_bytes,
                 max_total_bytes: data.max_total_bytes,
                 max_total_records: data.max_total_records,
+                debug_client: data.debug_client.to_owned(),
+                debug_clients: data.debug_clients.to_owned(),
             },
         }))
     }
