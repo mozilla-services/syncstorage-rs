@@ -96,11 +96,6 @@ pub async fn delete_all(
     db_pool
         .transaction_http(|db| async move {
             meta.metrics.incr("request.delete_all");
-            // transaction_http won't implicitly begin a write transaction
-            // for DELETE /storage because it lacks a collection. So it's done
-            // manually here, partly to not further complicate the unit test's
-            // transactions
-            db.begin(true).await?;
             Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
         })
         .await
