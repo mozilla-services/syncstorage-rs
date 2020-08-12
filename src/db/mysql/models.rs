@@ -745,7 +745,7 @@ impl MysqlDb {
         .bind::<Integer, _>(TOMBSTONE)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
-        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).and_then(|ts| Ok((cr.collection, ts))))
+        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).map(|ts| (cr.collection, ts)))
         .collect::<Result<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }

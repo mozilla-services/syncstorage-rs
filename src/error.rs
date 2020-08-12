@@ -136,8 +136,10 @@ impl ApiError {
                     name,
                     ref _tags,
                 ) => {
-                    if description == "size-limit-exceeded" {
-                        return WeaveError::SizeLimitExceeded;
+                    match description.as_ref() {
+                        "over-quota" => return WeaveError::OverQuota,
+                        "size-limit-exceeded" => return WeaveError::SizeLimitExceeded,
+                        _ => {}
                     }
                     let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if *location == RequestErrorLocation::Body

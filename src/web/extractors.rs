@@ -389,6 +389,36 @@ impl FromRequest for BsoBody {
             }
         };
 
+        // ### debug_client
+        info!("### debug: {:?}", &state.limits.debug_client);
+
+        if let Some(uids) = &state.limits.debug_client {
+            for uid in uids.split(',') {
+                debug!("### checking uaid: {:?}", &uid);
+                match u64::from_str(uid.trim()) {
+                    Ok(v) => {
+                        let tested = HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0);
+                        if v == tested {
+                            debug!("### returning quota exceeded.");
+                            error!("Returning over quota for {:?}", v);
+                            return Box::pin(future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "over-quota".to_owned(),
+                                    RequestErrorLocation::Unknown,
+                                    Some("over-quota".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            ));
+                        }
+                    }
+                    Err(_) => {
+                        debug!("{:?} is not a u64", uid);
+                    }
+                };
+            }
+        }
+
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
         let fut = <Json<BsoBody>>::from_request(&req, payload)
@@ -957,6 +987,7 @@ impl FromRequest for ConfigRequest {
                 max_request_bytes: data.max_request_bytes,
                 max_total_bytes: data.max_total_bytes,
                 max_total_records: data.max_total_records,
+                debug_client: data.debug_client.to_owned(),
             },
         }))
     }
