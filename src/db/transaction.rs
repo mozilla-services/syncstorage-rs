@@ -21,7 +21,6 @@ use std::future::Future;
 #[derive(Clone)]
 pub struct DbTransactionPool {
     pool: Box<dyn DbPool>,
-    lock_collection: Option<params::LockCollection>,
     is_read: bool,
     tags: Tags,
     user_id: HawkIdentifier,
@@ -48,7 +47,7 @@ impl DbTransactionPool {
         let db2 = db.clone();
 
         // Lock for transaction
-        let result = match (self.lock_collection.clone(), self.is_read) {
+        let result = match (self.get_lock_collection(), self.is_read) {
             (Some(lc), true) => db.lock_for_read(lc).await,
             (Some(lc), false) => db.lock_for_write(lc).await,
             (None, is_read) => db.begin(!is_read).await,
@@ -156,6 +155,16 @@ impl DbTransactionPool {
         };
         Ok(resp)
     }
+
+    /// Create a lock collection if there is a collection to lock
+    fn get_lock_collection(&self) -> Option<params::LockCollection> {
+        self.collection
+            .clone()
+            .map(|collection| params::LockCollection {
+                collection,
+                user_id: self.user_id.clone(),
+            })
+    }
 }
 
 impl FromRequest for DbTransactionPool {
@@ -193,7 +202,7 @@ impl FromRequest for DbTransactionPool {
                 }
             };
             let collection = match col_result {
-                Ok(v) => v,
+                Ok(v) => v.map(|collection| collection.collection),
                 Err(e) => {
                     // Semi-example to show how to use metrics inside of middleware.
                     Metrics::from(state.as_ref()).incr("sync.error.collectionParam");
@@ -212,25 +221,13 @@ impl FromRequest for DbTransactionPool {
             let bso = BsoParam::extrude(req.head(), &mut req.extensions_mut()).ok();
             let bso_opt = bso.map(|b| b.bso);
 
-            let (lc, is_read) = if let Some(collection) = collection {
-                let lc = params::LockCollection {
-                    user_id: user_id.clone(),
-                    collection: collection.collection,
-                };
-                let is_read = match method {
-                    Method::GET | Method::HEAD => true,
-                    _ => false,
-                };
-
-                (Some(lc), is_read)
-            } else {
-                (None, true)
+            let is_read = match method {
+                Method::GET | Method::HEAD => true,
+                _ => false,
             };
-            let collection = lc.as_ref().map(|c| c.collection.clone());
             let precondition = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()))?;
             let pool = Self {
                 pool: state.db_pool.clone(),
-                lock_collection: lc,
                 is_read,
                 tags,
                 user_id,
