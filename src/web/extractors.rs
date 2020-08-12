@@ -227,22 +227,20 @@ impl FromRequest for BsoBodies {
 
         // ### debug_client
         if let Some(uids) = &state.limits.debug_clients {
-            for uid in uids {
-                debug!("### checking uaid: {:?}", &uid);
-                let tested = HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0);
-                if uid == &tested {
-                    debug!("### returning quota exceeded.");
-                    error!("Returning over quota for {:?}", tested);
-                    return Box::pin(future::err(
-                        ValidationErrorKind::FromDetails(
-                            "over-quota".to_owned(),
-                            RequestErrorLocation::Unknown,
-                            Some("over-quota".to_owned()),
-                            None,
-                        )
-                        .into(),
-                    ));
-                }
+            let tested =
+                HawkIdentifier::uid_from_path(req.uri(), Some(Tags::from_request_head(req.head())))
+                    .unwrap_or(0);
+            if uids.contains(&tested) {
+                error!("Returning over quota for {:?}", tested);
+                return Box::pin(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "over-quota".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("over-quota".to_owned()),
+                        None,
+                    )
+                    .into(),
+                ));
             }
         }
 
@@ -413,22 +411,20 @@ impl FromRequest for BsoBody {
 
         // ### debug_client
         if let Some(uids) = &state.limits.debug_clients {
-            for uid in uids {
-                debug!("### checking uaid: {:?}", &uid);
-                let tested = HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0);
-                if uid == &tested {
-                    debug!("### returning quota exceeded.");
-                    error!("Returning over quota for {:?}", tested);
-                    return Box::pin(future::err(
-                        ValidationErrorKind::FromDetails(
-                            "over-quota".to_owned(),
-                            RequestErrorLocation::Unknown,
-                            Some("over-quota".to_owned()),
-                            None,
-                        )
-                        .into(),
-                    ));
-                }
+            let tested =
+                HawkIdentifier::uid_from_path(req.uri(), Some(Tags::from_request_head(req.head())))
+                    .unwrap_or(0);
+            if uids.contains(&tested) {
+                error!("Returning over quota for {:?}", tested);
+                return Box::pin(future::err(
+                    ValidationErrorKind::FromDetails(
+                        "over-quota".to_owned(),
+                        RequestErrorLocation::Unknown,
+                        Some("over-quota".to_owned()),
+                        None,
+                    )
+                    .into(),
+                ));
             }
         }
 
