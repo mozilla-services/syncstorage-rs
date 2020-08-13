@@ -1,3 +1,13 @@
+<a name="0.4.3"></a>
+## 0.4.3 (2020-08-13)
+
+
+#### Features
+
+*   Backport `debug_client` opt ([73e799f1](https://github.com/mozilla-services/syncstorage-rs/commit/73e799f14b0d7b3f72f146b92abef3cbac83bad5), closes [#779](https://github.com/mozilla-services/syncstorage-rs/issues/779))
+
+
+
 <a name="0.4.2"></a>
 ## 0.4.2 (2020-06-24)
 
