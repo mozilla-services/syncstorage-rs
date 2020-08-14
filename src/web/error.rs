@@ -26,7 +26,7 @@ pub struct HawkError {
 
 impl HawkError {
     pub fn kind(&self) -> &HawkErrorKind {
-        return self.inner.get_context();
+        self.inner.get_context()
     }
 }
 
