@@ -788,7 +788,7 @@ impl FromRequest for CollectionRequest {
                 "application/json" | "" => ReplyFormat::Json,
                 _ => {
                     return Err(ValidationErrorKind::FromDetails(
-                        "Invalid accept".to_string(),
+                        format!("Invalid Accept header specified: {:?}", accept),
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
                         Some(tags),

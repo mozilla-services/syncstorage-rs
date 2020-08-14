@@ -24,6 +24,12 @@ pub struct HawkError {
     inner: Context<HawkErrorKind>,
 }
 
+impl HawkError {
+    pub fn kind(&self) -> &HawkErrorKind {
+        return self.inner.get_context();
+    }
+}
+
 /// Causes of HAWK errors.
 #[derive(Debug, Fail)]
 pub enum HawkErrorKind {
