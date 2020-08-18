@@ -165,7 +165,7 @@ impl Server {
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
-        let server = HttpServer::new(move || {
+        let mut server = HttpServer::new(move || {
             // Setup the server state
             let state = ServerState {
                 db_pool: db_pool.clone(),
@@ -177,10 +177,14 @@ impl Server {
             };
 
             build_app!(state, limits)
-        })
-        .bind(format!("{}:{}", settings.host, settings.port))
-        .expect("Could not get Server in Server::with_settings")
-        .run();
+        });
+        if let Some(keep_alive) = settings.actix_keep_alive {
+            server = server.keep_alive(keep_alive as usize);
+        }
+        let server = server
+            .bind(format!("{}:{}", settings.host, settings.port))
+            .expect("Could not get Server in Server::with_settings")
+            .run();
         Ok(server)
     }
 }

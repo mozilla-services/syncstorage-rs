@@ -100,7 +100,6 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from_request_head(sreq.head());
-        let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
@@ -119,8 +118,6 @@ where
                     tags.tags.insert(k, v);
                 }
             };
-            // add the uri.path (which can cause influx to puke)
-            tags.extra.insert("uri.path".to_owned(), uri);
             match sresp.response().error() {
                 None => {
                     // Middleware errors are eaten by current versions of Actix. Errors are now added

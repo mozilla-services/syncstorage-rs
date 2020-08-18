@@ -32,6 +32,8 @@ pub struct Settings {
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
+    pub actix_keep_alive: Option<u32>,
+
     /// Server-enforced limits for request payloads.
     pub limits: ServerLimits,
 
@@ -57,6 +59,7 @@ impl Default for Settings {
             database_pool_min_idle: None,
             #[cfg(test)]
             database_use_test_transactions: false,
+            actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
             statsd_host: None,
