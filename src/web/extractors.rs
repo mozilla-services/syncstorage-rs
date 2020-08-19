@@ -28,9 +28,9 @@ use validator::{Validate, ValidationError};
 
 use crate::db::transaction::DbTransactionPool;
 use crate::db::{util::SyncTimestamp, DbPool, Sorting};
-use crate::error::ApiError;
+use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
-use crate::settings::{Secrets, ServerLimits};
+use crate::settings::Secrets;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
@@ -64,6 +64,22 @@ lazy_static! {
 pub struct UidParam {
     #[allow(dead_code)] // Not really dead, but Rust can't see the deserialized use.
     uid: u64,
+}
+
+fn clean_entry(s: &str) -> Result<String, ApiError> {
+    // URL decode and check that the string is all ascii.
+    let decoded: String = match urlencoding::decode(s) {
+        Ok(v) => v,
+        Err(e) => {
+            debug!("unclean entry: {:?} {:?}", s, e);
+            return Err(ApiErrorKind::Internal(e.to_string()).into());
+        }
+    };
+    if !decoded.is_ascii() {
+        debug!("unclean entry, non-ascii value in {:?}", decoded);
+        return Err(ApiErrorKind::InvalidSubmission("invalid value".into()).into());
+    };
+    Ok(decoded)
 }
 
 #[derive(Clone, Debug, Deserialize, Validate)]
@@ -227,6 +243,34 @@ impl FromRequest for BsoBodies {
                 ));
             }
         };
+
+        // ### debug_client
+        if let Some(uids) = &state.limits.debug_client {
+            for uid in uids.split(',') {
+                debug!("### checking uaid: {:?}", &uid);
+                match u64::from_str(uid.trim()) {
+                    Ok(v) => {
+                        if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
+                            debug!("### returning quota exceeded.");
+                            error!("Returning over quota for {:?}", v);
+                            return Box::pin(future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "over-quota".to_owned(),
+                                    RequestErrorLocation::Unknown,
+                                    Some("over-quota".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            ));
+                        }
+                    }
+                    Err(_) => {
+                        debug!("{:?} is not a u64", uid);
+                    }
+                };
+            }
+        }
+
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
@@ -272,7 +316,20 @@ impl FromRequest for BsoBodies {
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
-                    let id = id.to_string();
+                    let id = match clean_entry(&id.to_string()) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            return future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "Invalid BSO ID".to_owned(),
+                                    RequestErrorLocation::Body,
+                                    Some("bsos".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            );
+                        }
+                    };
                     if bso_ids.contains(&id) {
                         return future::err(
                             ValidationErrorKind::FromDetails(
@@ -392,6 +449,33 @@ impl FromRequest for BsoBody {
             }
         };
 
+        // ### debug_client
+        if let Some(uids) = &state.limits.debug_client {
+            for uid in uids.split(',') {
+                debug!("### checking uaid: {:?}", &uid);
+                match u64::from_str(uid.trim()) {
+                    Ok(v) => {
+                        if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
+                            debug!("### returning quota exceeded.");
+                            error!("Returning over quota for {:?}", v);
+                            return Box::pin(future::err(
+                                ValidationErrorKind::FromDetails(
+                                    "over-quota".to_owned(),
+                                    RequestErrorLocation::Unknown,
+                                    Some("over-quota".to_owned()),
+                                    None,
+                                )
+                                .into(),
+                            ));
+                        }
+                    }
+                    Err(_) => {
+                        debug!("{:?} is not a u64", uid);
+                    }
+                };
+            }
+        }
+
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
         let fut = <Json<BsoBody>>::from_request(&req, payload)
@@ -463,8 +547,17 @@ impl BsoParam {
             ))?;
         }
         if let Some(v) = elements.get(5) {
-            let sv = String::from_str(v).map_err(|_| {
-                warn!("⚠️ Invalid BsoParam Error: {:?}", v; tags);
+            let sv = clean_entry(&String::from_str(v).map_err(|e| {
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
+                ValidationErrorKind::FromDetails(
+                    "Invalid BSO".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("bso".to_owned()),
+                    Some(tags.clone()),
+                )
+            })?)
+            .map_err(|e| {
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
@@ -530,9 +623,17 @@ impl CollectionParam {
             return Ok(None);
         }
         if let Some(v) = elements.get(4) {
-            let sv = String::from_str(v).map_err(|_e| {
+            let mut sv = String::from_str(v).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
                     "Missing Collection".to_owned(),
+                    RequestErrorLocation::Path,
+                    Some("collection".to_owned()),
+                    Some(tags.clone()),
+                )
+            })?;
+            sv = clean_entry(&sv).map_err(|_e| {
+                ValidationErrorKind::FromDetails(
+                    "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                     Some(tags.clone()),
@@ -687,7 +788,7 @@ impl FromRequest for CollectionRequest {
                 "application/json" | "" => ReplyFormat::Json,
                 _ => {
                     return Err(ValidationErrorKind::FromDetails(
-                        "Invalid accept".to_string(),
+                        format!("Invalid Accept header specified: {:?}", accept),
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
                         Some(tags),
@@ -900,55 +1001,6 @@ impl FromRequest for BsoPutRequest {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
-pub struct ConfigRequest {
-    pub limits: ServerLimits,
-}
-
-impl FromRequest for ConfigRequest {
-    type Config = ();
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
-
-        let state = match req.app_data::<Data<ServerState>>() {
-            Some(s) => s,
-            None => {
-                error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
-                        "Internal error".to_owned(),
-                        RequestErrorLocation::Unknown,
-                        Some("state".to_owned()),
-                        Some(tags),
-                    )
-                    .into(),
-                ));
-            }
-        };
-
-        let data = &state.limits;
-        Box::pin(future::ok(Self {
-            limits: ServerLimits {
-                max_post_bytes: data.max_post_bytes,
-                max_post_records: data.max_post_records,
-                max_record_payload_bytes: data.max_record_payload_bytes,
-                max_request_bytes: data.max_request_bytes,
-                max_total_bytes: data.max_total_bytes,
-                max_total_records: data.max_total_records,
-            },
-        }))
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
@@ -1057,7 +1109,20 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            u64::from_str(v).map_err(|e| {
+            let clean = match clean_entry(v) {
+                Err(e) => {
+                    warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
+                    return Err(ValidationErrorKind::FromDetails(
+                        "Invalid UID".to_owned(),
+                        RequestErrorLocation::Path,
+                        Some("uid".to_owned()),
+                        tags,
+                    )
+                    .into());
+                }
+                Ok(v) => v,
+            };
+            u64::from_str(&clean).map_err(|e| {
                 warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid UID".to_owned(),
@@ -1644,7 +1709,9 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
 
 /// Verifies the BSO id string is valid
 fn validate_body_bso_id(id: &str) -> Result<(), ValidationError> {
-    if !VALID_ID_REGEX.is_match(id) {
+    let clean =
+        clean_entry(id).map_err(|_| request_error("Invalid id", RequestErrorLocation::Body))?;
+    if !VALID_ID_REGEX.is_match(&clean) {
         return Err(request_error("Invalid id", RequestErrorLocation::Body));
     }
     Ok(())
@@ -1784,6 +1851,7 @@ mod tests {
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
+            limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
@@ -2080,6 +2148,31 @@ mod tests {
             .expect("Could not get result in test_valid_collection_request");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
         assert_eq!(&result.collection, "tabs");
+    }
+
+    #[test]
+    fn test_quoted_bso() {
+        let payload = HawkPayload::test_default(*USER_ID);
+        let altered_bso = format!("\"{{{}}}\"", *USER_ID);
+        let state = make_state();
+        let uri = format!(
+            "/1.5/{}/storage/tabs/{}",
+            *USER_ID,
+            urlencoding::encode(&altered_bso)
+        );
+        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
+            .header("authorization", header)
+            .header("accept", "application/json,text/plain:q=0.5")
+            .method(Method::GET)
+            .to_http_request();
+        req.extensions_mut().insert(make_db());
+        let result = block_on(BsoRequest::extract(&req))
+            .expect("Could not get result in test_valid_collection_request");
+        // make sure the altered bsoid matches the unaltered one, without the quotes and cury braces.
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(altered_bso.as_str(), result.bso);
     }
 
     #[test]
