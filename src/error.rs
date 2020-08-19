@@ -24,7 +24,7 @@ use serde::{
 use crate::db::error::{DbError, DbErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
-use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
+use crate::web::error::{HawkError, HawkErrorKind, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
@@ -122,6 +122,11 @@ impl ApiError {
         match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
                 DbErrorKind::Conflict => return false,
+                _ => (),
+            },
+            ApiErrorKind::Hawk(hawke) => match hawke.kind() {
+                HawkErrorKind::MissingHeader => return false,
+                HawkErrorKind::InvalidHeader => return false,
                 _ => (),
             },
             _ => (),
