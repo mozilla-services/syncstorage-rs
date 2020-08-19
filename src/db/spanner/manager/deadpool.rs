@@ -1,16 +1,10 @@
-use std::marker::PhantomData;
 use std::{fmt, sync::Arc};
 
 use actix_web::web::block;
 use async_trait::async_trait;
-use bb8::ManageConnection;
-use googleapis_raw::spanner::v1::{
-    spanner::{CreateSessionRequest, GetSessionRequest, Session},
-    spanner_grpc::SpannerClient,
-};
-use grpcio::{
-    CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, Environment, MetadataBuilder,
-};
+use deadpool::managed::{RecycleError, RecycleResult};
+use googleapis_raw::spanner::v1::{spanner::GetSessionRequest, spanner_grpc::SpannerClient};
+use grpcio::{ChannelBuilder, ChannelCredentials, EnvBuilder, Environment};
 
 use crate::{
     db::error::{DbError, DbErrorKind},
@@ -18,26 +12,30 @@ use crate::{
     settings::Settings,
 };
 
-const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
+// XXX:
+use super::bb8::{create_session, SpannerSession, SPANNER_ADDRESS};
 
-pub struct SpannerConnectionManager<T> {
+// - -> SpannerSessionManager (and bb8 too)
+// - bb8s doesn't need the PhantomData
+// - kill the lifetimes for now or PhantomData one
+pub struct Manager {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
     metrics: Metrics,
     test_transactions: bool,
-    phantom: PhantomData<T>,
 }
 
-impl<_T> fmt::Debug for SpannerConnectionManager<_T> {
+impl fmt::Debug for Manager {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("SpannerConnectionManager")
+        fmt.debug_struct("Manager")
             .field("database_name", &self.database_name)
+            .field("test_transactions", &self.test_transactions)
             .finish()
     }
 }
 
-impl<T> SpannerConnectionManager<T> {
+impl Manager {
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
         let url = &settings.database_url;
         if !url.starts_with("spanner://") {
@@ -51,31 +49,18 @@ impl<T> SpannerConnectionManager<T> {
         #[cfg(test)]
         let test_transactions = settings.database_use_test_transactions;
 
-        Ok(SpannerConnectionManager::<T> {
+        Ok(Manager {
             database_name,
             env,
             metrics: metrics.clone(),
             test_transactions,
-            phantom: PhantomData,
         })
     }
 }
 
-pub struct SpannerSession {
-    pub client: SpannerClient,
-    pub session: Session,
-
-    pub(super) use_test_transactions: bool,
-}
-
 #[async_trait]
-impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
-    for SpannerConnectionManager<T>
-{
-    type Connection = SpannerSession;
-    type Error = DbError;
-
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+impl deadpool::managed::Manager<SpannerSession, DbError> for Manager {
+    async fn create(&self) -> Result<SpannerSession, DbError> {
         let env = self.env.clone();
         let mut metrics = self.metrics.clone();
         // XXX: issue732: Could google_default_credentials (or
@@ -109,36 +94,26 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
         })
     }
 
-    async fn is_valid(&self, mut conn: Self::Connection) -> Result<Self::Connection, Self::Error> {
+    async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
         let mut req = GetSessionRequest::new();
         req.set_name(conn.session.get_name().to_owned());
-        if let Err(e) = conn.client.get_session_async(&req)?.await {
+        if let Err(e) = conn
+            .client
+            .get_session_async(&req)
+            .map_err(|e| RecycleError::Backend(e.into()))?
+            .await
+        {
             match e {
                 grpcio::Error::RpcFailure(ref status)
                     if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
                 {
-                    conn.session = create_session(&conn.client, &self.database_name).await?;
+                    conn.session = create_session(&conn.client, &self.database_name)
+                        .await
+                        .map_err(|e| RecycleError::Backend(e.into()))?;
                 }
-                _ => return Err(e.into()),
+                _ => return Err(RecycleError::Backend(e.into())),
             }
         }
-        Ok(conn)
+        Ok(())
     }
-
-    fn has_broken(&self, _conn: &mut Self::Connection) -> bool {
-        false
-    }
-}
-
-async fn create_session(
-    client: &SpannerClient,
-    database_name: &str,
-) -> Result<Session, grpcio::Error> {
-    let mut req = CreateSessionRequest::new();
-    req.database = database_name.to_owned();
-    let mut meta = MetadataBuilder::new();
-    meta.add_str("google-cloud-resource-prefix", database_name)?;
-    meta.add_str("x-goog-api-client", "gcp-grpc-rs")?;
-    let opt = CallOption::default().headers(meta.build());
-    client.create_session_async_opt(&req, opt)?.await
 }

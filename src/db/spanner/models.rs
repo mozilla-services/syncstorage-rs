@@ -80,8 +80,8 @@ struct SpannerDbSession {
 }
 
 #[derive(Clone, Debug)]
-pub struct SpannerDb<'a> {
-    pub(super) inner: Arc<SpannerDbInner<'a>>,
+pub struct SpannerDb {
+    pub(super) inner: Arc<SpannerDbInner>,
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -89,28 +89,28 @@ pub struct SpannerDb<'a> {
     pub metrics: Metrics,
 }
 
-pub struct SpannerDbInner<'a> {
-    pub(super) conn: Conn<'a>,
+pub struct SpannerDbInner {
+    pub(super) conn: Conn,
 
     session: RefCell<SpannerDbSession>,
 }
 
-impl fmt::Debug for SpannerDbInner<'_> {
+impl fmt::Debug for SpannerDbInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SpannerDbInner")
     }
 }
 
-impl<'a> Deref for SpannerDb<'a> {
-    type Target = SpannerDbInner<'a>;
+impl Deref for SpannerDb {
+    type Target = SpannerDbInner;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<'a> SpannerDb<'a> {
-    pub fn new(conn: Conn<'a>, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
+impl SpannerDb {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
             session: RefCell::new(Default::default()),
@@ -1604,7 +1604,7 @@ impl<'a> SpannerDb<'a> {
     }
 }
 
-impl<'a> Db<'a> for SpannerDb<'a> {
+impl<'a> Db<'a> for SpannerDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.commit_async().map_err(Into::into).await })
