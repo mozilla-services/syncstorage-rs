@@ -1,8 +1,10 @@
+
 use diesel::{
+    backend::Backend,
     mysql::Mysql,
     query_builder::{AstPass, QueryFragment, InsertStatement},
     query_dsl::methods::LockingDsl,
-    result::QueryResult,
+    result::QueryResult, insertable::CanInsertInSingleQuery, Table,
 };
 
 /// Emit MySQL <= 5.7's `LOCK IN SHARE MODE`
@@ -34,22 +36,38 @@ impl QueryFragment<Mysql> for LockInShareMode {
         Ok(())
     }
 }
+
 /// Emit 'ON DUPLICATE KEY UPDATE'
-pub trait OnDuplicateKeyUpdateDsl<T> {
-    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T>;
+pub trait IntoDuplicateValueClause {
+    type ValueClause;
+
+    fn into_value_clause(self) -> Self::ValueClause;
 }
-impl<T, U> OnDuplicateKeyUpdateDsl<U> for InsertStatement<T, U> {
-    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<U> {
-        OnDuplicateKeyUpdate(self)
+
+pub trait OnDuplicateKeyUpdateDsl<T, U, Op, Ret> {
+    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T, U, Op, Ret>;
+}
+
+impl<T, U, Op, Ret> OnDuplicateKeyUpdateDsl<T, U, Op, Ret> for InsertStatement<T, U, Op, Ret> {
+    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T, U, Op, Ret> {
+        OnDuplicateKeyUpdate(Box::new(self))
     }
 }
 
-#[derive(Debug, Clone, Copy, QueryId)]
-pub struct OnDuplicateKeyUpdate<T>(T);
+#[derive(Debug, Clone, QueryId)]
+pub struct OnDuplicateKeyUpdate<T, U, Op, Ret>(Box<InsertStatement<T, U, Op, Ret>>);
 
-impl QueryFragment<Mysql> for OnDuplicateKeyUpdate<InsertStatement<T, U>> {
-    fn walk_ast(&self, mut out:AstPass<'_, Mysql>) -> QueryResult<()> {
-        self.0.walk_ast(out);
+impl<T, U, Op, Ret, DB> QueryFragment<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret>
+where
+    DB: Backend,
+    T: Table,
+    T::FromClause: QueryFragment<DB>,
+    U: QueryFragment<DB> + CanInsertInSingleQuery<DB>,
+    Op: QueryFragment<DB>,
+    Ret: QueryFragment<DB>,
+{
+    fn walk_ast(&self, mut out:AstPass<'_, DB>) -> QueryResult<()> {
+        self.0.walk_ast(out.reborrow())?;
         out.push_sql(" ON DUPLICATE KEY UPDATE");
         Ok(())
     }
