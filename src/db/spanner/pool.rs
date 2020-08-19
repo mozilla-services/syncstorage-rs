@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bb8::{ErrorSink, Pool};
+use bb8::{ErrorSink, Pool, PooledConnection};
 
 use std::{
     collections::HashMap,
@@ -15,6 +15,8 @@ use crate::settings::Settings;
 use super::manager::{SpannerConnectionManager, SpannerSession};
 use super::models::SpannerDb;
 use crate::error::ApiResult;
+
+pub(super) type Conn<'a> = PooledConnection<'a, SpannerConnectionManager<SpannerSession>>;
 
 embed_migrations!();
 

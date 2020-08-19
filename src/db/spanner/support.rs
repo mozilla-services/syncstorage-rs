@@ -16,13 +16,15 @@ use protobuf::{
     RepeatedField,
 };
 
-use super::models::{Conn, Result};
-use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
-
 use crate::{
-    db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
+    db::{
+        params, results, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339, util::SyncTimestamp,
+        DbError, DbErrorKind,
+    },
     web::extractors::HawkIdentifier,
 };
+
+use super::{models::Result, pool::Conn};
 
 pub fn as_value(string_value: String) -> Value {
     let mut value = Value::new();
