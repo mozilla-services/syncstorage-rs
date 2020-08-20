@@ -103,7 +103,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     Ok(batch_upload_items::table
-        .select((batch_upload_items::id, batch_upload_items::payload, batch_upload_items::ttl_offset))
+        .select((batch_upload_items::batch_id, batch_upload_items::payload, batch_upload_items::ttl_offset))
         .inner_join(batch_uploads::table.on(batch_uploads::batch_id.eq(batch_upload_items::batch_id)))
         .filter(batch_upload_items::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
@@ -115,7 +115,8 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
             id: encode_id(batch.id),
             bsos: batch.bsos,
             expiry: batch.expiry,
-        }))
+        })
+    )
 }
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
@@ -166,18 +167,21 @@ pub fn do_append(
     collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
-    let mut to_insert = Vec::new();
-    /*bsos.into_iter().map(|b: params::PostCollectionBso| {
-        to_insert.append(&vec![
+    // Eq<batch_upload_items::columns::user_id, Option<u64>>
+    let mut to_insert: Vec<_> = Vec::new();
+    bsos.into_iter().map(|b: params::PostCollectionBso| {
+        let payload = b.payload.unwrap_or(String::new());
+        let payload_len = payload.len() as i64;
+        to_insert.push((
             batch_upload_items::batch_id.eq(&batch_id),
             batch_upload_items::user_id.eq(user_id.legacy_id as i64),
-            batch_upload_items::id.eq(&b.id),
-            batch_upload_items::sortindex.eq(&b.sortindex),
-            batch_upload_items::payload.eq(&b.payload),
-            batch_upload_items::payload_size.eq(&b.payload)
-        ]);
-    }).collect();
-*/
+            batch_upload_items::id.eq(b.id.clone()),
+            batch_upload_items::sortindex.eq(b.sortindex.unwrap_or(0)),
+            batch_upload_items::payload.eq(payload),
+            batch_upload_items::payload_size.eq(payload_len)
+        ));
+    });
+
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
         .on_duplicate_key_update()

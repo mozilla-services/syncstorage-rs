@@ -2,7 +2,7 @@
 use diesel::{
     backend::Backend,
     mysql::Mysql,
-    query_builder::{AstPass, QueryFragment, InsertStatement},
+    query_builder::{AstPass, QueryFragment, QueryId, InsertStatement},
     query_dsl::methods::LockingDsl,
     result::QueryResult, insertable::CanInsertInSingleQuery, Table, RunQueryDsl,
 };
@@ -54,7 +54,7 @@ impl<T, U, Op, Ret> OnDuplicateKeyUpdateDsl<T, U, Op, Ret> for InsertStatement<T
     }
 }
 
-#[derive(Debug, Clone, QueryId)]
+#[derive(Debug, Clone)]
 pub struct OnDuplicateKeyUpdate<T, U, Op, Ret>(Box<InsertStatement<T, U, Op, Ret>>);
 
 impl<T, U, Op, Ret, DB> QueryFragment<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret>
@@ -74,3 +74,9 @@ where
 }
 
 impl<T, U, Op, Ret, DB> RunQueryDsl<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret> {}
+
+impl<T, U, Op, Ret> QueryId for OnDuplicateKeyUpdate<T, U, Op, Ret> {
+    type QueryId = ();
+
+    const HAS_STATIC_QUERY_ID: bool = false;
+}

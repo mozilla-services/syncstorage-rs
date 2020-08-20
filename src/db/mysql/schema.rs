@@ -16,10 +16,10 @@ table! {
         #[sql_name="userid"]
         user_id -> Bigint,
         id -> Varchar,
-        sortindex -> Nullable<Integer>,
-        payload -> Nullable<Mediumtext>,
-        payload_size -> Nullable<Bigint>,
-        ttl_offset -> Nullable<Integer>,
+        sortindex -> Integer,
+        payload -> Mediumtext,
+        payload_size -> Bigint,
+        ttl_offset -> Bigint,
     }
 }
 
