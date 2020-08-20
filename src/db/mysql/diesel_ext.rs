@@ -4,7 +4,7 @@ use diesel::{
     mysql::Mysql,
     query_builder::{AstPass, QueryFragment, InsertStatement},
     query_dsl::methods::LockingDsl,
-    result::QueryResult, insertable::CanInsertInSingleQuery, Table,
+    result::QueryResult, insertable::CanInsertInSingleQuery, Table, RunQueryDsl,
 };
 
 /// Emit MySQL <= 5.7's `LOCK IN SHARE MODE`
@@ -72,3 +72,5 @@ where
         Ok(())
     }
 }
+
+impl<T, U, Op, Ret, DB> RunQueryDsl<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret> {}

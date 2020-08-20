@@ -1,16 +1,19 @@
 use diesel::{
     self,
     dsl::sql,
+    expression::{bound::Bound, operators::Eq},
     insert_into,
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
     sql_types::Integer,
-    update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods,
+    update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods, JoinOnDsl,
 };
 
 use super::{
+    diesel_ext::OnDuplicateKeyUpdateDsl,
     models::{MysqlDb, Result},
     schema::{batch_upload_items, batch_uploads},
 };
+
 use crate::{
     db::{params, results, DbError, DbErrorKind, BATCH_LIFETIME},
     web::extractors::HawkIdentifier,
@@ -86,21 +89,6 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     // db-tests
     do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
     Ok(())
-    /*
-    let bsos = bsos_to_batch_string(&params.bsos)?;
-    let affected_rows = update(batches::table)
-        .filter(batches::user_id.eq(&user_id))
-        .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&id))
-        .filter(batches::expiry.gt(&db.timestamp().as_i64()))
-        .set(batches::bsos.eq(batches::bsos.concat(&bsos)))
-        .execute(&db.conn)?;
-    if affected_rows == 1 {
-        Ok(())
-    } else {
-        Err(DbErrorKind::BatchNotFound.into())
-    }
-    */
 }
 
 #[derive(Debug, Default, Queryable)]
@@ -111,17 +99,16 @@ pub struct Batch {
 }
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-    unimplemented!();
-    /*
     let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
-    Ok(batches::table
-        .select((batches::id, batches::bsos, batches::expiry))
-        .filter(batches::user_id.eq(&user_id))
-        .filter(batches::collection_id.eq(&collection_id))
-        .filter(batches::id.eq(&id))
-        .filter(batches::expiry.gt(&db.timestamp().as_i64()))
+    Ok(batch_upload_items::table
+        .select((batch_upload_items::id, batch_upload_items::payload, batch_upload_items::ttl_offset))
+        .inner_join(batch_uploads::table.on(batch_uploads::batch_id.eq(batch_upload_items::batch_id)))
+        .filter(batch_upload_items::user_id.eq(&user_id))
+        .filter(batch_uploads::collection_id.eq(&collection_id))
+        .filter(batch_upload_items::batch_id.eq(id))
+        .filter(batch_upload_items::ttl_offset.gt(db.timestamp().as_i64()))
         .get_result::<Batch>(&db.conn)
         .optional()?
         .map(|batch| results::GetBatch {
@@ -129,7 +116,6 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
             bsos: batch.bsos,
             expiry: batch.expiry,
         }))
-    */
 }
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
@@ -180,7 +166,28 @@ pub fn do_append(
     collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
-    unimplemented!();
+    let mut to_insert = Vec::new();
+    /*bsos.into_iter().map(|b: params::PostCollectionBso| {
+        to_insert.append(&vec![
+            batch_upload_items::batch_id.eq(&batch_id),
+            batch_upload_items::user_id.eq(user_id.legacy_id as i64),
+            batch_upload_items::id.eq(&b.id),
+            batch_upload_items::sortindex.eq(&b.sortindex),
+            batch_upload_items::payload.eq(&b.payload),
+            batch_upload_items::payload_size.eq(&b.payload)
+        ]);
+    }).collect();
+*/
+    let rows_inserted = insert_into(batch_upload_items::table)
+        .values(to_insert)
+        .on_duplicate_key_update()
+        .execute(&db.conn)?;
+
+    if rows_inserted > 0 {
+        Ok(())
+    } else {
+        Err(DbErrorKind::BatchNotFound.into())
+    }
 }
 
 pub fn validate_batch_id(id: &str) -> Result<()> {
@@ -198,38 +205,6 @@ fn decode_id(id: &str) -> Result<i64> {
         .parse::<i64>()
         .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))
 }
-
-/*
-/// Deserialize a batch string into bsos
-fn batch_string_to_bsos(bsos: &str) -> Result<Vec<params::PostCollectionBso>> {
-    bsos.lines()
-        .map(|line| {
-            serde_json::from_str(line).map_err(|e| {
-                DbError::internal(&format!("Couldn't deserialize batch::load_bsos bso: {}", e))
-            })
-        })
-        .collect()
-}
-
-/// Serialize bsos into strings separated by newlines
-fn bsos_to_batch_string(bsos: &[params::PostCollectionBso]) -> Result<String> {
-    let batch_strings: Result<Vec<String>> = bsos
-        .iter()
-        .map(|bso| {
-            serde_json::to_string(bso).map_err(|e| {
-                DbError::internal(&format!("Couldn't serialize batch::create bso: {}", e))
-            })
-        })
-        .collect();
-    batch_strings.map(|bs| {
-        format!(
-            "{}{}",
-            bs.join("\n"),
-            if bsos.is_empty() { "" } else { "\n" }
-        )
-    })
-}
-*/
 
 #[macro_export]
 macro_rules! batch_db_method {
