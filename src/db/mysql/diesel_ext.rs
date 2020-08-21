@@ -4,7 +4,7 @@ use diesel::{
     mysql::Mysql,
     query_builder::{AstPass, QueryFragment, QueryId, InsertStatement},
     query_dsl::methods::LockingDsl,
-    result::QueryResult, insertable::CanInsertInSingleQuery, Table, RunQueryDsl,
+    result::QueryResult, insertable::CanInsertInSingleQuery, Table, RunQueryDsl, Expression,
 };
 
 /// Emit MySQL <= 5.7's `LOCK IN SHARE MODE`
@@ -45,19 +45,23 @@ pub trait IntoDuplicateValueClause {
 }
 
 pub trait OnDuplicateKeyUpdateDsl<T, U, Op, Ret> {
-    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T, U, Op, Ret>;
+    fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
+        where X: Expression;
 }
 
 impl<T, U, Op, Ret> OnDuplicateKeyUpdateDsl<T, U, Op, Ret> for InsertStatement<T, U, Op, Ret> {
-    fn on_duplicate_key_update(self) -> OnDuplicateKeyUpdate<T, U, Op, Ret> {
-        OnDuplicateKeyUpdate(Box::new(self))
+
+    fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
+        where X: Expression
+    {
+        OnDuplicateKeyUpdate(Box::new(self), expression)
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct OnDuplicateKeyUpdate<T, U, Op, Ret>(Box<InsertStatement<T, U, Op, Ret>>);
+pub struct OnDuplicateKeyUpdate<T, U, Op, Ret, X>(Box<InsertStatement<T, U, Op, Ret>>, X);
 
-impl<T, U, Op, Ret, DB> QueryFragment<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret>
+impl<T, U, Op, Ret, DB, X> QueryFragment<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret, X>
 where
     DB: Backend,
     T: Table,
@@ -65,17 +69,19 @@ where
     U: QueryFragment<DB> + CanInsertInSingleQuery<DB>,
     Op: QueryFragment<DB>,
     Ret: QueryFragment<DB>,
+    X: Expression
 {
     fn walk_ast(&self, mut out:AstPass<'_, DB>) -> QueryResult<()> {
         self.0.walk_ast(out.reborrow())?;
-        out.push_sql(" ON DUPLICATE KEY UPDATE");
+        out.push_sql(" ON DUPLICATE KEY UPDATE ");
+        self.1.walk_ast(out.reborrow())?;
         Ok(())
     }
 }
 
-impl<T, U, Op, Ret, DB> RunQueryDsl<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret> {}
+impl<T, U, Op, Ret, DB, X> RunQueryDsl<DB> for OnDuplicateKeyUpdate<T, U, Op, Ret, X> {}
 
-impl<T, U, Op, Ret> QueryId for OnDuplicateKeyUpdate<T, U, Op, Ret> {
+impl<T, U, Op, Ret, X> QueryId for OnDuplicateKeyUpdate<T, U, Op, Ret, X> {
     type QueryId = ();
 
     const HAS_STATIC_QUERY_ID: bool = false;
