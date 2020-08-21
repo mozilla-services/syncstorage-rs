@@ -143,32 +143,19 @@ sql_function!(fn Stringcoalesce2(x: String, y: String) -> String);
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let timestamp = db.timestamp();
-    // params user_id, collection, batch (batch_id)
-    /*params = {
-        "batch": batchid,
-        "userid": userid,
-        "collection": collectionid,
-        "default_ttl": MAX_TTL,
-        "ttl_base": int(session.timestamp),
-        "modified": ts2bigint(session.timestamp)
-    }*/
-
-    let select_query = batch_upload_items::table.select(
-        (params.user_id,
-            params.collection,
-            batch_upload_items::id,
-            timestamp.as_i64(),
-            batch_upload_items::sortindex,
-            i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, MAXTTL),
-            Stringcoalesce2(params.payload, ""),
-            i32coalesce2(params.payload.len(), 0)
-        )
-    )
+    let select_query = batch_upload_items::table.select((
+        params.user_id,
+        params.collection,
+        batch_upload_items::id,
+        timestamp.as_i64(),
+        batch_upload_items::sortindex,
+        i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, MAXTTL),
+        Stringcoalesce2(params.payload, ""),
+        i32coalesce2(params.payload.len(), 0)
+    ))
     .filter(batch_upload_items::batch_id.eq(params.batch))
     .filter(batch_upload_items::user_id.eq(params.user_id));
 
-    // (userid, collection, id, modified, sortindex,
-    //    ttl, payload, payload_size)
     diesel::insert_into(bso::table)
         .values(select_query)
         .into_columns((
@@ -181,7 +168,13 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             bso::payload,
             bso::payload_size
         ))
-        .on_duplicate_key_update()
+        .on_duplicate_key_update((
+            bso::modified.eq(timestamp.as_i64()),
+            bso::sortindex.eq(i32coalesce2(batch_upload_items::sortindex, bso::sortindex)),
+            bso::ttl.eq(i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, bso::ttl)),
+            bso::payload.eq(Stringcoalesce2(batch_upload_items::payload, bso::payload)),
+            bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
+        ));
 
     delete(
         db,
@@ -192,30 +185,6 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         },
     )?;
     result
-
-    /*
-    INSERT INTO %(bso)s
-        (userid, collection, id, modified, sortindex,
-        ttl, payload, payload_size)
-    SELECT
-        :userid, :collection, id, :modified, sortindex,
-        COALESCE(ttl_offset + :ttl_base, :default_ttl),
-        COALESCE(payload, ''),
-        COALESCE(payload_size, 0)
-    FROM %(bui)s
-    WHERE batch = :batch AND userid = :userid
-    ON DUPLICATE KEY UPDATE
-        modified = :modified,
-        sortindex = COALESCE(%(bui)s.sortindex,
-                             %(bso)s.sortindex),
-        ttl = COALESCE(%(bui)s.ttl_offset + :ttl_base,
-                       %(bso)s.ttl),
-        payload = COALESCE(%(bui)s.payload,
-                           %(bso)s.payload),
-        payload_size = COALESCE(%(bui)s.payload_size,
-                                %(bso)s.payload_size)
-
-     */
 }
 
 pub fn do_append(
