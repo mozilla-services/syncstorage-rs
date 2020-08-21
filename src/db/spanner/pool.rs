@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bb8::Pool;
+use bb8::{ErrorSink, Pool};
 
 use std::{
     collections::HashMap,
@@ -49,7 +49,8 @@ impl SpannerDbPool {
         let max_size = settings.database_pool_max_size.unwrap_or(10);
         let builder = bb8::Pool::builder()
             .max_size(max_size)
-            .min_idle(settings.database_pool_min_idle);
+            .min_idle(settings.database_pool_min_idle)
+            .error_sink(Box::new(LoggingErrorSink));
 
         Ok(Self {
             pool: builder.build(manager).await?,
@@ -162,5 +163,21 @@ impl Default for CollectionCache {
                     .collect(),
             ),
         }
+    }
+}
+
+/// Logs internal bb8 errors
+#[derive(Debug, Clone, Copy)]
+pub struct LoggingErrorSink;
+
+impl<E: failure::Fail> ErrorSink<E> for LoggingErrorSink {
+    fn sink(&self, e: E) {
+        error!("bb8 Error: {}", e);
+        let event = sentry::integrations::failure::event_from_fail(&e);
+        sentry::capture_event(event);
+    }
+
+    fn boxed_clone(&self) -> Box<dyn ErrorSink<E>> {
+        Box::new(*self)
     }
 }

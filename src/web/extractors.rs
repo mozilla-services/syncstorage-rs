@@ -66,19 +66,11 @@ pub struct UidParam {
     uid: u64,
 }
 
-fn clean_entry(s: &str) -> Result<String, ApiError> {
-    // URL decode and check that the string is all ascii.
-    let decoded: String = match urlencoding::decode(s) {
-        Ok(v) => v,
-        Err(e) => {
-            debug!("unclean entry: {:?} {:?}", s, e);
-            return Err(ApiErrorKind::Internal(e.to_string()).into());
-        }
-    };
-    if !decoded.is_ascii() {
-        debug!("unclean entry, non-ascii value in {:?}", decoded);
-        return Err(ApiErrorKind::InvalidSubmission("invalid value".into()).into());
-    };
+fn urldecode(s: &str) -> Result<String, ApiError> {
+    let decoded: String = urlencoding::decode(s).map_err(|e| {
+        debug!("unclean entry: {:?} {:?}", s, e);
+        ApiErrorKind::Internal(e.to_string())
+    })?;
     Ok(decoded)
 }
 
@@ -316,20 +308,7 @@ impl FromRequest for BsoBodies {
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
-                    let id = match clean_entry(&id.to_string()) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            return future::err(
-                                ValidationErrorKind::FromDetails(
-                                    "Invalid BSO ID".to_owned(),
-                                    RequestErrorLocation::Body,
-                                    Some("bsos".to_owned()),
-                                    None,
-                                )
-                                .into(),
-                            );
-                        }
-                    };
+                    let id = id.to_string();
                     if bso_ids.contains(&id) {
                         return future::err(
                             ValidationErrorKind::FromDetails(
@@ -532,13 +511,12 @@ pub struct BsoParam {
 }
 
 impl BsoParam {
-    pub fn bsoparam_from_path(uri: &Uri, tags: &Tags) -> Result<Self, Error> {
+    fn bsoparam_from_path(uri: &Uri, tags: &Tags) -> Result<Self, Error> {
         // TODO: replace with proper path parser
         // path: "/1.5/{uid}/storage/{collection}/{bso}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         let elem = elements.get(3);
         if elem.is_none() || elem != Some(&"storage") || elements.len() != 6 {
-            warn!("⚠️ Unexpected BSO URI: {:?}", uri.path(); tags);
             return Err(ValidationErrorKind::FromDetails(
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
@@ -547,7 +525,7 @@ impl BsoParam {
             ))?;
         }
         if let Some(v) = elements.get(5) {
-            let sv = clean_entry(&String::from_str(v).map_err(|e| {
+            let sv = urldecode(&String::from_str(v).map_err(|e| {
                 warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
@@ -631,7 +609,7 @@ impl CollectionParam {
                     Some(tags.clone()),
                 )
             })?;
-            sv = clean_entry(&sv).map_err(|_e| {
+            sv = urldecode(&sv).map_err(|_e| {
                 ValidationErrorKind::FromDetails(
                     "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
@@ -1109,7 +1087,7 @@ impl HawkIdentifier {
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
         if let Some(v) = elements.get(2) {
-            let clean = match clean_entry(v) {
+            let clean = match urldecode(v) {
                 Err(e) => {
                     warn!("⚠️ HawkIdentifier Error invalid UID {:?} {:?}", v, e);
                     return Err(ValidationErrorKind::FromDetails(
@@ -1709,9 +1687,7 @@ fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
 
 /// Verifies the BSO id string is valid
 fn validate_body_bso_id(id: &str) -> Result<(), ValidationError> {
-    let clean =
-        clean_entry(id).map_err(|_| request_error("Invalid id", RequestErrorLocation::Body))?;
-    if !VALID_ID_REGEX.is_match(&clean) {
+    if !VALID_ID_REGEX.is_match(id) {
         return Err(request_error("Invalid id", RequestErrorLocation::Body));
     }
     Ok(())
