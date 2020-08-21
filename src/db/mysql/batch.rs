@@ -4,7 +4,8 @@ use diesel::{
     expression::{bound::Bound, operators::Eq},
     insert_into,
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
-    sql_types::{Bigint, Integer, Nullable},
+    sql_types::{Bigint, BigInt, Integer, Nullable, Text},
+    sql_query,
     update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods, JoinOnDsl,
 };
 
@@ -109,8 +110,10 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
         .inner_join(batch_uploads::table.on(batch_uploads::batch_id.eq(batch_upload_items::batch_id)))
         .filter(batch_upload_items::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .filter(batch_upload_items::batch_id.eq(id))
-        .filter(batch_upload_items::ttl_offset.gt(db.timestamp().as_i64()))
+       .filter(batch_upload_items::batch_id.eq(id))
+       // XXX: this isn't expiry, it's the ttl value. I believe the
+       // batch expiry "lives" inside the batch id (batch id is based from a timestamp)
+//        .filter(batch_upload_items::ttl_offset.gt(db.timestamp().as_i64()))
         .get_result::<Batch>(&db.conn)
         .optional()?
         .map(|batch| results::GetBatch {
@@ -142,7 +145,45 @@ sql_function!(fn Stringcoalesce2(x: String, y: String) -> String);
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
+    let batch_id = decode_id(&params.batch.id)?;
+    let user_id = params.user_id.legacy_id as i64;
+    let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp();
+    let batch_insert_update = r#"
+    INSERT INTO bso
+        (userid, collection, id, modified, sortindex,
+        ttl, payload, payload_size)
+    SELECT
+        ?, ?, id, ?, sortindex,
+        COALESCE(ttl_offset + ?, ?),
+        COALESCE(payload, ''),
+        COALESCE(payload_size, 0)
+    FROM batch_upload_items
+    WHERE batch = ? AND userid = ?
+    ON DUPLICATE KEY UPDATE
+        modified = ?,
+        sortindex = COALESCE(batch_upload_items.sortindex,
+                             bso.sortindex),
+        ttl = COALESCE(batch_upload_items.ttl_offset + ?,
+                       bso.ttl),
+        payload = COALESCE(batch_upload_items.payload,
+                           bso.payload),
+        payload_size = COALESCE(batch_upload_items.payload_size,
+                                bso.payload_size)
+        "#;
+    let result = sql_query(batch_insert_update)
+        .bind::<BigInt, _>(user_id as i64)
+        .bind::<Integer, _>(&collection_id)
+        .bind::<BigInt, _>(&db.timestamp().as_i64())
+        .bind::<BigInt, _>(&db.timestamp().as_i64())
+        .bind::<Integer, _>(MAXTTL)
+        .bind::<BigInt, _>(&batch_id)
+        .bind::<BigInt, _>(user_id as i64)
+        .bind::<BigInt, _>(&db.timestamp().as_i64())
+        .bind::<BigInt, _>(&db.timestamp().as_i64())
+        .execute(&db.conn)?;
+
+    /*
     let select_query = batch_upload_items::table.select((
         params.user_id,
         params.collection,
@@ -175,6 +216,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             bso::payload.eq(Stringcoalesce2(batch_upload_items::payload, bso::payload)),
             bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
         )).execute(db);
+*/
 
     delete(
         db,
@@ -184,7 +226,11 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             id: params.batch.id,
         },
     )?;
-    result
+    Ok(results::PostBsos {
+        modified: timestamp,
+        success: Default::default(),
+        failed: Default::default(),
+    })
 }
 
 pub fn do_append(
@@ -214,7 +260,7 @@ pub fn do_append(
 
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
-        .on_duplicate_key_update()
+//        .on_duplicate_key_update()
         .execute(&db.conn)?;
 
     if rows_inserted > 0 {

@@ -74,7 +74,7 @@ where
     fn walk_ast(&self, mut out:AstPass<'_, DB>) -> QueryResult<()> {
         self.0.walk_ast(out.reborrow())?;
         out.push_sql(" ON DUPLICATE KEY UPDATE ");
-        self.1.walk_ast(out.reborrow())?;
+        //self.1.walk_ast(out.reborrow())?;
         Ok(())
     }
 }
