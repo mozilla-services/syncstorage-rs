@@ -4,7 +4,7 @@ use diesel::{
     expression::{bound::Bound, operators::Eq},
     insert_into,
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
-    sql_types::Integer,
+    sql_types::{Bigint, Integer, Nullable},
     update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods, JoinOnDsl,
 };
 
@@ -18,6 +18,8 @@ use crate::{
     db::{params, results, DbError, DbErrorKind, BATCH_LIFETIME},
     web::extractors::HawkIdentifier,
 };
+
+const MAXTTL: i32 = 2_100_000_000;
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
@@ -135,19 +137,38 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     Ok(())
 }
 
+sql_function!(fn i32coalesce2(x: Integer, y: Integer) -> Integer);
+sql_function!(fn Stringcoalesce2(x: String, y: String) -> String);
+
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
-    unimplemented!();
-    /*
-    let bsos = batch_string_to_bsos(&params.batch.bsos)?;
-    let mut metrics = db.metrics.clone();
-    metrics.start_timer("storage.sql.apply_batch", None);
-    let result = db.post_bsos_sync(params::PostBsos {
-        user_id: params.user_id.clone(),
-        collection: params.collection.clone(),
-        bsos,
-        failed: Default::default(),
-    });
+    let timestamp = db.timestamp();
+    // params user_id, collection, batch (batch_id)
+    /*params = {
+        "batch": batchid,
+        "userid": userid,
+        "collection": collectionid,
+        "default_ttl": MAX_TTL,
+        "ttl_base": int(session.timestamp),
+        "modified": ts2bigint(session.timestamp)
+    }*/
+
+    let select_query = batch_upload_items::table.select(
+        (params.user_id,
+            params.collection,
+            batch_upload_items::id,
+            timestamp.as_i64(),
+            batch_upload_items::sortindex,
+            i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, MAXTTL),
+            Stringcoalesce2(params.payload, ""),
+            i32coalesce2(params.payload.len(), 0)
+        )
+    )
+    .filter(batch_upload_items::batch_id.eq(params.batch))
+    .filter(batch_upload_items::user_id.eq(params.user_id));
+
+
+
     delete(
         db,
         params::DeleteBatch {
@@ -157,6 +178,29 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         },
     )?;
     result
+
+    /*
+    INSERT INTO %(bso)s
+        (userid, collection, id, modified, sortindex,
+        ttl, payload, payload_size)
+    SELECT
+        :userid, :collection, id, :modified, sortindex,
+        COALESCE(ttl_offset + :ttl_base, :default_ttl),
+        COALESCE(payload, ''),
+        COALESCE(payload_size, 0)
+    FROM %(bui)s
+    WHERE batch = :batch AND userid = :userid
+    ON DUPLICATE KEY UPDATE
+        modified = :modified,
+        sortindex = COALESCE(%(bui)s.sortindex,
+                             %(bso)s.sortindex),
+        ttl = COALESCE(%(bui)s.ttl_offset + :ttl_base,
+                       %(bso)s.ttl),
+        payload = COALESCE(%(bui)s.payload,
+                           %(bso)s.payload),
+        payload_size = COALESCE(%(bui)s.payload_size,
+                                %(bso)s.payload_size)
+
      */
 }
 
@@ -168,7 +212,7 @@ pub fn do_append(
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
     // Eq<batch_upload_items::columns::user_id, Option<u64>>
-    let mut to_insert: Vec<_> = Vec::new();
+    let mut to_insert = Vec::new();
     for _ in bsos.into_iter().map(|b: params::PostCollectionBso| {
             let payload = b.payload.unwrap_or(String::new());
             let payload_len = payload.len() as i64;
@@ -180,7 +224,8 @@ pub fn do_append(
                 batch_upload_items::payload.eq(payload),
                 batch_upload_items::payload_size.eq(payload_len)
             ));
-        }) {
+        })
+    {
         // Do nothing, just consume the iter
     }
 
