@@ -69,7 +69,7 @@ where
     U: QueryFragment<DB> + CanInsertInSingleQuery<DB>,
     Op: QueryFragment<DB>,
     Ret: QueryFragment<DB>,
-    X: Expression
+    X: QueryFragment<DB>,
 {
     fn walk_ast(&self, mut out:AstPass<'_, DB>) -> QueryResult<()> {
         self.0.walk_ast(out.reborrow())?;
