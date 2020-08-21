@@ -174,7 +174,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             bso::expiry.eq(i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, bso::expiry)),
             bso::payload.eq(Stringcoalesce2(batch_upload_items::payload, bso::payload)),
             bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
-        )).execute(db);
+        )).execute(&db.conn);
 
     delete(
         db,
