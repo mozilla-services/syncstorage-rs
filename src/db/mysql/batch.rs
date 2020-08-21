@@ -167,7 +167,21 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
     .filter(batch_upload_items::batch_id.eq(params.batch))
     .filter(batch_upload_items::user_id.eq(params.user_id));
 
-
+    // (userid, collection, id, modified, sortindex,
+    //    ttl, payload, payload_size)
+    diesel::insert_into(bso::table)
+        .values(select_query)
+        .into_columns((
+            bso::user_id,
+            bso::collection_id,
+            bso::id,
+            bso::modified,
+            bso::sortindex,
+            bso::expiry,
+            bso::payload,
+            bso::payload_size
+        ))
+        .on_duplicate_key_update()
 
     delete(
         db,
