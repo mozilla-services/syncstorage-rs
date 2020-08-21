@@ -11,7 +11,7 @@ use diesel::{
 use super::{
     diesel_ext::OnDuplicateKeyUpdateDsl,
     models::{MysqlDb, Result},
-    schema::{batch_upload_items, batch_uploads},
+    schema::{batch_upload_items, batch_uploads, bso},
 };
 
 use crate::{
@@ -156,7 +156,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
     .filter(batch_upload_items::batch_id.eq(params.batch))
     .filter(batch_upload_items::user_id.eq(params.user_id));
 
-    diesel::insert_into(bso::table)
+    let result = diesel::insert_into(bso::table)
         .values(select_query)
         .into_columns((
             bso::user_id,
@@ -171,10 +171,10 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         .on_duplicate_key_update((
             bso::modified.eq(timestamp.as_i64()),
             bso::sortindex.eq(i32coalesce2(batch_upload_items::sortindex, bso::sortindex)),
-            bso::ttl.eq(i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, bso::ttl)),
+            bso::expiry.eq(i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, bso::expiry)),
             bso::payload.eq(Stringcoalesce2(batch_upload_items::payload, bso::payload)),
             bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
-        ));
+        )).execute(db);
 
     delete(
         db,
