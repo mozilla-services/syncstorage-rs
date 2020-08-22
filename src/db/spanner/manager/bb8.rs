@@ -18,7 +18,6 @@ use crate::{
     settings::Settings,
 };
 
-// XXX:
 pub const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
 pub struct SpannerConnectionManager<T> {
@@ -132,7 +131,6 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     }
 }
 
-// XXX:
 pub async fn create_session(
     client: &SpannerClient,
     database_name: &str,

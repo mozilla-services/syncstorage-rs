@@ -12,12 +12,8 @@ use crate::{
     settings::Settings,
 };
 
-// XXX:
 use super::bb8::{create_session, SpannerSession, SPANNER_ADDRESS};
 
-// - -> SpannerSessionManager (and bb8 too)
-// - bb8s doesn't need the PhantomData
-// - kill the lifetimes for now or PhantomData one
 pub struct Manager {
     database_name: String,
     /// The gRPC environment

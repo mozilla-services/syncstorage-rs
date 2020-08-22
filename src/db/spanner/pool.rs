@@ -16,7 +16,6 @@ use super::manager::bb8::SpannerSession;
 use super::models::SpannerDb;
 use crate::error::ApiResult;
 
-//pub(super) type Conn<'a> = PooledConnection<'a, SpannerConnectionManager<SpannerSession>>;
 pub(super) type Conn = deadpool::managed::Object<SpannerSession, DbError>;
 
 embed_migrations!();
@@ -49,14 +48,7 @@ impl SpannerDbPool {
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        //let manager = SpannerConnectionManager::<SpannerSession>::new(settings, metrics)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        /*
-        let builder = bb8::Pool::builder()
-            .max_size(max_size)
-            .min_idle(settings.database_pool_min_idle)
-            .error_sink(Box::new(LoggingErrorSink));
-         */
         let manager = super::manager::deadpool::Manager::new(settings, metrics)?;
         let config = deadpool::managed::PoolConfig::new(max_size as usize);
         let pool = deadpool::managed::Pool::from_config(manager, config);
@@ -70,8 +62,6 @@ impl SpannerDbPool {
 
     pub async fn get_async(&self) -> Result<SpannerDb> {
         let conn = self.pool.get().await.map_err(|e| match e {
-            //bb8::RunError::User(dbe) => dbe,
-            //bb8::RunError::TimedOut => DbError::internal("bb8:TimedOut"),
             deadpool::managed::PoolError::Backend(dbe) => dbe,
             deadpool::managed::PoolError::Timeout(timeout_type) => {
                 DbError::internal(&format!("deadpool Timeout: {:?}", timeout_type))
