@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use bb8::{ErrorSink, Pool};
+use bb8::ErrorSink;
 
 use std::{
     collections::HashMap,
@@ -12,9 +12,11 @@ use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
-use super::manager::{SpannerConnectionManager, SpannerSession};
+use super::manager::bb8::SpannerSession;
 use super::models::SpannerDb;
 use crate::error::ApiResult;
+
+pub(super) type Conn = deadpool::managed::Object<SpannerSession, DbError>;
 
 embed_migrations!();
 
@@ -30,7 +32,8 @@ embed_migrations!();
 #[derive(Clone)]
 pub struct SpannerDbPool {
     /// Pool of db connections
-    pool: Pool<SpannerConnectionManager<SpannerSession>>,
+    //pool: Pool<SpannerConnectionManager<SpannerSession>>,
+    pool: deadpool::managed::Pool<SpannerSession, DbError>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -45,24 +48,24 @@ impl SpannerDbPool {
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let manager = SpannerConnectionManager::<SpannerSession>::new(settings, metrics)?;
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        let builder = bb8::Pool::builder()
-            .max_size(max_size)
-            .min_idle(settings.database_pool_min_idle)
-            .error_sink(Box::new(LoggingErrorSink));
+        let manager = super::manager::deadpool::Manager::new(settings, metrics)?;
+        let config = deadpool::managed::PoolConfig::new(max_size as usize);
+        let pool = deadpool::managed::Pool::from_config(manager, config);
 
         Ok(Self {
-            pool: builder.build(manager).await?,
+            pool,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
         })
     }
 
-    pub async fn get_async(&self) -> Result<SpannerDb<'_>> {
+    pub async fn get_async(&self) -> Result<SpannerDb> {
         let conn = self.pool.get().await.map_err(|e| match e {
-            bb8::RunError::User(dbe) => dbe,
-            bb8::RunError::TimedOut => DbError::internal("bb8:TimedOut"),
+            deadpool::managed::PoolError::Backend(dbe) => dbe,
+            deadpool::managed::PoolError::Timeout(timeout_type) => {
+                DbError::internal(&format!("deadpool Timeout: {:?}", timeout_type))
+            }
         })?;
         Ok(SpannerDb::new(
             conn,
@@ -82,7 +85,7 @@ impl DbPool for SpannerDbPool {
     }
 
     fn state(&self) -> results::PoolState {
-        self.pool.state().into()
+        self.pool.status().into()
     }
 
     fn validate_batch_id(&self, id: String) -> Result<()> {
