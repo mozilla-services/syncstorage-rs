@@ -778,6 +778,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "deadpool"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaff9a7a1de9893f4004fa08527b31cb2ae4121c44e053cf53f29203c73bd23"
+dependencies = [
+ "async-trait",
+ "config",
+ "crossbeam-queue",
+ "num_cpus",
+ "serde 1.0.114",
+ "tokio",
+]
+
+[[package]]
 name = "debugid"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1994,9 +2008,9 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.16.2"
+version = "2.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d883f78645c21b7281d21305181aa1f4dd9e9363e7cf2566c93121552cff003e"
+checksum = "cb14183cc7f213ee2410067e1ceeadba2a7478a59432ff0747a335202798b1e2"
 
 [[package]]
 name = "quick-error"
@@ -2706,7 +2720,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.5.3"
+version = "0.5.5"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -2719,6 +2733,7 @@ dependencies = [
  "cadence",
  "chrono",
  "config",
+ "deadpool",
  "diesel",
  "diesel_logger",
  "diesel_migrations",
@@ -2755,6 +2770,7 @@ dependencies = [
  "time 0.2.16",
  "tokio",
  "url 2.1.1",
+ "urlencoding",
  "uuid",
  "validator",
  "validator_derive",
@@ -3138,6 +3154,12 @@ dependencies = [
  "percent-encoding 2.1.0",
  "serde 1.0.114",
 ]
+
+[[package]]
+name = "urlencoding"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9232eb53352b4442e40d7900465dfc534e8cb2dc8f18656fcb2ac16112b5593"
 
 [[package]]
 name = "uuid"

@@ -18,7 +18,7 @@ use crate::{
     settings::Settings,
 };
 
-const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
+pub const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
 pub struct SpannerConnectionManager<T> {
     database_name: String,
@@ -33,6 +33,7 @@ impl<_T> fmt::Debug for SpannerConnectionManager<_T> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("SpannerConnectionManager")
             .field("database_name", &self.database_name)
+            .field("test_transactions", &self.test_transactions)
             .finish()
     }
 }
@@ -65,7 +66,7 @@ pub struct SpannerSession {
     pub client: SpannerClient,
     pub session: Session,
 
-    pub(super) use_test_transactions: bool,
+    pub(in crate::db::spanner) use_test_transactions: bool,
 }
 
 #[async_trait]
@@ -130,7 +131,7 @@ impl<T: std::marker::Send + std::marker::Sync + 'static> ManageConnection
     }
 }
 
-async fn create_session(
+pub async fn create_session(
     client: &SpannerClient,
     database_name: &str,
 ) -> Result<Session, grpcio::Error> {

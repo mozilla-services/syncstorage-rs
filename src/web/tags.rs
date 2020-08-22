@@ -57,6 +57,7 @@ impl Tags {
         // Return an Option<> type because the later consumers (ApiErrors) presume that
         // tags are optional and wrapped by an Option<> type.
         let mut tags = HashMap::new();
+        let mut extra = HashMap::new();
         if let Some(ua) = req_head.headers().get(USER_AGENT) {
             if let Ok(uas) = ua.to_str() {
                 let (ua_result, metrics_os, metrics_browser) = parse_user_agent(uas);
@@ -65,14 +66,14 @@ impl Tags {
                 insert_if_not_empty("ua.name", ua_result.name, &mut tags);
                 insert_if_not_empty("ua.os.ver", &ua_result.os_version.to_owned(), &mut tags);
                 insert_if_not_empty("ua.browser.ver", ua_result.version, &mut tags);
+                extra.insert("ua".to_owned(), uas.to_string());
             }
         }
-        // `uri.path` causes too much cardinality for influx.
         tags.insert("uri.method".to_owned(), req_head.method.to_string());
-        Tags {
-            tags,
-            extra: HashMap::new(),
-        }
+        // `uri.path` causes too much cardinality for influx but keep it in
+        // extra for sentry
+        extra.insert("uri.path".to_owned(), req_head.uri.to_string());
+        Tags { tags, extra }
     }
 
     pub fn with_tags(tags: HashMap<String, String>) -> Tags {
