@@ -1,20 +1,23 @@
 use std::{fmt, sync::Arc};
 
-use actix_web::web::block;
 use async_trait::async_trait;
-use deadpool::managed::{RecycleError, RecycleResult};
-use googleapis_raw::spanner::v1::{spanner::GetSessionRequest, spanner_grpc::SpannerClient};
-use grpcio::{ChannelBuilder, ChannelCredentials, EnvBuilder, Environment};
+use deadpool::managed::{Manager, RecycleError, RecycleResult};
+use grpcio::{EnvBuilder, Environment};
 
 use crate::{
-    db::error::{DbError, DbErrorKind},
+    db::{
+        error::{DbError, DbErrorKind},
+        results::PoolState,
+    },
     server::metrics::Metrics,
     settings::Settings,
 };
 
-use super::bb8::{create_session, SpannerSession, SPANNER_ADDRESS};
+use super::session::{create_spanner_session, recycle_spanner_session, SpannerSession};
 
-pub struct Manager {
+pub type Conn = deadpool::managed::Object<SpannerSession, DbError>;
+
+pub struct SpannerSessionManager {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
@@ -22,22 +25,21 @@ pub struct Manager {
     test_transactions: bool,
 }
 
-impl fmt::Debug for Manager {
+impl fmt::Debug for SpannerSessionManager {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("Manager")
+        fmt.debug_struct("deadpool::SpannerSessionManager")
             .field("database_name", &self.database_name)
             .field("test_transactions", &self.test_transactions)
             .finish()
     }
 }
 
-impl Manager {
+impl SpannerSessionManager {
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
-        let url = &settings.database_url;
-        if !url.starts_with("spanner://") {
-            Err(DbErrorKind::InvalidUrl(url.to_owned()))?;
-        }
-        let database_name = url["spanner://".len()..].to_owned();
+        let database_name = settings
+            .spanner_database_name()
+            .ok_or_else(|| DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?
+            .to_owned();
         let env = Arc::new(EnvBuilder::new().build());
 
         #[cfg(not(test))]
@@ -45,7 +47,7 @@ impl Manager {
         #[cfg(test)]
         let test_transactions = settings.database_use_test_transactions;
 
-        Ok(Manager {
+        Ok(Self {
             database_name,
             env,
             metrics: metrics.clone(),
@@ -55,61 +57,29 @@ impl Manager {
 }
 
 #[async_trait]
-impl deadpool::managed::Manager<SpannerSession, DbError> for Manager {
+impl Manager<SpannerSession, DbError> for SpannerSessionManager {
     async fn create(&self) -> Result<SpannerSession, DbError> {
-        let env = self.env.clone();
-        let mut metrics = self.metrics.clone();
-        // XXX: issue732: Could google_default_credentials (or
-        // ChannelBuilder::secure_connect) block?!
-        let chan = block(move || -> Result<grpcio::Channel, grpcio::Error> {
-            metrics.start_timer("storage.pool.grpc_auth", None);
-            // Requires
-            // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-            let creds = ChannelCredentials::google_default_credentials()?;
-            Ok(ChannelBuilder::new(env)
-                .max_send_message_len(100 << 20)
-                .max_receive_message_len(100 << 20)
-                .secure_connect(SPANNER_ADDRESS, creds))
-        })
+        create_spanner_session(
+            Arc::clone(&self.env),
+            self.metrics.clone(),
+            &self.database_name,
+            self.test_transactions,
+        )
         .await
-        .map_err(|e| match e {
-            actix_web::error::BlockingError::Error(e) => e.into(),
-            actix_web::error::BlockingError::Canceled => {
-                DbError::internal("web::block Manager operation canceled")
-            }
-        })?;
-        let client = SpannerClient::new(chan);
-
-        // Connect to the instance and create a Spanner session.
-        let session = create_session(&client, &self.database_name).await?;
-
-        Ok(SpannerSession {
-            client,
-            session,
-            use_test_transactions: self.test_transactions,
-        })
     }
 
     async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
-        let mut req = GetSessionRequest::new();
-        req.set_name(conn.session.get_name().to_owned());
-        if let Err(e) = conn
-            .client
-            .get_session_async(&req)
-            .map_err(|e| RecycleError::Backend(e.into()))?
+        recycle_spanner_session(conn, &self.database_name)
             .await
-        {
-            match e {
-                grpcio::Error::RpcFailure(ref status)
-                    if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
-                {
-                    conn.session = create_session(&conn.client, &self.database_name)
-                        .await
-                        .map_err(|e| RecycleError::Backend(e.into()))?;
-                }
-                _ => return Err(RecycleError::Backend(e.into())),
-            }
+            .map_err(RecycleError::Backend)
+    }
+}
+
+impl From<deadpool::Status> for PoolState {
+    fn from(status: deadpool::Status) -> PoolState {
+        PoolState {
+            connections: status.size as u32,
+            idle_connections: status.available.max(0) as u32,
         }
-        Ok(())
     }
 }
