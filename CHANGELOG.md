@@ -1,3 +1,26 @@
+<a name="0.5.7"></a>
+## 0.5.7 (2020-08-22)
+
+
+#### Chore
+
+*   update protobuf to 2.17.0 (#783) ([af5234d4](https://github.com/mozilla-services/syncstorage-rs/commit/af5234d4ceb9db479e550d06796d783d4cec33aa), closes [#782](https://github.com/mozilla-services/syncstorage-rs/issues/782))
+
+#### Bug Fixes
+
+*   Avoid implicit transactions in DbTransactionPool (#777) ([e0448583](https://github.com/mozilla-services/syncstorage-rs/commit/e044858323297a95bcc903c7bc983b9093422fc7), closes [#768](https://github.com/mozilla-services/syncstorage-rs/issues/768))
+
+#### Features
+
+*   switch spanner's db pool to deadpool ([077bf091](https://github.com/mozilla-services/syncstorage-rs/commit/077bf091ecaededfa3c937ce5ac5a5f6f95015f3))
+*   emit internal bb8 Pool errors to logs/sentry ([ec25bc47](https://github.com/mozilla-services/syncstorage-rs/commit/ec25bc47e2eed88a6fdabc3d32d04d065a780e67), closes [#786](https://github.com/mozilla-services/syncstorage-rs/issues/786), [#785](https://github.com/mozilla-services/syncstorage-rs/issues/785), [#764](https://github.com/mozilla-services/syncstorage-rs/issues/764), [#787](https://github.com/mozilla-services/syncstorage-rs/issues/787))
+
+#### Refactor
+
+*   cleanup/rearrange ([7e526cb8](https://github.com/mozilla-services/syncstorage-rs/commit/7e526cb831dfacce65415822841c8881b0ce771e))
+
+
+
 <a name="0.5.6"></a>
 ## 0.5.6 (2020-08-11)
 
@@ -17,9 +40,14 @@
 <a name="0.5.5"></a>
 ### 0.5.5 (2020-08-06)
 
+#### Chore
+
+*   Update vendored SDK to use protobuf 2.16.2 (#747) ([39519bb8](https://github.com/mozilla-services/syncstorage-rs/commit/39519bb821fdf58ecf5842c6b818a58d53167135))
+
 #### Bug Fixes
 
 *   set config env separator to double underscore. (#763) ([f1d88fea](https://github.com/mozilla-services/syncstorage-rs/commit/f1d88feae60d7fea15b7575ac2108f0f80ff42b4), closes [#762](https://github.com/mozilla-services/syncstorage-rs/issues/762))
+*   normalize id elements to remove potential wrap characters (#748) ([71ab9b34](https://github.com/mozilla-services/syncstorage-rs/commit/71ab9b344601479de2b4ebcf3b221720577f6e74), closes [#680](https://github.com/mozilla-services/syncstorage-rs/issues/680))
 
 
 
