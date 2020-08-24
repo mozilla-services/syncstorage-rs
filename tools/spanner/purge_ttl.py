@@ -103,7 +103,11 @@ def spanner_purge(args):
         if args.mode in ["batches", "both"]:
             # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
             # IN PARENT batches ON DELETE CASCADE)
-            batch_query = 'DELETE FROM batches WHERE {}'.format(expiry_condition)
+            batch_query = add_conditions(
+                args,
+                'DELETE FROM batches WHERE {}'.format(expiry_condition),
+                prefix,
+            )
             deleter(
                 database,
                 name="batches",
