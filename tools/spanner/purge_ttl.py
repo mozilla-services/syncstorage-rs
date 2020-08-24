@@ -42,11 +42,13 @@ def use_dsn(args):
     return args
 
 
-def deleter(database: Database, name: str, query: str, prefix: Optional[str]):
+def deleter(database: Database, name: str, query: str, prefix: Optional[str]=None, dryrun: Optional[bool]=False):
     with statsd.timer("syncstorage.purge_ttl.{}_duration".format(name)):
         logging.info("Running: {}".format(query))
         start = datetime.now()
-        result = database.execute_partitioned_dml(query)
+        result = 0
+        if not dryrun:
+            result = database.execute_partitioned_dml(query)
         end = datetime.now()
         logging.info(
             "{name}: removed {result} rows, {name}_duration: {time}, prefix: {prefix}".format(
@@ -62,14 +64,16 @@ def add_conditions(args, query: str, prefix: Optional[str]):
     :return: The updated SQL query
     """
     if args.collection_ids:
-        query += " AND collection_id"
-        if len(args.collection_ids) == 1:
-            query += " = {:d}".format(args.collection_ids[0])
-        else:
-            query += " in ({})".format(
-                ', '.join(map(str, args.collection_ids)))
+        ids = list(map(str, filter(len, args.collection_ids)))
+        if len(ids):
+            query += " AND collection_id"
+            if len(ids) == 1:
+                query += " = {:d}".format(ids[0])
+            else:
+                query += " in ({})".format(
+                    ', '.join(ids))
     if prefix:
-        query += ' AND REGEXP_CONTAINS(fxa_uaid, r"{}")'.format(prefix)
+        query += ' AND REGEXP_CONTAINS(fxa_uid, r"{}")'.format(prefix)
     return query
 
 
@@ -104,7 +108,8 @@ def spanner_purge(args):
                 database,
                 name="batches",
                 query=batch_query,
-                prefix=prefix
+                prefix=prefix,
+                dryrun=args.dryrun,
             )
 
         if args.mode in ["bsos", "both"]:
@@ -118,7 +123,8 @@ def spanner_purge(args):
                 database,
                 name="bso",
                 query=bso_query,
-                prefix=prefix
+                prefix=prefix,
+                dryrun=args.dryrun,
             )
 
 
@@ -170,6 +176,11 @@ def get_args():
         choices=["now", "midnight"],
         default=os.environ.get("PURGE_EXPIRY_MODE", "midnight"),
         help="Choose the timestamp used to check if an entry is expired"
+    )
+    parser.add_argument(
+        '--dryrun',
+        action="store_true",
+        help="Do not purge user records from spanner"
     )
     args = parser.parse_args()
 
