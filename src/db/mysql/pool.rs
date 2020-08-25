@@ -17,7 +17,11 @@ use diesel::{
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
+use crate::db::{
+    error::DbError,
+    results::{self, PoolState},
+    Db, DbPool, STD_COLLS,
+};
 use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
@@ -105,8 +109,10 @@ impl DbPool for MysqlDbPool {
 }
 
 impl fmt::Debug for MysqlDbPool {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MysqlDbPool {{ coll_cache: {:?} }}", self.coll_cache)
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("MysqlDbPool")
+            .field("coll_cache", &self.coll_cache)
+            .finish()
     }
 }
 
@@ -172,6 +178,15 @@ impl Default for CollectionCache {
                     .map(|(k, v)| (*k, (*v).to_owned()))
                     .collect(),
             ),
+        }
+    }
+}
+
+impl From<diesel::r2d2::State> for PoolState {
+    fn from(state: diesel::r2d2::State) -> PoolState {
+        PoolState {
+            connections: state.connections,
+            idle_connections: state.idle_connections,
         }
     }
 }
