@@ -1,3 +1,17 @@
+<a name="0.5.8"></a>
+## 0.5.8 (2020-08-25)
+
+
+#### Bug Fixes
+
+*   fix purge_ttl advanced features ([714168d1](https://github.com/mozilla-services/syncstorage-rs/commit/714168d1077e3429bd33fbcb17724cd74551149a), closes [#799](https://github.com/mozilla-services/syncstorage-rs/issues/799))
+
+#### Features
+
+*   cleanup the spanner pool managers ([746f5d12](https://github.com/mozilla-services/syncstorage-rs/commit/746f5d128f3d3804367b49b6b5fbff34e722d5b3), closes [#794](https://github.com/mozilla-services/syncstorage-rs/issues/794))
+
+
+
 <a name="0.5.7"></a>
 ## 0.5.7 (2020-08-22)
 
