@@ -1,18 +1,16 @@
 use diesel::{
     self,
     dsl::sql,
-    expression::{bound::Bound, operators::Eq},
     insert_into,
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
-    sql_types::{Bigint, BigInt, Integer, Nullable, Text},
+    sql_types::{BigInt, Integer},
     sql_query,
-    update, ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, TextExpressionMethods, JoinOnDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, JoinOnDsl,
 };
 
 use super::{
-    diesel_ext::OnDuplicateKeyUpdateDsl,
     models::{MysqlDb, Result},
-    schema::{batch_upload_items, batch_uploads, bso},
+    schema::{batch_upload_items, batch_uploads},
 };
 
 use crate::{
@@ -86,7 +84,6 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
 
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     let batch_id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     // XXX: spanner impl does a validate_async + triggers a BatchNotFound for
     // db-tests
@@ -140,8 +137,8 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     Ok(())
 }
 
-sql_function!(fn i32coalesce2(x: Integer, y: Integer) -> Integer);
-sql_function!(fn Stringcoalesce2(x: String, y: String) -> String);
+//sql_function!(fn i32_coalesce2(x: Integer, y: Integer) -> Integer);
+//sql_function!(fn string_coalesce2(x: String, y: String) -> String);
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
@@ -171,7 +168,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         payload_size = COALESCE(batch_upload_items.payload_size,
                                 bso.payload_size)
         "#;
-    let result = sql_query(batch_insert_update)
+    sql_query(batch_insert_update)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
@@ -237,7 +234,7 @@ pub fn do_append(
     db: &MysqlDb,
     batch_id: i64,
     user_id: HawkIdentifier,
-    collection_id: i32,
+    _collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
     // Eq<batch_upload_items::columns::user_id, Option<u64>>
@@ -260,7 +257,6 @@ pub fn do_append(
 
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
-//        .on_duplicate_key_update()
         .execute(&db.conn)?;
 
     if rows_inserted > 0 {
