@@ -12,11 +12,11 @@ use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
 use crate::settings::Settings;
 
-use super::manager::bb8::SpannerSession;
+use super::manager::{SpannerSession, SpannerSessionManager};
 use super::models::SpannerDb;
 use crate::error::ApiResult;
 
-pub(super) type Conn = deadpool::managed::Object<SpannerSession, DbError>;
+pub use super::manager::Conn;
 
 embed_migrations!();
 
@@ -32,7 +32,6 @@ embed_migrations!();
 #[derive(Clone)]
 pub struct SpannerDbPool {
     /// Pool of db connections
-    //pool: Pool<SpannerConnectionManager<SpannerSession>>,
     pool: deadpool::managed::Pool<SpannerSession, DbError>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -49,7 +48,7 @@ impl SpannerDbPool {
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         let max_size = settings.database_pool_max_size.unwrap_or(10);
-        let manager = super::manager::deadpool::Manager::new(settings, metrics)?;
+        let manager = SpannerSessionManager::new(settings, metrics)?;
         let config = deadpool::managed::PoolConfig::new(max_size as usize);
         let pool = deadpool::managed::Pool::from_config(manager, config);
 
@@ -98,8 +97,10 @@ impl DbPool for SpannerDbPool {
 }
 
 impl fmt::Debug for SpannerDbPool {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SpannerDbPool {{ coll_cache: {:?} }}", self.coll_cache)
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt.debug_struct("SpannerDbPool")
+            .field("coll_cache", &self.coll_cache)
+            .finish()
     }
 }
 

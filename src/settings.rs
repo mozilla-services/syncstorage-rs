@@ -28,6 +28,7 @@ pub struct Settings {
     pub host: String,
     pub database_url: String,
     pub database_pool_max_size: Option<u32>,
+    // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
@@ -163,7 +164,15 @@ impl Settings {
     }
 
     pub fn uses_spanner(&self) -> bool {
-        self.database_url.as_str().starts_with("spanner")
+        self.database_url.as_str().starts_with("spanner://")
+    }
+
+    pub fn spanner_database_name(&self) -> Option<&str> {
+        if !self.uses_spanner() {
+            None
+        } else {
+            Some(&self.database_url["spanner://".len()..])
+        }
     }
 
     /// A simple banner for display of certain settings at startup
