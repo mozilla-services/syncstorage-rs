@@ -35,10 +35,9 @@ use super::{
     batch,
     pool::{CollectionCache, Conn},
     support::{
-        as_list_value, as_type, as_value, bso_from_row, ExecuteSqlRequestBuilder,
-        StreamedResultSetAsync,
+        as_list_value, as_type, as_value, bso_from_row, bso_to_insert_row, bso_to_update_row,
+        ExecuteSqlRequestBuilder, StreamedResultSetAsync,
     },
-    support::{bso_to_insert_row, bso_to_update_row},
 };
 
 #[derive(Debug, Eq, PartialEq)]
