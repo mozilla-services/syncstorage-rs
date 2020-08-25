@@ -64,11 +64,11 @@ def add_conditions(args, query: str, prefix: Optional[str]):
     :return: The updated SQL query
     """
     if args.collection_ids:
-        ids = list(map(str, filter(len, args.collection_ids)))
-        if len(ids):
+        ids = list(filter(len, args.collection_ids))
+        if ids:
             query += " AND collection_id"
             if len(ids) == 1:
-                query += " = {:d}".format(ids[0])
+                query += " = {}".format(ids[0])
             else:
                 query += " in ({})".format(
                     ', '.join(ids))
