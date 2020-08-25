@@ -22,7 +22,9 @@ use serde::{
 };
 
 use crate::db::error::{DbError, DbErrorKind};
-use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
+use crate::server::metrics::Metrics;
+use crate::server::ServerState;
+use crate::web::error::{HawkError, HawkErrorKind, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
@@ -122,9 +124,20 @@ impl ApiError {
                 DbErrorKind::Conflict => return false,
                 _ => (),
             },
+            ApiErrorKind::Hawk(hawke) => match hawke.kind() {
+                HawkErrorKind::MissingHeader => return false,
+                HawkErrorKind::InvalidHeader => return false,
+                _ => (),
+            },
             _ => (),
         }
         true
+    }
+
+    pub fn on_response(&self, state: &ServerState) {
+        if self.is_conflict() {
+            Metrics::from(state).incr("storage.confict")
+        }
     }
 
     fn weave_error_code(&self) -> WeaveError {
@@ -136,8 +149,10 @@ impl ApiError {
                     name,
                     ref _tags,
                 ) => {
-                    if description == "size-limit-exceeded" {
-                        return WeaveError::SizeLimitExceeded;
+                    match description.as_ref() {
+                        "over-quota" => return WeaveError::OverQuota,
+                        "size-limit-exceeded" => return WeaveError::SizeLimitExceeded,
+                        _ => {}
                     }
                     let name = name.clone().unwrap_or_else(|| "".to_owned());
                     if *location == RequestErrorLocation::Body

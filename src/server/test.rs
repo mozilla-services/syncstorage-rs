@@ -23,8 +23,7 @@ use crate::db::pool_from_settings;
 use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use crate::db::util::SyncTimestamp;
 use crate::settings::{Secrets, ServerLimits};
-use crate::web::auth::HawkPayload;
-use crate::web::extractors::BsoBody;
+use crate::web::{auth::HawkPayload, extractors::BsoBody, X_LAST_MODIFIED};
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
@@ -70,6 +69,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
             .await
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
+        limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         secrets: Arc::clone(&SECRETS),
         metrics: Box::new(metrics),
         port: settings.port,
@@ -603,4 +603,21 @@ async fn reject_old_ios() {
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     let body = String::from_utf8(test::read_body(response).await.to_vec()).unwrap();
     assert_eq!(body, "0");
+}
+
+#[actix_rt::test]
+async fn info_configuration_xlm() {
+    let mut app = init_app!().await;
+    let req =
+        create_request(http::Method::GET, "/1.5/42/info/configuration", None, None).to_request();
+    let response = app.call(req).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let xlm = response.headers().get(X_LAST_MODIFIED);
+    assert!(xlm.is_some());
+    assert_eq!(
+        xlm.unwrap()
+            .to_str()
+            .expect("Couldn't parse X-Last-Modified"),
+        "0.00"
+    );
 }

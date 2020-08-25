@@ -94,6 +94,15 @@ impl From<bb8::State> for PoolState {
     }
 }
 
+impl From<deadpool::Status> for PoolState {
+    fn from(status: deadpool::Status) -> PoolState {
+        PoolState {
+            connections: status.size as u32,
+            idle_connections: status.available as u32,
+        }
+    }
+}
+
 #[cfg(test)]
 pub type GetCollectionId = i32;
 

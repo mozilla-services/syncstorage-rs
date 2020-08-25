@@ -32,6 +32,8 @@ pub struct Settings {
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
+    pub actix_keep_alive: Option<u32>,
+
     /// Server-enforced limits for request payloads.
     pub limits: ServerLimits,
 
@@ -57,6 +59,7 @@ impl Default for Settings {
             database_pool_min_idle: None,
             #[cfg(test)]
             database_use_test_transactions: false,
+            actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
             statsd_host: None,
@@ -108,7 +111,12 @@ impl Settings {
         }
 
         // Merge the environment overrides
-        s.merge(Environment::with_prefix(PREFIX))?;
+        // While the prefix is currently case insensitive, it's traditional that
+        // environment vars be UPPERCASE, this ensures that will continue should
+        // Environment ever change their policy about case insensitivity.
+        // This will accept environment variables specified as
+        // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
+        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
         Ok(match s.try_into::<Self>() {
             Ok(s) => {
@@ -193,6 +201,9 @@ pub struct ServerLimits {
 
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
+
+    // ### debug_client - for testing client
+    pub debug_client: Option<String>,
 }
 
 impl Default for ServerLimits {
@@ -205,6 +216,7 @@ impl Default for ServerLimits {
             max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
+            debug_client: None,
         }
     }
 }

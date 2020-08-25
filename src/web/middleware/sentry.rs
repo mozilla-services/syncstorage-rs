@@ -7,6 +7,7 @@ use std::{
 use actix_http::Extensions;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    web::Data,
     Error, HttpMessage,
 };
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
@@ -14,6 +15,7 @@ use sentry::protocol::Event;
 use std::task::Poll;
 
 use crate::error::ApiError;
+use crate::server::ServerState;
 use crate::web::tags::Tags;
 
 pub struct SentryWrapper;
@@ -98,7 +100,6 @@ where
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from_request_head(sreq.head());
-        let uri = sreq.head().uri.to_string();
         sreq.extensions_mut().insert(tags.clone());
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
@@ -117,8 +118,6 @@ where
                     tags.tags.insert(k, v);
                 }
             };
-            // add the uri.path (which can cause influx to puke)
-            tags.extra.insert("uri.path".to_owned(), uri);
             match sresp.response().error() {
                 None => {
                     // Middleware errors are eaten by current versions of Actix. Errors are now added
@@ -145,14 +144,14 @@ where
                     }
                 }
                 Some(e) => {
-                    let apie: Option<&ApiError> = e.as_error();
-                    if let Some(apie) = apie {
+                    if let Some(apie) = e.as_error::<ApiError>() {
+                        if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
+                            apie.on_response(state.as_ref());
+                        };
                         if !apie.is_reportable() {
                             debug!("Not reporting error to sentry: {:?}", apie);
                             return future::ok(sresp);
                         }
-                    }
-                    if let Some(apie) = apie {
                         report(&tags, sentry::integrations::failure::event_from_fail(apie));
                     }
                 }
