@@ -826,10 +826,7 @@ impl SpannerDb {
                 .parse::<i32>()
                 .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
 
-            Ok(results::GetQuotaUsage {
-                total_bytes,
-                count,
-            })
+            Ok(results::GetQuotaUsage { total_bytes, count })
         } else {
             Ok(results::GetQuotaUsage::default())
         }

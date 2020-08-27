@@ -889,10 +889,7 @@ impl MysqlDb {
             .get_result(&self.conn)
             .optional()?
             .unwrap_or_default();
-        Ok(results::GetQuotaUsage {
-            total_bytes,
-            count,
-        })
+        Ok(results::GetQuotaUsage { total_bytes, count })
     }
 
     // perform a heavier weight quota calculation
@@ -912,10 +909,7 @@ impl MysqlDb {
             .get_result(&self.conn)
             .optional()?
             .unwrap_or_default();
-        Ok(results::GetQuotaUsage {
-            total_bytes,
-            count,
-        })
+        Ok(results::GetQuotaUsage { total_bytes, count })
     }
 
     pub fn get_collection_usage_sync(
