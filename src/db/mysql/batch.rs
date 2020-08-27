@@ -1,3 +1,4 @@
+use crate::db::SyncTimestamp;
 use diesel::{
     self,
     dsl::sql,
@@ -94,19 +95,21 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     Ok(())
 }
 
+/*
 #[derive(Debug, Default, Queryable)]
 pub struct Batch {
     pub id: i64,
     pub bsos: String,
-    pub expiry: i64,
+//    pub expiry: i64,
 }
+*/
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
     let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     Ok(batch_upload_items::table
-        .select((batch_upload_items::batch_id, batch_upload_items::payload, batch_upload_items::ttl_offset))
+        .select(batch_upload_items::batch_id)
         .inner_join(batch_uploads::table.on(batch_uploads::batch_id.eq(batch_upload_items::batch_id)))
         .filter(batch_upload_items::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
@@ -114,12 +117,12 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
        // XXX: this isn't expiry, it's the ttl value. I believe the
        // batch expiry "lives" inside the batch id (batch id is based from a timestamp)
 //        .filter(batch_upload_items::ttl_offset.gt(db.timestamp().as_i64()))
-        .get_result::<Batch>(&db.conn)
+        .get_result(&db.conn)
         .optional()?
-        .map(|batch| results::GetBatch {
-            id: encode_id(batch.id),
-            bsos: batch.bsos,
-            expiry: batch.expiry,
+        .map(|batch_id| results::GetBatch {
+            id: encode_id(batch_id),
+            bsos: "".to_owned(),
+//            expiry: 0, // XXX: FIXME
         })
     )
 }
@@ -262,12 +265,14 @@ pub fn do_append(
         .values(to_insert)
 //        .on_duplicate_key_update()
         .execute(&db.conn)?;
-
+    Ok(())
+        /*
     if rows_inserted > 0 {
         Ok(())
     } else {
         Err(DbErrorKind::BatchNotFound.into())
     }
+    */
 }
 
 pub fn validate_batch_id(id: &str) -> Result<()> {

@@ -131,18 +131,15 @@ async fn append_commit() -> Result<()> {
     let bsos2 = vec![postbso("b2", Some("payload 2"), None, Some(1000))];
     db.append_to_batch(ab(uid, coll, id.clone(), bsos2)).await?;
 
-    // FIXME: get_batch seems broken
-    //let batch = db.get_batch(gb(uid, coll, id)).await?.unwrap();
+    eprintln!("ZZZZZZZZZZZZZZZZZZZ");
+    let batch = db.get_batch(gb(uid, coll, id)).await?.unwrap();
+    eprintln!("!ZZZZZZZZZZZZZZZZZZZ");
+
     let result = db
         .commit_batch(params::CommitBatch {
             user_id: hid(uid),
             collection: coll.to_owned(),
-            // XXX:
-            batch: params::Batch {
-                id: id,
-                bsos: "".to_owned(),
-                expiry: 0,
-            },
+            batch,
         })
         .await?;
 

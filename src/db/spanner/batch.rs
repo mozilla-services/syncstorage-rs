@@ -136,7 +136,7 @@ pub async fn get_async(
                 // for mysql/diesel compat). converting expiry back to i64 is
                 // maybe suspicious
                 bsos: "".to_owned(),
-                expiry: 0,
+//                expiry: 0,
             }
         });
     Ok(batch)
