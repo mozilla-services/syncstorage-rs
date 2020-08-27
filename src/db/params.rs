@@ -88,6 +88,9 @@ collection_data! {
     DeleteBatch {
         id: String,
     },
+    GetQuotaUsage {
+        collection_id: i32,
+    },
 }
 
 pub type ValidateBatchId = String;
@@ -144,7 +147,7 @@ pub type CreateCollection = String;
 
 #[cfg(test)]
 data! {
-    TouchCollection {
+    UpdateCollection {
         user_id: HawkIdentifier,
         collection_id: i32,
     }

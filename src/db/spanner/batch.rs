@@ -175,7 +175,7 @@ pub async fn commit_async(
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .touch_collection_async(&params.user_id, collection_id)
+        .update_collection_async(&params.user_id, collection_id)
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
@@ -359,8 +359,8 @@ async fn pretouch_collection_async(
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
         db.sql(
-            "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
-             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)",
+            "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
+             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)",
         )?
         .params(sqlparams)
         .param_types(param_types! {

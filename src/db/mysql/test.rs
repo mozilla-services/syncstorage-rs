@@ -79,7 +79,8 @@ fn static_collection_id() -> Result<()> {
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
         .filter(collections::name.ne(""))
-        .filter(collections::name.not_like("xxx%"))
+        .filter(collections::name.not_like("xxx%")) // from most integration tests
+        .filter(collections::name.ne("col2")) // from older intergration tests
         .load(&db.inner.conn)?
         .into_iter()
         .collect();

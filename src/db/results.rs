@@ -30,6 +30,21 @@ pub type CommitBatch = PostBsos;
 pub type ValidateBatchId = ();
 pub type Check = bool;
 
+#[derive(Debug)]
+pub struct GetQuotaUsage {
+    pub total_bytes: i64,
+    pub count: i32,
+}
+
+impl Default for GetQuotaUsage {
+    fn default() -> Self {
+        Self {
+            total_bytes: 0,
+            count: 0,
+        }
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {
     #[sql_type = "Text"]
@@ -83,4 +98,4 @@ pub type GetCollectionId = i32;
 pub type CreateCollection = i32;
 
 #[cfg(test)]
-pub type TouchCollection = SyncTimestamp;
+pub type UpdateCollection = SyncTimestamp;

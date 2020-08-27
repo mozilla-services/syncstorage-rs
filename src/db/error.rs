@@ -52,6 +52,9 @@ pub enum DbErrorKind {
 
     #[fail(display = "Unexpected error: {}", _0)]
     Internal(String),
+
+    #[fail(display = "User over quota")]
+    Quota,
 }
 
 impl DbError {

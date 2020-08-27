@@ -117,6 +117,11 @@ pub trait Db<'a>: Debug + 'a {
         params: params::GetStorageUsage,
     ) -> DbFuture<'_, results::GetStorageUsage>;
 
+    fn get_quota_usage(
+        &self,
+        params: params::GetQuotaUsage,
+    ) -> DbFuture<'_, results::GetQuotaUsage>;
+
     fn delete_storage(&self, params: params::DeleteStorage)
         -> DbFuture<'_, results::DeleteStorage>;
 
@@ -220,7 +225,7 @@ pub trait Db<'a>: Debug + 'a {
     fn create_collection(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]
-    fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<'_, SyncTimestamp>;
+    fn update_collection(&self, params: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp>;
 
     #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;

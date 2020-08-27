@@ -6,6 +6,7 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db, Result};
 use crate::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
+use crate::web::extractors::HawkIdentifier;
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
@@ -408,7 +409,7 @@ async fn get_storage_timestamp() -> Result<()> {
     db.create_collection("NewCollection3".to_owned()).await?;
 
     with_delta!(&db, 100_000, {
-        db.touch_collection(params::TouchCollection {
+        db.update_collection(params::UpdateCollection {
             user_id: hid(uid),
             collection_id: col2,
         })
@@ -441,12 +442,12 @@ async fn create_collection() -> Result<()> {
 }
 
 #[tokio::test]
-async fn touch_collection() -> Result<()> {
+async fn update_collection() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
 
     let cid = db.create_collection("test".to_owned()).await?;
-    db.touch_collection(params::TouchCollection {
+    db.update_collection(params::UpdateCollection {
         user_id: hid(1),
         collection_id: cid,
     })
@@ -471,6 +472,8 @@ async fn delete_collection() -> Result<()> {
             collection: coll.to_owned(),
         })
         .await?;
+    // ### returns a timestamp of 0 because the collection is gone.
+    // ### not sure if spanner or mysql are broken.
     let ts2 = db.get_storage_timestamp(hid(uid)).await?;
     assert_eq!(ts2, ts);
 
@@ -558,7 +561,7 @@ async fn get_collection_timestamps() -> Result<()> {
     let uid = *UID;
     let coll = "test";
     let cid = db.create_collection(coll.to_owned()).await?;
-    db.touch_collection(params::TouchCollection {
+    db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
     })
@@ -585,7 +588,7 @@ async fn get_collection_timestamps_tombstone() -> Result<()> {
     let uid = *UID;
     let coll = "test";
     let cid = db.create_collection(coll.to_owned()).await?;
-    db.touch_collection(params::TouchCollection {
+    db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
     })
@@ -620,7 +623,7 @@ async fn get_collection_usage() -> Result<()> {
             db.put_bso(pbso(
                 uid,
                 coll,
-                &format!("b{}", i),
+                &format!("b{}", i as i32),
                 Some(&payload),
                 None,
                 None,
@@ -632,8 +635,19 @@ async fn get_collection_usage() -> Result<()> {
 
     let sizes = db.get_collection_usage(hid(uid)).await?;
     assert_eq!(sizes, expected);
+    let sum = expected.values().sum::<i64>();
     let total = db.get_storage_usage(hid(uid)).await?;
-    assert_eq!(total, expected.values().sum::<i64>() as u64);
+    let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
+    assert_eq!(total, sum as u64);
+    let quota = db
+        .get_quota_usage(params::GetQuotaUsage {
+            user_id: HawkIdentifier::new_legacy(uid as u64),
+            collection: "ignored".to_owned(),
+            collection_id,
+        })
+        .await?;
+    assert_eq!(&quota.total_bytes, expected.get("bookmarks").unwrap());
+    assert_eq!(quota.count, 5); // 3 collections, 5 records
     Ok(())
 }
 
@@ -989,7 +1003,7 @@ async fn collection_cache() -> Result<()> {
     let uid = *UID;
     let coll = "test";
     let cid = db.create_collection(coll.to_owned()).await?;
-    db.touch_collection(params::TouchCollection {
+    db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
     })
