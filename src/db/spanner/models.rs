@@ -1038,7 +1038,7 @@ impl SpannerDb {
         };
         let result = self
             .sql(
-                "SELECT 1 AS count
+                "SELECT 1
                    FROM user_collections
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -1454,6 +1454,7 @@ impl SpannerDb {
                 failed: HashMap::new(),
             })
             .await?;
+
         Ok(result.modified)
     }
 
