@@ -90,13 +90,20 @@ impl ValidationError {
 #[derive(Debug, Fail)]
 pub enum ValidationErrorKind {
     #[fail(display = "{}", _0)]
-    FromDetails(String, RequestErrorLocation, Option<String>, Option<Tags>),
+    FromDetails(
+        String,
+        RequestErrorLocation,
+        Option<String>,
+        Option<Tags>,
+        Option<String>,
+    ),
 
     #[fail(display = "{}", _0)]
     FromValidationErrors(
         #[cause] validator::ValidationErrors,
         RequestErrorLocation,
         Option<Tags>,
+        Option<String>,
     ),
 }
 
@@ -119,18 +126,27 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
         debug!("Validation Error: {:?}", inner.get_context());
         let status = match inner.get_context() {
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
-                if *location == RequestErrorLocation::Header =>
-            {
+            ValidationErrorKind::FromDetails(
+                ref _description,
+                ref location,
+                Some(ref name),
+                _,
+                _,
+            ) if *location == RequestErrorLocation::Header => {
                 match name.to_ascii_lowercase().as_str() {
                     "accept" => StatusCode::NOT_ACCEPTABLE,
                     "content-type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
                     _ => StatusCode::BAD_REQUEST,
                 }
             }
-            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
-                if *location == RequestErrorLocation::Path
-                    && ["bso", "collection"].contains(&name.as_ref()) =>
+            ValidationErrorKind::FromDetails(
+                ref _description,
+                ref location,
+                Some(ref name),
+                _,
+                _,
+            ) if *location == RequestErrorLocation::Path
+                && ["bso", "collection"].contains(&name.as_ref()) =>
             {
                 StatusCode::NOT_FOUND
             }
@@ -185,7 +201,13 @@ impl Serialize for ValidationErrorKind {
         let mut seq = serializer.serialize_seq(None)?;
 
         match *self {
-            ValidationErrorKind::FromDetails(ref description, ref location, ref name, ref tags) => {
+            ValidationErrorKind::FromDetails(
+                ref description,
+                ref location,
+                ref name,
+                ref tags,
+                ref metric_label,
+            ) => {
                 seq.serialize_element(&SerializedValidationError {
                     description,
                     location,
@@ -195,7 +217,12 @@ impl Serialize for ValidationErrorKind {
                 })?;
             }
 
-            ValidationErrorKind::FromValidationErrors(ref errors, ref location, ref tags) => {
+            ValidationErrorKind::FromValidationErrors(
+                ref errors,
+                ref location,
+                ref tags,
+                ref _metric_label,
+            ) => {
                 for (field, field_errors) in errors.clone().field_errors().iter() {
                     for field_error in field_errors.iter() {
                         seq.serialize_element(&SerializedValidationError {

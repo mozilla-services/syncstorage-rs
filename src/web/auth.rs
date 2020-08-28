@@ -175,6 +175,7 @@ impl HawkPayload {
                     RequestErrorLocation::Header,
                     None,
                     tags,
+                    None,
                 )
             })?
         } else if ci.scheme() == "https" {
