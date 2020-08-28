@@ -206,7 +206,7 @@ impl Serialize for ValidationErrorKind {
                 ref location,
                 ref name,
                 ref tags,
-                ref metric_label,
+                ref _metric_label,
             ) => {
                 seq.serialize_element(&SerializedValidationError {
                     description,

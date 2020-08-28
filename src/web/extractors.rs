@@ -174,7 +174,7 @@ impl FromRequest for BsoBodies {
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                         Some(tags),
-                        label!("request.validate.bad_content_type")
+                        label!("request.validate.bad_content_type"),
                     )
                     .into(),
                 ))
@@ -408,7 +408,7 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        Some(tags.clone()),
+                        Some(tags),
                         label!("request.validate.bad_content_type"),
                     )
                     .into(),
@@ -422,7 +422,7 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    Some(tags.clone()),
+                    Some(tags),
                     label!("request.validate.bad_content_type"),
                 )
                 .into(),
@@ -459,7 +459,7 @@ impl FromRequest for BsoBody {
                                     "over-quota".to_owned(),
                                     RequestErrorLocation::Unknown,
                                     Some("over-quota".to_owned()),
-                                    Some(tags.clone()),
+                                    Some(tags),
                                     label!("request.store.user_over_quota"),
                                 )
                                 .into(),
@@ -1155,7 +1155,7 @@ impl HawkIdentifier {
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
                 tags,
-                label!("request.validate.hawk.missing_uid")
+                label!("request.validate.hawk.missing_uid"),
             ))?
         }
     }
@@ -1204,7 +1204,7 @@ impl HawkIdentifier {
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
                 tags,
-                label!("request.validate.hawk.uri_missing_uid")
+                label!("request.validate.hawk.uri_missing_uid"),
             ))?;
         }
 
@@ -1238,7 +1238,7 @@ impl FromRequest for HawkIdentifier {
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
-                        None
+                        None,
                     )
                     .into());
                 }
@@ -1363,7 +1363,7 @@ impl FromRequest for BsoQueryParams {
                         RequestErrorLocation::QueryString,
                         None,
                         Some(tags.clone()),
-                        None
+                        None,
                     )
                 })
                 .await?
@@ -1373,7 +1373,7 @@ impl FromRequest for BsoQueryParams {
                     e,
                     RequestErrorLocation::QueryString,
                     Some(tags.clone()),
-                    None
+                    None,
                 )
             })?;
             // issue559: Dead code (timestamp always None)
@@ -1449,7 +1449,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::QueryString,
                         None,
                         Some(tags.clone()),
-                        None
+                        None,
                     )
                 })
                 .await?
@@ -1463,7 +1463,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
-                        None
+                        None,
                     )
                     .into());
                 }
@@ -1525,7 +1525,7 @@ impl FromRequest for BatchRequestOpt {
                     RequestErrorLocation::Path,
                     None,
                     Some(tags),
-                    label!("request.validate.batch.missing_id")
+                    label!("request.validate.batch.missing_id"),
                 )
                 .into());
             }
@@ -1554,7 +1554,7 @@ impl FromRequest for BatchRequestOpt {
                             RequestErrorLocation::QueryString,
                             Some("batch".to_owned()),
                             Some(ftags),
-                            label!("request.validate.batch.invalid_id")
+                            label!("request.validate.batch.invalid_id"),
                         )
                         .into());
                     }
@@ -1601,7 +1601,7 @@ impl PreConditionHeaderOpt {
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
                 tags,
-                label!("request.validate.mod_header.conflict")
+                label!("request.validate.mod_header.conflict"),
             )
             .into());
         };
@@ -1625,7 +1625,7 @@ impl PreConditionHeaderOpt {
                 RequestErrorLocation::Header,
                 Some("X-If-Modified-Since".to_owned()),
                 tags,
-                label!("request.validate.mod_header.negative")
+                label!("request.validate.mod_header.negative"),
             )
             .into());
         }
@@ -1637,7 +1637,7 @@ impl PreConditionHeaderOpt {
                     RequestErrorLocation::Header,
                     Some(field_name.to_owned()),
                     tags.clone(),
-                    None
+                    None,
                 )
                 .into()
             })
@@ -1648,7 +1648,7 @@ impl PreConditionHeaderOpt {
                         RequestErrorLocation::Header,
                         Some(field_name.to_owned()),
                         tags.clone(),
-                        None
+                        None,
                     )
                     .into()
                 })
