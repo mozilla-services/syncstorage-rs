@@ -7,39 +7,38 @@ use std::{
     sync::Arc,
 };
 
-use bb8::PooledConnection;
 use futures::future::TryFutureExt;
-use googleapis_raw::spanner::v1::transaction::{
-    self, TransactionOptions, TransactionOptions_ReadOnly, TransactionOptions_ReadWrite,
-};
 use googleapis_raw::spanner::v1::{
     mutation::{Mutation, Mutation_Write},
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
+    transaction::{
+        TransactionOptions, TransactionOptions_ReadOnly, TransactionOptions_ReadWrite,
+        TransactionSelector,
+    },
     type_pb::TypeCode,
 };
 #[allow(unused_imports)]
 use protobuf::{well_known_types::ListValue, Message, RepeatedField};
 
-use super::manager::{SpannerConnectionManager, SpannerSession};
-use super::pool::CollectionCache;
-
-use crate::db::{
-    error::{DbError, DbErrorKind},
-    params, results,
-    spanner::support::{as_type, StreamedResultSetAsync},
-    util::SyncTimestamp,
-    Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
+use crate::{
+    db::{
+        error::{DbError, DbErrorKind},
+        params, results,
+        util::SyncTimestamp,
+        Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
+    },
+    server::metrics::Metrics,
+    web::extractors::{BsoQueryParams, HawkIdentifier, Offset},
 };
-use crate::server::metrics::Metrics;
-use crate::web::extractors::{BsoQueryParams, HawkIdentifier, Offset};
 
-use super::support::{bso_to_insert_row, bso_to_update_row};
 use super::{
     batch,
-    support::{as_list_value, as_value, bso_from_row, ExecuteSqlRequestBuilder},
+    pool::{CollectionCache, Conn},
+    support::{
+        as_list_value, as_type, as_value, bso_from_row, bso_to_insert_row, bso_to_update_row,
+        ExecuteSqlRequestBuilder, StreamedResultSetAsync,
+    },
 };
-
-pub type TransactionSelector = transaction::TransactionSelector;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum CollectionLock {
@@ -47,7 +46,6 @@ pub enum CollectionLock {
     Write,
 }
 
-pub(super) type Conn<'a> = PooledConnection<'a, SpannerConnectionManager<SpannerSession>>;
 pub type Result<T> = std::result::Result<T, DbError>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
@@ -81,8 +79,8 @@ struct SpannerDbSession {
 }
 
 #[derive(Clone, Debug)]
-pub struct SpannerDb<'a> {
-    pub(super) inner: Arc<SpannerDbInner<'a>>,
+pub struct SpannerDb {
+    pub(super) inner: Arc<SpannerDbInner>,
 
     /// Pool level cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -90,28 +88,28 @@ pub struct SpannerDb<'a> {
     pub metrics: Metrics,
 }
 
-pub struct SpannerDbInner<'a> {
-    pub(super) conn: Conn<'a>,
+pub struct SpannerDbInner {
+    pub(super) conn: Conn,
 
     session: RefCell<SpannerDbSession>,
 }
 
-impl fmt::Debug for SpannerDbInner<'_> {
+impl fmt::Debug for SpannerDbInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SpannerDbInner")
     }
 }
 
-impl<'a> Deref for SpannerDb<'a> {
-    type Target = SpannerDbInner<'a>;
+impl Deref for SpannerDb {
+    type Target = SpannerDbInner;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<'a> SpannerDb<'a> {
-    pub fn new(conn: Conn<'a>, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
+impl SpannerDb {
+    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
         let inner = SpannerDbInner {
             conn,
             session: RefCell::new(Default::default()),
@@ -1605,7 +1603,7 @@ impl<'a> SpannerDb<'a> {
     }
 }
 
-impl<'a> Db<'a> for SpannerDb<'a> {
+impl<'a> Db<'a> for SpannerDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
         Box::pin(async move { db.commit_async().map_err(Into::into).await })

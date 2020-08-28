@@ -789,6 +789,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "deadpool"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaff9a7a1de9893f4004fa08527b31cb2ae4121c44e053cf53f29203c73bd23"
+dependencies = [
+ "async-trait",
+ "config",
+ "crossbeam-queue",
+ "num_cpus",
+ "serde 1.0.114",
+ "tokio",
+]
+
+[[package]]
 name = "debugid"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2732,7 +2746,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.5.5"
+version = "0.5.8"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -2745,6 +2759,7 @@ dependencies = [
  "cadence",
  "chrono",
  "config",
+ "deadpool",
  "diesel",
  "diesel_logger",
  "diesel_migrations",

@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.5.5"
+version = "0.5.8"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -26,7 +26,9 @@ bytes = "0.5"
 cadence = "0.20.0"
 chrono = "0.4"
 config = "0.10"
+deadpool = "0.5.2"
 diesel = { version = "1.4.4", features = ["mysql", "r2d2", "numeric"] }
+diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"

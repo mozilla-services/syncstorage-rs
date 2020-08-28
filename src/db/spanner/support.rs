@@ -16,13 +16,15 @@ use protobuf::{
     RepeatedField,
 };
 
-use super::models::{Conn, Result};
-use crate::db::{results, util::SyncTimestamp, DbError, DbErrorKind};
-
 use crate::{
-    db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
+    db::{
+        params, results, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339, util::SyncTimestamp,
+        DbError, DbErrorKind,
+    },
     web::extractors::HawkIdentifier,
 };
+
+use super::{models::Result, pool::Conn};
 
 pub fn as_value(string_value: String) -> Value {
     let mut value = Value::new();
@@ -86,7 +88,7 @@ impl ExecuteSqlRequestBuilder {
         self
     }
 
-    fn prepare_request(self, conn: &Conn<'_>) -> ExecuteSqlRequest {
+    fn prepare_request(self, conn: &Conn) -> ExecuteSqlRequest {
         let mut request = self.execute_sql;
         request.set_session(conn.session.get_name().to_owned());
         if let Some(params) = self.params {
@@ -101,7 +103,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a SQL read statement but return a non-blocking streaming result
-    pub fn execute_async(self, conn: &Conn<'_>) -> Result<StreamedResultSetAsync> {
+    pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
         let stream = conn
             .client
             .execute_streaming_sql(&self.prepare_request(conn))?;
@@ -109,7 +111,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
-    pub async fn execute_dml_async(self, conn: &Conn<'_>) -> Result<i64> {
+    pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
         let rs = conn
             .client
             .execute_sql_async(&self.prepare_request(conn))?
