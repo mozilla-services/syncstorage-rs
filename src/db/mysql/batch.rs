@@ -1,4 +1,4 @@
-use crate::db::SyncTimestamp;
+
 use diesel::{
     self,
     dsl::sql,
@@ -217,6 +217,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
         )).execute(db);
 */
+    db.touch_collection(user_id as u32, collection_id)?;
 
     delete(
         db,

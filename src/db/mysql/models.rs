@@ -339,6 +339,7 @@ impl MysqlDb {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }
+        eprintln!("no cached collection id");
 
         let id = sql_query(
             "SELECT id
@@ -697,6 +698,7 @@ impl MysqlDb {
     ) -> Result<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as u32;
         let collection_id = self.get_collection_id(&params.collection)?;
+        eprintln!("GET COLLECTION TIMESTAMP, {:?} {:?}", user_id, collection_id);
         if let Some(modified) = self
             .session
             .borrow()
