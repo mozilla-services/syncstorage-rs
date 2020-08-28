@@ -84,14 +84,6 @@ impl ApiError {
         self.inner.get_context()
     }
 
-    pub fn quiet(self) -> Self {
-        Self {
-            inner: self.inner,
-            status: self.status,
-            metric_label: None,
-        }
-    }
-
     pub fn is_collection_not_found(&self) -> bool {
         match self.kind() {
             ApiErrorKind::Db(dbe) => match dbe.kind() {
