@@ -38,9 +38,6 @@ use crate::web::{
     X_WEAVE_RECORDS,
 };
 
-#[cfg(test)]
-use crate::db::Db;
-
 const BATCH_MAX_IDS: usize = 100;
 
 // BSO const restrictions
@@ -1853,7 +1850,10 @@ mod tests {
     use serde_json::{self, json};
     use sha2::Sha256;
 
-    use crate::db::mock::{MockDb, MockDbPool};
+    use crate::db::{
+        mock::{MockDb, MockDbPool},
+        Db,
+    };
     use crate::server::{metrics, ServerState};
     use crate::settings::{Secrets, ServerLimits, Settings};
 
