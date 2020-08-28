@@ -1,3 +1,4 @@
+
 table! {
     batch_uploads (batch_id, user_id) {
         #[sql_name="batch"]

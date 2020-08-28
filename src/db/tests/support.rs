@@ -22,7 +22,7 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
         host: settings.host,
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
-        database_use_test_transactions: true,
+        database_use_test_transactions: false,
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
         ..Default::default()

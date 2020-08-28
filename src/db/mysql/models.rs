@@ -335,6 +335,7 @@ impl MysqlDb {
     }
 
     pub(super) fn get_collection_id(&self, name: &str) -> Result<i32> {
+        eprintln!("get_collection_id {:?}", name);
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }

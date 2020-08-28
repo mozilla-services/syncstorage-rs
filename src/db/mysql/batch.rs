@@ -241,34 +241,35 @@ pub fn do_append(
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
     // Eq<batch_upload_items::columns::user_id, Option<u64>>
+    eprintln!("DO APPEND");
     let mut to_insert = Vec::new();
     for _ in bsos.into_iter().map(|b: params::PostCollectionBso| {
-            let payload = b.payload.unwrap_or(String::new());
-            let payload_len = payload.len() as i64;
-            to_insert.push((
-                batch_upload_items::batch_id.eq(&batch_id),
-                batch_upload_items::user_id.eq(user_id.legacy_id as i64),
-                batch_upload_items::id.eq(b.id.clone()),
-                batch_upload_items::sortindex.eq(b.sortindex.unwrap_or(0)),
-                batch_upload_items::payload.eq(payload),
-                batch_upload_items::payload_size.eq(payload_len)
-            ));
-        })
-    {
+    eprintln!("itermap {:?}", &b.ttl);
+        let payload = b.payload.unwrap_or(String::new());
+        let payload_len = payload.len() as i64;
+        to_insert.push((
+            batch_upload_items::batch_id.eq(&batch_id),
+            batch_upload_items::user_id.eq(user_id.legacy_id as i64),
+            batch_upload_items::id.eq(b.id.clone()),
+            batch_upload_items::sortindex.eq(b.sortindex.unwrap_or(0)),
+            batch_upload_items::payload.eq(payload),
+            batch_upload_items::payload_size.eq(payload_len),
+            batch_upload_items::ttl_offset.eq(b.ttl.map(|ttl| {
+                ttl as i64
+            }).or_else(|| Some(MAXTTL as i64))),
+        ));
+    }) {
         // Do nothing, just consume the iter
     }
 
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
         .execute(&db.conn)?;
-    Ok(())
-        /*
     if rows_inserted > 0 {
         Ok(())
     } else {
         Err(DbErrorKind::BatchNotFound.into())
     }
-    */
 }
 
 pub fn validate_batch_id(id: &str) -> Result<()> {
