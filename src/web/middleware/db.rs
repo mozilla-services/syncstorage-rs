@@ -176,6 +176,9 @@ where
                 if apie.is_reportable() {
                     report(&tags, sentry::integrations::failure::event_from_fail(&apie));
                 } else {
+                    if let Some(label) = apie.metric_label {
+                        state.metrics.incr_with_tags(apie.metric_label, tags);
+                    }
                     debug!("Not reporting error: {:?}", apie);
                 }
                 return Err(apie.into());

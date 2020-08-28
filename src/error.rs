@@ -57,6 +57,7 @@ pub const RETRY_AFTER: u8 = 10;
 pub struct ApiError {
     inner: Context<ApiErrorKind>,
     status: StatusCode,
+    metric_label: Option<String>,
 }
 
 /// Top-level ErrorKind.
@@ -81,6 +82,14 @@ pub enum ApiErrorKind {
 impl ApiError {
     pub fn kind(&self) -> &ApiErrorKind {
         self.inner.get_context()
+    }
+
+    pub fn quiet(self) -> Self {
+        Self {
+            inner: self.inner,
+            status: self.status,
+            metric_label: None,
+        }
     }
 
     pub fn is_collection_not_found(&self) -> bool {
@@ -130,8 +139,8 @@ impl ApiError {
                 _ => (),
             },
             _ => (),
-        }
-        true
+        };
+        self.metric_label.is_none()
     }
 
     pub fn on_response(&self, state: &ServerState) {
@@ -148,6 +157,7 @@ impl ApiError {
                     ref location,
                     name,
                     ref _tags,
+                    ref _metric_label,
                 ) => {
                     match description.as_ref() {
                         "over-quota" => return WeaveError::OverQuota,
@@ -162,7 +172,12 @@ impl ApiError {
                     }
                     WeaveError::UnknownError
                 }
-                ValidationErrorKind::FromValidationErrors(ref _err, ref location, ref _tags) => {
+                ValidationErrorKind::FromValidationErrors(
+                    ref _err,
+                    ref location,
+                    ref _tags,
+                    _metric_label,
+                ) => {
                     if *location == RequestErrorLocation::Body {
                         WeaveError::InvalidWbo
                     } else {
@@ -225,7 +240,11 @@ impl From<Context<ApiErrorKind>> for ApiError {
             ApiErrorKind::Validation(error) => error.status,
         };
 
-        Self { inner, status }
+        Self {
+            inner,
+            status,
+            metric_label: None,
+        }
     }
 }
 
@@ -338,3 +357,9 @@ macro_rules! from_error {
 from_error!(DbError, ApiError, ApiErrorKind::Db);
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
+
+macro_rules! label {
+    ($string:expr) => {
+        Some($string.to_string())
+    };
+}
