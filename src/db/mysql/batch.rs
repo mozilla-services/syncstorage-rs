@@ -52,27 +52,33 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             }
         })?;
 
+    db.touch_collection(user_id as u32, collection_id)?;
+
     do_append(
         db,
         batch_id.clone(),
         params.user_id,
         collection_id,
         params.bsos,
+        false,
     )?;
 
     Ok(encode_id(batch_id))
 }
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
+    eprintln!("validate... {:?}", &params.id);
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
+    eprintln!("validate! {:?}", batch_id);
     if (batch_id / 1000 + BATCH_LIFETIME) < db.timestamp().as_i64() {
         return Ok(false);
     }
 
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
+    eprintln!("userid collid {:?} {:?}", user_id, collection_id);
     let exists = batch_uploads::table
         .select(sql::<Integer>("1"))
         .filter(batch_uploads::batch_id.eq(&batch_id))
@@ -80,6 +86,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
         .filter(batch_uploads::collection_id.eq(&collection_id))
         .get_result::<i32>(&db.conn)
         .optional()?;
+    eprintln!("exists {:?}", exists);
     Ok(exists.is_some())
 }
 
@@ -88,7 +95,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     let collection_id = db.get_collection_id(&params.collection)?;
     // XXX: spanner impl does a validate_async + triggers a BatchNotFound for
     // db-tests
-    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
+    do_append(db, batch_id, params.user_id, collection_id, params.bsos, true)?;
     Ok(())
 }
 
@@ -240,6 +247,7 @@ pub fn do_append(
     user_id: HawkIdentifier,
     _collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
+    check_result: bool,
 ) -> Result<()> {
     // Eq<batch_upload_items::columns::user_id, Option<u64>>
     eprintln!("DO APPEND");
@@ -266,10 +274,14 @@ pub fn do_append(
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
         .execute(&db.conn)?;
-    if rows_inserted > 0 {
-        Ok(())
+    if check_result {
+        if rows_inserted > 0 {
+            Ok(())
+        } else {
+            Err(DbErrorKind::BatchNotFound.into())
+        }
     } else {
-        Err(DbErrorKind::BatchNotFound.into())
+        Ok(())
     }
 }
 
