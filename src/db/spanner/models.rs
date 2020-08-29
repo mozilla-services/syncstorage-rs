@@ -847,9 +847,12 @@ impl SpannerDb {
         let timestamp = self.timestamp()?;
         let mut set_sql = "";
 
+        self.metrics
+            .clone()
+            .start_timer("storage.quota.update_existing_totals", None);
         let result = self
             .sql(
-                "SELECT SUM(LENGTH(payload)), COUNT(*)
+                "SELECT SUM(BYTE_LENGTH(payload)), COUNT(*)
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -1052,9 +1055,6 @@ impl SpannerDb {
             let mut tags = Tags::default();
             tags.tags
                 .insert("collection".to_owned(), collection_id.to_string());
-            self.metrics
-                .clone()
-                .start_timer("storage.quota.update_existing_totals", Some(tags));
             let sql = "UPDATE user_collections
                     SET modified = @modified
                   WHERE fxa_uid = @fxa_uid
