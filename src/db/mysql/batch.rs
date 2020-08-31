@@ -72,7 +72,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
     eprintln!("validate! {:?}", batch_id);
-    if (batch_id / 1000 + BATCH_LIFETIME) < db.timestamp().as_i64() {
+    if (batch_id + BATCH_LIFETIME) < db.timestamp().as_i64() {
         return Ok(false);
     }
 
