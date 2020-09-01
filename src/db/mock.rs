@@ -25,7 +25,6 @@ impl DbPool for MockDbPool {
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
-        eprintln!("VALIDATE MOCK BATCH ID");
         Ok(())
     }
 

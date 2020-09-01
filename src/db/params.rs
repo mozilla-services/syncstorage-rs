@@ -103,7 +103,7 @@ bso_data! {
 pub struct Batch {
     pub id: String,
     pub bsos: String,
-//    pub expiry: i64,
+    //    pub expiry: i64,
 }
 
 pub struct PutBso {

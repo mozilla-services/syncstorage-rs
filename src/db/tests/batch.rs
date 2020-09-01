@@ -99,7 +99,7 @@ async fn update() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let id = db.create_batch(cb(uid, coll, vec![])).await?;
-    assert!(db.get_batch(gb(uid, coll, id.clone())).await?.is_some());
+    assert!(db.validate_batch(vb(uid, coll, id.clone())).await?);
     // XXX: now bogus under spanner
     //assert_eq!(batch.bsos, "".to_owned());
 

@@ -1,10 +1,11 @@
-
 use diesel::{
     backend::Backend,
+    insertable::CanInsertInSingleQuery,
     mysql::Mysql,
-    query_builder::{AstPass, QueryFragment, QueryId, InsertStatement},
+    query_builder::{AstPass, InsertStatement, QueryFragment, QueryId},
     query_dsl::methods::LockingDsl,
-    result::QueryResult, insertable::CanInsertInSingleQuery, Table, RunQueryDsl, Expression,
+    result::QueryResult,
+    Expression, RunQueryDsl, Table,
 };
 
 /// Emit MySQL <= 5.7's `LOCK IN SHARE MODE`
@@ -46,13 +47,14 @@ pub trait IntoDuplicateValueClause {
 
 pub trait OnDuplicateKeyUpdateDsl<T, U, Op, Ret> {
     fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
-        where X: Expression;
+    where
+        X: Expression;
 }
 
 impl<T, U, Op, Ret> OnDuplicateKeyUpdateDsl<T, U, Op, Ret> for InsertStatement<T, U, Op, Ret> {
-
     fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
-        where X: Expression
+    where
+        X: Expression,
     {
         OnDuplicateKeyUpdate(Box::new(self), expression)
     }
@@ -69,9 +71,9 @@ where
     U: QueryFragment<DB> + CanInsertInSingleQuery<DB>,
     Op: QueryFragment<DB>,
     Ret: QueryFragment<DB>,
-    X: Expression
+    X: Expression,
 {
-    fn walk_ast(&self, mut out:AstPass<'_, DB>) -> QueryResult<()> {
+    fn walk_ast(&self, mut out: AstPass<'_, DB>) -> QueryResult<()> {
         self.0.walk_ast(out.reborrow())?;
         out.push_sql(" ON DUPLICATE KEY UPDATE ");
         //self.1.walk_ast(out.reborrow())?;
