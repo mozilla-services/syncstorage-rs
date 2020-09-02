@@ -19,7 +19,7 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
     // the env var because we can't rely on the default value or the env
     // var passed through to settings.
     let use_test_transactions = std::env::var("SYNC_DATABASE_USE_TEST_TRANSACTIONS")
-        .unwrap_or("true".to_string())
+        .unwrap_or_else(|_| "true".to_string())
         .eq("true");
 
     // inherit SYNC_DATABASE_URL from the env
