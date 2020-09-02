@@ -18,9 +18,9 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
     // but we want the mysql default to be true, so let's check explicitly
     // the env var because we can't rely on the default value or the env
     // var passed through to settings.
-    let use_test_transactions = std::env::var(
-        "SYNC_DATABASE_USE_TEST_TRANSACTIONS"
-    ).unwrap_or("true".to_string()).eq("true");
+    let use_test_transactions = std::env::var("SYNC_DATABASE_USE_TEST_TRANSACTIONS")
+        .unwrap_or("true".to_string())
+        .eq("true");
 
     // inherit SYNC_DATABASE_URL from the env
     let settings = Settings::with_env_and_config_file(&None).unwrap();
