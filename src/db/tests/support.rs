@@ -14,6 +14,14 @@ pub type Result<T> = std::result::Result<T, ApiError>;
 
 pub async fn db_pool() -> Result<Box<dyn DbPool>> {
     let _ = env_logger::try_init();
+    // The default for SYNC_DATABASE_USE_TEST_TRANSACTIONS is false,
+    // but we want the mysql default to be true, so let's check explicitly
+    // the env var because we can't rely on the default value or the env
+    // var passed through to settings.
+    let use_test_transactions = std::env::var("SYNC_DATABASE_USE_TEST_TRANSACTIONS")
+        .unwrap_or_else(|_| "true".to_string())
+        .eq("true");
+
     // inherit SYNC_DATABASE_URL from the env
     let settings = Settings::with_env_and_config_file(&None).unwrap();
     let settings = Settings {
@@ -22,7 +30,7 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
         host: settings.host,
         database_url: settings.database_url,
         database_pool_max_size: Some(1),
-        database_use_test_transactions: true,
+        database_use_test_transactions: use_test_transactions,
         limits: ServerLimits::default(),
         master_secret: Secrets::default(),
         ..Default::default()
