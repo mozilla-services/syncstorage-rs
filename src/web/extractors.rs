@@ -160,6 +160,8 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
+        let metrics = metrics::Metrics::from(req);
+        let tags = Tags::from_request_head(req.head());
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -168,7 +170,8 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        None,
+                        Some(tags),
+                        label!("request.validate.bad_content_type"),
                     )
                     .into(),
                 ))
@@ -178,12 +181,14 @@ impl FromRequest for BsoBodies {
         debug!("content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
+            metrics.incr("request.error.invalid_content_type");
             return Box::pin(future::err(
                 ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    None,
+                    Some(tags),
+                    label!("request.validate.bad_content_type"),
                 )
                 .into(),
             ));
@@ -197,17 +202,20 @@ impl FromRequest for BsoBodies {
                 RequestErrorLocation::Header,
                 None,
                 None,
+                None,
             )
             .into()
         });
 
         // Avoid duplicating by defining our error func now, doesn't need the box wrapper
-        fn make_error(tags: Option<Tags>) -> Error {
+        fn make_error(tags: Option<Tags>, metrics: metrics::Metrics) -> Error {
+            metrics.incr_with_tags("request.error.invalid_json", tags.clone());
             ValidationErrorKind::FromDetails(
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
                 Some("bsos".to_owned()),
                 tags,
+                label!("request.validate.invalid_body_json"),
             )
             .into()
         }
@@ -226,6 +234,7 @@ impl FromRequest for BsoBodies {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
+                        None,
                         None,
                     )
                     .into(),
@@ -246,7 +255,7 @@ impl FromRequest for BsoBodies {
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
-                        return future::err(make_error(None));
+                        return future::err(make_error(None, metrics));
                     }
                 }
                 bsos
@@ -254,7 +263,7 @@ impl FromRequest for BsoBodies {
                 json_vals
             } else {
                 // Per Python version, BSO's must json deserialize
-                return future::err(make_error(None));
+                return future::err(make_error(None, metrics));
             };
 
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
@@ -274,7 +283,7 @@ impl FromRequest for BsoBodies {
             for bso in bsos {
                 // Error out if its not a JSON mapping type
                 if !bso.is_object() {
-                    return future::err(make_error(None));
+                    return future::err(make_error(None, metrics));
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
@@ -285,7 +294,8 @@ impl FromRequest for BsoBodies {
                                 "Input BSO has duplicate ID".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                                None,
+                                Some(tags),
+                                label!("request.store.duplicate_bso_id"),
                             )
                             .into(),
                         );
@@ -299,7 +309,8 @@ impl FromRequest for BsoBodies {
                             "Input BSO has no ID".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                            None,
+                            Some(tags),
+                            label!("request.store.missing_bso_id"),
                         )
                         .into(),
                     );
@@ -356,6 +367,9 @@ impl FromRequest for BsoBody {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
+        let tags = Tags::from_request_head(req.head());
+        let ftags = tags.clone();
+        let fftags = tags.clone();
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -364,7 +378,8 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        None,
+                        Some(tags),
+                        label!("request.validate.bad_content_type"),
                     )
                     .into(),
                 ))
@@ -377,7 +392,8 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    None,
+                    Some(tags),
+                    label!("request.validate.bad_content_type"),
                 )
                 .into(),
             ));
@@ -391,6 +407,7 @@ impl FromRequest for BsoBody {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
+                        None,
                         None,
                     )
                     .into(),
@@ -407,7 +424,8 @@ impl FromRequest for BsoBody {
                     e.to_string(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
-                    None,
+                    Some(tags),
+                    label!("request.validate.bad_bso_body"),
                 )
                 .into();
                 err.into()
@@ -425,7 +443,8 @@ impl FromRequest for BsoBody {
                         "payload too large".to_owned(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                        None,
+                        Some(ftags),
+                        label!("request.validate.payload_too_large"),
                     )
                     .into();
                     return future::err(err.into());
@@ -434,6 +453,7 @@ impl FromRequest for BsoBody {
                     let err: ApiError = ValidationErrorKind::FromValidationErrors(
                         e,
                         RequestErrorLocation::Body,
+                        Some(fftags),
                         None,
                     )
                     .into();
@@ -465,6 +485,7 @@ impl BsoParam {
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
                 Some(tags.clone()),
+                label!("request.process.invalid_bso"),
             ))?;
         }
         if let Some(v) = elements.get(5) {
@@ -475,6 +496,7 @@ impl BsoParam {
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                     Some(tags.clone()),
+                    label!("request.process.invalid_bso"),
                 )
             })?)
             .map_err(|e| {
@@ -484,6 +506,7 @@ impl BsoParam {
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
                     Some(tags.clone()),
+                    label!("request.process.invalid_bso"),
                 )
             })?;
             Ok(Self { bso: sv })
@@ -494,6 +517,7 @@ impl BsoParam {
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
                 Some(tags.clone()),
+                label!("request.process.missing_bso"),
             ))?
         }
     }
@@ -510,6 +534,7 @@ impl BsoParam {
                 e,
                 RequestErrorLocation::Path,
                 Some(tags.clone()),
+                None,
             )
         })?;
         extensions.insert(bso.clone());
@@ -550,6 +575,7 @@ impl CollectionParam {
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                     Some(tags.clone()),
+                    label!("request.process.missing_collection"),
                 )
             })?;
             sv = urldecode(&sv).map_err(|_e| {
@@ -558,6 +584,7 @@ impl CollectionParam {
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                     Some(tags.clone()),
+                    label!("request.process.invalid_collection"),
                 )
             })?;
             Ok(Some(Self { collection: sv }))
@@ -567,6 +594,7 @@ impl CollectionParam {
                 RequestErrorLocation::Path,
                 Some("collection".to_owned()),
                 Some(tags.clone()),
+                label!("request.process.missing_collection"),
             ))?
         }
     }
@@ -587,6 +615,7 @@ impl CollectionParam {
                     e,
                     RequestErrorLocation::Path,
                     Some(tags.clone()),
+                    None,
                 )
             })?;
             Some(collection)
@@ -617,6 +646,7 @@ impl FromRequest for CollectionParam {
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
                     Some(tags),
+                    label!("request.process.missing_collection"),
                 ))?
             }
         })
@@ -713,6 +743,7 @@ impl FromRequest for CollectionRequest {
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
                         Some(tags),
+                        label!("request.validate.invalid_accept_header"),
                     )
                     .into());
                 }
@@ -771,6 +802,7 @@ impl FromRequest for CollectionPostRequest {
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
                         Some(tags),
+                        None,
                     )
                     .into());
                 }
@@ -794,6 +826,7 @@ impl FromRequest for CollectionPostRequest {
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
                                 Some(tags),
+                                label!("request.process.known_bad_bso"),
                             )
                             .into());
                         }
@@ -904,6 +937,7 @@ impl FromRequest for BsoPutRequest {
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
                             Some(tags),
+                            label!("request.process.known_bad_bso"),
                         )
                         .into());
                     }
@@ -955,6 +989,7 @@ impl FromRequest for HeartbeatRequest {
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
+                        None,
                     )
                     .into());
                 }
@@ -1038,6 +1073,7 @@ impl HawkIdentifier {
                         RequestErrorLocation::Path,
                         Some("uid".to_owned()),
                         tags,
+                        label!("request.validate.hawk.invalid_uid"),
                     )
                     .into());
                 }
@@ -1050,6 +1086,7 @@ impl HawkIdentifier {
                     RequestErrorLocation::Path,
                     Some("uid".to_owned()),
                     tags.clone(),
+                    label!("request.validate.hawk.invalid_uid"),
                 )
                 .into()
             })
@@ -1060,6 +1097,7 @@ impl HawkIdentifier {
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
                 tags,
+                label!("request.validate.hawk.missing_uid"),
             ))?
         }
     }
@@ -1108,6 +1146,7 @@ impl HawkIdentifier {
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
                 tags,
+                label!("request.validate.hawk.uri_missing_uid"),
             ))?;
         }
 
@@ -1141,6 +1180,7 @@ impl FromRequest for HawkIdentifier {
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
+                        None,
                     )
                     .into());
                 }
@@ -1265,6 +1305,7 @@ impl FromRequest for BsoQueryParams {
                         RequestErrorLocation::QueryString,
                         None,
                         Some(tags.clone()),
+                        None,
                     )
                 })
                 .await?
@@ -1274,6 +1315,7 @@ impl FromRequest for BsoQueryParams {
                     e,
                     RequestErrorLocation::QueryString,
                     Some(tags.clone()),
+                    None,
                 )
             })?;
             // issue559: Dead code (timestamp always None)
@@ -1349,6 +1391,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::QueryString,
                         None,
                         Some(tags.clone()),
+                        None,
                     )
                 })
                 .await?
@@ -1362,6 +1405,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
                         Some(tags),
+                        None,
                     )
                     .into());
                 }
@@ -1383,6 +1427,7 @@ impl FromRequest for BatchRequestOpt {
                             RequestErrorLocation::Header,
                             Some((*header).to_owned()),
                             Some(tags.clone()),
+                            None,
                         )
                         .into();
                         err
@@ -1395,6 +1440,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::Header,
                         Some((*header).to_owned()),
                         Some(tags.clone()),
+                        label!("request.validate.batch.invalid_x_weave"),
                     )
                     .into();
                     err
@@ -1405,6 +1451,7 @@ impl FromRequest for BatchRequestOpt {
                         RequestErrorLocation::Header,
                         None,
                         Some(tags.clone()),
+                        label!("request.validate.batch.size_exceeded"),
                     )
                     .into());
                 }
@@ -1420,6 +1467,7 @@ impl FromRequest for BatchRequestOpt {
                     RequestErrorLocation::Path,
                     None,
                     Some(tags),
+                    label!("request.validate.batch.missing_id"),
                 )
                 .into());
             }
@@ -1429,6 +1477,7 @@ impl FromRequest for BatchRequestOpt {
                     e,
                     RequestErrorLocation::QueryString,
                     Some(tags.clone()),
+                    None,
                 )
                 .into();
                 err
@@ -1447,6 +1496,7 @@ impl FromRequest for BatchRequestOpt {
                             RequestErrorLocation::QueryString,
                             Some("batch".to_owned()),
                             Some(ftags),
+                            label!("request.validate.batch.invalid_id"),
                         )
                         .into());
                     }
@@ -1493,6 +1543,7 @@ impl PreConditionHeaderOpt {
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
                 tags,
+                label!("request.validate.mod_header.conflict"),
             )
             .into());
         };
@@ -1516,6 +1567,7 @@ impl PreConditionHeaderOpt {
                 RequestErrorLocation::Header,
                 Some("X-If-Modified-Since".to_owned()),
                 tags,
+                label!("request.validate.mod_header.negative"),
             )
             .into());
         }
@@ -1527,6 +1579,7 @@ impl PreConditionHeaderOpt {
                     RequestErrorLocation::Header,
                     Some(field_name.to_owned()),
                     tags.clone(),
+                    None,
                 )
                 .into()
             })
@@ -1537,6 +1590,7 @@ impl PreConditionHeaderOpt {
                         RequestErrorLocation::Header,
                         Some(field_name.to_owned()),
                         tags.clone(),
+                        None,
                     )
                     .into()
                 })

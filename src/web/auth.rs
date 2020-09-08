@@ -175,6 +175,7 @@ impl HawkPayload {
                     RequestErrorLocation::Header,
                     None,
                     tags,
+                    label!("request.validate.hawk.invalid_port"),
                 )
             })?
         } else if ci.scheme() == "https" {

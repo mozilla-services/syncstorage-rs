@@ -168,6 +168,23 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 `make test` - open the Makefile to adjust your `SYNC_DATABASE_URL` as needed.
 
+#### Debugging unit test state
+
+In some cases, it is useful to inspect the mysql state of a failed test. By
+default, we use the diesel test_transaction functionality to ensure test data
+is not committed to the database. Therefore, there is an environment variable
+which can be used to turn off test_transaction.
+
+        SYNC_DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
+
+Note that you will almost certainly want to pass a single test name. When running
+the entire test suite, data from previous tests will cause future tests to fail.
+
+To reset the database state between test runs, drop and recreate the database
+in the mysql client:
+
+        drop database syncstorage_rs; create database syncstorage_rs; use syncstorage_rs;
+
 ### End-to-End tests
 
 Functional tests live in [server-syncstorage](https://github.com/mozilla-services/server-syncstorage/) and can be run against a local server, e.g.:
