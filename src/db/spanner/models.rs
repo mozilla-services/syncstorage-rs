@@ -707,7 +707,7 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionUsage> {
         let mut streaming = self
             .sql(
-                "SELECT collection_id, SUM(LENGTH(payload))
+                "SELECT collection_id, SUM(BYTE_LENGTH))
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -771,7 +771,7 @@ impl SpannerDb {
     ) -> Result<results::GetStorageUsage> {
         let result = self
             .sql(
-                "SELECT SUM(LENGTH(payload))
+                "SELECT SUM(BYTE_LENGTH(payload))
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
