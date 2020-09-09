@@ -216,6 +216,7 @@ jobs:
     steps:
       - setup_remote_docker
       - checkout
+      - write-version
       - run:
           name: Build and deploy to Dockerhub
           command: |
