@@ -11,7 +11,7 @@ use std::convert::TryInto;
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use time::Duration;
@@ -206,8 +206,10 @@ pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> ApiResult
 
 /// Helper function for [HMAC](https://tools.ietf.org/html/rfc2104) verification.
 fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
-    let mut hmac: Hmac<Sha256> = Hmac::new_varkey(key)?;
-    hmac.input(info);
+    type HmacSha256 = Hmac<Sha256>;
+
+    let mut hmac: HmacSha256 = HmacSha256::new_varkey(key)?;
+    hmac.update(info);
     hmac.verify(expected).map_err(From::from)
 }
 
