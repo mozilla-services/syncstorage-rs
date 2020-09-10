@@ -21,7 +21,7 @@ commands:
           name: Setup Rust checks
           command: |
             rustup component add rustfmt
-            # cargo install cargo-audit
+            cargo install cargo-audit
             rustup component add clippy
   rust-check:
     steps:
@@ -29,8 +29,8 @@ commands:
           name: Core Rust Checks
           command: |
             cargo fmt -- --check
-            # skipping audit pending https://github.com/bodil/sized-chunks/issues/11
-            #cargo audit
+            # https://github.com/bodil/sized-chunks/issues/11
+            cargo audit --ignore RUSTSEC-2020-0041
   rust-clippy:
     steps:
       - run:
