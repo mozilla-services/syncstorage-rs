@@ -206,9 +206,7 @@ pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> ApiResult
 
 /// Helper function for [HMAC](https://tools.ietf.org/html/rfc2104) verification.
 fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
-    type HmacSha256 = Hmac<Sha256>;
-
-    let mut hmac: HmacSha256 = HmacSha256::new_varkey(key)?;
+    let mut hmac = Hmac::<Sha256>::new_varkey(key)?;
     hmac.update(info);
     hmac.verify(expected).map_err(From::from)
 }
