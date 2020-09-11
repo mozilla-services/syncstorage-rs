@@ -123,7 +123,6 @@ fn create_request(
 fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     // TestServer hardcodes its hostname to localhost and binds to a random
     // port
-    type HmacSha256 = Hmac<Sha256>;
     let host = TEST_HOST;
     let payload = HawkPayload {
         expires: (Utc::now().timestamp() + 5) as f64,
@@ -136,7 +135,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     };
     let payload =
         serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");
-    let mut signature: HmacSha256 = HmacSha256::new_varkey(&SECRETS.signing_secret)
+    let mut signature = Hmac::<Sha256>::new_varkey(&SECRETS.signing_secret)
         .expect("Could not get signature in create_hawk_header");
     signature.update(payload.as_bytes());
     let signature = signature.finalize().into_bytes();
