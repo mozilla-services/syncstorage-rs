@@ -8,6 +8,7 @@ import signal
 
 from urllib.parse import quote_plus
 
+
 def config():
     parser = argparse.ArgumentParser(
         description="Generate quota busting amounts of bookmarks"
@@ -39,22 +40,24 @@ def config():
     )
     return parser.parse_args()
 
+
 def gen_url(args, words):
     domains = ["example.com", "example.org", "example.net", "example.mil",
                "example.edu", "example.gov", "example.uk", "example.ie",
                "example.au", "evilonastick.com"]
     path_bits = random.sample(words, random.randrange(10))
     url = "https://{domain}/{buster}".format(
-        domain = random.choice(domains),
-        buster = uuid.uuid4().hex
+        domain=random.choice(domains),
+        buster=uuid.uuid4().hex
     )
-    for i in range(0,random.randint(0, len(path_bits))):
+    for i in range(0, random.randint(0, len(path_bits))):
         try:
             bit = quote_plus(random.choice(path_bits))
             url = "{}/{}".format(url, bit)
         except TypeError:
             pass
     return url
+
 
 def main(args, words):
 
@@ -67,8 +70,8 @@ def main(args, words):
 <title>Bookmarks</title>
 <h1>Bookmarks</h1>
 <DL>
-"""
-)
+""")
+
     def close_file(output):
         output.write("</DL><p>")
         output.close()
@@ -94,7 +97,8 @@ def main(args, words):
         visit_date = random.randint(add_date, now)
         mod_date = random.randint(add_date, visit_date)
         tags = ','.join(random.sample(words, 1+random.randrange(8)))
-        title = ' '.join(random.sample(words, 1+random.randrange(12))).capitalize()
+        title = ' '.join(random.sample(
+            words, 1+random.randrange(12))).capitalize()
         output.write(
             """<DL><A HREF="{url}" ADD_DATE="{add_date}" """
             """LAST_VISIT="{visit_date}" LAST_MODIFIED="{mod_date}" """
@@ -107,6 +111,7 @@ def main(args, words):
                 title=title,
             ))
     output.write("""</DL><p>""")
+
 
 args = config()
 words = open(args.words).read().splitlines()
