@@ -130,7 +130,7 @@ impl Settings {
         s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
         Ok(match s.try_into::<Self>() {
-            Ok(s) => {
+            Ok(mut s) => {
                 // Adjust the max values if required.
                 if s.uses_spanner() {
                     let mut ms = s;
@@ -149,6 +149,9 @@ impl Settings {
                             env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
                         }
                     }
+                }
+                if s.limits.max_quota_limit == 0 {
+                    s.enable_quota = false
                 }
                 s
             }

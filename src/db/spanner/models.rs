@@ -847,6 +847,9 @@ impl SpannerDb {
         let timestamp = self.timestamp()?;
         let mut set_sql = "";
 
+        if !self.quota_enabled {
+            return Ok(());
+        }
         self.metrics
             .clone()
             .start_timer("storage.quota.update_existing_totals", None);
@@ -1501,15 +1504,13 @@ impl SpannerDb {
                 collection_id,
             })
             .await?;
-        if self.quota > 0 && usage.total_bytes > self.quota as i64 {
+        if self.quota_enabled && usage.total_bytes > self.quota as i64 {
             let mut tags = Tags::default();
             tags.tags
                 .insert("collection_id".to_owned(), collection_id.to_string());
             self.metrics
                 .incr_with_tags("storage.quota.at_limit", Some(tags));
-            if self.quota_enabled {
-                return Err(DbErrorKind::Quota.into());
-            }
+            return Err(DbErrorKind::Quota.into());
         }
 
         let mut inserts = vec![];
