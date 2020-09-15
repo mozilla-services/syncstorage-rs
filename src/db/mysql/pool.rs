@@ -38,10 +38,11 @@ pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     let conn = MysqlConnection::establish(&settings.database_url)?;
     #[cfg(test)]
     // XXX: this doesn't show the DDL statements
-    let result = embedded_migrations::run(&LoggingConnection::new(conn))?;
+    // https://github.com/shssoichiro/diesel-logger/issues/1
+    embedded_migrations::run(&LoggingConnection::new(conn))?;
     #[cfg(not(test))]
-    let result = embedded_migrations::run(&conn)?;
-    Ok(result)
+    embedded_migrations::run(&conn)?;
+    Ok(())
 }
 
 #[derive(Clone)]
