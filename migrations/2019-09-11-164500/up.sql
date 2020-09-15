@@ -6,7 +6,7 @@ CREATE PROCEDURE UPDATE_165600()
 BEGIN
     IF EXISTS( SELECT column_name
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE table_name='bso' AND column_name="user_id")
+        WHERE table_schema=database() AND table_name='bso' AND column_name="user_id")
     THEN
         BEGIN
             alter table `bso` change column `user_id` `userid` int(11) not null;
@@ -17,7 +17,7 @@ BEGIN
 
     IF EXISTS( SELECT column_name
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE table_name='batches' AND column_name="user_id")
+        WHERE table_schema=database() AND table_name='batches' AND column_name="user_id")
     THEN
         BEGIN
             alter table `batches` change column `user_id` `userid` int(11) not null;
@@ -27,7 +27,7 @@ BEGIN
 
     IF EXISTS( SELECT column_name
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE table_name='user_collections' AND column_name="user_id")
+        WHERE table_schema=database() AND table_name='user_collections' AND column_name="user_id")
     THEN
         BEGIN
             alter table `user_collections` change column `user_id` `userid` int(11) not null;
@@ -40,7 +40,7 @@ BEGIN
     -- the following column is not used, but preserved for legacy and stand alone systems.
     IF NOT EXISTS( SELECT column_name
         FROM INFORMATION_SCHEMA.COLUMNS
-        where table_name='bso' AND column_name="payload_size")
+        where table_schema=database() AND table_name='bso' AND column_name="payload_size")
     THEN
         BEGIN
             alter table `bso` add column `payload_size` int(11) default 0;
