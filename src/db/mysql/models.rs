@@ -403,15 +403,13 @@ impl MysqlDb {
             collection: bso.collection.clone(),
             collection_id,
         })?;
-        if self.quota > 0 && usage.total_bytes >= self.quota as i64 {
+        if self.quota_enabled && usage.total_bytes >= self.quota as i64 {
             let mut tags = Tags::default();
             tags.tags
                 .insert("collection_id".to_owned(), collection_id.to_string());
             self.metrics
                 .incr_with_tags("storage.quota.at_limit", Some(tags));
-            if self.quota_enabled {
-                return Err(DbErrorKind::Quota.into());
-            }
+            return Err(DbErrorKind::Quota.into());
         }
 
         self.conn.transaction(|| {
@@ -830,7 +828,14 @@ impl MysqlDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
-        let quota = self.calc_quota_usage_sync(user_id, collection_id)?;
+        let quota = if self.quota_enabled {
+            self.calc_quota_usage_sync(user_id, collection_id)?
+        } else {
+            results::GetQuotaUsage {
+                count: 0,
+                total_bytes: 0,
+            }
+        };
         let upsert = format!(
             r#"
                 INSERT INTO user_collections ({user_id}, {collection_id}, {modified}, {total_bytes}, {count})
