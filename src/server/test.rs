@@ -9,7 +9,7 @@ use bytes::Bytes;
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, NewMac};
 use lazy_static::lazy_static;
 use serde::de::DeserializeOwned;
 use serde_json::json;
@@ -135,10 +135,10 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     };
     let payload =
         serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");
-    let mut signature: Hmac<Sha256> = Hmac::new_varkey(&SECRETS.signing_secret)
+    let mut signature = Hmac::<Sha256>::new_varkey(&SECRETS.signing_secret)
         .expect("Could not get signature in create_hawk_header");
-    signature.input(payload.as_bytes());
-    let signature = signature.result().code();
+    signature.update(payload.as_bytes());
+    let signature = signature.finalize().into_bytes();
     let mut id: Vec<u8> = vec![];
     id.extend(payload.as_bytes());
     id.extend_from_slice(&signature);
