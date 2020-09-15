@@ -1790,7 +1790,7 @@ mod tests {
         Error, HttpResponse,
     };
     use hawk::{Credentials, Key, RequestBuilder};
-    use hmac::{Hmac, Mac};
+    use hmac::{Hmac, Mac, NewMac};
     use rand::{thread_rng, Rng};
     use serde_json::{self, json};
     use sha2::Sha256;
@@ -1848,9 +1848,9 @@ mod tests {
     ) -> String {
         let salt = payload.salt.clone();
         let payload = serde_json::to_string(payload).unwrap();
-        let mut hmac: Hmac<Sha256> = Hmac::new_varkey(&state.secrets.signing_secret).unwrap();
-        hmac.input(payload.as_bytes());
-        let payload_hash = hmac.result().code();
+        let mut hmac = Hmac::<Sha256>::new_varkey(&state.secrets.signing_secret).unwrap();
+        hmac.update(payload.as_bytes());
+        let payload_hash = hmac.finalize().into_bytes();
         let mut id = payload.as_bytes().to_vec();
         id.extend(payload_hash.to_vec());
         let id = base64::encode_config(&id, base64::URL_SAFE);
