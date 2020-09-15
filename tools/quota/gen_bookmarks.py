@@ -88,7 +88,7 @@ def main(args, words):
             if args.max_size and size > args.max_size:
                 print("Max size achieved")
                 close_file(output)
-            print("| {: 7d} rows, {:0.3f} GB".format(
+            print("| {: 8d} rows, {:0.3f} GB".format(
                 i, size))
         elif not i % 1000:
             print(".", end="")
@@ -102,16 +102,15 @@ def main(args, words):
         output.write(
             """<DL><A HREF="{url}" ADD_DATE="{add_date}" """
             """LAST_VISIT="{visit_date}" LAST_MODIFIED="{mod_date}" """
-            """TAGS="quota,{tags}">{title}</a>\n""".format(
+            """TAGS="quota,{tags}">{title}</A></DL>\n""".format(
                 url=url,
                 add_date=add_date,
                 visit_date=visit_date,
                 mod_date=mod_date,
                 tags=tags,
-                title=title,
+                title="{:08d} {}".format(i+1, title),
             ))
-    output.write("""</DL><p>""")
-
+    close_file(output)
 
 args = config()
 words = open(args.words).read().splitlines()
