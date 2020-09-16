@@ -358,16 +358,20 @@ async fn pretouch_collection_async(
         .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
-        db.sql(
+        let sql = if db.quota_enabled {
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
-             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)",
-        )?
-        .params(sqlparams)
-        .param_types(param_types! {
-            "modified" => TypeCode::TIMESTAMP,
-        })
-        .execute_dml_async(&db.conn)
-        .await?;
+            VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
+        } else {
+            "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
+            VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
+        };
+        db.sql(sql)?
+            .params(sqlparams)
+            .param_types(param_types! {
+                "modified" => TypeCode::TIMESTAMP,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
     }
     Ok(())
 }

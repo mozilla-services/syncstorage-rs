@@ -11,6 +11,6 @@ master_secret = "INSERT_SECRET_KEY_HERE"
 human_logs = 1
 
 # enable quota limits
-enable_quota = 1
+enable_quota = 0
 # set the quota limit to 2GB.
 # max_quota_limit = 200000000

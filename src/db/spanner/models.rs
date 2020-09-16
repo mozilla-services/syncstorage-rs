@@ -707,7 +707,7 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionUsage> {
         let mut streaming = self
             .sql(
-                "SELECT collection_id, SUM(BYTE_LENGTH))
+                "SELECT collection_id, SUM(BYTE_LENGTH(payload)))
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -800,6 +800,12 @@ impl SpannerDb {
         &self,
         params: params::GetQuotaUsage,
     ) -> Result<results::GetQuotaUsage> {
+        if !self.quota_enabled {
+            return Ok(results::GetQuotaUsage {
+                total_bytes: 0,
+                count: 0,
+            });
+        }
         let result = self
             .sql(
                 "SELECT IFNULL(total_bytes,0), IFNULL(count,0), modified
@@ -825,7 +831,6 @@ impl SpannerDb {
                 .get_string_value()
                 .parse::<i32>()
                 .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-
             Ok(results::GetQuotaUsage { total_bytes, count })
         } else {
             Ok(results::GetQuotaUsage::default())
@@ -941,8 +946,6 @@ impl SpannerDb {
         .param_types(types.clone())
         .execute_dml_async(&self.conn)
         .await?;
-        // This is a write op, so update the user_collection quota counts for the user.
-        self.calc_quota_usage_async(&user_id, TOMBSTONE).await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
         Ok(self.timestamp()?)
@@ -1461,6 +1464,31 @@ impl SpannerDb {
         Ok(result.modified)
     }
 
+    async fn check_quota(
+        &self,
+        user_id: &HawkIdentifier,
+        collection: &str,
+        collection_id: i32,
+    ) -> Result<()> {
+        // duplicate quota trap in test func below.
+        let usage = self
+            .get_quota_usage_async(params::GetQuotaUsage {
+                user_id: user_id.clone(),
+                collection: collection.to_owned(),
+                collection_id,
+            })
+            .await?;
+        if self.quota_enabled && usage.total_bytes > self.quota as i64 {
+            let mut tags = Tags::default();
+            tags.tags
+                .insert("collection_id".to_owned(), collection_id.to_string());
+            self.metrics
+                .incr_with_tags("storage.quota.at_limit", Some(tags));
+            return Err(DbErrorKind::Quota.into());
+        }
+        return Ok(());
+    }
+
     pub async fn post_bsos_async(&self, params: params::PostBsos) -> Result<results::PostBsos> {
         let user_id = params.user_id;
         let collection_id = self
@@ -1497,21 +1525,8 @@ impl SpannerDb {
             let mut row = row?;
             existing.insert(row[0].take_string_value());
         }
-        let usage = self
-            .get_quota_usage_async(params::GetQuotaUsage {
-                user_id: user_id.clone(),
-                collection: params.collection.clone(),
-                collection_id,
-            })
+        self.check_quota(&user_id, &params.collection, collection_id)
             .await?;
-        if self.quota_enabled && usage.total_bytes > self.quota as i64 {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection_id".to_owned(), collection_id.to_string());
-            self.metrics
-                .incr_with_tags("storage.quota.at_limit", Some(tags));
-            return Err(DbErrorKind::Quota.into());
-        }
 
         let mut inserts = vec![];
         let mut updates = HashMap::new();
@@ -1595,6 +1610,9 @@ impl SpannerDb {
             .update_collection_async(&bso.user_id, collection_id)
             .await?;
         let timestamp = self.timestamp()?;
+
+        self.check_quota(&bso.user_id, &bso.collection, collection_id)
+            .await?;
 
         let result = self
             .sql(
@@ -2026,5 +2044,11 @@ impl<'a> Db<'a> for SpannerDb {
     #[cfg(test)]
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
+    }
+
+    #[cfg(test)]
+    fn set_quota(&mut self, enabled: bool, limit: u32) {
+        self.quota_enabled = enabled;
+        self.quota = limit;
     }
 }

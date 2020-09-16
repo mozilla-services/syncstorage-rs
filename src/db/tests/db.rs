@@ -472,8 +472,6 @@ async fn delete_collection() -> Result<()> {
             collection: coll.to_owned(),
         })
         .await?;
-    // ### returns a timestamp of 0 because the collection is gone.
-    // ### not sure if spanner or mysql are broken.
     let ts2 = db.get_storage_timestamp(hid(uid)).await?;
     assert_eq!(ts2, ts);
 
@@ -648,6 +646,40 @@ async fn get_collection_usage() -> Result<()> {
         .await?;
     assert_eq!(&quota.total_bytes, expected.get("bookmarks").unwrap());
     assert_eq!(quota.count, 5); // 3 collections, 5 records
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_quota() -> Result<()> {
+    let pool = db_pool().await?;
+    let mut db = test_db(pool.as_ref()).await?;
+
+    let uid = 5;
+    let coll = "bookmarks";
+
+    let size = 5000;
+    let payload = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(size)
+        .collect::<String>();
+    db.set_quota(false, 0);
+
+    // These should work
+    db.put_bso(pbso(uid, coll, "100", Some(&payload), None, None))
+        .await?;
+    db.put_bso(pbso(uid, coll, "101", Some(&payload), None, None))
+        .await?;
+
+    db.set_quota(true, size as u32 * 2);
+
+    // Allow the put, but calculate the quota
+    db.put_bso(pbso(uid, coll, "102", Some(&payload), None, None))
+        .await?;
+    // this should fail, since the user is already over the quota
+    let result = db
+        .put_bso(pbso(uid, coll, "103", Some(&payload), None, None))
+        .await;
+    assert!(result.is_err());
     Ok(())
 }
 

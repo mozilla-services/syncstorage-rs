@@ -73,7 +73,7 @@ impl Default for Settings {
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
             human_logs: false,
-            enable_quota: true,
+            enable_quota: false,
         }
     }
 }

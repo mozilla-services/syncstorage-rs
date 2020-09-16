@@ -1105,6 +1105,12 @@ impl<'a> Db<'a> for MysqlDb {
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
     }
+
+    #[cfg(test)]
+    fn set_quota(&mut self, enabled: bool, limit: u32) {
+        self.quota = limit;
+        self.quota_enabled = enabled;
+    }
 }
 
 #[derive(Debug, QueryableByName)]
