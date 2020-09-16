@@ -880,7 +880,7 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
-         if let Some(result) = result {
+        if let Some(result) = result {
             // Update the user_collections table to reflect current numbers.
             if self.quota_enabled {
                 total_bytes = result[0]
