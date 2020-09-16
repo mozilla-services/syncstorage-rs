@@ -123,6 +123,7 @@ impl<'a> Db<'a> for MockDb {
 
     #[cfg(test)]
     fn set_quota(&mut self, _: bool, _: u32) {}
+
 }
 
 unsafe impl Send for MockDb {}

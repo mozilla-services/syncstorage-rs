@@ -6,7 +6,6 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
 use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db, Result};
 use crate::db::{mysql::models::DEFAULT_BSO_TTL, params, util::SyncTimestamp, Sorting};
-use crate::web::extractors::HawkIdentifier;
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
@@ -635,8 +634,10 @@ async fn get_collection_usage() -> Result<()> {
     assert_eq!(sizes, expected);
     let sum = expected.values().sum::<i64>();
     let total = db.get_storage_usage(hid(uid)).await?;
-    let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
     assert_eq!(total, sum as u64);
+    /*
+    //if quota enabled
+    let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
     let quota = db
         .get_quota_usage(params::GetQuotaUsage {
             user_id: HawkIdentifier::new_legacy(uid as u64),
@@ -646,6 +647,7 @@ async fn get_collection_usage() -> Result<()> {
         .await?;
     assert_eq!(&quota.total_bytes, expected.get("bookmarks").unwrap());
     assert_eq!(quota.count, 5); // 3 collections, 5 records
+    */
     Ok(())
 }
 

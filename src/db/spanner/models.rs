@@ -707,7 +707,7 @@ impl SpannerDb {
     ) -> Result<results::GetCollectionUsage> {
         let mut streaming = self
             .sql(
-                "SELECT collection_id, SUM(BYTE_LENGTH(payload)))
+                "SELECT collection_id, SUM(BYTE_LENGTH(payload))
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -852,21 +852,26 @@ impl SpannerDb {
         let timestamp = self.timestamp()?;
         let mut set_sql = "";
 
-        if !self.quota_enabled {
-            return Ok(());
-        }
         self.metrics
             .clone()
             .start_timer("storage.quota.update_existing_totals", None);
+        let calc_sql = if self.quota_enabled {
+            "SELECT SUM(BYTE_LENGTH(payload)), COUNT(*)
+            FROM bsos
+           WHERE fxa_uid = @fxa_uid
+             AND fxa_kid = @fxa_kid
+             AND collection_id = @collection_id
+           GROUP BY fxa_uid"
+        } else {
+            "SELECT COUNT(*)
+            FROM bsos
+           WHERE fxa_uid = @fxa_uid
+             AND fxa_kid = @fxa_kid
+             AND collection_id = @collection_id
+           GROUP BY fxa_uid"
+        };
         let result = self
-            .sql(
-                "SELECT SUM(BYTE_LENGTH(payload)), COUNT(*)
-                   FROM bsos
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id
-                  GROUP BY fxa_uid",
-            )?
+            .sql(calc_sql)?
             .params(params! {
                 "fxa_uid" => user.fxa_uid.clone(),
                 "fxa_kid" => user.fxa_kid.clone(),
@@ -875,23 +880,31 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
-        if let Some(result) = result {
+         if let Some(result) = result {
             // Update the user_collections table to reflect current numbers.
-            total_bytes = result[0]
-                .get_string_value()
-                .parse::<i64>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-            count = result[1]
-                .get_string_value()
-                .parse::<i32>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-            set_sql = "UPDATE user_collections
-            SET modified = @modified,
-                count = @count,
-                total_bytes = @total_bytes
-            WHERE fxa_uid = @fxa_uid
+            if self.quota_enabled {
+                total_bytes = result[0]
+                    .get_string_value()
+                    .parse::<i64>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                count = result[1]
+                    .get_string_value()
+                    .parse::<i32>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                set_sql = "UPDATE user_collections
+                SET modified = @modified,
+                    count = @count,
+                    total_bytes = @total_bytes
+                WHERE fxa_uid = @fxa_uid
+                    AND fxa_kid = @fxa_kid
+                    AND collection_id = @collection_id";
+            } else {
+                set_sql = "UPDATE user_collections
+                SET modified = @modified
+                WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
                 AND collection_id = @collection_id";
+            };
         } else {
             // we're explicitly setting a tombstone.
             // this prevents an additional write.
@@ -899,7 +912,7 @@ impl SpannerDb {
                 set_sql = "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, @total_bytes, @count)";
             }
-        }
+        };
         if set_sql.is_empty() {
             return Ok(());
         }
@@ -948,6 +961,7 @@ impl SpannerDb {
         .await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
+        self.calc_quota_usage_async(user_id, TOMBSTONE).await?;
         Ok(self.timestamp()?)
     }
 
