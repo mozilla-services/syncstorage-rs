@@ -1486,7 +1486,7 @@ impl SpannerDb {
                 .incr_with_tags("storage.quota.at_limit", Some(tags));
             return Err(DbErrorKind::Quota.into());
         }
-        return Ok(());
+        Ok(())
     }
 
     pub async fn post_bsos_async(&self, params: params::PostBsos) -> Result<results::PostBsos> {
