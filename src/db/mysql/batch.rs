@@ -88,12 +88,10 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     let batch_id = decode_id(&params.id)?;
     let collection_id = db.get_collection_id(&params.collection)?;
-    // XXX: spanner impl does a validate_async + triggers a BatchNotFound for
-    // db-tests
     let to_validate: params::ValidateBatch = params::ValidateBatch {
-        id: params.id,
         user_id: params.user_id.clone(),
         collection: params.collection,
+        id: params.id,
     };
     if validate(db, to_validate)? {
         do_append(
@@ -109,15 +107,6 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
         Err(DbErrorKind::BatchNotFound.into())
     }
 }
-
-/*
-#[derive(Debug, Default, Queryable)]
-pub struct Batch {
-    pub id: i64,
-    pub bsos: String,
-//    pub expiry: i64,
-}
-*/
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
     let id = decode_id(&params.id)?;
@@ -159,9 +148,6 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     Ok(())
 }
 
-//sql_function!(fn i32_coalesce2(x: Integer, y: Integer) -> Integer);
-//sql_function!(fn string_coalesce2(x: String, y: String) -> String);
-
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
@@ -202,40 +188,6 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
 
-    /*
-        let select_query = batch_upload_items::table.select((
-            params.user_id,
-            params.collection,
-            batch_upload_items::id,
-            timestamp.as_i64(),
-            batch_upload_items::sortindex,
-            i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, MAXTTL),
-            Stringcoalesce2(params.payload, ""),
-            i32coalesce2(params.payload.len(), 0)
-        ))
-        .filter(batch_upload_items::batch_id.eq(params.batch))
-        .filter(batch_upload_items::user_id.eq(params.user_id));
-
-        let result = diesel::insert_into(bso::table)
-            .values(select_query)
-            .into_columns((
-                bso::user_id,
-                bso::collection_id,
-                bso::id,
-                bso::modified,
-                bso::sortindex,
-                bso::expiry,
-                bso::payload,
-                bso::payload_size
-            ))
-            .on_duplicate_key_update((
-                bso::modified.eq(timestamp.as_i64()),
-                bso::sortindex.eq(i32coalesce2(batch_upload_items::sortindex, bso::sortindex)),
-                bso::expiry.eq(i32coalesce2(batch_upload_items::ttl_offset + timestamp.as_i64() as i32, bso::expiry)),
-                bso::payload.eq(Stringcoalesce2(batch_upload_items::payload, bso::payload)),
-                bso::payload_size.eq(i32coalesce2(batch_upload_items::payload_size, bso::payload_size))
-            )).execute(db);
-    */
     db.touch_collection(user_id as u32, collection_id)?;
 
     delete(
@@ -283,6 +235,7 @@ pub fn do_append(
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
         .execute(&db.conn)?;
+    /*
     if check_result {
         if rows_inserted > 0 {
             Ok(())
@@ -292,6 +245,8 @@ pub fn do_append(
     } else {
         Ok(())
     }
+     */
+    Ok(())
 }
 
 pub fn validate_batch_id(id: &str) -> Result<()> {
