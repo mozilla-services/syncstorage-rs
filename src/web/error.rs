@@ -28,6 +28,32 @@ impl HawkError {
     pub fn kind(&self) -> &HawkErrorKind {
         self.inner.get_context()
     }
+
+    pub fn is_reportable(&self) -> bool {
+        match &self.kind() {
+            HawkErrorKind::TruncatedId => true,
+            HawkErrorKind::Parse(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn metric_label(&self) -> Option<String> {
+        match self.kind() {
+            HawkErrorKind::Base64(_) => Some("request.error.hawk.decode_error".to_owned()),
+            HawkErrorKind::Expired => Some("request.error.hawk.expired".to_owned()),
+            HawkErrorKind::Header(_) => Some("request.error.hawk.header".to_owned()),
+            HawkErrorKind::Hmac(_) => Some("request.error.hawk.hmac".to_owned()),
+            HawkErrorKind::InvalidHeader => Some("request.error.hawk.invalid_header".to_owned()),
+            HawkErrorKind::InvalidKeyLength(_) => Some("request.error.hawk.expired".to_owned()),
+            HawkErrorKind::Json(_) => Some("request.error.hawk.invalid_json".to_owned()),
+            HawkErrorKind::MissingHeader => Some("request.error.hawk.missing_header".to_owned()),
+            HawkErrorKind::MissingId => Some("request.error.hawk.missing_id".to_owned()),
+            HawkErrorKind::MissingPrefix => Some("request.error.hawk.missing_prefix".to_owned()),
+            HawkErrorKind::Parse(_) => Some("request.error.hawk.parse_error".to_owned()),
+            HawkErrorKind::TruncatedId => Some("request.error.hawk.id_too_short".to_owned()),
+            _ => None,
+        }
+    }
 }
 
 /// Causes of HAWK errors.

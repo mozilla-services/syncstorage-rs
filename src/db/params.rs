@@ -94,6 +94,16 @@ collection_data! {
     },
 }
 
+impl From<ValidateBatch> for GetBatch {
+    fn from(v: ValidateBatch) -> Self {
+        Self {
+            id: v.id,
+            user_id: v.user_id,
+            collection: v.collection,
+        }
+    }
+}
+
 pub type ValidateBatchId = String;
 pub type GetBsoIds = GetBsos;
 
