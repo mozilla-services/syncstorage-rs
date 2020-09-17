@@ -472,7 +472,8 @@ impl MysqlDb {
             ))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+// XXX: maybe broken
+            .filter(bso::expiry.gt(self.timestamp().as_i64())) 
             .into_boxed();
 
         if let Some(older) = older {

@@ -112,6 +112,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
     let id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
+    // XXX: just make this SELECT 1, or basically piggy back validate.
     Ok(batch_upload_items::table
         .select(batch_upload_items::batch_id)
         .inner_join(
@@ -176,7 +177,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         payload_size = COALESCE(batch_upload_items.payload_size,
                                 bso.payload_size)
         "#;
-    sql_query(batch_insert_update)
+    let c = sql_query(batch_insert_update)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
@@ -187,6 +188,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
+    eprintln!("INSERT ON DUPE result: {}", c);
 
     db.touch_collection(user_id as u32, collection_id)?;
 
@@ -216,25 +218,30 @@ pub fn do_append(
     // Eq<batch_upload_items::columns::user_id, Option<u64>>
     let mut to_insert = Vec::new();
     for _ in bsos.into_iter().map(|b: params::PostCollectionBso| {
-        let payload = b.payload.unwrap_or_default();
-        let payload_len = payload.len() as i64;
+        //let payload = b.payload.unwrap_or_default();
+        //let payload = b.payload;
+        //let payload_len = payload.len() as i64;
+        let payload_len = b.payload.as_ref().map(|p| p.len() as i64);
         to_insert.push((
             batch_upload_items::batch_id.eq(&batch_id),
             batch_upload_items::user_id.eq(user_id.legacy_id as i64),
             batch_upload_items::id.eq(b.id.clone()),
-            batch_upload_items::sortindex.eq(b.sortindex.unwrap_or(0)),
-            batch_upload_items::payload.eq(payload),
+            batch_upload_items::sortindex.eq(b.sortindex),
+            batch_upload_items::payload.eq(b.payload),
             batch_upload_items::payload_size.eq(payload_len),
             batch_upload_items::ttl_offset
-                .eq(b.ttl.map(|ttl| ttl as i64).or_else(|| Some(MAXTTL as i64))),
+                .eq(b.ttl.map(|ttl| ttl as i64)),
         ));
     }) {
         // Do nothing, just consume the iter
     }
 
+    eprintln!("TO INSERT: {:#?}", to_insert);
+
     let rows_inserted = insert_into(batch_upload_items::table)
         .values(to_insert)
         .execute(&db.conn)?;
+    eprintln!("DO_APPEND INSERTED: {}", rows_inserted);
     /*
     if check_result {
         if rows_inserted > 0 {
