@@ -451,7 +451,7 @@ async fn update_collection() -> Result<()> {
     db.update_collection(params::UpdateCollection {
         user_id: hid(1),
         collection_id: cid,
-        collection: collection,
+        collection,
     })
     .await?;
     Ok(())
