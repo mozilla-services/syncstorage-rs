@@ -150,5 +150,6 @@ data! {
     UpdateCollection {
         user_id: HawkIdentifier,
         collection_id: i32,
+        collection: String,
     }
 }

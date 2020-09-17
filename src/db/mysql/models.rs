@@ -398,18 +398,19 @@ impl MysqlDb {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
-        let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
-            user_id: HawkIdentifier::new_legacy(user_id),
-            collection: bso.collection.clone(),
-            collection_id,
-        })?;
-        if self.quota_enabled && usage.total_bytes >= self.quota as i64 {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection_id".to_owned(), collection_id.to_string());
-            self.metrics
-                .incr_with_tags("storage.quota.at_limit", Some(tags));
-            return Err(DbErrorKind::Quota.into());
+        if self.quota_enabled {
+            let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
+                user_id: HawkIdentifier::new_legacy(user_id),
+                collection: bso.collection.clone(),
+                collection_id,
+            })?;
+            if usage.total_bytes >= self.quota as i64 {
+                let mut tags = Tags::default();
+                tags.tags.insert("collection".to_owned(), bso.collection);
+                self.metrics
+                    .incr_with_tags("storage.quota.at_limit", Some(tags));
+                return Err(DbErrorKind::Quota.into());
+            }
         }
 
         self.conn.transaction(|| {

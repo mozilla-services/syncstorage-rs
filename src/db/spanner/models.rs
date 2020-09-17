@@ -800,20 +800,21 @@ impl SpannerDb {
         &self,
         params: params::GetQuotaUsage,
     ) -> Result<results::GetQuotaUsage> {
-        if !self.quota_enabled {
-            return Ok(results::GetQuotaUsage {
-                total_bytes: 0,
-                count: 0,
-            });
-        }
+        let check_sql = if self.quota_enabled {
+            "SELECT IFNULL(total_bytes,0), IFNULL(count,0)
+            FROM user_collections
+           WHERE fxa_uid = @fxa_uid
+             AND fxa_kid = @fxa_kid
+             AND collection_id = @collection_id"
+        } else {
+            "SELECT 1, COUNT(*)
+                FROM user_collections
+               WHERE fxa_uid = @fxa_uid
+                 AND fxa_kid = @fxa_kid
+                 AND collection_id = @collection_id"
+        };
         let result = self
-            .sql(
-                "SELECT IFNULL(total_bytes,0), IFNULL(count,0), modified
-                   FROM user_collections
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id",
-            )?
+            .sql(check_sql)?
             .params(params! {
                 "fxa_uid" => params.user_id.fxa_uid.clone(),
                 "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -823,10 +824,14 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if let Some(result) = result {
-            let total_bytes = result[0]
-                .get_string_value()
-                .parse::<i64>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            let total_bytes = if self.quota_enabled {
+                result[0]
+                    .get_string_value()
+                    .parse::<i64>()
+                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?
+            } else {
+                0
+            };
             let count = result[1]
                 .get_string_value()
                 .parse::<i32>()
@@ -837,7 +842,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn calc_quota_usage_async(
+    pub async fn touch_user_collections(
         &self,
         user: &HawkIdentifier,
         collection_id: i32,
@@ -909,8 +914,13 @@ impl SpannerDb {
             // we're explicitly setting a tombstone.
             // this prevents an additional write.
             if collection_id == TOMBSTONE {
-                set_sql = "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
-                VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, @total_bytes, @count)";
+                set_sql = if self.quota_enabled {
+                    "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
+                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, @total_bytes, @count)"
+                } else {
+                    "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
+                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
+                }
             }
         };
         if set_sql.is_empty() {
@@ -959,9 +969,9 @@ impl SpannerDb {
         .param_types(types.clone())
         .execute_dml_async(&self.conn)
         .await?;
+        self.touch_user_collections(user_id, TOMBSTONE).await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
-        self.calc_quota_usage_async(user_id, TOMBSTONE).await?;
         Ok(self.timestamp()?)
     }
 
@@ -1020,7 +1030,8 @@ impl SpannerDb {
             .await?;
         if affected_rows > 0 {
             let mut tags = Tags::default();
-            tags.tags.insert("collection".to_string(), collection_id);
+            tags.tags
+                .insert("collection".to_string(), params.collection);
             self.metrics
                 .incr_with_tags("storage.spanner.delete_collection", Some(tags));
             self.erect_tombstone(&params.user_id).await
@@ -1033,6 +1044,7 @@ impl SpannerDb {
         &self,
         user_id: &HawkIdentifier,
         collection_id: i32,
+        collection: &str,
     ) -> Result<SyncTimestamp> {
         // NOTE: Spanner supports upserts via its InsertOrUpdate mutation but
         // lacks a SQL equivalent. This call could be 1 InsertOrUpdate instead
@@ -1074,7 +1086,7 @@ impl SpannerDb {
         if result.is_some() {
             let mut tags = Tags::default();
             tags.tags
-                .insert("collection".to_owned(), collection_id.to_string());
+                .insert("collection".to_owned(), collection.to_owned());
             let sql = "UPDATE user_collections
                     SET modified = @modified
                   WHERE fxa_uid = @fxa_uid
@@ -1088,18 +1100,22 @@ impl SpannerDb {
         } else {
             let mut tags = Tags::default();
             tags.tags
-                .insert("collection".to_owned(), collection_id.to_string());
+                .insert("collection".to_owned(), collection.to_owned());
             self.metrics
                 .clone()
                 .start_timer("storage.quota.init_totals", Some(tags));
-            self.sql(
+            let update_sql = if self.quota_enabled {
                 "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
-                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)",
-            )?
-            .params(sqlparams)
-            .param_types(sql_types)
-            .execute_dml_async(&self.conn)
-            .await?;
+                VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
+            } else {
+                "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
+                VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
+            };
+            self.sql(update_sql)?
+                .params(sqlparams)
+                .param_types(sql_types)
+                .execute_dml_async(&self.conn)
+                .await?;
         }
         self.session.borrow_mut().updated_collection = true;
         Ok(timestamp)
@@ -1108,7 +1124,7 @@ impl SpannerDb {
     pub async fn delete_bso_async(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
         let touch = self
-            .update_collection_async(&params.user_id, collection_id)
+            .update_collection_async(&params.user_id, collection_id, &params.collection)
             .await?;
         let user_id = params.user_id.clone();
         let affected_rows = self
@@ -1130,7 +1146,7 @@ impl SpannerDb {
         if affected_rows == 0 {
             Err(DbErrorKind::BsoNotFound)?
         } else {
-            self.calc_quota_usage_async(&user_id, collection_id).await?;
+            self.touch_user_collections(&user_id, collection_id).await?;
             self.metrics.incr("storage.spanner.delete_bso");
             Ok(touch)
         }
@@ -1161,12 +1177,12 @@ impl SpannerDb {
         .await?;
         let mut tags = Tags::default();
         tags.tags
-            .insert("collection_id".to_string(), collection_id.to_string());
+            .insert("collection".to_string(), params.collection.clone());
         self.metrics
             .incr_with_tags("self.storage.delete_bsos", Some(tags));
-        self.calc_quota_usage_async(&params.user_id, collection_id)
+        self.touch_user_collections(&params.user_id, collection_id)
             .await?;
-        self.update_collection_async(&params.user_id, collection_id)
+        self.update_collection_async(&params.user_id, collection_id, &params.collection)
             .await
     }
 
@@ -1485,6 +1501,9 @@ impl SpannerDb {
         collection_id: i32,
     ) -> Result<()> {
         // duplicate quota trap in test func below.
+        if !self.quota_enabled {
+            return Ok(());
+        }
         let usage = self
             .get_quota_usage_async(params::GetQuotaUsage {
                 user_id: user_id.clone(),
@@ -1492,10 +1511,10 @@ impl SpannerDb {
                 collection_id,
             })
             .await?;
-        if self.quota_enabled && usage.total_bytes > self.quota as i64 {
+        if usage.total_bytes > self.quota as i64 {
             let mut tags = Tags::default();
             tags.tags
-                .insert("collection_id".to_owned(), collection_id.to_string());
+                .insert("collection".to_owned(), collection.to_owned());
             self.metrics
                 .incr_with_tags("storage.quota.at_limit", Some(tags));
             return Err(DbErrorKind::Quota.into());
@@ -1511,7 +1530,7 @@ impl SpannerDb {
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
         let timestamp = self
-            .update_collection_async(&user_id, collection_id)
+            .update_collection_async(&user_id, collection_id, &params.collection)
             .await?;
 
         let mut sqlparams = params! {
@@ -1552,12 +1571,10 @@ impl SpannerDb {
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
                 updates.entry(columns).or_insert_with(Vec::new).push(values);
-                self.metrics.incr("storage.spanner.update");
             } else {
                 let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
                 inserts.push(values);
-                self.metrics.incr("storage.spanner.insert");
             }
         }
         if load_size > MAX_SPANNER_LOAD_SIZE {
@@ -1595,7 +1612,7 @@ impl SpannerDb {
             self.update("bsos", &columns, values);
         }
         // update the quotas
-        self.calc_quota_usage_async(&user_id, collection_id).await?;
+        self.touch_user_collections(&user_id, collection_id).await?;
 
         let result = results::PostBsos {
             modified: timestamp,
@@ -1621,7 +1638,7 @@ impl SpannerDb {
         };
         let mut sqltypes = HashMap::new();
         let touch = self
-            .update_collection_async(&bso.user_id, collection_id)
+            .update_collection_async(&bso.user_id, collection_id, &bso.collection)
             .await?;
         let timestamp = self.timestamp()?;
 
@@ -1765,7 +1782,7 @@ impl SpannerDb {
             .param_types(sqltypes)
             .execute_dml_async(&self.conn)
             .await?;
-        self.calc_quota_usage_async(&bso.user_id, collection_id)
+        self.touch_user_collections(&bso.user_id, collection_id)
             .await?;
         Ok(touch)
     }
@@ -1796,7 +1813,7 @@ impl SpannerDb {
             .await?;
             result.success.push(id);
         }
-        self.calc_quota_usage_async(&input.user_id, collection_id)
+        self.touch_user_collections(&input.user_id, collection_id)
             .await?;
         Ok(result)
     }
@@ -2032,7 +2049,7 @@ impl<'a> Db<'a> for SpannerDb {
     fn update_collection(&self, param: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
         Box::pin(async move {
-            db.update_collection_async(&param.user_id, param.collection_id)
+            db.update_collection_async(&param.user_id, param.collection_id, &param.collection)
                 .map_err(Into::into)
                 .await
         })

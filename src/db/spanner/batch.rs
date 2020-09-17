@@ -175,7 +175,7 @@ pub async fn commit_async(
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .update_collection_async(&params.user_id, collection_id)
+        .update_collection_async(&params.user_id, collection_id, &params.collection)
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;

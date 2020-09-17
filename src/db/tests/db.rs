@@ -411,6 +411,7 @@ async fn get_storage_timestamp() -> Result<()> {
         db.update_collection(params::UpdateCollection {
             user_id: hid(uid),
             collection_id: col2,
+            collection: "NewCollection2".to_owned(),
         })
         .await?;
         let m = db.get_storage_timestamp(hid(uid)).await?;
@@ -444,11 +445,13 @@ async fn create_collection() -> Result<()> {
 async fn update_collection() -> Result<()> {
     let pool = db_pool().await?;
     let db = test_db(pool.as_ref()).await?;
+    let collection = "test".to_owned();
 
-    let cid = db.create_collection("test".to_owned()).await?;
+    let cid = db.create_collection(collection.clone()).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(1),
         collection_id: cid,
+        collection: collection,
     })
     .await?;
     Ok(())
@@ -556,24 +559,25 @@ async fn get_collection_timestamps() -> Result<()> {
     let db = test_db(pool.as_ref()).await?;
 
     let uid = *UID;
-    let coll = "test";
-    let cid = db.create_collection(coll.to_owned()).await?;
+    let coll = "test".to_owned();
+    let cid = db.create_collection(coll.clone()).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
+        collection: coll.clone(),
     })
     .await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
-    assert!(cols.contains_key(coll));
-    assert_eq!(cols.get(coll), Some(&db.timestamp()));
+    assert!(cols.contains_key(&coll));
+    assert_eq!(cols.get(&coll), Some(&db.timestamp()));
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
             user_id: uid.into(),
-            collection: coll.to_string(),
+            collection: coll.clone(),
         })
         .await?;
-    assert_eq!(Some(&ts), cols.get(coll));
+    assert_eq!(Some(&ts), cols.get(&coll));
     Ok(())
 }
 
@@ -583,17 +587,18 @@ async fn get_collection_timestamps_tombstone() -> Result<()> {
     let db = test_db(pool.as_ref()).await?;
 
     let uid = *UID;
-    let coll = "test";
-    let cid = db.create_collection(coll.to_owned()).await?;
+    let coll = "test".to_owned();
+    let cid = db.create_collection(coll.clone()).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
+        collection: coll.clone(),
     })
     .await?;
 
     db.delete_collection(params::DeleteCollection {
         user_id: hid(uid),
-        collection: coll.to_owned(),
+        collection: coll,
     })
     .await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
@@ -1040,6 +1045,7 @@ async fn collection_cache() -> Result<()> {
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
+        collection: coll.to_owned(),
     })
     .await?;
 
