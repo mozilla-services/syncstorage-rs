@@ -51,7 +51,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             }
         })?;
 
-    db.touch_collection(user_id as u32, collection_id)?;
+//    db.touch_collection(user_id as u32, collection_id)?;
 
     do_append(
         db,
@@ -66,15 +66,18 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
 }
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
+    eprintln!("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
     if (batch_id + BATCH_LIFETIME) < db.timestamp().as_i64() {
+        eprintln!("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
         return Ok(false);
     }
 
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
+    eprintln!("!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     let exists = batch_uploads::table
         .select(sql::<Integer>("1"))
         .filter(batch_uploads::batch_id.eq(&batch_id))
@@ -82,6 +85,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
         .filter(batch_uploads::collection_id.eq(&collection_id))
         .get_result::<i32>(&db.conn)
         .optional()?;
+    eprintln!("!!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     Ok(exists.is_some())
 }
 
@@ -109,9 +113,25 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
 }
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-    let id = decode_id(&params.id)?;
-    let user_id = params.user_id.legacy_id as i64;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    //let id = decode_id(&params.id)?;
+    //let user_id = params.user_id.legacy_id as i64;
+    //let collection_id = db.get_collection_id(&params.collection)?;
+    let batch = if validate(db, params::ValidateBatch {
+        user_id: params.user_id,
+        collection: params.collection,
+        id: params.id.clone(),
+    })? {
+        Some(results::GetBatch {
+            //id: encode_id(batch_id),
+            id: params.id,
+            bsos: "".to_owned(),
+            //            expiry: 0, // XXX: FIXME
+        })
+    } else {
+        None
+    };
+    Ok(batch)
+    /*
     // XXX: just make this SELECT 1, or basically piggy back validate.
     Ok(batch_upload_items::table
         .select(batch_upload_items::batch_id)
@@ -131,6 +151,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
             bsos: "".to_owned(),
             //            expiry: 0, // XXX: FIXME
         }))
+    */
 }
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
@@ -151,6 +172,7 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
+    eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -161,7 +183,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         ttl, payload, payload_size)
     SELECT
         ?, ?, id, ?, sortindex,
-        COALESCE(ttl_offset + ?, ?),
+        COALESCE((ttl_offset * 1000) + ?, ?),
         COALESCE(payload, ''),
         COALESCE(payload_size, 0)
     FROM batch_upload_items
@@ -170,19 +192,21 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         modified = ?,
         sortindex = COALESCE(batch_upload_items.sortindex,
                              bso.sortindex),
-        ttl = COALESCE(batch_upload_items.ttl_offset + ?,
+        ttl = COALESCE((batch_upload_items.ttl_offset * 1000) + ?,
                        bso.ttl),
         payload = COALESCE(batch_upload_items.payload,
                            bso.payload),
         payload_size = COALESCE(batch_upload_items.payload_size,
                                 bso.payload_size)
         "#;
+    eprintln!("!ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
     let c = sql_query(batch_insert_update)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .bind::<Integer, _>(MAXTTL)
+        //.bind::<Integer, _>((MAXTTL as i64) * 1000)  // XXX:
+        .bind::<BigInt, _>((MAXTTL as i64) * 1000)  // XXX:
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
