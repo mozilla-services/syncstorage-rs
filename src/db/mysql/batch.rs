@@ -5,7 +5,7 @@ use diesel::{
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
     sql_query,
     sql_types::{BigInt, Integer},
-    ExpressionMethods, JoinOnDsl, OptionalExtension, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 
 use super::{
@@ -51,33 +51,21 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             }
         })?;
 
-//    db.touch_collection(user_id as u32, collection_id)?;
-
-    do_append(
-        db,
-        batch_id,
-        params.user_id,
-        collection_id,
-        params.bsos,
-        false,
-    )?;
+    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
 
     Ok(encode_id(batch_id))
 }
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
-    eprintln!("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
     if (batch_id + BATCH_LIFETIME) < db.timestamp().as_i64() {
-        eprintln!("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
         return Ok(false);
     }
 
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
-    eprintln!("!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     let exists = batch_uploads::table
         .select(sql::<Integer>("1"))
         .filter(batch_uploads::batch_id.eq(&batch_id))
@@ -85,73 +73,44 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
         .filter(batch_uploads::collection_id.eq(&collection_id))
         .get_result::<i32>(&db.conn)
         .optional()?;
-    eprintln!("!!VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
     Ok(exists.is_some())
 }
 
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
+    let exists = validate(
+        db,
+        params::ValidateBatch {
+            user_id: params.user_id.clone(),
+            collection: params.collection.clone(),
+            id: params.id.clone(),
+        },
+    )?;
+
+    if !exists {
+        Err(DbErrorKind::BatchNotFound)?
+    }
+
     let batch_id = decode_id(&params.id)?;
     let collection_id = db.get_collection_id(&params.collection)?;
-    let to_validate: params::ValidateBatch = params::ValidateBatch {
-        user_id: params.user_id.clone(),
-        collection: params.collection,
-        id: params.id,
-    };
-    if validate(db, to_validate)? {
-        do_append(
-            db,
-            batch_id,
-            params.user_id,
-            collection_id,
-            params.bsos,
-            true,
-        )?;
-        Ok(())
-    } else {
-        Err(DbErrorKind::BatchNotFound.into())
-    }
+    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
+    Ok(())
 }
 
 pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-    //let id = decode_id(&params.id)?;
-    //let user_id = params.user_id.legacy_id as i64;
-    //let collection_id = db.get_collection_id(&params.collection)?;
-    let batch = if validate(db, params::ValidateBatch {
-        user_id: params.user_id,
-        collection: params.collection,
-        id: params.id.clone(),
-    })? {
-        Some(results::GetBatch {
-            //id: encode_id(batch_id),
-            id: params.id,
-            bsos: "".to_owned(),
-            //            expiry: 0, // XXX: FIXME
-        })
+    let is_valid = validate(
+        db,
+        params::ValidateBatch {
+            user_id: params.user_id,
+            collection: params.collection,
+            id: params.id.clone(),
+        },
+    )?;
+    let batch = if is_valid {
+        Some(results::GetBatch { id: params.id })
     } else {
         None
     };
     Ok(batch)
-    /*
-    // XXX: just make this SELECT 1, or basically piggy back validate.
-    Ok(batch_upload_items::table
-        .select(batch_upload_items::batch_id)
-        .inner_join(
-            batch_uploads::table.on(batch_uploads::batch_id.eq(batch_upload_items::batch_id)),
-        )
-        .filter(batch_upload_items::user_id.eq(&user_id))
-        .filter(batch_uploads::collection_id.eq(&collection_id))
-        .filter(batch_upload_items::batch_id.eq(id))
-        // XXX: this isn't expiry, it's the ttl value. I believe the
-        // batch expiry "lives" inside the batch id (batch id is based from a timestamp)
-        //        .filter(batch_upload_items::ttl_offset.gt(db.timestamp().as_i64()))
-        .get_result(&db.conn)
-        .optional()?
-        .map(|batch_id| results::GetBatch {
-            id: encode_id(batch_id),
-            bsos: "".to_owned(),
-            //            expiry: 0, // XXX: FIXME
-        }))
-    */
 }
 
 pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
@@ -172,47 +131,21 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
-    eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp();
-    let batch_insert_update = r#"
-    INSERT INTO bso
-        (userid, collection, id, modified, sortindex,
-        ttl, payload, payload_size)
-    SELECT
-        ?, ?, id, ?, sortindex,
-        COALESCE((ttl_offset * 1000) + ?, ?),
-        COALESCE(payload, ''),
-        COALESCE(payload_size, 0)
-    FROM batch_upload_items
-    WHERE batch = ? AND userid = ?
-    ON DUPLICATE KEY UPDATE
-        modified = ?,
-        sortindex = COALESCE(batch_upload_items.sortindex,
-                             bso.sortindex),
-        ttl = COALESCE((batch_upload_items.ttl_offset * 1000) + ?,
-                       bso.ttl),
-        payload = COALESCE(batch_upload_items.payload,
-                           bso.payload),
-        payload_size = COALESCE(batch_upload_items.payload_size,
-                                bso.payload_size)
-        "#;
-    eprintln!("!ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
-    let c = sql_query(batch_insert_update)
+    sql_query(include_str!("batch_commit.sql"))
         .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        //.bind::<Integer, _>((MAXTTL as i64) * 1000)  // XXX:
-        .bind::<BigInt, _>((MAXTTL as i64) * 1000)  // XXX:
+        .bind::<BigInt, _>((MAXTTL as i64) * 1000) // XXX:
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
-    eprintln!("INSERT ON DUPE result: {}", c);
 
     db.touch_collection(user_id as u32, collection_id)?;
 
@@ -237,46 +170,26 @@ pub fn do_append(
     user_id: HawkIdentifier,
     _collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
-    check_result: bool,
 ) -> Result<()> {
-    // Eq<batch_upload_items::columns::user_id, Option<u64>>
-    let mut to_insert = Vec::new();
-    for _ in bsos.into_iter().map(|b: params::PostCollectionBso| {
-        //let payload = b.payload.unwrap_or_default();
-        //let payload = b.payload;
-        //let payload_len = payload.len() as i64;
-        let payload_len = b.payload.as_ref().map(|p| p.len() as i64);
-        to_insert.push((
-            batch_upload_items::batch_id.eq(&batch_id),
-            batch_upload_items::user_id.eq(user_id.legacy_id as i64),
-            batch_upload_items::id.eq(b.id.clone()),
-            batch_upload_items::sortindex.eq(b.sortindex),
-            batch_upload_items::payload.eq(b.payload),
-            batch_upload_items::payload_size.eq(payload_len),
-            batch_upload_items::ttl_offset
-                .eq(b.ttl.map(|ttl| ttl as i64)),
-        ));
-    }) {
-        // Do nothing, just consume the iter
-    }
+    let inserts: Vec<_> = bsos
+        .into_iter()
+        .map(|bso: params::PostCollectionBso| {
+            let payload_size = bso.payload.as_ref().map(|p| p.len() as i64);
+            (
+                batch_upload_items::batch_id.eq(&batch_id),
+                batch_upload_items::user_id.eq(user_id.legacy_id as i64),
+                batch_upload_items::id.eq(bso.id.clone()),
+                batch_upload_items::sortindex.eq(bso.sortindex),
+                batch_upload_items::payload.eq(bso.payload),
+                batch_upload_items::payload_size.eq(payload_size),
+                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i64)),
+            )
+        })
+        .collect();
 
-    eprintln!("TO INSERT: {:#?}", to_insert);
-
-    let rows_inserted = insert_into(batch_upload_items::table)
-        .values(to_insert)
+    insert_into(batch_upload_items::table)
+        .values(inserts)
         .execute(&db.conn)?;
-    eprintln!("DO_APPEND INSERTED: {}", rows_inserted);
-    /*
-    if check_result {
-        if rows_inserted > 0 {
-            Ok(())
-        } else {
-            Err(DbErrorKind::BatchNotFound.into())
-        }
-    } else {
-        Ok(())
-    }
-     */
     Ok(())
 }
 

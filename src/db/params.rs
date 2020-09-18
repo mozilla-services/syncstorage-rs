@@ -102,7 +102,7 @@ bso_data! {
 #[derive(Clone, Debug, Default, Queryable)]
 pub struct Batch {
     pub id: String,
-    pub bsos: String,
+    //    pub bsos: String,
     //    pub expiry: i64,
 }
 
