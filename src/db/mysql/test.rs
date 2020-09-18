@@ -14,7 +14,7 @@ use crate::db::mysql::{
     schema::collections,
 };
 use crate::server::metrics;
-use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::settings::{test_settings, Settings};
 
 #[derive(Debug)]
 pub struct TestTransactionCustomizer;
@@ -23,21 +23,6 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
     fn on_acquire(&self, conn: &mut MysqlConnection) -> StdResult<(), PoolError> {
         conn.begin_test_transaction().map_err(PoolError::QueryError)
     }
-}
-
-pub fn settings() -> Result<Settings> {
-    let settings = Settings::with_env_and_config_file(&None).unwrap();
-    Ok(Settings {
-        debug: true,
-        port: 8000,
-        host: settings.host,
-        database_url: settings.database_url,
-        database_pool_max_size: Some(1),
-        database_use_test_transactions: true,
-        limits: ServerLimits::default(),
-        master_secret: Secrets::default(),
-        ..Default::default()
-    })
 }
 
 pub fn db(settings: &Settings) -> Result<MysqlDb> {
@@ -50,7 +35,7 @@ pub fn db(settings: &Settings) -> Result<MysqlDb> {
 
 #[test]
 fn static_collection_id() -> Result<()> {
-    let settings = settings()?;
+    let settings = test_settings().expect("Could not get test settings");
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql
         return Ok(());

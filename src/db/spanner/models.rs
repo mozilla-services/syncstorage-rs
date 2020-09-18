@@ -800,19 +800,14 @@ impl SpannerDb {
         &self,
         params: params::GetQuotaUsage,
     ) -> Result<results::GetQuotaUsage> {
-        let check_sql = if self.quota_enabled {
-            "SELECT IFNULL(total_bytes,0), IFNULL(count,0)
+        if !self.quota_enabled {
+            return Ok(results::GetQuotaUsage::default());
+        }
+        let check_sql = "SELECT COALESCE(total_bytes,0), COALESCE(count,0)
             FROM user_collections
            WHERE fxa_uid = @fxa_uid
              AND fxa_kid = @fxa_kid
-             AND collection_id = @collection_id"
-        } else {
-            "SELECT 1, COUNT(*)
-                FROM user_collections
-               WHERE fxa_uid = @fxa_uid
-                 AND fxa_kid = @fxa_kid
-                 AND collection_id = @collection_id"
-        };
+             AND collection_id = @collection_id";
         let result = self
             .sql(check_sql)?
             .params(params! {

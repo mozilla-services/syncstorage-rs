@@ -114,7 +114,7 @@ impl Settings {
         s.set_default("statsd_host", "localhost")?;
         s.set_default("statsd_port", 8125)?;
         s.set_default("statsd_label", "syncstorage")?;
-        s.set_default("enable_quota", true)?;
+        s.set_default("enable_quota", false)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -291,4 +291,15 @@ impl<'d> Deserialize<'d> for Secrets {
         Secrets::new(&master_secret)
             .map_err(|e| serde::de::Error::custom(format!("error: {:?}", e)))
     }
+}
+
+#[cfg(test)]
+pub fn test_settings() -> Result<Settings, ApiError> {
+    let mut settings = Settings::with_env_and_config_file(&None)
+        .expect("Could not get Settings in get_test_settings");
+    settings.debug = true;
+    settings.port = 8000;
+    settings.database_pool_max_size = Some(1);
+    settings.database_use_test_transactions = true;
+    Ok(settings)
 }

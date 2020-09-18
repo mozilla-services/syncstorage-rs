@@ -887,8 +887,8 @@ impl MysqlDb {
         let uid = params.user_id.legacy_id as i64;
         let (total_bytes, count): (i64, i32) = user_collections::table
             .select((
-                sql::<BigInt>("IFNULL(SUM(IFNULL(total_bytes, 0)), 0)"),
-                sql::<Integer>("IFNULL(SUM(IFNULL(count, 0)), 0)"),
+                sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
+                sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
             ))
             .filter(user_collections::user_id.eq(uid))
             .filter(user_collections::collection_id.eq(params.collection_id))
@@ -906,8 +906,8 @@ impl MysqlDb {
     ) -> Result<results::GetQuotaUsage> {
         let (total_bytes, count): (i64, i32) = bso::table
             .select((
-                sql::<BigInt>(r#"IFNULL(SUM(LENGTH(IFNULL(payload, ""))),0)"#),
-                sql::<Integer>("IFNULL(COUNT(*),0)"),
+                sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
+                sql::<Integer>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
