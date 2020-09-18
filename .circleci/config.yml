@@ -29,7 +29,8 @@ commands:
           name: Core Rust Checks
           command: |
             cargo fmt -- --check
-            cargo audit
+            # https://github.com/bodil/sized-chunks/issues/11
+            cargo audit --ignore RUSTSEC-2020-0041
   rust-clippy:
     steps:
       - run:
@@ -216,6 +217,7 @@ jobs:
     steps:
       - setup_remote_docker
       - checkout
+      - write-version
       - run:
           name: Build and deploy to Dockerhub
           command: |
