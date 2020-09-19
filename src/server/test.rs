@@ -35,7 +35,7 @@ const TEST_HOST: &str = "localhost";
 const TEST_PORT: u16 = 8080;
 
 fn get_test_settings() -> Settings {
-    let mut settings = test_settings().unwrap();
+    let mut settings = test_settings();
     let treq = test::TestRequest::with_uri("/").to_http_request();
     let port = treq.uri().port_u16().unwrap_or(TEST_PORT);
     // Make sure that our poolsize is >= the

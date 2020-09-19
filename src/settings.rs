@@ -294,12 +294,12 @@ impl<'d> Deserialize<'d> for Secrets {
 }
 
 #[cfg(test)]
-pub fn test_settings() -> Result<Settings, ApiError> {
+pub fn test_settings() -> Settings {
     let mut settings = Settings::with_env_and_config_file(&None)
         .expect("Could not get Settings in get_test_settings");
     settings.debug = true;
     settings.port = 8000;
     settings.database_pool_max_size = Some(1);
     settings.database_use_test_transactions = true;
-    Ok(settings)
+    settings
 }

@@ -642,7 +642,7 @@ async fn get_collection_usage() -> Result<()> {
     let sum = expected.values().sum::<i64>();
     let total = db.get_storage_usage(hid(uid)).await?;
     assert_eq!(total, sum as u64);
-    let settings = test_settings().expect("Could not get test settings");
+    let settings = test_settings();
     if settings.enable_quota {
         let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
         let quota = db

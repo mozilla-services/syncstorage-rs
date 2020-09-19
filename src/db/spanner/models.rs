@@ -18,7 +18,10 @@ use googleapis_raw::spanner::v1::{
     type_pb::TypeCode,
 };
 #[allow(unused_imports)]
-use protobuf::{well_known_types::ListValue, Message, RepeatedField};
+use protobuf::{
+    well_known_types::{ListValue, Value},
+    Message, RepeatedField,
+};
 
 use crate::{
     db::{
@@ -847,10 +850,16 @@ impl SpannerDb {
         // This will also write the tombstone if there are no records and we're explicitly
         // specifying a TOMBSTONE collection_id.
         // This function should be called after any write operation.
-        let mut total_bytes = 0;
-        let mut count = 0;
         let timestamp = self.timestamp()?;
-        let mut set_sql = "";
+        let mut sqlparams = params! {
+            "fxa_uid" => user.fxa_uid.clone(),
+            "fxa_kid" => user.fxa_kid.clone(),
+            "collection_id" => collection_id.to_string(),
+            "modified" => timestamp.as_rfc3339()?,
+        };
+        let mut sqltypes = param_types! {
+            "modified" => TypeCode::TIMESTAMP,
+        };
 
         self.metrics
             .clone()
@@ -880,59 +889,73 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
-        if let Some(result) = result {
+        let set_sql = if let Some(result) = result {
             // Update the user_collections table to reflect current numbers.
+            // If there are BSOs, there are user_collections (or else something
+            // really bad already happened.)
             if self.quota_enabled {
-                total_bytes = result[0]
-                    .get_string_value()
-                    .parse::<i64>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                count = result[1]
-                    .get_string_value()
-                    .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-                set_sql = "UPDATE user_collections
+                let mut v = Value::new();
+                v.set_string_value(result[0].get_string_value().to_owned());
+                sqlparams.insert("total_bytes".to_owned(), v);
+                let mut v = Value::new();
+                v.set_string_value(result[1].get_string_value().to_owned());
+                sqlparams.insert("count".to_owned(), v);
+                sqltypes.insert(
+                    "total_bytes".to_owned(),
+                    crate::db::spanner::support::as_type(TypeCode::INT64),
+                );
+                sqltypes.insert(
+                    "count".to_owned(),
+                    crate::db::spanner::support::as_type(TypeCode::INT64),
+                );
+                "UPDATE user_collections
                 SET modified = @modified,
                     count = @count,
                     total_bytes = @total_bytes
                 WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id";
+                    AND collection_id = @collection_id"
             } else {
-                set_sql = "UPDATE user_collections
+                "UPDATE user_collections
                 SET modified = @modified
                 WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
-                AND collection_id = @collection_id";
-            };
+                AND collection_id = @collection_id"
+            }
         } else {
-            // we're explicitly setting a tombstone.
-            // this prevents an additional write.
-            if collection_id == TOMBSTONE {
-                set_sql = if self.quota_enabled {
+            // Otherwise, there are no BSOs that match, check to see if there are
+            // any collections.
+            let result = self
+                .sql(
+                    "SELECT 1 FROM user_collections
+                WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
+                LIMIT 1",
+                )?
+                .params(sqlparams.clone())
+                .param_types(sqltypes.clone())
+                .execute_async(&self.conn)?
+                .one_or_none()
+                .await?;
+            if result.is_none() {
+                // No collections, so insert what we've got.
+                if self.quota_enabled {
                     "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
-                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, @total_bytes, @count)"
+                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
                 } else {
                     "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
                     VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
                 }
+            } else {
+                // there are collections, best modify what's there.
+                // NOTE, tombstone is a single collection id, it would have been created above.
+                if self.quota_enabled {
+                    "UPDATE user_collections SET modified=@modified, total_bytes=0, count=0
+                    WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id"
+                } else {
+                    "UPDATE user_collections SET modified=@modified
+                    WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id"
+                }
             }
-        };
-        if set_sql.is_empty() {
-            return Ok(());
-        }
-        let sqlparams = params! {
-            "fxa_uid" => user.fxa_uid.clone(),
-            "fxa_kid" => user.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "modified" => timestamp.as_rfc3339()?,
-            "total_bytes" => total_bytes.to_string(),
-            "count" => count.to_string(),
-        };
-        let sqltypes = param_types! {
-            "modified" => TypeCode::TIMESTAMP,
-            "total_bytes" => TypeCode::INT64,
-            "count" => TypeCode::INT64,
         };
         self.sql(set_sql)?
             .params(sqlparams)

@@ -35,7 +35,7 @@ pub fn db(settings: &Settings) -> Result<MysqlDb> {
 
 #[test]
 fn static_collection_id() -> Result<()> {
-    let settings = test_settings().expect("Could not get test settings");
+    let settings = test_settings();
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql
         return Ok(());
