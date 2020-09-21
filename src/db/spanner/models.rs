@@ -889,17 +889,16 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
-        let set_sql = if let Some(result) = result {
+        let set_sql = if let Some(mut result) = result {
             // Update the user_collections table to reflect current numbers.
             // If there are BSOs, there are user_collections (or else something
             // really bad already happened.)
             if self.quota_enabled {
-                let mut v = Value::new();
-                v.set_string_value(result[0].get_string_value().to_owned());
-                sqlparams.insert("total_bytes".to_owned(), v);
-                let mut v = Value::new();
-                v.set_string_value(result[1].get_string_value().to_owned());
-                sqlparams.insert("count".to_owned(), v);
+                sqlparams.insert(
+                    "total_bytes".to_owned(),
+                    as_value(result[0].take_string_value()),
+                );
+                sqlparams.insert("count".to_owned(), as_value(result[1].take_string_value()));
                 sqltypes.insert(
                     "total_bytes".to_owned(),
                     crate::db::spanner::support::as_type(TypeCode::INT64),
@@ -928,8 +927,7 @@ impl SpannerDb {
             let result = self
                 .sql(
                     "SELECT 1 FROM user_collections
-                WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
-                LIMIT 1",
+                WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id",
                 )?
                 .params(sqlparams.clone())
                 .param_types(sqltypes.clone())
