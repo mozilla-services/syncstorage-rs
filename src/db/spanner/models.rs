@@ -1601,7 +1601,6 @@ impl SpannerDb {
         Ok(result)
     }
 
-
     async fn check_async(&self) -> Result<results::Check> {
         // TODO: is there a better check than just fetching UTC?
         self.sql("SELECT CURRENT_TIMESTAMP()")?
@@ -1656,9 +1655,8 @@ impl SpannerDb {
         };
         let mut sqltypes = HashMap::new();
         // prewarm the collections table by ensuring that the row is added if not present.
-        self
-        .update_collection_async(&bso.user_id, collection_id, &bso.collection)
-        .await?;
+        self.update_collection_async(&bso.user_id, collection_id, &bso.collection)
+            .await?;
         let timestamp = self.timestamp()?;
 
         self.check_quota(&bso.user_id, &bso.collection, collection_id)
