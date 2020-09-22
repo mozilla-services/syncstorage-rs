@@ -19,8 +19,7 @@ table! {
         sortindex -> Nullable<Integer>,
         payload -> Nullable<Mediumtext>,
         payload_size -> Nullable<Bigint>,
-// XXX: should be Integer
-        ttl_offset -> Nullable<Bigint>,
+        ttl_offset -> Nullable<Integer>,
     }
 }
 
@@ -36,7 +35,6 @@ table! {
         // not used, but legacy
         payload_size -> Bigint,
         modified -> Bigint,
-// XXX: should be Integer
         #[sql_name="ttl"]
         expiry -> Bigint,
     }

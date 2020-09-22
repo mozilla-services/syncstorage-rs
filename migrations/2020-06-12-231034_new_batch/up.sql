@@ -3,7 +3,6 @@ DROP TABLE `batches`;
 CREATE TABLE `batch_uploads` (
   `batch` bigint(20)   NOT NULL,
   `userid` bigint(20)  NOT NULL,
---  `userid` int(11) NOT NULL,
   `collection` int(11) NOT NULL,
   PRIMARY KEY (`batch`, `userid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
@@ -11,7 +10,6 @@ CREATE TABLE `batch_uploads` (
 CREATE TABLE `batch_upload_items` (
   `batch` bigint(20)                   NOT NULL,
   `userid` bigint(20)                  NOT NULL,
---  `userid` int(11)                  NOT NULL,
   `id` varchar(64)                     NOT NULL,
   `sortindex` int(11)    DEFAULT NULL,
   `payload` mediumtext,

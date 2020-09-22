@@ -182,7 +182,7 @@ pub fn do_append(
                 batch_upload_items::sortindex.eq(bso.sortindex),
                 batch_upload_items::payload.eq(bso.payload),
                 batch_upload_items::payload_size.eq(payload_size),
-                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i64)),
+                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
             )
         })
         .collect();
