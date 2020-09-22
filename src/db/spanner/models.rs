@@ -844,9 +844,9 @@ impl SpannerDb {
         &self,
         user: &HawkIdentifier,
         collection_id: i32,
-    ) -> Result<()> {
+    ) -> Result<SyncTimestamp> {
         // This will also update the counts in user_collections, since `update_collection_sync`
-        // is called very early and only updates the timestamp.
+        // is called very early to ensure the record exists, and return the timestamp.
         // This will also write the tombstone if there are no records and we're explicitly
         // specifying a TOMBSTONE collection_id.
         // This function should be called after any write operation.
@@ -960,7 +960,7 @@ impl SpannerDb {
             .param_types(sqltypes)
             .execute_dml_async(&self.conn)
             .await?;
-        Ok(())
+        Ok(timestamp)
     }
 
     async fn erect_tombstone(&self, user_id: &HawkIdentifier) -> Result<SyncTimestamp> {
@@ -1139,9 +1139,6 @@ impl SpannerDb {
 
     pub async fn delete_bso_async(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
-        let touch = self
-            .update_collection_async(&params.user_id, collection_id, &params.collection)
-            .await?;
         let user_id = params.user_id.clone();
         let affected_rows = self
             .sql(
@@ -1162,9 +1159,8 @@ impl SpannerDb {
         if affected_rows == 0 {
             Err(DbErrorKind::BsoNotFound)?
         } else {
-            self.touch_user_collections(&user_id, collection_id).await?;
             self.metrics.incr("storage.spanner.delete_bso");
-            Ok(touch)
+            Ok(self.touch_user_collections(&user_id, collection_id).await?)
         }
     }
 
@@ -1197,8 +1193,6 @@ impl SpannerDb {
         self.metrics
             .incr_with_tags("self.storage.delete_bsos", Some(tags));
         self.touch_user_collections(&params.user_id, collection_id)
-            .await?;
-        self.update_collection_async(&params.user_id, collection_id, &params.collection)
             .await
     }
 
@@ -1510,34 +1504,6 @@ impl SpannerDb {
         Ok(result.modified)
     }
 
-    async fn check_quota(
-        &self,
-        user_id: &HawkIdentifier,
-        collection: &str,
-        collection_id: i32,
-    ) -> Result<()> {
-        // duplicate quota trap in test func below.
-        if !self.quota_enabled {
-            return Ok(());
-        }
-        let usage = self
-            .get_quota_usage_async(params::GetQuotaUsage {
-                user_id: user_id.clone(),
-                collection: collection.to_owned(),
-                collection_id,
-            })
-            .await?;
-        if usage.total_bytes > self.quota as i64 {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection".to_owned(), collection.to_owned());
-            self.metrics
-                .incr_with_tags("storage.quota.at_limit", Some(tags));
-            return Err(DbErrorKind::Quota.into());
-        }
-        Ok(())
-    }
-
     pub async fn post_bsos_async(&self, params: params::PostBsos) -> Result<results::PostBsos> {
         let user_id = params.user_id;
         let collection_id = self
@@ -1574,9 +1540,6 @@ impl SpannerDb {
             let mut row = row?;
             existing.insert(row[0].take_string_value());
         }
-        self.check_quota(&user_id, &params.collection, collection_id)
-            .await?;
-
         let mut inserts = vec![];
         let mut updates = HashMap::new();
         let mut success = vec![];
@@ -1638,6 +1601,45 @@ impl SpannerDb {
         Ok(result)
     }
 
+
+    async fn check_async(&self) -> Result<results::Check> {
+        // TODO: is there a better check than just fetching UTC?
+        self.sql("SELECT CURRENT_TIMESTAMP()")?
+            .execute_async(&self.conn)?
+            .one()
+            .await?;
+        Ok(true)
+    }
+
+    #[cfg(test)]
+    async fn check_quota(
+        &self,
+        user_id: &HawkIdentifier,
+        collection: &str,
+        collection_id: i32,
+    ) -> Result<()> {
+        // duplicate quota trap in test func below.
+        if !self.quota_enabled {
+            return Ok(());
+        }
+        let usage = self
+            .get_quota_usage_async(params::GetQuotaUsage {
+                user_id: user_id.clone(),
+                collection: collection.to_owned(),
+                collection_id,
+            })
+            .await?;
+        if usage.total_bytes > self.quota as i64 {
+            let mut tags = Tags::default();
+            tags.tags
+                .insert("collection".to_owned(), collection.to_owned());
+            self.metrics
+                .incr_with_tags("storage.quota.at_limit", Some(tags));
+            return Err(DbErrorKind::Quota.into());
+        }
+        Ok(())
+    }
+
     // NOTE: Currently this put_bso_async_test impl. is only used during db tests,
     // see above for the non-tests version
     #[cfg(test)]
@@ -1653,9 +1655,10 @@ impl SpannerDb {
             "bso_id" => bso.id.to_string(),
         };
         let mut sqltypes = HashMap::new();
-        let touch = self
-            .update_collection_async(&bso.user_id, collection_id, &bso.collection)
-            .await?;
+        // prewarm the collections table by ensuring that the row is added if not present.
+        self
+        .update_collection_async(&bso.user_id, collection_id, &bso.collection)
+        .await?;
         let timestamp = self.timestamp()?;
 
         self.check_quota(&bso.user_id, &bso.collection, collection_id)
@@ -1731,7 +1734,7 @@ impl SpannerDb {
 
             if q.is_empty() {
                 // Nothing to update
-                return Ok(touch);
+                return Ok(timestamp);
             }
 
             format!(
@@ -1798,9 +1801,9 @@ impl SpannerDb {
             .param_types(sqltypes)
             .execute_dml_async(&self.conn)
             .await?;
+        // update the counts for the user_collections table.
         self.touch_user_collections(&bso.user_id, collection_id)
-            .await?;
-        Ok(touch)
+            .await
     }
 
     // NOTE: Currently this post_bso_async_test impl. is only used during db tests,
@@ -1832,15 +1835,6 @@ impl SpannerDb {
         self.touch_user_collections(&input.user_id, collection_id)
             .await?;
         Ok(result)
-    }
-
-    async fn check_async(&self) -> Result<results::Check> {
-        // TODO: is there a better check than just fetching UTC?
-        self.sql("SELECT CURRENT_TIMESTAMP()")?
-            .execute_async(&self.conn)?
-            .one()
-            .await?;
-        Ok(true)
     }
 }
 
