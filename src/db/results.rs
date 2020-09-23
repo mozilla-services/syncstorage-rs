@@ -21,19 +21,10 @@ pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct CreateBatch {
     pub id: String,
     pub size: Option<usize>,
-}
-
-impl Default for CreateBatch {
-    fn default() -> Self {
-        Self {
-            id: "".to_owned(),
-            size: None,
-        }
-    }
 }
 
 pub type ValidateBatch = bool;
@@ -44,19 +35,10 @@ pub type CommitBatch = PostBsos;
 pub type ValidateBatchId = ();
 pub type Check = bool;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GetQuotaUsage {
     pub total_bytes: usize,
     pub count: i32,
-}
-
-impl Default for GetQuotaUsage {
-    fn default() -> Self {
-        Self {
-            total_bytes: 0,
-            count: 0,
-        }
-    }
 }
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]

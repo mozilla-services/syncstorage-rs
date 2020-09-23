@@ -663,6 +663,13 @@ async fn get_collection_usage() -> Result<()> {
 
 #[tokio::test]
 async fn test_quota() -> Result<()> {
+    let settings = crate::settings::test_settings();
+
+    if !settings.enable_quota {
+        debug!("Skipping test");
+        return Ok(());
+    }
+
     let pool = db_pool(None).await?;
     let mut db = test_db(pool.as_ref()).await?;
 
@@ -697,6 +704,13 @@ async fn test_quota() -> Result<()> {
 
 #[tokio::test]
 async fn get_collection_counts() -> Result<()> {
+    let settings = crate::settings::test_settings();
+
+    if !settings.enable_quota {
+        debug!("Skipping test");
+        return Ok(());
+    }
+
     let pool = db_pool(None).await?;
     let db = test_db(pool.as_ref()).await?;
 
