@@ -772,6 +772,7 @@ pub struct CollectionPostRequest {
     pub bsos: BsoBodies,
     pub batch: Option<BatchRequest>,
     pub metrics: metrics::Metrics,
+    pub quota_enabled: bool,
 }
 
 impl FromRequest for CollectionPostRequest {
@@ -853,6 +854,7 @@ impl FromRequest for CollectionPostRequest {
                 bsos,
                 batch: batch.opt,
                 metrics: metrics::Metrics::from(&req),
+                quota_enabled: state.quota_enabled,
             })
         })
     }
@@ -1831,6 +1833,7 @@ mod tests {
             secrets: Arc::clone(&SECRETS),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
+            quota_enabled: settings.enable_quota,
         }
     }
 

@@ -21,7 +21,21 @@ pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
 
-pub type CreateBatch = String;
+#[derive(Debug, Clone)]
+pub struct CreateBatch {
+    pub id: String,
+    pub size: Option<usize>,
+}
+
+impl Default for CreateBatch {
+    fn default() -> Self {
+        Self {
+            id: "".to_owned(),
+            size: None,
+        }
+    }
+}
+
 pub type ValidateBatch = bool;
 pub type AppendToBatch = ();
 pub type GetBatch = params::Batch;
@@ -91,7 +105,6 @@ pub struct PoolState {
     pub idle_connections: u32,
 }
 
-#[cfg(test)]
 pub type GetCollectionId = i32;
 
 #[cfg(test)]

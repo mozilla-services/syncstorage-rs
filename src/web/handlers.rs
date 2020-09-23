@@ -7,8 +7,11 @@ use serde_json::{json, Value};
 
 use crate::{
     db::{
-        params, results::Paginated, transaction::DbTransactionPool, util::SyncTimestamp, Db,
-        DbError, DbErrorKind,
+        params,
+        results::{CreateBatch, Paginated},
+        transaction::DbTransactionPool,
+        util::SyncTimestamp,
+        Db, DbError, DbErrorKind,
     },
     error::{ApiError, ApiErrorKind, ApiResult},
     server::ServerState,
@@ -276,7 +279,22 @@ pub async fn post_collection_batch(
             .await?;
 
         if is_valid {
-            id
+            let collection_id = db.get_collection_id(coll.collection.clone()).await?;
+            let usage = db
+                .get_quota_usage(params::GetQuotaUsage {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    collection_id,
+                })
+                .await?;
+            CreateBatch {
+                id: id.clone(),
+                size: if coll.quota_enabled {
+                    Some(usage.total_bytes as usize)
+                } else {
+                    None
+                },
+            }
         } else {
             let err: DbError = DbErrorKind::BatchNotFound.into();
             return Err(ApiError::from(err).into());
@@ -346,7 +364,7 @@ pub async fn post_collection_batch(
     });
 
     if !breq.commit {
-        resp["batch"] = json!(&id);
+        resp["batch"] = json!(&id.id);
         return Ok(HttpResponse::Accepted().json(resp));
     }
 
@@ -354,7 +372,7 @@ pub async fn post_collection_batch(
         .get_batch(params::GetBatch {
             user_id: user_id.clone(),
             collection: collection.clone(),
-            id,
+            id: id.id,
         })
         .await?;
 

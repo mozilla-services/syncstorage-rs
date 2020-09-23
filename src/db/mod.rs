@@ -218,7 +218,6 @@ pub trait Db<'a>: Debug + 'a {
 
     /// Internal methods used by the db tests
 
-    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]

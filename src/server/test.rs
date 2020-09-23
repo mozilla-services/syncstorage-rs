@@ -65,6 +65,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         secrets: Arc::clone(&SECRETS),
         metrics: Box::new(metrics),
         port: settings.port,
+        quota_enabled: settings.enable_quota,
     }
 }
 

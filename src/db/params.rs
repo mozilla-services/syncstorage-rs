@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::db::results;
 use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
@@ -76,7 +77,7 @@ collection_data! {
         id: String,
     },
     AppendToBatch {
-        id: String,
+        id: results::CreateBatch,
         bsos: Vec<PostCollectionBso>,
     },
     CommitBatch {
@@ -139,7 +140,6 @@ impl From<BatchBsoBody> for PostCollectionBso {
     }
 }
 
-#[cfg(test)]
 pub type GetCollectionId = String;
 
 #[cfg(test)]

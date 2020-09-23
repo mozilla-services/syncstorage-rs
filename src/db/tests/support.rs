@@ -6,15 +6,14 @@ use crate::{
     db::{params, pool_from_settings, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
     server::metrics,
+    settings::{test_settings, Settings},
     web::extractors::{BsoQueryParams, HawkIdentifier, Offset},
 };
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
 #[cfg(test)]
-pub async fn db_pool() -> Result<Box<dyn DbPool>> {
-    use crate::settings::test_settings;
-
+pub async fn db_pool(settings: Option<Settings>) -> Result<Box<dyn DbPool>> {
     let _ = env_logger::try_init();
     // The default for SYNC_DATABASE_USE_TEST_TRANSACTIONS is false,
     // but we want the mysql default to be true, so let's check explicitly
@@ -25,7 +24,7 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
         .eq("true");
 
     // inherit SYNC_DATABASE_URL from the env
-    let mut settings = test_settings();
+    let mut settings = settings.unwrap_or(test_settings());
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = metrics::Metrics::noop();

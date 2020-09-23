@@ -100,7 +100,6 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
 
-    #[cfg(test)]
     mock_db_method!(get_collection_id, GetCollectionId);
     #[cfg(test)]
     mock_db_method!(create_collection, CreateCollection);

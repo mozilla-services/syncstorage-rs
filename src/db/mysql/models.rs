@@ -1062,7 +1062,6 @@ impl<'a> Db<'a> for MysqlDb {
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
-    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
