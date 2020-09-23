@@ -109,8 +109,6 @@ async fn update() -> Result<()> {
         .get_batch(gb(uid, coll, new_batch.id.clone()))
         .await?
         .is_some());
-    // XXX: now bogus under spanner
-    //assert_eq!(batch.bsos, "".to_owned());
 
     let bsos = vec![
         postbso("b0", Some("payload 0"), Some(10), None),
@@ -120,8 +118,6 @@ async fn update() -> Result<()> {
         .await?;
 
     assert!(db.get_batch(gb(uid, coll, new_batch.id)).await?.is_some());
-    // XXX: now bogus under spanner
-    //assert_ne!(batch.bsos, "".to_owned());
     Ok(())
 }
 
