@@ -99,9 +99,7 @@ async fn update() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let id = db.create_batch(cb(uid, coll, vec![])).await?;
-    assert!(db.get_batch(gb(uid, coll, id.clone())).await?.is_some());
-    // XXX: now bogus under spanner
-    //assert_eq!(batch.bsos, "".to_owned());
+    assert!(db.validate_batch(vb(uid, coll, id.clone())).await?);
 
     let bsos = vec![
         postbso("b0", Some("payload 0"), Some(10), None),
@@ -110,8 +108,6 @@ async fn update() -> Result<()> {
     db.append_to_batch(ab(uid, coll, id.clone(), bsos)).await?;
 
     assert!(db.get_batch(gb(uid, coll, id)).await?.is_some());
-    // XXX: now bogus under spanner
-    //assert_ne!(batch.bsos, "".to_owned());
     Ok(())
 }
 
@@ -132,6 +128,7 @@ async fn append_commit() -> Result<()> {
     db.append_to_batch(ab(uid, coll, id.clone(), bsos2)).await?;
 
     let batch = db.get_batch(gb(uid, coll, id)).await?.unwrap();
+
     let result = db
         .commit_batch(params::CommitBatch {
             user_id: hid(uid),

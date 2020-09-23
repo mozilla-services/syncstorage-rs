@@ -13,6 +13,8 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
     Connection,
 };
+#[cfg(test)]
+use diesel_logger::LoggingConnection;
 
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
@@ -34,7 +36,13 @@ embed_migrations!();
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     let conn = MysqlConnection::establish(&settings.database_url)?;
-    Ok(embedded_migrations::run(&conn)?)
+    #[cfg(test)]
+    // XXX: this doesn't show the DDL statements
+    // https://github.com/shssoichiro/diesel-logger/issues/1
+    embedded_migrations::run(&LoggingConnection::new(conn))?;
+    #[cfg(not(test))]
+    embedded_migrations::run(&conn)?;
+    Ok(())
 }
 
 #[derive(Clone)]

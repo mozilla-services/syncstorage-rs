@@ -34,3 +34,4 @@ service-account.json
 config/local.toml
 venv
 mozilla-rust-sdk
+.vscode/settings.json

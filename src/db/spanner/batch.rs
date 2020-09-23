@@ -129,16 +129,7 @@ pub async fn get_async(
         .execute_async(&db.conn)?
         .one_or_none()
         .await?
-        .map(move |_| {
-            params::Batch {
-                id: params.id,
-                // XXX: we don't use bsos/expiry (but they're currently needed
-                // for mysql/diesel compat). converting expiry back to i64 is
-                // maybe suspicious
-                bsos: "".to_owned(),
-                expiry: 0,
-            }
-        });
+        .map(move |_| params::Batch { id: params.id });
     Ok(batch)
 }
 
