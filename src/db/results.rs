@@ -21,7 +21,12 @@ pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
 
-pub type CreateBatch = String;
+#[derive(Debug, Default, Clone)]
+pub struct CreateBatch {
+    pub id: String,
+    pub size: Option<usize>,
+}
+
 pub type ValidateBatch = bool;
 pub type AppendToBatch = ();
 pub type GetBatch = params::Batch;
@@ -29,6 +34,12 @@ pub type DeleteBatch = ();
 pub type CommitBatch = PostBsos;
 pub type ValidateBatchId = ();
 pub type Check = bool;
+
+#[derive(Debug, Default)]
+pub struct GetQuotaUsage {
+    pub total_bytes: usize,
+    pub count: i32,
+}
 
 #[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
 pub struct GetBso {
@@ -76,11 +87,10 @@ pub struct PoolState {
     pub idle_connections: u32,
 }
 
-#[cfg(test)]
 pub type GetCollectionId = i32;
 
 #[cfg(test)]
 pub type CreateCollection = i32;
 
 #[cfg(test)]
-pub type TouchCollection = SyncTimestamp;
+pub type UpdateCollection = SyncTimestamp;

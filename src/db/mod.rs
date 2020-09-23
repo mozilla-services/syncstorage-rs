@@ -117,6 +117,11 @@ pub trait Db<'a>: Debug + 'a {
         params: params::GetStorageUsage,
     ) -> DbFuture<'_, results::GetStorageUsage>;
 
+    fn get_quota_usage(
+        &self,
+        params: params::GetQuotaUsage,
+    ) -> DbFuture<'_, results::GetQuotaUsage>;
+
     fn delete_storage(&self, params: params::DeleteStorage)
         -> DbFuture<'_, results::DeleteStorage>;
 
@@ -213,14 +218,13 @@ pub trait Db<'a>: Debug + 'a {
 
     /// Internal methods used by the db tests
 
-    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<'_, i32>;
 
     #[cfg(test)]
-    fn touch_collection(&self, params: params::TouchCollection) -> DbFuture<'_, SyncTimestamp>;
+    fn update_collection(&self, params: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp>;
 
     #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;
@@ -233,6 +237,9 @@ pub trait Db<'a>: Debug + 'a {
 
     #[cfg(test)]
     fn clear_coll_cache(&self);
+
+    #[cfg(test)]
+    fn set_quota(&mut self, enabled: bool, limit: usize);
 }
 
 impl<'a> Clone for Box<dyn Db<'a>> {

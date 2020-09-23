@@ -13,12 +13,16 @@ static DEFAULT_PORT: u16 = 8000;
 
 static KILOBYTE: u32 = 1024;
 static MEGABYTE: u32 = KILOBYTE * KILOBYTE;
+static GIGABYTE: u32 = MEGABYTE * 1_000;
 static DEFAULT_MAX_POST_BYTES: u32 = 2 * MEGABYTE;
 static DEFAULT_MAX_POST_RECORDS: u32 = 100;
 static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = 2 * MEGABYTE;
 static DEFAULT_MAX_REQUEST_BYTES: u32 = DEFAULT_MAX_POST_BYTES + 4 * KILOBYTE;
 static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
 static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
+// Hard spanner limit is 4GB per split (items under a unique index).
+// This gives us more than a bit of wiggle room.
+static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;
 static PREFIX: &str = "sync";
 
 #[derive(Clone, Debug, Deserialize)]
@@ -47,6 +51,8 @@ pub struct Settings {
     pub statsd_host: Option<String>,
     pub statsd_port: u16,
     pub statsd_label: String,
+
+    pub enable_quota: bool,
 }
 
 impl Default for Settings {
@@ -67,6 +73,7 @@ impl Default for Settings {
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
             human_logs: false,
+            enable_quota: false,
         }
     }
 }
@@ -102,9 +109,12 @@ impl Settings {
             "limits.max_total_records",
             i64::from(DEFAULT_MAX_TOTAL_RECORDS),
         )?;
+        s.set_default("limits.max_quota_limit", i64::from(DEFAULT_MAX_QUOTA_LIMIT))?;
+
         s.set_default("statsd_host", "localhost")?;
         s.set_default("statsd_port", 8125)?;
         s.set_default("statsd_label", "syncstorage")?;
+        s.set_default("enable_quota", false)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -120,7 +130,7 @@ impl Settings {
         s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
         Ok(match s.try_into::<Self>() {
-            Ok(s) => {
+            Ok(mut s) => {
                 // Adjust the max values if required.
                 if s.uses_spanner() {
                     let mut ms = s;
@@ -139,6 +149,9 @@ impl Settings {
                             env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
                         }
                     }
+                }
+                if s.limits.max_quota_limit == 0 {
+                    s.enable_quota = false
                 }
                 s
             }
@@ -210,9 +223,7 @@ pub struct ServerLimits {
 
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
-
-    // ### debug_client - for testing client
-    pub debug_client: Option<String>,
+    pub max_quota_limit: u32,
 }
 
 impl Default for ServerLimits {
@@ -225,7 +236,7 @@ impl Default for ServerLimits {
             max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
-            debug_client: None,
+            max_quota_limit: DEFAULT_MAX_QUOTA_LIMIT,
         }
     }
 }
@@ -280,4 +291,15 @@ impl<'d> Deserialize<'d> for Secrets {
         Secrets::new(&master_secret)
             .map_err(|e| serde::de::Error::custom(format!("error: {:?}", e)))
     }
+}
+
+#[cfg(test)]
+pub fn test_settings() -> Settings {
+    let mut settings = Settings::with_env_and_config_file(&None)
+        .expect("Could not get Settings in get_test_settings");
+    settings.debug = true;
+    settings.port = 8000;
+    settings.database_pool_max_size = Some(1);
+    settings.database_use_test_transactions = true;
+    settings
 }

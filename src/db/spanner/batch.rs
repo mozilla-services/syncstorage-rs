@@ -28,6 +28,12 @@ pub async fn create_async(
     // Ensure a parent record exists in user_collections before writing to batches
     // (INTERLEAVE IN PARENT user_collections)
     pretouch_collection_async(db, &params.user_id, collection_id).await?;
+    let new_batch = results::CreateBatch {
+        size: db
+            .check_quota(&params.user_id, &params.collection, collection_id)
+            .await?,
+        id: batch_id,
+    };
 
     db.sql(
         "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, batch_id, expiry)
@@ -37,7 +43,7 @@ pub async fn create_async(
         "fxa_uid" => params.user_id.fxa_uid.clone(),
         "fxa_kid" => params.user_id.fxa_kid.clone(),
         "collection_id" => collection_id.to_string(),
-        "batch_id" => batch_id.clone(),
+        "batch_id" => new_batch.id.clone(),
         "expiry" => to_rfc3339(timestamp + BATCH_LIFETIME)?,
     })
     .param_types(param_types! {
@@ -50,11 +56,12 @@ pub async fn create_async(
         db,
         params.user_id,
         collection_id,
-        batch_id.clone(),
+        new_batch.clone(),
         params.bsos,
+        &params.collection,
     )
     .await?;
-    Ok(batch_id)
+    Ok(new_batch)
 }
 
 pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
@@ -84,13 +91,22 @@ pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Re
 pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
+    let collection_id = db.get_collection_id_async(&params.collection).await?;
+
+    let current_size = db
+        .check_quota(&params.user_id, &params.collection, collection_id)
+        .await?;
+    let mut batch = params.batch;
+    if let Some(size) = current_size {
+        batch.size = Some(size + batch.size.unwrap_or(0));
+    }
 
     let exists = validate_async(
         db,
         params::ValidateBatch {
             user_id: params.user_id.clone(),
             collection: params.collection.clone(),
-            id: params.id.clone(),
+            id: batch.id.clone(),
         },
     )
     .await?;
@@ -101,7 +117,15 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     }
 
     let collection_id = db.get_collection_id_async(&params.collection).await?;
-    do_append_async(db, params.user_id, collection_id, params.id, params.bsos).await?;
+    do_append_async(
+        db,
+        params.user_id,
+        collection_id,
+        batch,
+        params.bsos,
+        &params.collection,
+    )
+    .await?;
     Ok(())
 }
 
@@ -166,7 +190,7 @@ pub async fn commit_async(
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .touch_collection_async(&params.user_id, collection_id)
+        .update_collection_async(&params.user_id, collection_id, &params.collection)
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
@@ -215,13 +239,16 @@ pub async fn commit_async(
     delete_async(
         db,
         params::DeleteBatch {
-            user_id: params.user_id,
+            user_id: params.user_id.clone(),
             collection: params.collection,
             id: params.batch.id,
         },
     )
     .await?;
     // XXX: returning results::PostBsos here isn't needed
+    // update the quotas for the user's collection
+    db.update_user_collection_quotas(&params.user_id, collection_id)
+        .await?;
     Ok(results::PostBsos {
         modified: timestamp,
         success: Default::default(),
@@ -233,13 +260,15 @@ pub async fn do_append_async(
     db: &SpannerDb,
     user_id: HawkIdentifier,
     collection_id: i32,
-    batch_id: String,
+    batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
+    collection: &str,
 ) -> Result<()> {
     // Pass an array of struct objects as @values (for UNNEST), e.g.:
     // [("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso1", NULL, "payload1", NULL),
     //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
     // https://cloud.google.com/spanner/docs/structs#creating_struct_objects
+    let mut running_size: usize = 0;
     let rows: Vec<_> = bsos
         .into_iter()
         .map(|bso| {
@@ -248,6 +277,9 @@ pub async fn do_append_async(
                 .map(|sortindex| as_value(sortindex.to_string()))
                 .unwrap_or_else(null_value);
             let payload = bso.payload.map(as_value).unwrap_or_else(null_value);
+            if payload != null_value() {
+                running_size += payload.get_string_value().len();
+            }
             let ttl = bso
                 .ttl
                 .map(|ttl| as_value(ttl.to_string()))
@@ -258,7 +290,7 @@ pub async fn do_append_async(
                 as_value(user_id.fxa_uid.clone()),
                 as_value(user_id.fxa_kid.clone()),
                 as_value(collection_id.to_string()),
-                as_value(batch_id.clone()),
+                as_value(batch.id.clone()),
                 as_value(bso.id),
                 sortindex,
                 payload,
@@ -270,6 +302,11 @@ pub async fn do_append_async(
         })
         .collect();
 
+    if let Some(size) = batch.size {
+        if size + running_size >= (db.quota as usize) {
+            return Err(db.quota_error(collection));
+        }
+    }
     let mut list_values = ListValue::new();
     list_values.set_values(RepeatedField::from_vec(rows));
     let mut values = Value::new();
@@ -349,16 +386,20 @@ async fn pretouch_collection_async(
         .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
-        db.sql(
+        let sql = if db.quota_enabled {
+            "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
+            VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
+        } else {
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
-             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)",
-        )?
-        .params(sqlparams)
-        .param_types(param_types! {
-            "modified" => TypeCode::TIMESTAMP,
-        })
-        .execute_dml_async(&db.conn)
-        .await?;
+            VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
+        };
+        db.sql(sql)?
+            .params(sqlparams)
+            .param_types(param_types! {
+                "modified" => TypeCode::TIMESTAMP,
+            })
+            .execute_dml_async(&db.conn)
+            .await?;
     }
     Ok(())
 }

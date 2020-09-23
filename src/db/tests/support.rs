@@ -6,13 +6,14 @@ use crate::{
     db::{params, pool_from_settings, util::SyncTimestamp, Db, Sorting},
     error::ApiError,
     server::metrics,
-    settings::{Secrets, ServerLimits, Settings},
+    settings::{test_settings, Settings},
     web::extractors::{BsoQueryParams, HawkIdentifier, Offset},
 };
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
-pub async fn db_pool() -> Result<Box<dyn DbPool>> {
+#[cfg(test)]
+pub async fn db_pool(settings: Option<Settings>) -> Result<Box<dyn DbPool>> {
     let _ = env_logger::try_init();
     // The default for SYNC_DATABASE_USE_TEST_TRANSACTIONS is false,
     // but we want the mysql default to be true, so let's check explicitly
@@ -23,18 +24,8 @@ pub async fn db_pool() -> Result<Box<dyn DbPool>> {
         .eq("true");
 
     // inherit SYNC_DATABASE_URL from the env
-    let settings = Settings::with_env_and_config_file(&None).unwrap();
-    let settings = Settings {
-        debug: true,
-        port: 8000,
-        host: settings.host,
-        database_url: settings.database_url,
-        database_pool_max_size: Some(1),
-        database_use_test_transactions: use_test_transactions,
-        limits: ServerLimits::default(),
-        master_secret: Secrets::default(),
-        ..Default::default()
-    };
+    let mut settings = settings.unwrap_or_else(test_settings);
+    settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = metrics::Metrics::noop();
     let pool = pool_from_settings(&settings, &metrics).await?;

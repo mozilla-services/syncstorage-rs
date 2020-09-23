@@ -242,33 +242,6 @@ impl FromRequest for BsoBodies {
             }
         };
 
-        // ### debug_client
-        if let Some(uids) = &state.limits.debug_client {
-            for uid in uids.split(',') {
-                debug!("### checking uaid: {:?}", &uid);
-                match u64::from_str(uid.trim()) {
-                    Ok(v) => {
-                        if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
-                            error!("Returning over quota for {:?}", v);
-                            return Box::pin(future::err(
-                                ValidationErrorKind::FromDetails(
-                                    "over-quota".to_owned(),
-                                    RequestErrorLocation::Unknown,
-                                    Some("over-quota".to_owned()),
-                                    Some(tags),
-                                    label!("storage.over_quota"),
-                                )
-                                .into(),
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        debug!("{:?} is not a u64", uid);
-                    }
-                };
-            }
-        }
-
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
         let max_post_bytes = state.limits.max_post_bytes as usize;
 
@@ -441,34 +414,6 @@ impl FromRequest for BsoBody {
                 ));
             }
         };
-
-        // ### debug_client
-        if let Some(uids) = &state.limits.debug_client {
-            for uid in uids.split(',') {
-                debug!("### checking uaid: {:?}", &uid);
-                match u64::from_str(uid.trim()) {
-                    Ok(v) => {
-                        if v == HawkIdentifier::uid_from_path(req.uri(), None).unwrap_or(0) {
-                            debug!("### returning quota exceeded.");
-                            error!("Returning over quota for {:?}", v);
-                            return Box::pin(future::err(
-                                ValidationErrorKind::FromDetails(
-                                    "over-quota".to_owned(),
-                                    RequestErrorLocation::Unknown,
-                                    Some("over-quota".to_owned()),
-                                    Some(tags),
-                                    label!("request.store.user_over_quota"),
-                                )
-                                .into(),
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        debug!("{:?} is not a u64", uid);
-                    }
-                };
-            }
-        }
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
@@ -827,6 +772,7 @@ pub struct CollectionPostRequest {
     pub bsos: BsoBodies,
     pub batch: Option<BatchRequest>,
     pub metrics: metrics::Metrics,
+    pub quota_enabled: bool,
 }
 
 impl FromRequest for CollectionPostRequest {
@@ -908,6 +854,7 @@ impl FromRequest for CollectionPostRequest {
                 bsos,
                 batch: batch.opt,
                 metrics: metrics::Metrics::from(&req),
+                quota_enabled: state.quota_enabled,
             })
         })
     }
@@ -1886,6 +1833,7 @@ mod tests {
             secrets: Arc::clone(&SECRETS),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
+            quota_enabled: settings.enable_quota,
         }
     }
 

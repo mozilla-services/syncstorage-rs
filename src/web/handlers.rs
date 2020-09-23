@@ -7,8 +7,11 @@ use serde_json::{json, Value};
 
 use crate::{
     db::{
-        params, results::Paginated, transaction::DbTransactionPool, util::SyncTimestamp, Db,
-        DbError, DbErrorKind,
+        params,
+        results::{CreateBatch, Paginated},
+        transaction::DbTransactionPool,
+        util::SyncTimestamp,
+        Db, DbError, DbErrorKind,
     },
     error::{ApiError, ApiErrorKind, ApiResult},
     server::ServerState,
@@ -265,7 +268,7 @@ pub async fn post_collection_batch(
         }
     };
 
-    let id = if let Some(id) = breq.id.clone() {
+    let new_batch = if let Some(id) = breq.id.clone() {
         // Validate the batch before attempting a full append (for efficiency)
         let is_valid = db
             .validate_batch(params::ValidateBatch {
@@ -276,7 +279,22 @@ pub async fn post_collection_batch(
             .await?;
 
         if is_valid {
-            id
+            let collection_id = db.get_collection_id(coll.collection.clone()).await?;
+            let usage = db
+                .get_quota_usage(params::GetQuotaUsage {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    collection_id,
+                })
+                .await?;
+            CreateBatch {
+                id: id.clone(),
+                size: if coll.quota_enabled {
+                    Some(usage.total_bytes as usize)
+                } else {
+                    None
+                },
+            }
         } else {
             let err: DbError = DbErrorKind::BatchNotFound.into();
             return Err(ApiError::from(err).into());
@@ -328,7 +346,7 @@ pub async fn post_collection_batch(
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
-            id: id.clone(),
+            batch: new_batch.clone(),
             bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
         })
         .await
@@ -346,7 +364,7 @@ pub async fn post_collection_batch(
     });
 
     if !breq.commit {
-        resp["batch"] = json!(&id);
+        resp["batch"] = json!(&new_batch.id);
         return Ok(HttpResponse::Accepted().json(resp));
     }
 
@@ -354,7 +372,7 @@ pub async fn post_collection_batch(
         .get_batch(params::GetBatch {
             user_id: user_id.clone(),
             collection: collection.clone(),
-            id,
+            id: new_batch.id,
         })
         .await?;
 

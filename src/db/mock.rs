@@ -83,6 +83,7 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(get_collection_usage, GetCollectionUsage);
     mock_db_method!(get_storage_timestamp, GetStorageTimestamp);
     mock_db_method!(get_storage_usage, GetStorageUsage);
+    mock_db_method!(get_quota_usage, GetQuotaUsage);
     mock_db_method!(delete_storage, DeleteStorage);
     mock_db_method!(delete_collection, DeleteCollection);
     mock_db_method!(delete_bsos, DeleteBsos);
@@ -99,12 +100,11 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
 
-    #[cfg(test)]
     mock_db_method!(get_collection_id, GetCollectionId);
     #[cfg(test)]
     mock_db_method!(create_collection, CreateCollection);
     #[cfg(test)]
-    mock_db_method!(touch_collection, TouchCollection);
+    mock_db_method!(update_collection, UpdateCollection);
 
     #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp {
@@ -119,6 +119,9 @@ impl<'a> Db<'a> for MockDb {
 
     #[cfg(test)]
     fn clear_coll_cache(&self) {}
+
+    #[cfg(test)]
+    fn set_quota(&mut self, _: bool, _: usize) {}
 }
 
 unsafe impl Send for MockDb {}

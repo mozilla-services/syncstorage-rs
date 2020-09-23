@@ -1,0 +1,1 @@
+alter table user_collections add column (total_bytes bigint, count int);

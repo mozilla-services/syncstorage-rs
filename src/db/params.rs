@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::db::results;
 use crate::web::extractors::{BatchBsoBody, BsoQueryParams, HawkIdentifier};
 
 macro_rules! data {
@@ -76,7 +77,7 @@ collection_data! {
         id: String,
     },
     AppendToBatch {
-        id: String,
+        batch: results::CreateBatch,
         bsos: Vec<PostCollectionBso>,
     },
     CommitBatch {
@@ -87,6 +88,9 @@ collection_data! {
     },
     DeleteBatch {
         id: String,
+    },
+    GetQuotaUsage {
+        collection_id: i32,
     },
 }
 
@@ -134,7 +138,6 @@ impl From<BatchBsoBody> for PostCollectionBso {
     }
 }
 
-#[cfg(test)]
 pub type GetCollectionId = String;
 
 #[cfg(test)]
@@ -142,8 +145,9 @@ pub type CreateCollection = String;
 
 #[cfg(test)]
 data! {
-    TouchCollection {
+    UpdateCollection {
         user_id: HawkIdentifier,
         collection_id: i32,
+        collection: String,
     }
 }

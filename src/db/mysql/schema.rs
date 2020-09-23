@@ -55,6 +55,10 @@ table! {
         collection_id -> Integer,
         #[sql_name="last_modified"]
         modified -> Bigint,
+        #[sql_name="count"]
+        count -> Integer,
+        #[sql_name="total_bytes"]
+        total_bytes -> BigInt,
     }
 }
 

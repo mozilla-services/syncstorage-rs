@@ -32,6 +32,7 @@ use crate::db::{
 };
 use crate::server::metrics::Metrics;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+use crate::web::tags::Tags;
 
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
@@ -47,6 +48,8 @@ pub const USER_ID: &str = "userid";
 pub const MODIFIED: &str = "modified";
 pub const EXPIRY: &str = "ttl";
 pub const LAST_MODIFIED: &str = "last_modified";
+pub const COUNT: &str = "count";
+pub const TOTAL_BYTES: &str = "total_bytes";
 
 #[derive(Debug)]
 pub enum CollectionLock {
@@ -83,6 +86,8 @@ pub struct MysqlDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
+    pub quota: usize,
+    pub quota_enabled: bool,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -114,7 +119,13 @@ impl Deref for MysqlDb {
 }
 
 impl MysqlDb {
-    pub fn new(conn: Conn, coll_cache: Arc<CollectionCache>, metrics: &Metrics) -> Self {
+    pub fn new(
+        conn: Conn,
+        coll_cache: Arc<CollectionCache>,
+        metrics: &Metrics,
+        quota: &usize,
+        quota_enabled: bool,
+    ) -> Self {
         let inner = MysqlDbInner {
             #[cfg(not(test))]
             conn,
@@ -126,6 +137,8 @@ impl MysqlDb {
             inner: Arc::new(inner),
             coll_cache,
             metrics: metrics.clone(),
+            quota: *quota,
+            quota_enabled,
         }
     }
 
@@ -385,6 +398,20 @@ impl MysqlDb {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
+        if self.quota_enabled {
+            let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
+                user_id: HawkIdentifier::new_legacy(user_id),
+                collection: bso.collection.clone(),
+                collection_id,
+            })?;
+            if usage.total_bytes >= self.quota as usize {
+                let mut tags = Tags::default();
+                tags.tags.insert("collection".to_owned(), bso.collection);
+                self.metrics
+                    .incr_with_tags("storage.quota.at_limit", Some(tags));
+                return Err(DbErrorKind::Quota.into());
+            }
+        }
 
         self.conn.transaction(|| {
             let payload = bso.payload.as_deref().unwrap_or_default();
@@ -434,7 +461,6 @@ impl MysqlDb {
                     "".to_owned()
                 },
             );
-
             sql_query(q)
                 .bind::<BigInt, _>(user_id as i64) // XXX:
                 .bind::<Integer, _>(&collection_id)
@@ -444,8 +470,7 @@ impl MysqlDb {
                 .bind::<BigInt, _>(timestamp)
                 .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000))
                 .execute(&self.conn)?;
-
-            self.touch_collection(user_id as u32, collection_id)
+            self.update_collection(user_id as u32, collection_id)
         })
     }
 
@@ -633,7 +658,7 @@ impl MysqlDb {
         if affected_rows == 0 {
             Err(DbErrorKind::BsoNotFound)?
         }
-        self.touch_collection(user_id as u32, collection_id)
+        self.update_collection(user_id as u32, collection_id)
     }
 
     pub fn delete_bsos_sync(&self, params: params::DeleteBsos) -> Result<results::DeleteBsos> {
@@ -644,7 +669,7 @@ impl MysqlDb {
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq_any(params.ids))
             .execute(&self.conn)?;
-        self.touch_collection(user_id as u32, collection_id)
+        self.update_collection(user_id as u32, collection_id)
     }
 
     pub fn post_bsos_sync(&self, input: params::PostBsos) -> Result<results::PostBsos> {
@@ -676,7 +701,7 @@ impl MysqlDb {
                 }
             }
         }
-        self.touch_collection(input.user_id.legacy_id as u32, collection_id)?;
+        self.update_collection(input.user_id.legacy_id as u32, collection_id)?;
         Ok(result)
     }
 
@@ -799,41 +824,105 @@ impl MysqlDb {
         Ok(names)
     }
 
-    pub(super) fn touch_collection(
+    pub(super) fn update_collection(
         &self,
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
+        let quota = if self.quota_enabled {
+            self.calc_quota_usage_sync(user_id, collection_id)?
+        } else {
+            results::GetQuotaUsage {
+                count: 0,
+                total_bytes: 0,
+            }
+        };
         let upsert = format!(
             r#"
-                INSERT INTO user_collections ({user_id}, {collection_id}, {modified})
-                VALUES (?, ?, ?)
+                INSERT INTO user_collections ({user_id}, {collection_id}, {modified}, {total_bytes}, {count})
+                VALUES (?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
-                       {modified} = ?
+                       {modified} = ?,
+                       {total_bytes} = ?,
+                       {count} = ?
         "#,
             user_id = USER_ID,
             collection_id = COLLECTION_ID,
-            modified = LAST_MODIFIED
+            modified = LAST_MODIFIED,
+            count = COUNT,
+            total_bytes = TOTAL_BYTES,
         );
+        let total_bytes = quota.total_bytes as i64;
         sql_query(upsert)
             .bind::<BigInt, _>(user_id as i64)
             .bind::<Integer, _>(&collection_id)
             .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .bind::<BigInt, _>(&total_bytes)
+            .bind::<Integer, _>(&quota.count)
             .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .bind::<BigInt, _>(&total_bytes)
+            .bind::<Integer, _>(&quota.count)
             .execute(&self.conn)?;
         Ok(self.timestamp())
     }
 
+    // Perform a lighter weight "read only" storage size check
     pub fn get_storage_usage_sync(
         &self,
         user_id: HawkIdentifier,
     ) -> Result<results::GetStorageUsage> {
-        let total_size = bso::table
+        let uid = user_id.legacy_id as i64;
+        let total_bytes = bso::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
-            .filter(bso::user_id.eq(user_id.legacy_id as i64))
+            .filter(bso::user_id.eq(uid))
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .get_result::<Option<i64>>(&self.conn)?;
-        Ok(total_size.unwrap_or_default() as u64)
+        Ok(total_bytes.unwrap_or_default() as u64)
+    }
+
+    // Perform a lighter weight "read only" quota storage check
+    pub fn get_quota_usage_sync(
+        &self,
+        params: params::GetQuotaUsage,
+    ) -> Result<results::GetQuotaUsage> {
+        let uid = params.user_id.legacy_id as i64;
+        let (total_bytes, count): (i64, i32) = user_collections::table
+            .select((
+                sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
+                sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
+            ))
+            .filter(user_collections::user_id.eq(uid))
+            .filter(user_collections::collection_id.eq(params.collection_id))
+            .get_result(&self.conn)
+            .optional()?
+            .unwrap_or_default();
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
+    }
+
+    // perform a heavier weight quota calculation
+    pub fn calc_quota_usage_sync(
+        &self,
+        user_id: u32,
+        collection_id: i32,
+    ) -> Result<results::GetQuotaUsage> {
+        let (total_bytes, count): (i64, i32) = bso::table
+            .select((
+                sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
+                sql::<Integer>("COALESCE(COUNT(*),0)"),
+            ))
+            .filter(bso::user_id.eq(user_id as i64))
+            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .filter(bso::collection_id.eq(collection_id))
+            .get_result(&self.conn)
+            .optional()?
+            .unwrap_or_default();
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
     }
 
     pub fn get_collection_usage_sync(
@@ -953,6 +1042,7 @@ impl<'a> Db<'a> for MysqlDb {
         GetStorageTimestamp
     );
     sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
+    sync_db_method!(get_quota_usage, get_quota_usage_sync, GetQuotaUsage);
     sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
     sync_db_method!(delete_collection, delete_collection_sync, DeleteCollection);
     sync_db_method!(delete_bsos, delete_bsos_sync, DeleteBsos);
@@ -979,7 +1069,6 @@ impl<'a> Db<'a> for MysqlDb {
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
-    #[cfg(test)]
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
@@ -995,11 +1084,11 @@ impl<'a> Db<'a> for MysqlDb {
     }
 
     #[cfg(test)]
-    fn touch_collection(&self, param: params::TouchCollection) -> DbFuture<'_, SyncTimestamp> {
+    fn update_collection(&self, param: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
         Box::pin(
             block(move || {
-                db.touch_collection(param.user_id.legacy_id as u32, param.collection_id)
+                db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
                     .map_err(Into::into)
             })
             .map_err(Into::into),
@@ -1022,6 +1111,12 @@ impl<'a> Db<'a> for MysqlDb {
     #[cfg(test)]
     fn clear_coll_cache(&self) {
         self.coll_cache.clear();
+    }
+
+    #[cfg(test)]
+    fn set_quota(&mut self, enabled: bool, limit: usize) {
+        self.quota = limit;
+        self.quota_enabled = enabled;
     }
 }
 

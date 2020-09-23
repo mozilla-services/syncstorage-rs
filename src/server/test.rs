@@ -22,7 +22,7 @@ use crate::db::params;
 use crate::db::pool_from_settings;
 use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use crate::db::util::SyncTimestamp;
-use crate::settings::{Secrets, ServerLimits};
+use crate::settings::{test_settings, Secrets, ServerLimits};
 use crate::web::{auth::HawkPayload, extractors::BsoBody, X_LAST_MODIFIED};
 
 lazy_static! {
@@ -35,8 +35,7 @@ const TEST_HOST: &str = "localhost";
 const TEST_PORT: u16 = 8080;
 
 fn get_test_settings() -> Settings {
-    let settings = Settings::with_env_and_config_file(&None)
-        .expect("Could not get Settings in get_test_settings");
+    let mut settings = test_settings();
     let treq = test::TestRequest::with_uri("/").to_http_request();
     let port = treq.uri().port_u16().unwrap_or(TEST_PORT);
     // Make sure that our poolsize is >= the
@@ -49,17 +48,10 @@ fn get_test_settings() -> Settings {
             .as_str(),
     )
     .expect("Could not get pool_size in get_test_settings");
-    Settings {
-        debug: true,
-        port,
-        host,
-        database_url: settings.database_url,
-        database_pool_max_size: Some(pool_size + 1),
-        database_use_test_transactions: true,
-        limits: ServerLimits::default(),
-        master_secret: Secrets::default(),
-        ..Default::default()
-    }
+    settings.port = port;
+    settings.host = host;
+    settings.database_pool_max_size = Some(pool_size + 1);
+    settings
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
@@ -73,6 +65,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         secrets: Arc::clone(&SECRETS),
         metrics: Box::new(metrics),
         port: settings.port,
+        quota_enabled: settings.enable_quota,
     }
 }
 

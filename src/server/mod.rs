@@ -43,6 +43,8 @@ pub struct ServerState {
     pub metrics: Box<StatsdClient>,
 
     pub port: u16,
+
+    pub quota_enabled: bool,
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -162,6 +164,7 @@ impl Server {
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
         let secrets = Arc::new(settings.master_secret);
         let port = settings.port;
+        let quota_enabled = settings.enable_quota;
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
@@ -174,6 +177,7 @@ impl Server {
                 secrets: Arc::clone(&secrets),
                 metrics: Box::new(metrics.clone()),
                 port,
+                quota_enabled,
             };
 
             build_app!(state, limits)

@@ -52,8 +52,10 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
         })?;
 
     do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
-
-    Ok(encode_id(batch_id))
+    Ok(results::CreateBatch {
+        id: encode_id(batch_id),
+        size: None,
+    })
 }
 
 pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
@@ -82,7 +84,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
         params::ValidateBatch {
             user_id: params.user_id.clone(),
             collection: params.collection.clone(),
-            id: params.id.clone(),
+            id: params.batch.id.clone(),
         },
     )?;
 
@@ -90,7 +92,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
         Err(DbErrorKind::BatchNotFound)?
     }
 
-    let batch_id = decode_id(&params.id)?;
+    let batch_id = decode_id(&params.batch.id)?;
     let collection_id = db.get_collection_id(&params.collection)?;
     do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
     Ok(())
@@ -147,7 +149,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
 
-    db.touch_collection(user_id as u32, collection_id)?;
+    db.update_collection(user_id as u32, collection_id)?;
 
     delete(
         db,
