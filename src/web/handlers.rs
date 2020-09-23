@@ -268,7 +268,7 @@ pub async fn post_collection_batch(
         }
     };
 
-    let id = if let Some(id) = breq.id.clone() {
+    let new_batch = if let Some(id) = breq.id.clone() {
         // Validate the batch before attempting a full append (for efficiency)
         let is_valid = db
             .validate_batch(params::ValidateBatch {
@@ -346,7 +346,7 @@ pub async fn post_collection_batch(
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
-            id: id.clone(),
+            id: new_batch.clone(),
             bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
         })
         .await
@@ -364,7 +364,7 @@ pub async fn post_collection_batch(
     });
 
     if !breq.commit {
-        resp["batch"] = json!(&id.id);
+        resp["batch"] = json!(&new_batch.id);
         return Ok(HttpResponse::Accepted().json(resp));
     }
 
@@ -372,7 +372,7 @@ pub async fn post_collection_batch(
         .get_batch(params::GetBatch {
             user_id: user_id.clone(),
             collection: collection.clone(),
-            id: id.id,
+            id: new_batch.id,
         })
         .await?;
 
