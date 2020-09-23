@@ -86,7 +86,7 @@ pub struct MysqlDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
-    pub quota: u32,
+    pub quota: usize,
     pub quota_enabled: bool,
 }
 
@@ -123,7 +123,7 @@ impl MysqlDb {
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
-        quota: &u32,
+        quota: &usize,
         quota_enabled: bool,
     ) -> Self {
         let inner = MysqlDbInner {
@@ -404,7 +404,7 @@ impl MysqlDb {
                 collection: bso.collection.clone(),
                 collection_id,
             })?;
-            if usage.total_bytes >= self.quota as i64 {
+            if usage.total_bytes >= self.quota as usize {
                 let mut tags = Tags::default();
                 tags.tags.insert("collection".to_owned(), bso.collection);
                 self.metrics
@@ -852,14 +852,15 @@ impl MysqlDb {
             count = COUNT,
             total_bytes = TOTAL_BYTES,
         );
+        let total_bytes = quota.total_bytes as i64;
         sql_query(upsert)
             .bind::<BigInt, _>(user_id as i64)
             .bind::<Integer, _>(&collection_id)
             .bind::<BigInt, _>(&self.timestamp().as_i64())
-            .bind::<BigInt, _>(&quota.total_bytes)
+            .bind::<BigInt, _>(&total_bytes)
             .bind::<Integer, _>(&quota.count)
             .bind::<BigInt, _>(&self.timestamp().as_i64())
-            .bind::<BigInt, _>(&quota.total_bytes)
+            .bind::<BigInt, _>(&total_bytes)
             .bind::<Integer, _>(&quota.count)
             .execute(&self.conn)?;
         Ok(self.timestamp())
@@ -895,7 +896,10 @@ impl MysqlDb {
             .get_result(&self.conn)
             .optional()?
             .unwrap_or_default();
-        Ok(results::GetQuotaUsage { total_bytes, count })
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
     }
 
     // perform a heavier weight quota calculation
@@ -915,7 +919,10 @@ impl MysqlDb {
             .get_result(&self.conn)
             .optional()?
             .unwrap_or_default();
-        Ok(results::GetQuotaUsage { total_bytes, count })
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
     }
 
     pub fn get_collection_usage_sync(
@@ -1107,7 +1114,7 @@ impl<'a> Db<'a> for MysqlDb {
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: u32) {
+    fn set_quota(&mut self, enabled: bool, limit: usize) {
         self.quota = limit;
         self.quota_enabled = enabled;
     }

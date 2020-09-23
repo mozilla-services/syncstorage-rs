@@ -121,7 +121,7 @@ impl<'a> Db<'a> for MockDb {
     fn clear_coll_cache(&self) {}
 
     #[cfg(test)]
-    fn set_quota(&mut self, _: bool, _: u32) {}
+    fn set_quota(&mut self, _: bool, _: usize) {}
 }
 
 unsafe impl Send for MockDb {}

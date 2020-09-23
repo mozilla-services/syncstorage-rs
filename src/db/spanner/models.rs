@@ -92,7 +92,7 @@ pub struct SpannerDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
-    pub quota: u32,
+    pub quota: usize,
     pub quota_enabled: bool,
 }
 
@@ -121,7 +121,7 @@ impl SpannerDb {
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
-        quota: u32,
+        quota: usize,
         quota_enabled: bool,
     ) -> Self {
         let inner = SpannerDbInner {
@@ -825,7 +825,7 @@ impl SpannerDb {
             let total_bytes = if self.quota_enabled {
                 result[0]
                     .get_string_value()
-                    .parse::<i64>()
+                    .parse::<usize>()
                     .map_err(|e| DbErrorKind::Integrity(e.to_string()))?
             } else {
                 0
@@ -1645,7 +1645,7 @@ impl SpannerDb {
                 collection_id,
             })
             .await?;
-        if usage.total_bytes >= self.quota as i64 {
+        if usage.total_bytes >= self.quota {
             return Err(self.quota_error(collection));
         }
         Ok(Some(usage.total_bytes as usize))
@@ -2101,7 +2101,7 @@ impl<'a> Db<'a> for SpannerDb {
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: u32) {
+    fn set_quota(&mut self, enabled: bool, limit: usize) {
         self.quota_enabled = enabled;
         self.quota = limit;
     }

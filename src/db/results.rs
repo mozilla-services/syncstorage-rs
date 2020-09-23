@@ -46,7 +46,7 @@ pub type Check = bool;
 
 #[derive(Debug)]
 pub struct GetQuotaUsage {
-    pub total_bytes: i64,
+    pub total_bytes: usize,
     pub count: i32,
 }
 

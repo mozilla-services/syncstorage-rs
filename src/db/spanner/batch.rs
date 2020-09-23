@@ -21,7 +21,7 @@ pub async fn create_async(
     db: &SpannerDb,
     params: params::CreateBatch,
 ) -> Result<results::CreateBatch> {
-    let batch_name = Uuid::new_v4().to_simple().to_string();
+    let batch_id = Uuid::new_v4().to_simple().to_string();
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let timestamp = db.timestamp()?.as_i64();
 
@@ -32,7 +32,7 @@ pub async fn create_async(
         size: db
             .check_quota(&params.user_id, &params.collection, collection_id)
             .await?,
-        id: batch_name,
+        id: batch_id,
     };
 
     db.sql(
@@ -96,9 +96,9 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     let current_size = db
         .check_quota(&params.user_id, &params.collection, collection_id)
         .await?;
-    let mut batch_id = params.id;
+    let mut batch = params.batch;
     if let Some(size) = current_size {
-        batch_id.size = Some(size + batch_id.size.unwrap_or(0));
+        batch.size = Some(size + batch.size.unwrap_or(0));
     }
 
     let exists = validate_async(
@@ -106,7 +106,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         params::ValidateBatch {
             user_id: params.user_id.clone(),
             collection: params.collection.clone(),
-            id: batch_id.id.clone(),
+            id: batch.id.clone(),
         },
     )
     .await?;
@@ -121,7 +121,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         db,
         params.user_id,
         collection_id,
-        batch_id,
+        batch,
         params.bsos,
         &params.collection,
     )
@@ -269,7 +269,7 @@ pub async fn do_append_async(
     db: &SpannerDb,
     user_id: HawkIdentifier,
     collection_id: i32,
-    batch_id: results::CreateBatch,
+    batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
     collection: &str,
 ) -> Result<()> {
@@ -299,7 +299,7 @@ pub async fn do_append_async(
                 as_value(user_id.fxa_uid.clone()),
                 as_value(user_id.fxa_kid.clone()),
                 as_value(collection_id.to_string()),
-                as_value(batch_id.id.clone()),
+                as_value(batch.id.clone()),
                 as_value(bso.id),
                 sortindex,
                 payload,
@@ -311,7 +311,7 @@ pub async fn do_append_async(
         })
         .collect();
 
-    if let Some(size) = batch_id.size {
+    if let Some(size) = batch.size {
         if size + running_size >= (db.quota as usize) {
             return Err(db.quota_error(collection));
         }

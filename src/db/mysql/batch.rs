@@ -56,7 +56,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
 }
 
 pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
-    let id = decode_id(&params.id.id)?;
+    let id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     let bsos = bsos_to_batch_string(&params.bsos)?;

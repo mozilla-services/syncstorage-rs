@@ -239,7 +239,7 @@ pub trait Db<'a>: Debug + 'a {
     fn clear_coll_cache(&self);
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: u32);
+    fn set_quota(&mut self, enabled: bool, limit: usize);
 }
 
 impl<'a> Clone for Box<dyn Db<'a>> {

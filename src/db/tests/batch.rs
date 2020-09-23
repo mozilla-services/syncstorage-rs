@@ -25,13 +25,13 @@ fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
 fn ab(
     user_id: u32,
     coll: &str,
-    id: results::CreateBatch,
+    batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
 ) -> params::AppendToBatch {
     params::AppendToBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
-        id,
+        batch,
         bsos,
     }
 }

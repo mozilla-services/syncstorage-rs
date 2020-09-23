@@ -46,7 +46,7 @@ pub struct MysqlDbPool {
     coll_cache: Arc<CollectionCache>,
 
     metrics: Metrics,
-    quota: u32,
+    quota: usize,
     quota_enabled: bool,
 }
 
@@ -76,7 +76,7 @@ impl MysqlDbPool {
             pool: builder.build(manager)?,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
-            quota: settings.limits.max_quota_limit,
+            quota: settings.limits.max_quota_limit as usize,
             quota_enabled: settings.enable_quota,
         })
     }

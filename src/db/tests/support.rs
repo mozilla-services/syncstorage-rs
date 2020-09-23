@@ -24,7 +24,7 @@ pub async fn db_pool(settings: Option<Settings>) -> Result<Box<dyn DbPool>> {
         .eq("true");
 
     // inherit SYNC_DATABASE_URL from the env
-    let mut settings = settings.unwrap_or(test_settings());
+    let mut settings = settings.unwrap_or_else(test_settings);
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = metrics::Metrics::noop();

@@ -77,7 +77,7 @@ collection_data! {
         id: String,
     },
     AppendToBatch {
-        id: results::CreateBatch,
+        batch: results::CreateBatch,
         bsos: Vec<PostCollectionBso>,
     },
     CommitBatch {

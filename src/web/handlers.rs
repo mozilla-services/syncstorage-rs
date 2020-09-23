@@ -346,7 +346,7 @@ pub async fn post_collection_batch(
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
-            id: new_batch.clone(),
+            batch: new_batch.clone(),
             bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
         })
         .await

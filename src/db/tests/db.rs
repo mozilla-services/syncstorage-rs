@@ -652,7 +652,10 @@ async fn get_collection_usage() -> Result<()> {
                 collection_id,
             })
             .await?;
-        assert_eq!(&quota.total_bytes, expected.get("bookmarks").unwrap());
+        assert_eq!(
+            &(quota.total_bytes as i64),
+            expected.get("bookmarks").unwrap()
+        );
         assert_eq!(quota.count, 5); // 3 collections, 5 records
     }
     Ok(())
@@ -679,7 +682,7 @@ async fn test_quota() -> Result<()> {
     db.put_bso(pbso(uid, coll, "101", Some(&payload), None, None))
         .await?;
 
-    db.set_quota(true, size as u32 * 2);
+    db.set_quota(true, size * 2);
 
     // Allow the put, but calculate the quota
     db.put_bso(pbso(uid, coll, "102", Some(&payload), None, None))
