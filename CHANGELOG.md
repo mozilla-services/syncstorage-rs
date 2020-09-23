@@ -1,3 +1,13 @@
+<a name="0.6.0"></a>
+## 0.6.0 (2020-09-23)
+
+#### Features
+*   Add quota monitoring (#806) ([9e6759e](https://github.com/mozilla-services/syncstorage-rs/commit/9e6759efef8f163355ee1b23dc28b716335df66d), closes [#791](https://github.com/mozilla-services/syncstorage-rs/issues/791), [#793](https://github.com/mozilla-services/syncstorage-rs/issues/793), [#797](https://github.com/mozilla-services/syncstorage-rs/issues/797), [#789](https://github.com/mozilla-services/syncstorage-rs/issues/789), [#801](https://github.com/mozilla-services/syncstorage-rs/issues/801))
+*   Convert some of the validation storage errors into metrics (#810) ([66221d8b](https://github.com/mozilla-services/syncstorage-rs/commit/66221d8bec17f6134dee1b9d9005f5cdbe8121d3), closes [#795](https://github.com/mozilla-services/syncstorage-rs/issues/795))
+*   switch from `regex_contains` to `starts_with` (#805) ([a79f8407](https://github.com/mozilla-services/syncstorage-rs/commit/a79f8407de7b5f01413b09771dcfa8bb8e33ab9e))
+
+
+
 <a name="0.5.8"></a>
 ## 0.5.8 (2020-08-25)
 
@@ -575,6 +585,3 @@
 #### Features
 
 *   Initial release
-
-
-

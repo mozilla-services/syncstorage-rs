@@ -516,9 +516,9 @@ dependencies = [
 
 [[package]]
 name = "cadence"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c57523ff87f22fc96f07f5f379af387fdd86009242a17d805a3278540cde94a"
+checksum = "e45b9cdf75cdddb0877f8af74c345d06b0c8a924c5115d2467d94d7e4bdf9180"
 dependencies = [
  "crossbeam-channel",
 ]
@@ -2753,7 +2753,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.5.8"
+version = "0.6.0"
 dependencies = [
  "actix-cors",
  "actix-http",
