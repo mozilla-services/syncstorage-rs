@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.5.8"
+version = "0.6.0"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -23,7 +23,7 @@ async-trait = "0.1.40"
 base64 = "0.12"
 bb8 = "0.4.1"
 bytes = "0.5"
-cadence = "0.20.0"
+cadence = "0.21.1"
 chrono = "0.4"
 config = "0.10"
 deadpool = "0.5.2"
