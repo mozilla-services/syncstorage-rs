@@ -149,6 +149,9 @@ impl Settings {
                             env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
                         }
                     }
+                    // No quotas for stand alone servers
+                    s.limits.max_quota_limit = 0;
+                    s.enable_quota = false;
                 }
                 if s.limits.max_quota_limit == 0 {
                     s.enable_quota = false
