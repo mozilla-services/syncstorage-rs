@@ -15,10 +15,10 @@ default-run = "syncstorage"
 debug = 1
 
 [dependencies]
-actix-http = "1"
-actix-web = "2"
+actix-http = "2"
+actix-web = "3"
 actix-rt = "1"
-actix-cors = "0.2"
+actix-cors = "0.3"
 async-trait = "0.1.40"
 base64 = "0.12"
 bb8 = "0.4.1"

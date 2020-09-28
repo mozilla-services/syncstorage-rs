@@ -4,6 +4,7 @@ use std::task::{Context, Poll};
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::header::USER_AGENT,
+    web::Data,
     Error, HttpResponse,
 };
 use futures::future::{self, Either, Ready};
@@ -74,7 +75,7 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         match sreq.headers().get(USER_AGENT) {
             Some(header) if header.to_str().map_or(false, should_reject) => {
-                let state = match &sreq.app_data::<ServerState>() {
+                let state = match &sreq.app_data::<Data<ServerState>>() {
                     Some(v) => v.clone(),
                     None => {
                         return Either::Left(future::ok(
