@@ -24,7 +24,7 @@ struct Args {
     flag_config: Option<String>,
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
