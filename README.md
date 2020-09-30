@@ -217,6 +217,7 @@ Functional tests live in [server-syncstorage](https://github.com/mozilla-service
 5. create a git branch for the new version `git checkout -b release/<version>`
 6. `cargo build --release` - Build with the release profile [release mode](https://doc.rust-lang.org/book/ch14-01-release-profiles.html).
 7. `clog -C CHANGELOG.md` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes. Add a `-p`, `-m` or `-M` flag to denote major/minor/patch version, ie `clog -C CHANGELOG.md -p`.
+7. Review the `CHANGELOG.md` file and ensure all relevant changes since the last tag are included.
 8. `git commit -am "chore: tag <version>"` to commit the new version and changes
 9. `git tag -s -m "chore: tag <version>" <version>` to create a signed tag of the current HEAD commit for release.
 10. `git push origin release/<version>` to push the commits to a new origin release branch

@@ -1,3 +1,13 @@
+<a name="0.6.1"></a>
+## 0.6.1 (2020-09-30)
+
+#### Features
+* update to actix-web 3 (#834)
+
+#### Bug Fixes
+* return correct error code and value for OverQuota users (#837)
+
+
 <a name="0.6.0"></a>
 ## 0.6.0 (2020-09-23)
 
