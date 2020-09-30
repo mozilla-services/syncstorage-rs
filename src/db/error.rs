@@ -79,6 +79,7 @@ impl From<Context<DbErrorKind>> for DbError {
             //  * desktop bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959034
             //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
             DbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
+            DbErrorKind::Quota => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

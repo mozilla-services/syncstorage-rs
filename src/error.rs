@@ -177,6 +177,10 @@ impl ApiError {
                     }
                 }
             },
+            ApiErrorKind::Db(dber) => match dber.kind() {
+                DbErrorKind::Quota => WeaveError::OverQuota,
+                _ => WeaveError::UnknownError,
+            },
             _ => WeaveError::UnknownError,
         }
     }
