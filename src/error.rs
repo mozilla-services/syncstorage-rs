@@ -142,6 +142,7 @@ impl ApiError {
     }
 
     fn weave_error_code(&self) -> WeaveError {
+        dbg!("### self.kind", self.kind());
         match self.kind() {
             ApiErrorKind::Validation(ver) => match ver.kind() {
                 ValidationErrorKind::FromDetails(
@@ -176,6 +177,10 @@ impl ApiError {
                         WeaveError::UnknownError
                     }
                 }
+            },
+            ApiErrorKind::Db(dber) => match dber.kind() {
+                DbErrorKind::Quota => WeaveError::OverQuota,
+                _ => WeaveError::UnknownError,
             },
             _ => WeaveError::UnknownError,
         }
