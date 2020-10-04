@@ -37,7 +37,7 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - pkg-config
 - [Rust stable](https://rustup.rs)
 - MySQL 5.7 (or compatible)
-  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu)
+  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
 and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
