@@ -193,10 +193,15 @@ impl Settings {
 
     /// A simple banner for display of certain settings at startup
     pub fn banner(&self) -> String {
+        let quota = if self.enable_quota {
+            format!("Quota: {} bytes", self.limits.max_quota_limit)
+        } else {
+            "No quota".to_owned()
+        };
         let db = Url::parse(&self.database_url)
             .map(|url| url.scheme().to_owned())
             .unwrap_or_else(|_| "<invalid db>".to_owned());
-        format!("http://{}:{} ({})", self.host, self.port, db)
+        format!("http://{}:{} ({}) {}", self.host, self.port, db, quota)
     }
 }
 

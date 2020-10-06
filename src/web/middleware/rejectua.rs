@@ -78,7 +78,7 @@ where
                 let data = sreq
                     .app_data::<Data<ServerState>>()
                     .expect("No app_data ServerState");
-                debug!("Rejecting User-Agent: {:?}", header);
+                trace!("Rejecting User-Agent: {:?}", header);
                 Metrics::from(data.get_ref()).incr("error.rejectua");
 
                 Either::Left(future::ok(

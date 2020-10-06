@@ -61,7 +61,7 @@ pub fn queue_report(mut ext: RefMut<'_, Extensions>, err: &Error) {
     let apie: Option<&ApiError> = err.as_error();
     if let Some(apie) = apie {
         if !apie.is_reportable() {
-            debug!("Not reporting error: {:?}", err);
+            trace!("Sentry Not reporting error: {:?}", err);
             return;
         }
         let event = sentry::integrations::failure::event_from_fail(apie);
@@ -79,7 +79,7 @@ pub fn report(tags: &Tags, mut event: Event<'static>) {
     let tags = tags.clone();
     event.tags = tags.clone().tag_tree();
     event.extra = tags.extra_tree();
-    debug!("Sending error to sentry: {:?}", &event);
+    trace!("Sentry: Sending error: {:?}", &event);
     sentry::capture_event(event);
 }
 
@@ -107,13 +107,13 @@ where
             // Fetch out the tags (in case any have been added.) NOTE: request extensions
             // are NOT automatically passed to responses. You need to check both.
             if let Some(t) = sresp.request().extensions().get::<Tags>() {
-                debug!("Found request tags: {:?}", &t.tags);
+                trace!("Sentry: found tags in request: {:?}", &t.tags);
                 for (k, v) in t.tags.clone() {
                     tags.tags.insert(k, v);
                 }
             };
             if let Some(t) = sresp.response().extensions().get::<Tags>() {
-                debug!("Found response tags: {:?}", &t.tags);
+                trace!("Sentry: found tags in response: {:?}", &t.tags);
                 for (k, v) in t.tags.clone() {
                     tags.tags.insert(k, v);
                 }
@@ -128,7 +128,7 @@ where
                         .remove::<Vec<Event<'static>>>()
                     {
                         for event in events {
-                            debug!("Found an error in request: {:?}", &event);
+                            trace!("Sentry: found an error stored in request: {:?}", &event);
                             report(&tags, event);
                         }
                     }
@@ -138,7 +138,7 @@ where
                         .remove::<Vec<Event<'static>>>()
                     {
                         for event in events {
-                            debug!("Found an error in response: {:?}", &event);
+                            trace!("Sentry: Found an error stored in response: {:?}", &event);
                             report(&tags, event);
                         }
                     }
@@ -149,7 +149,7 @@ where
                             apie.on_response(state.as_ref());
                         };
                         if !apie.is_reportable() {
-                            debug!("Not reporting error to sentry: {:?}", apie);
+                            trace!("Sentry: Not reporting error: {:?}", apie);
                             return future::ok(sresp);
                         }
                         report(&tags, sentry::integrations::failure::event_from_fail(apie));

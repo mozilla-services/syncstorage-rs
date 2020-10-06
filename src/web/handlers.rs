@@ -232,6 +232,7 @@ pub async fn post_collection(
     db_pool
         .transaction_http(|db| async move {
             coll.metrics.clone().incr("request.post_collection");
+            trace!("Collection: Post");
 
             if coll.batch.is_some() {
                 return post_collection_batch(coll, db).await;
@@ -258,6 +259,7 @@ pub async fn post_collection_batch(
     db: Box<dyn Db<'_> + '_>,
 ) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection_batch");
+    trace!("Batch: Post collection batch");
     // Bail early if we have nonsensical arguments
     let breq = match coll.batch.clone() {
         Some(breq) => breq,
@@ -269,6 +271,7 @@ pub async fn post_collection_batch(
     };
 
     let new_batch = if let Some(id) = breq.id.clone() {
+        trace!("Batch: Validating {}", &id);
         // Validate the batch before attempting a full append (for efficiency)
         let is_valid = db
             .validate_batch(params::ValidateBatch {
@@ -300,6 +303,7 @@ pub async fn post_collection_batch(
             return Err(ApiError::from(err).into());
         }
     } else {
+        trace!("Batch: Creating new batch");
         db.create_batch(params::CreateBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
@@ -322,6 +326,7 @@ pub async fn post_collection_batch(
         // Spanner we would pay twice the mutations for those pending
         // items (once writing them to to batch_bsos, then again
         // writing them to bsos)
+        trace!("Batch: Committing {}", &new_batch.id);
         db.post_bsos(params::PostBsos {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
@@ -343,6 +348,7 @@ pub async fn post_collection_batch(
         .await
         .map(|_| ())
     } else {
+        trace!("Batch: Appending to {}", &new_batch.id);
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
@@ -355,7 +361,16 @@ pub async fn post_collection_batch(
     match result {
         Ok(_) => success.extend(bso_ids),
         Err(e) if e.is_conflict() => return Err(e.into()),
-        Err(_) => failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned()))),
+        Err(apperr) => {
+            if let ApiErrorKind::Db(dberr) = apperr.kind() {
+                // If we're over quota, return immediately with a 403 to let the client know.
+                // Otherwise the client will simply keep retrying records.
+                if let DbErrorKind::Quota = dberr.kind() {
+                    return Err(apperr.into());
+                }
+            };
+            failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
+        }
     };
 
     let mut resp = json!({
@@ -391,6 +406,7 @@ pub async fn post_collection_batch(
     };
 
     resp["modified"] = json!(result.modified);
+    trace!("Batch: Returning result: {}", &resp);
     Ok(HttpResponse::build(StatusCode::OK)
         .header(X_LAST_MODIFIED, result.modified.as_header())
         .json(resp))
