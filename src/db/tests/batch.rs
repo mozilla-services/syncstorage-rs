@@ -87,10 +87,7 @@ async fn expiry() -> Result<()> {
     let bsos = vec![postbso("b0", Some("payload 0"), Some(10), None)];
     let result = db.append_to_batch(ab(uid, coll, new_batch, bsos)).await;
     let is_batch_not_found = match result.unwrap_err().kind() {
-        ApiErrorKind::Db(dbe) => match dbe.kind() {
-            DbErrorKind::BatchNotFound => true,
-            _ => false,
-        },
+        ApiErrorKind::Db(dbe) => matches!(dbe.kind(), DbErrorKind::BatchNotFound),
         _ => false,
     };
     assert!(is_batch_not_found, "Expected BatchNotFound");
