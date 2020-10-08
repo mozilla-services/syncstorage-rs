@@ -2,8 +2,7 @@
 #[macro_use]
 extern crate slog_scope;
 
-use std::error::Error;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 use docopt::Docopt;
 use serde_derive::Deserialize;
@@ -36,11 +35,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
     let curl_transport_factory = |options: &sentry::ClientOptions| {
-        // Note: set options.debug = true when diagnosing sentry issues.
         Arc::new(sentry::transports::CurlHttpTransport::new(&options))
             as Arc<dyn sentry::internals::Transport>
     };
     let _sentry = sentry::init(sentry::ClientOptions {
+        // Note: set "debug: true," to diagnose sentry issues
         transport: Some(Arc::new(curl_transport_factory)),
         release: sentry::release_name!(),
         ..sentry::ClientOptions::default()
