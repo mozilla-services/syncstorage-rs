@@ -48,7 +48,7 @@ log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.17.0"
+protobuf = "2.18.0"
 rand = "0.7"
 regex = "1.3"
 sentry = { version = "0.20", features = ["with_curl_transport"] }
