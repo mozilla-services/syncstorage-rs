@@ -6,7 +6,7 @@ use crate::{
     error::ApiErrorKind,
 };
 
-pub(crate) fn cb(
+fn cb(
     user_id: u32,
     coll: &str,
     bsos: Vec<params::PostCollectionBso>,
@@ -18,7 +18,7 @@ pub(crate) fn cb(
     }
 }
 
-pub fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
+fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
     params::ValidateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -26,7 +26,7 @@ pub fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
     }
 }
 
-pub fn ab(
+fn ab(
     user_id: u32,
     coll: &str,
     batch: results::CreateBatch,
@@ -40,7 +40,7 @@ pub fn ab(
     }
 }
 
-pub fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
+fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
     params::GetBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
