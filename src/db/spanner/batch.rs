@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::support::{null_value, struct_type_field};
 use super::{
     models::{Result, SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS},
-    support::as_value,
+    support::{as_list_value, as_value},
 };
 use crate::{
     db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
@@ -72,6 +72,7 @@ pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Re
     Ok(exists.is_some())
 }
 
+// Append a collection to a pending batch (`create_batch` creates a new batch)
 pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
@@ -85,6 +86,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         batch.size = Some(size + batch.size.unwrap_or(0));
     }
 
+    // confirm that this batch exists or has not yet been committed.
     let exists = validate_async(
         db,
         params::ValidateBatch {
@@ -240,6 +242,7 @@ pub async fn commit_async(
     })
 }
 
+// Append a collection to an existing, pending batch.
 pub async fn do_append_async(
     db: &SpannerDb,
     user_id: HawkIdentifier,
@@ -255,9 +258,14 @@ pub async fn do_append_async(
     let mut running_size: usize = 0;
 
     // problem: Append may try to insert a duplicate record into the batch_bsos table.
-    // this is because spanner doesn't do upserts. at all. Batch_bso is a temp table and
-    // items are eventually rolled into bsos.
+    // this is because spanner doesn't do upserts easily. An upsert like operation can
+    // be performed by carefully crafting a complex protobuf struct. (See
+    // https://github.com/mozilla-services/syncstorage-rs/issues/618#issuecomment-680227710
+    // for details.)
+    // Batch_bso is a temp table and items are eventually rolled into bsos.
 
+    // create a simple key for a HashSet to see if a given record has already been
+    // created
     fn exist_idx(collection_id: &str, batch_id: &str, bso_id: &str) -> String {
         format!(
             "{collection_id}::{batch_id}::{bso_id}",
@@ -274,20 +282,34 @@ pub async fn do_append_async(
         payload: String,
     };
 
-    //prefetch the existing batch_bsos for this user.
+    //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();
-    let mut existing_stream = db
-    .sql("SELECT collection_id, batch_id, batch_bso_id from batch_bsos where fxa_uid=@fxa_uid and fxa_kid=@fxa_kid;")?
-    .params(params!{
+    let bso_ids = bsos.iter().map(|pbso| pbso.id.clone());
+    let mut params = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),
-    }).execute_async(&db.conn)?;
+        "collection_id" => collection_id.to_string(),
+        "batch_id" => batch.id.clone(),
+    };
+    params.insert("ids".to_owned(), as_list_value(bso_ids));
+    let mut existing_stream = db
+        .sql(
+            "SELECT batch_bso_id
+            FROM batch_bsos
+            WHERE fxa_uid=@fxa_uid
+                AND fxa_kid=@fxa_kid
+                AND collection_id=@collection_id
+                AND batch_id=@batch_id
+                AND batch_bso_id in UNNEST(@ids);",
+        )?
+        .params(params)
+        .execute_async(&db.conn)?;
     while let Some(row) = existing_stream.next_async().await {
         let row = row?;
         existing.insert(exist_idx(
+            &collection_id.to_string(),
+            &batch.id,
             row[0].get_string_value(),
-            row[1].get_string_value(),
-            row[2].get_string_value(),
         ));
     }
 
@@ -300,7 +322,7 @@ pub async fn do_append_async(
             .sortindex
             .map(|sortindex| as_value(sortindex.to_string()))
             .unwrap_or_else(null_value);
-        let payload = bso.payload.map(as_value).unwrap_or_else(null_value);
+        let mut payload = bso.payload.map(as_value).unwrap_or_else(null_value);
         if payload != null_value() {
             running_size += payload.get_string_value().len();
         }
@@ -313,14 +335,16 @@ pub async fn do_append_async(
 
         if existing.contains(&exist_idx) {
             // need to update this record
+            // reject this record since you can only have one update per batch
             update.push(UpdateRecord {
                 sortindex,
                 ttl,
                 bso_id: bso.id,
-                payload: payload.get_string_value().to_owned(),
+                payload: payload.take_string_value(),
             });
         } else {
-            // convert to a protobuf structure...
+            // convert to a protobuf structure for direct insertion to
+            // avoid some mutation limits.
             let mut row = ListValue::new();
             row.set_values(RepeatedField::from_vec(vec![
                 as_value(user_id.fxa_uid.clone()),
@@ -393,7 +417,6 @@ pub async fn do_append_async(
         sqlparams.insert("values".to_owned(), values);
         let mut sqlparam_types = HashMap::new();
         sqlparam_types.insert("values".to_owned(), param_type);
-        dbg!("### Doing insert...");
         db.sql(
             "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
                                     sortindex, payload, ttl)
@@ -403,27 +426,56 @@ pub async fn do_append_async(
         .param_types(sqlparam_types)
         .execute_dml_async(&db.conn)
         .await?;
-        dbg!("### done");
     }
 
     // assuming that "update" is rarer than an insert, we can try using the standard API for that.
     if !update.is_empty() {
+        db.metrics
+            .clone()
+            .incr("storage.spanner.adding_updates_to_batch_bsos");
         for val in update {
-            dbg!("### Updating...");
-            db.sql(
-                "UPDATE batch_bsos SET sortindex=@sortindex, payload=@payload, ttl=@ttl
+            let mut fields = Vec::new();
+            let mut sort_index = val.sortindex.get_string_value().to_owned();
+            if !sort_index.is_empty() {
+                fields.push("sortindex");
+            } else {
+                // This is not written, but the sql builder requires a numeric string
+                sort_index = "0".to_owned();
+            };
+            let mut ttl = val.ttl.get_string_value().to_owned();
+            if !ttl.is_empty() {
+                fields.push("ttl");
+            } else {
+                // This is not written, but the sql builder requires a numeric string
+                ttl = "0".to_owned();
+            };
+            let payload = val.payload;
+            if !payload.is_empty() {
+                fields.push("payload");
+            };
+            if fields.is_empty() {
+                continue;
+            };
+            let updatable = fields
+                .iter()
+                .map(|field| format!("{field}=@{field}", field = field))
+                .collect::<Vec<String>>()
+                .join(", ");
+            db.sql(&format!(
+                "UPDATE batch_bsos SET {updatable}
                 WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
                 AND batch_id=@batch_id AND batch_bso_id=@batch_bso_id",
-            )?
+                updatable = updatable
+            ))?
             .params(params!(
-                "sortindex" => val.sortindex.get_string_value().to_owned(),
-                "payload" => val.payload,
-                "ttl" => val.ttl.get_string_value().to_owned(),
+                "sortindex" => sort_index,
+                "payload" => payload,
+                "ttl" => ttl,
                 "fxa_uid" => user_id.fxa_uid.clone(),
                 "fxa_kid" => user_id.fxa_kid.clone(),
                 "collection_id" => collection_id.to_string(),
                 "batch_id" => batch.id.clone(),
-                "bso_id" => val.bso_id,
+                "batch_bso_id" => val.bso_id,
             ))
             .param_types(param_types.clone())
             .execute_dml_async(&db.conn)

@@ -6,7 +6,11 @@ use crate::{
     error::ApiErrorKind,
 };
 
-fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
+pub(crate) fn cb(
+    user_id: u32,
+    coll: &str,
+    bsos: Vec<params::PostCollectionBso>,
+) -> params::CreateBatch {
     params::CreateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -14,7 +18,7 @@ fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params:
     }
 }
 
-fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
+pub fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
     params::ValidateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -22,7 +26,7 @@ fn vb(user_id: u32, coll: &str, id: String) -> params::ValidateBatch {
     }
 }
 
-fn ab(
+pub fn ab(
     user_id: u32,
     coll: &str,
     batch: results::CreateBatch,
@@ -36,7 +40,7 @@ fn ab(
     }
 }
 
-fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
+pub fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
     params::GetBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
@@ -239,6 +243,53 @@ async fn quota_test_append_batch() -> Result<()> {
         .append_to_batch(ab(uid, coll, id2.clone(), bsos3))
         .await
         .is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_append_async_w_null() -> Result<()> {
+    let settings = crate::settings::test_settings();
+    if !settings.uses_spanner() {
+        dbg!("### Skipping test for mysql");
+        return Ok(());
+    }
+    let pool = db_pool(Some(settings)).await?;
+    let db = test_db(pool.as_ref()).await?;
+    let ttl = crate::db::util::ms_since_epoch() as u32;
+
+    let uid = 1;
+    let coll = "clients";
+    let first_bsos = vec![postbso(
+        "b0",
+        Some("payload 0"),
+        Some(10),
+        Some(ttl + 10_000),
+    )];
+    let new_batch = db.create_batch(cb(uid, coll, first_bsos)).await?;
+
+    // update the single bso twice, once changing
+    let updated_bsos = vec![
+        postbso("b0", None, Some(10), None),
+        postbso("b1", Some("payload 3"), None, Some(ttl + 20_000)),
+    ];
+
+    db.append_to_batch(ab(uid, coll, new_batch.clone(), updated_bsos))
+        .await?;
+
+    assert!(db
+        .get_batch(gb(uid, coll, new_batch.id.clone()))
+        .await?
+        .is_some());
+    // ideally, extract the updated batch_bso record out of SpannerDB and compare it against what we just
+    // updated. I'm not sure how to best do that without adding a lot of complicated code.
+
+    // clean up your toys.
+    db.delete_batch(params::DeleteBatch {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+        id: new_batch.id.clone(),
+    });
 
     Ok(())
 }

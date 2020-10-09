@@ -67,32 +67,12 @@ impl DbError {
     }
 
     pub fn is_reportable(&self) -> bool {
-        // Yeah, this could be an "if", but this gives easy extensibility.
-        match self.inner.get_context() {
-            DbErrorKind::SpannerGrpc(ref err) => match err {
-                grpcio::Error::RpcFailure(status) => match status.status {
-                    grpcio::RpcStatusCode::ALREADY_EXISTS => false,
-                    _ => true,
-                },
-                _ => true,
-            },
-            DbErrorKind::Conflict => false,
-            _ => true,
-        }
+        !matches!(self.inner.get_context(), DbErrorKind::Conflict)
     }
 
     pub fn metric_label(&self) -> Option<String> {
         match self.inner.get_context() {
             DbErrorKind::Conflict => Some("request.error.db.conflict".to_owned()),
-            DbErrorKind::SpannerGrpc(ref err) => match err {
-                grpcio::Error::RpcFailure(status) => match status.status {
-                    grpcio::RpcStatusCode::ALREADY_EXISTS => {
-                        Some("request.error.db.already_exists".to_owned())
-                    }
-                    _ => None,
-                },
-                _ => None,
-            },
             _ => None,
         }
     }

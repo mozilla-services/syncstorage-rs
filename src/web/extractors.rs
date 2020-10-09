@@ -764,6 +764,8 @@ impl FromRequest for CollectionRequest {
 
 /// Collection Request Post extractor
 ///
+/// Iterates over a list of BSOs in the request body and PUTs them into the
+/// database with the same timestamp.
 /// Extracts/validates information needed for batch collection POST requests.
 pub struct CollectionPostRequest {
     pub collection: String,
