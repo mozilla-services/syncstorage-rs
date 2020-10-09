@@ -221,10 +221,7 @@ impl FromRequest for DbTransactionPool {
             let bso = BsoParam::extrude(req.head(), &mut req.extensions_mut()).ok();
             let bso_opt = bso.map(|b| b.bso);
 
-            let is_read = match method {
-                Method::GET | Method::HEAD => true,
-                _ => false,
-            };
+            let is_read = matches!(method, Method::GET | Method::HEAD);
             let precondition = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()))?;
             let pool = Self {
                 pool: state.db_pool.clone(),
