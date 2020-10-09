@@ -260,29 +260,41 @@ async fn test_append_async_w_null() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let first_bsos = vec![postbso(
-        "b0",
-        Some("payload 0"),
-        Some(10),
-        Some(ttl + 10_000),
-    )];
+    let payload = "payload 0";
+    let first_bsos = vec![postbso("b0", Some(payload), Some(10), Some(ttl + 10_000))];
     let new_batch = db.create_batch(cb(uid, coll, first_bsos)).await?;
+    let tomorrow = ttl + 20_000;
 
-    // update the single bso twice, once changing
-    let updated_bsos = vec![
-        postbso("b0", None, Some(10), None),
-        postbso("b1", Some("payload 3"), None, Some(ttl + 20_000)),
-    ];
+    // update the single bso twice, leaving payload the same.
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![postbso("b0", None, Some(15), None)],
+    ))
+    .await?;
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![postbso("b0", None, None, Some(tomorrow))],
+    ))
+    .await?;
 
-    db.append_to_batch(ab(uid, coll, new_batch.clone(), updated_bsos))
-        .await?;
-
-    assert!(db
+    let batch = db
         .get_batch(gb(uid, coll, new_batch.id.clone()))
         .await?
-        .is_some());
-    // ideally, extract the updated batch_bso record out of SpannerDB and compare it against what we just
-    // updated. I'm not sure how to best do that without adding a lot of complicated code.
+        .unwrap();
+    db.commit_batch(params::CommitBatch {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+        batch,
+    })
+    .await?;
+    let bso = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+
+    assert!(bso.payload == payload);
+    assert!(bso.sortindex == Some(15));
 
     // clean up your toys.
     db.delete_batch(params::DeleteBatch {
