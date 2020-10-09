@@ -6,11 +6,7 @@ use crate::{
     error::ApiErrorKind,
 };
 
-fn cb(
-    user_id: u32,
-    coll: &str,
-    bsos: Vec<params::PostCollectionBso>,
-) -> params::CreateBatch {
+fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
     params::CreateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
