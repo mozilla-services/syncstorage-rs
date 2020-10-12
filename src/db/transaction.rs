@@ -137,7 +137,7 @@ impl DbTransactionPool {
 
                 // See if we already extracted one and use that if possible
                 if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-                    debug!("📝 Setting X-Last-Modfied {:?}", ts_header);
+                    trace!("📝 Setting X-Last-Modfied {:?}", ts_header);
                     resp.headers_mut()
                         .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
                 }

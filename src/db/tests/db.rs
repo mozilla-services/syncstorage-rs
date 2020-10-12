@@ -666,7 +666,7 @@ async fn test_quota() -> Result<()> {
     let settings = crate::settings::test_settings();
 
     if !settings.enable_quota {
-        debug!("Skipping test");
+        debug!("[test] Skipping test");
         return Ok(());
     }
 

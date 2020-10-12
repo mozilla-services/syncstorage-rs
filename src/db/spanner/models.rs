@@ -538,8 +538,6 @@ impl SpannerDb {
         &self,
         params: params::GetCollectionTimestamp,
     ) -> Result<SyncTimestamp> {
-        debug!("!!QQQ get_collection_timestamp {:?}", &params.collection);
-
         let collection_id = self.get_collection_id_async(&params.collection).await?;
         if let Some(modified) = self
             .session
@@ -1459,7 +1457,6 @@ impl SpannerDb {
         &self,
         params: params::GetBsoTimestamp,
     ) -> Result<SyncTimestamp> {
-        debug!("!!QQQ get_bso_timestamp_async: {:?}", &params.collection);
         let collection_id = self.get_collection_id_async(&params.collection).await?;
 
         let result = self
@@ -1565,7 +1562,7 @@ impl SpannerDb {
         }
         if load_size > MAX_SPANNER_LOAD_SIZE {
             self.metrics.clone().incr("error.tooMuchData");
-            debug!(
+            trace!(
                 "⚠️Attempted to load too much data into Spanner: {:?} bytes",
                 load_size
             );
@@ -1577,7 +1574,6 @@ impl SpannerDb {
         }
 
         if !inserts.is_empty() {
-            debug!("inserts: {:?}", &inserts);
             self.insert(
                 "bsos",
                 &[
@@ -1594,7 +1590,6 @@ impl SpannerDb {
             );
         }
         for (columns, values) in updates {
-            debug!("columns: {:?}, values:{:?}", &columns, &values);
             self.update("bsos", &columns, values);
         }
         // update the quotas
@@ -1799,7 +1794,7 @@ impl SpannerDb {
             }) * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(
-                "!!!!! INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
+                "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
                 &expirystring, timestamp, ttl
             );
             sqlparams.insert("expiry".to_string(), as_value(expirystring));
