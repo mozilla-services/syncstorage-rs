@@ -42,7 +42,7 @@ impl Drop for MetricTimer {
                 warn!("⚠️ Metric {} error: {:?}", self.label, e);
             }
             Ok(v) => {
-                info!("⌚ {:?}", v.as_metric_str());
+                trace!("⌚ {:?}", v.as_metric_str());
             }
         }
     }
@@ -173,14 +173,17 @@ fn delete_incremental(
     let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
     loop {
         let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
-        trace!("Selecting rows to delete: {}", select_sql);
+        trace!(
+            "Delete: Selecting incremental rows to delete: {}",
+            select_sql
+        );
         req.set_sql(select_sql.clone());
         let mut result = SyncResultSet {
             result: client.execute_sql(&req)?,
         };
 
         if result.result.rows.is_empty() || total >= max_to_delete {
-            info!("{}: done", table);
+            trace!("Delete: {}: done", table);
             break;
         }
         let mut delete_sql = format!(
@@ -194,7 +197,7 @@ fn delete_incremental(
             let collection_id = row[2].get_string_value().parse::<i32>().unwrap();
             let id = row[3].get_string_value().to_owned();
             trace!(
-                "Selected row for delete: i={} fxa_uid={} fxa_kid={} collection_id={} {}={}",
+                "Delete: Selected row for delete: i={} fxa_uid={} fxa_kid={} collection_id={} {}={}",
                 total,
                 fxa_uid,
                 fxa_kid,
@@ -239,7 +242,7 @@ fn delete_all(
     ));
     let result = client.execute_sql(&req)?;
     info!(
-        "{}: removed {} rows",
+        "DeleteAll: {}: removed {} rows",
         table,
         result.get_stats().get_row_count_lower_bound()
     );

@@ -144,7 +144,6 @@ async fn append_commit() -> Result<()> {
         })
         .await?;
 
-    debug!("result: {:?}", &result);
     assert!(db.get_bso(gbso(uid, coll, "b0")).await?.is_some());
     assert!(db.get_bso(gbso(uid, coll, "b2")).await?.is_some());
 
@@ -167,7 +166,7 @@ async fn quota_test_create_batch() -> Result<()> {
     let mut settings = crate::settings::test_settings();
 
     if !settings.enable_quota {
-        debug!("Skipping test");
+        debug!("[test] Skipping test");
         return Ok(());
     }
 
@@ -204,7 +203,7 @@ async fn quota_test_append_batch() -> Result<()> {
     let mut settings = crate::settings::test_settings();
 
     if !settings.enable_quota {
-        debug!("Skipping test");
+        debug!("[test] Skipping test");
         return Ok(());
     }
 

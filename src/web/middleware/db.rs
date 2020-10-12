@@ -82,7 +82,7 @@ where
                 .unwrap_or(&no_agent)
                 .to_str()
                 .unwrap_or("NONE");
-            info!(">>> testing db middleware"; "user_agent" => useragent);
+            trace!("Testing db middleware"; "user_agent" => useragent);
             if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
                 let mut service = Rc::clone(&self.service);
                 return service.call(sreq).await;
@@ -179,7 +179,7 @@ where
                     if let Some(label) = apie.metric_label() {
                         state.metrics.incr_with_tags(label, tags);
                     }
-                    debug!("Not reporting error: {:?}", apie);
+                    trace!("Transaction: Not reporting error: {:?}", apie);
                 }
                 return Err(apie.into());
             }

@@ -65,7 +65,7 @@ pub struct UidParam {
 
 fn urldecode(s: &str) -> Result<String, ApiError> {
     let decoded: String = urlencoding::decode(s).map_err(|e| {
-        debug!("unclean entry: {:?} {:?}", s, e);
+        trace!("Extract: unclean urldecode entry: {:?} {:?}", s, e);
         ApiErrorKind::Internal(e.to_string())
     })?;
     Ok(decoded)
@@ -178,7 +178,7 @@ impl FromRequest for BsoBodies {
             }
         };
         let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
-        debug!("content_type: {:?}", &content_type);
+        trace!("BSO Body content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
             metrics.incr("request.error.invalid_content_type");
