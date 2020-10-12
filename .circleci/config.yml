@@ -113,6 +113,9 @@ jobs:
   checks:
     docker:
       - image: circleci/rust:latest
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
     steps:
       - checkout
       - setup-rust
@@ -124,12 +127,18 @@ jobs:
   build-and-test:
     docker:
       - image: circleci/rust:latest
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
         environment:
             SYNC_DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
             RUST_BACKTRACE: 1
             # XXX: begin_test_transaction doesn't play nice over threaded tests
             RUST_TEST_THREADS: 1
       - image: circleci/mysql:5.7-ram
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
         environment:
             MYSQL_ROOT_PASSWORD: random
             MYSQL_USER: test
@@ -138,6 +147,14 @@ jobs:
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
+          = run:
+            name: Login to Dockerhub
+            command: |
+              if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
+                echo "Skipping Login to DockerHub, credentials unavailable"
+              else
+                echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
+              fi
       - checkout
       - setup-rust
       - setup-gcp-grpc
@@ -169,6 +186,9 @@ jobs:
   e2e-tests:
     docker:
       - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
     steps:
       - setup_remote_docker
       - restore_cache:
@@ -184,6 +204,9 @@ jobs:
   deploy:
     docker:
       - image: docker:18.02.0-ce
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
     steps:
       - setup_remote_docker
       - restore_cache:
@@ -219,6 +242,9 @@ jobs:
   deploy-python-utils:
     docker:
       - image: docker:stable-git
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
     steps:
       - setup_remote_docker
       - checkout
