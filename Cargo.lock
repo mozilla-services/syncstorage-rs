@@ -2779,7 +2779,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "actix-cors",
  "actix-http",
