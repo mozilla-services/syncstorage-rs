@@ -1,3 +1,20 @@
+<a name="0.7.0"></a>
+## 0.7.0 (2020-10-12)
+
+
+#### Bug Fixes
+
+*   Return FORBIDDEN if a user's batch is Over Quota (#848) ([d24dcdb6](https://github.com/mozilla-services/syncstorage-rs/commit/d24dcdb6c1a23ea725322830b82a3f31a11c7a8b), closes [#852](https://github.com/mozilla-services/syncstorage-rs/issues/852))
+*   clippy error related to matches! closes #850 ([06aed80f](https://github.com/mozilla-services/syncstorage-rs/commit/06aed80f004c355f280d25c9d508b28038adf0f2))
+*   downgrade sentry to 0.19 (#849) ([0a175dde](https://github.com/mozilla-services/syncstorage-rs/commit/0a175dde049b4661d681be5398941f6a3136a142))
+
+#### Chore
+
+*   Update circleci to use docker auth (#855) ([dcb0a0b2](https://github.com/mozilla-services/syncstorage-rs/commit/dcb0a0b23c78b5f07c0a8f4c2d91f4f5895a7515), closes [#854](https://github.com/mozilla-services/syncstorage-rs/issues/854))
+*   update to protobuf 2.18.0 ([c6f9cf9b](https://github.com/mozilla-services/syncstorage-rs/commit/c6f9cf9bd4ef7bff13ddc33a71f5771dd9bf6ea3), closes [#852](https://github.com/mozilla-services/syncstorage-rs/issues/852))
+
+
+
 <a name="0.6.1"></a>
 ## 0.6.1 (2020-09-30)
 
