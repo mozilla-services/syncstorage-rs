@@ -70,7 +70,7 @@ commands:
           name: quota test
           command: cargo test --all --verbose
           environment:
-              ENABLE_QUOTA: 1
+              SYNC_ENABLE_QUOTA: 1
 
   run-e2e-tests:
     steps:
