@@ -1,8 +1,8 @@
 #[cfg(test)]
 #[macro_use]
-mod support;
+pub mod support;
 
 #[cfg(test)]
-mod batch;
+pub mod batch;
 #[cfg(test)]
 mod db;

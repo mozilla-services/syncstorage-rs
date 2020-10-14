@@ -1,6 +1,6 @@
 use log::debug;
 
-use super::support::{db_pool, gbso, hid, postbso, test_db, Result};
+use super::support::{db_pool, gbso, hid, pbso, postbso, test_db, Result};
 use crate::{
     db::{error::DbErrorKind, params, results, util::SyncTimestamp, BATCH_LIFETIME},
     error::ApiErrorKind,
@@ -238,6 +238,59 @@ async fn quota_test_append_batch() -> Result<()> {
         .append_to_batch(ab(uid, coll, id2.clone(), bsos3))
         .await
         .is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_append_async_w_null() -> Result<()> {
+    let settings = crate::settings::test_settings();
+    if !settings.uses_spanner() {
+        dbg!("### Skipping test for mysql");
+        return Ok(());
+    }
+    let pool = db_pool(Some(settings)).await?;
+    let db = test_db(pool.as_ref()).await?;
+    let ttl = crate::db::util::ms_since_epoch() as u32;
+
+    let uid = 1;
+    let coll = "clients";
+    let payload = "payload 0";
+    let first_bso = pbso(uid, coll, "b0", Some(payload), Some(10), Some(ttl + 10_000));
+    db.put_bso(first_bso).await?;
+
+    let tomorrow = ttl + 20_000;
+    let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+    // update the single bso twice, leaving payload the same.
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![postbso("b0", None, Some(15), None)],
+    ))
+    .await?;
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![postbso("b0", None, None, Some(tomorrow))],
+    ))
+    .await?;
+
+    let batch = db
+        .get_batch(gb(uid, coll, new_batch.id.clone()))
+        .await?
+        .unwrap();
+    db.commit_batch(params::CommitBatch {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+        batch,
+    })
+    .await?;
+    let bso = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+
+    assert!(bso.payload == payload);
+    assert!(bso.sortindex == Some(15));
 
     Ok(())
 }

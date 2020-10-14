@@ -1,4 +1,7 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use googleapis_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
 use protobuf::{
@@ -10,7 +13,7 @@ use uuid::Uuid;
 use super::support::{null_value, struct_type_field};
 use super::{
     models::{Result, SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS},
-    support::as_value,
+    support::{as_list_value, as_value},
 };
 use crate::{
     db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
@@ -65,29 +68,11 @@ pub async fn create_async(
 }
 
 pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
-    let exists = db
-        .sql(
-            "SELECT 1
-               FROM batches
-              WHERE fxa_uid = @fxa_uid
-                AND fxa_kid = @fxa_kid
-                AND collection_id = @collection_id
-                AND batch_id = @batch_id
-                AND expiry > CURRENT_TIMESTAMP()",
-        )?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid,
-            "fxa_kid" => params.user_id.fxa_kid,
-            "collection_id" => collection_id.to_string(),
-            "batch_id" => params.id,
-        })
-        .execute_async(&db.conn)?
-        .one_or_none()
-        .await?;
+    let exists = get_async(db, params.into()).await?;
     Ok(exists.is_some())
 }
 
+// Append a collection to a pending batch (`create_batch` creates a new batch)
 pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
@@ -101,6 +86,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         batch.size = Some(size + batch.size.unwrap_or(0));
     }
 
+    // confirm that this batch exists or has not yet been committed.
     let exists = validate_async(
         db,
         params::ValidateBatch {
@@ -256,6 +242,7 @@ pub async fn commit_async(
     })
 }
 
+// Append a collection to an existing, pending batch.
 pub async fn do_append_async(
     db: &SpannerDb,
     user_id: HawkIdentifier,
@@ -269,22 +256,95 @@ pub async fn do_append_async(
     //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
     // https://cloud.google.com/spanner/docs/structs#creating_struct_objects
     let mut running_size: usize = 0;
-    let rows: Vec<_> = bsos
-        .into_iter()
-        .map(|bso| {
+
+    // problem: Append may try to insert a duplicate record into the batch_bsos table.
+    // this is because spanner doesn't do upserts easily. An upsert like operation can
+    // be performed by carefully crafting a complex protobuf struct. (See
+    // https://github.com/mozilla-services/syncstorage-rs/issues/618#issuecomment-680227710
+    // for details.)
+    // Batch_bso is a temp table and items are eventually rolled into bsos.
+
+    // create a simple key for a HashSet to see if a given record has already been
+    // created
+    fn exist_idx(collection_id: &str, batch_id: &str, bso_id: &str) -> String {
+        format!(
+            "{collection_id}::{batch_id}::{bso_id}",
+            collection_id = collection_id,
+            batch_id = batch_id,
+            bso_id = bso_id,
+        )
+    }
+
+    struct UpdateRecord {
+        bso_id: String,
+        sortindex: Option<i32>,
+        payload: Option<String>,
+        ttl: Option<u32>,
+    };
+
+    //prefetch the existing batch_bsos for this user's batch.
+    let mut existing = HashSet::new();
+    let bso_ids = bsos.iter().map(|pbso| pbso.id.clone());
+    let mut params = params! {
+        "fxa_uid" => user_id.fxa_uid.clone(),
+        "fxa_kid" => user_id.fxa_kid.clone(),
+        "collection_id" => collection_id.to_string(),
+        "batch_id" => batch.id.clone(),
+    };
+    params.insert("ids".to_owned(), as_list_value(bso_ids));
+    let mut existing_stream = db
+        .sql(
+            "SELECT batch_bso_id
+            FROM batch_bsos
+            WHERE fxa_uid=@fxa_uid
+                AND fxa_kid=@fxa_kid
+                AND collection_id=@collection_id
+                AND batch_id=@batch_id
+                AND batch_bso_id in UNNEST(@ids);",
+        )?
+        .params(params)
+        .execute_async(&db.conn)?;
+    while let Some(row) = existing_stream.next_async().await {
+        let row = row?;
+        existing.insert(exist_idx(
+            &collection_id.to_string(),
+            &batch.id,
+            row[0].get_string_value(),
+        ));
+    }
+
+    // Approach 1:
+    // iterate and check to see if the record is in batch_bso table already
+    let mut insert: Vec<Value> = Vec::new();
+    let mut update: Vec<UpdateRecord> = Vec::new();
+    for bso in bsos {
+        if let Some(ref payload) = bso.payload {
+            running_size += payload.len();
+        }
+        let exist_idx = exist_idx(&collection_id.to_string(), &batch.id, &bso.id);
+
+        if existing.contains(&exist_idx) {
+            // need to update this record
+            // reject this record since you can only have one update per batch
+            update.push(UpdateRecord {
+                bso_id: bso.id,
+                sortindex: bso.sortindex,
+                payload: bso.payload,
+                ttl: bso.ttl,
+            });
+        } else {
             let sortindex = bso
                 .sortindex
                 .map(|sortindex| as_value(sortindex.to_string()))
                 .unwrap_or_else(null_value);
             let payload = bso.payload.map(as_value).unwrap_or_else(null_value);
-            if payload != null_value() {
-                running_size += payload.get_string_value().len();
-            }
             let ttl = bso
                 .ttl
                 .map(|ttl| as_value(ttl.to_string()))
                 .unwrap_or_else(null_value);
 
+            // convert to a protobuf structure for direct insertion to
+            // avoid some mutation limits.
             let mut row = ListValue::new();
             row.set_values(RepeatedField::from_vec(vec![
                 as_value(user_id.fxa_uid.clone()),
@@ -298,9 +358,10 @@ pub async fn do_append_async(
             ]));
             let mut value = Value::new();
             value.set_list_value(row);
-            value
-        })
-        .collect();
+            insert.push(value);
+            existing.insert(exist_idx);
+        };
+    }
 
     if db.quota_enabled {
         if let Some(size) = batch.size {
@@ -309,19 +370,17 @@ pub async fn do_append_async(
             }
         }
     }
-    let mut list_values = ListValue::new();
-    list_values.set_values(RepeatedField::from_vec(rows));
-    let mut values = Value::new();
-    values.set_list_value(list_values);
 
-    // values' type is an ARRAY of STRUCTs
-    let mut param_type = Type::new();
-    param_type.set_code(TypeCode::ARRAY);
-    let mut array_type = Type::new();
-    array_type.set_code(TypeCode::STRUCT);
-
-    // STRUCT requires definition of all its field types
-    let mut struct_type = StructType::new();
+    let param_types = param_types! {    // ### TODO: this should be normalized to one instance.
+        "fxa_uid" => TypeCode::STRING,
+        "fxa_kid"=> TypeCode::STRING,
+        "collection_id"=> TypeCode::INT64,
+        "batch_id"=> TypeCode::STRING,
+        "batch_bso_id"=> TypeCode::STRING,
+        "sortindex"=> TypeCode::INT64,
+        "payload"=> TypeCode::STRING,
+        "ttl"=> TypeCode::INT64,
+    };
     let fields = vec![
         ("fxa_uid", TypeCode::STRING),
         ("fxa_kid", TypeCode::STRING),
@@ -335,23 +394,86 @@ pub async fn do_append_async(
     .into_iter()
     .map(|(name, field_type)| struct_type_field(name, field_type))
     .collect();
-    struct_type.set_fields(RepeatedField::from_vec(fields));
-    array_type.set_struct_type(struct_type);
-    param_type.set_array_element_type(array_type);
 
-    let mut sqlparams = HashMap::new();
-    sqlparams.insert("values".to_owned(), values);
-    let mut sqlparam_types = HashMap::new();
-    sqlparam_types.insert("values".to_owned(), param_type);
-    db.sql(
-        "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
-                                 sortindex, payload, ttl)
-         SELECT * FROM UNNEST(@values)",
-    )?
-    .params(sqlparams)
-    .param_types(sqlparam_types)
-    .execute_dml_async(&db.conn)
-    .await?;
+    if !insert.is_empty() {
+        let mut list_values = ListValue::new();
+        list_values.set_values(RepeatedField::from_vec(insert));
+        let mut values = Value::new();
+        values.set_list_value(list_values);
+
+        // values' type is an ARRAY of STRUCTs
+        let mut param_type = Type::new();
+        param_type.set_code(TypeCode::ARRAY);
+        let mut array_type = Type::new();
+        array_type.set_code(TypeCode::STRUCT);
+
+        // STRUCT requires definition of all its field types
+        let mut struct_type = StructType::new();
+        struct_type.set_fields(RepeatedField::from_vec(fields));
+        array_type.set_struct_type(struct_type);
+        param_type.set_array_element_type(array_type);
+
+        let mut sqlparams = HashMap::new();
+        sqlparams.insert("values".to_owned(), values);
+        let mut sqlparam_types = HashMap::new();
+        sqlparam_types.insert("values".to_owned(), param_type);
+        db.sql(
+            "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
+                                    sortindex, payload, ttl)
+            SELECT * FROM UNNEST(@values)",
+        )?
+        .params(sqlparams)
+        .param_types(sqlparam_types)
+        .execute_dml_async(&db.conn)
+        .await?;
+    }
+
+    // assuming that "update" is rarer than an insert, we can try using the standard API for that.
+    if !update.is_empty() {
+        db.metrics
+            .clone()
+            .incr("storage.spanner.adding_updates_to_batch_bsos");
+        for val in update {
+            let mut fields = Vec::new();
+            let mut params = params! {
+                "fxa_uid" => user_id.fxa_uid.clone(),
+                "fxa_kid" => user_id.fxa_kid.clone(),
+                "collection_id" => collection_id.to_string(),
+                "batch_id" => batch.id.clone(),
+                "batch_bso_id" => val.bso_id,
+            };
+            if let Some(sortindex) = val.sortindex {
+                fields.push("sortindex");
+                params.insert("sortindex".to_owned(), as_value(sortindex.to_string()));
+            }
+            if let Some(payload) = val.payload {
+                fields.push("payload");
+                params.insert("payload".to_owned(), as_value(payload));
+            };
+            if let Some(ttl) = val.ttl {
+                fields.push("ttl");
+                params.insert("ttl".to_owned(), as_value(ttl.to_string()));
+            }
+            if fields.is_empty() {
+                continue;
+            };
+            let updatable = fields
+                .iter()
+                .map(|field| format!("{field}=@{field}", field = field))
+                .collect::<Vec<String>>()
+                .join(", ");
+            db.sql(&format!(
+                "UPDATE batch_bsos SET {updatable}
+                WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
+                AND batch_id=@batch_id AND batch_bso_id=@batch_bso_id",
+                updatable = updatable
+            ))?
+            .params(params)
+            .param_types(param_types.clone())
+            .execute_dml_async(&db.conn)
+            .await?;
+        }
+    }
 
     Ok(())
 }

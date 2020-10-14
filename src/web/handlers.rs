@@ -234,6 +234,8 @@ pub async fn post_collection(
             coll.metrics.clone().incr("request.post_collection");
             trace!("Collection: Post");
 
+            // batches are a conceptual, singular update, so we should handle
+            // them separately.
             if coll.batch.is_some() {
                 return post_collection_batch(coll, db).await;
             }
@@ -254,6 +256,8 @@ pub async fn post_collection(
         .await
 }
 
+// Append additional collection items into the given Batch, optionally commiting
+// the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
     db: Box<dyn Db<'_> + '_>,
@@ -348,6 +352,8 @@ pub async fn post_collection_batch(
         .await
         .map(|_| ())
     } else {
+        // We're not yet to commit the accumulated batch, but there are some
+        // additional records we need to add.
         trace!("Batch: Appending to {}", &new_batch.id);
         db.append_to_batch(params::AppendToBatch {
             user_id: coll.user_id.clone(),
@@ -358,6 +364,7 @@ pub async fn post_collection_batch(
         .await
     };
 
+    // collect up the successful and failed bso_ids into a response.
     match result {
         Ok(_) => success.extend(bso_ids),
         Err(e) if e.is_conflict() => return Err(e.into()),
@@ -383,6 +390,7 @@ pub async fn post_collection_batch(
         return Ok(HttpResponse::Accepted().json(resp));
     }
 
+    // We've been asked to commit the accumulated data, so get to it!
     let batch = db
         .get_batch(params::GetBatch {
             user_id: user_id.clone(),

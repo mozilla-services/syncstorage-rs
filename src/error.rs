@@ -24,7 +24,7 @@ use serde::{
 use crate::db::error::{DbError, DbErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
-use crate::web::error::{HawkError, HawkErrorKind, ValidationError, ValidationErrorKind};
+use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
@@ -57,7 +57,6 @@ pub const RETRY_AFTER: u8 = 10;
 pub struct ApiError {
     inner: Context<ApiErrorKind>,
     status: StatusCode,
-    metric_label: Option<String>,
 }
 
 /// Top-level ErrorKind.
@@ -77,6 +76,16 @@ pub enum ApiErrorKind {
 
     #[fail(display = "{}", _0)]
     Validation(#[cause] ValidationError),
+}
+
+impl ApiErrorKind {
+    pub fn metric_label(&self) -> Option<String> {
+        match self {
+            ApiErrorKind::Db(err) => err.metric_label(),
+            ApiErrorKind::Hawk(err) => err.metric_label(),
+            _ => None,
+        }
+    }
 }
 
 impl ApiError {
@@ -121,18 +130,11 @@ impl ApiError {
     pub fn is_reportable(&self) -> bool {
         // Should we report this error to sentry?
         match self.kind() {
-            ApiErrorKind::Db(dbe) => match dbe.kind() {
-                DbErrorKind::Conflict => return false,
-                _ => (),
-            },
-            ApiErrorKind::Hawk(hawke) => match hawke.kind() {
-                HawkErrorKind::MissingHeader => return false,
-                HawkErrorKind::InvalidHeader => return false,
-                _ => (),
-            },
+            ApiErrorKind::Db(dbe) => return dbe.is_reportable(),
+            ApiErrorKind::Hawk(hawke) => return hawke.is_reportable(),
             _ => (),
         };
-        self.metric_label.is_none()
+        self.kind().metric_label().is_none()
     }
 
     pub fn on_response(&self, state: &ServerState) {
@@ -236,11 +238,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
             ApiErrorKind::Validation(error) => error.status,
         };
 
-        Self {
-            inner,
-            status,
-            metric_label: None,
-        }
+        Self { inner, status }
     }
 }
 
