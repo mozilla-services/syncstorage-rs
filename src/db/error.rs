@@ -65,6 +65,17 @@ impl DbError {
     pub fn internal(msg: &str) -> Self {
         DbErrorKind::Internal(msg.to_owned()).into()
     }
+
+    pub fn is_reportable(&self) -> bool {
+        !matches!(self.inner.get_context(), DbErrorKind::Conflict)
+    }
+
+    pub fn metric_label(&self) -> Option<String> {
+        match self.inner.get_context() {
+            DbErrorKind::Conflict => Some("request.error.db.conflict".to_owned()),
+            _ => None,
+        }
+    }
 }
 
 impl From<Context<DbErrorKind>> for DbError {

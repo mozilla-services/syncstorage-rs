@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use diesel::{
     self,
     dsl::sql,
@@ -170,14 +172,64 @@ pub fn do_append(
     db: &MysqlDb,
     batch_id: i64,
     user_id: HawkIdentifier,
-    _collection_id: i32,
+    collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
-    let inserts: Vec<_> = bsos
-        .into_iter()
-        .map(|bso: params::PostCollectionBso| {
-            let payload_size = bso.payload.as_ref().map(|p| p.len() as i64);
-            (
+    fn exist_idx(collection_id: i32, batch_id: i64, bso_id: &str) -> String {
+        format!(
+            "{collection_id}::{batch_id}::{bso_id}",
+            collection_id = collection_id,
+            batch_id = batch_id,
+            bso_id = bso_id,
+        )
+    };
+
+    #[derive(Debug, QueryableByName)]
+    struct ExistsResult {
+        #[sql_type = "Integer"]
+        batch: i32,
+        #[sql_type = "Integer"]
+        id: i32,
+    };
+
+    /* This is not the most efficient way to do this using pure MySQL.
+       It would be more efficient to create an "INSERT ... ON DUPLICATE UPDATE"
+       query. This *does* match how spanner works, and may be easier to keep
+       in mind.
+    */
+
+    let mut existing = HashSet::new();
+    let mut inserts: Vec<_> = Vec::new();
+
+    for item in sql_query("SELECT batch, id FROM batch_upload_items where userid=@userid;")
+        .bind::<BigInt, _>(user_id.legacy_id as i64)
+        .get_results::<ExistsResult>(&db.conn)?
+    {
+        existing.insert(exist_idx(
+            collection_id,
+            item.batch as i64,
+            &item.id.to_string(),
+        ));
+    }
+
+    for bso in bsos {
+        let payload_size = bso.payload.as_ref().map(|p| p.len() as i64);
+        let exist_idx = exist_idx(collection_id, batch_id, &bso.id);
+
+        if existing.contains(&exist_idx) {
+            diesel::update(
+                batch_upload_items::table
+                    .filter(batch_upload_items::user_id.eq(user_id.legacy_id as i64))
+                    .filter(batch_upload_items::batch_id.eq(batch_id)),
+            )
+            .set((
+                batch_upload_items::payload.eq(bso.payload),
+                batch_upload_items::payload_size.eq(payload_size),
+                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
+            ))
+            .execute(&db.conn)?;
+        } else {
+            inserts.push((
                 batch_upload_items::batch_id.eq(&batch_id),
                 batch_upload_items::user_id.eq(user_id.legacy_id as i64),
                 batch_upload_items::id.eq(bso.id.clone()),
@@ -185,9 +237,10 @@ pub fn do_append(
                 batch_upload_items::payload.eq(bso.payload),
                 batch_upload_items::payload_size.eq(payload_size),
                 batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
-            )
-        })
-        .collect();
+            ));
+            existing.insert(exist_idx);
+        }
+    }
 
     insert_into(batch_upload_items::table)
         .values(inserts)
