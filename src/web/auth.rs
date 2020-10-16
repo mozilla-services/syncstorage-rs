@@ -19,7 +19,6 @@ use time::Duration;
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::Uri;
 
-use super::tags::Tags;
 use super::{
     error::{HawkErrorKind, ValidationErrorKind},
     extractors::RequestErrorLocation,
@@ -164,7 +163,6 @@ impl HawkPayload {
         secrets: &Secrets,
         ci: &ConnectionInfo,
         uri: &Uri,
-        tags: Option<Tags>,
     ) -> ApiResult<Self> {
         let host_port: Vec<_> = ci.host().splitn(2, ':').collect();
         let host = host_port[0];
@@ -174,7 +172,6 @@ impl HawkPayload {
                     "Invalid port (hostname:port) specified".to_owned(),
                     RequestErrorLocation::Header,
                     None,
-                    tags,
                     label!("request.validate.hawk.invalid_port"),
                 )
             })?
