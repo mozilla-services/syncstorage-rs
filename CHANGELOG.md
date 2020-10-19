@@ -1,3 +1,14 @@
+<a name="0.7.1"></a>
+## 0.7.1 (2020-10-19)
+
+
+#### Bug Fixes
+
+*   correct quota env var in config test to SYNC_ENABLE_QUOTA (#859) ([f0aa4642](https://github.com/mozilla-services/syncstorage-rs/commit/f0aa4642b13a9e4d687707940959cc181e6f750d), closes [#829](https://github.com/mozilla-services/syncstorage-rs/issues/829))
+* rework error logging/metric reporting; fix BSO batch updates for spanner (#174, #619, #618) ([cef8fb521](https://github.com/mozilla-services/syncstorage-rs/commit/cef8fb521ad3239f5ecf356468715ca8341e7f73), closes [#174](https://github.com/mozilla-services/syncstorage-rs/issues/174), [#619](https://github.com/mozilla-services/syncstorage-rs/issues/619), [#618](https://github.com/mozilla-services/syncstorage-rs/issues/618))
+
+
+
 <a name="0.7.0"></a>
 ## 0.7.0 (2020-10-12)
 
