@@ -13,9 +13,7 @@ use diesel::sql_types::*;
 use diesel::RunQueryDsl;
 use std::env;
 
-use jsonwebtoken::{
-    decode, Algorithm, DecodingKey, Validation,
-};
+use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 
@@ -79,9 +77,7 @@ pub fn get(
     })
 }
 
-pub fn get_sync(
-    auth: &BearerAuth,
-) -> Result<TokenServerResult, ApiError> {
+pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
     // the public rsa components come from
     // https://oauth.accounts.firefox.com/v1/jwks
     // TODO we should fetch it from an environment var instead of hardcoding it.
