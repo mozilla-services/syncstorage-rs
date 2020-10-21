@@ -37,7 +37,6 @@ use crate::web::{
     tags::Tags,
     X_WEAVE_RECORDS,
 };
-
 const BATCH_MAX_IDS: usize = 100;
 
 // BSO const restrictions
@@ -1756,23 +1755,6 @@ where
         return Ok(Some(Offset::from_str(&val).map_err(SerdeError::custom)?));
     }
     Ok(None)
-}
-
-// Tokenserver extractor
-#[derive(Debug, Default, Clone, Deserialize)]
-pub struct TokenServerRequest {
-    // TODO extract required headers from the request into this struct.
-}
-
-impl FromRequest for TokenServerRequest {
-    type Config = ();
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-
-    /// Extract and validate the precondition headers
-    fn from_request(_req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        Box::pin(async move { Ok(Self {}) })
-    }
 }
 
 #[cfg(test)]
