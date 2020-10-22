@@ -150,7 +150,6 @@ impl ApiError {
                     ref description,
                     ref location,
                     name,
-                    ref _tags,
                     ref _metric_label,
                 ) => {
                     match description.as_ref() {
@@ -169,7 +168,6 @@ impl ApiError {
                 ValidationErrorKind::FromValidationErrors(
                     ref _err,
                     ref location,
-                    ref _tags,
                     _metric_label,
                 ) => {
                     if *location == RequestErrorLocation::Body {

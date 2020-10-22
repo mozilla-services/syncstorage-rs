@@ -34,7 +34,6 @@ use crate::settings::Secrets;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
-    tags::Tags,
     X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -160,7 +159,6 @@ impl FromRequest for BsoBodies {
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
         let metrics = metrics::Metrics::from(req);
-        let tags = Tags::from_request_head(req.head());
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -169,7 +167,6 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        Some(tags),
                         label!("request.validate.bad_content_type"),
                     )
                     .into(),
@@ -186,7 +183,6 @@ impl FromRequest for BsoBodies {
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    Some(tags),
                     label!("request.validate.bad_content_type"),
                 )
                 .into(),
@@ -201,19 +197,17 @@ impl FromRequest for BsoBodies {
                 RequestErrorLocation::Header,
                 None,
                 None,
-                None,
             )
             .into()
         });
 
         // Avoid duplicating by defining our error func now, doesn't need the box wrapper
-        fn make_error(tags: Option<Tags>, metrics: metrics::Metrics) -> Error {
-            metrics.incr_with_tags("request.error.invalid_json", tags.clone());
+        fn make_error(metrics: metrics::Metrics) -> Error {
+            metrics.incr("request.error.invalid_json");
             ValidationErrorKind::FromDetails(
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
                 Some("bsos".to_owned()),
-                tags,
                 label!("request.validate.invalid_body_json"),
             )
             .into()
@@ -234,7 +228,6 @@ impl FromRequest for BsoBodies {
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
                         None,
-                        None,
                     )
                     .into(),
                 ));
@@ -254,7 +247,7 @@ impl FromRequest for BsoBodies {
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
-                        return future::err(make_error(None, metrics));
+                        return future::err(make_error(metrics));
                     }
                 }
                 bsos
@@ -262,7 +255,7 @@ impl FromRequest for BsoBodies {
                 json_vals
             } else {
                 // Per Python version, BSO's must json deserialize
-                return future::err(make_error(None, metrics));
+                return future::err(make_error(metrics));
             };
 
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
@@ -282,7 +275,7 @@ impl FromRequest for BsoBodies {
             for bso in bsos {
                 // Error out if its not a JSON mapping type
                 if !bso.is_object() {
-                    return future::err(make_error(None, metrics));
+                    return future::err(make_error(metrics));
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
@@ -293,7 +286,6 @@ impl FromRequest for BsoBodies {
                                 "Input BSO has duplicate ID".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                                Some(tags),
                                 label!("request.store.duplicate_bso_id"),
                             )
                             .into(),
@@ -308,7 +300,6 @@ impl FromRequest for BsoBodies {
                             "Input BSO has no ID".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                            Some(tags),
                             label!("request.store.missing_bso_id"),
                         )
                         .into(),
@@ -366,9 +357,6 @@ impl FromRequest for BsoBody {
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
-        let tags = Tags::from_request_head(req.head());
-        let ftags = tags.clone();
-        let fftags = tags.clone();
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -377,7 +365,6 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        Some(tags),
                         label!("request.validate.bad_content_type"),
                     )
                     .into(),
@@ -391,7 +378,6 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    Some(tags),
                     label!("request.validate.bad_content_type"),
                 )
                 .into(),
@@ -406,7 +392,6 @@ impl FromRequest for BsoBody {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
-                        None,
                         None,
                     )
                     .into(),
@@ -423,7 +408,6 @@ impl FromRequest for BsoBody {
                     e.to_string(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
-                    Some(tags),
                     label!("request.validate.bad_bso_body"),
                 )
                 .into();
@@ -442,7 +426,6 @@ impl FromRequest for BsoBody {
                         "payload too large".to_owned(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                        Some(ftags),
                         label!("request.validate.payload_too_large"),
                     )
                     .into();
@@ -452,7 +435,6 @@ impl FromRequest for BsoBody {
                     let err: ApiError = ValidationErrorKind::FromValidationErrors(
                         e,
                         RequestErrorLocation::Body,
-                        Some(fftags),
                         None,
                     )
                     .into();
@@ -473,7 +455,7 @@ pub struct BsoParam {
 }
 
 impl BsoParam {
-    fn bsoparam_from_path(uri: &Uri, tags: &Tags) -> Result<Self, Error> {
+    fn bsoparam_from_path(uri: &Uri) -> Result<Self, Error> {
         // TODO: replace with proper path parser
         // path: "/1.5/{uid}/storage/{collection}/{bso}"
         let elements: Vec<&str> = uri.path().split('/').collect();
@@ -483,39 +465,35 @@ impl BsoParam {
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-                Some(tags.clone()),
                 label!("request.process.invalid_bso"),
             ))?;
         }
         if let Some(v) = elements.get(5) {
             let sv = urldecode(&String::from_str(v).map_err(|e| {
-                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
-                    Some(tags.clone()),
                     label!("request.process.invalid_bso"),
                 )
             })?)
             .map_err(|e| {
-                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e; tags);
+                warn!("⚠️ Invalid BsoParam Error: {:?} {:?}", v, e);
                 ValidationErrorKind::FromDetails(
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
-                    Some(tags.clone()),
                     label!("request.process.invalid_bso"),
                 )
             })?;
             Ok(Self { bso: sv })
         } else {
-            warn!("⚠️ Missing BSO: {:?}", uri.path(); tags);
+            warn!("⚠️ Missing BSO: {:?}", uri.path());
             Err(ValidationErrorKind::FromDetails(
                 "Missing BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-                Some(tags.clone()),
                 label!("request.process.missing_bso"),
             ))?
         }
@@ -523,18 +501,12 @@ impl BsoParam {
 
     pub fn extrude(head: &RequestHead, extensions: &mut Extensions) -> Result<Self, Error> {
         let uri = head.uri.clone();
-        let tags = Tags::from_request_head(head);
         if let Some(bso) = extensions.get::<BsoParam>() {
             return Ok(bso.clone());
         }
-        let bso = Self::bsoparam_from_path(&uri, &tags)?;
+        let bso = Self::bsoparam_from_path(&uri)?;
         bso.validate().map_err(|e| {
-            ValidationErrorKind::FromValidationErrors(
-                e,
-                RequestErrorLocation::Path,
-                Some(tags.clone()),
-                None,
-            )
+            ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path, None)
         })?;
         extensions.insert(bso.clone());
         Ok(bso)
@@ -559,7 +531,7 @@ pub struct CollectionParam {
 }
 
 impl CollectionParam {
-    fn col_from_path(uri: &Uri, tags: &Tags) -> Result<Option<CollectionParam>, Error> {
+    fn col_from_path(uri: &Uri) -> Result<Option<CollectionParam>, Error> {
         // TODO: replace with proper path parser.
         // path: "/1.5/{uid}/storage/{collection}"
         let elements: Vec<&str> = uri.path().split('/').collect();
@@ -573,7 +545,6 @@ impl CollectionParam {
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    Some(tags.clone()),
                     label!("request.process.missing_collection"),
                 )
             })?;
@@ -582,7 +553,6 @@ impl CollectionParam {
                     "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    Some(tags.clone()),
                     label!("request.process.invalid_collection"),
                 )
             })?;
@@ -592,30 +562,20 @@ impl CollectionParam {
                 "Missing Collection".to_owned(),
                 RequestErrorLocation::Path,
                 Some("collection".to_owned()),
-                Some(tags.clone()),
                 label!("request.process.missing_collection"),
             ))?
         }
     }
 
-    pub fn extrude(
-        uri: &Uri,
-        extensions: &mut Extensions,
-        tags: &Tags,
-    ) -> Result<Option<Self>, Error> {
+    pub fn extrude(uri: &Uri, extensions: &mut Extensions) -> Result<Option<Self>, Error> {
         if let Some(collection) = extensions.get::<Option<Self>>() {
             return Ok(collection.clone());
         }
 
-        let collection = Self::col_from_path(&uri, tags)?;
+        let collection = Self::col_from_path(&uri)?;
         let result = if let Some(collection) = collection {
             collection.validate().map_err(|e| {
-                ValidationErrorKind::FromValidationErrors(
-                    e,
-                    RequestErrorLocation::Path,
-                    Some(tags.clone()),
-                    None,
-                )
+                ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path, None)
             })?;
             Some(collection)
         } else {
@@ -632,19 +592,16 @@ impl FromRequest for CollectionParam {
 
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let fut = Tags::from_request(req, payload);
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         Box::pin(async move {
-            let tags = fut.await?;
-            if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut(), &tags)? {
+            if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut())? {
                 Ok(collection)
             } else {
                 Err(ValidationErrorKind::FromDetails(
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    Some(tags),
                     label!("request.process.missing_collection"),
                 ))?
             }
@@ -659,7 +616,6 @@ impl FromRequest for CollectionParam {
 pub struct MetaRequest {
     pub user_id: HawkIdentifier,
     pub metrics: metrics::Metrics,
-    pub tags: Tags,
 }
 
 impl FromRequest for MetaRequest {
@@ -672,19 +628,11 @@ impl FromRequest for MetaRequest {
         let mut payload = Payload::None;
         async move {
             // Call the precondition stuff to init database handles and what-not
-            let tags = {
-                let exts = req.extensions();
-                match exts.get::<Tags>() {
-                    Some(t) => t.clone(),
-                    None => Tags::from_request_head(req.head()),
-                }
-            };
             let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
 
             Ok(MetaRequest {
                 user_id,
                 metrics: metrics::Metrics::from(&req),
-                tags,
             })
         }
         .boxed_local()
@@ -707,7 +655,6 @@ pub struct CollectionRequest {
     pub query: BsoQueryParams,
     pub reply: ReplyFormat,
     pub metrics: metrics::Metrics,
-    pub tags: Option<Tags>,
 }
 
 impl FromRequest for CollectionRequest {
@@ -724,13 +671,6 @@ impl FromRequest for CollectionRequest {
             let collection = CollectionParam::from_request(&req, &mut payload)
                 .await?
                 .collection;
-            let tags = {
-                let exts = req.extensions();
-                match exts.get::<Tags>() {
-                    Some(t) => t.clone(),
-                    None => Tags::from_request_head(req.head()),
-                }
-            };
 
             let accept = get_accepted(&req, &ACCEPTED_CONTENT_TYPES, "application/json");
             let reply = match accept.as_str() {
@@ -741,7 +681,6 @@ impl FromRequest for CollectionRequest {
                         format!("Invalid Accept header specified: {:?}", accept),
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
-                        Some(tags),
                         label!("request.validate.invalid_accept_header"),
                     )
                     .into());
@@ -754,7 +693,6 @@ impl FromRequest for CollectionRequest {
                 query,
                 reply,
                 metrics: metrics::Metrics::from(&req),
-                tags: Some(tags),
             })
         }
         .boxed_local()
@@ -791,10 +729,6 @@ impl FromRequest for CollectionPostRequest {
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
-            let tags = match req.extensions().get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            };
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
@@ -803,7 +737,6 @@ impl FromRequest for CollectionPostRequest {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
-                        Some(tags),
                         None,
                     )
                     .into());
@@ -827,7 +760,6 @@ impl FromRequest for CollectionPostRequest {
                                 "Known-bad BSO payload".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                                Some(tags),
                                 label!("request.process.known_bad_bso"),
                             )
                             .into());
@@ -928,7 +860,6 @@ impl FromRequest for BsoPutRequest {
             let query = BsoQueryParams::from_request(&req, &mut payload).await?;
             let bso = BsoParam::from_request(&req, &mut payload).await?;
             let body = BsoBody::from_request(&req, &mut payload).await?;
-            let tags = Tags::from_request(&req, &mut payload).await?;
 
             let collection = collection.collection;
             if collection == "crypto" {
@@ -939,7 +870,6 @@ impl FromRequest for BsoPutRequest {
                             "Known-bad BSO payload".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                            Some(tags),
                             label!("request.process.known_bad_bso"),
                         )
                         .into());
@@ -975,14 +905,6 @@ impl FromRequest for HeartbeatRequest {
 
         async move {
             let headers = req.headers().clone();
-            let tags = {
-                let exts = req.extensions();
-                match exts.get::<Tags>() {
-                    Some(t) => t.clone(),
-                    None => Tags::from_request_head(req.head()),
-                }
-            };
-
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
@@ -991,7 +913,6 @@ impl FromRequest for HeartbeatRequest {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
-                        Some(tags),
                         None,
                     )
                     .into());
@@ -1007,7 +928,6 @@ impl FromRequest for HeartbeatRequest {
 #[derive(Debug)]
 pub struct TestErrorRequest {
     pub headers: HeaderMap,
-    pub tags: Option<Tags>,
 }
 
 impl FromRequest for TestErrorRequest {
@@ -1017,18 +937,8 @@ impl FromRequest for TestErrorRequest {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let headers = req.headers().clone();
-        let tags = {
-            let exts = req.extensions();
-            match exts.get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            }
-        };
 
-        Box::pin(future::ok(TestErrorRequest {
-            headers,
-            tags: Some(tags),
-        }))
+        Box::pin(future::ok(TestErrorRequest { headers }))
     }
 }
 
@@ -1063,7 +973,7 @@ impl HawkIdentifier {
         }
     }
 
-    fn uid_from_path(uri: &Uri, tags: Option<Tags>) -> Result<u64, Error> {
+    fn uid_from_path(uri: &Uri) -> Result<u64, Error> {
         // TODO: replace with proper path parser.
         // path: "/1.5/{uid}"
         let elements: Vec<&str> = uri.path().split('/').collect();
@@ -1075,7 +985,6 @@ impl HawkIdentifier {
                         "Invalid UID".to_owned(),
                         RequestErrorLocation::Path,
                         Some("uid".to_owned()),
-                        tags,
                         label!("request.validate.hawk.invalid_uid"),
                     )
                     .into());
@@ -1088,7 +997,6 @@ impl HawkIdentifier {
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
                     Some("uid".to_owned()),
-                    tags.clone(),
                     label!("request.validate.hawk.invalid_uid"),
                 )
                 .into()
@@ -1099,7 +1007,6 @@ impl HawkIdentifier {
                 "Missing UID".to_owned(),
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
-                tags,
                 label!("request.validate.hawk.missing_uid"),
             ))?
         }
@@ -1111,7 +1018,6 @@ impl HawkIdentifier {
         uri: &Uri,
         ci: &ConnectionInfo,
         state: &ServerState,
-        tags: Option<Tags>,
     ) -> Result<Self, Error>
     where
         T: HttpMessage,
@@ -1126,7 +1032,7 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri, tags)?;
+        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1137,18 +1043,15 @@ impl HawkIdentifier {
         header: &str,
         connection_info: &ConnectionInfo,
         uri: &Uri,
-        tags: Option<Tags>,
     ) -> Result<Self, Error> {
-        let payload =
-            HawkPayload::extrude(header, method, secrets, connection_info, uri, tags.clone())?;
-        let puid = Self::uid_from_path(&uri, tags.clone())?;
+        let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
+        let puid = Self::uid_from_path(&uri)?;
         if payload.user_id != puid {
             warn!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
             Err(ValidationErrorKind::FromDetails(
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
-                tags,
                 label!("request.validate.hawk.uri_missing_uid"),
             ))?;
         }
@@ -1170,10 +1073,8 @@ impl FromRequest for HawkIdentifier {
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = Payload::None;
 
         Box::pin(async move {
-            let tags = Tags::from_request(&req, &mut payload).await?;
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
@@ -1182,7 +1083,6 @@ impl FromRequest for HawkIdentifier {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
-                        Some(tags),
                         None,
                     )
                     .into());
@@ -1192,7 +1092,7 @@ impl FromRequest for HawkIdentifier {
             let connection_info = req.connection_info().clone();
             let method = req.method().as_str();
             let uri = req.uri();
-            Self::extrude(&req, method, uri, &connection_info, &state, Some(tags))
+            Self::extrude(&req, method, uri, &connection_info, &state)
         })
     }
 }
@@ -1299,15 +1199,12 @@ impl FromRequest for BsoQueryParams {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
-            let tags = Tags::from_request(&req, &mut payload).await?;
-
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
                 .map_err(|e| {
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::QueryString,
                         None,
-                        Some(tags.clone()),
                         None,
                     )
                 })
@@ -1317,7 +1214,6 @@ impl FromRequest for BsoQueryParams {
                 ValidationErrorKind::FromValidationErrors(
                     e,
                     RequestErrorLocation::QueryString,
-                    Some(tags.clone()),
                     None,
                 )
             })?;
@@ -1384,16 +1280,12 @@ impl FromRequest for BatchRequestOpt {
         let req = req.clone();
         let mut payload = Payload::None;
         Box::pin(async move {
-            let tags = Tags::from_request(&req, &mut payload).await?;
-            // let tags = Tags::from_request_head(req.head());
-            let ftags = tags.clone();
             let params = Query::<BatchParams>::from_request(&req, &mut payload)
                 .map_err(|e| {
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::QueryString,
                         None,
-                        Some(tags.clone()),
                         None,
                     )
                 })
@@ -1407,7 +1299,6 @@ impl FromRequest for BatchRequestOpt {
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("state".to_owned()),
-                        Some(tags),
                         None,
                     )
                     .into());
@@ -1429,7 +1320,6 @@ impl FromRequest for BatchRequestOpt {
                             e.to_string(),
                             RequestErrorLocation::Header,
                             Some((*header).to_owned()),
-                            Some(tags.clone()),
                             None,
                         )
                         .into();
@@ -1442,7 +1332,6 @@ impl FromRequest for BatchRequestOpt {
                         format!("Invalid integer value: {}", value),
                         RequestErrorLocation::Header,
                         Some((*header).to_owned()),
-                        Some(tags.clone()),
                         label!("request.validate.batch.invalid_x_weave"),
                     )
                     .into();
@@ -1453,7 +1342,6 @@ impl FromRequest for BatchRequestOpt {
                         "size-limit-exceeded".to_owned(),
                         RequestErrorLocation::Header,
                         None,
-                        Some(tags.clone()),
                         label!("request.validate.batch.size_exceeded"),
                     )
                     .into());
@@ -1469,7 +1357,6 @@ impl FromRequest for BatchRequestOpt {
                     "Commit with no batch specified".to_string(),
                     RequestErrorLocation::Path,
                     None,
-                    Some(tags),
                     label!("request.validate.batch.missing_id"),
                 )
                 .into());
@@ -1479,7 +1366,6 @@ impl FromRequest for BatchRequestOpt {
                 let err: ApiError = ValidationErrorKind::FromValidationErrors(
                     e,
                     RequestErrorLocation::QueryString,
-                    Some(tags.clone()),
                     None,
                 )
                 .into();
@@ -1498,7 +1384,6 @@ impl FromRequest for BatchRequestOpt {
                             format!(r#"Invalid batch ID: "{}""#, batch),
                             RequestErrorLocation::QueryString,
                             Some("batch".to_owned()),
-                            Some(ftags),
                             label!("request.validate.batch.invalid_id"),
                         )
                         .into());
@@ -1536,7 +1421,7 @@ pub struct PreConditionHeaderOpt {
 }
 
 impl PreConditionHeaderOpt {
-    pub fn extrude(headers: &HeaderMap, tags: Option<Tags>) -> Result<Self, Error> {
+    pub fn extrude(headers: &HeaderMap) -> Result<Self, Error> {
         let modified = headers.get("X-If-Modified-Since");
         let unmodified = headers.get("X-If-Unmodified-Since");
         if modified.is_some() && unmodified.is_some() {
@@ -1545,7 +1430,6 @@ impl PreConditionHeaderOpt {
                 "conflicts with X-If-Modified-Since".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
-                tags,
                 label!("request.validate.mod_header.conflict"),
             )
             .into());
@@ -1569,7 +1453,6 @@ impl PreConditionHeaderOpt {
                 "value is negative".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Modified-Since".to_owned()),
-                tags,
                 label!("request.validate.mod_header.negative"),
             )
             .into());
@@ -1581,7 +1464,6 @@ impl PreConditionHeaderOpt {
                     e.to_string(),
                     RequestErrorLocation::Header,
                     Some(field_name.to_owned()),
-                    tags.clone(),
                     None,
                 )
                 .into()
@@ -1592,7 +1474,6 @@ impl PreConditionHeaderOpt {
                         e.to_string(),
                         RequestErrorLocation::Header,
                         Some(field_name.to_owned()),
-                        tags.clone(),
                         None,
                     )
                     .into()
@@ -1617,11 +1498,7 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        let mut payload = Payload::None;
-        Box::pin(async move {
-            let tags = Tags::from_request(&req, &mut payload).await?;
-            Self::extrude(req.headers(), Some(tags)).map_err(Into::into)
-        })
+        Box::pin(async move { Self::extrude(req.headers()).map_err(Into::into) })
     }
 }
 
@@ -2264,11 +2141,7 @@ mod tests {
     #[test]
     fn test_invalid_precondition_headers() {
         fn assert_invalid_header(req: HttpRequest, _error_header: &str, _error_message: &str) {
-            let tags = match req.extensions().get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            };
-            let result = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags));
+            let result = PreConditionHeaderOpt::extrude(&req.headers());
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
             assert_eq!(response.status(), 400);
@@ -2308,7 +2181,7 @@ mod tests {
             .data(make_state())
             .header("X-If-Modified-Since", "32.1")
             .to_http_request();
-        let result = PreConditionHeaderOpt::extrude(&req.headers(), None)
+        let result = PreConditionHeaderOpt::extrude(&req.headers())
             .unwrap()
             .opt
             .unwrap();
@@ -2320,7 +2193,7 @@ mod tests {
             .data(make_state())
             .header("X-If-Unmodified-Since", "32.14")
             .to_http_request();
-        let result = PreConditionHeaderOpt::extrude(&req.headers(), None)
+        let result = PreConditionHeaderOpt::extrude(&req.headers())
             .unwrap()
             .opt
             .unwrap();

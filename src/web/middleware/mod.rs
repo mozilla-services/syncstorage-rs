@@ -12,7 +12,7 @@ use actix_web::{dev::ServiceRequest, Error, HttpRequest};
 use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
-use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
+use crate::web::{extractors::HawkIdentifier, DOCKER_FLOW_ENDPOINTS};
 use actix_web::web::Data;
 
 /// The resource in question's Timestamp
@@ -34,8 +34,7 @@ impl SyncServerRequest for ServiceRequest {
         let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
             ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
         })?;
-        let tags = Tags::from_request_head(self.head());
-        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state, Some(tags))
+        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
     }
 }
 
@@ -53,7 +52,6 @@ impl SyncServerRequest for HttpRequest {
             .ok_or_else(|| -> ApiError {
                 ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
             })?;
-        let tags = Tags::from_request_head(self.head());
-        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state, Some(tags))
+        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
     }
 }
