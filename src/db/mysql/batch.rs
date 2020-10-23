@@ -200,7 +200,7 @@ pub fn do_append(
 
     let mut existing = HashSet::new();
 
-    // pre-load the "existing" table with any batched uploads that are already in the table.
+    // pre-load the "existing" hashset with any batched uploads that are already in the table.
     for item in sql_query(
         "SELECT userid as user_id, batch as batch_id, id FROM batch_upload_items where userid=?;",
     )
