@@ -83,15 +83,17 @@ commands:
     steps:
       - run:
           name: e2e tests
+          # TODO: syncstorage-rs should retry the db connection
+          # itself a few times. (does it already? this comment was modified
+          # from a very old one)
           command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.yaml
-               -f docker-compose.e2e.yaml
-               up
-               --exit-code-from server-syncstorage
-               --abort-on-container-exit
-          environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            /bin/sh -c "
+              sleep 15;
+              /app/bin/syncstorage;
+            " &
+            sleep 18;
+            git clone https://github.com/mozilla-services/server-syncstorage
+            python server-syncstorage/syncstorage/tests/functional/test_storage.py http://syncstorage-rs:8000#secret0;
 
   setup-sccache:
     steps:
@@ -172,6 +174,7 @@ jobs:
       - write-version
       - cargo-build
       - run-tests
+      - run-e2e-tests
       #- save-sccache-cache
       - run:
           name: Build Docker image
@@ -190,25 +193,6 @@ jobs:
           key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
           paths:
             - /home/circleci/cache
-
-  e2e-tests:
-    docker:
-      - image: docker/compose:1.24.0
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - setup-python
-      - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Restore docker-compose config
-          command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-tests
 
   deploy:
     docker:
@@ -297,21 +281,15 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - e2e-tests:
+      - deploy:
           requires:
             - build-and-test
           filters:
             tags:
               only: /.*/
-      - deploy:
-          requires:
-            - e2e-tests
-          filters:
-            tags:
-              only: /.*/
       - deploy-python-utils:
           requires:
-            - e2e-tests
+            - build-and-test
           filters:
             tags:
               only: /.*/
