@@ -87,7 +87,7 @@ commands:
           # itself a few times. (does it already? this comment was modified
           # from a very old one)
           command: >
-            /app/bin/syncstorage &;
+            /app/bin/syncstorage ||
             git clone https://github.com/mozilla-services/server-syncstorage && python server-syncstorage/syncstorage/tests/functional/test_storage.py http://syncstorage-rs:8000#secret0;
 
   setup-sccache:
