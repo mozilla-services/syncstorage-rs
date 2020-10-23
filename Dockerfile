@@ -4,7 +4,8 @@ ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
 # temp removed --no-install-recommends due to CI docker build issue
 RUN apt-get -q update && \
-    apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go && \
+    apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go python3-dev python3-pip && \
+    pip3 install tokenlib && \
     rm -rf /var/lib/apt/lists/* && \
     cd /app && \
     mkdir -m 755 bin
