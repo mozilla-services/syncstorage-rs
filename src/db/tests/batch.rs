@@ -245,10 +245,6 @@ async fn quota_test_append_batch() -> Result<()> {
 #[tokio::test]
 async fn test_append_async_w_null() -> Result<()> {
     let settings = crate::settings::test_settings();
-    if !settings.uses_spanner() {
-        dbg!("### Skipping test for mysql");
-        return Ok(());
-    }
     let pool = db_pool(Some(settings)).await?;
     let db = test_db(pool.as_ref()).await?;
     let ttl = crate::db::util::ms_since_epoch() as u32;
