@@ -87,13 +87,8 @@ commands:
           # itself a few times. (does it already? this comment was modified
           # from a very old one)
           command: >
-            /bin/sh -c "
-              sleep 15;
-              /app/bin/syncstorage;
-            " &
-            sleep 18;
-            git clone https://github.com/mozilla-services/server-syncstorage
-            python server-syncstorage/syncstorage/tests/functional/test_storage.py http://syncstorage-rs:8000#secret0;
+            /app/bin/syncstorage &;
+            git clone https://github.com/mozilla-services/server-syncstorage && python server-syncstorage/syncstorage/tests/functional/test_storage.py http://syncstorage-rs:8000#secret0;
 
   setup-sccache:
     steps:
