@@ -6,7 +6,6 @@ use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
 use crate::web::middleware::SyncServerRequest;
-use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
 use actix_http::http::{HeaderValue, Method, StatusCode};
 use actix_http::Error;
@@ -22,7 +21,6 @@ use std::future::Future;
 pub struct DbTransactionPool {
     pool: Box<dyn DbPool>,
     is_read: bool,
-    tags: Tags,
     user_id: HawkIdentifier,
     collection: Option<String>,
     bso_opt: Option<String>,
@@ -189,11 +187,7 @@ impl FromRequest for DbTransactionPool {
                 .to_str()
                 .unwrap_or("NONE");
 
-            let tags = match req.extensions().get::<Tags>() {
-                Some(t) => t.clone(),
-                None => Tags::from_request_head(req.head()),
-            };
-            let col_result = CollectionParam::extrude(&req.uri(), &mut req.extensions_mut(), &tags);
+            let col_result = CollectionParam::extrude(&req.uri(), &mut req.extensions_mut());
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(v) => v,
                 None => {
@@ -222,11 +216,10 @@ impl FromRequest for DbTransactionPool {
             let bso_opt = bso.map(|b| b.bso);
 
             let is_read = matches!(method, Method::GET | Method::HEAD);
-            let precondition = PreConditionHeaderOpt::extrude(&req.headers(), Some(tags.clone()))?;
+            let precondition = PreConditionHeaderOpt::extrude(&req.headers())?;
             let pool = Self {
                 pool: state.db_pool.clone(),
                 is_read,
-                tags,
                 user_id,
                 collection,
                 bso_opt,

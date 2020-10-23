@@ -538,22 +538,12 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, Error> {
 // try returning an API error
 pub async fn test_error(
     _req: HttpRequest,
-    ter: TestErrorRequest,
+    _ter: TestErrorRequest,
 ) -> Result<HttpResponse, ApiError> {
     // generate an error for sentry.
 
-    /*  The various error log macros only can take a string.
-        Content of Tags struct can be logged as KV (key value) pairs after a `;`.
-        e.g.
-        ```
-        error!("Something Bad {:?}", err; wtags)
-        ```
-
-        TODO: find some way to transform Tags into error::KV
-    */
-    error!("Test Error: {:?}", &ter.tags);
-
     // ApiError will call the middleware layer to auto-append the tags.
+    error!("Test Error");
     let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
 
     Err(err)

@@ -15,7 +15,6 @@ use serde::{
 use serde_json::{Error as JsonError, Value};
 
 use super::extractors::RequestErrorLocation;
-use super::tags::Tags;
 use crate::error::ApiError;
 
 /// An error occurred during HAWK authentication.
@@ -116,19 +115,12 @@ impl ValidationError {
 #[derive(Debug, Fail)]
 pub enum ValidationErrorKind {
     #[fail(display = "{}", _0)]
-    FromDetails(
-        String,
-        RequestErrorLocation,
-        Option<String>,
-        Option<Tags>,
-        Option<String>,
-    ),
+    FromDetails(String, RequestErrorLocation, Option<String>, Option<String>),
 
     #[fail(display = "{}", _0)]
     FromValidationErrors(
         #[cause] validator::ValidationErrors,
         RequestErrorLocation,
-        Option<Tags>,
         Option<String>,
     ),
 }
@@ -152,27 +144,18 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
     fn from(inner: Context<ValidationErrorKind>) -> Self {
         trace!("Validation Error: {:?}", inner.get_context());
         let status = match inner.get_context() {
-            ValidationErrorKind::FromDetails(
-                ref _description,
-                ref location,
-                Some(ref name),
-                _,
-                _,
-            ) if *location == RequestErrorLocation::Header => {
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
+                if *location == RequestErrorLocation::Header =>
+            {
                 match name.to_ascii_lowercase().as_str() {
                     "accept" => StatusCode::NOT_ACCEPTABLE,
                     "content-type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
                     _ => StatusCode::BAD_REQUEST,
                 }
             }
-            ValidationErrorKind::FromDetails(
-                ref _description,
-                ref location,
-                Some(ref name),
-                _,
-                _,
-            ) if *location == RequestErrorLocation::Path
-                && ["bso", "collection"].contains(&name.as_ref()) =>
+            ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
+                if *location == RequestErrorLocation::Path
+                    && ["bso", "collection"].contains(&name.as_ref()) =>
             {
                 StatusCode::NOT_FOUND
             }
@@ -231,7 +214,6 @@ impl Serialize for ValidationErrorKind {
                 ref description,
                 ref location,
                 ref name,
-                ref tags,
                 ref _metric_label,
             ) => {
                 seq.serialize_element(&SerializedValidationError {
@@ -239,14 +221,12 @@ impl Serialize for ValidationErrorKind {
                     location,
                     name: name.as_ref().map(|name| &**name),
                     value: None,
-                    tags: tags.as_ref(),
                 })?;
             }
 
             ValidationErrorKind::FromValidationErrors(
                 ref errors,
                 ref location,
-                ref tags,
                 ref _metric_label,
             ) => {
                 for (field, field_errors) in errors.clone().field_errors().iter() {
@@ -256,7 +236,6 @@ impl Serialize for ValidationErrorKind {
                             location,
                             name: Some(field),
                             value: field_error.params.get("value"),
-                            tags: tags.clone().as_ref(),
                         })?;
                     }
                 }
@@ -273,5 +252,4 @@ struct SerializedValidationError<'e> {
     pub location: &'e RequestErrorLocation,
     pub name: Option<&'e str>,
     pub value: Option<&'e Value>,
-    pub tags: Option<&'e Tags>,
 }
