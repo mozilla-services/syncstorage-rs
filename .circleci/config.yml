@@ -199,6 +199,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - setup_python
       - restore_cache:
           key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
       - run:
