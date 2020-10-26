@@ -128,7 +128,7 @@ macro_rules! build_app {
             )
             // Tokenserver
             .service(
-                web::resource(&cfg_path("/1.0/sync/1.5")).route(web::get().to(tokenserver::get)),
+                web::resource("/1.0/sync/1.5".to_string()).route(web::get().to(tokenserver::get)),
             )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
