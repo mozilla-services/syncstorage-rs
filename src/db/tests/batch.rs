@@ -173,7 +173,7 @@ async fn quota_test_create_batch() -> Result<()> {
     let limit = 300;
     settings.limits.max_quota_limit = limit;
 
-    let pool = db_pool(Some(settings)).await?;
+    let pool = db_pool(Some(settings.clone())).await?;
     let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
@@ -193,7 +193,12 @@ async fn quota_test_create_batch() -> Result<()> {
     })
     .await?;
 
-    assert!(db.create_batch(cb(uid, coll, bsos2)).await.is_err());
+    let result = db.create_batch(cb(uid, coll, bsos2)).await;
+    if settings.enforce_quota {
+        assert!(result.is_err());
+    } else {
+        assert!(result.is_ok());
+    }
 
     Ok(())
 }
@@ -210,7 +215,7 @@ async fn quota_test_append_batch() -> Result<()> {
     let limit = 300;
     settings.limits.max_quota_limit = limit;
 
-    let pool = db_pool(Some(settings)).await?;
+    let pool = db_pool(Some(settings.clone())).await?;
     let db = test_db(pool.as_ref()).await?;
 
     let uid = 1;
@@ -234,11 +239,12 @@ async fn quota_test_append_batch() -> Result<()> {
     })
     .await?;
     let id2 = db.create_batch(cb(uid, coll, bsos2)).await?;
-    assert!(db
-        .append_to_batch(ab(uid, coll, id2.clone(), bsos3))
-        .await
-        .is_err());
-
+    let result = db.append_to_batch(ab(uid, coll, id2.clone(), bsos3)).await;
+    if settings.enforce_quota {
+        assert!(result.is_err())
+    } else {
+        assert!(result.is_ok())
+    }
     Ok(())
 }
 

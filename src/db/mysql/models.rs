@@ -31,6 +31,7 @@ use crate::db::{
     Db, DbFuture, Sorting,
 };
 use crate::server::metrics::Metrics;
+use crate::settings::Quota;
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 use crate::web::tags::Tags;
 
@@ -86,8 +87,7 @@ pub struct MysqlDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
-    pub quota: usize,
-    pub quota_enabled: bool,
+    pub quota: Quota,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -123,8 +123,7 @@ impl MysqlDb {
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
-        quota: &usize,
-        quota_enabled: bool,
+        quota: &Quota,
     ) -> Self {
         let inner = MysqlDbInner {
             #[cfg(not(test))]
@@ -138,7 +137,6 @@ impl MysqlDb {
             coll_cache,
             metrics: metrics.clone(),
             quota: *quota,
-            quota_enabled,
         }
     }
 
@@ -398,18 +396,23 @@ impl MysqlDb {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
-        if self.quota_enabled {
+        if self.quota.enabled {
             let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
                 user_id: HawkIdentifier::new_legacy(user_id),
                 collection: bso.collection.clone(),
                 collection_id,
             })?;
-            if usage.total_bytes >= self.quota as usize {
+            if usage.total_bytes >= self.quota.size as usize {
                 let mut tags = Tags::default();
-                tags.tags.insert("collection".to_owned(), bso.collection);
+                tags.tags
+                    .insert("collection".to_owned(), bso.collection.clone());
                 self.metrics
                     .incr_with_tags("storage.quota.at_limit", Some(tags));
-                return Err(DbErrorKind::Quota.into());
+                if self.quota.enforced {
+                    return Err(DbErrorKind::Quota.into());
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                }
             }
         }
 
@@ -829,7 +832,7 @@ impl MysqlDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
-        let quota = if self.quota_enabled {
+        let quota = if self.quota.enabled {
             self.calc_quota_usage_sync(user_id, collection_id)?
         } else {
             results::GetQuotaUsage {
@@ -1114,9 +1117,12 @@ impl<'a> Db<'a> for MysqlDb {
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: usize) {
-        self.quota = limit;
-        self.quota_enabled = enabled;
+    fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
+        self.quota = Quota {
+            size: limit,
+            enabled,
+            enforced,
+        }
     }
 }
 

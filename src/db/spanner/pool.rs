@@ -10,7 +10,7 @@ use std::{
 use super::models::Result;
 use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::server::metrics::Metrics;
-use crate::settings::Settings;
+use crate::settings::{Quota, Settings};
 
 use super::manager::{SpannerSession, SpannerSessionManager};
 use super::models::SpannerDb;
@@ -37,8 +37,7 @@ pub struct SpannerDbPool {
     coll_cache: Arc<CollectionCache>,
 
     metrics: Metrics,
-    quota: usize,
-    quota_enabled: bool,
+    quota: Quota,
 }
 
 impl SpannerDbPool {
@@ -58,8 +57,11 @@ impl SpannerDbPool {
             pool,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
-            quota: settings.limits.max_quota_limit as usize,
-            quota_enabled: settings.enable_quota,
+            quota: Quota {
+                size: settings.limits.max_quota_limit as usize,
+                enabled: settings.enable_quota,
+                enforced: settings.enforce_quota,
+            },
         })
     }
 
@@ -75,7 +77,6 @@ impl SpannerDbPool {
             Arc::clone(&self.coll_cache),
             &self.metrics,
             self.quota,
-            self.quota_enabled,
         ))
     }
 }

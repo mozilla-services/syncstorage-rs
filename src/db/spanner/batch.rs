@@ -363,10 +363,14 @@ pub async fn do_append_async(
         };
     }
 
-    if db.quota_enabled {
+    if db.quota.enabled {
         if let Some(size) = batch.size {
-            if size + running_size >= (db.quota as usize) {
-                return Err(db.quota_error(collection));
+            if size + running_size >= db.quota.size {
+                if db.quota.enforced {
+                    return Err(db.quota_error(collection));
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
+                }
             }
         }
     }
@@ -510,7 +514,7 @@ async fn pretouch_collection_async(
         .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
-        let sql = if db.quota_enabled {
+        let sql = if db.quota.enabled {
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
         } else {
