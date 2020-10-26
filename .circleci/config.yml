@@ -28,7 +28,7 @@ commands:
       - run:
           name: Setup python
           command: |
-            sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
+            sudo apt-get update && sudo apt-get install -y python2 python3-dev python3-pip
             pip3 install tokenlib
   rust-check:
     steps:
@@ -87,11 +87,11 @@ commands:
           # itself a few times. (does it already? this comment was modified
           # from a very old one)
           command: >
-            target/debug/syncstorage ||
-            sleep 15 &&
-            git clone https://github.com/mozilla-services/server-syncstorage &&
-            cd server-syncstorage &&
-            python setup.py install && python server-syncstorage/syncstorage/tests/functional/test_storage.py http://syncstorage-rs:8000#secret0;
+            target/debug/syncstorage &
+            SYNCSTORAGE_PID=$!
+            python3 test_storage.py http://syncstorage-rs:8000#secret0
+            kill $SYNCSTORAGE_PID
+            rm -rf server-syncstorage
 
   setup-sccache:
     steps:
