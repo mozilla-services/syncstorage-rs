@@ -198,13 +198,22 @@ pub fn do_append(
         id: String,
     };
 
+    #[derive(AsChangeset)]
+    #[table_name = "batch_upload_items"]
+    struct UpdateBatches {
+        payload: Option<String>,
+        payload_size: Option<i64>,
+        ttl_offset: Option<i32>,
+    }
+
     let mut existing = HashSet::new();
 
     // pre-load the "existing" hashset with any batched uploads that are already in the table.
     for item in sql_query(
-        "SELECT userid as user_id, batch as batch_id, id FROM batch_upload_items where userid=?;",
+        "SELECT userid as user_id, batch as batch_id, id FROM batch_upload_items WHERE userid=? AND batch=?;",
     )
     .bind::<BigInt, _>(user_id.legacy_id as i64)
+    .bind::<BigInt, _>(batch_id)
     .get_results::<ExistsResult>(&db.conn)?
     {
         existing.insert(exist_idx(
@@ -224,11 +233,11 @@ pub fn do_append(
                     .filter(batch_upload_items::user_id.eq(user_id.legacy_id as i64))
                     .filter(batch_upload_items::batch_id.eq(batch_id)),
             )
-            .set((
-                batch_upload_items::payload.eq(bso.payload),
-                batch_upload_items::payload_size.eq(payload_size),
-                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
-            ))
+            .set(&UpdateBatches {
+                payload: bso.payload,
+                payload_size,
+                ttl_offset: bso.ttl.map(|ttl| ttl as i32),
+            })
             .execute(&db.conn)?;
         } else {
             diesel::insert_into(batch_upload_items::table)
