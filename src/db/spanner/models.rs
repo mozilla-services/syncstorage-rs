@@ -137,11 +137,8 @@ impl SpannerDb {
         }
     }
 
-    pub(super) fn get_collection_name(&self, id: i32) -> String {
-        self.coll_cache
-            .get_name(id)
-            .unwrap_or_else(|_| Some("UNKNOWN".to_owned()))
-            .unwrap()
+    pub(super) fn get_collection_name(&self, id: i32) -> Result<Option<String>> {
+        self.coll_cache.get_name(id)
     }
 
     pub(super) async fn get_collection_id_async(&self, name: &str) -> Result<i32> {

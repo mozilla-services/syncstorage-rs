@@ -284,10 +284,13 @@ pub async fn do_append_async(
 
     //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();
+    let mut collisions = HashSet::new();
+    let mut count_collisions = 0;
     let mut tags = Tags::default();
     tags.tags.insert(
         "collection".to_owned(),
-        db.get_collection_name(collection_id),
+        db.get_collection_name(collection_id)?
+            .unwrap_or_else(|| "UNKNOWN".to_string()),
     );
 
     let bso_ids = bsos.iter().map(|pbso| pbso.id.clone());
@@ -344,6 +347,13 @@ pub async fn do_append_async(
                 payload: bso.payload,
                 ttl: bso.ttl,
             });
+            // BSOs should only update records that were in previous batches.
+            // There is the potential that some may update records in their own batch.
+            // This will attempt to record such incidents.
+            // TODO: If we consistently see no results for this, it can be safely dropped.
+            if collisions.contains(&exist_idx) {
+                count_collisions += 1;
+            }
         } else {
             let sortindex = bso
                 .sortindex
@@ -371,8 +381,17 @@ pub async fn do_append_async(
             let mut value = Value::new();
             value.set_list_value(row);
             insert.push(value);
-            existing.insert(exist_idx);
+            existing.insert(exist_idx.clone());
+            collisions.insert(exist_idx);
         };
+    }
+
+    if count_collisions > 0 {
+        db.metrics.count_with_tags(
+            "storage.spanner.batch.collisions",
+            count_collisions,
+            Some(tags.clone()),
+        );
     }
 
     if db.quota_enabled {
@@ -448,10 +467,6 @@ pub async fn do_append_async(
 
     // assuming that "update" is rarer than an insert, we can try using the standard API for that.
     if !update.is_empty() {
-        db.metrics
-            .clone()
-            .incr("storage.spanner.adding_updates_to_batch_bsos");
-        let count_update = update.len();
         for val in update {
             let mut fields = Vec::new();
             let mut params = params! {
@@ -491,11 +506,6 @@ pub async fn do_append_async(
             .param_types(param_types.clone())
             .execute_dml_async(&db.conn)
             .await?;
-            db.metrics.count_with_tags(
-                "storage.spanner.batch.updates",
-                count_update as i64,
-                Some(tags.clone()),
-            );
         }
     }
 
