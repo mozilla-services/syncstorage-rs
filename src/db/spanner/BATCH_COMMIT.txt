@@ -30,7 +30,7 @@ The batch commit mutations are as follows:
 - Possibly direct inserts via post_bsos (but these only reduce total mutations
   by avoiding writing to the batch table, so not included here)
 
-- Write 1666 (MAX_TOTAL_RECORDS) to `bsos`: max 19992 (1666 * 12) mutations
+- Write 1664 (MAX_TOTAL_RECORDS) to `bsos`: max 19968 (1664 * 12) mutations
   - INSERT takes 10 mutations:
     - 4 key columns
     - 4 non key columns
@@ -52,7 +52,7 @@ The batch commit mutations are as follows:
 
 Totals:
 - quota: False
-  4 + 19992 + 1 = 19997
+  4 + 19968 + 1 = 19973
 
 - quota: True
-  6 + 19992 + 1 + 6 = 20005!
+  6 + 19968 + 1 + 6 = 19981
