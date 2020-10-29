@@ -236,8 +236,14 @@ pub async fn post_collection(
 
             // batches are a conceptual, singular update, so we should handle
             // them separately.
-            if coll.batch.is_some() {
-                return post_collection_batch(coll, db).await;
+            if let Some(ref batch) = coll.batch {
+                // Optimization: specifying ?batch=true&commit=true
+                // (batch.id.is_none() && batch.commit) is equivalent to a
+                // simpler post_bsos call. Fallthrough in that case, instead of
+                // incurring post_collection_batch's overhead
+                if !(batch.id.is_none() && batch.commit) {
+                    return post_collection_batch(coll, db).await;
+                }
             }
 
             let result = db
