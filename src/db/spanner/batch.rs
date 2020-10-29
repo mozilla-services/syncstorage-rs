@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
-    web::extractors::HawkIdentifier,
+    web::{extractors::HawkIdentifier, tags::Tags},
 };
 
 pub async fn create_async(
@@ -284,6 +284,9 @@ pub async fn do_append_async(
 
     //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();
+    let mut tags = Tags::default();
+    tags.tags.insert("collection".to_owned(), db.get_collection_name(collection_id));
+
     let bso_ids = bsos.iter().map(|pbso| pbso.id.clone());
     let mut params = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
@@ -312,6 +315,8 @@ pub async fn do_append_async(
             row[0].get_string_value(),
         ));
     }
+
+    db.metrics.count_with_tags("storage.spanner.batch.pre-existing", existing.len() as i64, Some(tags.clone()));
 
     // Approach 1:
     // iterate and check to see if the record is in batch_bso table already
@@ -397,6 +402,7 @@ pub async fn do_append_async(
 
     if !insert.is_empty() {
         let mut list_values = ListValue::new();
+        let count_inserts =insert.len();
         list_values.set_values(RepeatedField::from_vec(insert));
         let mut values = Value::new();
         values.set_list_value(list_values);
@@ -426,6 +432,7 @@ pub async fn do_append_async(
         .param_types(sqlparam_types)
         .execute_dml_async(&db.conn)
         .await?;
+        db.metrics.count_with_tags("storage.spanner.batch.insert", count_inserts as i64, Some(tags.clone()));
     }
 
     // assuming that "update" is rarer than an insert, we can try using the standard API for that.
@@ -433,6 +440,7 @@ pub async fn do_append_async(
         db.metrics
             .clone()
             .incr("storage.spanner.adding_updates_to_batch_bsos");
+        let count_update = update.len();
         for val in update {
             let mut fields = Vec::new();
             let mut params = params! {
@@ -472,6 +480,7 @@ pub async fn do_append_async(
             .param_types(param_types.clone())
             .execute_dml_async(&db.conn)
             .await?;
+            db.metrics.count_with_tags("storage.spanner.batch.updates", count_update as i64, Some(tags.clone()));
         }
     }
 

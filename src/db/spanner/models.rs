@@ -137,6 +137,10 @@ impl SpannerDb {
         }
     }
 
+    pub(super) fn get_collection_name(&self, id:i32) -> String {
+        self.coll_cache.get_name(id).unwrap_or(Some("UNKNOWN".to_owned())).unwrap()
+    }
+    
     pub(super) async fn get_collection_id_async(&self, name: &str) -> Result<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);

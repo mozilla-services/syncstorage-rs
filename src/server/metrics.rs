@@ -148,6 +148,34 @@ impl Metrics {
             }
         }
     }
+
+    pub fn count(&self, label: &str, count: i64) {
+        self.count_with_tags(label, count, None)
+    }
+
+    pub fn count_with_tags(&self, label: &str, count: i64, tags: Option<Tags>) {
+        if let Some(client) = self.client.as_ref() {
+            let mut tagged = client.count_with_tags(label, count);
+            let mut mtags = self.tags.clone().unwrap_or_default();
+            if let Some(tags) = tags {
+                mtags.extend(tags.tags);
+            }
+            for key in mtags.tags.keys().clone() {
+                if let Some(val) = mtags.tags.get(key) {
+                    tagged = tagged.with_tag(&key, val.as_ref());
+                }
+            }
+            // Include any "hard coded" tags.
+            // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
+            match tagged.try_send() {
+                Err(e) => {
+                    // eat the metric, but log the error
+                    warn!("⚠️ Metric {} error: {:?} ", label, e; mtags);
+                }
+                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
+            }
+        }
+    }
 }
 
 pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
