@@ -1,0 +1,58 @@
+Batches serve as a temporary storage for POST'd bsos. Committing a batch
+entails moving the bsos from the batch table to their final destination in the
+`bsos` table.
+
+The move operation is like an UPSERT: the bsos in the batch will either be
+INSERT'd into the `bsos` table or UPDATE'd if they already exist. Only columns
+with NON NULL values in the batch table will be UPDATE'd in the `bsos` table:
+those with NULL values won't be touched. When INSERTing bsos, columns with NULL
+values recieve defaults.
+
+The entire move (batch commit) happens in one single transaction. Spanner
+limits the number of writes (or "mutations") within a transaction to 20000
+total mutations. A mutation is a write to an individual column. Any writes
+requiring modifications to secondary indices also incur additional mutations.
+DELETEs are generally cheaper (incurring one mutation per DELETE, not including
+secondary indices).
+
+The batch commit mutations are as follows:
+
+- Ensure a parent record exists in `user_collections` (due to bsos INTERLEAVE
+  IN PARENT `user_collections`): 4 mutations (quota: False) or 6 mutations
+  (quota: True)
+  - INSERT or UPDATE:
+    - 3 key columns
+    - quota: False
+      - 1 non key column
+    - quota: True
+      - 3 non key columns
+
+- Possibly direct inserts via post_bsos (but these only reduce total mutations
+  by avoiding writing to the batch table, so not included here)
+
+- Write 1664 (MAX_TOTAL_RECORDS) to `bsos`: max 19968 (1664 * 12) mutations
+  - INSERT takes 10 mutations:
+    - 4 key columns
+    - 4 non key columns
+    - INSERT into 2 secondary indices: 2 mutations
+  - UPDATE takes 12 mutations:
+    - 4 key columns
+    - 4 non key columns
+    - UPDATE of 2 secondary indices: Each requires deleting + inserting a row:
+      2 mutations each. 4 total
+
+- Delete the batch
+  - DELETE incurs 1 mutation
+
+- Update `user_collections` quota counts (only when quota: True): 6 mutations
+  - UPDATE:
+    - 3 key columns
+    - quota: True
+      - 3 non key columns
+
+Totals:
+- quota: False
+  4 + 19968 + 1 = 19973
+
+- quota: True
+  6 + 19968 + 1 + 6 = 19981
