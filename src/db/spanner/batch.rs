@@ -102,7 +102,6 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         Err(DbErrorKind::BatchNotFound)?
     }
 
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
     do_append_async(
         db,
         params.user_id,
@@ -233,8 +232,10 @@ pub async fn commit_async(
     .await?;
     // XXX: returning results::PostBsos here isn't needed
     // update the quotas for the user's collection
-    db.update_user_collection_quotas(&params.user_id, collection_id)
-        .await?;
+    if db.quota_enabled {
+        db.update_user_collection_quotas(&params.user_id, collection_id)
+            .await?;
+    }
     Ok(results::PostBsos {
         modified: timestamp,
         success: Default::default(),
@@ -359,7 +360,6 @@ pub async fn do_append_async(
             let mut value = Value::new();
             value.set_list_value(row);
             insert.push(value);
-            existing.insert(exist_idx);
         };
     }
 

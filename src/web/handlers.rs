@@ -245,6 +245,7 @@ pub async fn post_collection(
                     user_id: coll.user_id,
                     collection: coll.collection,
                     bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                    for_batch: false,
                     failed: coll.bsos.invalid,
                 })
                 .await?;
@@ -347,6 +348,7 @@ pub async fn post_collection_batch(
                     ttl: batch_bso.ttl,
                 })
                 .collect(),
+            for_batch: true,
             failed: Default::default(),
         })
         .await

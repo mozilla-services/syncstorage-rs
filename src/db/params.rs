@@ -67,6 +67,7 @@ collection_data! {
     },
     PostBsos {
         bsos: Vec<PostCollectionBso>,
+        for_batch: bool,
         failed: HashMap<String, String>,
     },
 
