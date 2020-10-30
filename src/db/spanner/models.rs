@@ -137,6 +137,10 @@ impl SpannerDb {
         }
     }
 
+    pub(super) fn get_collection_name(&self, id: i32) -> Result<Option<String>> {
+        self.coll_cache.get_name(id)
+    }
+
     pub(super) async fn get_collection_id_async(&self, name: &str) -> Result<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
@@ -1497,6 +1501,7 @@ impl SpannerDb {
                 user_id: params.user_id,
                 collection: params.collection,
                 bsos,
+                for_batch: false,
                 failed: HashMap::new(),
             })
             .await?;
@@ -1510,8 +1515,10 @@ impl SpannerDb {
             .get_or_create_collection_id_async(&params.collection)
             .await?;
 
-        self.check_quota(&user_id, &params.collection, collection_id)
-            .await?;
+        if !params.for_batch {
+            self.check_quota(&user_id, &params.collection, collection_id)
+                .await?;
+        }
 
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
@@ -1592,9 +1599,11 @@ impl SpannerDb {
         for (columns, values) in updates {
             self.update("bsos", &columns, values);
         }
-        // update the quotas
-        self.update_user_collection_quotas(&user_id, collection_id)
-            .await?;
+        if !params.for_batch {
+            // update the quotas
+            self.update_user_collection_quotas(&user_id, collection_id)
+                .await?;
+        }
 
         let result = results::PostBsos {
             modified: timestamp,
