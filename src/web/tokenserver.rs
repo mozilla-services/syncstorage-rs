@@ -88,7 +88,6 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
     ).map_err(|ee| {
         ApiError::from(ApiErrorKind::Internal(format!("Unable to decode token_data: {:}", ee)))
     })?;
-    println!("token data! {:?}", token_data);
     let email = format!("{:}@api.accounts.firefox.com", token_data.claims.sub);
 
     // TODO pull out of settings instead
@@ -102,18 +101,17 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
         "select users.uid, services.pattern, users.email, users.generation, users.client_state, users.created_at, users.replaced_at, nodes.node, users.keys_changed_at from users, services, nodes where users.email = ? and services.id = users.service and nodes.id = users.nodeid and nodes.service = services.id")
         .bind::<Text, _>(email)
         .load::<TokenserverUser>(&connection).unwrap();
-    println!("user record!! {:?}", user_record);
     let (python_result, python_derived_result) = Python::with_gil(|py| {
         let tokenlib = PyModule::from_code(
             py,
             r#"
 import tokenlib
+
 def make_token(plaintext, shared_secret):
     return tokenlib.make_token(plaintext, secret=shared_secret)
 
 def get_derived_secret(plaintext, shared_secret):
     return tokenlib.get_derived_secret(plaintext, secret=shared_secret)
-
 "#,
             "main.py",
             "main",
@@ -153,7 +151,6 @@ def get_derived_secret(plaintext, shared_secret):
         Ok((result, derived_result))
     })
     .unwrap();
-    println!("python result {:}", python_result);
     let api_endpoint = format!("{:}/1.5/{:}/", user_record[0].node, token_data.claims.sub);
     Ok(TokenServerResult {
         id: python_result,
