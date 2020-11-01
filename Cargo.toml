@@ -31,7 +31,7 @@ diesel = { version = "1.4.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
-env_logger = "0.7.1"
+env_logger = "0.8.1"
 failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
