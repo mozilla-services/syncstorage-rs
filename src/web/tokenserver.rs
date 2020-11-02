@@ -105,9 +105,11 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
                  WHERE users.email = ?
                    AND services.id = users.service
                    AND nodes.id = users.nodeid
-                   AND nodes.service = services.id"#)
-        .bind::<Text, _>(email)
-        .load::<TokenserverUser>(&connection).unwrap();
+                   AND nodes.service = services.id"#,
+    )
+    .bind::<Text, _>(email)
+    .load::<TokenserverUser>(&connection)
+    .unwrap();
     let (python_result, python_derived_result) = Python::with_gil(|py| {
         let tokenlib = PyModule::from_code(
             py,
