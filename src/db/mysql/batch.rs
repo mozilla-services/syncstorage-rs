@@ -20,7 +20,11 @@ use crate::{
     web::extractors::HawkIdentifier,
 };
 
-const MAXTTL: i32 = 2_100_000_000;
+// TTL is the number of seconds from now that a given entry should live.
+// 2,100,000,000 seconds is ~ 66 years.
+// Note that we use SyncTimestamp, which is millisecond based, so be sure
+// to adjust all seconds by * 1000
+pub const MAXTTL: i32 = 2_100_000_000;
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
@@ -144,7 +148,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .bind::<BigInt, _>((MAXTTL as i64) * 1000) // XXX:
+        .bind::<BigInt, _>(MAXTTL as i64 * 1000)
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id as i64)
         .bind::<BigInt, _>(&db.timestamp().as_i64())

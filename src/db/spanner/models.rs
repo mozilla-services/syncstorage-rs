@@ -55,6 +55,8 @@ pub enum CollectionLock {
 pub type Result<T> = std::result::Result<T, DbError>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
+/// Remember: we store time as SyncTimestamp, which is in milliseconds, so
+/// be sure to multiply this by 1000
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 pub const TOMBSTONE: i32 = 0;

@@ -38,6 +38,8 @@ pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
+/// Remember, that we store using SyncTimestamp, which is millisecond based
+/// so be sure to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 pub const TOMBSTONE: i32 = 0;
@@ -416,7 +418,8 @@ impl MysqlDb {
         self.conn.transaction(|| {
             let payload = bso.payload.as_deref().unwrap_or_default();
             let sortindex = bso.sortindex;
-            let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+            // Remember, TTL is seconds from now, and we store times in millis.
+            let ttl:i64 = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl) as i64 * 1000;
             let q = format!(r#"
             INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -468,7 +471,7 @@ impl MysqlDb {
                 .bind::<Nullable<Integer>, _>(sortindex)
                 .bind::<Text, _>(payload)
                 .bind::<BigInt, _>(timestamp)
-                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000))
+                .bind::<BigInt, _>(timestamp + ttl)
                 .execute(&self.conn)?;
             self.update_collection(user_id as u32, collection_id)
         })
