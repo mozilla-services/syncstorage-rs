@@ -103,7 +103,8 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
                        nodes.node, users.keys_changed_at from users, services,\
                        nodes\
                  WHERE users.email = ?\
-                   AND services.id = users.service and nodes.id = users.nodeid\
+                   AND services.id = users.service\
+                   AND nodes.id = users.nodeid\
                    AND nodes.service = services.id")
         .bind::<Text, _>(email)
         .load::<TokenserverUser>(&connection).unwrap();
