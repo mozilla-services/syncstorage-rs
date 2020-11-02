@@ -63,7 +63,7 @@ commands:
 
   run-tests:
     steps:
-        - run:
+      - run:
           name: cargo test
           command: cargo test --all --verbose
       - run:
