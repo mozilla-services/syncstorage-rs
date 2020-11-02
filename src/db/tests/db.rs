@@ -781,6 +781,7 @@ async fn post_bsos() -> Result<()> {
                 postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
                 postbso("b2", Some("payload 2"), Some(100), None),
             ],
+            for_batch: false,
             failed: Default::default(),
         })
         .await?;
@@ -808,6 +809,7 @@ async fn post_bsos() -> Result<()> {
                 postbso("b0", Some("updated 0"), Some(11), Some(100_000)),
                 postbso("b2", Some("updated 2"), Some(22), Some(10000)),
             ],
+            for_batch: false,
             failed: Default::default(),
         })
         .await?;

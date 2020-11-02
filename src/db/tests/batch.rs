@@ -251,35 +251,46 @@ async fn quota_test_append_batch() -> Result<()> {
 #[tokio::test]
 async fn test_append_async_w_null() -> Result<()> {
     let settings = crate::settings::test_settings();
-    if !settings.uses_spanner() {
-        dbg!("### Skipping test for mysql");
-        return Ok(());
-    }
     let pool = db_pool(Some(settings)).await?;
     let db = test_db(pool.as_ref()).await?;
-    let ttl = crate::db::util::ms_since_epoch() as u32;
+    let ttl_0 = crate::db::util::ms_since_epoch() as u32 + 10_000;
+    let ttl_1 = ttl_0 + (86_400 * 2);
+    let bid_0 = "b0";
+    let bid_1 = "b1";
 
     let uid = 1;
     let coll = "clients";
-    let payload = "payload 0";
-    let first_bso = pbso(uid, coll, "b0", Some(payload), Some(10), Some(ttl + 10_000));
+    let payload_0 = "payload 0";
+    let payload_1 = "payload 1";
+    let first_bso = pbso(uid, coll, bid_0, Some(payload_0), Some(10), Some(ttl_0));
     db.put_bso(first_bso).await?;
+    let second_bso = pbso(uid, coll, bid_1, Some(payload_1), Some(10), Some(ttl_1));
+    db.put_bso(second_bso).await?;
 
-    let tomorrow = ttl + 20_000;
+    let tomorrow = ttl_0 + 86_400;
     let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
     // update the single bso twice, leaving payload the same.
     db.append_to_batch(ab(
         uid,
         coll,
         new_batch.clone(),
-        vec![postbso("b0", None, Some(15), None)],
+        vec![postbso(bid_0, None, Some(15), None)],
     ))
     .await?;
     db.append_to_batch(ab(
         uid,
         coll,
         new_batch.clone(),
-        vec![postbso("b0", None, None, Some(tomorrow))],
+        vec![postbso(bid_0, None, None, Some(tomorrow))],
+    ))
+    .await?;
+
+    // update the second bso to ensure that the first is unaltered
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![postbso(bid_1, None, Some(20), None)],
     ))
     .await?;
 
@@ -293,10 +304,14 @@ async fn test_append_async_w_null() -> Result<()> {
         batch,
     })
     .await?;
-    let bso = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
+    let bso_0 = db.get_bso(gbso(uid, coll, bid_0)).await?.unwrap();
+    let bso_1 = db.get_bso(gbso(uid, coll, bid_1)).await?.unwrap();
 
-    assert!(bso.payload == payload);
-    assert!(bso.sortindex == Some(15));
+    assert!(bso_0.payload == payload_0);
+    assert!(bso_0.sortindex == Some(15));
+
+    assert!(bso_1.payload == payload_1);
+    assert!(bso_1.sortindex == Some(20));
 
     Ok(())
 }
