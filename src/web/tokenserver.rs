@@ -107,8 +107,10 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
             r#"
 import tokenlib
 
+
 def make_token(plaintext, shared_secret):
     return tokenlib.make_token(plaintext, secret=shared_secret)
+
 
 def get_derived_secret(plaintext, shared_secret):
     return tokenlib.get_derived_secret(plaintext, secret=shared_secret)
