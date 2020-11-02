@@ -151,7 +151,7 @@ def get_derived_secret(plaintext, shared_secret):
         Ok((result, derived_result))
     })
     .unwrap();
-    let api_endpoint = format!("{:}/1.5/{:}/", user_record[0].node, token_data.claims.sub);
+    let api_endpoint = format!("{:}/1.5/{:}", user_record[0].node, user_record[0].uid);
     Ok(TokenServerResult {
         id: python_result,
         key: python_derived_result,
