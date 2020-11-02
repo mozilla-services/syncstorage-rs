@@ -1,3 +1,27 @@
+<a name="0.8.0"></a>
+## 0.8.0 (2020-10-29)
+
+
+#### Bug Fixes
+
+*   handle duplicate keys in batch_upload_items for mysql (#873) ([2d6039f3](https://github.com/mozilla-services/syncstorage-rs/commit/2d6039f3e6b130a3a45c6c1815c1bcc25279d451), closes [#827](https://github.com/mozilla-services/syncstorage-rs/issues/827))
+*   reduce MAX_TOTAL_RECORDS for quota write allowance ([bac2c51f](https://github.com/mozilla-services/syncstorage-rs/commit/bac2c51f4f44289d982c69437b5e803948a6a1b7))
+*   avoid extra quota related work in batch commit ([51c3bdab](https://github.com/mozilla-services/syncstorage-rs/commit/51c3bdab9988dcbfa59d10af5cda81335f71a270), closes [#869](https://github.com/mozilla-services/syncstorage-rs/issues/869))
+*   correct quota env var in config test to SYNC_ENABLE_QUOTA (#859) ([f0aa4642](https://github.com/mozilla-services/syncstorage-rs/commit/f0aa4642b13a9e4d687707940959cc181e6f750d), closes [#829](https://github.com/mozilla-services/syncstorage-rs/issues/829))
+
+#### Chore
+
+*   tag 0.7.1 (#863) ([0400863e](https://github.com/mozilla-services/syncstorage-rs/commit/0400863e89589933c62fbaef0188f18970a53d9d))
+
+#### Features
+
+*   Add `count` and `count_with_tags` metric for batch histogram (#879) ([8afcbe65](https://github.com/mozilla-services/syncstorage-rs/commit/8afcbe65de944c5ef3cd579f0891dba7bc403e71), closes [#878](https://github.com/mozilla-services/syncstorage-rs/issues/878))
+*   optimize POST w/ ?batch=true&commit=true (#880) ([b7e9ba53](https://github.com/mozilla-services/syncstorage-rs/commit/b7e9ba535308721a1312e774317f3aff170a7520), closes [#876](https://github.com/mozilla-services/syncstorage-rs/issues/876))
+*   remove Tags handoffs (#862) ([c6ea474c](https://github.com/mozilla-services/syncstorage-rs/commit/c6ea474c16ac003395d10c6b282c84050cfece6c), closes [#403](https://github.com/mozilla-services/syncstorage-rs/issues/403))
+*   rework error logging/metric reporting; fix BSO batch updates for spanner (#824) ([cef8fb52](https://github.com/mozilla-services/syncstorage-rs/commit/cef8fb521ad3239f5ecf356468715ca8341e7f73), closes [#827](https://github.com/mozilla-services/syncstorage-rs/issues/827))
+
+
+
 <a name="0.7.1"></a>
 ## 0.7.1 (2020-10-19)
 
