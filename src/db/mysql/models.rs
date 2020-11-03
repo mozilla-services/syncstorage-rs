@@ -38,6 +38,8 @@ pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
+/// We store the TTL as a SyncTimestamp, which is milliseconds, so remember
+/// to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 
 pub const TOMBSTONE: i32 = 0;
@@ -468,7 +470,7 @@ impl MysqlDb {
                 .bind::<Nullable<Integer>, _>(sortindex)
                 .bind::<Text, _>(payload)
                 .bind::<BigInt, _>(timestamp)
-                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000))
+                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
                 .execute(&self.conn)?;
             self.update_collection(user_id as u32, collection_id)
         })
@@ -598,8 +600,10 @@ impl MysqlDb {
 
         let limit = limit.map(i64::from).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
-        // match the query conditions
-        query = query.limit(if limit >= 0 { limit + 1 } else { limit });
+        // match the query conditions. Negative limits will cause an error.
+        if limit > 0 {
+            query = query.limit(if limit >= 0 { limit + 1 } else { limit });
+        }
 
         let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
         if numeric_offset != 0 {

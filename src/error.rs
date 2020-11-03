@@ -248,11 +248,11 @@ impl ResponseError for ApiError {
         // HttpResponse::build(self.status).json(self)
         //
         // So instead we translate our error to a backwards compatible one
-        HttpResponse::build(self.status)
-            .if_true(self.is_conflict(), |resp| {
-                resp.header("Retry-After", RETRY_AFTER.to_string());
-            })
-            .json(self.weave_error_code() as i32)
+        let mut resp = HttpResponse::build(self.status);
+        if self.is_conflict() {
+            resp.header("Retry-After", RETRY_AFTER.to_string());
+        };
+        resp.json(self.weave_error_code() as i32)
     }
 }
 
