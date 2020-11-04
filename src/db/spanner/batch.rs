@@ -290,7 +290,8 @@ pub async fn do_append_async(
     let mut tags = Tags::default();
     tags.tags.insert(
         "collection".to_owned(),
-        db.get_collection_name(collection_id)?
+        db.get_collection_name(collection_id)
+            .await
             .unwrap_or_else(|| "UNKNOWN".to_string()),
     );
 
