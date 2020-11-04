@@ -38,7 +38,10 @@ pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 /// The ttl to use for rows that are never supposed to expire (in seconds)
+/// We store the TTL as a SyncTimestamp, which is milliseconds, so remember
+/// to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
+pub const DEFAULT_LIMIT: i64 = 10000;
 
 pub const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
@@ -99,7 +102,7 @@ pub struct MysqlDbInner {
     #[cfg(not(test))]
     pub(super) conn: Conn,
     #[cfg(test)]
-    pub(super) conn: LoggingConnection<Conn>,
+    pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
 
     session: RefCell<MysqlDbSession>,
 }
@@ -468,7 +471,7 @@ impl MysqlDb {
                 .bind::<Nullable<Integer>, _>(sortindex)
                 .bind::<Text, _>(payload)
                 .bind::<BigInt, _>(timestamp)
-                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000))
+                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
                 .execute(&self.conn)?;
             self.update_collection(user_id as u32, collection_id)
         })
@@ -486,7 +489,7 @@ impl MysqlDb {
             ids,
             ..
         } = params.params;
-
+        let now = self.timestamp().as_i64();
         let mut query = bso::table
             .select((
                 bso::id,
@@ -497,7 +500,7 @@ impl MysqlDb {
             ))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(now))
             .into_boxed();
 
         if let Some(older) = older {
@@ -526,14 +529,14 @@ impl MysqlDb {
             _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(-1);
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
-        query = query.limit(if limit >= 0 { limit + 1 } else { limit });
+        query = query.limit(if limit > 0 { limit + 1 } else { limit });
 
         let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
 
-        if numeric_offset != 0 {
+        if numeric_offset > 0 {
             // XXX: copy over this optimization:
             // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
             query = query.offset(numeric_offset);
@@ -549,7 +552,14 @@ impl MysqlDb {
             bsos.pop();
             Some((limit + numeric_offset).to_string())
         } else {
-            None
+            // if an explicit "limit=0" is sent, return the offset of "0"
+            // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
+            // unit test.
+            if limit == 0 {
+                Some(0.to_string())
+            } else {
+                None
+            }
         };
 
         Ok(results::GetBsos {
@@ -570,7 +580,6 @@ impl MysqlDb {
             ids,
             ..
         } = params.params;
-
         let mut query = bso::table
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
@@ -596,11 +605,11 @@ impl MysqlDb {
             _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(-1);
+        // negative limits are no longer allowed by mysql.
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
         // fetch an extra row to detect if there are more rows that
-        // match the query conditions
-        query = query.limit(if limit >= 0 { limit + 1 } else { limit });
-
+        // match the query conditions. Negative limits will cause an error.
+        query = query.limit(if limit == 0 { limit } else { limit + 1 });
         let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
         if numeric_offset != 0 {
             // XXX: copy over this optimization:

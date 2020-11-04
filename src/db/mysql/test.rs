@@ -1,10 +1,13 @@
 use std::{collections::HashMap, result::Result as StdResult};
 
 use diesel::{
-    expression_methods::TextExpressionMethods,
+    // expression_methods::TextExpressionMethods, // See note below about `not_like` becoming swedish
     mysql::MysqlConnection,
     r2d2::{CustomizeConnection, Error as PoolError},
-    Connection, ExpressionMethods, QueryDsl, RunQueryDsl,
+    Connection,
+    ExpressionMethods,
+    QueryDsl,
+    RunQueryDsl,
 };
 use url::Url;
 
@@ -61,10 +64,12 @@ fn static_collection_id() -> Result<()> {
     // The integration tests can create collections that start
     // with `xxx%`. We should not include those in our counts for local
     // unit tests.
+    // Note: not sure why but as of 11/02/20, `.not_like("xxx%")` is apparently
+    // swedish-ci. Commenting that out for now.
     let results: HashMap<i32, String> = collections::table
         .select((collections::id, collections::name))
         .filter(collections::name.ne(""))
-        .filter(collections::name.not_like("xxx%")) // from most integration tests
+        //.filter(collections::name.not_like("xxx%")) // from most integration tests
         .filter(collections::name.ne("col2")) // from older intergration tests
         .load(&db.inner.conn)?
         .into_iter()

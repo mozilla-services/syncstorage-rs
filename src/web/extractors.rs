@@ -1650,6 +1650,7 @@ mod tests {
             Method,
         },
         test::{self, TestRequest},
+        web::Bytes,
         Error, HttpResponse,
     };
     use hawk::{Credentials, Key, RequestBuilder};
@@ -1765,7 +1766,7 @@ mod tests {
         // Not sure why but sending req through *::extract loses the body.
         // Compose a payload here and call the *::from_request
         let (_sender, mut payload) = h1::Payload::create(true);
-        payload.unread_data(bytes::Bytes::from(bod_str.to_owned()));
+        payload.unread_data(Bytes::from(bod_str.to_owned()));
         CollectionPostRequest::from_request(&req, &mut payload.into()).await
     }
 
@@ -1922,7 +1923,7 @@ mod tests {
             .to_http_request();
         req.extensions_mut().insert(make_db());
         let (_sender, mut payload) = h1::Payload::create(true);
-        payload.unread_data(bytes::Bytes::from(bso_body.to_string()));
+        payload.unread_data(Bytes::from(bso_body.to_string()));
         let result = block_on(BsoPutRequest::from_request(&req, &mut payload.into()))
             .expect("Could not get result in test_valid_bso_post_body");
         assert_eq!(result.user_id.legacy_id, *USER_ID);
