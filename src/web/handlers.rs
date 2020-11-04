@@ -140,11 +140,11 @@ pub async fn delete_collection(
                 }
             };
 
-            Ok(HttpResponse::Ok()
-                .if_true(delete_bsos, |resp| {
-                    resp.header(X_LAST_MODIFIED, timestamp.as_header());
-                })
-                .json(timestamp))
+            let mut resp = HttpResponse::Ok();
+            if delete_bsos {
+                resp.header(X_LAST_MODIFIED, timestamp.as_header());
+            }
+            Ok(resp.json(timestamp))
         })
         .await
 }
@@ -161,7 +161,6 @@ pub async fn get_collection(
                 params: coll.query.clone(),
                 collection: coll.collection.clone(),
             };
-
             let response = if coll.query.full {
                 let result = db.get_bsos(params).await;
                 finish_get_collection(&coll, db, result).await?
@@ -170,7 +169,6 @@ pub async fn get_collection(
                 let result = db.get_bso_ids(params).await;
                 finish_get_collection(&coll, db, result).await?
             };
-
             Ok(response)
         })
         .await
@@ -201,10 +199,11 @@ where
     let mut builder = HttpResponse::build(StatusCode::OK);
     let resp = builder
         .header(X_LAST_MODIFIED, ts.as_header())
-        .header(X_WEAVE_RECORDS, result.items.len().to_string())
-        .if_some(result.offset, |offset, resp| {
-            resp.header(X_WEAVE_NEXT_OFFSET, offset);
-        });
+        .header(X_WEAVE_RECORDS, result.items.len().to_string());
+
+    if let Some(offset) = result.offset {
+        resp.header(X_WEAVE_NEXT_OFFSET, offset);
+    }
 
     match coll.reply {
         ReplyFormat::Json => Ok(resp.json(result.items)),

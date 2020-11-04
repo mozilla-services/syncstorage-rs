@@ -247,8 +247,9 @@ async fn test_append_async_w_null() -> Result<()> {
     let settings = crate::settings::test_settings();
     let pool = db_pool(Some(settings)).await?;
     let db = test_db(pool.as_ref()).await?;
-    let ttl_0 = crate::db::util::ms_since_epoch() as u32 + 10_000;
-    let ttl_1 = ttl_0 + (86_400 * 2);
+    // Remember: TTL is seconds to live, not an expiry date
+    let ttl_0 = 86_400;
+    let ttl_1 = 86_400;
     let bid_0 = "b0";
     let bid_1 = "b1";
 
