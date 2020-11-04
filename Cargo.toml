@@ -44,7 +44,7 @@ hawk = "3.2"
 hostname = "0.3.1"
 hkdf = "0.10"
 hmac = "0.10"
-log = { version = "0.4.8", features = ["max_level_info", "release_max_level_info"] }
+log = { version = "0.4", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
