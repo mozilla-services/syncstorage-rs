@@ -19,7 +19,8 @@ static DEFAULT_MAX_POST_RECORDS: u32 = 100;
 static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = 2 * MEGABYTE;
 static DEFAULT_MAX_REQUEST_BYTES: u32 = DEFAULT_MAX_POST_BYTES + 4 * KILOBYTE;
 static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
-static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
+// also used to determine the max number of records to return for MySQL.
+pub static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 // Hard spanner limit is 4GB per split (items under a unique index).
 // This gives us more than a bit of wiggle room.
 static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;

@@ -31,7 +31,7 @@ use crate::db::{
     Db, DbFuture, Sorting,
 };
 use crate::server::metrics::Metrics;
-use crate::settings::Quota;
+use crate::settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 use crate::web::tags::Tags;
 
@@ -42,7 +42,8 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 /// We store the TTL as a SyncTimestamp, which is milliseconds, so remember
 /// to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
-pub const DEFAULT_LIMIT: i64 = 10000;
+// this is the max number of records we will return.
+pub static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
 
 pub const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
@@ -517,6 +518,10 @@ impl MysqlDb {
             query = query.filter(bso::id.eq_any(ids));
         }
 
+        // it's possible for two BSOs to be inserted with the same `modified` date,
+        // since there's no guarantee of order when doing a get, pagination can return
+        // an error. We "fudge" a bit here by taking the id order as a secondary, since
+        // that is guaranteed to be unique by the client.
         query = match sort {
             // issue559: Revert to previous sorting
             /*
@@ -527,12 +532,12 @@ impl MysqlDb {
             Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
             */
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
+            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
             _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
         query = query.limit(if limit > 0 { limit + 1 } else { limit });
@@ -609,7 +614,7 @@ impl MysqlDb {
         };
 
         // negative limits are no longer allowed by mysql.
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions. Negative limits will cause an error.
         query = query.limit(if limit == 0 { limit } else { limit + 1 });
