@@ -4,8 +4,8 @@ use actix_web::{
     dev::Service,
     http::{self, HeaderName, HeaderValue, StatusCode},
     test,
+    web::Bytes,
 };
-use bytes::Bytes;
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
