@@ -102,7 +102,7 @@ pub struct MysqlDbInner {
     #[cfg(not(test))]
     pub(super) conn: Conn,
     #[cfg(test)]
-    pub(super) conn: LoggingConnection<Conn>,  // display SQL when RUST_LOG="diesel_logger=trace"
+    pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
 
     session: RefCell<MysqlDbSession>,
 }
@@ -557,7 +557,7 @@ impl MysqlDb {
             // unit test.
             if limit == 0 {
                 Some(0.to_string())
-            }else {
+            } else {
                 None
             }
         };
