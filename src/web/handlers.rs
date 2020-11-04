@@ -161,7 +161,6 @@ pub async fn get_collection(
                 params: coll.query.clone(),
                 collection: coll.collection.clone(),
             };
-
             let response = if coll.query.full {
                 let result = db.get_bsos(params).await;
                 finish_get_collection(&coll, db, result).await?
@@ -170,7 +169,6 @@ pub async fn get_collection(
                 let result = db.get_bso_ids(params).await;
                 finish_get_collection(&coll, db, result).await?
             };
-
             Ok(response)
         })
         .await
