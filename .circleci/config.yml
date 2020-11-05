@@ -23,6 +23,13 @@ commands:
             rustup component add rustfmt
             cargo install cargo-audit
             rustup component add clippy
+  setup-python:
+    steps:
+      - run:
+          name: Setup python
+          command: |
+            sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
+            pip3 install tokenlib
   rust-check:
     steps:
       - run:
@@ -157,6 +164,7 @@ jobs:
               fi
       - checkout
       - setup-rust
+      - setup-python
       - setup-gcp-grpc
       # XXX: currently the time needed to setup-sccache negates its savings
       #- setup-sccache

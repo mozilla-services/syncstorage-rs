@@ -17,6 +17,7 @@ debug = 1
 [dependencies]
 actix-http = "2"
 actix-web = "3"
+actix-web-httpauth = "0.5"
 actix-rt = "1"
 actix-cors = "0.5"
 async-trait = "0.1.40"
@@ -40,10 +41,12 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
+pyo3 = "0.12.1"
 hawk = "3.2"
 hostname = "0.3.1"
 hkdf = "0.10"
 hmac = "0.10"
+jsonwebtoken = "7.2.0"
 log = { version = "0.4", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 num_cpus = "1"
