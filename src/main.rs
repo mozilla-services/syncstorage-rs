@@ -5,7 +5,7 @@ extern crate slog_scope;
 use std::{error::Error, sync::Arc};
 
 use docopt::Docopt;
-use serde_derive::Deserialize;
+use serde::Deserialize;
 
 use logging::init_logging;
 use syncstorage::{logging, server, settings};
