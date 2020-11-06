@@ -1118,8 +1118,15 @@ impl<'a> Db<'a> for MysqlDb {
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 
     #[cfg(test)]
-    fn clear_coll_cache(&self) {
-        self.coll_cache.clear();
+    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+        let db = self.clone();
+        Box::pin(
+            block(move || {
+                db.coll_cache.clear();
+                Ok(())
+            })
+            .map_err(Into::into),
+        )
     }
 
     #[cfg(test)]

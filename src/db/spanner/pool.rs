@@ -1,22 +1,22 @@
+use std::{collections::HashMap, fmt, sync::Arc};
+
 use async_trait::async_trait;
 use bb8::ErrorSink;
+use tokio::sync::RwLock;
 
-use std::{
-    collections::HashMap,
-    fmt,
-    sync::{Arc, RwLock},
+use crate::{
+    db::{error::DbError, results, Db, DbPool, STD_COLLS},
+    error::ApiResult,
+    server::metrics::Metrics,
+    settings::Settings,
 };
 
-use super::models::Result;
-use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
-use crate::server::metrics::Metrics;
-use crate::settings::Settings;
-
-use super::manager::{SpannerSession, SpannerSessionManager};
-use super::models::SpannerDb;
-use crate::error::ApiResult;
-
 pub use super::manager::Conn;
+use super::{
+    manager::{SpannerSession, SpannerSessionManager},
+    models::Result,
+    models::SpannerDb,
+};
 
 embed_migrations!();
 
@@ -117,43 +117,44 @@ pub struct CollectionCache {
 }
 
 impl CollectionCache {
-    pub fn put(&self, id: i32, name: String) -> Result<()> {
+    pub async fn put(&self, id: i32, name: String) {
         // XXX: should this emit a metric?
-        // XXX: should probably either lock both simultaneously during
-        // writes or use an RwLock alternative
-        self.by_name
-            .write()
-            .map_err(|_| DbError::internal("by_name write"))?
-            .insert(name.clone(), id);
-        self.by_id
-            .write()
-            .map_err(|_| DbError::internal("by_id write"))?
-            .insert(id, name);
-        Ok(())
+        // XXX: one RwLock might be sufficient?
+        self.by_name.write().await.insert(name.clone(), id);
+        self.by_id.write().await.insert(id, name);
     }
 
-    pub fn get_id(&self, name: &str) -> Result<Option<i32>> {
-        Ok(self
-            .by_name
-            .read()
-            .map_err(|_| DbError::internal("by_name read"))?
-            .get(name)
-            .cloned())
+    pub async fn get_id(&self, name: &str) -> Option<i32> {
+        self.by_name.read().await.get(name).cloned()
     }
 
-    pub fn get_name(&self, id: i32) -> Result<Option<String>> {
-        Ok(self
-            .by_id
-            .read()
-            .map_err(|_| DbError::internal("by_id read"))?
-            .get(&id)
-            .cloned())
+    pub async fn get_name(&self, id: i32) -> Option<String> {
+        self.by_id.read().await.get(&id).cloned()
+    }
+
+    /// Get multiple names, returning a tuple of both the mapping of
+    /// ids to their names and a Vec of ids not found in the cache.
+    pub async fn get_names(&self, ids: &[i32]) -> (HashMap<i32, String>, Vec<i32>) {
+        let len = ids.len();
+        // the ids array shouldn't be very large but avoid reallocating
+        // while holding the lock
+        let mut names = HashMap::with_capacity(len);
+        let mut missing = Vec::with_capacity(len);
+        let by_id = self.by_id.read().await;
+        for &id in ids {
+            if let Some(name) = by_id.get(&id) {
+                names.insert(id, name.to_owned());
+            } else {
+                missing.push(id)
+            }
+        }
+        (names, missing)
     }
 
     #[cfg(test)]
-    pub fn clear(&self) {
-        self.by_name.write().expect("by_name write").clear();
-        self.by_id.write().expect("by_id write").clear();
+    pub async fn clear(&self) {
+        self.by_name.write().await.clear();
+        self.by_id.write().await.clear();
     }
 }
 

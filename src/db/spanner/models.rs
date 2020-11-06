@@ -137,12 +137,12 @@ impl SpannerDb {
         }
     }
 
-    pub(super) fn get_collection_name(&self, id: i32) -> Result<Option<String>> {
-        self.coll_cache.get_name(id)
+    pub(super) async fn get_collection_name(&self, id: i32) -> Option<String> {
+        self.coll_cache.get_name(id).await
     }
 
     pub(super) async fn get_collection_id_async(&self, name: &str) -> Result<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
+        if let Some(id) = self.coll_cache.get_id(name).await {
             return Ok(id);
         }
         let result = self
@@ -161,7 +161,7 @@ impl SpannerDb {
             .parse::<i32>()
             .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
         if !self.in_write_transaction() {
-            self.coll_cache.put(id, name.to_owned())?;
+            self.coll_cache.put(id, name.to_owned()).await;
         }
         Ok(id)
     }
@@ -631,15 +631,10 @@ impl SpannerDb {
         &self,
         collection_ids: impl Iterator<Item = &i32>,
     ) -> Result<HashMap<i32, String>> {
-        let mut names = HashMap::new();
-        let mut uncached = Vec::new();
-        for &id in collection_ids {
-            if let Some(name) = self.coll_cache.get_name(id)? {
-                names.insert(id, name);
-            } else {
-                uncached.push(id);
-            }
-        }
+        let (mut names, uncached) = self
+            .coll_cache
+            .get_names(&collection_ids.cloned().collect::<Vec<_>>())
+            .await;
 
         if !uncached.is_empty() {
             let mut params = HashMap::new();
@@ -664,7 +659,7 @@ impl SpannerDb {
                 let name = row[1].take_string_value();
                 names.insert(id, name.clone());
                 if !self.in_write_transaction() {
-                    self.coll_cache.put(id, name)?;
+                    self.coll_cache.put(id, name).await;
                 }
             }
         }
@@ -2100,8 +2095,12 @@ impl<'a> Db<'a> for SpannerDb {
     }
 
     #[cfg(test)]
-    fn clear_coll_cache(&self) {
-        self.coll_cache.clear();
+    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.coll_cache.clear().await;
+            Ok(())
+        })
     }
 
     #[cfg(test)]

@@ -68,15 +68,13 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 time = "0.2"
+tokio = { version = "0.2", features = ["macros"] }
 url = "2.1"
 urlencoding = "1.1"
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 validator = "0.11"
 validator_derive = "0.11"
 woothee = "0.11"
-
-[dev-dependencies]
-tokio = { version = "0.3", features = ["macros", "rt"] }
 
 [features]
 no_auth = []

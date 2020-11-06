@@ -118,7 +118,9 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(delete_batch, DeleteBatch);
 
     #[cfg(test)]
-    fn clear_coll_cache(&self) {}
+    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+        Box::pin(future::ok(()))
+    }
 
     #[cfg(test)]
     fn set_quota(&mut self, _: bool, _: usize) {}

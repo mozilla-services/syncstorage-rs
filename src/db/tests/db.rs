@@ -1063,7 +1063,7 @@ async fn collection_cache() -> Result<()> {
     })
     .await?;
 
-    db.clear_coll_cache();
+    db.clear_coll_cache().await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
     assert!(cols.contains_key(coll));
     Ok(())
