@@ -17,6 +17,7 @@ debug = 1
 [dependencies]
 actix-http = "2"
 actix-web = "3"
+actix-web-httpauth = "0.5"
 actix-rt = "1"
 actix-cors = "0.5"
 async-trait = "0.1.40"
@@ -26,7 +27,7 @@ bytes = "0.6"
 cadence = "0.22"
 chrono = "0.4"
 config = "0.10"
-deadpool = "0.5.2"
+deadpool = "0.6"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
@@ -40,10 +41,12 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.6.0" }
 lazy_static = "1.4.0"
+pyo3 = "0.12.1"
 hawk = "3.2"
 hostname = "0.3.1"
 hkdf = "0.10"
 hmac = "0.10"
+jsonwebtoken = "7.2.0"
 log = { version = "0.4", features = ["max_level_info", "release_max_level_info"] }
 mime = "0.3"
 num_cpus = "1"
@@ -65,15 +68,13 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 time = "0.2"
+tokio = { version = "0.2", features = ["macros"] }
 url = "2.1"
 urlencoding = "1.1"
 uuid = { version = "0.8.1", features = ["serde", "v4"] }
 validator = "0.11"
 validator_derive = "0.11"
 woothee = "0.11"
-
-[dev-dependencies]
-tokio = { version = "0.2", features = ["macros"] }
 
 [features]
 no_auth = []
