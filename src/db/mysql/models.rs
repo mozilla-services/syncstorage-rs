@@ -31,6 +31,7 @@ use crate::db::{
     Db, DbFuture, Sorting,
 };
 use crate::server::metrics::Metrics;
+use crate::settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
 use crate::web::tags::Tags;
 
@@ -41,7 +42,8 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 /// We store the TTL as a SyncTimestamp, which is milliseconds, so remember
 /// to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
-pub const DEFAULT_LIMIT: i64 = 10000;
+// this is the max number of records we will return.
+pub static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
 
 pub const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
@@ -89,8 +91,7 @@ pub struct MysqlDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
-    pub quota: usize,
-    pub quota_enabled: bool,
+    pub quota: Quota,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -126,8 +127,7 @@ impl MysqlDb {
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
-        quota: &usize,
-        quota_enabled: bool,
+        quota: &Quota,
     ) -> Self {
         let inner = MysqlDbInner {
             #[cfg(not(test))]
@@ -141,7 +141,6 @@ impl MysqlDb {
             coll_cache,
             metrics: metrics.clone(),
             quota: *quota,
-            quota_enabled,
         }
     }
 
@@ -401,18 +400,23 @@ impl MysqlDb {
         let collection_id = self.get_or_create_collection_id(&bso.collection)?;
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
-        if self.quota_enabled {
+        if self.quota.enabled {
             let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
                 user_id: HawkIdentifier::new_legacy(user_id),
                 collection: bso.collection.clone(),
                 collection_id,
             })?;
-            if usage.total_bytes >= self.quota as usize {
+            if usage.total_bytes >= self.quota.size as usize {
                 let mut tags = Tags::default();
-                tags.tags.insert("collection".to_owned(), bso.collection);
+                tags.tags
+                    .insert("collection".to_owned(), bso.collection.clone());
                 self.metrics
                     .incr_with_tags("storage.quota.at_limit", Some(tags));
-                return Err(DbErrorKind::Quota.into());
+                if self.quota.enforced {
+                    return Err(DbErrorKind::Quota.into());
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                }
             }
         }
 
@@ -514,6 +518,10 @@ impl MysqlDb {
             query = query.filter(bso::id.eq_any(ids));
         }
 
+        // it's possible for two BSOs to be inserted with the same `modified` date,
+        // since there's no guarantee of order when doing a get, pagination can return
+        // an error. We "fudge" a bit here by taking the id order as a secondary, since
+        // that is guaranteed to be unique by the client.
         query = match sort {
             // issue559: Revert to previous sorting
             /*
@@ -524,12 +532,12 @@ impl MysqlDb {
             Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
             */
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
+            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
             _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions
         query = query.limit(if limit > 0 { limit + 1 } else { limit });
@@ -606,7 +614,7 @@ impl MysqlDb {
         };
 
         // negative limits are no longer allowed by mysql.
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT).max(0);
+        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
         // fetch an extra row to detect if there are more rows that
         // match the query conditions. Negative limits will cause an error.
         query = query.limit(if limit == 0 { limit } else { limit + 1 });
@@ -838,7 +846,7 @@ impl MysqlDb {
         user_id: u32,
         collection_id: i32,
     ) -> Result<SyncTimestamp> {
-        let quota = if self.quota_enabled {
+        let quota = if self.quota.enabled {
             self.calc_quota_usage_sync(user_id, collection_id)?
         } else {
             results::GetQuotaUsage {
@@ -1130,9 +1138,12 @@ impl<'a> Db<'a> for MysqlDb {
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: usize) {
-        self.quota = limit;
-        self.quota_enabled = enabled;
+    fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
+        self.quota = Quota {
+            size: limit,
+            enabled,
+            enforced,
+        }
     }
 }
 

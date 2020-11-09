@@ -681,7 +681,7 @@ async fn test_quota() -> Result<()> {
         .sample_iter(&Alphanumeric)
         .take(size)
         .collect::<String>();
-    db.set_quota(false, 0);
+    db.set_quota(false, 0, false);
 
     // These should work
     db.put_bso(pbso(uid, coll, "100", Some(&payload), None, None))
@@ -689,7 +689,7 @@ async fn test_quota() -> Result<()> {
     db.put_bso(pbso(uid, coll, "101", Some(&payload), None, None))
         .await?;
 
-    db.set_quota(true, size * 2);
+    db.set_quota(true, size * 2, true);
 
     // Allow the put, but calculate the quota
     db.put_bso(pbso(uid, coll, "102", Some(&payload), None, None))

@@ -26,7 +26,7 @@ use crate::db::{
 };
 use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
-use crate::settings::Settings;
+use crate::settings::{Quota, Settings};
 
 embed_migrations!();
 
@@ -54,8 +54,7 @@ pub struct MysqlDbPool {
     coll_cache: Arc<CollectionCache>,
 
     metrics: Metrics,
-    quota: usize,
-    quota_enabled: bool,
+    quota: Quota,
 }
 
 impl MysqlDbPool {
@@ -84,8 +83,11 @@ impl MysqlDbPool {
             pool: builder.build(manager)?,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
-            quota: settings.limits.max_quota_limit as usize,
-            quota_enabled: settings.enable_quota,
+            quota: Quota {
+                size: settings.limits.max_quota_limit as usize,
+                enabled: settings.enable_quota,
+                enforced: settings.enforce_quota,
+            },
         })
     }
 
@@ -95,7 +97,6 @@ impl MysqlDbPool {
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
-            self.quota_enabled,
         ))
     }
 }
