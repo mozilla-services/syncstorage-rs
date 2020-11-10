@@ -4,7 +4,6 @@
 """ Base test class, with an instanciated app.
 """
 
-import browserid.tests.support
 import contextlib
 import functools
 import json
@@ -349,6 +348,7 @@ def authenticate_to_token_server(url, email=None, audience=None):
     if audience is None:
         audience = urlparse.urlparse(url)._replace(path="")
         audience = urlparse.urlunparse(audience)
+    import browserid.tests.support
     assertion = browserid.tests.support.make_assertion(
         email=email,
         audience=audience,
