@@ -107,23 +107,54 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
                    AND nodes.id = users.nodeid
                    AND nodes.service = services.id"#,
     )
-    .bind::<Text, _>(email)
+    .bind::<Text, _>(&email)
     .load::<TokenserverUser>(&connection)
     .unwrap();
     let (python_result, python_derived_result) = Python::with_gil(|py| {
         let tokenlib = PyModule::from_code(
             py,
-            r#"
+            r###"
+import base64
+from hashlib import sha256
+import hmac
 import tokenlib
 
 
 def make_token(plaintext, shared_secret):
+    print("MAKE_TOKEN", plaintext)
     return tokenlib.make_token(plaintext, secret=shared_secret)
 
 
 def get_derived_secret(plaintext, shared_secret):
     return tokenlib.get_derived_secret(plaintext, secret=shared_secret)
-"#,
+
+
+def encode_bytes(value):
+    """Encode BrowserID's base64 encoding format.
+
+    BrowserID likes to strip padding characters off of base64-encoded strings,
+    meaning we can't use the stdlib routines to encode them directly.  This
+    is a simple wrapper that strips the padding.
+    """
+    if isinstance(value, str):
+        value = value.encode("ascii")
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def fxa_metrics_hash(value, hmac_key):
+    """Derive FxA metrics id from user's FxA email address or whatever.
+
+    This is used to obfuscate the id before logging it with the metrics
+    data, as a simple privacy measure.
+    """
+    hasher = hmac.new(hmac_key.encode("ascii"), ''.encode("ascii"), sha256)
+    hasher.update(value.split("@", 1)[0].encode("ascii"))
+    return hasher.hexdigest()
+
+
+def hash_device_id(fxa_uid, device, secret):
+    return fxa_metrics_hash(fxa_uid[:32] + device, secret)[:32]
+    "###,
             "main.py",
             "main",
         )
@@ -131,19 +162,59 @@ def get_derived_secret(plaintext, shared_secret):
             e.print_and_set_sys_last_vars(py);
             e
         })?;
+        let client_state_b64 = match tokenlib.call1("encode_bytes", (&user_record[0].client_state,))
+        {
+            Err(e) => {
+                e.print_and_set_sys_last_vars(py);
+                return Err(e);
+            }
+            Ok(x) => x.extract::<String>().unwrap(),
+        };
+        let hashed_fxa_uid = match tokenlib.call1(
+            "fxa_metrics_hash",
+            (
+                &email,
+                env::var("FXA_METRICS_HASH_SECRET").unwrap_or_else(|_| "insecure".to_string()),
+            ),
+        ) {
+            Err(e) => {
+                e.print_and_set_sys_last_vars(py);
+                return Err(e);
+            }
+            Ok(x) => x.extract::<String>().unwrap(),
+        };
+        let device_id = "none".to_string();
+        let fxa_metrics_hash_secret =
+            env::var("FXA_METRICS_HASH_SECRET").unwrap_or_else(|_| "insecure".to_string());
+        let hashed_device_id = match tokenlib.call1(
+            "hash_device_id",
+            (&hashed_fxa_uid, device_id, &fxa_metrics_hash_secret),
+        ) {
+            Err(e) => {
+                e.print_and_set_sys_last_vars(py);
+                return Err(e);
+            }
+            Ok(x) => x.extract::<String>().unwrap(),
+        };
+
+        let fxa_kid = format!(
+            "{:013}-{:}",
+            user_record[0].keys_changed_at.unwrap_or_else(|| 0),
+            client_state_b64
+        );
         let thedict = [
-            ("node", user_record[0].node.as_ref()),
-            ("uid", token_data.claims.sub.as_ref()),
-            ("fxa_kid", "asdf"), // userid component of authorization email
-            ("fxa_uid", "qwer"),
-            ("hashed_device_id", "..."),
-            ("hashed_fxa_uid", "..."),
+            ("node", &user_record[0].node),
+            ("fxa_kid", &fxa_kid), // userid component of authorization email
+            ("fxa_uid", &token_data.claims.sub),
+            ("hashed_device_id", &hashed_device_id),
+            ("hashed_fxa_uid", &hashed_fxa_uid),
         ]
         .into_py_dict(py);
         // todo don't hardcode
         // we're supposed to check the "duration" query
         // param and use that if present (for testing)
-        thedict.set_item("expires", 300).unwrap();
+        thedict.set_item("expires", 300).unwrap(); // todo this needs to be converted to timestamp int (now + value * 1000)
+        thedict.set_item("uid", user_record[0].uid).unwrap();
         let result = match tokenlib.call1("make_token", (thedict, &shared_secret)) {
             Err(e) => {
                 e.print_and_set_sys_last_vars(py);
