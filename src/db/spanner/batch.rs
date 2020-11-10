@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
-    web::extractors::HawkIdentifier,
+    web::{extractors::HawkIdentifier, tags::Tags},
 };
 
 pub async fn create_async(
@@ -102,7 +102,6 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
         Err(DbErrorKind::BatchNotFound)?
     }
 
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
     do_append_async(
         db,
         params.user_id,
@@ -233,8 +232,10 @@ pub async fn commit_async(
     .await?;
     // XXX: returning results::PostBsos here isn't needed
     // update the quotas for the user's collection
-    db.update_user_collection_quotas(&params.user_id, collection_id)
-        .await?;
+    if db.quota.enabled {
+        db.update_user_collection_quotas(&params.user_id, collection_id)
+            .await?;
+    }
     Ok(results::PostBsos {
         modified: timestamp,
         success: Default::default(),
@@ -284,6 +285,16 @@ pub async fn do_append_async(
 
     //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();
+    let mut collisions = HashSet::new();
+    let mut count_collisions = 0;
+    let mut tags = Tags::default();
+    tags.tags.insert(
+        "collection".to_owned(),
+        db.get_collection_name(collection_id)
+            .await
+            .unwrap_or_else(|| "UNKNOWN".to_string()),
+    );
+
     let bso_ids = bsos.iter().map(|pbso| pbso.id.clone());
     let mut params = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
@@ -313,6 +324,12 @@ pub async fn do_append_async(
         ));
     }
 
+    db.metrics.count_with_tags(
+        "storage.spanner.batch.pre-existing",
+        existing.len() as i64,
+        Some(tags.clone()),
+    );
+
     // Approach 1:
     // iterate and check to see if the record is in batch_bso table already
     let mut insert: Vec<Value> = Vec::new();
@@ -332,6 +349,13 @@ pub async fn do_append_async(
                 payload: bso.payload,
                 ttl: bso.ttl,
             });
+            // BSOs should only update records that were in previous batches.
+            // There is the potential that some may update records in their own batch.
+            // This will attempt to record such incidents.
+            // TODO: If we consistently see no results for this, it can be safely dropped.
+            if collisions.contains(&exist_idx) {
+                count_collisions += 1;
+            }
         } else {
             let sortindex = bso
                 .sortindex
@@ -359,14 +383,27 @@ pub async fn do_append_async(
             let mut value = Value::new();
             value.set_list_value(row);
             insert.push(value);
-            existing.insert(exist_idx);
+            existing.insert(exist_idx.clone());
+            collisions.insert(exist_idx);
         };
     }
 
-    if db.quota_enabled {
+    if count_collisions > 0 {
+        db.metrics.count_with_tags(
+            "storage.spanner.batch.collisions",
+            count_collisions,
+            Some(tags.clone()),
+        );
+    }
+
+    if db.quota.enabled {
         if let Some(size) = batch.size {
-            if size + running_size >= (db.quota as usize) {
-                return Err(db.quota_error(collection));
+            if size + running_size >= db.quota.size {
+                if db.quota.enforced {
+                    return Err(db.quota_error(collection));
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
+                }
             }
         }
     }
@@ -397,6 +434,7 @@ pub async fn do_append_async(
 
     if !insert.is_empty() {
         let mut list_values = ListValue::new();
+        let count_inserts = insert.len();
         list_values.set_values(RepeatedField::from_vec(insert));
         let mut values = Value::new();
         values.set_list_value(list_values);
@@ -426,13 +464,15 @@ pub async fn do_append_async(
         .param_types(sqlparam_types)
         .execute_dml_async(&db.conn)
         .await?;
+        db.metrics.count_with_tags(
+            "storage.spanner.batch.insert",
+            count_inserts as i64,
+            Some(tags.clone()),
+        );
     }
 
     // assuming that "update" is rarer than an insert, we can try using the standard API for that.
     if !update.is_empty() {
-        db.metrics
-            .clone()
-            .incr("storage.spanner.adding_updates_to_batch_bsos");
         for val in update {
             let mut fields = Vec::new();
             let mut params = params! {
@@ -510,7 +550,7 @@ async fn pretouch_collection_async(
         .await?;
     if result.is_none() {
         sqlparams.insert("modified".to_owned(), as_value(PRETOUCH_TS.to_owned()));
-        let sql = if db.quota_enabled {
+        let sql = if db.quota.enabled {
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
         } else {

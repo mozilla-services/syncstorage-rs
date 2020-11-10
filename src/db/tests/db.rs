@@ -681,7 +681,7 @@ async fn test_quota() -> Result<()> {
         .sample_iter(&Alphanumeric)
         .take(size)
         .collect::<String>();
-    db.set_quota(false, 0);
+    db.set_quota(false, 0, false);
 
     // These should work
     db.put_bso(pbso(uid, coll, "100", Some(&payload), None, None))
@@ -689,7 +689,7 @@ async fn test_quota() -> Result<()> {
     db.put_bso(pbso(uid, coll, "101", Some(&payload), None, None))
         .await?;
 
-    db.set_quota(true, size * 2);
+    db.set_quota(true, size * 2, true);
 
     // Allow the put, but calculate the quota
     db.put_bso(pbso(uid, coll, "102", Some(&payload), None, None))
@@ -781,6 +781,7 @@ async fn post_bsos() -> Result<()> {
                 postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
                 postbso("b2", Some("payload 2"), Some(100), None),
             ],
+            for_batch: false,
             failed: Default::default(),
         })
         .await?;
@@ -808,6 +809,7 @@ async fn post_bsos() -> Result<()> {
                 postbso("b0", Some("updated 0"), Some(11), Some(100_000)),
                 postbso("b2", Some("updated 2"), Some(22), Some(10000)),
             ],
+            for_batch: false,
             failed: Default::default(),
         })
         .await?;
@@ -1061,7 +1063,7 @@ async fn collection_cache() -> Result<()> {
     })
     .await?;
 
-    db.clear_coll_cache();
+    db.clear_coll_cache().await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
     assert!(cols.contains_key(coll));
     Ok(())

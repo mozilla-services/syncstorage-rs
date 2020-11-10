@@ -236,10 +236,10 @@ pub trait Db<'a>: Debug + 'a {
     fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<'_, ()>;
 
     #[cfg(test)]
-    fn clear_coll_cache(&self);
+    fn clear_coll_cache(&self) -> DbFuture<'_, ()>;
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: usize);
+    fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
 impl<'a> Clone for Box<dyn Db<'a>> {

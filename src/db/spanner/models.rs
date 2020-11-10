@@ -31,6 +31,7 @@ use crate::{
         Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
     },
     server::metrics::Metrics,
+    settings::Quota,
     web::{
         extractors::{BsoQueryParams, HawkIdentifier, Offset},
         tags::Tags,
@@ -92,8 +93,7 @@ pub struct SpannerDb {
     coll_cache: Arc<CollectionCache>,
 
     pub metrics: Metrics,
-    pub quota: usize,
-    pub quota_enabled: bool,
+    pub quota: Quota,
 }
 
 pub struct SpannerDbInner {
@@ -121,8 +121,7 @@ impl SpannerDb {
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
-        quota: usize,
-        quota_enabled: bool,
+        quota: Quota,
     ) -> Self {
         let inner = SpannerDbInner {
             conn,
@@ -133,12 +132,15 @@ impl SpannerDb {
             coll_cache,
             metrics: metrics.clone(),
             quota,
-            quota_enabled,
         }
     }
 
+    pub(super) async fn get_collection_name(&self, id: i32) -> Option<String> {
+        self.coll_cache.get_name(id).await
+    }
+
     pub(super) async fn get_collection_id_async(&self, name: &str) -> Result<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
+        if let Some(id) = self.coll_cache.get_id(name).await {
             return Ok(id);
         }
         let result = self
@@ -157,7 +159,7 @@ impl SpannerDb {
             .parse::<i32>()
             .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
         if !self.in_write_transaction() {
-            self.coll_cache.put(id, name.to_owned())?;
+            self.coll_cache.put(id, name.to_owned()).await;
         }
         Ok(id)
     }
@@ -627,15 +629,10 @@ impl SpannerDb {
         &self,
         collection_ids: impl Iterator<Item = &i32>,
     ) -> Result<HashMap<i32, String>> {
-        let mut names = HashMap::new();
-        let mut uncached = Vec::new();
-        for &id in collection_ids {
-            if let Some(name) = self.coll_cache.get_name(id)? {
-                names.insert(id, name);
-            } else {
-                uncached.push(id);
-            }
-        }
+        let (mut names, uncached) = self
+            .coll_cache
+            .get_names(&collection_ids.cloned().collect::<Vec<_>>())
+            .await;
 
         if !uncached.is_empty() {
             let mut params = HashMap::new();
@@ -660,7 +657,7 @@ impl SpannerDb {
                 let name = row[1].take_string_value();
                 names.insert(id, name.clone());
                 if !self.in_write_transaction() {
-                    self.coll_cache.put(id, name)?;
+                    self.coll_cache.put(id, name).await;
                 }
             }
         }
@@ -801,7 +798,7 @@ impl SpannerDb {
         &self,
         params: params::GetQuotaUsage,
     ) -> Result<results::GetQuotaUsage> {
-        if !self.quota_enabled {
+        if !self.quota.enabled {
             return Ok(results::GetQuotaUsage::default());
         }
         let check_sql = "SELECT COALESCE(total_bytes,0), COALESCE(count,0)
@@ -820,7 +817,7 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if let Some(result) = result {
-            let total_bytes = if self.quota_enabled {
+            let total_bytes = if self.quota.enabled {
                 result[0]
                     .get_string_value()
                     .parse::<usize>()
@@ -862,7 +859,7 @@ impl SpannerDb {
         self.metrics
             .clone()
             .start_timer("storage.quota.update_existing_totals", None);
-        let calc_sql = if self.quota_enabled {
+        let calc_sql = if self.quota.enabled {
             "SELECT SUM(BYTE_LENGTH(payload)), COUNT(*)
             FROM bsos
            WHERE fxa_uid = @fxa_uid
@@ -891,7 +888,7 @@ impl SpannerDb {
             // Update the user_collections table to reflect current numbers.
             // If there are BSOs, there are user_collections (or else something
             // really bad already happened.)
-            if self.quota_enabled {
+            if self.quota.enabled {
                 sqlparams.insert(
                     "total_bytes".to_owned(),
                     as_value(result[0].take_string_value()),
@@ -934,7 +931,7 @@ impl SpannerDb {
                 .await?;
             if result.is_none() {
                 // No collections, so insert what we've got.
-                if self.quota_enabled {
+                if self.quota.enabled {
                     "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
                     VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
                 } else {
@@ -944,7 +941,7 @@ impl SpannerDb {
             } else {
                 // there are collections, best modify what's there.
                 // NOTE, tombstone is a single collection id, it would have been created above.
-                if self.quota_enabled {
+                if self.quota.enabled {
                     "UPDATE user_collections SET modified=@modified, total_bytes=0, count=0
                     WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id"
                 } else {
@@ -1119,7 +1116,7 @@ impl SpannerDb {
             self.metrics
                 .clone()
                 .start_timer("storage.quota.init_totals", Some(tags));
-            let update_sql = if self.quota_enabled {
+            let update_sql = if self.quota.enabled {
                 "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, count, total_bytes)
                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
             } else {
@@ -1497,6 +1494,7 @@ impl SpannerDb {
                 user_id: params.user_id,
                 collection: params.collection,
                 bsos,
+                for_batch: false,
                 failed: HashMap::new(),
             })
             .await?;
@@ -1510,8 +1508,10 @@ impl SpannerDb {
             .get_or_create_collection_id_async(&params.collection)
             .await?;
 
-        self.check_quota(&user_id, &params.collection, collection_id)
-            .await?;
+        if !params.for_batch {
+            self.check_quota(&user_id, &params.collection, collection_id)
+                .await?;
+        }
 
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
@@ -1592,9 +1592,11 @@ impl SpannerDb {
         for (columns, values) in updates {
             self.update("bsos", &columns, values);
         }
-        // update the quotas
-        self.update_user_collection_quotas(&user_id, collection_id)
-            .await?;
+        if !params.for_batch {
+            // update the quotas
+            self.update_user_collection_quotas(&user_id, collection_id)
+                .await?;
+        }
 
         let result = results::PostBsos {
             modified: timestamp,
@@ -1630,7 +1632,7 @@ impl SpannerDb {
         collection_id: i32,
     ) -> Result<Option<usize>> {
         // duplicate quota trap in test func below.
-        if !self.quota_enabled {
+        if !self.quota.enabled {
             return Ok(None);
         }
         let usage = self
@@ -1640,8 +1642,12 @@ impl SpannerDb {
                 collection_id,
             })
             .await?;
-        if usage.total_bytes >= self.quota {
-            return Err(self.quota_error(collection));
+        if usage.total_bytes >= self.quota.size {
+            if self.quota.enforced {
+                return Err(self.quota_error(collection));
+            } else {
+                warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
+            }
         }
         Ok(Some(usage.total_bytes as usize))
     }
@@ -2091,13 +2097,20 @@ impl<'a> Db<'a> for SpannerDb {
     }
 
     #[cfg(test)]
-    fn clear_coll_cache(&self) {
-        self.coll_cache.clear();
+    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+        let db = self.clone();
+        Box::pin(async move {
+            db.coll_cache.clear().await;
+            Ok(())
+        })
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, enabled: bool, limit: usize) {
-        self.quota_enabled = enabled;
-        self.quota = limit;
+    fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
+        self.quota = Quota {
+            size: limit,
+            enabled,
+            enforced,
+        };
     }
 }

@@ -172,49 +172,60 @@ pub fn do_append(
     db: &MysqlDb,
     batch_id: i64,
     user_id: HawkIdentifier,
-    collection_id: i32,
+    _collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
 ) -> Result<()> {
-    fn exist_idx(collection_id: i32, batch_id: i64, bso_id: &str) -> String {
+    fn exist_idx(user_id: u64, batch_id: i64, bso_id: &str) -> String {
+        // Construct something that matches the key for batch_upload_items
         format!(
-            "{collection_id}::{batch_id}::{bso_id}",
-            collection_id = collection_id,
+            "{batch_id}-{user_id}-{bso_id}",
             batch_id = batch_id,
+            user_id = user_id,
             bso_id = bso_id,
         )
     };
 
+    // It's possible for the list of items to contain a duplicate key entry.
+    // This means that we can't really call `ON DUPLICATE` here, because that's
+    // more about inserting one item at a time. (e.g. it works great if the
+    // values contain a key that's already in the database, less so if the
+    // the duplicate is in the value set we're inserting.
     #[derive(Debug, QueryableByName)]
+    #[table_name = "batch_upload_items"]
     struct ExistsResult {
-        #[sql_type = "Integer"]
-        batch: i32,
-        #[sql_type = "Integer"]
-        id: i32,
+        user_id: i64,
+        batch_id: i64,
+        id: String,
     };
 
-    /* This is not the most efficient way to do this using pure MySQL.
-       It would be more efficient to create an "INSERT ... ON DUPLICATE UPDATE"
-       query. This *does* match how spanner works, and may be easier to keep
-       in mind.
-    */
+    #[derive(AsChangeset)]
+    #[table_name = "batch_upload_items"]
+    struct UpdateBatches {
+        payload: Option<String>,
+        payload_size: Option<i64>,
+        ttl_offset: Option<i32>,
+    }
 
     let mut existing = HashSet::new();
-    let mut inserts: Vec<_> = Vec::new();
 
-    for item in sql_query("SELECT batch, id FROM batch_upload_items where userid=@userid;")
-        .bind::<BigInt, _>(user_id.legacy_id as i64)
-        .get_results::<ExistsResult>(&db.conn)?
+    // pre-load the "existing" hashset with any batched uploads that are already in the table.
+    for item in sql_query(
+        "SELECT userid as user_id, batch as batch_id, id FROM batch_upload_items WHERE userid=? AND batch=?;",
+    )
+    .bind::<BigInt, _>(user_id.legacy_id as i64)
+    .bind::<BigInt, _>(batch_id)
+    .get_results::<ExistsResult>(&db.conn)?
     {
         existing.insert(exist_idx(
-            collection_id,
-            item.batch as i64,
+            user_id.legacy_id,
+            item.batch_id,
             &item.id.to_string(),
         ));
     }
 
     for bso in bsos {
         let payload_size = bso.payload.as_ref().map(|p| p.len() as i64);
-        let exist_idx = exist_idx(collection_id, batch_id, &bso.id);
+        let exist_idx = exist_idx(user_id.legacy_id, batch_id, &bso.id);
 
         if existing.contains(&exist_idx) {
             diesel::update(
@@ -222,29 +233,29 @@ pub fn do_append(
                     .filter(batch_upload_items::user_id.eq(user_id.legacy_id as i64))
                     .filter(batch_upload_items::batch_id.eq(batch_id)),
             )
-            .set((
-                batch_upload_items::payload.eq(bso.payload),
-                batch_upload_items::payload_size.eq(payload_size),
-                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
-            ))
+            .set(&UpdateBatches {
+                payload: bso.payload,
+                payload_size,
+                ttl_offset: bso.ttl.map(|ttl| ttl as i32),
+            })
             .execute(&db.conn)?;
         } else {
-            inserts.push((
-                batch_upload_items::batch_id.eq(&batch_id),
-                batch_upload_items::user_id.eq(user_id.legacy_id as i64),
-                batch_upload_items::id.eq(bso.id.clone()),
-                batch_upload_items::sortindex.eq(bso.sortindex),
-                batch_upload_items::payload.eq(bso.payload),
-                batch_upload_items::payload_size.eq(payload_size),
-                batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
-            ));
+            diesel::insert_into(batch_upload_items::table)
+                .values((
+                    batch_upload_items::batch_id.eq(&batch_id),
+                    batch_upload_items::user_id.eq(user_id.legacy_id as i64),
+                    batch_upload_items::id.eq(bso.id.clone()),
+                    batch_upload_items::sortindex.eq(bso.sortindex),
+                    batch_upload_items::payload.eq(bso.payload),
+                    batch_upload_items::payload_size.eq(payload_size),
+                    batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
+                ))
+                .execute(&db.conn)?;
+            // make sure to include the key into our table check.
             existing.insert(exist_idx);
         }
     }
 
-    insert_into(batch_upload_items::table)
-        .values(inserts)
-        .execute(&db.conn)?;
     Ok(())
 }
 

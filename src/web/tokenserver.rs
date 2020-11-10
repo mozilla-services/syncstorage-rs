@@ -99,21 +99,31 @@ pub fn get_sync(auth: &BearerAuth) -> Result<TokenServerResult, ApiError> {
     let connection = MysqlConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url));
     let user_record = diesel::sql_query(
-        "select users.uid, services.pattern, users.email, users.generation, users.client_state, users.created_at, users.replaced_at, nodes.node, users.keys_changed_at from users, services, nodes where users.email = ? and services.id = users.service and nodes.id = users.nodeid and nodes.service = services.id")
-        .bind::<Text, _>(email)
-        .load::<TokenserverUser>(&connection).unwrap();
-    println!("user record!! {:?}", user_record);
+        r#"SELECT users.uid, services.pattern, users.email, users.generation,
+                       users.client_state, users.created_at, users.replaced_at,
+                       nodes.node, users.keys_changed_at from users, services,
+                       nodes
+                 WHERE users.email = ?
+                   AND services.id = users.service
+                   AND nodes.id = users.nodeid
+                   AND nodes.service = services.id"#,
+    )
+    .bind::<Text, _>(email)
+    .load::<TokenserverUser>(&connection)
+    .unwrap();
     let (python_result, python_derived_result) = Python::with_gil(|py| {
         let tokenlib = PyModule::from_code(
             py,
             r#"
 import tokenlib
+
+
 def make_token(plaintext, shared_secret):
     return tokenlib.make_token(plaintext, secret=shared_secret)
 
+
 def get_derived_secret(plaintext, shared_secret):
     return tokenlib.get_derived_secret(plaintext, secret=shared_secret)
-
 "#,
             "main.py",
             "main",
@@ -153,8 +163,7 @@ def get_derived_secret(plaintext, shared_secret):
         Ok((result, derived_result))
     })
     .unwrap();
-    println!("python result {:}", python_result);
-    let api_endpoint = format!("{:}/1.5/{:}/", user_record[0].node, token_data.claims.sub);
+    let api_endpoint = format!("{:}/1.5/{:}", user_record[0].node, user_record[0].uid);
     Ok(TokenServerResult {
         id: python_result,
         key: python_derived_result,

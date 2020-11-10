@@ -19,11 +19,19 @@ static DEFAULT_MAX_POST_RECORDS: u32 = 100;
 static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = 2 * MEGABYTE;
 static DEFAULT_MAX_REQUEST_BYTES: u32 = DEFAULT_MAX_POST_BYTES + 4 * KILOBYTE;
 static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
-static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
+// also used to determine the max number of records to return for MySQL.
+pub static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 // Hard spanner limit is 4GB per split (items under a unique index).
 // This gives us more than a bit of wiggle room.
 static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;
 static PREFIX: &str = "sync";
+
+#[derive(Clone, Debug, Default, Copy)]
+pub struct Quota {
+    pub size: usize,
+    pub enabled: bool,
+    pub enforced: bool,
+}
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
@@ -53,6 +61,7 @@ pub struct Settings {
     pub statsd_label: String,
 
     pub enable_quota: bool,
+    pub enforce_quota: bool,
 }
 
 impl Default for Settings {
@@ -74,6 +83,7 @@ impl Default for Settings {
             statsd_label: "syncstorage".to_string(),
             human_logs: false,
             enable_quota: false,
+            enforce_quota: false,
         }
     }
 }
@@ -115,6 +125,7 @@ impl Settings {
         s.set_default("statsd_port", 8125)?;
         s.set_default("statsd_label", "syncstorage")?;
         s.set_default("enable_quota", false)?;
+        s.set_default("enforce_quota", false)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -152,9 +163,13 @@ impl Settings {
                     // No quotas for stand alone servers
                     s.limits.max_quota_limit = 0;
                     s.enable_quota = false;
+                    s.enforce_quota = false;
                 }
                 if s.limits.max_quota_limit == 0 {
                     s.enable_quota = false
+                }
+                if s.enforce_quota {
+                    s.enable_quota = true
                 }
                 s
             }
@@ -194,7 +209,11 @@ impl Settings {
     /// A simple banner for display of certain settings at startup
     pub fn banner(&self) -> String {
         let quota = if self.enable_quota {
-            format!("Quota: {} bytes", self.limits.max_quota_limit)
+            format!(
+                "Quota: {} bytes ({}enforced)",
+                self.limits.max_quota_limit,
+                if !self.enforce_quota { "un" } else { "" }
+            )
         } else {
             "No quota".to_owned()
         };
