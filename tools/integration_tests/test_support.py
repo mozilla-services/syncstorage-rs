@@ -37,6 +37,7 @@ import sys
 import urllib.parse as urlparse
 import unittest2
 import uuid
+from webtest import TestApp
 
 
 def load_into_settings(filename, settings):
