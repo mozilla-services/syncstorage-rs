@@ -87,11 +87,7 @@ commands:
           # itself a few times. (does it already? this comment was modified
           # from a very old one)
           command: >
-            target/debug/syncstorage &
-            SYNCSTORAGE_PID=$!
-            python3 test_storage.py http://syncstorage-rs:8000#secret0
-            kill $SYNCSTORAGE_PID
-            rm -rf server-syncstorage
+            python3 tools/integration_tests/test_storage.py
 
   setup-sccache:
     steps:
