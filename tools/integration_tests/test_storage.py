@@ -39,7 +39,7 @@ class BackendError(Exception):
     pass
 
 from test_support import StorageFunctionalTestCase
-from test_support import run_live_functional_tests
+
 WEAVE_INVALID_WBO = 8               # Invalid Weave Basic Object
 WEAVE_SIZE_LIMIT_EXCEEDED = 17      # Size limit exceeded
 
@@ -2349,9 +2349,3 @@ class TestStorageMemcachedCacheOnly(TestStorageMemcached):
 
     TEST_INI_FILE = "tests-memcached-cacheonly.ini"
 
-
-if __name__ == "__main__":
-    # When run as a script, this file will execute the
-    # functional tests against a live webserver.
-    res = run_live_functional_tests(TestStorage, sys.argv)
-    sys.exit(res)
