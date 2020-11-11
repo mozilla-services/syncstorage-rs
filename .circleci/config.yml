@@ -87,7 +87,7 @@ commands:
           # itself a few times. (does it already? this comment was modified
           # from a very old one)
           command: >
-            python3 tools/integration_tests/test_storage.py
+            python3 tools/integration_tests/test_storage.py "http://syncstorage-rs:8000#secret0"
 
   setup-sccache:
     steps:

@@ -6,6 +6,7 @@
 
 import atexit
 import subprocess
+import time
 
 the_server_subprocess = subprocess.Popen('target/debug/syncstorage', shell=True)
 time.sleep(20)
