@@ -4,6 +4,18 @@
 """ Base test class, with an instanciated app.
 """
 
+import atexit
+import subprocess
+
+the_server_subprocess = subprocess.Popen('target/debug/syncstorage', shell=True)
+time.sleep(20)
+
+def stop_subprocess():
+    the_server_subprocess.terminate()
+    the_server_subprocess.wait()
+    
+atexit.register(stop_subprocess)
+
 import contextlib
 import functools
 import json
