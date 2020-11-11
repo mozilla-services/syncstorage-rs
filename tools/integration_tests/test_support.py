@@ -17,6 +17,10 @@ def stop_subprocess():
     
 atexit.register(stop_subprocess)
 
+
+from wsgiproxy import HostProxy as WSGIProxyApp
+
+
 import contextlib
 import functools
 import json
