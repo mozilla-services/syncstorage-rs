@@ -70,6 +70,7 @@ pub struct Claims {
 pub fn get(
     auth: BearerAuth,
 ) -> impl Future<Output = Result<HttpResponse, BlockingError<ApiError>>> {
+    dbg!("Getting...");
     block(move || get_sync(&auth).map_err(Into::into)).map_ok(move |result| {
         HttpResponse::Ok()
             .content_type("application/json")
