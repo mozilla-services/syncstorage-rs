@@ -11,6 +11,7 @@ use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac, NewMac};
 use lazy_static::lazy_static;
+use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use sha2::Sha256;
@@ -29,11 +30,16 @@ lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     static ref SECRETS: Arc<Secrets> =
         Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/test.rs"));
+    static ref RAND_UID: u32 = thread_rng().gen_range(0, 10000);
 }
 
 const TEST_HOST: &str = "localhost";
 const TEST_PORT: u16 = 8080;
 
+/// NOTE: these tests run w/ test_settings() which enables
+/// database_use_test_transactions (transactions don't commit), so data won't
+/// persist to the db between requests. This can be overridden per test via
+/// customizing the settings
 fn get_test_settings() -> Settings {
     let mut settings = test_settings();
     let treq = test::TestRequest::with_uri("/").to_http_request();
@@ -72,10 +78,15 @@ async fn get_test_state(settings: &Settings) -> ServerState {
 macro_rules! init_app {
     () => {
         async {
-            crate::logging::init_logging(false).unwrap();
             let settings = get_test_settings();
-            let limits = Arc::new(settings.limits.clone());
-            test::init_service(build_app!(get_test_state(&settings).await, limits)).await
+            init_app!(settings).await
+        }
+    };
+    ($settings:expr) => {
+        async {
+            crate::logging::init_logging(false).unwrap();
+            let limits = Arc::new($settings.limits.clone());
+            test::init_service(build_app!(get_test_state(&$settings).await, limits)).await
         }
     };
 }
@@ -122,8 +133,8 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         node: format!("http://{}:{}", host, port),
         salt: "wibble".to_string(),
         user_id: 42,
-        fxa_uid: "xxx_test".to_owned(),
-        fxa_kid: "xxx_test".to_owned(),
+        fxa_uid: format!("xxx_test_uid_{}", *RAND_UID),
+        fxa_kid: format!("xxx_test_kid_{}", *RAND_UID),
         device_id: "xxx_test".to_owned(),
     };
     let payload =
@@ -613,4 +624,66 @@ async fn info_configuration_xlm() {
             .expect("Couldn't parse X-Last-Modified"),
         "0.00"
     );
+}
+
+#[actix_rt::test]
+async fn overquota() {
+    let mut settings = get_test_settings();
+    settings.enable_quota = true;
+    settings.enforce_quota = true;
+    settings.limits.max_quota_limit = 5;
+    // persist the db across requests
+    settings.database_use_test_transactions = false;
+    let mut app = init_app!(settings).await;
+
+    // Clear out any data that's already in the store.
+    let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
+    let resp = app.call(req).await.unwrap();
+    assert!(resp.response().status().is_success());
+
+    // Quota is enforced before the write, allowing one write to go over
+    let req = create_request(
+        http::Method::PUT,
+        "/1.5/42/storage/xxx_col2/12345",
+        None,
+        Some(json!(
+            {"payload": "*".repeat(500)}
+        )),
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    let status = response.status();
+    assert_eq!(status, StatusCode::OK);
+
+    let req = create_request(
+        http::Method::PUT,
+        "/1.5/42/storage/xxx_col2/12345",
+        None,
+        Some(json!(
+            {"payload": "*".repeat(500)}
+        )),
+    )
+    .to_request();
+    let response = app.call(req).await.unwrap();
+    let status = response.status();
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let body = String::from_utf8(test::read_body(response).await.to_vec()).unwrap();
+    // WeaveError::OverQuota
+    assert_eq!(body, "14");
+
+    // TODO? Support and test the X-Weave-Quota-Remaining header?
+    // match quota_header {
+    //     None => {
+    //         dbg!(response);
+    //     }
+    //     Some(x) => assert_eq!(x, "299"),
+    // };
+
+    // Delete any persisted data
+
+    // XXX: this should run as cleanup regardless of test failure but it's
+    // difficult. e.g. FutureExt::catch_unwind isn't compatible w/ actix-web
+    let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
+    let resp = app.call(req).await.unwrap();
+    assert!(resp.response().status().is_success());
 }
