@@ -4,10 +4,6 @@
 """ Base test class, with an instanciated app.
 """
 
-
-from wsgiproxy import HostProxy as WSGIProxyApp
-
-
 import contextlib
 import functools
 import json
@@ -333,20 +329,18 @@ class FunctionalTestCase(TestCase):
     def setUp(self):
         super(FunctionalTestCase, self).setUp()
 
-        # Test against a live server if instructed so by the environment.
-        # Otherwise, test against an in-process WSGI application.
+        # now that we're testing against a rust server, we're always distant.
+        # but some tests don't run if we're set to distant. so let's set
+        # distant to false, figure out which tests we still want, and
+        # delete the ones that don't work with distant = True along
+        # with the need for self.distant.
         self.distant = False
-        # jr --
-        #self.host_url = "http://localhost:8000/1.0/sync"
         self.host_url = "http://localhost:8000"
-        # This call implicity commits the configurator.
-        # jr -- send to the URL rather than the wsgi app wrapper (which is local)
-        # application = self.config.make_wsgi_app()
-        application = self.host_url
+        # This call implicitly commits the configurator. We probably still want it for the side effects.
+        self.config.make_wsgi_app()
 
         host_url = urlparse.urlparse(self.host_url)
-        # jr -- Is this actually sending anything out?
-        self.app = TestApp(application, extra_environ={
+        self.app = TestApp(self.host_url, extra_environ={
             "HTTP_HOST": host_url.netloc,
             "wsgi.url_scheme": host_url.scheme or "http",
             "SERVER_NAME": host_url.hostname,
