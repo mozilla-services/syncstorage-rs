@@ -336,11 +336,16 @@ class FunctionalTestCase(TestCase):
         # Test against a live server if instructed so by the environment.
         # Otherwise, test against an in-process WSGI application.
         self.distant = False
-        self.host_url = "http://localhost:8000/1.0/sync"
+        # jr --
+        #self.host_url = "http://localhost:8000/1.0/sync"
+        self.host_url = "http://localhost:8000"
         # This call implicity commits the configurator.
-        application = self.config.make_wsgi_app()
+        # jr -- send to the URL rather than the wsgi app wrapper (which is local)
+        # application = self.config.make_wsgi_app()
+        application = self.host_url
 
         host_url = urlparse.urlparse(self.host_url)
+        # jr -- Is this actually sending anything out?
         self.app = TestApp(application, extra_environ={
             "HTTP_HOST": host_url.netloc,
             "wsgi.url_scheme": host_url.scheme or "http",
@@ -363,6 +368,8 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
 
         # Monkey-patch the app to sign all requests with the token.
         def new_do_request(req, *args, **kwds):
+            # jr --
+            # import pdb;pdb.set_trace()
             hawkauthlib.sign_request(req, self.auth_token, self.auth_secret)
             return orig_do_request(req, *args, **kwds)
         orig_do_request = self.app.do_request
@@ -402,7 +409,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         try:
             # We loop because the userids are randomly generated,
             # so there's a small change we'll get the same one again.
-            for retry_count in xrange(10):
+            for retry_count in range(10):
                 self._authenticate()
                 if self.user_id != orig_user_id:
                     break
