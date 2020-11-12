@@ -336,7 +336,7 @@ class FunctionalTestCase(TestCase):
         # Test against a live server if instructed so by the environment.
         # Otherwise, test against an in-process WSGI application.
         self.distant = False
-        self.host_url = "http://localhost:8000"
+        self.host_url = "http://localhost:8000/1.0/sync"
         # This call implicity commits the configurator.
         application = self.config.make_wsgi_app()
 
@@ -371,6 +371,12 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
     def basic_testing_authenticate(self):
         # For basic testing, use a random uid and sign our own tokens.
         # Subclasses might like to override this and use a live tokenserver.
+        pass
+
+    def _authenticate(self):
+        policy = self.config.registry.getUtility(IAuthenticationPolicy)
+        if global_secret is not None:
+            policy.secrets._secrets = [global_secret]
         self.user_id = random.randint(1, 100000)
         auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
         req = Request.blank(self.host_url)
@@ -383,12 +389,6 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
             }
         )
         self.auth_token, self.auth_secret = creds
-
-    def _authenticate(self):
-        policy = self.config.registry.getUtility(IAuthenticationPolicy)
-        if global_secret is not None:
-            policy.secrets._secrets = [global_secret]
-        # return super(StorageFunctionalTestCase, self)._authenticate()
 
     @contextlib.contextmanager
     def _switch_user(self):
