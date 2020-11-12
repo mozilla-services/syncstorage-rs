@@ -14,14 +14,14 @@ import time
 if __name__ == "__main__":
 	# When run as a script, this file will execute the
 	# functional tests against a live webserver.
-	the_server_subprocess = subprocess.Popen('target/debug/syncstorage', shell=True)
-	time.sleep(20)
+	#the_server_subprocess = subprocess.Popen('target/debug/syncstorage', shell=True)
+	#time.sleep(20)
 	
-	def stop_subprocess():
-		the_server_subprocess.terminate()
-		the_server_subprocess.wait()
+	#def stop_subprocess():
+	#	the_server_subprocess.terminate()
+	#	the_server_subprocess.wait()
 	
-	atexit.register(stop_subprocess)
+	#atexit.register(stop_subprocess)
 
 	res = run_live_functional_tests(TestStorage, sys.argv)
 	sys.exit(res)

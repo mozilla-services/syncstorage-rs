@@ -33,6 +33,8 @@ from webtest import TestApp
 from zope.interface import implementer
 
 
+global_secret = None
+
 
 class Secrets(object):
     """Load node-specific secrets from a file.
@@ -236,6 +238,7 @@ class TestCase(unittest2.TestCase):
     def get_configurator(self):
         """Load the configurator to use for the tests."""
         # Load config from the .ini file.
+        print("get_configurator", self, getattr(self, "TEST_INI_FILE", None))
         if not hasattr(self, "ini_file"):
             if hasattr(self, "TEST_INI_FILE"):
                 self.ini_file = self.TEST_INI_FILE
@@ -365,9 +368,15 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         orig_do_request = self.app.do_request
         self.app.do_request = new_do_request
 
-    def _authenticate(self):
+    def basic_testing_authenticate(self):
         # For basic testing, use a random uid and sign our own tokens.
         # Subclasses might like to override this and use a live tokenserver.
+        pass
+
+    def _authenticate(self):
+        policy = self.config.registry.getUtility(IAuthenticationPolicy)
+        if global_secret is not None:
+            policy.secrets._secrets = [global_secret]
         self.user_id = random.randint(1, 100000)
         auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
         req = Request.blank(self.host_url)
@@ -849,51 +858,27 @@ def run_live_functional_tests(TestCaseClass, argv=None):
     # If we're not using the tokenserver, the default implementation of
     # _authenticate will do just fine.  We optionally accept the token
     # signing secret in the url hash fragement.
-    if not opts.use_token_server:
-        if opts.email is not None:
-            msg = "cant specify email address unless using live tokenserver"
-            raise ValueError(msg)
-        if opts.audience is not None:
-            msg = "cant specify audience unless using live tokenserver"
-            raise ValueError(msg)
-        host_url = urlparse.urlparse(url)
-        secret = None
-        if host_url.fragment:
-            secret = host_url.fragment
-            host_url = host_url._replace(fragment="")
-        os.environ["MOZSVC_TEST_REMOTE"] = 'localhost'
+    if opts.email is not None:
+        msg = "cant specify email address unless using live tokenserver"
+        raise ValueError(msg)
+    if opts.audience is not None:
+        msg = "cant specify audience unless using live tokenserver"
+        raise ValueError(msg)
+    host_url = urlparse.urlparse(url)
+    secret = None
+    if host_url.fragment:
+        global global_secret
+        global_secret = host_url.fragment
+        host_url = host_url._replace(fragment="")
+    os.environ["MOZSVC_TEST_REMOTE"] = 'localhost'
 
-        class LiveTestCases(TestCaseClass):
-            def _authenticate(self):
-                policy = self.config.registry.getUtility(IAuthenticationPolicy)
-                if secret is not None:
-                    policy.secrets._secrets = [secret]
-                return super(LiveTestCases, self)._authenticate()
-
-    # If we're using a live tokenserver, then we need to get some credentials
-    # and an endpoint URL.
-    else:
-        creds = authenticate_to_token_server(url, opts.email, opts.audience)
-
-        # Point the tests at the given endpoint URI, after stripping off
-        # the trailing /2.0/UID component.
-        host_url = urlparse.urlparse(creds["api_endpoint"])
-        host_path = host_url.path.rstrip("/")
-        host_path = "/".join(host_path.split("/")[:-2])
-        host_url = host_url._replace(path=host_path)
-        os.environ["MOZSVC_TEST_REMOTE"] = 'localhost'
-
-        # Customize the tests to use the provisioned auth credentials.
-        class LiveTestCases(TestCaseClass):
-            def _authenticate(self):
-                self.user_id = creds["uid"]
-                self.auth_token = creds["id"].encode("ascii")
-                self.auth_secret = creds["key"].encode("ascii")
 
     # Now use the unittest2 runner to execute them.
     suite = unittest2.TestSuite()
+    import test_storage
     test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
-    suite.addTest(unittest2.makeSuite(LiveTestCases, prefix=test_prefix))
+    suite.addTest(unittest2.findTestCases(test_storage, test_prefix))
+    # suite.addTest(unittest2.makeSuite(LiveTestCases, prefix=test_prefix))
     runner = unittest2.TextTestRunner(
         stream=sys.stderr,
         failfast=opts.failfast,
