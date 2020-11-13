@@ -17,7 +17,6 @@ consider it a bug.
 import unittest2
 
 import re
-import sys
 import json
 import time
 import random
@@ -29,27 +28,29 @@ import contextlib
 import simplejson
 
 from pyramid.interfaces import IAuthenticationPolicy
+from test_support import StorageFunctionalTestCase
 
 import tokenlib
+
 
 class ConflictError(Exception):
     pass
 
+
 class BackendError(Exception):
     pass
 
-from test_support import StorageFunctionalTestCase
 
 WEAVE_INVALID_WBO = 8               # Invalid Weave Basic Object
 WEAVE_SIZE_LIMIT_EXCEEDED = 17      # Size limit exceeded
 
 BATCH_MAX_IDS = 100
+
+
 def get_limit_config(request, limit):
     """Get the configured value for the named size limit."""
-    try:
-        return request.registry.settings["storage." + limit]
-    except KeyError:
-        return DEFAULT_LIMITS[limit]
+    return request.registry.settings["storage." + limit]
+
 
 def json_dumps(value):
     """Decimal-aware version of json.dumps()."""
@@ -401,7 +402,8 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(res.content_type, 'application/newlines')
 
         self.assertTrue(res.body.endswith(b'\n'))
-        res = [json_loads(line) for line in res.body.decode('utf-8').strip().split('\n')]
+        res = [json_loads(line) for line in res.body.decode(
+                    'utf-8').strip().split('\n')]
         res.sort()
         self.assertEquals(res, ['00', '01', '02', '03', '04'])
 
@@ -571,7 +573,8 @@ class TestStorage(StorageFunctionalTestCase):
         res = self.app.get(self.root + "/storage/xxx_col2?full=1", headers={
             "Accept": "application/newlines",
         })
-        items = [json_loads(line) for line in res.body.decode('utf-8').strip().split('\n')]
+        items = [json_loads(line) for line in res.body.decode(
+                    'utf-8').strip().split('\n')]
         self.assertEquals(len(items), 2)
         items.sort(key=lambda bso: bso["id"])
         self.assertEquals(items[0]["payload"], bsos[0]["payload"])
@@ -840,14 +843,16 @@ class TestStorage(StorageFunctionalTestCase):
             max_req_bytes = get_limit_config(self.config, 'max_request_bytes')
 
         # Uploading max_count-5 small objects should succeed.
-        bsos = [{'id': str(i).zfill(2), 'payload': 'X'} for i in range(max_count - 5)]
+        bsos = [{'id': str(i).zfill(2),
+                 'payload': 'X'} for i in range(max_count - 5)]
         res = self.retry_post_json(self.root + '/storage/xxx_col2', bsos)
         res = res.json
         self.assertEquals(len(res['success']), max_count - 5)
         self.assertEquals(len(res['failed']), 0)
 
         # Uploading max_count+5 items should produce five failures.
-        bsos = [{'id': str(i).zfill(2), 'payload': 'X'} for i in range(max_count + 5)]
+        bsos = [{'id': str(i).zfill(2),
+                 'payload': 'X'} for i in range(max_count + 5)]
         res = self.retry_post_json(self.root + '/storage/xxx_col2', bsos)
         res = res.json
         self.assertEquals(len(res['success']), max_count)
@@ -1259,7 +1264,8 @@ class TestStorage(StorageFunctionalTestCase):
 
     def test_bulk_update_of_ttls_without_sending_data(self):
         # Create 5 BSOs with a ttl of 1 second.
-        bsos = [{"id": str(i).zfill(2), "payload": "x", "ttl": 1} for i in range(5)]
+        bsos = [{"id": str(i).zfill(2),
+                 "payload": "x", "ttl": 1} for i in range(5)]
         r = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         ts1 = float(r.headers["X-Last-Modified"])
         # Before they expire, bulk-update the ttl to something longer.

@@ -187,7 +187,6 @@ impl ApiError {
 
     pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         // Replace the outbound error message with our own.
-        dbg!("Returning 404...");
         let resp =
             HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(WeaveError::UnknownError as u32);
         Ok(ErrorHandlerResponse::Response(ServiceResponse::new(

@@ -6,7 +6,6 @@
 
 import contextlib
 import functools
-import json
 from konfig import Config, SettingsDict
 import hawkauthlib
 import os
@@ -18,7 +17,10 @@ from pyramid.request import Request
 from pyramid.util import DottedNameResolver
 from pyramid_hawkauth import HawkAuthenticationPolicy
 import random
-import requests
+import re
+import csv
+import binascii
+from collections import defaultdict
 import sys
 import time
 import tokenlib
@@ -30,6 +32,7 @@ from zope.interface import implementer
 
 
 global_secret = None
+VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
 
 
 class Secrets(object):
@@ -159,6 +162,7 @@ def load_into_settings(filename, settings):
     settings['config'] = config
     return config
 
+
 def get_test_configurator(root, ini_file="tests.ini"):
     """Find a file with testing settings, turn it into a configurator."""
     ini_dir = root
@@ -173,9 +177,11 @@ def get_test_configurator(root, ini_file="tests.ini"):
     config = get_configurator({"__file__": ini_path})
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
-    authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
+    authn_policy = TokenServerAuthenticationPolicy.from_settings(
+        config.get_settings())
     config.set_authentication_policy(authn_policy)
     return config
+
 
 def get_configurator(global_config, **settings):
     """Create a pyramid Configurator and populate it with sensible defaults.
@@ -247,9 +253,11 @@ class TestCase(unittest2.TestCase):
         config.begin()
         return config
 
+    """
     def make_request(self, *args, **kwds):
         config = kwds.pop("config", self.config)
         return make_request(config, *args, **kwds)
+    """
 
 
 class StorageTestCase(TestCase):
@@ -286,7 +294,7 @@ class StorageTestCase(TestCase):
 
     def get_configurator(self):
         config = super(StorageTestCase, self).get_configurator()
-        ##config.include("syncstorage")
+        # config.include("syncstorage")
         return config
 
     def _cleanup_test_databases(self):
@@ -336,7 +344,8 @@ class FunctionalTestCase(TestCase):
         # with the need for self.distant.
         self.distant = False
         self.host_url = "http://localhost:8000"
-        # This call implicitly commits the configurator. We probably still want it for the side effects.
+        # This call implicitly commits the configurator. We probably still
+        # want it for the side effects.
         self.config.make_wsgi_app()
 
         host_url = urlparse.urlparse(self.host_url)
@@ -440,42 +449,6 @@ MOCKMYID_PRIVATE_KEY_DATA = {
 }
 
 
-def authenticate_to_token_server(url, email=None, audience=None):
-    """Authenticate to the given token-server URL.
-
-    This function generates a testing assertion for the specified email
-    address, passes it to the specified token-server URL, and returns the
-    resulting dict of authentication data.  It's useful for testing things
-    that depend on having a live token-server.
-    """
-    # These modules are not (yet) hard dependencies of syncstorage,
-    # so only import them is we really need them.
-    global MOCKMYID_PRIVATE_KEY
-    if MOCKMYID_PRIVATE_KEY is None:
-        from browserid.jwt import DS128Key
-        MOCKMYID_PRIVATE_KEY = DS128Key(MOCKMYID_PRIVATE_KEY_DATA)
-    if email is None:
-        email = "user%s@%s" % (random.randint(1, 100000), MOCKMYID_DOMAIN)
-    if audience is None:
-        audience = urlparse.urlparse(url)._replace(path="")
-        audience = urlparse.urlunparse(audience)
-    import browserid.tests.support
-    assertion = browserid.tests.support.make_assertion(
-        email=email,
-        audience=audience,
-        issuer=MOCKMYID_DOMAIN,
-        issuer_keypair=(None, MOCKMYID_PRIVATE_KEY),
-    )
-    r = requests.get(url, headers={
-        "Authorization": "BrowserID " + assertion,
-    })
-    r.raise_for_status()
-    creds = json.loads(r.content)
-    for key in ("id", "key", "api_endpoint"):
-        creds[key] = creds[key].encode("ascii")
-    return creds
-
-
 class PermissiveNonceCache(object):
     """Object for not really managing a cache of used nonce values.
     This class implements the timestamp/nonce checking interface required
@@ -496,7 +469,7 @@ class PermissiveNonceCache(object):
         now = self.get_time()
         skew = now - timestamp
         if abs(skew) > self.log_window:
-            logger.warn("Large timestamp skew detected: %d", skew)
+            print("Large timestamp skew detected: %d", skew)
         return True
 
 
@@ -556,21 +529,6 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         kwds['secrets'] = secrets
         return kwds
 
-    def _check_signature(self, request, key):
-        """Check the Hawk auth signature on the request.
-        This method checks the Hawk signature on the request against the
-        supplied signing key.  If missing or invalid then HTTPUnauthorized
-        is raised.
-        The TokenServerAuthenticationPolicy implementation wraps the default
-        HawkAuthenticationPolicy implementation with some logging.
-        """
-        supercls = super(TokenServerAuthenticationPolicy, self)
-        try:
-            return supercls._check_signature(request, key)
-        except HTTPUnauthorized:
-            logger.warn("Authentication Failed: invalid hawk signature")
-            raise
-
     def decode_hawk_id(self, request, tokenid):
         """Decode a Hawk token id into its userid and secret key.
         This method determines the appropriate secrets to use for the given
@@ -595,7 +553,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             except (ValueError, KeyError):
                 pass
         else:
-            logger.warn("Authentication Failed: invalid hawk id")
+            print("warn: Authentication Failed: invalid hawk id")
             raise ValueError("invalid Hawk id")
         return userid, key
 
@@ -647,7 +605,7 @@ class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
     def __init__(self, secrets=None, **kwds):
         self.expired_token_timeout = kwds.pop("expired_token_timeout", None)
         if self.expired_token_timeout is None:
-            self.expired_token_timeout = DEFAULT_EXPIRED_TOKEN_TIMEOUT
+            self.expired_token_timeout = 300
         super(SyncStorageAuthenticationPolicy, self).__init__(secrets, **kwds)
 
     @classmethod
@@ -694,7 +652,7 @@ class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
                     # to explicitly dig it back out from `request.user`.
                     data["expired_uid"] = data["uid"]
                     userid = data["uid"] = "expired:%d" % (data["uid"],)
-            except tokenlib.errors.InvalidSignatureError as e:
+            except tokenlib.errors.InvalidSignatureError:
                 # Token signature check failed, try the next secret.
                 continue
             except TypeError as e:
@@ -705,7 +663,7 @@ class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
                 break
         else:
             # The token failed to validate using any secret.
-            logger.warn("Authentication Failed: invalid hawk id")
+            print("warn Authentication Failed: invalid hawk id")
             raise ValueError("invalid Hawk id")
 
         # Let the app access all user data from the token.
@@ -864,13 +822,11 @@ def run_live_functional_tests(TestCaseClass, argv=None):
         msg = "cant specify audience unless using live tokenserver"
         raise ValueError(msg)
     host_url = urlparse.urlparse(url)
-    secret = None
     if host_url.fragment:
         global global_secret
         global_secret = host_url.fragment
         host_url = host_url._replace(fragment="")
     os.environ["MOZSVC_TEST_REMOTE"] = 'localhost'
-
 
     # Now use the unittest2 runner to execute them.
     suite = unittest2.TestSuite()
