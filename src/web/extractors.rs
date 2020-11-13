@@ -157,7 +157,6 @@ impl FromRequest for BsoBodies {
     ///
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        dbg!("bso bodies");
         // Only try and parse the body if its a valid content-type
         let metrics = metrics::Metrics::from(req);
         let ctype = match ContentType::parse(req) {
@@ -357,8 +356,6 @@ impl FromRequest for BsoBody {
     type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        dbg!("bso body");
-
         // Only try and parse the body if its a valid content-type
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
@@ -596,7 +593,6 @@ impl FromRequest for CollectionParam {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        dbg!("collectionparam request");
         let req = req.clone();
         Box::pin(async move {
             if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut())? {
@@ -628,8 +624,6 @@ impl FromRequest for MetaRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        dbg!("meta request");
-
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
@@ -669,7 +663,6 @@ impl FromRequest for CollectionRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        dbg!("collection request 1");
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
@@ -733,7 +726,6 @@ impl FromRequest for CollectionPostRequest {
     ///   - If the collection is 'crypto', known bad payloads are checked for
     ///   - Any valid BSO's beyond `BATCH_MAX_RECORDS` are moved to invalid
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        dbg!("collection request");
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
@@ -819,7 +811,6 @@ impl FromRequest for BsoRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        dbg!("bso request");
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
@@ -859,8 +850,6 @@ impl FromRequest for BsoPutRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        dbg!("bso put request");
-
         let metrics = metrics::Metrics::from(req);
         let req = req.clone();
         let mut payload = payload.take();

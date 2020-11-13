@@ -130,10 +130,6 @@ macro_rules! build_app {
             .service(
                 web::resource("/1.0/sync/1.5".to_string()).route(web::get().to(tokenserver::get)),
             )
-            .service(
-                web::resource("/1.0/sync/1.5/{user_id:[0-9]{1,10}}".to_string())
-                    .route(web::get().to(tokenserver::get))
-            )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.

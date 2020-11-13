@@ -83,11 +83,9 @@ commands:
     steps:
       - run:
           name: e2e tests
-          # TODO: syncstorage-rs should retry the db connection
-          # itself a few times. (does it already? this comment was modified
-          # from a very old one)
-          command: >
-            python3 tools/integration_tests/run.py "http://syncstorage-rs:8000#secret0"
+          command: |
+            RUST_LOG=debug SYNC_MASTER_SECRET=secret0 cargo run &
+            python3 tools/integration_tests/run.py "http://localhost:8000#secret0"
 
   setup-sccache:
     steps:
