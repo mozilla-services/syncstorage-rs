@@ -169,7 +169,7 @@ def get_test_configurator(root, ini_file="tests.ini"):
         if ini_path == ini_file or ini_path == "/" + ini_file:
             raise RuntimeError("cannot locate " + ini_file)
         ini_dir = os.path.split(ini_dir)[0]
-    print("finding configurator for", ini_path)
+    # print("finding configurator for", ini_path)
     config = get_configurator({"__file__": ini_path})
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
@@ -234,7 +234,7 @@ class TestCase(unittest2.TestCase):
     def get_configurator(self):
         """Load the configurator to use for the tests."""
         # Load config from the .ini file.
-        print("get_configurator", self, getattr(self, "TEST_INI_FILE", None))
+        # print("get_configurator", self, getattr(self, "TEST_INI_FILE", None))
         if not hasattr(self, "ini_file"):
             if hasattr(self, "TEST_INI_FILE"):
                 self.ini_file = self.TEST_INI_FILE
@@ -362,8 +362,6 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
 
         # Monkey-patch the app to sign all requests with the token.
         def new_do_request(req, *args, **kwds):
-            # jr --
-            # import pdb;pdb.set_trace()
             hawkauthlib.sign_request(req, self.auth_token, self.auth_secret)
             return orig_do_request(req, *args, **kwds)
         orig_do_request = self.app.do_request
