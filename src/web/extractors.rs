@@ -624,7 +624,6 @@ impl FromRequest for MetaRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
