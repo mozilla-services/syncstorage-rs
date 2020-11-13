@@ -24,6 +24,7 @@ pub trait SyncServerRequest {
 
 impl SyncServerRequest for ServiceRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
+        dbg!("ServiceRequest: Checking hawk");
         if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
             return Ok(HawkIdentifier::cmd_dummy());
         }
@@ -40,6 +41,7 @@ impl SyncServerRequest for ServiceRequest {
 
 impl SyncServerRequest for HttpRequest {
     fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
+        dbg!("HttpRequest: Checking hawk");
         if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
             return Ok(HawkIdentifier::cmd_dummy());
         }

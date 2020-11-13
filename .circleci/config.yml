@@ -29,7 +29,7 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install tokenlib
+            pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson tokenlib unittest2 WebTest WSGIProxy2
   rust-check:
     steps:
       - run:
@@ -83,15 +83,11 @@ commands:
     steps:
       - run:
           name: e2e tests
+          # TODO: syncstorage-rs should retry the db connection
+          # itself a few times. (does it already? this comment was modified
+          # from a very old one)
           command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.yaml
-               -f docker-compose.e2e.yaml
-               up
-               --exit-code-from server-syncstorage
-               --abort-on-container-exit
-          environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            python3 tools/integration_tests/run.py "http://localhost:8000#secret0"
 
   setup-sccache:
     steps:
@@ -172,42 +168,26 @@ jobs:
       - write-version
       - cargo-build
       - run-tests
-      #- save-sccache-cache
-      - run:
-          name: Build Docker image
-          command: docker build -t app:build .
-      # save the built docker container into CircleCI's cache. This is
-      # required since Workflows do not have the same remote docker instance.
-      - run:
-          name: docker save app:build
-          command: |
-            mkdir -p /home/circleci/cache
-            docker save -o /home/circleci/cache/docker.tar "app:build"
-      - run:
-          name: Save docker-compose config
-          command: cp docker-compose*.yaml /home/circleci/cache
-      - save_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
-          paths:
-            - /home/circleci/cache
-
-  e2e-tests:
-    docker:
-      - image: docker/compose:1.24.0
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Restore docker-compose config
-          command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-tests
+      #- save-sccache-cache
+      # TODO build the Docker image, but only if the branch is master.
+      # - run:
+      #     name: Build Docker image
+      #     command: docker build -t app:build .
+      # # save the built docker container into CircleCI's cache. This is
+      # # required since Workflows do not have the same remote docker instance.
+      # - run:
+      #     name: docker save app:build
+      #     command: |
+      #       mkdir -p /home/circleci/cache
+      #       docker save -o /home/circleci/cache/docker.tar "app:build"
+      # - run:
+      #     name: Save docker-compose config
+      #     command: cp docker-compose*.yaml /home/circleci/cache
+      # - save_cache:
+      #     key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+      #     paths:
+      #       - /home/circleci/cache
 
   deploy:
     docker:
@@ -296,21 +276,15 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - e2e-tests:
+      - deploy:
           requires:
             - build-and-test
           filters:
             tags:
               only: /.*/
-      - deploy:
-          requires:
-            - e2e-tests
-          filters:
-            tags:
-              only: /.*/
       - deploy-python-utils:
           requires:
-            - e2e-tests
+            - build-and-test
           filters:
             tags:
               only: /.*/

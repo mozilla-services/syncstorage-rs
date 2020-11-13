@@ -96,6 +96,7 @@ pub async fn delete_all(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
 ) -> Result<HttpResponse, Error> {
+    dbg!("Delete all...");
     db_pool
         .transaction_http(|db| async move {
             meta.metrics.incr("request.delete_all");
