@@ -1676,9 +1676,6 @@ impl SpannerDb {
             .await?;
         let timestamp = self.timestamp()?;
 
-        self.check_quota(&bso.user_id, &bso.collection, collection_id)
-            .await?;
-
         let result = self
             .sql(
                 "SELECT 1 AS count

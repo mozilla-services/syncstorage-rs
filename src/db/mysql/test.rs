@@ -70,6 +70,7 @@ fn static_collection_id() -> Result<()> {
         .select((collections::id, collections::name))
         .filter(collections::name.ne(""))
         //.filter(collections::name.not_like("xxx%")) // from most integration tests
+        .filter(collections::name.ne("xxx_col2")) // from server::test
         .filter(collections::name.ne("col2")) // from older intergration tests
         .load(&db.inner.conn)?
         .into_iter()

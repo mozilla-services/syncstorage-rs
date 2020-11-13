@@ -676,9 +676,9 @@ class TestStorage(StorageFunctionalTestCase):
         time.sleep(0.01)
         bso = {'payload': _PLD}
         res = self.retry_put_json(self.root + '/storage/xxx_col2/12345', bso)
-        self.assertTrue(now < float(res.headers['X-Weave-Timestamp']))
+        self.assertTrue(now <= float(res.headers['X-Weave-Timestamp']))
         self.assertTrue(abs(now -
-                            float(res.headers['X-Weave-Timestamp'])) < 200)
+                            float(res.headers['X-Weave-Timestamp'])) <= 200)
 
         # getting the timestamp with a POST
         now = round(time.time(), 2)
