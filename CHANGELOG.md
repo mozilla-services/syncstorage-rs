@@ -1,3 +1,33 @@
+<a name="0.8.1"></a>
+### 0.8.1 (2020-11-16)
+
+
+#### Chore
+
+*   Update depenedencies (#904) ([4e95c571](https://github.com/mozilla-services/syncstorage-rs/commit/4e95c571c73953e1f92bee46a58c49a97d9aa463), closes [#899](https://github.com/mozilla-services/syncstorage-rs/issues/899))
+*   update dependencies (#900) ([0afb9691](https://github.com/mozilla-services/syncstorage-rs/commit/0afb9691f7538dd9eaa68dc7eac11a2e06a12a70))
+*   tag 0.8.0 (#881) ([b6ff73d2](https://github.com/mozilla-services/syncstorage-rs/commit/b6ff73d2916e5c4afacede8bb2db905a576dba26))
+*   tag 0.8.1 for release and include scripts for setting up sentry releases (#881) ([33f900dc8e](https://github.com/mozilla-services/syncstorage-rs/commit/33f900dc8edd4e583b04af9363ef2cc51a0c889d))
+
+
+#### Test
+
+*   add a basic overquota test (#912) ([5afda742](https://github.com/mozilla-services/syncstorage-rs/commit/5afda7427b487110cc256cda4f517e8ea2f796fb), closes [#120](https://github.com/mozilla-services/syncstorage-rs/issues/120))
+
+
+#### Features
+
+*   Add `SYNC_ENFORCE_QUOTA` flag (#875) ([0e30801d](https://github.com/mozilla-services/syncstorage-rs/commit/0e30801dbbfe3693c8d2c21c0e6fc09262d7afb3), closes [#870](https://github.com/mozilla-services/syncstorage-rs/issues/870))
+*   switch coll cache's RwLock to async (#906) ([14fc49a5](https://github.com/mozilla-services/syncstorage-rs/commit/14fc49a559e69c695bc17c220b72817b2d971e1d), closes [#905](https://github.com/mozilla-services/syncstorage-rs/issues/905))
+*   Implement rudimentary tokenserver route in syncstorage-rs (#871) ([b74943e4](https://github.com/mozilla-services/syncstorage-rs/commit/b74943e4580e0db36f3a1a55c2eb8f9083f2759b))
+
+#### Bug Fixes
+
+*   downgrade to sentry 0.19 ([243eb17a](https://github.com/mozilla-services/syncstorage-rs/commit/243eb17a35ce3dc1c07090dcf0439e4eadeb855a), closes [#907](https://github.com/mozilla-services/syncstorage-rs/issues/907))
+*   add a short delay to avoid 503s (#922) ([36698137](https://github.com/mozilla-services/syncstorage-rs/pull/922/commits/ecf073e300630c56e0659c9bbb00653c442937f4), closes [#920](https://github.com/mozilla-services/syncstorage-rs/issues/920))
+
+
+
 <a name="0.8.0"></a>
 ## 0.8.0 (2020-10-29)
 
