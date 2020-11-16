@@ -24,6 +24,7 @@
 #### Bug Fixes
 
 *   downgrade to sentry 0.19 ([243eb17a](https://github.com/mozilla-services/syncstorage-rs/commit/243eb17a35ce3dc1c07090dcf0439e4eadeb855a), closes [#907](https://github.com/mozilla-services/syncstorage-rs/issues/907))
+*   add a short delay to avoid 503s (#922) ([36698137](https://github.com/mozilla-services/syncstorage-rs/pull/922/commits/ecf073e300630c56e0659c9bbb00653c442937f4), closes [#920](https://github.com/mozilla-services/syncstorage-rs/issues/920))
 
 
 
