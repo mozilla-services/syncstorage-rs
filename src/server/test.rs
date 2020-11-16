@@ -655,6 +655,9 @@ async fn overquota() {
     let status = response.status();
     assert_eq!(status, StatusCode::OK);
 
+    // avoid the request calls running so quickly that they trigger a 503
+    actix_rt::time::delay_for(Duration::from_millis(10)).await;
+
     let req = create_request(
         http::Method::PUT,
         "/1.5/42/storage/xxx_col2/12345",
