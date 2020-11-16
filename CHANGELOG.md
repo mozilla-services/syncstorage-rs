@@ -7,6 +7,7 @@
 *   Update depenedencies (#904) ([4e95c571](https://github.com/mozilla-services/syncstorage-rs/commit/4e95c571c73953e1f92bee46a58c49a97d9aa463), closes [#899](https://github.com/mozilla-services/syncstorage-rs/issues/899))
 *   update dependencies (#900) ([0afb9691](https://github.com/mozilla-services/syncstorage-rs/commit/0afb9691f7538dd9eaa68dc7eac11a2e06a12a70))
 *   tag 0.8.0 (#881) ([b6ff73d2](https://github.com/mozilla-services/syncstorage-rs/commit/b6ff73d2916e5c4afacede8bb2db905a576dba26))
+*   tag 0.8.1 for release and include scripts for setting up sentry releases (#881) ([33f900dc8e](https://github.com/mozilla-services/syncstorage-rs/commit/33f900dc8edd4e583b04af9363ef2cc51a0c889d))
 
 
 #### Test
