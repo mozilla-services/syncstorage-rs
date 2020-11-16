@@ -1,0 +1,7 @@
+[defaults]
+project=syncstorage-prod
+org=your-org-name-here
+url=https://self.hosted.sentry-url
+
+[auth]
+token=super_secret_token

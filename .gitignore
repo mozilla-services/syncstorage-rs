@@ -29,7 +29,7 @@ target
 *.rs.bk
 .#*
 service-account.json
-
+.sentryclirc
 
 config/local.toml
 venv
