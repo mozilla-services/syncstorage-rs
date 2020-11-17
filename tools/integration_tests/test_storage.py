@@ -690,7 +690,7 @@ class TestStorage(StorageFunctionalTestCase):
         bso2 = {'id': '13', 'payload': _PLD}
         bsos = [bso1, bso2]
         res = self.retry_post_json(self.root + '/storage/xxx_col2', bsos)
-        self.assertTrue(now < float(res.headers['X-Weave-Timestamp']))
+        self.assertTrue(now <= float(res.headers['X-Weave-Timestamp']))
 
     def test_ifunmodifiedsince(self):
         bso = {'id': '12345', 'payload': _PLD}
