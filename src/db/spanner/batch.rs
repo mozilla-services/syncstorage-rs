@@ -236,11 +236,7 @@ pub async fn commit_async(
         db.update_user_collection_quotas(&params.user_id, collection_id)
             .await?;
     }
-    Ok(results::PostBsos {
-        modified: timestamp,
-        success: Default::default(),
-        failed: Default::default(),
-    })
+    Ok(timestamp)
 }
 
 // Append a collection to an existing, pending batch.

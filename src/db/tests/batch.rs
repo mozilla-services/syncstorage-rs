@@ -136,7 +136,7 @@ async fn append_commit() -> Result<()> {
         .await?;
 
     let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
-    let result = db
+    let modified = db
         .commit_batch(params::CommitBatch {
             user_id: hid(uid),
             collection: coll.to_owned(),
@@ -153,7 +153,7 @@ async fn append_commit() -> Result<()> {
             collection: coll.to_owned(),
         })
         .await?;
-    assert_eq!(result.modified, ts);
+    assert_eq!(modified, ts);
 
     let bso = db.get_bso(gbso(uid, coll, "b1")).await?.unwrap();
     assert_eq!(bso.sortindex, Some(1_000_000_000));
