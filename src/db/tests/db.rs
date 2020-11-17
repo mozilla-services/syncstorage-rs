@@ -123,6 +123,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
         with_delta!(&db, i64::from(i) * 10, { db.put_bso(bso).await })?;
     }
 
+    // Get Zero records (returns the offset to the first record)
     let bsos = db
         .get_bsos(gbsos(
             uid,
@@ -132,12 +133,15 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             0,
-            &"0".to_owned(),
+            &"",
         ))
         .await?;
     assert!(bsos.items.is_empty());
-    assert_eq!(bsos.offset, Some("0".to_string()));
+    // index sorts sortindex descending.
+    let offset = bsos.offset.expect("No offset returned");
+    assert!(offset.ends_with(":11"));
 
+    // Get all of the records starting from the top.
     let bsos = db
         .get_bsos(gbsos(
             uid,
@@ -147,7 +151,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             -1,
-            &"0".to_owned(),
+            "",
         ))
         .await?;
     assert_eq!(bsos.items.len(), size as usize);
@@ -155,7 +159,6 @@ async fn get_bsos_limit_offset() -> Result<()> {
 
     let newer = 0;
     let limit = 5;
-    let offset = "0".to_owned();
     // XXX: validation?
     /*
     let bsos = db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0))?;
@@ -171,7 +174,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             newer,
             Sorting::Newest,
             limit,
-            &offset,
+            "",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 5 as usize);
@@ -254,7 +257,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 30,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -271,7 +274,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 20,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"b1".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 2);
@@ -287,7 +290,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 10,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"b0".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 1);
@@ -302,7 +305,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"b0".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 0);
@@ -338,7 +341,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -355,7 +358,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Oldest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -372,7 +375,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Index,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -878,6 +881,10 @@ async fn get_bsos() -> Result<()> {
         with_delta!(&db, i as i64 * 10, { db.put_bso(bso).await })?;
     }
 
+    // one problem is that while we sort newest, it's based off of insertion timestamp,
+    // which is going to be the same for all of these. We then sort by the bso_id,
+    // this means that while 'b0' is technically the last record inserted, the server will
+    // return according to the bso_id since it's the only other demarcation we can use.
     let ids = db
         .get_bso_ids(gbsos(
             uid,
@@ -887,7 +894,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"b4".to_owned(),
         ))
         .await?;
     assert_eq!(ids.items, vec!["b0", "b1", "b2", "b3", "b4"]);
@@ -901,7 +908,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -918,11 +925,12 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Index,
             2,
-            &"0".to_owned(),
+            &"b3".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 2);
-    assert_eq!(bsos.offset, Some("2".to_string()));
+    // offset is timestamp:bso_id. Timestamp can be variable.
+    assert!(bsos.offset.expect("No offset").ends_with(":b3"));
     assert_eq!(bsos.items[0].id, "b2");
     assert_eq!(bsos.items[1].id, "b1");
     Ok(())

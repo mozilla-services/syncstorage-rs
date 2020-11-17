@@ -31,8 +31,8 @@ use crate::db::{
     Db, DbFuture, Sorting,
 };
 use crate::server::metrics::Metrics;
-use crate::settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
-use crate::web::extractors::{BsoQueryParams, HawkIdentifier};
+use crate::settings::Quota;
+use crate::web::extractors::{BsoQueryParams, HawkIdentifier, Offset};
 use crate::web::tags::Tags;
 
 pub type Result<T> = std::result::Result<T, DbError>;
@@ -42,8 +42,6 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 /// We store the TTL as a SyncTimestamp, which is milliseconds, so remember
 /// to multiply this by 1000.
 pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
-// this is the max number of records we will return.
-pub static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
 
 pub const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
@@ -411,8 +409,10 @@ impl MysqlDb {
                 tags.tags
                     .insert("collection".to_owned(), bso.collection.clone());
                 self.metrics
-                    .incr_with_tags("storage.quota.at_limit", Some(tags));
+                    .incr_with_tags("storage.quota.at_limit", Some(tags.clone()));
                 if self.quota.enforced {
+                    self.metrics
+                        .incr_with_tags("storage.quota.enforced", Some(tags));
                     return Err(DbErrorKind::Quota.into());
                 } else {
                     warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
@@ -484,6 +484,7 @@ impl MysqlDb {
     pub fn get_bsos_sync(&self, params: params::GetBsos) -> Result<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
+        let now = self.timestamp().as_i64();
         let BsoQueryParams {
             newer,
             older,
@@ -493,7 +494,6 @@ impl MysqlDb {
             ids,
             ..
         } = params.params;
-        let now = self.timestamp().as_i64();
         let mut query = bso::table
             .select((
                 bso::id,
@@ -507,72 +507,89 @@ impl MysqlDb {
             .filter(bso::expiry.gt(now))
             .into_boxed();
 
+        // Set the harder limits for "older" and "newer"
         if let Some(older) = older {
-            query = query.filter(bso::modified.lt(older.as_i64()));
+            let ts = older.as_i64();
+            if ts > 0 {
+                query = query.filter(bso::modified.lt(ts));
+            }
         }
         if let Some(newer) = newer {
-            query = query.filter(bso::modified.gt(newer.as_i64()));
+            let ts = newer.as_i64();
+            if ts > 0 {
+                query = query.filter(bso::modified.gt(ts));
+            }
         }
 
         if !ids.is_empty() {
             query = query.filter(bso::id.eq_any(ids));
         }
 
-        // it's possible for two BSOs to be inserted with the same `modified` date,
-        // since there's no guarantee of order when doing a get, pagination can return
-        // an error. We "fudge" a bit here by taking the id order as a secondary, since
-        // that is guaranteed to be unique by the client.
-        query = match sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => query.order(bso::id.desc()).order(bso::sortindex.desc()),
-            Sorting::Newest | Sorting::None => {
-                query.order(bso::id.desc()).order(bso::modified.desc())
+        // offsets are not as strict as the "older"/"newer" options.
+        if let Some(offset_v) = offset {
+            query = match sort {
+                Sorting::Oldest => {
+                    if let Some(timestamp) = offset_v.timestamp {
+                        query = query.filter(bso::modified.ge(timestamp.as_i64()));
+                    }
+                    if let Some(id) = offset_v.offset {
+                        query = query.filter(bso::id.ge(id))
+                    }
+                    query
+                }
+                _ => {
+                    if let Some(timestamp) = offset_v.timestamp {
+                        query = query.filter(bso::modified.le(timestamp.as_i64()));
+                    }
+                    if let Some(id) = offset_v.offset {
+                        query = query.filter(bso::id.le(id))
+                    }
+                    query
+                }
             }
-            Sorting::Oldest => query.order(bso::id.asc()).order(bso::modified.asc()),
-            */
-            Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order((bso::modified.desc(), bso::id.desc())),
+        }
+
+        query = match sort {
+            Sorting::Index => query.order((bso::sortindex.desc(), bso::id.desc())),
+            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
             Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
-            _ => query,
         };
 
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
+        let limit = limit.map(i64::from).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
-        // match the query conditions
-        query = query.limit(if limit > 0 { limit + 1 } else { limit });
-
-        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
-
-        if numeric_offset > 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(numeric_offset);
+        // match the query conditions. We want to pull at least one so we can determine
+        // if there are any offsets we need to calculate.
+        if limit >= 0 {
+            query = query.limit(limit + 1);
         }
+
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in
         // python to trigger potential CollectionNotFoundErrors
         //if bsos.len() == 0 {
         //}
-
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
-            bsos.pop();
-            Some((limit + numeric_offset).to_string())
+            let bso = bsos.pop();
+            bso.map(|b| Offset {
+                offset: Some(b.id),
+                timestamp: Some(b.modified),
+            })
+            .unwrap_or_default()
         } else {
             // if an explicit "limit=0" is sent, return the offset of "0"
             // Otherwise, this would break at least the db::tests::db::get_bsos_limit_offset
             // unit test.
-            if limit == 0 {
-                Some(0.to_string())
-            } else {
-                None
-            }
+            Offset::default()
         };
 
         Ok(results::GetBsos {
             items: bsos,
-            offset: next_offset,
+            offset: if !next_offset.is_empty() {
+                Some(next_offset.to_string())
+            } else {
+                None
+            },
         })
     }
 
@@ -606,23 +623,28 @@ impl MysqlDb {
             query = query.filter(bso::id.eq_any(ids));
         }
 
+        if let Some(offset_v) = offset {
+            if let Some(offset_id) = offset_v.offset {
+                query = match sort {
+                    Sorting::Oldest => query.filter(bso::id.ge(offset_id)),
+                    _ => query.filter(bso::id.le(offset_id)),
+                }
+            }
+        }
+
         query = match sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest => query.order(bso::modified.desc()),
-            Sorting::Oldest => query.order(bso::modified.asc()),
-            _ => query,
+            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
+            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
         };
 
-        // negative limits are no longer allowed by mysql.
-        let limit = limit.map(i64::from).unwrap_or(DEFAULT_LIMIT as i64).max(0);
+        // it is possible to request a limit of 0. use '-1' to indicate no limit, then
+        // don't actually specify a limit later.
+        let limit = limit.map(i64::from).unwrap_or(-1);
         // fetch an extra row to detect if there are more rows that
-        // match the query conditions. Negative limits will cause an error.
-        query = query.limit(if limit == 0 { limit } else { limit + 1 });
-        let numeric_offset = offset.map_or(0, |offset| offset.offset as i64);
-        if numeric_offset != 0 {
-            // XXX: copy over this optimization:
-            // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
-            query = query.offset(numeric_offset);
+        // match the query conditions. Negative limits will cause an error in mysql.
+        if limit >= 0 {
+            query = query.limit(limit + 1);
         }
         let mut ids = query.load::<String>(&self.conn)?;
 
@@ -632,8 +654,7 @@ impl MysqlDb {
         //}
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            ids.pop();
-            Some((limit + numeric_offset).to_string())
+            ids.pop()
         } else {
             None
         };

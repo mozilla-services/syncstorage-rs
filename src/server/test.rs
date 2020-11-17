@@ -655,6 +655,9 @@ async fn overquota() {
     let status = response.status();
     assert_eq!(status, StatusCode::OK);
 
+    // avoid the request calls running so quickly that they trigger a 503
+    actix_rt::time::delay_for(Duration::from_millis(10)).await;
+
     let req = create_request(
         http::Method::PUT,
         "/1.5/42/storage/xxx_col2/12345",
@@ -666,6 +669,7 @@ async fn overquota() {
     .to_request();
     let response = app.call(req).await.unwrap();
     let status = response.status();
+    dbg!(&response);
     assert_eq!(status, StatusCode::FORBIDDEN);
     let body = String::from_utf8(test::read_body(response).await.to_vec()).unwrap();
     // WeaveError::OverQuota

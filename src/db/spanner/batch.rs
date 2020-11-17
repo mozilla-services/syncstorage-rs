@@ -399,9 +399,13 @@ pub async fn do_append_async(
     if db.quota.enabled {
         if let Some(size) = batch.size {
             if size + running_size >= db.quota.size {
+                db.metrics
+                    .incr_with_tags("storage.quota.at_limit", Some(tags.clone()));
                 if db.quota.enforced {
                     return Err(db.quota_error(collection));
                 } else {
+                    db.metrics
+                        .incr_with_tags("storage.quota.enforced", Some(tags.clone()));
                     warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
                 }
             }

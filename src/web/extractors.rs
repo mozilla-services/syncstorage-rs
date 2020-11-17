@@ -1110,45 +1110,54 @@ impl From<u32> for HawkIdentifier {
 #[serde(default)]
 pub struct Offset {
     pub timestamp: Option<SyncTimestamp>,
-    pub offset: u64,
+    pub offset: Option<String>,
 }
 
 impl ToString for Offset {
     fn to_string(&self) -> String {
-        match self.timestamp {
-            None => format!("{}", self.offset),
-            Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
+        let result = format!(
+            "{:?}:{}",
+            self.timestamp.map(|v| v.as_i64()).unwrap_or(0),
+            self.offset.clone().unwrap_or_default()
+        );
+        if &result == "0:" {
+            return "".to_owned();
         }
+        result
+    }
+}
+
+impl Offset {
+    pub fn is_empty(&self) -> bool {
+        self.timestamp.is_none() && self.offset.is_none()
     }
 }
 
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // issue559: Disable ':' support for now: simply parse as i64 as
-        // previously (it was u64 previously but i64's close enough)
-        let result = Offset {
-            timestamp: None,
-            offset: s.parse::<u64>()?,
-        };
-        /*
+        if s.is_empty() {
+            return Ok(Offset {
+                timestamp: None,
+                offset: None,
+            });
+        }
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
-                offset: s.parse::<u64>()?,
+                offset: Some(s.to_owned()),
             },
             Some(_colon_position) => {
                 let mut parts = s.split(':');
                 let timestamp_string = parts.next().unwrap_or("0");
                 let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
-                let offset = parts.next().unwrap_or("0").parse::<u64>()?;
+                let offset = parts.next().map(|v| v.to_owned());
                 Offset {
                     timestamp: Some(timestamp),
                     offset,
                 }
             }
         };
-        */
         Ok(result)
     }
 }

@@ -1222,24 +1222,7 @@ impl SpannerDb {
             sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
         }
 
-        // issue559: Dead code (timestamp always None)
-        /*
-        if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
-            query = match sort {
-                Sorting::Newest => {
-                    sqlparams.insert("older_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
-                    format!("{} AND modified <= @older_eq", query)
-                }
-                Sorting::Oldest => {
-                    sqlparams.insert("newer_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
-                    format!("{} AND modified >= @newer_eq", query)
-                }
-                _ => query,
-            };
-        }
-        */
+        // newer/older is more strict than offset.
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
@@ -1250,41 +1233,40 @@ impl SpannerDb {
             sqlparams.insert("newer".to_string(), as_value(newer.as_rfc3339()?));
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
+
+        // if the offset has not yet been applied (we set it to None if we have), then apply it using the
+        // default sorting rules.
+        if let Some(ref offset) = offset {
+            // Special case no limit specified but still required for an
+            // offset. Spanner doesn't accept a simpler limit of -1 (common in
+            // most databases) so we specify a max value with offset subtracted
+            // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
+            // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
+            let direction = if sort == Sorting::Oldest { ">=" } else { "<=" };
+            if let Some(timestamp) = offset.timestamp {
+                query = format!("{} AND modified {} @modified ", query, direction);
+                sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
+                sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
+            }
+            if let Some(offset) = &offset.offset {
+                query = format!("{} AND bso_id {} @offset_id ", query, direction);
+                sqlparams.insert("offset_id".to_string(), as_value(offset.clone()));
+            }
+        }
         query = match sort {
-            // issue559: Revert to previous sorting
-            /*
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
             Sorting::Newest | Sorting::None => {
                 format!("{} ORDER BY modified DESC, bso_id DESC", query)
             }
             Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
-            */
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
-            _ => query,
         };
 
         if let Some(limit) = limit {
             // fetch an extra row to detect if there are more rows that match
             // the query conditions
             query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
-        } else if let Some(ref offset) = offset {
-            // Special case no limit specified but still required for an
-            // offset. Spanner doesn't accept a simpler limit of -1 (common in
-            // most databases) so we specify a max value with offset subtracted
-            // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
-            // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
-            query = format!(
-                "{} LIMIT {}",
-                query,
-                i64::max_value() - offset.offset as i64
-            );
         };
 
-        if let Some(offset) = offset {
-            query = format!("{} OFFSET {}", query, offset.offset);
-        }
         self.sql(&query)?
             .params(sqlparams)
             .param_types(sqltypes)
@@ -1294,54 +1276,16 @@ impl SpannerDb {
     pub fn encode_next_offset(
         &self,
         _sort: Sorting,
-        offset: u64,
-        _timestamp: Option<i64>,
-        modifieds: Vec<i64>,
+        offset: Option<String>,
+        timestamp: Option<i64>,
     ) -> Option<String> {
-        // issue559: Use a simple numeric offset everwhere as previously for
-        // now: was previously a value of "limit + offset", modifieds.len()
-        // always equals limit
         Some(
             Offset {
-                offset: offset + modifieds.len() as u64,
-                timestamp: None,
+                offset,
+                timestamp: timestamp.map(|v| SyncTimestamp::from_i64(v).unwrap_or_default()),
             }
             .to_string(),
         )
-        /*
-        let mut calc_offset = 1;
-        let mut i = (modifieds.len() as i64) - 2;
-
-        let prev_bound = match sort {
-            Sorting::Index => {
-                // Use a simple numeric offset for sortindex ordering.
-                return Some(
-                    Offset {
-                        offset: offset + modifieds.len() as u64,
-                        timestamp: None,
-                    }
-                    .to_string(),
-                );
-            }
-            Sorting::None => timestamp,
-            Sorting::Newest => timestamp,
-            Sorting::Oldest => timestamp,
-        };
-        // Find an appropriate upper bound for faster timestamp ordering.
-        let bound = *modifieds.last().unwrap_or(&0);
-        // Count how many previous items have that same timestamp, and hence
-        // will need to be skipped over.  The number of matches here is limited
-        // by upload batch size.
-        while i >= 0 && modifieds[i as usize] == bound {
-            calc_offset += 1;
-            i -= 1;
-        }
-        if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
-            calc_offset += offset;
-        }
-
-        Some(format!("{}:{}", bound, calc_offset))
-        */
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
@@ -1353,7 +1297,6 @@ impl SpannerDb {
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let Offset { offset, timestamp } = params.params.offset.clone().unwrap_or_default();
         let sort = params.params.sort;
 
         let mut streaming = self.bsos_query_async(query, params).await?;
@@ -1371,9 +1314,11 @@ impl SpannerDb {
         // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
-            bsos.pop();
-            let modifieds: Vec<i64> = bsos.iter().map(|r| r.modified.as_i64()).collect();
-            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
+            let bso = bsos.pop();
+            let (offset, timestamp) = bso
+                .map(|b| (Some(b.id), Some(b.modified.as_i64())))
+                .unwrap_or((None, None));
+            self.encode_next_offset(sort, offset, timestamp)
         } else {
             None
         };
@@ -1386,7 +1331,6 @@ impl SpannerDb {
 
     pub async fn get_bso_ids_async(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let Offset { offset, timestamp } = params.params.offset.clone().unwrap_or_default();
         let sort = params.params.sort;
 
         let query = "\
@@ -1413,9 +1357,7 @@ impl SpannerDb {
         // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            ids.pop();
-            modifieds.pop();
-            self.encode_next_offset(sort, offset, timestamp.map(|t| t.as_i64()), modifieds)
+            self.encode_next_offset(sort, ids.pop(), modifieds.pop())
         } else {
             None
         };
@@ -1643,9 +1585,11 @@ impl SpannerDb {
             })
             .await?;
         if usage.total_bytes >= self.quota.size {
+            self.metrics.incr_with_tags("storage.quota.at_limit", None);
             if self.quota.enforced {
                 return Err(self.quota_error(collection));
             } else {
+                self.metrics.incr_with_tags("storage.quota.enforced", None);
                 warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
             }
         }
@@ -1807,7 +1751,6 @@ impl SpannerDb {
             sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
             sql.to_owned()
         };
-
         self.sql(&sql)?
             .params(sqlparams)
             .param_types(sqltypes)
