@@ -1,10 +1,10 @@
-unittest2
-webtest
-simplejson
-pyramid
-tokenlib
-wsgiproxy2
-konfig
 hawkauthlib
+konfig
+pyramid
 pyramid_hawkauth
 requests
+simplejson
+tokenlib
+unittest2
+webtest
+wsgiproxy2

@@ -8,9 +8,6 @@ from test_support import run_live_functional_tests
 import time
 
 
-
-
-
 if __name__ == "__main__":
 	# When run as a script, this file will execute the
 	# functional tests against a live webserver.
