@@ -39,6 +39,11 @@ pub struct ServerState {
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
 
+    pub tokenserver_database_url: Option<String>,
+    /// Secrets used for validating jwt created by fxa.
+    pub tokenserver_jwks_rsa_modulus: Option<String>,
+    pub tokenserver_jwks_rsa_exponent: Option<String>,
+
     /// Metric reporting
     pub metrics: Box<StatsdClient>,
 
@@ -163,8 +168,14 @@ impl Server {
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
         let secrets = Arc::new(settings.master_secret);
+        let host = settings.host.clone();
         let port = settings.port;
+        let tokenserver_database_url = Arc::new(settings.tokenserver_database_url.clone());
+        let tokenserver_jwks_rsa_modulus = Arc::new(settings.tokenserver_jwks_rsa_modulus.clone());
+        let tokenserver_jwks_rsa_exponent =
+            Arc::new(settings.tokenserver_jwks_rsa_exponent.clone());
         let quota_enabled = settings.enable_quota;
+        let actix_keep_alive = settings.actix_keep_alive.clone();
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
@@ -175,6 +186,9 @@ impl Server {
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
                 secrets: Arc::clone(&secrets),
+                tokenserver_database_url: (*tokenserver_database_url).clone(),
+                tokenserver_jwks_rsa_modulus: (*tokenserver_jwks_rsa_modulus).clone(),
+                tokenserver_jwks_rsa_exponent: (*tokenserver_jwks_rsa_exponent).clone(),
                 metrics: Box::new(metrics.clone()),
                 port,
                 quota_enabled,
@@ -182,11 +196,11 @@ impl Server {
 
             build_app!(state, limits)
         });
-        if let Some(keep_alive) = settings.actix_keep_alive {
+        if let Some(keep_alive) = actix_keep_alive {
             server = server.keep_alive(keep_alive as usize);
         }
         let server = server
-            .bind(format!("{}:{}", settings.host, settings.port))
+            .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
         Ok(server)
