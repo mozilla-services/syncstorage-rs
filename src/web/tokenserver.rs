@@ -92,6 +92,7 @@ pub fn get(
                 .as_ref()
                 .expect("exponent not set")
                 .to_string(),
+            state.secrets.master_secret.clone()[0].to_string(),
         )
         .map_err(Into::into)
     })
@@ -107,6 +108,7 @@ pub fn get_sync(
     database_url: String,
     modulus: String,
     exponent: String,
+    shared_secret: String,
 ) -> Result<TokenServerResult, ApiError> {
     let token_data = decode::<Claims>(
         &auth.token(),
@@ -120,8 +122,6 @@ pub fn get_sync(
         )))
     })?;
     let email = format!("{:}@api.accounts.firefox.com", token_data.claims.sub);
-    // hardcode
-    let shared_secret = env::var("SYNC_MASTER_SECRET").expect("SYNC_MASTER_SECRET must be set");
 
     let connection = MysqlConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url));
