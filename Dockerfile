@@ -30,6 +30,8 @@ COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/version.json /app
 COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
+COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
+RUN mkdir -p /app/project && chmod 755 -R /app && chown -R app /
 
 USER app:app
 
