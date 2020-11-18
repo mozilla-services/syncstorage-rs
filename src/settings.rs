@@ -58,7 +58,7 @@ pub struct Settings {
 
     pub tokenserver_jwks_rsa_modulus: Option<String>,
     pub tokenserver_jwks_rsa_exponent: Option<String>,
-
+    pub fxa_metrics_hash_secret: Option<String>,
     pub human_logs: bool,
 
     pub statsd_host: Option<String>,
@@ -86,6 +86,7 @@ impl Default for Settings {
             master_secret: Secrets::default(),
             tokenserver_jwks_rsa_exponent: None,
             tokenserver_jwks_rsa_modulus: None,
+            fxa_metrics_hash_secret: None,
             statsd_host: None,
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
@@ -112,6 +113,7 @@ impl Settings {
         s.set_default::<Option<String>>("tokenserver_database_url", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_modulus", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_exponent", None)?;
+        s.set_default::<Option<String>>("fxa_metrics_hash_secret", None)?;
         s.set_default("master_secret", "")?;
         s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
         s.set_default(
