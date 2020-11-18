@@ -175,7 +175,7 @@ impl Server {
         let tokenserver_jwks_rsa_exponent =
             Arc::new(settings.tokenserver_jwks_rsa_exponent.clone());
         let quota_enabled = settings.enable_quota;
-        let actix_keep_alive = settings.actix_keep_alive.clone();
+        let actix_keep_alive = settings.actix_keep_alive;
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
