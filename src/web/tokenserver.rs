@@ -226,7 +226,7 @@ def hash_device_id(fxa_uid, device, secret):
 
         let fxa_kid = format!(
             "{:013}-{:}",
-            user_record[0].keys_changed_at.unwrap_or_else(|| 0),
+            user_record[0].keys_changed_at.unwrap_or(0),
             client_state_b64
         );
         let thedict = [
