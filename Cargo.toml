@@ -68,7 +68,7 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
-time = "0.2"
+time = "^0.2.23"
 tokio = { version = "0.2", features = ["macros"] }
 url = "2.1"
 urlencoding = "1.1"
