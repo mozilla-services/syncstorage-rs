@@ -1696,6 +1696,7 @@ mod tests {
             tokenserver_database_url: None,
             tokenserver_jwks_rsa_modulus: None,
             tokenserver_jwks_rsa_exponent: None,
+            fxa_metrics_hash_secret: None,
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,

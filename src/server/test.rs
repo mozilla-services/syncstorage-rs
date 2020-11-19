@@ -72,6 +72,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         tokenserver_database_url: None,
         tokenserver_jwks_rsa_modulus: None,
         tokenserver_jwks_rsa_exponent: None,
+        fxa_metrics_hash_secret: None,
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
