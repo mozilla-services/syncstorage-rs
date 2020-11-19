@@ -39,6 +39,7 @@ pub struct Settings {
     pub port: u16,
     pub host: String,
     pub database_url: String,
+    pub tokenserver_database_url: Option<String>,
     pub database_pool_max_size: Option<u32>,
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
@@ -54,6 +55,10 @@ pub struct Settings {
     /// the signing secret and token secret
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
+
+    pub tokenserver_jwks_rsa_modulus: Option<String>,
+    pub tokenserver_jwks_rsa_exponent: Option<String>,
+    pub fxa_metrics_hash_secret: Option<String>,
     pub human_logs: bool,
 
     pub statsd_host: Option<String>,
@@ -71,6 +76,7 @@ impl Default for Settings {
             port: DEFAULT_PORT,
             host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
+            tokenserver_database_url: None,
             database_pool_max_size: None,
             database_pool_min_idle: None,
             #[cfg(test)]
@@ -78,6 +84,9 @@ impl Default for Settings {
             actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
+            tokenserver_jwks_rsa_exponent: None,
+            tokenserver_jwks_rsa_modulus: None,
+            fxa_metrics_hash_secret: None,
             statsd_host: None,
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
@@ -100,6 +109,11 @@ impl Settings {
         s.set_default("human_logs", false)?;
         #[cfg(test)]
         s.set_default("database_use_test_transactions", false)?;
+        s.set_default("master_secret", "")?;
+        s.set_default::<Option<String>>("tokenserver_database_url", None)?;
+        s.set_default::<Option<String>>("tokenserver_jwks_rsa_modulus", None)?;
+        s.set_default::<Option<String>>("tokenserver_jwks_rsa_exponent", None)?;
+        s.set_default::<Option<String>>("fxa_metrics_hash_secret", None)?;
         s.set_default("master_secret", "")?;
         s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
         s.set_default(
