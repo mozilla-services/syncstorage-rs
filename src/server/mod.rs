@@ -79,7 +79,11 @@ macro_rules! build_app {
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
             // Followed by the "official middleware" so they run first.
-            .wrap(Cors::default())
+            // actix is getting increasingly tighter about CORS headers. Our server is
+            // not a huge risk but does deliver XHR JSON content.
+            // For now, let's be permissive and use NGINX (the wrapping server)
+            // for finer grained specification.
+            .wrap(Cors::permissive())
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),
