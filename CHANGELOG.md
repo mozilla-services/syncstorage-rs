@@ -1,3 +1,12 @@
+<a name="0.8.3"></a>
+### 0.8.3 (2020-11-30)
+
+
+#### Chore
+
+*   Update to rust 1.48 (#927) ([ea1f222b](https://github.com/mozilla-services/syncstorage-rs/commit/ea1f222b219ddd78684945058c3b3430ed636982))
+
+
 <a name="0.8.2"></a>
 ## 0.8.2 (2020-11-20)
 
