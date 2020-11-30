@@ -571,7 +571,7 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?
-            .ok_or_else(|| DbErrorKind::CollectionNotFound)?;
+            .ok_or(DbErrorKind::CollectionNotFound)?;
         let modified = SyncTimestamp::from_rfc3339(&result[0].get_string_value())?;
         Ok(modified)
     }

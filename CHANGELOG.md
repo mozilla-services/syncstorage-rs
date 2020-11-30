@@ -1,3 +1,13 @@
+<a name="0.8.2"></a>
+## 0.8.2 (2020-11-20)
+
+
+#### Bug Fixes
+
+*   make actix-cors more permissive (#929) ([1a7e817a](https://github.com/mozilla-services/syncstorage-rs/commit/1a7e817a15d2ad0cb4a979e114cbcfa074402314))
+
+
+
 <a name="0.8.1"></a>
 ### 0.8.1 (2020-11-16)
 
