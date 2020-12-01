@@ -3446,9 +3446,9 @@ dependencies = [
 
 [[package]]
 name = "validator"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4effc922f18d14f3daf201b1d13c61e5ef62f5975e7d18df381f67badd76cfcd"
+checksum = "841d6937c33ec6039d8071bcf72933146b5bbe378d645d8fa59bdadabfc2a249"
 dependencies = [
  "idna 0.2.0",
  "lazy_static",
@@ -3457,7 +3457,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "url 2.2.0",
- "validator_types",
+ "validator_types 0.12.0",
 ]
 
 [[package]]
@@ -3473,7 +3473,7 @@ dependencies = [
  "quote",
  "regex",
  "syn",
- "validator_types",
+ "validator_types 0.11.0",
 ]
 
 [[package]]
@@ -3481,6 +3481,12 @@ name = "validator_types"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "add324da7950ac1f76b1c16ce8b5406147953d5d6a2ac1c5da93785f2cfc738b"
+
+[[package]]
+name = "validator_types"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad9680608df133af2c1ddd5eaf1ddce91d60d61b6bc51494ef326458365a470a"
 
 [[package]]
 name = "vcpkg"
