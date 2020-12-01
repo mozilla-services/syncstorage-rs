@@ -3457,14 +3457,14 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "url 2.2.0",
- "validator_types 0.12.0",
+ "validator_types",
 ]
 
 [[package]]
 name = "validator_derive"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15529099583e8ce2b070ab6a637454a1b42c7146e6daee4a6817a82bee33bd41"
+checksum = "4286b4497f270f59276a89ae0ad109d5f8f18c69b613e3fb22b61201aadb0c4d"
 dependencies = [
  "if_chain",
  "lazy_static",
@@ -3473,14 +3473,8 @@ dependencies = [
  "quote",
  "regex",
  "syn",
- "validator_types 0.11.0",
+ "validator_types",
 ]
-
-[[package]]
-name = "validator_types"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "add324da7950ac1f76b1c16ce8b5406147953d5d6a2ac1c5da93785f2cfc738b"
 
 [[package]]
 name = "validator_types"
