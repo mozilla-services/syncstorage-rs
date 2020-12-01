@@ -169,22 +169,22 @@ jobs:
       #- save-sccache-cache
       # TODO build the Docker image, but only if the branch is master.
       - run:
-        name: Build Docker image
-        command: docker build -t app:build .
+         name: Build Docker image
+         command: docker build -t app:build .
       # # save the built docker container into CircleCI's cache. This is
       # # required since Workflows do not have the same remote docker instance.
       - run:
-        name: docker save app:build
-        command: |
+         name: docker save app:build
+         command: |
           mkdir -p /home/circleci/cache
           docker save -o /home/circleci/cache/docker.tar "app:build"
       - run:
-           name: Save docker-compose config
-           command: cp docker-compose*.yaml /home/circleci/cache
-       - save_cache:
-           key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
-           paths:
-             - /home/circleci/cache
+         name: Save docker-compose config
+         command: cp docker-compose*.yaml /home/circleci/cache
+      - save_cache:
+         key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+         paths:
+          - /home/circleci/cache
 
   deploy:
     docker:
