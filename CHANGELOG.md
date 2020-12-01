@@ -1,3 +1,12 @@
+<a name="0.8.3"></a>
+### 0.8.3 (2020-11-30)
+
+
+#### Chore
+
+*   Update to rust 1.48 (#927) ([ea1f222b](https://github.com/mozilla-services/syncstorage-rs/commit/ea1f222b219ddd78684945058c3b3430ed636982))
+*   Update pyo3 to the latest version (#938) ([cc7d9d36]https://github.com/mozilla-services/syncstorage-rs/commit/cc7d9d367310aeb7551668c049f1a895a6eae853))
+
 <a name="0.8.2"></a>
 ## 0.8.2 (2020-11-20)
 
