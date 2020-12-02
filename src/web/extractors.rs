@@ -2,7 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{self, collections::HashMap, num::ParseIntError, str::FromStr};
+use std::{self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -202,8 +202,7 @@ impl FromRequest for BsoBodies {
         });
 
         // Avoid duplicating by defining our error func now, doesn't need the box wrapper
-        fn make_error(metrics: metrics::Metrics) -> Error {
-            metrics.incr("request.error.invalid_json");
+        fn make_error() -> Error {
             ValidationErrorKind::FromDetails(
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
@@ -247,7 +246,7 @@ impl FromRequest for BsoBodies {
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
-                        return future::err(make_error(metrics));
+                        return future::err(make_error());
                     }
                 }
                 bsos
@@ -255,7 +254,7 @@ impl FromRequest for BsoBodies {
                 json_vals
             } else {
                 // Per Python version, BSO's must json deserialize
-                return future::err(make_error(metrics));
+                return future::err(make_error());
             };
 
             // Validate all the BSO's, move invalid to our other list. Assume they'll all make
@@ -270,12 +269,12 @@ impl FromRequest for BsoBodies {
             let mut total_payload_size = 0;
 
             // Temporarily track the bso id's for dupe detection
-            let mut bso_ids: Vec<String> = Vec::with_capacity(bsos.len());
+            let mut bso_ids: HashSet<String> = HashSet::with_capacity(bsos.len());
 
             for bso in bsos {
                 // Error out if its not a JSON mapping type
                 if !bso.is_object() {
-                    return future::err(make_error(metrics));
+                    return future::err(make_error());
                 }
                 // Save all id's we get, check for missing id, or duplicate.
                 let bso_id = if let Some(id) = bso.get("id").and_then(serde_json::Value::as_str) {
@@ -291,7 +290,7 @@ impl FromRequest for BsoBodies {
                             .into(),
                         );
                     } else {
-                        bso_ids.push(id.clone());
+                        bso_ids.insert(id.clone());
                         id
                     }
                 } else {

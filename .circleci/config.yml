@@ -83,8 +83,15 @@ commands:
     steps:
       - run:
           name: e2e tests
-          command: |
-            python3 tools/integration_tests/run.py "http://localhost:8000#secret0"
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.yaml
+               -f docker-compose.e2e.yaml
+               up
+               --exit-code-from e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   setup-sccache:
     steps:
