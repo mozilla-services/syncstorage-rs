@@ -127,7 +127,6 @@ impl Metrics {
 
     pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
         if let Some(client) = self.client.as_ref() {
-            dbg!(&label, &tags);
             let mut tagged = client.incr_with_tags(label);
             let mut mtags = self.tags.clone().unwrap_or_default();
             if let Some(tags) = tags {
