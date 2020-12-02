@@ -486,6 +486,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "boringssl-src"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c212e3cd725f096e4de48d4ded0909cb62cb92c1a3420ff0e95edb46390a7736"
+dependencies = [
+ "cmake",
+]
+
+[[package]]
 name = "brotli-sys"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1221,7 +1230,7 @@ name = "googleapis-raw"
 version = "0.0.4"
 dependencies = [
  "futures 0.3.8",
- "grpcio",
+ "grpcio 0.6.0",
  "protobuf",
 ]
 
@@ -1232,10 +1241,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63fac32f9f74fa1fd78215d04b47f134c1ee5a535c237a54d52bf18cf65ac983"
 dependencies = [
  "futures 0.3.8",
- "grpcio-sys",
+ "grpcio-sys 0.6.0",
  "libc",
  "log",
  "parking_lot 0.10.2",
+ "protobuf",
+]
+
+[[package]]
+name = "grpcio"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9846867f136ecbb87e66c5e96763f67a006e9281a85eb6312976cd451d9ed0c0"
+dependencies = [
+ "futures 0.3.8",
+ "grpcio-sys 0.7.1",
+ "libc",
+ "log",
+ "parking_lot 0.11.1",
  "protobuf",
 ]
 
@@ -1246,6 +1269,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12d4e9309f1151c9ebcd07622858c4a504b6ea6cd2821524fe74ccde8ea830d7"
 dependencies = [
  "bindgen",
+ "cc",
+ "cmake",
+ "libc",
+ "libz-sys",
+ "pkg-config",
+ "walkdir",
+]
+
+[[package]]
+name = "grpcio-sys"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e6ea7ecb083588c8b3446270e95415c14ea856539e41ed3ad0c53614398a13f"
+dependencies = [
+ "bindgen",
+ "boringssl-src",
  "cc",
  "cmake",
  "libc",
@@ -2988,7 +3027,7 @@ dependencies = [
  "failure",
  "futures 0.3.8",
  "googleapis-raw",
- "grpcio",
+ "grpcio 0.7.0",
  "hawk",
  "hkdf",
  "hmac",
