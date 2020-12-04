@@ -271,14 +271,10 @@ pub async fn post_collection_batch(
     coll.metrics.clone().incr("request.post_collection_batch");
     trace!("Batch: Post collection batch");
     // Bail early if we have nonsensical arguments
-    let breq = match coll.batch.clone() {
-        Some(breq) => breq,
-        None => {
-            let err: DbError = DbErrorKind::BatchNotFound.into();
-            let err: ApiError = err.into();
-            return Err(err.into());
-        }
-    };
+    // TODO: issue932 may make these multi-level transforms easier
+    let breq = coll.batch.clone().ok_or_else(|| -> ApiError {
+        ApiErrorKind::Db(DbErrorKind::BatchNotFound.into()).into()
+    })?;
 
     let new_batch = if let Some(id) = breq.id.clone() {
         trace!("Batch: Validating {}", &id);
@@ -408,7 +404,7 @@ pub async fn post_collection_batch(
 
     // TODO: validate *actual* sizes of the batch items
     // (max_total_records, max_total_bytes)
-    let result = if let Some(batch) = batch {
+    let modified = if let Some(batch) = batch {
         db.commit_batch(params::CommitBatch {
             user_id: user_id.clone(),
             collection: collection.clone(),
@@ -420,10 +416,10 @@ pub async fn post_collection_batch(
         return Err(ApiError::from(err).into());
     };
 
-    resp["modified"] = json!(result.modified);
+    resp["modified"] = json!(modified);
     trace!("Batch: Returning result: {}", &resp);
     Ok(HttpResponse::build(StatusCode::OK)
-        .header(X_LAST_MODIFIED, result.modified.as_header())
+        .header(X_LAST_MODIFIED, modified.as_header())
         .json(resp))
 }
 

@@ -219,7 +219,7 @@ Functional tests live in [server-syncstorage](https://github.com/mozilla-service
 1. `cargo build --release` - Build with the release profile [release mode](https://doc.rust-lang.org/book/ch14-01-release-profiles.html).
 1. `clog -C CHANGELOG.md` - Generate release notes. We're using [clog](https://github.com/clog-tool/clog-cli) for release notes. Add a `-p`, `-m` or `-M` flag to denote major/minor/patch version, ie `clog -C CHANGELOG.md -p`.
 1. Review the `CHANGELOG.md` file and ensure all relevant changes since the last tag are included.
-1. Create a new [release in Sentry](https://docs.sentry.io/product/releases/#create-release): `bash scripts/sentry-release.sh`. If you're doing this for the first time, checkout the [tips below](https://github.com/mozilla-services/syncstorage-rs#troubleshooting) for troubleshooting sentry cli access.
+1. Create a new [release in Sentry](https://docs.sentry.io/product/releases/#create-release): `VERSION={release-version-here} bash scripts/sentry-release.sh`. If you're doing this for the first time, checkout the [tips below](https://github.com/mozilla-services/syncstorage-rs#troubleshooting) for troubleshooting sentry cli access.
 1. `git commit -am "chore: tag <version>"` to commit the new version and changes
 1. `git tag -s -m "chore: tag <version>" <version>` to create a signed tag of the current HEAD commit for release.
 1. `git push origin release/<version>` to push the commits to a new origin release branch

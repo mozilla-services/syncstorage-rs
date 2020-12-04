@@ -1,4 +1,4 @@
-FROM rust:1.46-buster as builder
+FROM rust:1.48-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -6,9 +6,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN apt-get -q update && \
     apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go python3-dev python3-pip && \
     pip3 install tokenlib && \
-    rm -rf /var/lib/apt/lists/* && \
-    cd /app && \
-    mkdir -m 755 bin
+    rm -rf /var/lib/apt/lists/*
 
 RUN \
     cargo --version && \
@@ -30,6 +28,7 @@ COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/version.json /app
 COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
+COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 
 USER app:app
 

@@ -161,11 +161,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
             id: params.batch.id,
         },
     )?;
-    Ok(results::PostBsos {
-        modified: timestamp,
-        success: Default::default(),
-        failed: Default::default(),
-    })
+    Ok(timestamp)
 }
 
 pub fn do_append(
