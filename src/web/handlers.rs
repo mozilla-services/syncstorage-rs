@@ -518,6 +518,8 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, Error> {
     );
     let db = hb.db_pool.get().await?;
 
+    checklist.insert("quota".to_owned(), serde_json::to_value(hb.quota)?);
+
     match db.check().await {
         Ok(result) => {
             if result {
