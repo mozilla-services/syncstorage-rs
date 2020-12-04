@@ -931,7 +931,11 @@ impl FromRequest for HeartbeatRequest {
                 size: state.limits.max_quota_limit,
             };
 
-            Ok(HeartbeatRequest { headers, db_pool, quota })
+            Ok(HeartbeatRequest {
+                headers,
+                db_pool,
+                quota,
+            })
         }
         .boxed_local()
     }
