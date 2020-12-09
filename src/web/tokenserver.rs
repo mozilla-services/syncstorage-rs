@@ -1,7 +1,7 @@
 use actix_web::error::BlockingError;
 use actix_web::web::block;
 use actix_web::web::Data;
-use actix_web::HttpResponse;
+use actix_web::{HttpRequest, HttpResponse};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 
 use futures::future::{Future, TryFutureExt};
@@ -70,10 +70,12 @@ pub struct Claims {
 }
 
 pub fn get(
+    req: HttpRequest,
     state: Data<ServerState>,
     auth: BearerAuth,
 ) -> impl Future<Output = Result<HttpResponse, BlockingError<ApiError>>> {
     dbg!(&state.tokenserver_database_url);
+    let x_key_id = req.headers().get("x-keyid").unwrap().to_str().unwrap().to_string();
     block(move || {
         get_sync(
             &auth,
@@ -93,6 +95,7 @@ pub fn get(
                 .expect("exponent not set")
                 .to_string(),
             state.secrets.master_secret.clone()[0].to_string(),
+            x_key_id,
         )
         .map_err(Into::into)
     })
@@ -103,12 +106,36 @@ pub fn get(
     })
 }
 
+pub fn check_if_should_update_keys(
+    client_generation: i64,
+    client_keys_changed_at: i64,
+    server_generation: i64,
+    server_keys_changed_at: i64
+) -> Result<bool, ApiError> {
+    if server_generation > client_generation {
+        // Error out if this client provided a generation number, but it is behind
+        // the generation number of some previously-seen client.
+        Err(ApiError::from(ApiErrorKind::Internal("invalid-generation".to_string())))
+    } else if server_keys_changed_at > client_keys_changed_at {
+        // Error out if we previously saw a keys_changed_at for this user, but they
+        // haven't provided one or it's earlier than previously seen. This means
+        // that once the IdP starts sending keys_changed_at, we'll error out if it
+        // stops (because we can't generate a proper `fxa_kid` in this case).
+        Err(ApiError::from(ApiErrorKind::Internal("invalid-keysChangedAt".to_string())))
+    } else if client_generation > server_generation || client_keys_changed_at > server_keys_changed_at {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 pub fn get_sync(
     auth: &BearerAuth,
     database_url: String,
     modulus: String,
     exponent: String,
     shared_secret: String,
+    x_key_id: String,
 ) -> Result<TokenServerResult, ApiError> {
     let token_data = decode::<Claims>(
         &auth.token(),
@@ -168,6 +195,25 @@ def encode_bytes(value):
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
+def decode_bytes(value):
+    """Decode BrowserID's base64 encoding format.
+    BrowserID likes to strip padding characters off of base64-encoded strings,
+    meaning we can't use the stdlib routines to decode them directly.  This
+    is a simple wrapper that adds the padding back in.
+    If the value is not correctly encoded, ValueError will be raised.
+    """
+    if isinstance(value, str):
+        value = value.encode("ascii")
+    pad = len(value) % 4
+    if pad == 2:
+        value += b"=="
+    elif pad == 3:
+        value += b"="
+    elif pad != 0:
+        raise ValueError("incorrect b64 encoding")
+    return base64.urlsafe_b64decode(value)
+
+
 def fxa_metrics_hash(value, hmac_key):
     """Derive FxA metrics id from user's FxA email address or whatever.
 
@@ -181,7 +227,15 @@ def fxa_metrics_hash(value, hmac_key):
 
 def hash_device_id(fxa_uid, device, secret):
     return fxa_metrics_hash(fxa_uid[:32] + device, secret)[:32]
-    "###,
+
+
+def parse_key_id(kid):
+    """Parse an FxA key ID into its constituent timestamp and key hash."""
+    keys_changed_at, key_hash = kid.split("-", 1)
+    keys_changed_at = int(keys_changed_at)
+    key_hash = decode_bytes_b64(key_hash)
+    return (keys_changed_at, key_hash)
+"###,
             "main.py",
             "main",
         )
@@ -189,6 +243,29 @@ def hash_device_id(fxa_uid, device, secret):
             e.print_and_set_sys_last_vars(py);
             e
         })?;
+        let (generation, keys_changed_at) = match tokenlib.call1("parse_key_id", (&x_key_id,))
+        {
+            Err(e) => {
+                e.print_and_set_sys_last_vars(py);
+                return Err(e);
+            }
+            Ok(x) => x.extract::<(i64, i64)>().unwrap(),
+        };
+        match check_if_should_update_keys(
+            generation, 
+            keys_changed_at,
+            user_record[0].generation,
+            user_record[0].keys_changed_at.unwrap()) {
+            Ok(true) => {
+                println!("should change keys");
+            }
+            Ok(false) => {
+                println!("should not change keys");
+            }
+            Err(_) => {
+                println!("there was a scary error!");
+            }
+        }
         let client_state_b64 = match tokenlib.call1("encode_bytes", (&user_record[0].client_state,))
         {
             Err(e) => {
