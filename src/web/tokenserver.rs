@@ -16,7 +16,7 @@ use diesel::RunQueryDsl;
 use std::env;
 
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-use pyo3::{prelude::*};
+use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 
 #[derive(Debug)]
@@ -75,7 +75,13 @@ pub fn get(
     auth: BearerAuth,
 ) -> impl Future<Output = Result<HttpResponse, BlockingError<ApiError>>> {
     dbg!(&state.tokenserver_database_url);
-    let x_key_id = req.headers().get("x-keyid").unwrap().to_str().unwrap().to_string();
+    let x_key_id = req
+        .headers()
+        .get("x-keyid")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     block(move || {
         get_sync(
             &auth,
@@ -110,19 +116,25 @@ pub fn check_if_should_update_keys(
     client_generation: i64,
     client_keys_changed_at: i64,
     server_generation: i64,
-    server_keys_changed_at: i64
+    server_keys_changed_at: i64,
 ) -> Result<bool, ApiError> {
     if server_generation > client_generation {
         // Error out if this client provided a generation number, but it is behind
         // the generation number of some previously-seen client.
-        Err(ApiError::from(ApiErrorKind::Internal("invalid-generation".to_string())))
+        Err(ApiError::from(ApiErrorKind::Internal(
+            "invalid-generation".to_string(),
+        )))
     } else if server_keys_changed_at > client_keys_changed_at {
         // Error out if we previously saw a keys_changed_at for this user, but they
         // haven't provided one or it's earlier than previously seen. This means
         // that once the IdP starts sending keys_changed_at, we'll error out if it
         // stops (because we can't generate a proper `fxa_kid` in this case).
-        Err(ApiError::from(ApiErrorKind::Internal("invalid-keysChangedAt".to_string())))
-    } else if client_generation > server_generation || client_keys_changed_at > server_keys_changed_at {
+        Err(ApiError::from(ApiErrorKind::Internal(
+            "invalid-keysChangedAt".to_string(),
+        )))
+    } else if client_generation > server_generation
+        || client_keys_changed_at > server_keys_changed_at
+    {
         Ok(true)
     } else {
         Ok(false)
@@ -225,10 +237,11 @@ def hash_device_id(fxa_uid, device, secret):
         let new_client_state = key_id_iter.next().expect("X-KeyId was the wrong format");
 
         match check_if_should_update_keys(
-            user_record[0].generation, 
+            user_record[0].generation,
             keys_changed_at,
             user_record[0].generation,
-            user_record[0].keys_changed_at.unwrap()) {
+            user_record[0].keys_changed_at.unwrap(),
+        ) {
             Ok(true) => {
                 println!("should change keys");
             }
@@ -239,8 +252,7 @@ def hash_device_id(fxa_uid, device, secret):
                 println!("there was a scary error!");
             }
         }
-        let client_state_b64 = match tokenlib.call1("encode_bytes", (new_client_state,))
-        {
+        let client_state_b64 = match tokenlib.call1("encode_bytes", (new_client_state,)) {
             Err(e) => {
                 e.print_and_set_sys_last_vars(py);
                 return Err(e);
