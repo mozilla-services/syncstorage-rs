@@ -16,7 +16,7 @@ use diesel::RunQueryDsl;
 use std::env;
 
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
-use pyo3::prelude::*;
+use pyo3::{prelude::*};
 use pyo3::types::IntoPyDict;
 
 #[derive(Debug)]
@@ -195,25 +195,6 @@ def encode_bytes(value):
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
-def decode_bytes(value):
-    """Decode BrowserID's base64 encoding format.
-    BrowserID likes to strip padding characters off of base64-encoded strings,
-    meaning we can't use the stdlib routines to decode them directly.  This
-    is a simple wrapper that adds the padding back in.
-    If the value is not correctly encoded, ValueError will be raised.
-    """
-    if isinstance(value, str):
-        value = value.encode("ascii")
-    pad = len(value) % 4
-    if pad == 2:
-        value += b"=="
-    elif pad == 3:
-        value += b"="
-    elif pad != 0:
-        raise ValueError("incorrect b64 encoding")
-    return base64.urlsafe_b64decode(value)
-
-
 def fxa_metrics_hash(value, hmac_key):
     """Derive FxA metrics id from user's FxA email address or whatever.
 
@@ -227,14 +208,6 @@ def fxa_metrics_hash(value, hmac_key):
 
 def hash_device_id(fxa_uid, device, secret):
     return fxa_metrics_hash(fxa_uid[:32] + device, secret)[:32]
-
-
-def parse_key_id(kid):
-    """Parse an FxA key ID into its constituent timestamp and key hash."""
-    keys_changed_at, key_hash = kid.split("-", 1)
-    keys_changed_at = int(keys_changed_at)
-    key_hash = decode_bytes_b64(key_hash)
-    return (keys_changed_at, key_hash)
 "###,
             "main.py",
             "main",
@@ -243,16 +216,16 @@ def parse_key_id(kid):
             e.print_and_set_sys_last_vars(py);
             e
         })?;
-        let (generation, keys_changed_at) = match tokenlib.call1("parse_key_id", (&x_key_id,))
-        {
-            Err(e) => {
-                e.print_and_set_sys_last_vars(py);
-                return Err(e);
-            }
-            Ok(x) => x.extract::<(i64, i64)>().unwrap(),
-        };
+        let mut key_id_iter = x_key_id.split("-");
+        let keys_changed_at = key_id_iter
+            .next()
+            .expect("X-KeyId was the wrong format")
+            .parse::<i64>()
+            .expect("X-KeyId was the wrong format");
+        let new_client_state = key_id_iter.next().expect("X-KeyId was the wrong format");
+
         match check_if_should_update_keys(
-            generation, 
+            user_record[0].generation, 
             keys_changed_at,
             user_record[0].generation,
             user_record[0].keys_changed_at.unwrap()) {
@@ -266,7 +239,7 @@ def parse_key_id(kid):
                 println!("there was a scary error!");
             }
         }
-        let client_state_b64 = match tokenlib.call1("encode_bytes", (&user_record[0].client_state,))
+        let client_state_b64 = match tokenlib.call1("encode_bytes", (new_client_state,))
         {
             Err(e) => {
                 e.print_and_set_sys_last_vars(py);
