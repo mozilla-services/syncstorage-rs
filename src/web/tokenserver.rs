@@ -228,7 +228,7 @@ def hash_device_id(fxa_uid, device, secret):
             e.print_and_set_sys_last_vars(py);
             e
         })?;
-        let mut key_id_iter = x_key_id.split("-");
+        let mut key_id_iter = x_key_id.split('-');
         let keys_changed_at = key_id_iter
             .next()
             .expect("X-KeyId was the wrong format")
