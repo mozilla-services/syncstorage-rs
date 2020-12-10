@@ -250,7 +250,7 @@ def hash_device_id(fxa_uid, device, secret):
                           SET users.generation = ?,
                               users.client_state = ?,
                               users.keys_changed_at = ?
-                             WHERE users.uid = ?"#,
+                        WHERE users.uid = ?"#,
                 )
                 .bind::<Bigint, _>(token_data.claims.generation)
                 .bind::<Text, _>(new_client_state)
