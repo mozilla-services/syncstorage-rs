@@ -888,10 +888,17 @@ impl FromRequest for BsoPutRequest {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+pub struct QuotaInfo {
+    pub enabled: bool,
+    pub size: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
     pub db_pool: Box<dyn DbPool>,
+    pub quota: QuotaInfo,
 }
 
 impl FromRequest for HeartbeatRequest {
@@ -918,7 +925,16 @@ impl FromRequest for HeartbeatRequest {
                 }
             };
             let db_pool = state.db_pool.clone();
-            Ok(HeartbeatRequest { headers, db_pool })
+            let quota = QuotaInfo {
+                enabled: state.quota_enabled,
+                size: state.limits.max_quota_limit,
+            };
+
+            Ok(HeartbeatRequest {
+                headers,
+                db_pool,
+                quota,
+            })
         }
         .boxed_local()
     }
