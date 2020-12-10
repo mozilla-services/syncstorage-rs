@@ -68,7 +68,7 @@ pub struct Claims {
     pub sub: String,
     pub iat: i64,
     pub exp: i64,
-    #[serde(rename = "fxa-generation")] 
+    #[serde(rename = "fxa-generation")]
     pub generation: i64,
 }
 
@@ -264,7 +264,9 @@ def hash_device_id(fxa_uid, device, secret):
                 // noop
             }
             Err(_e) => {
-                return Err(exceptions::PyValueError::new_err("stale generation or keysChangedAt"))
+                return Err(exceptions::PyValueError::new_err(
+                    "stale generation or keysChangedAt",
+                ))
             }
         }
         let client_state_b64 = match tokenlib.call1("encode_bytes", (new_client_state,)) {
