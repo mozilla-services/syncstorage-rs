@@ -126,7 +126,7 @@ pub fn check_if_should_update_keys(
         Err(ApiError::from(ApiErrorKind::Internal(
             "invalid-generation".to_string(),
         )))
-    } else if client_keys_changed_at != 0 && server_keys_changed_at > client_keys_changed_at {
+    } else if server_keys_changed_at > client_keys_changed_at {
         // Error out if we previously saw a keys_changed_at for this user, but they
         // haven't provided one or it's earlier than previously seen. This means
         // that once the IdP starts sending keys_changed_at, we'll error out if it
