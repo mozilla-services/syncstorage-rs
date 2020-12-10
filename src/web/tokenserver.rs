@@ -16,6 +16,7 @@ use diesel::RunQueryDsl;
 use std::env;
 
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+use pyo3::exceptions;
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 
@@ -67,6 +68,8 @@ pub struct Claims {
     pub sub: String,
     pub iat: i64,
     pub exp: i64,
+    #[serde(rename = "fxa-generation")] 
+    pub generation: i64,
 }
 
 pub fn get(
@@ -74,7 +77,6 @@ pub fn get(
     state: Data<ServerState>,
     auth: BearerAuth,
 ) -> impl Future<Output = Result<HttpResponse, BlockingError<ApiError>>> {
-    dbg!(&state.tokenserver_database_url);
     let x_key_id = req
         .headers()
         .get("x-keyid")
@@ -118,13 +120,13 @@ pub fn check_if_should_update_keys(
     server_generation: i64,
     server_keys_changed_at: i64,
 ) -> Result<bool, ApiError> {
-    if server_generation > client_generation {
+    if client_generation != 0 && server_generation > client_generation {
         // Error out if this client provided a generation number, but it is behind
         // the generation number of some previously-seen client.
         Err(ApiError::from(ApiErrorKind::Internal(
             "invalid-generation".to_string(),
         )))
-    } else if server_keys_changed_at > client_keys_changed_at {
+    } else if client_keys_changed_at != 0 && server_keys_changed_at > client_keys_changed_at {
         // Error out if we previously saw a keys_changed_at for this user, but they
         // haven't provided one or it's earlier than previously seen. This means
         // that once the IdP starts sending keys_changed_at, we'll error out if it
@@ -237,19 +239,32 @@ def hash_device_id(fxa_uid, device, secret):
         let new_client_state = key_id_iter.next().expect("X-KeyId was the wrong format");
 
         match check_if_should_update_keys(
-            user_record[0].generation,
+            token_data.claims.generation,
             keys_changed_at,
             user_record[0].generation,
             user_record[0].keys_changed_at.unwrap(),
         ) {
             Ok(true) => {
-                println!("should change keys");
+                diesel::sql_query(
+                    r#"UPDATE users
+                          SET users.generation = ?,
+                              users.client_state = ?,
+                              users.keys_changed_at = ?
+                             WHERE users.uid = ?"#,
+                )
+                .bind::<Bigint, _>(token_data.claims.generation)
+                .bind::<Text, _>(new_client_state)
+                .bind::<Bigint, _>(keys_changed_at)
+                .bind::<Bigint, _>(user_record[0].uid)
+                .execute(&connection)
+                .unwrap();
             }
             Ok(false) => {
-                println!("should not change keys");
+                // should not change keys
+                // noop
             }
-            Err(_) => {
-                println!("there was a scary error!");
+            Err(_e) => {
+                return Err(exceptions::PyValueError::new_err("stale generation or keysChangedAt"))
             }
         }
         let client_state_b64 = match tokenlib.call1("encode_bytes", (new_client_state,)) {
