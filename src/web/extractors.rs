@@ -1131,7 +1131,7 @@ pub struct Offset {
 impl ToString for Offset {
     fn to_string(&self) -> String {
         let result = format!(
-            "{:?}:{}",
+            "{}:{}",
             self.timestamp.map(|v| v.as_i64()).unwrap_or(0),
             self.offset.clone().unwrap_or_default()
         );

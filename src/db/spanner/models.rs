@@ -1237,11 +1237,6 @@ impl SpannerDb {
         // if the offset has not yet been applied (we set it to None if we have), then apply it using the
         // default sorting rules.
         if let Some(ref offset) = offset {
-            // Special case no limit specified but still required for an
-            // offset. Spanner doesn't accept a simpler limit of -1 (common in
-            // most databases) so we specify a max value with offset subtracted
-            // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
-            // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
             let direction = if sort == Sorting::Oldest { ">=" } else { "<=" };
             if let Some(timestamp) = offset.timestamp {
                 query = format!("{} AND modified {} @modified ", query, direction);
@@ -1275,17 +1270,20 @@ impl SpannerDb {
 
     pub fn encode_next_offset(
         &self,
-        _sort: Sorting,
         offset: Option<String>,
         timestamp: Option<i64>,
-    ) -> Option<String> {
-        Some(
-            Offset {
-                offset,
-                timestamp: timestamp.map(|v| SyncTimestamp::from_i64(v).unwrap_or_default()),
-            }
-            .to_string(),
-        )
+    ) -> Result<String> {
+        Ok(Offset {
+            offset,
+            timestamp: {
+                if let Some(ts) = timestamp {
+                    Some(SyncTimestamp::from_i64(ts)?)
+                } else {
+                    None
+                }
+            },
+        }
+        .to_string())
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
@@ -1297,7 +1295,6 @@ impl SpannerDb {
                AND collection_id = @collection_id
                AND expiry > CURRENT_TIMESTAMP()";
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let sort = params.params.sort;
 
         let mut streaming = self.bsos_query_async(query, params).await?;
         let mut bsos = vec![];
@@ -1318,7 +1315,7 @@ impl SpannerDb {
             let (offset, timestamp) = bso
                 .map(|b| (Some(b.id), Some(b.modified.as_i64())))
                 .unwrap_or((None, None));
-            self.encode_next_offset(sort, offset, timestamp)
+            Some(self.encode_next_offset(offset, timestamp)?)
         } else {
             None
         };
@@ -1331,7 +1328,6 @@ impl SpannerDb {
 
     pub async fn get_bso_ids_async(&self, params: params::GetBsos) -> Result<results::GetBsoIds> {
         let limit = params.params.limit.map(i64::from).unwrap_or(-1);
-        let sort = params.params.sort;
 
         let query = "\
             SELECT bso_id, modified
@@ -1357,7 +1353,7 @@ impl SpannerDb {
         // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            self.encode_next_offset(sort, ids.pop(), modifieds.pop())
+            Some(self.encode_next_offset(ids.pop(), modifieds.pop())?)
         } else {
             None
         };
