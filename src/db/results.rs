@@ -31,7 +31,7 @@ pub type ValidateBatch = bool;
 pub type AppendToBatch = ();
 pub type GetBatch = params::Batch;
 pub type DeleteBatch = ();
-pub type CommitBatch = PostBsos;
+pub type CommitBatch = SyncTimestamp;
 pub type ValidateBatchId = ();
 pub type Check = bool;
 

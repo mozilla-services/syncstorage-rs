@@ -29,7 +29,7 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install tokenlib
+            pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson tokenlib unittest2 WebTest WSGIProxy2
   rust-check:
     steps:
       - run:
@@ -88,7 +88,7 @@ commands:
                -f docker-compose.yaml
                -f docker-compose.e2e.yaml
                up
-               --exit-code-from server-syncstorage
+               --exit-code-from e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
