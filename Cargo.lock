@@ -422,13 +422,15 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "bb8"
-version = "0.4.2"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "374bba43fc924d90393ee7768e6f75d223a98307a488fe5bc34b66c3e96932a6"
+checksum = "4a4d5a11ea6fe65800f3225ab57f7c28024595c99e809a0ca7eee60a8e3fa24b"
 dependencies = [
  "async-trait",
- "futures 0.3.8",
- "tokio 0.2.24",
+ "futures-channel",
+ "futures-util",
+ "parking_lot",
+ "tokio 0.3.6",
 ]
 
 [[package]]
@@ -3148,7 +3150,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "720ba21c25078711bf456d607987d95bce90f7c3bea5abe1db587862e7a1e87c"
 dependencies = [
  "autocfg",
+ "parking_lot",
  "pin-project-lite 0.2.0",
+ "slab",
 ]
 
 [[package]]
