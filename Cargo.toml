@@ -39,7 +39,7 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.7.0" }
+grpcio = { version = "0.7.1" }
 lazy_static = "1.4.0"
 pyo3 = "0.12.4"
 hawk = "3.2"
