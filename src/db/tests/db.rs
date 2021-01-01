@@ -13,7 +13,7 @@ use crate::web::extractors::HawkIdentifier;
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
 
 lazy_static! {
-    static ref UID: u32 = thread_rng().gen_range(0, 10000);
+    static ref UID: u32 = thread_rng().gen_range(0..10000);
 }
 
 #[tokio::test]
@@ -615,20 +615,19 @@ async fn get_collection_usage() -> Result<()> {
 
     let uid = 5;
     let mut expected = HashMap::new();
-    let mut rng = thread_rng();
 
     for &coll in ["bookmarks", "history", "prefs"].iter() {
         for i in 0..5 {
-            let size = 50 + rng.gen_range(0, 100);
-            let payload = rng
+            let size = 50 + thread_rng().gen_range(0..100);
+            let payload = thread_rng()
                 .sample_iter(&Alphanumeric)
                 .take(size)
-                .collect::<String>();
+                .collect::<Vec<u8>>();
             db.put_bso(pbso(
                 uid,
                 coll,
                 &format!("b{}", i as i32),
-                Some(&payload),
+                Some(&String::from_utf8_lossy(&payload)),
                 None,
                 None,
             ))
@@ -677,10 +676,11 @@ async fn test_quota() -> Result<()> {
     let coll = "bookmarks";
 
     let size = 5000;
-    let payload = thread_rng()
+    let random = thread_rng()
         .sample_iter(&Alphanumeric)
         .take(size)
-        .collect::<String>();
+        .collect::<Vec<u8>>();
+    let payload = String::from_utf8_lossy(&random);
     db.set_quota(false, 0, false);
 
     // These should work
@@ -712,7 +712,7 @@ async fn get_collection_counts() -> Result<()> {
     let mut rng = thread_rng();
 
     for &coll in ["bookmarks", "history", "prefs"].iter() {
-        let count = 5 + rng.gen_range(0, 5);
+        let count = 5 + rng.gen_range(0..5);
         expected.insert(coll.to_owned(), count);
         for i in 0..count {
             db.put_bso(pbso(uid, coll, &format!("b{}", i), Some("x"), None, None))
