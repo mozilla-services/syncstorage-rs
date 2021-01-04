@@ -2991,7 +2991,7 @@ dependencies = [
  "slog-stdlog",
  "slog-term",
  "time 0.2.23",
- "tokio 0.2.24",
+ "tokio 1.0.1",
  "url 2.2.0",
  "urlencoding",
  "uuid",
@@ -3172,7 +3172,6 @@ dependencies = [
  "pin-project-lite 0.1.11",
  "signal-hook-registry",
  "slab",
- "tokio-macros",
  "winapi 0.3.9",
 ]
 
@@ -3184,13 +3183,14 @@ checksum = "d258221f566b6c803c7b4714abadc080172b272090cdc5e244a6d4dd13c3a6bd"
 dependencies = [
  "autocfg",
  "pin-project-lite 0.2.0",
+ "tokio-macros",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "0.2.6"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e44da00bfc73a25f814cd8d7e57a68a5c31b74b3152a0a1d1f590c97ed06265a"
+checksum = "42517d2975ca3114b22a16192634e8241dc5cc1f130be194645970cc1c371494"
 dependencies = [
  "proc-macro2",
  "quote",
