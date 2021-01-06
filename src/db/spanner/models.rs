@@ -811,7 +811,6 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
-        dbg!(&result);
         if let Some(result) = result {
             let total_bytes = if self.quota.enabled {
                 result[0]
@@ -891,7 +890,6 @@ impl SpannerDb {
             // really bad already happened.)
             let stored_bytes = i64::from_str(&result[0].take_string_value()).unwrap_or_default();
             let total_bytes = stored_bytes + payload_size.unwrap_or_default();
-            dbg!(stored_bytes, payload_size, total_bytes);
             if self.quota.enabled {
                 sqlparams.insert("total_bytes".to_owned(), as_value(total_bytes.to_string()));
                 sqlparams.insert("count".to_owned(), as_value(result[1].take_string_value()));
@@ -1526,7 +1524,6 @@ impl SpannerDb {
             .await?;
 
         let current_data_size = if !params.for_batch {
-            dbg!("Checking size...");
             self.check_quota(&user_id, &params.collection, collection_id)
                 .await?
         } else {
@@ -1561,17 +1558,11 @@ impl SpannerDb {
         let mut existing: HashMap<String, i64> = HashMap::new();
         while let Some(row) = streaming.next_async().await {
             let mut row = row?;
-            dbg!(&row);
             existing.insert(
                 row[0].take_string_value(),
                 i64::from_str(&row[1].take_string_value()).unwrap_or_default(),
             );
         }
-        dbg!(
-            current_data_size,
-            &existing,
-            pbso_ids.collect::<Vec<String>>()
-        );
         let mut inserts = vec![];
         let mut updates = HashMap::new();
         let mut success = vec![];
@@ -1584,7 +1575,6 @@ impl SpannerDb {
                 let existing_size = existing.get(&bso.id).unwrap_or(&0);
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
-                dbg!("Adjusting...", &payload_len, &existing_size);
                 payload_size += payload_len - existing_size;
                 updates.entry(columns).or_insert_with(Vec::new).push(values);
             } else {
@@ -1595,7 +1585,6 @@ impl SpannerDb {
             }
         }
         if current_data_size + payload_size as usize > self.quota.size {
-            dbg!("Over quota");
             return Err(DbErrorKind::Quota.into());
         }
         if load_size > MAX_SPANNER_LOAD_SIZE {
