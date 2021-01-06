@@ -1,10 +1,5 @@
 use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    fmt,
-    ops::Deref,
-    sync::Arc,
+    cell::RefCell, collections::HashMap, convert::TryInto, fmt, ops::Deref, str::FromStr, sync::Arc,
 };
 
 use futures::future::TryFutureExt;
@@ -816,6 +811,7 @@ impl SpannerDb {
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
+        dbg!(&result);
         if let Some(result) = result {
             let total_bytes = if self.quota.enabled {
                 result[0]
@@ -839,12 +835,17 @@ impl SpannerDb {
         &self,
         user: &HawkIdentifier,
         collection_id: i32,
+        payload_size: Option<i64>,
+        payload_count: Option<i64>,
     ) -> Result<SyncTimestamp> {
         // This will also update the counts in user_collections, since `update_collection_sync`
         // is called very early to ensure the record exists, and return the timestamp.
         // This will also write the tombstone if there are no records and we're explicitly
         // specifying a TOMBSTONE collection_id.
         // This function should be called after any write operation.
+        //
+        // NOTE: Spanner mutations do not read your writes, meaning that space calculations will
+        // not include any data changes included in this mutation.
         let timestamp = self.timestamp()?;
         let mut sqlparams = params! {
             "fxa_uid" => user.fxa_uid.clone(),
@@ -888,11 +889,11 @@ impl SpannerDb {
             // Update the user_collections table to reflect current numbers.
             // If there are BSOs, there are user_collections (or else something
             // really bad already happened.)
+            let stored_bytes = i64::from_str(&result[0].take_string_value()).unwrap_or_default();
+            let total_bytes = stored_bytes + payload_size.unwrap_or_default();
+            dbg!(stored_bytes, payload_size, total_bytes);
             if self.quota.enabled {
-                sqlparams.insert(
-                    "total_bytes".to_owned(),
-                    as_value(result[0].take_string_value()),
-                );
+                sqlparams.insert("total_bytes".to_owned(), as_value(total_bytes.to_string()));
                 sqlparams.insert("count".to_owned(), as_value(result[1].take_string_value()));
                 sqltypes.insert(
                     "total_bytes".to_owned(),
@@ -919,6 +920,22 @@ impl SpannerDb {
         } else {
             // Otherwise, there are no BSOs that match, check to see if there are
             // any collections.
+            sqlparams.insert(
+                "total_bytes".to_owned(),
+                as_value(payload_size.unwrap_or_default().to_string()),
+            );
+            sqlparams.insert(
+                "count".to_owned(),
+                as_value(payload_count.unwrap_or_default().to_string()),
+            );
+            sqltypes.insert(
+                "total_bytes".to_owned(),
+                crate::db::spanner::support::as_type(TypeCode::INT64),
+            );
+            sqltypes.insert(
+                "count".to_owned(),
+                crate::db::spanner::support::as_type(TypeCode::INT64),
+            );
             let result = self
                 .sql(
                     "SELECT 1 FROM user_collections
@@ -933,7 +950,7 @@ impl SpannerDb {
                 // No collections, so insert what we've got.
                 if self.quota.enabled {
                     "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified, total_bytes, count)
-                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, 0, 0)"
+                    VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified, @total_bytes, @count)"
                 } else {
                     "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
                     VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
@@ -942,7 +959,7 @@ impl SpannerDb {
                 // there are collections, best modify what's there.
                 // NOTE, tombstone is a single collection id, it would have been created above.
                 if self.quota.enabled {
-                    "UPDATE user_collections SET modified=@modified, total_bytes=0, count=0
+                    "UPDATE user_collections SET modified=@modified, total_bytes=@total_bytes, count=@count
                     WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id"
                 } else {
                     "UPDATE user_collections SET modified=@modified
@@ -980,7 +997,7 @@ impl SpannerDb {
         .param_types(types.clone())
         .execute_dml_async(&self.conn)
         .await?;
-        self.update_user_collection_quotas(user_id, TOMBSTONE)
+        self.update_user_collection_quotas(user_id, TOMBSTONE, None, None)
             .await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
@@ -1157,7 +1174,7 @@ impl SpannerDb {
         } else {
             self.metrics.incr("storage.spanner.delete_bso");
             Ok(self
-                .update_user_collection_quotas(&user_id, collection_id)
+                .update_user_collection_quotas(&user_id, collection_id, None, None)
                 .await?)
         }
     }
@@ -1190,7 +1207,7 @@ impl SpannerDb {
             .insert("collection".to_string(), params.collection.clone());
         self.metrics
             .incr_with_tags("self.storage.delete_bsos", Some(tags));
-        self.update_user_collection_quotas(&params.user_id, collection_id)
+        self.update_user_collection_quotas(&params.user_id, collection_id, None, None)
             .await
     }
 
@@ -1508,10 +1525,14 @@ impl SpannerDb {
             .get_or_create_collection_id_async(&params.collection)
             .await?;
 
-        if !params.for_batch {
+        let current_data_size = if !params.for_batch {
+            dbg!("Checking size...");
             self.check_quota(&user_id, &params.collection, collection_id)
-                .await?;
+                .await?
+        } else {
+            None
         }
+        .unwrap_or_default();
 
         // Ensure a parent record exists in user_collections before writing to
         // bsos (INTERLEAVE IN PARENT user_collections)
@@ -1524,13 +1545,11 @@ impl SpannerDb {
             "fxa_kid" => user_id.fxa_kid.clone(),
             "collection_id" => collection_id.to_string(),
         };
-        sqlparams.insert(
-            "ids".to_owned(),
-            as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
-        );
+        let pbso_ids = params.bsos.iter().map(|pbso| pbso.id.clone());
+        sqlparams.insert("ids".to_owned(), as_list_value(pbso_ids.clone()));
         let mut streaming = self
             .sql(
-                "SELECT bso_id
+                "SELECT bso_id, BYTE_LENGTH(payload)
                    FROM bsos
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
@@ -1539,26 +1558,45 @@ impl SpannerDb {
             )?
             .params(sqlparams)
             .execute_async(&self.conn)?;
-        let mut existing = HashSet::new();
+        let mut existing: HashMap<String, i64> = HashMap::new();
         while let Some(row) = streaming.next_async().await {
             let mut row = row?;
-            existing.insert(row[0].take_string_value());
+            dbg!(&row);
+            existing.insert(
+                row[0].take_string_value(),
+                i64::from_str(&row[1].take_string_value()).unwrap_or_default(),
+            );
         }
+        dbg!(
+            current_data_size,
+            &existing,
+            pbso_ids.collect::<Vec<String>>()
+        );
         let mut inserts = vec![];
         let mut updates = HashMap::new();
         let mut success = vec![];
         let mut load_size: usize = 0;
+        let mut payload_size: i64 = 0;
         for bso in params.bsos {
+            let payload_len = bso.payload.clone().unwrap_or_else(|| "".to_owned()).len() as i64;
             success.push(bso.id.clone());
-            if existing.contains(&bso.id) {
+            if existing.contains_key(&bso.id) {
+                let existing_size = existing.get(&bso.id).unwrap_or(&0);
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
+                dbg!("Adjusting...", &payload_len, &existing_size);
+                payload_size += payload_len - existing_size;
                 updates.entry(columns).or_insert_with(Vec::new).push(values);
             } else {
+                payload_size += payload_len;
                 let values = bso_to_insert_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
                 inserts.push(values);
             }
+        }
+        if current_data_size + payload_size as usize > self.quota.size {
+            dbg!("Over quota");
+            return Err(DbErrorKind::Quota.into());
         }
         if load_size > MAX_SPANNER_LOAD_SIZE {
             self.metrics.clone().incr("error.tooMuchData");
@@ -1572,6 +1610,8 @@ impl SpannerDb {
             ))
             .into());
         }
+
+        let insert_count = inserts.len();
 
         if !inserts.is_empty() {
             self.insert(
@@ -1594,8 +1634,13 @@ impl SpannerDb {
         }
         if !params.for_batch {
             // update the quotas
-            self.update_user_collection_quotas(&user_id, collection_id)
-                .await?;
+            self.update_user_collection_quotas(
+                &user_id,
+                collection_id,
+                Some(payload_size),
+                Some(insert_count as i64),
+            )
+            .await?;
         }
 
         let result = results::PostBsos {
@@ -1675,6 +1720,7 @@ impl SpannerDb {
         self.update_collection_async(&bso.user_id, collection_id, &bso.collection)
             .await?;
         let timestamp = self.timestamp()?;
+        let mut payload_size: i64 = 0;
 
         let result = self
             .sql(
@@ -1786,10 +1832,9 @@ impl SpannerDb {
                 sqlparams.insert("sortindex".to_string(), sortindex);
                 sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
-            sqlparams.insert(
-                "payload".to_string(),
-                as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
-            );
+            let payload = bso.payload.unwrap_or_default();
+            payload_size += payload.len() as i64;
+            sqlparams.insert("payload".to_string(), as_value(payload));
             let now_millis = timestamp.as_i64();
             let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
                 ttl.try_into()
@@ -1814,7 +1859,7 @@ impl SpannerDb {
             .execute_dml_async(&self.conn)
             .await?;
         // update the counts for the user_collections table.
-        self.update_user_collection_quotas(&bso.user_id, collection_id)
+        self.update_user_collection_quotas(&bso.user_id, collection_id, Some(payload_size), Some(1))
             .await
     }
 
@@ -1830,9 +1875,12 @@ impl SpannerDb {
             success: Default::default(),
             failed: input.failed,
         };
+        let mut payload_size = 0;
+        let bso_count = input.bsos.len();
 
         for pbso in input.bsos {
             let id = pbso.id;
+            payload_size += pbso.payload.clone().unwrap_or_default().len() as i64;
             self.put_bso_async_test(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
@@ -1844,8 +1892,13 @@ impl SpannerDb {
             .await?;
             result.success.push(id);
         }
-        self.update_user_collection_quotas(&input.user_id, collection_id)
-            .await?;
+        self.update_user_collection_quotas(
+            &input.user_id,
+            collection_id,
+            Some(payload_size),
+            Some(bso_count as i64),
+        )
+        .await?;
         Ok(result)
     }
 }

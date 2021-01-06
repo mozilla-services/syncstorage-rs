@@ -1389,7 +1389,7 @@ impl FromRequest for BatchRequestOpt {
 
             let id = match params.batch {
                 None => None,
-                Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
+                Some(ref batch) if batch.is_empty() || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
                     let pool = transaction_pool.get_pool()?;

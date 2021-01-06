@@ -29,11 +29,7 @@ impl HawkError {
     }
 
     pub fn is_reportable(&self) -> bool {
-        match &self.kind() {
-            HawkErrorKind::TruncatedId => true,
-            HawkErrorKind::Parse(_) => true,
-            _ => false,
-        }
+        matches!(&self.kind(), HawkErrorKind::TruncatedId | HawkErrorKind::Parse(_))
     }
 
     pub fn metric_label(&self) -> Option<String> {

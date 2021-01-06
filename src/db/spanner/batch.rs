@@ -233,7 +233,7 @@ pub async fn commit_async(
     // XXX: returning results::PostBsos here isn't needed
     // update the quotas for the user's collection
     if db.quota.enabled {
-        db.update_user_collection_quotas(&params.user_id, collection_id)
+        db.update_user_collection_quotas(&params.user_id, collection_id, None, None)
             .await?;
     }
     Ok(timestamp)
