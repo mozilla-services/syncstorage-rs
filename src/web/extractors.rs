@@ -1958,7 +1958,7 @@ mod tests {
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
-            "payload": "xxx", "sortindex": -9_999_999_999 as i64,
+            "payload": "xxx", "sortindex": -9_999_999_999_i64,
         });
         let req = TestRequest::with_uri(&uri)
             .data(state)
