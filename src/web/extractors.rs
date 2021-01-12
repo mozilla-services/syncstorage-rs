@@ -1389,7 +1389,7 @@ impl FromRequest for BatchRequestOpt {
 
             let id = match params.batch {
                 None => None,
-                Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
+                Some(ref batch) if batch.is_empty() || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
                     let pool = transaction_pool.get_pool()?;
@@ -1686,7 +1686,7 @@ mod tests {
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
-        static ref USER_ID: u64 = thread_rng().gen_range(0, 10000);
+        static ref USER_ID: u64 = thread_rng().gen_range(0..10000);
         static ref USER_ID_STR: String = USER_ID.to_string();
     }
 
@@ -1958,7 +1958,7 @@ mod tests {
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
-            "payload": "xxx", "sortindex": -9_999_999_999 as i64,
+            "payload": "xxx", "sortindex": -9_999_999_999_i64,
         });
         let req = TestRequest::with_uri(&uri)
             .data(state)
