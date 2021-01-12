@@ -69,7 +69,7 @@ fn urldecode(s: &str) -> Result<String, ApiError> {
     Ok(decoded)
 }
 
-#[derive(Clone, Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
     #[validate(custom = "validate_body_bso_id")]
     pub id: String,
@@ -82,7 +82,7 @@ pub struct BatchBsoBody {
 
 impl BatchBsoBody {
     /// Function to convert valid raw JSON BSO body to a BatchBsoBody
-    fn from_raw_bso(val: &Value) -> Result<BatchBsoBody, String> {
+    fn from_raw_bso(val: Value) -> Result<BatchBsoBody, String> {
         let map = val.as_object().ok_or("invalid json")?;
         // Verify all the keys are valid. modified/collection are allowed but ignored
         let valid_keys = [
@@ -98,7 +98,7 @@ impl BatchBsoBody {
                 return Err(format!("unknown field {}", key_name));
             }
         }
-        serde_json::from_value(val.clone())
+        serde_json::from_value(val)
             .map_err(|_| "invalid json".to_string())
             .and_then(|v: BatchBsoBody| match v.validate() {
                 Ok(()) => Ok(v),
@@ -136,7 +136,7 @@ fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> 
     "invalid".to_string()
 }
 
-#[derive(Clone, Default, Deserialize)]
+#[derive(Default, Deserialize)]
 pub struct BsoBodies {
     pub valid: Vec<BatchBsoBody>,
     pub invalid: HashMap<String, String>,
@@ -304,7 +304,7 @@ impl FromRequest for BsoBodies {
                         .into(),
                     );
                 };
-                match BatchBsoBody::from_raw_bso(&bso) {
+                match BatchBsoBody::from_raw_bso(bso) {
                     Ok(b) => {
                         // Is this record too large? Deny if it is.
                         let payload_size = b
