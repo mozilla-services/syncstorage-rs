@@ -23,11 +23,11 @@ actix-cors = "0.5"
 async-trait = "0.1.40"
 base64 = "0.13"
 bb8 = "0.4.1"
-bytes = "0.6"
-cadence = "0.22"
+bytes = "1.0"
+cadence = "0.23"
 chrono = "0.4"
 config = "0.10"
-deadpool = "0.6"
+deadpool = "0.7"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
@@ -39,9 +39,9 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.7.0" }
+grpcio = { version = "0.7" }
 lazy_static = "1.4.0"
-pyo3 = "0.12.4"
+pyo3 = "0.13"
 hawk = "3.2"
 hostname = "0.3.1"
 hkdf = "0.10"
@@ -51,8 +51,8 @@ log = { version = "0.4", features = ["max_level_info", "release_max_level_info"]
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.18.0"
-rand = "0.7"
+protobuf = "2.20.0"
+rand = "0.8"
 regex = "1.4"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
 sentry = { version = "0.19", features = ["with_curl_transport"] }
@@ -69,10 +69,10 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 time = "^0.2.23"
-tokio = { version = "0.2", features = ["macros"] }
+tokio = { version = "1.0", features = ["macros", "sync", "rt"] }
 url = "2.1"
 urlencoding = "1.1"
-uuid = { version = "0.8.1", features = ["serde", "v4"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.12"
 validator_derive = "0.12"
 woothee = "0.11"

@@ -30,7 +30,7 @@ lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     static ref SECRETS: Arc<Secrets> =
         Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/test.rs"));
-    static ref RAND_UID: u32 = thread_rng().gen_range(0, 10000);
+    static ref RAND_UID: u32 = thread_rng().gen_range(0..10000);
 }
 
 const TEST_HOST: &str = "localhost";
