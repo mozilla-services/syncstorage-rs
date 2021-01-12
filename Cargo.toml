@@ -51,7 +51,7 @@ log = { version = "0.4", features = ["max_level_info", "release_max_level_info"]
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.18.0"
+protobuf = "2.20.0"
 rand = "0.8"
 regex = "1.4"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
@@ -72,7 +72,7 @@ time = "^0.2.23"
 tokio = { version = "1.0", features = ["macros", "sync", "rt"] }
 url = "2.1"
 urlencoding = "1.1"
-uuid = { version = "0.8.1", features = ["serde", "v4"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.12"
 validator_derive = "0.12"
 woothee = "0.11"
