@@ -43,6 +43,8 @@ pub struct Settings {
     pub database_pool_max_size: Option<u32>,
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
+    /// Pool timeout when waiting for a slot to become available, in seconds
+    pub database_pool_connection_timeout: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
@@ -79,6 +81,7 @@ impl Default for Settings {
             tokenserver_database_url: None,
             database_pool_max_size: None,
             database_pool_min_idle: None,
+            database_pool_connection_timeout: Some(30),
             #[cfg(test)]
             database_use_test_transactions: false,
             actix_keep_alive: None,
