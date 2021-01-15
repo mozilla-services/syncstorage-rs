@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bb8::ErrorSink;
@@ -48,9 +48,16 @@ impl SpannerDbPool {
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let max_size = settings.database_pool_max_size.unwrap_or(10);
+        let max_size = settings.database_pool_max_size.unwrap_or(10) as usize;
+        let wait = settings
+            .database_pool_connection_timeout
+            .map(|seconds| Duration::from_secs(seconds as u64));
         let manager = SpannerSessionManager::new(settings, metrics)?;
-        let config = deadpool::managed::PoolConfig::new(max_size as usize);
+        let timeouts = deadpool::managed::Timeouts {
+            wait,
+            ..Default::default()
+        };
+        let config = deadpool::managed::PoolConfig { max_size, timeouts };
         let pool = deadpool::managed::Pool::from_config(manager, config);
 
         Ok(Self {

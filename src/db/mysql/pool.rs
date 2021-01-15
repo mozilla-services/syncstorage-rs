@@ -6,6 +6,7 @@ use std::{
     collections::HashMap,
     fmt,
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use diesel::{
@@ -70,6 +71,9 @@ impl MysqlDbPool {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size.unwrap_or(10))
+            .connection_timeout(Duration::from_secs(
+                settings.database_pool_max_size.unwrap_or(30) as u64,
+            ))
             .min_idle(settings.database_pool_min_idle);
 
         #[cfg(test)]
