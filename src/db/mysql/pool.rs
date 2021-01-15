@@ -72,7 +72,7 @@ impl MysqlDbPool {
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size.unwrap_or(10))
             .connection_timeout(Duration::from_secs(
-                settings.database_pool_max_size.unwrap_or(30) as u64,
+                settings.database_pool_connection_timeout.unwrap_or(30) as u64,
             ))
             .min_idle(settings.database_pool_min_idle);
 
