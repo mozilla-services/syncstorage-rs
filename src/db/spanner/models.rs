@@ -1234,10 +1234,21 @@ impl SpannerDb {
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
 
+        //               AND expiry > CURRENT_TIMESTAMP() AND modified > @newer AND modified >= @modified  AND bso_id >= @offset_id  ORDER BY modified ASC, bso_id ASC LIMIT 3
+        //
+        //               AND expiry > CURRENT_TIMESTAMP() AND modified > @newer AND (modified, bso_id) >= (@modified, @offset_id)  ORDER BY modified ASC, bso_id ASC LIMIT 3
+        //
+        //               AND expiry > CURRENT_TIMESTAMP() AND modified > @newer OR (modified = @newer AND bso_id >= @offset_id)  ORDER BY modified ASC, bso_id ASC LIMIT 3
+        //
+        // WHERE (is_special, registered_on) < (@cursor.is_special, @cursor.registered_on)
+        // WHERE (is_special < @cursor.is_special) OR (is_special = @cursor.is_special AND registered_on < @cursor.registered_on)
+
+
         // if the offset has not yet been applied (we set it to None if we have), then apply it using the
         // default sorting rules.
         if let Some(ref offset) = offset {
             let direction = if sort == Sorting::Oldest { ">=" } else { "<=" };
+            /*
             if let Some(timestamp) = offset.timestamp {
                 query = format!("{} AND modified {} @modified ", query, direction);
                 sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
@@ -1247,6 +1258,15 @@ impl SpannerDb {
                 query = format!("{} AND bso_id {} @offset_id ", query, direction);
                 sqlparams.insert("offset_id".to_string(), as_value(offset.clone()));
             }
+             */
+            let timestamp = offset.timestamp.unwrap();
+            let offset = offset.offset.as_ref().unwrap();
+            //query = format!("{} AND (modified {} @modified OR (modified = @modified AND bso_id {} @offset_id))", query, direction, direction);
+            query = format!("{} AND (bso_id {} @offset_id OR (bso_id = @offset_id AND modified {} @modified))", query, direction, direction);
+                sqlparams.insert("offset_id".to_string(), as_value(offset.clone()));
+                sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
+                sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
+
         }
         query = match sort {
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
@@ -1262,6 +1282,9 @@ impl SpannerDb {
             query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
         };
 
+        eprintln!("++++++++++++++++++++++++++++++++++++++++++++++++++");
+        eprintln!("query:\n {}\nparams:\n{:#?}\ntypes:\n{:#?}\n", query, sqlparams, sqltypes);
+        eprintln!("||||++++++++++++++++++++++++++++++++++++++++++++++++++");
         self.sql(&query)?
             .params(sqlparams)
             .param_types(sqltypes)
@@ -1277,6 +1300,7 @@ impl SpannerDb {
             offset,
             timestamp: {
                 if let Some(ts) = timestamp {
+                    eprintln!("encode_next: {:#?}", SyncTimestamp::from_i64(ts).unwrap());
                     Some(SyncTimestamp::from_i64(ts)?)
                 } else {
                     None
@@ -1312,6 +1336,9 @@ impl SpannerDb {
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             let bso = bsos.pop();
+            eprintln!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
+            eprintln!("bsos: {:#?}", bsos);
+            eprintln!("bso: {:#?}", bso);
             let (offset, timestamp) = bso
                 .map(|b| (Some(b.id), Some(b.modified.as_i64())))
                 .unwrap_or((None, None));
