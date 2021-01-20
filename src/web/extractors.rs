@@ -69,7 +69,7 @@ fn urldecode(s: &str) -> Result<String, ApiError> {
     Ok(decoded)
 }
 
-#[derive(Clone, Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
     #[validate(custom = "validate_body_bso_id")]
     pub id: String,
@@ -82,7 +82,7 @@ pub struct BatchBsoBody {
 
 impl BatchBsoBody {
     /// Function to convert valid raw JSON BSO body to a BatchBsoBody
-    fn from_raw_bso(val: &Value) -> Result<BatchBsoBody, String> {
+    fn from_raw_bso(val: Value) -> Result<BatchBsoBody, String> {
         let map = val.as_object().ok_or("invalid json")?;
         // Verify all the keys are valid. modified/collection are allowed but ignored
         let valid_keys = [
@@ -98,7 +98,7 @@ impl BatchBsoBody {
                 return Err(format!("unknown field {}", key_name));
             }
         }
-        serde_json::from_value(val.clone())
+        serde_json::from_value(val)
             .map_err(|_| "invalid json".to_string())
             .and_then(|v: BatchBsoBody| match v.validate() {
                 Ok(()) => Ok(v),
@@ -136,7 +136,7 @@ fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> 
     "invalid".to_string()
 }
 
-#[derive(Clone, Default, Deserialize)]
+#[derive(Default, Deserialize)]
 pub struct BsoBodies {
     pub valid: Vec<BatchBsoBody>,
     pub invalid: HashMap<String, String>,
@@ -304,7 +304,7 @@ impl FromRequest for BsoBodies {
                         .into(),
                     );
                 };
-                match BatchBsoBody::from_raw_bso(&bso) {
+                match BatchBsoBody::from_raw_bso(bso) {
                     Ok(b) => {
                         // Is this record too large? Deny if it is.
                         let payload_size = b
@@ -1398,7 +1398,7 @@ impl FromRequest for BatchRequestOpt {
 
             let id = match params.batch {
                 None => None,
-                Some(ref batch) if batch == "" || TRUE_REGEX.is_match(&batch) => None,
+                Some(ref batch) if batch.is_empty() || TRUE_REGEX.is_match(&batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
                     let pool = transaction_pool.get_pool()?;
@@ -1695,7 +1695,7 @@ mod tests {
     lazy_static! {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
-        static ref USER_ID: u64 = thread_rng().gen_range(0, 10000);
+        static ref USER_ID: u64 = thread_rng().gen_range(0..10000);
         static ref USER_ID_STR: String = USER_ID.to_string();
     }
 
@@ -1967,7 +1967,7 @@ mod tests {
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
-            "payload": "xxx", "sortindex": -9_999_999_999 as i64,
+            "payload": "xxx", "sortindex": -9_999_999_999_i64,
         });
         let req = TestRequest::with_uri(&uri)
             .data(state)
