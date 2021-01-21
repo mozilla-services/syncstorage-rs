@@ -1582,6 +1582,35 @@ class TestStorage(StorageFunctionalTestCase):
         resp3 = self.app.get(endpoint + '/e')
         self.assertEquals(committed, resp3.json['modified'])
 
+
+    def test_batch_commit_collision(self):
+        # It's possible that a batch contain a BSO inside a batch as well
+        # as inside the final "commit" message. This is a bit of a problem
+        # for spanner because of conflicting ways that the data is written
+        # to the database and the discoverability of IDs in previously
+        # submitted batches.
+        endpoint = self.root + '/storage/xxx_col2'
+        orig = "Letting the days go by"
+        repl = "Same as it ever was"
+
+        batch_num = self.retry_post_json(
+            endpoint + "?batch=true",
+            [{"id":"b0", "payload": orig}]
+        ).json["batch"]
+
+        resp = self.retry_post_json(
+            endpoint + "?batch={}&commit=true".format(batch_num),
+            [{"id":"b0", "payload": repl}]
+        )
+
+        # this should succeed, using the newerer payload value.
+        assert resp.json["failed"] == {}, "batch commit failed"
+        assert resp.json["success"] == ["b0"], "batch commit id incorrect"
+        resp = self.app.get(endpoint+"?full=1")
+        assert resp.json[0].get(
+            "payload") == repl, "wrong payload returned"
+
+
     def test_we_dont_need_no_stinkin_batches(self):
         endpoint = self.root + '/storage/xxx_col2'
 

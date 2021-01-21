@@ -318,75 +318,69 @@ pub async fn post_collection_batch(
         .await?
     };
 
-    let commit = breq.commit;
     let user_id = coll.user_id.clone();
     let collection = coll.collection.clone();
 
     let mut success = vec![];
     let mut failed = coll.bsos.invalid;
+    // Option #2, mark each bso.id included in the "commit" as "failing" so that they're
+    // resubmitted.
     let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
-    let result = if commit && !coll.bsos.valid.is_empty() {
-        // There's pending items to append to the batch but since we're
-        // committing, write them to bsos immediately. Otherwise under
-        // Spanner we would pay twice the mutations for those pending
-        // items (once writing them to to batch_bsos, then again
-        // writing them to bsos)
-        trace!("Batch: Committing {}", &new_batch.id);
-        db.post_bsos(params::PostBsos {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            // XXX: why does BatchBsoBody exist (it's the same struct
-            // as PostCollectionBso)?
-            bsos: coll
-                .bsos
-                .valid
-                .into_iter()
-                .map(|batch_bso| params::PostCollectionBso {
-                    id: batch_bso.id,
-                    sortindex: batch_bso.sortindex,
-                    payload: batch_bso.payload,
-                    ttl: batch_bso.ttl,
-                })
-                .collect(),
-            for_batch: true,
-            failed: Default::default(),
-        })
-        .await
-        .map(|_| ())
-    } else {
-        // We're not yet to commit the accumulated batch, but there are some
-        // additional records we need to add.
-        trace!("Batch: Appending to {}", &new_batch.id);
-        db.append_to_batch(params::AppendToBatch {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            batch: new_batch.clone(),
-            bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-        })
-        .await
-    };
+    let mut resp: Value = json!({});
 
-    // collect up the successful and failed bso_ids into a response.
-    match result {
-        Ok(_) => success.extend(bso_ids),
-        Err(e) if e.is_conflict() => return Err(e.into()),
-        Err(apperr) => {
-            if let ApiErrorKind::Db(dberr) = apperr.kind() {
-                // If we're over quota, return immediately with a 403 to let the client know.
-                // Otherwise the client will simply keep retrying records.
-                if let DbErrorKind::Quota = dberr.kind() {
-                    return Err(apperr.into());
-                }
-            };
-            failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
-        }
-    };
+    /* Ideally, we would be clever here and pre-commit the bsos included
+       with this request after the batches are committed.
+       There are a few problems with doing that.
+        1) since there are two different methods being used (DML &
+            Mutations), the previous written data included can't always
+            be read by the same transaction.
+        2) newer elements should probably overwrite older batch elements.
+       This means that we pay a mutations tax by double writing
+       (or we might be able to have an "exclude" list when we do the
+       final merge, but that SQL is gnarly, so this is probably
+       safer.)
 
-    let mut resp = json!({
-        "success": success,
-        "failed": failed,
-    });
+       Posting the bsos once the commit is done can also run into conflicts
+       because of the same mutation read limitations.
+    */
+    if !coll.bsos.valid.is_empty() {
+        let result = {
+            dbg!("Batch: Appending to {}", &new_batch.id);
+            db.append_to_batch(params::AppendToBatch {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                batch: new_batch.clone(),
+                bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+            })
+            .await
+        };
+
+        // collect up the successful and failed bso_ids into a response.
+        match result {
+            Ok(_) => success.extend(bso_ids.clone()),
+            Err(e) if e.is_conflict() => return Err(e.into()),
+            Err(apperr) => {
+                if let ApiErrorKind::Db(dberr) = apperr.kind() {
+                    // If we're over quota, return immediately with a 403 to let the client know.
+                    // Otherwise the client will simply keep retrying records.
+                    if let DbErrorKind::Quota = dberr.kind() {
+                        return Err(apperr.into());
+                    }
+                };
+                dbg!(apperr);
+                failed.extend(
+                    bso_ids
+                        .clone()
+                        .into_iter()
+                        .map(|id| (id, "db error".to_owned())),
+                )
+            }
+        };
+    }
+
+    resp["success"] = json!(success);
+    resp["failed"] = json!(failed);
 
     if !breq.commit {
         resp["batch"] = json!(&new_batch.id);
