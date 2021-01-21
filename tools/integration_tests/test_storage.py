@@ -1583,7 +1583,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(committed, resp3.json['modified'])
 
 
-    def test_batch_commit_collision(self):
+    def test_aaa_batch_commit_collision(self):
         # It's possible that a batch contain a BSO inside a batch as well
         # as inside the final "commit" message. This is a bit of a problem
         # for spanner because of conflicting ways that the data is written
