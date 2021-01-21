@@ -111,6 +111,7 @@ impl Settings {
         s.set_default("host", "127.0.0.1")?;
         s.set_default("human_logs", false)?;
         #[cfg(test)]
+        s.set_default("database_pool_connection_timeout", Some(30))?;
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
         s.set_default::<Option<String>>("tokenserver_database_url", None)?;
