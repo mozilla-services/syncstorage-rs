@@ -1,3 +1,13 @@
+<a name="0.8.5"></a>
+## 0.8.5 (2021-01-21)
+
+
+#### Bug Fixes
+
+*   downgrade deadpool so it stays on tokio 0.2 ([99975ef8](https://github.com/mozilla-services/syncstorage-rs/commit/99975ef8b64317511111d48c6ebfc75e7facc334), closes [#976](https://github.com/mozilla-services/syncstorage-rs/issues/976))
+
+
+
 <a name="0.8.4"></a>
 ### 0.8.4 (2021-01-19)
 
