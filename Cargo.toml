@@ -27,7 +27,8 @@ bytes = "1.0"
 cadence = "0.23"
 chrono = "0.4"
 config = "0.10"
-deadpool = "0.7"
+# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977)
+deadpool = "0.5"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
