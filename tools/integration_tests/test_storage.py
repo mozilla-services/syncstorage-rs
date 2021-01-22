@@ -104,8 +104,10 @@ class TestStorage(StorageFunctionalTestCase):
 
     def _retry_send(self, func, *args, **kwargs):
         try:
-            return func(*args, **kwargs)
+            res = func(*args, **kwargs)
+            return res
         except webtest.AppError as ex:
+            import pdb; pdb.set_trace();
             if "409 " not in ex.args[0] and "503 " not in ex.args[0]:
                 raise ex
             time.sleep(0.01)
@@ -1397,7 +1399,11 @@ class TestStorage(StorageFunctionalTestCase):
         secret = auth_policy._get_token_secrets(self.host_url)[-1]
         tm = tokenlib.TokenManager(secret=secret)
         exp = time.time() - 60
-        data = {"uid": self.user_id, "node": self.host_url, "expires": exp}
+        data = {"uid": self.user_id,
+                "node": self.host_url,
+                "expires": exp,
+                "fxa_uid": self.fxa_uid,
+                "fxa_kid": self.fxa_kid}
         self.auth_token = tm.make_token(data)
         self.auth_secret = tm.get_derived_secret(self.auth_token)
 
@@ -1416,45 +1422,56 @@ class TestStorage(StorageFunctionalTestCase):
         NUM_ITEMS = 12
         bsos = []
         timestamps = []
+        # bsoids are randomized things.
+        ids = [ str(i).zfill(2) for i in range(1,100)]
+        random.shuffle(ids)
         for i in range(NUM_ITEMS):
-            bso = {'id': str(random.randint(1,100)).zfill(2), 'payload': str(i)}
+            bso = {'id': ids[i], 'payload': str(i)}
             bsos.append(bso)
             if i % 4 == 3:
-                res = self.retry_post_json(self.root + '/storage/xxx_col2',
-                                        bsos)
-                ts = float(res.headers["X-Last-Modified"])
-                timestamps.append((i, ts))
-                bsos = []
+                try:
+                    res = self.retry_post_json(self.root + '/storage/xxx_col2',
+                                            bsos)
+                    ts = float(res.headers["X-Last-Modified"])
+                    timestamps.append((i, ts))
+                    bsos = []
+                except Exception as ex:
+                    import pdb;pdb.set_trace()
+                    print (ex)
+        try:
+            # Try with several different pagination sizes,
+            # to hit various boundary conditions.
+            for limit in (2, 3, 4, 5, 6):
+                for (start, ts) in timestamps:
+                    query_url = self.root + \
+                                '/storage/xxx_col2?full=true&sort=oldest'
+                    query_url += '&newer=%s&limit=%s' % (ts, limit)
 
-        # Try with several different pagination sizes,
-        # to hit various boundary conditions.
-        for limit in (2, 3, 4, 5, 6):
-            for (start, ts) in timestamps:
-                query_url = self.root + \
-                            '/storage/xxx_col2?full=true&sort=oldest'
-                query_url += '&newer=%s&limit=%s' % (ts, limit)
-
-                # Paginated-ly fetch all items.
-                items = []
-                res = self.app.get(query_url)
-                for item in res.json:
-                    if items:
-                        assert items[-1]['modified'] <= item['modified']
-                    items.append(item)
-                next_offset = res.headers.get('X-Weave-Next-Offset')
-                while next_offset is not None:
-                    res = self.app.get(query_url + "&offset=" + next_offset)
+                    # Paginated-ly fetch all items.
+                    items = []
+                    res = self.app.get(query_url)
                     for item in res.json:
-                        assert items[-1]['modified'] <= item['modified']
+                        if items:
+                            assert items[-1]['modified'] <= item['modified']
                         items.append(item)
                     next_offset = res.headers.get('X-Weave-Next-Offset')
+                    while next_offset is not None:
+                        res = self.app.get(query_url + "&offset=" + next_offset)
+                        for item in res.json:
+                            assert items[-1]['modified'] <= item['modified']
+                            items.append(item)
+                        next_offset = res.headers.get('X-Weave-Next-Offset')
 
-                # They should all be in order, starting from the item
-                # *after* the one that was used for the newer= timestamp.
-                self.assertEquals(sorted(int(item['payload']) for item in items),
-                                list(range(start + 1, NUM_ITEMS)))
+                    # They should all be in order, starting from the item
+                    # *after* the one that was used for the newer= timestamp.
+                    self.assertEquals(sorted(int(item['payload']) for item in items),
+                                    list(range(start + 1, NUM_ITEMS)))
+        except Exception as ex:
+            import pdb; pdb.set_trace()
+            print(ex)
+            raise
 
-    def test_aab_pagination_with_older_and_sort_by_newest(self):
+    def test_pagination_with_older_and_sort_by_newest(self):
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []

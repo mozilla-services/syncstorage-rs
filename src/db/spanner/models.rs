@@ -580,21 +580,22 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> Result<results::GetCollectionTimestamps> {
+        let sql = "SELECT collection_id, modified
+        FROM user_collections
+        WHERE fxa_uid = @fxa_uid
+         AND fxa_kid = @fxa_kid
+         AND collection_id != @collection_id
+         AND modified > @pretouch_ts";
+        let params = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid,
+            "collection_id" => TOMBSTONE.to_string(),
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        // dbg!(&sql, &params);
         let mut streaming = self
-            .sql(
-                "SELECT collection_id, modified
-                   FROM user_collections
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id != @collection_id
-                    AND modified > @pretouch_ts",
-            )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid,
-                "collection_id" => TOMBSTONE.to_string(),
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
+            .sql(sql)?
+            .params(params)
             .param_types(param_types! {
                 "pretouch_ts" => TypeCode::TIMESTAMP,
             })
@@ -1274,8 +1275,6 @@ impl SpannerDb {
             // the query conditions
             query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
         };
-
-        // dbg!(&query, &sqlparams);
 
         self.sql(&query)?
             .params(sqlparams)

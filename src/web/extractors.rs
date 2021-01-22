@@ -1048,6 +1048,7 @@ impl HawkIdentifier {
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
         let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
+        // dbg!(&identifier);
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1069,6 +1070,11 @@ impl HawkIdentifier {
                 Some("uid".to_owned()),
                 label!("request.validate.hawk.uri_missing_uid"),
             ))?;
+        }
+
+        if payload.fxa_uid.is_empty() {
+            dbg!(&payload, &header, &uri);
+            warn!("Empty fxa_uid!");
         }
 
         let user_id = HawkIdentifier {
