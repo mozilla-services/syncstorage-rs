@@ -1238,6 +1238,18 @@ impl SpannerDb {
         // default sorting rules.
         if let Some(ref offset) = offset {
             let direction = if sort == Sorting::Oldest { ">=" } else { "<=" };
+            // So yeah, the offset.
+            // The problem is that we have a timestamp that is in blocks, and a random value for the bso_id.
+            // pagination needs to be determined by a combination of the two values since one is not
+            // fine grained enough, and the other could leave values less than that random number
+            // uncollected.
+            // For now, we can artificially compile a pagination value
+            query = format!(
+                " {} AND CONCAT(CAST(UNIX_MILLIS(modified) AS string), ':', bso_id) {} @offset",
+                query, direction
+            );
+            sqlparams.insert("offset".to_string(), as_value(offset.to_string()));
+            /*
             if let Some(timestamp) = offset.timestamp {
                 query = format!("{} AND modified {} @modified ", query, direction);
                 sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
@@ -1247,6 +1259,7 @@ impl SpannerDb {
                 query = format!("{} AND bso_id {} @offset_id ", query, direction);
                 sqlparams.insert("offset_id".to_string(), as_value(offset.clone()));
             }
+            */
         }
         query = match sort {
             Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
@@ -1261,6 +1274,8 @@ impl SpannerDb {
             // the query conditions
             query = format!("{} LIMIT {}", query, i64::from(limit) + 1);
         };
+
+        // dbg!(&query, &sqlparams);
 
         self.sql(&query)?
             .params(sqlparams)

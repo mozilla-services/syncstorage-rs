@@ -472,6 +472,7 @@ pub async fn put_bso(
     db_pool
         .transaction_http(|db| async move {
             bso_req.metrics.incr("request.put_bso");
+            dbg!(&bso_req.user_id);
             let result = db
                 .put_bso(params::PutBso {
                     user_id: bso_req.user_id,

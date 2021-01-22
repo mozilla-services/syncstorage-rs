@@ -1411,17 +1411,17 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(list(resp.json.keys()), ["xxx_col1"])
         self.assertEquals(resp.json["xxx_col1"], ts)
 
-    def test_pagination_with_newer_and_sort_by_oldest(self):
+    def test_aaa_pagination_with_newer_and_sort_by_oldest(self):
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []
         timestamps = []
         for i in range(NUM_ITEMS):
-            bso = {'id': str(i).zfill(2), 'payload': 'x'}
+            bso = {'id': str(random.randint(1,100)).zfill(2), 'payload': str(i)}
             bsos.append(bso)
             if i % 4 == 3:
                 res = self.retry_post_json(self.root + '/storage/xxx_col2',
-                                           bsos)
+                                        bsos)
                 ts = float(res.headers["X-Last-Modified"])
                 timestamps.append((i, ts))
                 bsos = []
@@ -1451,16 +1451,16 @@ class TestStorage(StorageFunctionalTestCase):
 
                 # They should all be in order, starting from the item
                 # *after* the one that was used for the newer= timestamp.
-                self.assertEquals(sorted(int(item['id']) for item in items),
-                                  list(range(start + 1, NUM_ITEMS)))
+                self.assertEquals(sorted(int(item['payload']) for item in items),
+                                list(range(start + 1, NUM_ITEMS)))
 
-    def test_pagination_with_older_and_sort_by_newest(self):
+    def test_aab_pagination_with_older_and_sort_by_newest(self):
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []
         timestamps = []
         for i in range(NUM_ITEMS):
-            bso = {'id': str(i).zfill(2), 'payload': 'x'}
+            bso = {'id': str(i), 'payload': 'x'}
             bsos.append(bso)
             if i % 4 == 3:
                 res = self.retry_post_json(self.root + '/storage/xxx_col2',
