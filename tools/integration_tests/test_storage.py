@@ -107,7 +107,6 @@ class TestStorage(StorageFunctionalTestCase):
             res = func(*args, **kwargs)
             return res
         except webtest.AppError as ex:
-            import pdb; pdb.set_trace();
             if "409 " not in ex.args[0] and "503 " not in ex.args[0]:
                 raise ex
             time.sleep(0.01)
@@ -1429,47 +1428,38 @@ class TestStorage(StorageFunctionalTestCase):
             bso = {'id': ids[i], 'payload': str(i)}
             bsos.append(bso)
             if i % 4 == 3:
-                try:
-                    res = self.retry_post_json(self.root + '/storage/xxx_col2',
-                                            bsos)
-                    ts = float(res.headers["X-Last-Modified"])
-                    timestamps.append((i, ts))
-                    bsos = []
-                except Exception as ex:
-                    import pdb;pdb.set_trace()
-                    print (ex)
-        try:
-            # Try with several different pagination sizes,
-            # to hit various boundary conditions.
-            for limit in (2, 3, 4, 5, 6):
-                for (start, ts) in timestamps:
-                    query_url = self.root + \
-                                '/storage/xxx_col2?full=true&sort=oldest'
-                    query_url += '&newer=%s&limit=%s' % (ts, limit)
+                res = self.retry_post_json(self.root + '/storage/xxx_col2',
+                                        bsos)
+                ts = float(res.headers["X-Last-Modified"])
+                timestamps.append((i, ts))
+                bsos = []
+        # Try with several different pagination sizes,
+        # to hit various boundary conditions.
+        for limit in (2, 3, 4, 5, 6):
+            for (start, ts) in timestamps:
+                query_url = self.root + \
+                            '/storage/xxx_col2?full=true&sort=oldest'
+                query_url += '&newer=%s&limit=%s' % (ts, limit)
 
-                    # Paginated-ly fetch all items.
-                    items = []
-                    res = self.app.get(query_url)
+                # Paginated-ly fetch all items.
+                items = []
+                res = self.app.get(query_url)
+                for item in res.json:
+                    if items:
+                        assert items[-1]['modified'] <= item['modified']
+                    items.append(item)
+                next_offset = res.headers.get('X-Weave-Next-Offset')
+                while next_offset is not None:
+                    res = self.app.get(query_url + "&offset=" + next_offset)
                     for item in res.json:
-                        if items:
-                            assert items[-1]['modified'] <= item['modified']
+                        assert items[-1]['modified'] <= item['modified']
                         items.append(item)
                     next_offset = res.headers.get('X-Weave-Next-Offset')
-                    while next_offset is not None:
-                        res = self.app.get(query_url + "&offset=" + next_offset)
-                        for item in res.json:
-                            assert items[-1]['modified'] <= item['modified']
-                            items.append(item)
-                        next_offset = res.headers.get('X-Weave-Next-Offset')
 
-                    # They should all be in order, starting from the item
-                    # *after* the one that was used for the newer= timestamp.
-                    self.assertEquals(sorted(int(item['payload']) for item in items),
-                                    list(range(start + 1, NUM_ITEMS)))
-        except Exception as ex:
-            import pdb; pdb.set_trace()
-            print(ex)
-            raise
+                # They should all be in order, starting from the item
+                # *after* the one that was used for the newer= timestamp.
+                self.assertEquals(sorted(int(item['payload']) for item in items),
+                                list(range(start + 1, NUM_ITEMS)))
 
     def test_pagination_with_older_and_sort_by_newest(self):
         # Twelve bsos with three different modification times.
