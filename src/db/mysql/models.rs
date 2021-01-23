@@ -526,33 +526,25 @@ impl MysqlDb {
         }
 
         // offsets are not as strict as the "older"/"newer" options.
+        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         if let Some(offset_v) = offset {
             query = match sort {
                 Sorting::Oldest => {
-                    if let Some(timestamp) = offset_v.timestamp {
-                        query = query.filter(bso::modified.ge(timestamp.as_i64()));
-                    }
-                    if let Some(id) = offset_v.offset {
-                        query = query.filter(bso::id.ge(id))
-                    }
+                    query = query.filter(sql::<Text>(&order_sql).ge(offset_v.to_string()));
                     query
                 }
                 _ => {
-                    if let Some(timestamp) = offset_v.timestamp {
-                        query = query.filter(bso::modified.le(timestamp.as_i64()));
-                    }
-                    if let Some(id) = offset_v.offset {
-                        query = query.filter(bso::id.le(id))
-                    }
+                    query = query.filter(sql::<Text>(&order_sql).le(offset_v.to_string()));
                     query
                 }
             }
         }
 
+        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         query = match sort {
             Sorting::Index => query.order((bso::sortindex.desc(), bso::id.desc())),
-            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
-            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
+            Sorting::Newest | Sorting::None => query.order(sql::<Text>(&order_sql).desc()),
+            Sorting::Oldest => query.order(sql::<Text>(&order_sql).asc()),
         };
 
         let limit = limit.map(i64::from).unwrap_or(-1);
@@ -606,7 +598,7 @@ impl MysqlDb {
             ..
         } = params.params;
         let mut query = bso::table
-            .select(bso::id)
+            .select((bso::id, bso::modified))
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
@@ -624,18 +616,20 @@ impl MysqlDb {
         }
 
         if let Some(offset_v) = offset {
-            if let Some(offset_id) = offset_v.offset {
-                query = match sort {
-                    Sorting::Oldest => query.filter(bso::id.ge(offset_id)),
-                    _ => query.filter(bso::id.le(offset_id)),
+            dbg!(&offset_v);
+            query = match sort {
+                Sorting::Oldest => {
+                    query.filter(sql::<Text>("CONCAT(modified,':',id)").ge(offset_v.to_string()))
                 }
+                _ => query.filter(sql::<Text>("CONCAT(modified,':',id)").le(offset_v.to_string())),
             }
         }
 
+        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         query = match sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
-            Sorting::Newest | Sorting::None => query.order((bso::modified.desc(), bso::id.desc())),
-            Sorting::Oldest => query.order((bso::modified.asc(), bso::id.asc())),
+            Sorting::Newest | Sorting::None => query.order(sql::<Text>(&order_sql).desc()),
+            Sorting::Oldest => query.order(sql::<Text>(&order_sql).asc()),
         };
 
         // it is possible to request a limit of 0. use '-1' to indicate no limit, then
@@ -646,19 +640,30 @@ impl MysqlDb {
         if limit >= 0 {
             query = query.limit(limit + 1);
         }
-        let mut ids = query.load::<String>(&self.conn)?;
+        let mut rows = query.load::<results::GetBsoIdOffsets>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in
         // python to trigger potential CollectionNotFoundErrors
         //if bsos.len() == 0 {
         //}
 
-        let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            ids.pop()
+        let next_offset = if limit >= 0 && rows.len() > limit as usize {
+            if let Some(row) = rows.pop() {
+                Some(
+                    Offset {
+                        timestamp: Some(row.modified),
+                        offset: Some(row.id),
+                    }
+                    .to_string(),
+                )
+            } else {
+                None
+            }
         } else {
             None
         };
 
+        let ids: Vec<String> = rows.into_iter().map(|row| row.id).collect();
         Ok(results::GetBsoIds {
             items: ids,
             offset: next_offset,

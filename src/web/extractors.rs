@@ -1141,6 +1141,7 @@ impl ToString for Offset {
             self.timestamp.map(|v| v.as_i64()).unwrap_or(0),
             self.offset.clone().unwrap_or_default()
         );
+        dbg!(&result);
         if &result == "0:" {
             return "".to_owned();
         }

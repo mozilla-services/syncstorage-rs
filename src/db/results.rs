@@ -61,6 +61,14 @@ pub struct GetBso {
     pub expiry: i64,
 }
 
+#[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
+pub struct GetBsoIdOffsets {
+    #[sql_type = "Text"]
+    pub id: String,
+    #[sql_type = "BigInt"]
+    pub modified: SyncTimestamp,
+}
+
 #[derive(Debug, Default)]
 pub struct Paginated<T>
 where

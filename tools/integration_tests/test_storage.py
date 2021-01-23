@@ -170,7 +170,7 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(self.root + '/info/collections')
         self.assertEquals(len(resp.json), numcols + 1)
 
-    def test_get_collection_only(self):
+    def test_aaa_get_collection_only(self):
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
 
@@ -1416,7 +1416,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(list(resp.json.keys()), ["xxx_col1"])
         self.assertEquals(resp.json["xxx_col1"], ts)
 
-    def test_aaa_pagination_with_newer_and_sort_by_oldest(self):
+    def test_pagination_with_newer_and_sort_by_oldest(self):
         # Twelve bsos with three different modification times.
         NUM_ITEMS = 12
         bsos = []
@@ -1435,31 +1435,36 @@ class TestStorage(StorageFunctionalTestCase):
                 bsos = []
         # Try with several different pagination sizes,
         # to hit various boundary conditions.
-        for limit in (2, 3, 4, 5, 6):
-            for (start, ts) in timestamps:
-                query_url = self.root + \
-                            '/storage/xxx_col2?full=true&sort=oldest'
-                query_url += '&newer=%s&limit=%s' % (ts, limit)
+        try:
+            for limit in (2, 3, 4, 5, 6):
+                for (start, ts) in timestamps:
+                    query_url = self.root + \
+                                '/storage/xxx_col2?full=true&sort=oldest'
+                    query_url += '&newer=%s&limit=%s' % (ts, limit)
 
-                # Paginated-ly fetch all items.
-                items = []
-                res = self.app.get(query_url)
-                for item in res.json:
-                    if items:
-                        assert items[-1]['modified'] <= item['modified']
-                    items.append(item)
-                next_offset = res.headers.get('X-Weave-Next-Offset')
-                while next_offset is not None:
-                    res = self.app.get(query_url + "&offset=" + next_offset)
+                    # Paginated-ly fetch all items.
+                    items = []
+                    res = self.app.get(query_url)
                     for item in res.json:
-                        assert items[-1]['modified'] <= item['modified']
+                        if items:
+                            assert items[-1]['modified'] <= item['modified']
                         items.append(item)
                     next_offset = res.headers.get('X-Weave-Next-Offset')
+                    while next_offset is not None:
+                        res = self.app.get(query_url + "&offset=" + next_offset)
+                        for item in res.json:
+                            assert items[-1]['modified'] <= item['modified']
+                            items.append(item)
+                        next_offset = res.headers.get('X-Weave-Next-Offset')
 
-                # They should all be in order, starting from the item
-                # *after* the one that was used for the newer= timestamp.
-                self.assertEquals(sorted(int(item['payload']) for item in items),
-                                list(range(start + 1, NUM_ITEMS)))
+                    # They should all be in order, starting from the item
+                    # *after* the one that was used for the newer= timestamp.
+                    self.assertEquals(sorted(int(item['payload']) for item in items),
+                                    list(range(start + 1, NUM_ITEMS)))
+        except Exception as ex:
+            import pdb;pdb.set_trace()
+            print(ex)
+            raise
 
     def test_pagination_with_older_and_sort_by_newest(self):
         # Twelve bsos with three different modification times.
