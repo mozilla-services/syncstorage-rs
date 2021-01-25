@@ -170,7 +170,7 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(self.root + '/info/collections')
         self.assertEquals(len(resp.json), numcols + 1)
 
-    def test_aaa_get_collection_only(self):
+    def test_get_collection_only(self):
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
 

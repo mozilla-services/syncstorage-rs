@@ -616,7 +616,7 @@ impl MysqlDb {
         }
 
         if let Some(offset_v) = offset {
-            dbg!(&offset_v);
+            // dbg!(&offset_v);
             query = match sort {
                 Sorting::Oldest => {
                     query.filter(sql::<Text>("CONCAT(modified,':',id)").ge(offset_v.to_string()))
