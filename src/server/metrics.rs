@@ -2,8 +2,9 @@ use std::net::UdpSocket;
 use std::time::Instant;
 
 use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
+use cadence::prelude::*;
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+    BufferedUdpMetricSink, Metric, NopMetricSink, QueuingMetricSink, StatsdClient,
 };
 
 use crate::error::ApiError;
@@ -126,27 +127,7 @@ impl Metrics {
     }
 
     pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
-        if let Some(client) = self.client.as_ref() {
-            let mut tagged = client.incr_with_tags(label);
-            let mut mtags = self.tags.clone().unwrap_or_default();
-            if let Some(tags) = tags {
-                mtags.extend(tags.tags);
-            }
-            for key in mtags.tags.keys().clone() {
-                if let Some(val) = mtags.tags.get(key) {
-                    tagged = tagged.with_tag(&key, val.as_ref());
-                }
-            }
-            // Include any "hard coded" tags.
-            // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
-            match tagged.try_send() {
-                Err(e) => {
-                    // eat the metric, but log the error
-                    warn!("⚠️ Metric {} error: {:?} ", label, e; mtags);
-                }
-                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
-            }
-        }
+        self.count_with_tags(label, 1, tags)
     }
 
     pub fn count(&self, label: &str, count: i64) {
