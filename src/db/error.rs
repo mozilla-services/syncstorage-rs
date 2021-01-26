@@ -55,9 +55,6 @@ pub enum DbErrorKind {
 
     #[fail(display = "User over quota")]
     Quota,
-
-    #[fail(display = "Database Connection Pool Exhausted")]
-    ExhaustedPanic,
 }
 
 impl DbError {
