@@ -2,8 +2,9 @@ use std::net::UdpSocket;
 use std::time::Instant;
 
 use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
-use cadence::prelude::*;
-use cadence::{BufferedUdpMetricSink, Metric, NopMetricSink, QueuingMetricSink, StatsdClient};
+use cadence::{
+    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
+};
 
 use crate::error::ApiError;
 use crate::server::ServerState;
