@@ -11,10 +11,13 @@ mod tests;
 pub mod transaction;
 pub mod util;
 
-use std::{fmt::Debug, time::Duration};
+use std::{
+    fmt::Debug,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
-use cadence::{Gauged, StatsdClient};
+use cadence::{Counted, Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -282,17 +285,37 @@ pub fn spawn_pool_periodic_reporter(
     interval: Duration,
     metrics: StatsdClient,
     pool: Box<dyn DbPool>,
+    deadman_switch: Option<u32>,
 ) -> Result<(), DbError> {
     let hostname = hostname::get()
         .expect("Couldn't get hostname")
         .into_string()
         .expect("Couldn't get hostname");
+    let deadman = deadman_switch.unwrap_or_default();
     actix_rt::spawn(async move {
+        let mut start_time = Instant::now();
+        let mut prior_state = 0;
         loop {
             let results::PoolState {
                 connections,
                 idle_connections,
             } = pool.state();
+            if deadman > 0 {
+                if idle_connections == 0 {
+                    if prior_state != 0 {
+                        // We just hit zero connections, start the clock
+                        start_time = Instant::now();
+                    }
+                    if Instant::now() - start_time > Duration::from_millis(deadman as u64) {
+                        metrics
+                            .incr_with_tags("storage.pool.exhausted")
+                            .with_tag("hostname", &hostname)
+                            .send();
+                        panic!("Database connection pool exhausted")
+                    }
+                }
+                prior_state = idle_connections;
+            }
             metrics
                 .gauge_with_tags(
                     "storage.pool.connections.active",

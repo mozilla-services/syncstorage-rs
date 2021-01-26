@@ -183,7 +183,12 @@ impl Server {
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
 
-        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
+        spawn_pool_periodic_reporter(
+            Duration::from_secs(10),
+            metrics.clone(),
+            db_pool.clone(),
+            settings.database_pool_connection_deadman_switch,
+        )?;
 
         let mut server = HttpServer::new(move || {
             // Setup the server state
