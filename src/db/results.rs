@@ -19,6 +19,7 @@ pub type DeleteStorage = ();
 pub type DeleteCollection = SyncTimestamp;
 pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
+// TODO: change this to return the sortindex (for pagination?)
 pub type PutBso = SyncTimestamp;
 
 #[derive(Debug, Default, Clone)]

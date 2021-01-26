@@ -1130,7 +1130,7 @@ impl From<u32> for HawkIdentifier {
 #[derive(Debug, Default, Clone, Deserialize, Validate)]
 #[serde(default)]
 pub struct Offset {
-    pub timestamp: Option<SyncTimestamp>,
+    pub index: Option<u64>,
     pub offset: Option<String>,
 }
 
@@ -1138,7 +1138,7 @@ impl ToString for Offset {
     fn to_string(&self) -> String {
         let result = format!(
             "{}:{}",
-            self.timestamp.map(|v| v.as_i64()).unwrap_or(0),
+            self.index.unwrap_or(0),
             self.offset.clone().unwrap_or_default()
         );
         //dbg!(&result);
@@ -1151,7 +1151,7 @@ impl ToString for Offset {
 
 impl Offset {
     pub fn is_empty(&self) -> bool {
-        self.timestamp.is_none() && self.offset.is_none()
+        self.index.is_none()  && self.offset.is_none()
     }
 }
 
@@ -1160,22 +1160,26 @@ impl FromStr for Offset {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
             return Ok(Offset {
-                timestamp: None,
+                index: None,
                 offset: None,
             });
         }
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
-                timestamp: None,
+                index: None,
                 offset: Some(s.to_owned()),
             },
             Some(_colon_position) => {
                 let mut parts = s.split(':');
-                let timestamp_string = parts.next().unwrap_or("0");
-                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
+                let index_string = parts.next().unwrap_or("0");
+                let index = index_string.parse::<u64>()?;
                 let offset = parts.next().map(|v| v.to_owned());
                 Offset {
-                    timestamp: Some(timestamp),
+                    index: if index > 0 {
+                        Some(index)
+                    } else {
+                        None
+                    },
                     offset,
                 }
             }

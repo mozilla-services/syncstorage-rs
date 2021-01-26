@@ -468,6 +468,7 @@ impl MysqlDb {
                     "".to_owned()
                 },
             );
+            dbg!(&q, &user_id, &collection_id, &bso.id, &sortindex, "...", &timestamp);
             sql_query(q)
                 .bind::<BigInt, _>(user_id as i64) // XXX:
                 .bind::<Integer, _>(&collection_id)
@@ -494,6 +495,13 @@ impl MysqlDb {
             ids,
             ..
         } = params.params;
+
+        let mut ssql = format!(
+            "select id, modified, payload, sortindex, ttl from bso where userid = {} and collection = {} and ttl >= UNIX_TIMESTAMP()",
+            user_id,
+            collection_id as i32
+        );
+
         let mut query = bso::table
             .select((
                 bso::id,
@@ -510,41 +518,65 @@ impl MysqlDb {
         // Set the harder limits for "older" and "newer"
         if let Some(older) = older {
             let ts = older.as_i64();
+            ssql = format!("{} and modified < {}", ssql, ts);
             if ts > 0 {
                 query = query.filter(bso::modified.lt(ts));
             }
         }
         if let Some(newer) = newer {
             let ts = newer.as_i64();
+            ssql = format!("{} and modified > {}", ssql, ts);
             if ts > 0 {
                 query = query.filter(bso::modified.gt(ts));
             }
         }
 
         if !ids.is_empty() {
+            ssql = format!("{} and ids in {:?}", ssql, ids);
             query = query.filter(bso::id.eq_any(ids));
         }
 
         // offsets are not as strict as the "older"/"newer" options.
         let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
+        dbg!(&sort, &offset);
         if let Some(offset_v) = offset {
-            query = match sort {
-                Sorting::Oldest => {
-                    query = query.filter(sql::<Text>(&order_sql).ge(offset_v.to_string()));
-                    query
-                }
-                _ => {
-                    query = query.filter(sql::<Text>(&order_sql).le(offset_v.to_string()));
-                    query
+            if !offset_v.is_empty() {
+                query = match sort {
+                    Sorting::Oldest => {
+                        ssql = format!("{} and {} >= '{}'", ssql, order_sql, offset_v.to_string());
+                        query = query.filter(sql::<Text>(&order_sql).ge(offset_v.to_string()));
+                        query
+                    }
+                    Sorting::Index => {
+                        // Index sorting with pagination is... complicated.
+                        // Because sortindex is client supplied, and independent of when a given
+                        // record was created or modified, pagination should base off of that info.
+                        ssql = format!("{} and CONCAT(sortindex,':', id) < {}", ssql, offset_v.to_string());
+                        query = query.filter(sql::<Text>("CONCAT(sortindex, ':', id)").le(offset_v.to_string()));
+                        query
+                    },
+                    _ => {
+                        ssql = format!("{} and {} <= '{}'", ssql, order_sql, offset_v.to_string());
+                        query = query.filter(sql::<Text>(&order_sql).le(offset_v.to_string()));
+                        query
+                    }
                 }
             }
         }
 
-        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         query = match sort {
-            Sorting::Index => query.order((bso::sortindex.desc(), bso::id.desc())),
-            Sorting::Newest | Sorting::None => query.order(sql::<Text>(&order_sql).desc()),
-            Sorting::Oldest => query.order(sql::<Text>(&order_sql).asc()),
+            Sorting::Index => {
+                ssql = format!("{} order by sortindex desc, id desc",ssql);
+                query.order((bso::sortindex.desc(), bso::id.desc()))
+            },
+            Sorting::Newest | Sorting::None => {
+                ssql = format!("{} order by {} desc",ssql, order_sql);
+                query.order(sql::<Text>(&order_sql).desc())
+            },
+            Sorting::Oldest => {
+                ssql = format!("{} order by {} asc",ssql, order_sql);
+                query.order(sql::<Text>(&order_sql).asc())
+            },
         };
 
         let limit = limit.map(i64::from).unwrap_or(-1);
@@ -552,9 +584,11 @@ impl MysqlDb {
         // match the query conditions. We want to pull at least one so we can determine
         // if there are any offsets we need to calculate.
         if limit >= 0 {
+            ssql = format!("{} limit {}",ssql, limit+1);
             query = query.limit(limit + 1);
         }
 
+        dbg!(ssql);
         let mut bsos = query.load::<results::GetBso>(&self.conn)?;
 
         // XXX: an additional get_collection_timestamp is done here in
@@ -563,10 +597,14 @@ impl MysqlDb {
         //}
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
             let bso = bsos.pop();
-            bso.map(|b| Offset {
-                offset: Some(b.id),
-                timestamp: Some(b.modified),
-            })
+            bso.map(|b| {
+                dbg!(sort, &b);
+                    Offset {
+                        offset: Some(b.id),
+                        index: Some(if sort == Sorting::Index {b.sortindex.unwrap_or(0) as u64} else {b.modified.as_i64() as u64}),
+                    }
+                }
+            )
             .unwrap_or_default()
         } else {
             // if an explicit "limit=0" is sent, return the offset of "0"
@@ -575,6 +613,7 @@ impl MysqlDb {
             Offset::default()
         };
 
+        dbg!(&bsos, &next_offset.to_string(), &limit);
         Ok(results::GetBsos {
             items: bsos,
             offset: if !next_offset.is_empty() {
@@ -615,17 +654,19 @@ impl MysqlDb {
             query = query.filter(bso::id.eq_any(ids));
         }
 
+        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         if let Some(offset_v) = offset {
             // dbg!(&offset_v);
             query = match sort {
                 Sorting::Oldest => {
-                    query.filter(sql::<Text>("CONCAT(modified,':',id)").ge(offset_v.to_string()))
+                    query.filter(sql::<Text>(&order_sql).le(offset_v.to_string()))
                 }
-                _ => query.filter(sql::<Text>("CONCAT(modified,':',id)").le(offset_v.to_string())),
+                _ => {
+                    query.filter(sql::<Text>(&order_sql).ge(offset_v.to_string()))
+                },
             }
         }
 
-        let order_sql = format!("CONCAT({modified}, ':', id)", modified = MODIFIED);
         query = match sort {
             Sorting::Index => query.order(bso::sortindex.desc()),
             Sorting::Newest | Sorting::None => query.order(sql::<Text>(&order_sql).desc()),
@@ -651,7 +692,7 @@ impl MysqlDb {
             if let Some(row) = rows.pop() {
                 Some(
                     Offset {
-                        timestamp: Some(row.modified),
+                        index: Some(row.modified.as_i64() as u64),
                         offset: Some(row.id),
                     }
                     .to_string(),

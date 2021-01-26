@@ -1238,36 +1238,42 @@ impl SpannerDb {
         // if the offset has not yet been applied (we set it to None if we have), then apply it using the
         // default sorting rules.
         if let Some(ref offset) = offset {
-            let direction = if sort == Sorting::Oldest { ">=" } else { "<=" };
-            // So yeah, the offset.
-            // The problem is that we have a timestamp that is in blocks, and a random value for the bso_id.
-            // pagination needs to be determined by a combination of the two values since one is not
-            // fine grained enough, and the other could leave values less than that random number
-            // uncollected.
-            // For now, we can artificially compile a pagination value
-            query = format!(
-                " {} AND CONCAT(CAST(UNIX_MILLIS(modified) AS string), ':', bso_id) {} @offset",
-                query, direction
-            );
+            match sort {
+                // So yeah, the offset.
+                // The problem is that we have a timestamp that is in blocks, and a random value for the bso_id.
+                // pagination needs to be determined by a combination of the two values since one is not
+                // fine grained enough, and the other could leave values less than that random number
+                // uncollected.
+                // For now, we can artificially compile a pagination value
+                Sorting::Oldest => {
+                    query = format!(
+                        " {} AND CONCAT(CAST(UNIX_MILLIS(modified) AS string), ':', bso_id) >= @offset",
+                        query,
+                    );
+                },
+                Sorting::Newest | Sorting::None => {
+                    query = format!(
+                        " {} AND CONCAT(CAST(UNIX_MILLIS(modified) AS string), ':', bso_id) <= @offset",
+                        query,
+                    );
+                },
+                // And then we have the index, which is client provided and independent of the create/modified
+                // time, so it shouldn't be associated with that.
+                Sorting::Index => {
+                    query = format!(
+                        " {} AND CONCAT(sortindex), ':', bso_id) <= @offset",
+                        query,
+                    );
+                },
+            }
             sqlparams.insert("offset".to_string(), as_value(offset.to_string()));
-            /*
-            if let Some(timestamp) = offset.timestamp {
-                query = format!("{} AND modified {} @modified ", query, direction);
-                sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
-                sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
-            }
-            if let Some(offset) = &offset.offset {
-                query = format!("{} AND bso_id {} @offset_id ", query, direction);
-                sqlparams.insert("offset_id".to_string(), as_value(offset.clone()));
-            }
-            */
         }
         query = match sort {
-            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
+            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
             Sorting::Newest | Sorting::None => {
                 format!("{} ORDER BY modified DESC, bso_id DESC", query)
             }
-            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
         };
 
         if let Some(limit) = limit {
@@ -1284,20 +1290,21 @@ impl SpannerDb {
 
     pub fn encode_next_offset(
         &self,
-        offset: Option<String>,
-        timestamp: Option<i64>,
+        bso: Option<results::GetBso>,
+        sort: Sorting,
     ) -> Result<String> {
-        Ok(Offset {
-            offset,
-            timestamp: {
-                if let Some(ts) = timestamp {
-                    Some(SyncTimestamp::from_i64(ts)?)
+        if let Some(bso) = bso {
+            Ok(Offset{
+                offset: Some(bso.id),
+                index: {if sort == Sorting::Index {
+                    Some(bso.sortindex.unwrap_or_default() as u64)
                 } else {
-                    None
-                }
-            },
+                    Some(bso.modified.as_i64() as u64)
+                }}
+            }.to_string())
+        } else {
+            Ok("".to_owned())
         }
-        .to_string())
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
@@ -1325,11 +1332,7 @@ impl SpannerDb {
         // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && bsos.len() > limit as usize {
-            let bso = bsos.pop();
-            let (offset, timestamp) = bso
-                .map(|b| (Some(b.id), Some(b.modified.as_i64())))
-                .unwrap_or((None, None));
-            Some(self.encode_next_offset(offset, timestamp)?)
+            Some(self.encode_next_offset(bsos.pop(), Sorting::None)?)
         } else {
             None
         };
@@ -1353,11 +1356,11 @@ impl SpannerDb {
         let mut stream = self.bsos_query_async(query, params).await?;
 
         let mut ids = vec![];
-        let mut modifieds = vec![];
+        let mut last_modified = 0;
         while let Some(row) = stream.next_async().await {
             let mut row = row?;
             ids.push(row[0].take_string_value());
-            modifieds.push(SyncTimestamp::from_rfc3339(row[1].get_string_value())?.as_i64());
+            last_modified = SyncTimestamp::from_rfc3339(row[1].get_string_value())?.as_i64();
         }
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -1367,7 +1370,14 @@ impl SpannerDb {
         // https://bugzilla.mozilla.org/show_bug.cgi?id=963332
 
         let next_offset = if limit >= 0 && ids.len() > limit as usize {
-            Some(self.encode_next_offset(ids.pop(), modifieds.pop())?)
+            Some(Offset{
+                offset: ids.pop(),
+                index: if last_modified > 0 {
+                    Some(last_modified as u64)
+                } else {
+                    None
+                }
+            }.to_string())
         } else {
             None
         };
