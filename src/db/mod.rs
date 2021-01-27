@@ -312,7 +312,7 @@ pub fn spawn_pool_periodic_reporter(
                             .incr_with_tags("storage.pool.exhausted")
                             .with_tag("hostname", &hostname)
                             .send();
-                        error!("☠ Connection pool exhausted. Deadman switch triggered.");
+                        crit!("☠ Connection pool exhausted. Deadman switch triggered.");
                         actix_rt::System::current().stop_with_code(64);
                     }
                 }
