@@ -16,7 +16,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use actix_rt;
 use async_trait::async_trait;
 use cadence::{Counted, Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
