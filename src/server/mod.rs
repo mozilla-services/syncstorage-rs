@@ -8,11 +8,12 @@ use actix_web::{
     HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
+use tokio::sync::RwLock;
 
 use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
-use crate::settings::{Secrets, ServerLimits, Settings};
+use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
 use crate::web::{handlers, middleware, tokenserver};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -51,6 +52,8 @@ pub struct ServerState {
     pub port: u16,
 
     pub quota_enabled: bool,
+
+    pub deadman: Arc<RwLock<Deadman>>,
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -144,14 +147,16 @@ macro_rules! build_app {
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
             .service(web::resource("/__heartbeat__").route(web::get().to(handlers::heartbeat)))
-            .service(
-                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
-                    // used by the load balancers, just return OK.
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body("{}")
-                })),
-            )
+            .service(web::resource("/__lbheartbeat__").route(web::get().to(
+                handlers::lbheartbeat, /*
+                                           |_: HttpRequest| {
+                                           // used by the load balancers, just return OK.
+                                           HttpResponse::Ok()
+                                               .content_type("application/json")
+                                               .body("{}")
+                                       }
+                                       */
+            )))
             .service(
                 web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
                     // return the contents of the version.json file created by circleci
@@ -182,6 +187,10 @@ impl Server {
         let fxa_metrics_hash_secret = Arc::new(settings.fxa_metrics_hash_secret.clone());
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
+        let deadman = Arc::new(RwLock::new(Deadman {
+            max_size: settings.database_pool_max_size,
+            ..Default::default()
+        }));
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
@@ -199,6 +208,7 @@ impl Server {
                 metrics: Box::new(metrics.clone()),
                 port,
                 quota_enabled,
+                deadman: Arc::clone(&deadman),
             };
 
             build_app!(state, limits)
