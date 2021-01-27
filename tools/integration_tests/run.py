@@ -21,9 +21,13 @@ if __name__ == "__main__":
     elif os.path.exists(RELEASE_BUILD):
         target_binary = RELEASE_BUILD
     else:
-        raise RuntimeError("Neither target/debug/syncstorage nor /app/bin/syncstorage were found.")
-    the_server_subprocess = subprocess.Popen('SYNC_MASTER_SECRET=secret0 ' + target_binary, shell=True)
-    ## TODO we should change this to watch for a log message on startup to know when to continue instead of sleeping for a fixed amount
+        raise RuntimeError(
+			"Neither target/debug/syncstorage nor "
+			"/app/bin/syncstorage were found.")
+    the_server_subprocess = subprocess.Popen(
+		'SYNC_MASTER_SECRET=secret0 ' + target_binary, shell=True)
+    ## TODO we should change this to watch for a log message on startup to
+	## know when to continue instead of sleeping for a fixed amount
     time.sleep(20)
 
     def stop_subprocess():

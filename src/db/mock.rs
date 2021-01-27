@@ -123,7 +123,7 @@ impl<'a> Db<'a> for MockDb {
     }
 
     #[cfg(test)]
-    fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
+    fn set_quota(&mut self, _enabled: bool, _limit: usize, _enforced: bool) {}
 }
 
 unsafe impl Send for MockDb {}

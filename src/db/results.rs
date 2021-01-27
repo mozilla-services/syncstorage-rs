@@ -19,6 +19,7 @@ pub type DeleteStorage = ();
 pub type DeleteCollection = SyncTimestamp;
 pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
+// TODO: change this to return the sortindex (for pagination?)
 pub type PutBso = SyncTimestamp;
 
 #[derive(Debug, Default, Clone)]
@@ -59,6 +60,14 @@ pub struct GetBso {
     #[serde(skip_deserializing)]
     #[sql_type = "BigInt"]
     pub expiry: i64,
+}
+
+#[derive(Debug, Default, Deserialize, Queryable, QueryableByName, Serialize)]
+pub struct GetBsoIdOffsets {
+    #[sql_type = "Text"]
+    pub id: String,
+    #[sql_type = "BigInt"]
+    pub modified: SyncTimestamp,
 }
 
 #[derive(Debug, Default)]

@@ -16,6 +16,10 @@ lazy_static! {
     static ref UID: u32 = thread_rng().gen_range(0..10000);
 }
 
+fn as_offset(indicies:&HashMap<String, u64>, label: &str) -> String {
+    format!("{}:{}", indicies.get(label).unwrap(), label)
+}
+
 #[tokio::test]
 async fn bso_successfully_updates_single_values() -> Result<()> {
     let pool = db_pool(None).await?;
@@ -123,6 +127,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
         with_delta!(&db, i64::from(i) * 10, { db.put_bso(bso).await })?;
     }
 
+    // Get Zero records (returns the offset to the first record)
     let bsos = db
         .get_bsos(gbsos(
             uid,
@@ -132,12 +137,15 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             0,
-            &"0".to_owned(),
+            &"",
         ))
         .await?;
     assert!(bsos.items.is_empty());
-    assert_eq!(bsos.offset, Some("0".to_string()));
+    // index sorts sortindex descending.
+    let offset = bsos.offset.expect("No offset returned");
+    assert!(offset.ends_with(":11"));
 
+    // Get all of the records starting from the top.
     let bsos = db
         .get_bsos(gbsos(
             uid,
@@ -147,7 +155,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             -1,
-            &"0".to_owned(),
+            "",
         ))
         .await?;
     assert_eq!(bsos.items.len(), size as usize);
@@ -155,7 +163,6 @@ async fn get_bsos_limit_offset() -> Result<()> {
 
     let newer = 0;
     let limit = 5;
-    let offset = "0".to_owned();
     // XXX: validation?
     /*
     let bsos = db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0))?;
@@ -171,7 +178,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             newer,
             Sorting::Newest,
             limit,
-            &offset,
+            "",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 5);
@@ -184,6 +191,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
     assert_eq!(bsos.items[0].id, "11");
     assert_eq!(bsos.items[4].id, "7");
 
+    dbg!(&bsos.offset);
     let bsos2 = db
         .get_bsos(gbsos(
             uid,
@@ -232,17 +240,21 @@ async fn get_bsos_newer() -> Result<()> {
     let uid = *UID;
     let coll = "clients";
     let timestamp = db.timestamp().as_i64();
+    let mut indicies: HashMap<String, u64> = HashMap::new();
 
     for i in (0..=2).rev() {
+        let bid = format!("b{}", i);
         let pbso = pbso(
             uid,
             coll,
-            &format!("b{}", i),
+            &bid,
             Some("a"),
             Some(1),
             Some(DEFAULT_BSO_TTL),
         );
-        with_delta!(&db, -i * 10, { db.put_bso(pbso).await })?;
+        let result = with_delta!(&db, -i * 10, { db.put_bso(pbso).await })?;
+        indicies.insert(bid, result.as_i64() as u64);
+
     }
 
     let bsos = db
@@ -254,7 +266,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 30,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -271,7 +283,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 20,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &as_offset(&indicies, "b1"),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 2);
@@ -287,9 +299,10 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 10,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &as_offset(&indicies, "b0"),
         ))
         .await?;
+    dbg!(&bsos.items);
     assert_eq!(bsos.items.len(), 1);
     assert_eq!(bsos.items[0].id, "b0");
 
@@ -302,7 +315,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &as_offset(&indicies, "b0"),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 0);
@@ -338,7 +351,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -355,7 +368,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Oldest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -372,7 +385,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Index,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -858,13 +871,15 @@ async fn get_bso() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bsos() -> Result<()> {
+async fn get_bsos_aaa() -> Result<()> {
     let pool = db_pool(None).await?;
     let db = test_db(pool.as_ref()).await?;
 
     let uid = 2;
     let coll = "clients";
     let sortindexes = vec![1, 3, 4, 2, 0];
+    // offset
+    let mut indicies: HashMap<String, (u64, i32)> = HashMap::new();
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
             uid,
@@ -875,9 +890,23 @@ async fn get_bsos() -> Result<()> {
             Some(*sortindex),
             None,
         );
-        with_delta!(&db, i as i64 * 10, { db.put_bso(bso).await })?;
+        let id =  bso.id.clone();
+        let result = with_delta!(&db, i as i64 * 10, {
+            db.put_bso(bso).await
+         })?;
+         // Store the modified timestamp as well as the sort index for each entry for later pagination
+         // testing
+         indicies.insert(id, (result.as_i64() as u64, *sortindex));
     }
 
+    dbg!(&uid, &indicies, &indicies.get("b4"));
+
+    // one problem is that while we sort newest, it's based off of insertion timestamp,
+    // which is going to be the same for all of these. We then sort by the bso_id,
+    // this means that while 'b0' is technically the last record inserted, the server will
+    // return according to the bso_id since it's the only other demarcation we can use.
+    let offset_str = format!("{}:{}", &indicies.get("b4").unwrap().0, &"b4".to_owned());
+    dbg!(">>> Offset ", &offset_str);
     let ids = db
         .get_bso_ids(gbsos(
             uid,
@@ -887,7 +916,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &offset_str,
         ))
         .await?;
     assert_eq!(ids.items, vec!["b0", "b1", "b2", "b3", "b4"]);
@@ -901,7 +930,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            &"".to_owned(),
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -918,11 +947,13 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Index,
             2,
-            &"0".to_owned(),
+            &format!("{}:{}", &indicies.get("b3").unwrap().1, "b3"),
         ))
         .await?;
+    dbg!(&bsos, indicies);
     assert_eq!(bsos.items.len(), 2);
-    assert_eq!(bsos.offset, Some("2".to_string()));
+    // offset is timestamp:bso_id. Timestamp can be variable.
+    assert!(bsos.offset.expect("No offset").ends_with(":b3"));
     assert_eq!(bsos.items[0].id, "b2");
     assert_eq!(bsos.items[1].id, "b1");
     Ok(())

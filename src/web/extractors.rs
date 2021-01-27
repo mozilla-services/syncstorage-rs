@@ -1048,6 +1048,7 @@ impl HawkIdentifier {
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
         let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
+        // dbg!(&identifier);
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1069,6 +1070,11 @@ impl HawkIdentifier {
                 Some("uid".to_owned()),
                 label!("request.validate.hawk.uri_missing_uid"),
             ))?;
+        }
+
+        if payload.fxa_uid.is_empty() {
+            dbg!(&payload, &header, &uri);
+            warn!("Empty fxa_uid!");
         }
 
         let user_id = HawkIdentifier {
@@ -1124,46 +1130,60 @@ impl From<u32> for HawkIdentifier {
 #[derive(Debug, Default, Clone, Deserialize, Validate)]
 #[serde(default)]
 pub struct Offset {
-    pub timestamp: Option<SyncTimestamp>,
-    pub offset: u64,
+    pub index: Option<u64>,
+    pub offset: Option<String>,
 }
 
 impl ToString for Offset {
     fn to_string(&self) -> String {
-        match self.timestamp {
-            None => format!("{}", self.offset),
-            Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
+        let result = format!(
+            "{}:{}",
+            self.index.unwrap_or(0),
+            self.offset.clone().unwrap_or_default()
+        );
+        //dbg!(&result);
+        if &result == "0:" {
+            return "".to_owned();
         }
+        result
+    }
+}
+
+impl Offset {
+    pub fn is_empty(&self) -> bool {
+        self.index.is_none()  && self.offset.is_none()
     }
 }
 
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // issue559: Disable ':' support for now: simply parse as i64 as
-        // previously (it was u64 previously but i64's close enough)
-        let result = Offset {
-            timestamp: None,
-            offset: s.parse::<u64>()?,
-        };
-        /*
+        if s.is_empty() {
+            return Ok(Offset {
+                index: None,
+                offset: None,
+            });
+        }
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
-                timestamp: None,
-                offset: s.parse::<u64>()?,
+                index: None,
+                offset: Some(s.to_owned()),
             },
             Some(_colon_position) => {
                 let mut parts = s.split(':');
-                let timestamp_string = parts.next().unwrap_or("0");
-                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
-                let offset = parts.next().unwrap_or("0").parse::<u64>()?;
+                let index_string = parts.next().unwrap_or("0");
+                let index = index_string.parse::<u64>()?;
+                let offset = parts.next().map(|v| v.to_owned());
                 Offset {
-                    timestamp: Some(timestamp),
+                    index: if index > 0 {
+                        Some(index)
+                    } else {
+                        None
+                    },
                     offset,
                 }
             }
         };
-        */
         Ok(result)
     }
 }
