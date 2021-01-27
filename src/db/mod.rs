@@ -16,6 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use actix_rt;
 use async_trait::async_trait;
 use cadence::{Counted, Gauged, StatsdClient};
 use futures::future::{self, LocalBoxFuture, TryFutureExt};
@@ -311,7 +312,8 @@ pub fn spawn_pool_periodic_reporter(
                             .incr_with_tags("storage.pool.exhausted")
                             .with_tag("hostname", &hostname)
                             .send();
-                        panic!("Database connection pool exhausted")
+                        error!("☠ Connection pool exhausted. Deadman switch triggered.");
+                        actix_rt::System::current().stop_with_code(64);
                     }
                 }
                 prior_state = idle_connections;
