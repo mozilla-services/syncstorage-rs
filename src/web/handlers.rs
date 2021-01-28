@@ -561,8 +561,8 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
                 deadman.clock_start = Some(time::Instant::now());
             }
         } else if deadman.clock_start.is_some() {
-                deadman.clock_start = None
-            }
+            deadman.clock_start = None
+        }
         deadman.previous_count = db_state.idle_connections as usize;
         {
             *deadarc.write().await = deadman;
