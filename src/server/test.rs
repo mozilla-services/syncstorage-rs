@@ -76,6 +76,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
+        deadman: Arc::new(RwLock::new(Deadman::default())),
     }
 }
 

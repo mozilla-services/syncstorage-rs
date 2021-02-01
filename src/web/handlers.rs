@@ -540,6 +540,52 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, Error> {
     }
 }
 
+pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
+    let mut resp: HashMap<String, Value> = HashMap::new();
+
+    let state = match req.app_data::<Data<ServerState>>() {
+        Some(s) => s,
+        None => {
+            error!("⚠️ Could not load the app state");
+            return Ok(HttpResponse::InternalServerError().body(""));
+        }
+    };
+
+    let deadarc = state.deadman.clone();
+    let mut deadman = *deadarc.read().await;
+    let db_state = state.db_pool.clone().state();
+
+    let active = db_state.connections - db_state.idle_connections;
+
+    if let Some(max_size) = deadman.max_size {
+        if active >= max_size && db_state.idle_connections == 0 {
+            if deadman.previous_count > 0 {
+                deadman.clock_start = Some(time::Instant::now());
+            }
+        } else if deadman.clock_start.is_some() {
+            deadman.clock_start = None
+        }
+        deadman.previous_count = db_state.idle_connections as usize;
+        {
+            *deadarc.write().await = deadman;
+        }
+        resp.insert("active_connections".to_string(), Value::from(active));
+        resp.insert(
+            "idle_connections".to_string(),
+            Value::from(db_state.idle_connections),
+        );
+        if let Some(clock) = deadman.clock_start {
+            let duration: time::Duration = time::Instant::now() - clock;
+            resp.insert(
+                "duration_ms".to_string(),
+                Value::from(duration.whole_milliseconds()),
+            );
+        };
+    }
+
+    Ok(HttpResponse::Ok().json(json!(resp)))
+}
+
 // try returning an API error
 pub async fn test_error(
     _req: HttpRequest,

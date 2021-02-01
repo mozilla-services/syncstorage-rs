@@ -1673,13 +1673,14 @@ mod tests {
     use rand::{thread_rng, Rng};
     use serde_json::{self, json};
     use sha2::Sha256;
+    use tokio::sync::RwLock;
 
     use crate::db::{
         mock::{MockDb, MockDbPool},
         Db,
     };
     use crate::server::{metrics, ServerState};
-    use crate::settings::{Secrets, ServerLimits, Settings};
+    use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
 
     use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
@@ -1715,6 +1716,7 @@ mod tests {
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,
+            deadman: Arc::new(RwLock::new(Deadman::default())),
         }
     }
 
