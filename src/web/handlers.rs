@@ -555,8 +555,10 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
     let mut deadman = *deadarc.read().await;
     let db_state = state.db_pool.clone().state();
 
+    let active = db_state.connections - db_state.idle_connections;
+
     if let Some(max_size) = deadman.max_size {
-        if db_state.connections >= max_size && db_state.idle_connections == 0 {
+        if active >= max_size && db_state.idle_connections == 0 {
             if deadman.previous_count > 0 {
                 deadman.clock_start = Some(time::Instant::now());
             }
@@ -569,7 +571,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
         }
         resp.insert(
             "active_connections".to_string(),
-            Value::from(db_state.connections),
+            Value::from(active),
         );
         resp.insert(
             "idle_connections".to_string(),
