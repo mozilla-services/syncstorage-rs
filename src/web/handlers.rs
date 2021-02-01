@@ -569,10 +569,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
         {
             *deadarc.write().await = deadman;
         }
-        resp.insert(
-            "active_connections".to_string(),
-            Value::from(active),
-        );
+        resp.insert("active_connections".to_string(), Value::from(active));
         resp.insert(
             "idle_connections".to_string(),
             Value::from(db_state.idle_connections),

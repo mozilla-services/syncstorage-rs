@@ -123,7 +123,7 @@ impl Settings {
         s.set_default("master_secret", "")?;
         // Each backend does their own default process, so specifying a "universal" value
         // for database_pool_max_size doesn't quite work. Generally the max pool size is
-        // 10. 
+        // 10.
         s.set_default::<Option<String>>("tokenserver_database_url", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_modulus", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_exponent", None)?;
