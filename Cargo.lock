@@ -2212,9 +2212,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.8.1"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c24fcd450d3fa2b592732565aa4f17a27a61c65ece4726353e000939b0edee34"
+checksum = "0ef9e7e66b4468674bfcb0c81af8b7fa0bb154fa9f28eb840da5c447baeb8d7e"
 dependencies = [
  "libc",
  "rand_chacha 0.3.0",
@@ -2976,7 +2976,7 @@ dependencies = [
  "num_cpus",
  "protobuf",
  "pyo3",
- "rand 0.8.1",
+ "rand 0.8.3",
  "regex",
  "scheduled-thread-pool",
  "sentry",
