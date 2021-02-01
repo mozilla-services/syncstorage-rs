@@ -323,27 +323,14 @@ pub async fn post_collection_batch(
 
     let mut success = vec![];
     let mut failed = coll.bsos.invalid;
-    // Option #2, mark each bso.id included in the "commit" as "failing" so that they're
-    // resubmitted.
     let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
     let mut resp: Value = json!({});
 
-    if !breq.commit {
-        if !coll.bsos.valid.is_empty() {
-            let result = {
-                dbg!("Batch: Appending to {}", &new_batch.id);
-                db.append_to_batch(params::AppendToBatch {
-                    user_id: coll.user_id.clone(),
-                    collection: coll.collection.clone(),
-                    batch: new_batch.clone(),
-                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-                })
-                .await
-            };
-
+    macro_rules! handle_result {
             // collect up the successful and failed bso_ids into a response.
-            match result {
+            ( $r: expr) => {
+            match $r {
                 Ok(_) => success.extend(bso_ids.clone()),
                 Err(e) if e.is_conflict() => return Err(e.into()),
                 Err(apperr) => {
@@ -363,7 +350,28 @@ pub async fn post_collection_batch(
                 }
             };
         }
+    }
 
+    // If we're not committing the current set of records yet.
+    if !breq.commit {
+        // and there are bsos included in this message.
+        if !coll.bsos.valid.is_empty() {
+            // Append the data to the requested batch.
+            let result = {
+                dbg!("Batch: Appending to {}", &new_batch.id);
+                db.append_to_batch(params::AppendToBatch {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    batch: new_batch.clone(),
+                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                })
+                .await
+            };
+            handle_result!(result);
+        }
+
+        // Return the batch append response without committing the current
+        // batch to the BSO table.
         resp["success"] = json!(success);
         resp["failed"] = json!(failed);
 
@@ -382,6 +390,8 @@ pub async fn post_collection_batch(
 
     // TODO: validate *actual* sizes of the batch items
     // (max_total_records, max_total_bytes)
+    //
+    // First, write the pending batch BSO data into the BSO table.
     let modified = if let Some(batch) = batch {
         db.commit_batch(params::CommitBatch {
             user_id: user_id.clone(),
@@ -394,7 +404,12 @@ pub async fn post_collection_batch(
         return Err(ApiError::from(err).into());
     };
 
-    // write the BSOs contained in the commit request.
+    // Then, write the BSOs contained in the commit request into the BSO table.
+    // (This presumes that the BSOs contained in the final "commit" message are
+    // newer, and thus more "correct", than any prior BSO info that may have been
+    // included in the prior batch creation messages. The client shouldn't really
+    // be including BSOs with the commit message, however it does and we should
+    // handle that case.)
     if !coll.bsos.valid.is_empty() {
         trace!("Batch: writing commit message bsos");
         let result = db
@@ -418,25 +433,7 @@ pub async fn post_collection_batch(
             .await
             .map(|_| ());
 
-        match result {
-            Ok(_) => success.extend(bso_ids.clone()),
-            Err(e) if e.is_conflict() => return Err(e.into()),
-            Err(apperr) => {
-                if let ApiErrorKind::Db(dberr) = apperr.kind() {
-                    // If we're over quota, return immediately with a 403 to let the client know.
-                    // Otherwise the client will simply keep retrying records.
-                    if let DbErrorKind::Quota = dberr.kind() {
-                        return Err(apperr.into());
-                    }
-                };
-                failed.extend(
-                    bso_ids
-                        .clone()
-                        .into_iter()
-                        .map(|id| (id, "db error".to_owned())),
-                )
-            }
-        };
+        handle_result!(result);
 
         resp["success"] = json!(success);
         resp["failed"] = json!(failed);
