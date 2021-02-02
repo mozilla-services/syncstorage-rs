@@ -1,7 +1,9 @@
 //! API Handlers
 use std::collections::HashMap;
 
-use actix_web::{http::StatusCode, web::Data, Error, HttpRequest, HttpResponse};
+use actix_web::{
+    dev::HttpResponseBuilder, http::StatusCode, web::Data, Error, HttpRequest, HttpResponse,
+};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -556,12 +558,14 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
     let db_state = state.db_pool.clone().state();
 
     let active = db_state.connections - db_state.idle_connections;
+    let mut status_code = StatusCode::OK;
 
     if let Some(max_size) = deadman.max_size {
         if active >= max_size && db_state.idle_connections == 0 {
             if deadman.previous_count > 0 {
                 deadman.clock_start = Some(time::Instant::now());
             }
+            status_code = StatusCode::INTERNAL_SERVER_ERROR;
         } else if deadman.clock_start.is_some() {
             deadman.clock_start = None
         }
@@ -583,7 +587,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
         };
     }
 
-    Ok(HttpResponse::Ok().json(json!(resp)))
+    Ok(HttpResponseBuilder::new(status_code).json(json!(resp)))
 }
 
 // try returning an API error
