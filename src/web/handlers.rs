@@ -555,14 +555,41 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
 
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
-    let db_state = state.db_pool.clone().state();
+    let db_state = if cfg!(test) {
+        use crate::db::results::PoolState;
+        use actix_web::http::header::HeaderValue;
+        use std::str::FromStr;
+
+        let test_pool = PoolState {
+            connections: u32::from_str(
+                req.headers()
+                    .get("TEST_CONNECTIONS")
+                    .unwrap_or(&HeaderValue::from_static("0"))
+                    .to_str()
+                    .unwrap_or("0"),
+            )
+            .unwrap_or_default(),
+            idle_connections: u32::from_str(
+                req.headers()
+                    .get("TEST_IDLES")
+                    .unwrap_or(&HeaderValue::from_static("0"))
+                    .to_str()
+                    .unwrap_or("0"),
+            )
+            .unwrap_or_default(),
+        };
+        // dbg!(&test_pool, deadman.max_size);
+        test_pool
+    } else {
+        state.db_pool.clone().state()
+    };
 
     let active = db_state.connections - db_state.idle_connections;
     let mut status_code = StatusCode::OK;
 
     if let Some(max_size) = deadman.max_size {
         if active >= max_size && db_state.idle_connections == 0 {
-            if deadman.previous_count > 0 {
+            if deadman.clock_start.is_none() {
                 deadman.clock_start = Some(time::Instant::now());
             }
             status_code = StatusCode::INTERNAL_SERVER_ERROR;

@@ -76,7 +76,10 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
-        deadman: Arc::new(RwLock::new(Deadman::default())),
+        deadman: Arc::new(RwLock::new(Deadman {
+            max_size: settings.database_pool_max_size,
+            ..Default::default()
+        })),
     }
 }
 
@@ -694,4 +697,61 @@ async fn overquota() {
     let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
     let resp = app.call(req).await.unwrap();
     assert!(resp.response().status().is_success());
+}
+
+#[actix_rt::test]
+async fn lbheartbeat_check() {
+    use actix_web::web::Buf;
+
+    let mut settings = get_test_settings();
+    settings.database_pool_max_size = Some(10);
+
+    let mut app = init_app!(settings).await;
+
+    // Test all is well.
+    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let sresp = app.call(lb_req).await.unwrap();
+    let status = sresp.status();
+    // dbg!(status, test::read_body(sresp).await);
+    assert!(status.is_success());
+
+    // Exhaust the connections.
+    let mut headers: HashMap<&str, String> = HashMap::new();
+    headers.insert("TEST_CONNECTIONS", "10".to_owned());
+    headers.insert("TEST_IDLES", "0".to_owned());
+    let req = create_request(
+        http::Method::GET,
+        "/__lbheartbeat__",
+        Some(headers.clone()),
+        None,
+    )
+    .to_request();
+    let sresp = app.call(req).await.unwrap();
+    let status = sresp.status();
+    // dbg!(status, test::read_body(sresp).await);
+    assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
+
+    // check duration for exhausted connections
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    let req =
+        create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
+    let sresp = app.call(req).await.unwrap();
+    let status = sresp.status();
+    let body = test::read_body(sresp).await;
+    let resp: HashMap<String, serde_json::value::Value> =
+        serde_json::de::from_str(std::str::from_utf8(body.bytes()).unwrap()).unwrap();
+    // dbg!(status, body, &resp);
+    assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(resp.get("duration_ms").unwrap().as_u64().unwrap() > 1000);
+
+    // check recovery
+    let mut headers: HashMap<&str, String> = HashMap::new();
+    headers.insert("TEST_CONNECTIONS", "5".to_owned());
+    headers.insert("TEST_IDLES", "5".to_owned());
+    let req =
+        create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
+    let sresp = app.call(req).await.unwrap();
+    let status = sresp.status();
+    // dbg!(status, test::read_body(sresp).await);
+    assert!(status == StatusCode::OK);
 }
