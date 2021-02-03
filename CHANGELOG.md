@@ -1,3 +1,25 @@
+<a name="0.8.6"></a>
+### 0.8.6 (2021-02-01)
+
+
+#### Refactor
+
+*   remove duplicate code for incrementing counters (#983) ([d72228b1](https://github.com/mozilla-services/syncstorage-rs/commit/d72228b1d4b5cd63a399bde77c3156ea53bb4217))
+
+#### Chore
+
+*   tag 0.8.5 (#979) ([3c23fb46](https://github.com/mozilla-services/syncstorage-rs/commit/3c23fb46138d4a042d0293af6b9853ea9f173f6d))
+
+#### Features
+
+*   Add pool connection info to __lbheartbeat__ for ops (#985) ([06a2ac79](https://github.com/mozilla-services/syncstorage-rs/commit/06a2ac7910a87a75f1a2f0d68e786579cec99fd8))
+
+#### Bug Fixes
+
+*   downgrade deadpool so it stays on tokio 0.2 ([99975ef8](https://github.com/mozilla-services/syncstorage-rs/commit/99975ef8b64317511111d48c6ebfc75e7facc334), closes [#976](https://github.com/mozilla-services/syncstorage-rs/issues/976))
+
+
+
 <a name="0.8.5"></a>
 ## 0.8.5 (2021-01-21)
 
