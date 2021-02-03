@@ -1,3 +1,17 @@
+<a name="0.8.7"></a>
+### 0.8.7  (2021-02-03)
+
+
+#### Features
+
+*   `__lbheartbeat__` will return 500 if the connection pool is exhausted (#997) ([e72573ac](https://github.com/mozilla-services/syncstorage-rs/commit/e72573acedce2916c9fd3aa8e3c54fbe71f2008e), closes [#996](https://github.com/mozilla-services/syncstorage-rs/issues/996))
+
+#### Chore
+
+*   tag 0.8.6 (#995) ([8cb5b603](https://github.com/mozilla-services/syncstorage-rs/commit/8cb5b603f0320483904107eee682797b8d814a44))
+
+
+
 <a name="0.8.6"></a>
 ### 0.8.6 (2021-02-01)
 
