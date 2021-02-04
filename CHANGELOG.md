@@ -1,3 +1,64 @@
+<a name="0.8.7"></a>
+### 0.8.7  (2021-02-03)
+
+
+#### Features
+
+*   `__lbheartbeat__` will return 500 if the connection pool is exhausted (#997) ([e72573ac](https://github.com/mozilla-services/syncstorage-rs/commit/e72573acedce2916c9fd3aa8e3c54fbe71f2008e), closes [#996](https://github.com/mozilla-services/syncstorage-rs/issues/996))
+
+#### Chore
+
+*   tag 0.8.6 (#995) ([8cb5b603](https://github.com/mozilla-services/syncstorage-rs/commit/8cb5b603f0320483904107eee682797b8d814a44))
+
+
+
+<a name="0.8.6"></a>
+### 0.8.6 (2021-02-01)
+
+
+#### Refactor
+
+*   remove duplicate code for incrementing counters (#983) ([d72228b1](https://github.com/mozilla-services/syncstorage-rs/commit/d72228b1d4b5cd63a399bde77c3156ea53bb4217))
+
+#### Chore
+
+*   tag 0.8.5 (#979) ([3c23fb46](https://github.com/mozilla-services/syncstorage-rs/commit/3c23fb46138d4a042d0293af6b9853ea9f173f6d))
+
+#### Features
+
+*   Add pool connection info to __lbheartbeat__ for ops (#985) ([06a2ac79](https://github.com/mozilla-services/syncstorage-rs/commit/06a2ac7910a87a75f1a2f0d68e786579cec99fd8))
+
+#### Bug Fixes
+
+*   downgrade deadpool so it stays on tokio 0.2 ([99975ef8](https://github.com/mozilla-services/syncstorage-rs/commit/99975ef8b64317511111d48c6ebfc75e7facc334), closes [#976](https://github.com/mozilla-services/syncstorage-rs/issues/976))
+
+
+
+<a name="0.8.5"></a>
+## 0.8.5 (2021-01-21)
+
+
+#### Bug Fixes
+
+*   downgrade deadpool so it stays on tokio 0.2 ([99975ef8](https://github.com/mozilla-services/syncstorage-rs/commit/99975ef8b64317511111d48c6ebfc75e7facc334), closes [#976](https://github.com/mozilla-services/syncstorage-rs/issues/976))
+
+
+
+<a name="0.8.4"></a>
+### 0.8.4 (2021-01-19)
+
+
+#### Chore
+*   Update pyo3 to the latest version (#938) ([cc7d9d36]https://github.com/mozilla-services/syncstorage-rs/commit/cc7d9d367310aeb7551668c049f1a895a6eae853))
+*   update dependencies (#953) ([bca8770f](https://github.com/mozilla-services/syncstorage-rs/commit/bca8770f531b45b00e57e137082b1ed9d90acd7f))
+*   tag 0.8.3 (#937) ([02b76231](https://github.com/mozilla-services/syncstorage-rs/commit/02b76231cf4fa015093cea75286a82f306c833b0))
+
+
+#### Features
+
+*   default to timing out deadpool checkouts (30 seconds) (#974) ([2ecca202](https://github.com/mozilla-services/syncstorage-rs/commit/2ecca202aa01f123898115827af6e5967f8a1e9b), closes [#973](https://github.com/mozilla-services/syncstorage-rs/issues/973))
+*   avoid an unnecessarily cloning for from_raw_bso (#972) ([07352b6d](https://github.com/mozilla-services/syncstorage-rs/commit/07352b6d7a331d07e18ec386a650d3b720c5703f), closes [#971](https://github.com/mozilla-services/syncstorage-rs/issues/971))
+
 <a name="0.8.3"></a>
 ### 0.8.3 (2020-11-30)
 
@@ -5,7 +66,6 @@
 #### Chore
 
 *   Update to rust 1.48 (#927) ([ea1f222b](https://github.com/mozilla-services/syncstorage-rs/commit/ea1f222b219ddd78684945058c3b3430ed636982))
-*   Update pyo3 to the latest version (#938) ([cc7d9d36]https://github.com/mozilla-services/syncstorage-rs/commit/cc7d9d367310aeb7551668c049f1a895a6eae853))
 
 <a name="0.8.2"></a>
 ## 0.8.2 (2020-11-20)

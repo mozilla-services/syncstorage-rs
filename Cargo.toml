@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.8.3"
+version = "0.8.7"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -27,7 +27,8 @@ bytes = "1.0"
 cadence = "0.23"
 chrono = "0.4"
 config = "0.10"
-deadpool = "0.7"
+# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977)
+deadpool = "0.5"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
@@ -68,8 +69,9 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
-time = "^0.2.23"
-tokio = { version = "1.0", features = ["macros", "sync", "rt"] }
+time = "^0.2.25"
+# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
+tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 urlencoding = "1.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }

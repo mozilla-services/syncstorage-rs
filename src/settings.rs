@@ -33,6 +33,13 @@ pub struct Quota {
     pub enforced: bool,
 }
 
+#[derive(Copy, Clone, Default, Debug)]
+pub struct Deadman {
+    pub max_size: Option<u32>,
+    pub previous_count: usize,
+    pub clock_start: Option<time::Instant>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub debug: bool,
@@ -43,6 +50,8 @@ pub struct Settings {
     pub database_pool_max_size: Option<u32>,
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
+    /// Pool timeout when waiting for a slot to become available, in seconds
+    pub database_pool_connection_timeout: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
@@ -79,6 +88,7 @@ impl Default for Settings {
             tokenserver_database_url: None,
             database_pool_max_size: None,
             database_pool_min_idle: None,
+            database_pool_connection_timeout: Some(30),
             #[cfg(test)]
             database_use_test_transactions: false,
             actix_keep_alive: None,
@@ -108,8 +118,12 @@ impl Settings {
         s.set_default("host", "127.0.0.1")?;
         s.set_default("human_logs", false)?;
         #[cfg(test)]
+        s.set_default("database_pool_connection_timeout", Some(30))?;
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
+        // Each backend does their own default process, so specifying a "universal" value
+        // for database_pool_max_size doesn't quite work. Generally the max pool size is
+        // 10.
         s.set_default::<Option<String>>("tokenserver_database_url", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_modulus", None)?;
         s.set_default::<Option<String>>("tokenserver_jwks_rsa_exponent", None)?;
