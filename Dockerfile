@@ -30,6 +30,8 @@ COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 
+COPY --from=builder /app/Dockerfile* /app
+
 USER app:app
 
 ENTRYPOINT ["/app/bin/syncstorage", "--config=spanner_config.ini"]
