@@ -187,7 +187,10 @@ jobs:
             docker save -o /home/circleci/cache/docker.tar "app:build"
       - run:
           name: Save docker-compose config
-          command: cp docker-compose*.yaml /home/circleci/cache
+          command: |
+              cp docker-compose*.yaml /home/circleci/cache
+              cp Dockerfile* /home/circleci/cache
+
       - save_cache:
           key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
           paths:
