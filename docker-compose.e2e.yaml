@@ -15,10 +15,10 @@ services:
     syncstorage-rs:
         depends_on:
           - db
-        build:
-          context: .
-          dockerfile: Dockerfile
-        # image: syncstorage-rs:latest
+        #build:
+        #  context: .
+        #  dockerfile: Dockerfile
+        image: syncstorage-rs:build
         restart: always
         ports:
           - "8000:8000"
@@ -46,9 +46,9 @@ services:
           - db
           - syncstorage-rs
         image: syncstorage-rs:e2e
-        build:
-          context: .
-          dockerfile: Dockerfile-e2e
+        #build:
+        #  context: .
+        #  dockerfile: Dockerfile-e2e
         privileged: true
         user: root
         environment:

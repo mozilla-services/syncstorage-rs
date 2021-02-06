@@ -86,14 +86,14 @@ commands:
           command: |
                pwd
                ls -l
+               docker image ls
                /usr/local/bin/docker-compose \
-               -f docker-compose.yaml \
                -f docker-compose.e2e.yaml \
                up \
                --exit-code-from e2e-tests \
                --abort-on-container-exit \
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+              SYNCSTORAGE_RS_IMAGE: syncstorage-rs:build
 
   setup-sccache:
     steps:
@@ -177,14 +177,18 @@ jobs:
       #- save-sccache-cache
       - run:
           name: Build Docker image
-          command: docker build -t app:build .
+          command: docker build -t syncstorage-rs:build .
+      - run:
+          name: Build e2e tester image
+          command: docker build -f Dockerfile-e2e -t syncstorage-rs:e2e
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
-          name: docker save app:build
+          name: docker save syncstorage-rs:build
           command: |
             mkdir -p /home/circleci/cache
-            docker save -o /home/circleci/cache/docker.tar "app:build"
+            docker save -o /home/circleci/cache/docker.tar "syncstorage-rs:build"
+            docker save -o /home/circleci/cache/docker-e2e.tar "syncstorage-rs:e2e"
       - run:
           name: Save docker-compose config
           command: |
@@ -247,7 +251,7 @@ jobs:
             if [ -n "${DOCKER_TAG}" ]; then
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker tag syncstorage-rs:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
               docker images
               docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
             else
