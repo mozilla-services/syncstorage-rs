@@ -1379,9 +1379,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.13.9"
+version = "0.13.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6ad767baac13b44d4529fcf58ba2cd0995e36e7b435bc5b039de6f47e880dbf"
+checksum = "8a6f157065790a3ed2f88679250419b5cdd96e714a0d65f7797fd337186e96bb"
 dependencies = [
  "bytes 0.5.6",
  "futures-channel",
@@ -2940,7 +2940,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.8.6"
+version = "0.8.7"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -2968,6 +2968,7 @@ dependencies = [
  "hkdf",
  "hmac",
  "hostname",
+ "hyper",
  "jsonwebtoken",
  "lazy_static",
  "log",
