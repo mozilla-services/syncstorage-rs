@@ -41,6 +41,7 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.7" }
+hyper = "0.13.10"  # RUSTSEC-2021-0020 requires 0.13.10+ or 0.14.3+
 lazy_static = "1.4.0"
 pyo3 = "0.13"
 hawk = "3.2"
