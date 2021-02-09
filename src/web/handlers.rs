@@ -436,11 +436,11 @@ pub async fn post_collection_batch(
             .map(|_| ());
 
         handle_result!(result);
-
-        resp["success"] = json!(success);
-        resp["failed"] = json!(failed);
     }
 
+    // Always return success, failed, & modified
+    resp["success"] = json!(success);
+    resp["failed"] = json!(failed);
     resp["modified"] = json!(modified);
     trace!("Batch: Returning result: {}", &resp);
     Ok(HttpResponse::build(StatusCode::OK)
