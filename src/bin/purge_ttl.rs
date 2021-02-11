@@ -122,13 +122,13 @@ fn begin_transaction(
 fn continue_transaction(
     session: &Session,
     transaction_id: Vec<u8>,
-) -> Result<ExecuteSqlRequest, Box<grpcio::Error>> {
+) -> ExecuteSqlRequest {
     let mut ts = TransactionSelector::new();
     ts.set_id(transaction_id);
     let mut req = ExecuteSqlRequest::new();
     req.set_session(session.get_name().to_string());
     req.set_transaction(ts);
-    Ok(req)
+    req
 }
 
 fn commit_transaction(
@@ -217,7 +217,7 @@ fn delete_incremental(
             delete_sql.trim_end_matches(&", ".to_string()).to_string()
         );
         trace!("Deleting chunk with: {}", delete_sql);
-        let mut delete_req = continue_transaction(&session, txn.clone())?;
+        let mut delete_req = continue_transaction(&session, txn.clone());
         delete_req.set_sql(delete_sql);
         client.execute_sql(&delete_req)?;
         info!("{}: removed {} rows", table, total);
