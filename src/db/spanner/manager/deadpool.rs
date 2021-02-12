@@ -1,3 +1,4 @@
+use std::time::SystemTime;
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
@@ -23,6 +24,8 @@ pub struct SpannerSessionManager {
     env: Arc<Environment>,
     metrics: Metrics,
     test_transactions: bool,
+    max_lifespan: Option<u32>,
+    max_idle: Option<u32>,
 }
 
 impl fmt::Debug for SpannerSessionManager {
@@ -52,6 +55,8 @@ impl SpannerSessionManager {
             env,
             metrics: metrics.clone(),
             test_transactions,
+            max_lifespan: settings.database_pool_connection_lifespan,
+            max_idle: settings.database_pool_connection_max_idle,
         })
     }
 }
@@ -59,17 +64,38 @@ impl SpannerSessionManager {
 #[async_trait]
 impl Manager<SpannerSession, DbError> for SpannerSessionManager {
     async fn create(&self) -> Result<SpannerSession, DbError> {
-        create_spanner_session(
+        let session = create_spanner_session(
             Arc::clone(&self.env),
             self.metrics.clone(),
             &self.database_name,
             self.test_transactions,
         )
-        .await
+        .await?;
+        // check how long that this has been idle...
+        if let Some(max_idle) = self.max_idle {
+            if let Some(idle) = session
+                .session
+                .approximate_last_use_time
+                .clone()
+                .into_option()
+            {
+                // get current UTC seconds
+                let now = SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                let idle = std::cmp::max(0, now as i64 - idle.seconds);
+                if idle > max_idle as i64 {
+                    dbg!("### idling out", session.session.get_name());
+                    return Err(DbErrorKind::Expired.into());
+                }
+            }
+        }
+        Ok(session)
     }
 
     async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
-        recycle_spanner_session(conn, &self.database_name)
+        recycle_spanner_session(conn, &self.database_name, self.max_lifespan)
             .await
             .map_err(RecycleError::Backend)
     }

@@ -52,6 +52,10 @@ pub struct Settings {
     pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
+    /// Max age a given connection should live.
+    pub database_pool_connection_lifespan: Option<u32>,
+    /// Max time a connection should sit idle before being dropped.
+    pub database_pool_connection_max_idle: Option<u32>,
     #[cfg(test)]
     pub database_use_test_transactions: bool,
 
@@ -88,6 +92,8 @@ impl Default for Settings {
             tokenserver_database_url: None,
             database_pool_max_size: None,
             database_pool_min_idle: None,
+            database_pool_connection_lifespan: None,
+            database_pool_connection_max_idle: None,
             database_pool_connection_timeout: Some(30),
             #[cfg(test)]
             database_use_test_transactions: false,
@@ -119,6 +125,10 @@ impl Settings {
         s.set_default("human_logs", false)?;
         #[cfg(test)]
         s.set_default("database_pool_connection_timeout", Some(30))?;
+        // Max lifespan a connection should have.
+        s.set_default::<Option<String>>("database_connection_lifespan", None)?;
+        // Max time a connection should be idle before dropping.
+        s.set_default::<Option<String>>("database_connection_max_idle", None)?;
         s.set_default("database_use_test_transactions", false)?;
         s.set_default("master_secret", "")?;
         // Each backend does their own default process, so specifying a "universal" value
@@ -356,5 +366,7 @@ pub fn test_settings() -> Settings {
     settings.port = 8000;
     settings.database_pool_max_size = Some(1);
     settings.database_use_test_transactions = true;
+    settings.database_pool_connection_max_idle = Some(300);
+    settings.database_pool_connection_lifespan = Some(300);
     settings
 }

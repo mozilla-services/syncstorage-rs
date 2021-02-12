@@ -5,8 +5,12 @@ use googleapis_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
 use std::sync::Arc;
+use std::time::SystemTime;
 
-use crate::{db::error::DbError, server::metrics::Metrics};
+use crate::{
+    db::error::{DbError, DbErrorKind},
+    server::metrics::Metrics,
+};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
@@ -63,7 +67,23 @@ pub async fn create_spanner_session(
 pub async fn recycle_spanner_session(
     conn: &mut SpannerSession,
     database_name: &str,
+    max_lifetime: Option<u32>,
 ) -> Result<(), DbError> {
+    if let Some(max_life) = max_lifetime {
+        // get the current UTC seconds
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        if let Some(birth) = conn.session.create_time.clone().into_option() {
+            let birth = now - birth.seconds as u64;
+            if birth > max_life as u64 {
+                dbg!("### aging out", conn.session.get_name());
+                return Err(DbErrorKind::Expired.into());
+            }
+        }
+    }
+
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
     if let Err(e) = conn.client.get_session_async(&req)?.await {

@@ -1616,6 +1616,7 @@ where
 }
 
 /// Deserialize a value as True if it exists, False otherwise
+#[allow(clippy::unnecessary_wraps)]
 fn deserialize_present_value<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: Deserializer<'de>,
