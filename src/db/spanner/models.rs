@@ -2063,10 +2063,21 @@ impl<'a> Db<'a> for SpannerDb {
 
     fn get_connection_info(&self) -> DbFuture<'_, results::ConnectionInfo> {
         let session = self.conn.session.clone();
-        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs() as i64;
-        return Box::pin(future::ok(results::ConnectionInfo {
-            age: session.create_time.clone().into_option().map(|time| now - time.seconds).unwrap_or_default(),
-            idle: session.approximate_last_use_time.clone().into_option().map(|time| now - time.seconds).unwrap_or_default(),
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        Box::pin(future::ok(results::ConnectionInfo {
+            age: session
+                .create_time
+                .into_option()
+                .map(|time| now - time.seconds)
+                .unwrap_or_default(),
+            idle: session
+                .approximate_last_use_time
+                .into_option()
+                .map(|time| now - time.seconds)
+                .unwrap_or_default(),
         }))
     }
 
