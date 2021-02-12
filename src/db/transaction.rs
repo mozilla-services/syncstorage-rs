@@ -1,4 +1,5 @@
 use crate::db::{params, Db, DbPool};
+use crate::db::results::ConnectionInfo;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
@@ -7,6 +8,8 @@ use crate::web::extractors::{
 };
 use crate::web::middleware::SyncServerRequest;
 use crate::web::X_LAST_MODIFIED;
+use crate::web::tags::Tags;
+
 use actix_http::http::{HeaderValue, Method, StatusCode};
 use actix_http::Error;
 use actix_web::dev::{Payload, PayloadStream};
@@ -144,12 +147,22 @@ impl DbTransactionPool {
             }
         };
 
-        let (resp, db) = self.transaction_internal(check_precondition).await?;
+        let (mut resp, db) = self.transaction_internal(check_precondition).await?;
 
         // HttpResponse can contain an internal error
         match resp.error() {
             None => db.commit().await?,
-            Some(_) => db.rollback().await?,
+            Some(_) =>{
+                // TODO: really should try to get any tags that are already specified.
+                // metadata tags are applied later.
+                let connection_info: ConnectionInfo = db.get_connection_info().await?;
+                let mut exts = resp.extensions_mut();
+                let mut tags:Tags = Tags::default();
+                (tags.extra).insert("connection_age".to_owned(), connection_info.age.to_string());
+                (tags.extra).insert("connection_idle".to_owned(), connection_info.idle.to_string());
+                exts.insert(tags);
+                db.rollback().await?
+            },
         };
         Ok(resp)
     }
