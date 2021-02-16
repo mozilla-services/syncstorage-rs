@@ -119,10 +119,7 @@ fn begin_transaction(
     Ok((req, id))
 }
 
-fn continue_transaction(
-    session: &Session,
-    transaction_id: Vec<u8>,
-) -> ExecuteSqlRequest {
+fn continue_transaction(session: &Session, transaction_id: Vec<u8>) -> ExecuteSqlRequest {
     let mut ts = TransactionSelector::new();
     ts.set_id(transaction_id);
     let mut req = ExecuteSqlRequest::new();
