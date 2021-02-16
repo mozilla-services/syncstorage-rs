@@ -9,5 +9,5 @@ futures = "0.3.8"
 grpcio = "0.7.1"
 
 [dependencies.googleapis-raw]
-version = "0.0.5"
+version = "0.0.6"
 path = "../googleapis-raw"

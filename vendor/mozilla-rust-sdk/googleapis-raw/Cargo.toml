@@ -1,13 +1,13 @@
 [package]
 name = "googleapis-raw"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["Ferrous Systems"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.8"
 grpcio = "0.7.1"
-protobuf = "2.20.0"
+protobuf = "2.22.0"
 
 [dev-dependencies]
 slog = "2.7"
