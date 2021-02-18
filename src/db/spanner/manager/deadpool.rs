@@ -1,4 +1,3 @@
-use std::time::SystemTime;
 use std::{fmt, sync::Arc};
 
 use async_trait::async_trait;
@@ -71,33 +70,19 @@ impl Manager<SpannerSession, DbError> for SpannerSessionManager {
             self.test_transactions,
         )
         .await?;
-        // check how long that this has been idle...
-        if let Some(max_idle) = self.max_idle {
-            if let Some(idle) = session
-                .session
-                .approximate_last_use_time
-                .clone()
-                .into_option()
-            {
-                // get current UTC seconds
-                let now = SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
-                let idle = std::cmp::max(0, now as i64 - idle.seconds);
-                if idle > max_idle as i64 {
-                    dbg!("### idling out", session.session.get_name());
-                    return Err(DbErrorKind::Expired.into());
-                }
-            }
-        }
         Ok(session)
     }
 
     async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
-        recycle_spanner_session(conn, &self.database_name, self.max_lifespan)
-            .await
-            .map_err(RecycleError::Backend)
+        recycle_spanner_session(
+            conn,
+            &self.database_name,
+            &self.metrics,
+            self.max_lifespan,
+            self.max_idle,
+        )
+        .await
+        .map_err(RecycleError::Backend)
     }
 }
 

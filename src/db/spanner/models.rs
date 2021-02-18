@@ -8,7 +8,7 @@ use std::{
     time::SystemTime,
 };
 
-use futures::future::{self, TryFutureExt};
+use futures::future::TryFutureExt;
 use googleapis_raw::spanner::v1::{
     mutation::{Mutation, Mutation_Write},
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
@@ -2061,13 +2061,13 @@ impl<'a> Db<'a> for SpannerDb {
         Box::pin(async move { db.get_collection_id_async(&name).map_err(Into::into).await })
     }
 
-    fn get_connection_info(&self) -> DbFuture<'_, results::ConnectionInfo> {
+    fn get_connection_info(&self) -> results::ConnectionInfo {
         let session = self.conn.session.clone();
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
-        Box::pin(future::ok(results::ConnectionInfo {
+        results::ConnectionInfo {
             age: session
                 .create_time
                 .into_option()
@@ -2078,7 +2078,7 @@ impl<'a> Db<'a> for SpannerDb {
                 .into_option()
                 .map(|time| now - time.seconds)
                 .unwrap_or_default(),
-        }))
+        }
     }
 
     #[cfg(test)]

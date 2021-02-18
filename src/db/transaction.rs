@@ -30,6 +30,16 @@ pub struct DbTransactionPool {
     precondition: PreConditionHeaderOpt,
 }
 
+fn set_extra(connection_info: ConnectionInfo) -> Tags {
+    let mut tags: Tags = Tags::default();
+    (tags.extra).insert("connection_age".to_owned(), connection_info.age.to_string());
+    (tags.extra).insert(
+        "connection_idle".to_owned(),
+        connection_info.idle.to_string(),
+    );
+    tags
+}
+
 impl DbTransactionPool {
     /// Perform an action inside of a DB transaction. If the action fails, the
     /// transaction is rolled back. If the action succeeds, the transaction is
@@ -58,6 +68,10 @@ impl DbTransactionPool {
         if let Err(e) = result {
             db.rollback().await?;
             return Err(e.into());
+            // TODO: roll the tags into the error? Need to return ApiError to do that.
+            // let mut err:ApiError = e.into();
+            // err.tags = Some(set_extra(db.get_connection_info()));
+            // return Err(err);
         }
 
         // XXX: lock_for_x usually begins transactions but Dbs may also
@@ -148,6 +162,7 @@ impl DbTransactionPool {
         };
 
         let (mut resp, db) = self.transaction_internal(check_precondition).await?;
+        // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {
@@ -155,15 +170,8 @@ impl DbTransactionPool {
             Some(_) => {
                 // TODO: really should try to get any tags that are already specified.
                 // metadata tags are applied later.
-                let connection_info: ConnectionInfo = db.get_connection_info().await?;
-                let mut exts = resp.extensions_mut();
-                let mut tags: Tags = Tags::default();
-                (tags.extra).insert("connection_age".to_owned(), connection_info.age.to_string());
-                (tags.extra).insert(
-                    "connection_idle".to_owned(),
-                    connection_info.idle.to_string(),
-                );
-                exts.insert(tags);
+                resp.extensions_mut()
+                    .insert(set_extra(db.get_connection_info()));
                 db.rollback().await?
             }
         };

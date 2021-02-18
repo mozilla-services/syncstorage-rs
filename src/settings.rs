@@ -52,7 +52,7 @@ pub struct Settings {
     pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
-    /// Max age a given connection should live.
+    /// Max age a given connection should live, in seconds
     pub database_pool_connection_lifespan: Option<u32>,
     /// Max time a connection should sit idle before being dropped.
     pub database_pool_connection_max_idle: Option<u32>,

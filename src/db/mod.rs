@@ -167,7 +167,7 @@ pub trait Db<'a>: Debug + 'a {
 
     fn check(&self) -> DbFuture<'_, results::Check>;
 
-    fn get_connection_info(&self) -> DbFuture<'_, results::ConnectionInfo>;
+    fn get_connection_info(&self) -> results::ConnectionInfo;
 
     /// Retrieve the timestamp for an item/collection
     ///

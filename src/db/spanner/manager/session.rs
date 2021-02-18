@@ -67,7 +67,9 @@ pub async fn create_spanner_session(
 pub async fn recycle_spanner_session(
     conn: &mut SpannerSession,
     database_name: &str,
+    metrics: &Metrics,
     max_lifetime: Option<u32>,
+    max_idle: Option<u32>,
 ) -> Result<(), DbError> {
     if let Some(max_life) = max_lifetime {
         // get the current UTC seconds
@@ -75,10 +77,27 @@ pub async fn recycle_spanner_session(
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        if let Some(birth) = conn.session.create_time.clone().into_option() {
-            let birth = now - birth.seconds as u64;
-            if birth > max_life as u64 {
+        if let Some(age) = conn.session.create_time.clone().into_option() {
+            let age = now - age.seconds as u64;
+            if age > max_life as u64 {
+                metrics.incr("db.connection.max_life");
                 dbg!("### aging out", conn.session.get_name());
+                return Err(DbErrorKind::Expired.into());
+            }
+        }
+    }
+    // check how long that this has been idle...
+    if let Some(max_idle) = max_idle {
+        if let Some(idle) = conn.session.approximate_last_use_time.clone().into_option() {
+            // get current UTC seconds
+            let now = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let idle = std::cmp::max(0, now as i64 - idle.seconds);
+            if idle > max_idle as i64 {
+                metrics.incr("db.connection.max_idle");
+                dbg!("### idling out", conn.session.get_name());
                 return Err(DbErrorKind::Expired.into());
             }
         }

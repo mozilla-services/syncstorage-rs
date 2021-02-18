@@ -1,5 +1,6 @@
 //! API Handlers
 use std::collections::HashMap;
+use std::convert::Into;
 
 use actix_web::{
     dev::HttpResponseBuilder, http::StatusCode, web::Data, Error, HttpRequest, HttpResponse,
@@ -149,6 +150,7 @@ pub async fn delete_collection(
             Ok(resp.json(timestamp))
         })
         .await
+        .map_err(Into::into)
 }
 
 pub async fn get_collection(
