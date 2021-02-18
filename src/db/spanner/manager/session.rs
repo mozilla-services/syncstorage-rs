@@ -71,12 +71,12 @@ pub async fn recycle_spanner_session(
     max_lifetime: Option<u32>,
     max_idle: Option<u32>,
 ) -> Result<(), DbError> {
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     if let Some(max_life) = max_lifetime {
         // get the current UTC seconds
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
         if let Some(age) = conn.session.create_time.clone().into_option() {
             let age = now - age.seconds as u64;
             if age > max_life as u64 {
@@ -90,10 +90,6 @@ pub async fn recycle_spanner_session(
     if let Some(max_idle) = max_idle {
         if let Some(idle) = conn.session.approximate_last_use_time.clone().into_option() {
             // get current UTC seconds
-            let now = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
             let idle = std::cmp::max(0, now as i64 - idle.seconds);
             if idle > max_idle as i64 {
                 metrics.incr("db.connection.max_idle");

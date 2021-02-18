@@ -26,7 +26,6 @@ use crate::server::metrics::Metrics;
 use crate::server::ServerState;
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
-use crate::web::tags::Tags;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
 /// information and replacing it with one of these error codes.
@@ -58,7 +57,6 @@ pub const RETRY_AFTER: u8 = 10;
 pub struct ApiError {
     inner: Context<ApiErrorKind>,
     status: StatusCode,
-    pub tags: Option<Tags>,
 }
 
 /// Top-level ErrorKind.
@@ -238,11 +236,7 @@ impl From<Context<ApiErrorKind>> for ApiError {
             ApiErrorKind::Validation(error) => error.status,
         };
 
-        Self {
-            inner,
-            status,
-            tags: None,
-        }
+        Self { inner, status }
     }
 }
 

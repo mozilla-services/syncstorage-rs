@@ -11,13 +11,14 @@ use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
 
 use actix_http::http::{HeaderValue, Method, StatusCode};
-use actix_http::Error;
+use actix_http::{Error, Extensions};
 use actix_web::dev::{Payload, PayloadStream};
 use actix_web::http::header;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
+use std::cell::RefMut;
 use std::future::Future;
 
 #[derive(Clone)]
@@ -28,16 +29,21 @@ pub struct DbTransactionPool {
     collection: Option<String>,
     bso_opt: Option<String>,
     precondition: PreConditionHeaderOpt,
+    request: HttpRequest,
 }
 
-fn set_extra(connection_info: ConnectionInfo) -> Tags {
-    let mut tags: Tags = Tags::default();
+fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
+    let mut tags = match exts.get::<Tags>() {
+        Some(t) => t.clone(),
+        None => Tags::default(),
+    };
     (tags.extra).insert("connection_age".to_owned(), connection_info.age.to_string());
     (tags.extra).insert(
         "connection_idle".to_owned(),
         connection_info.idle.to_string(),
     );
-    tags
+    // dbg!(&tags.extra);
+    exts.insert(tags);
 }
 
 impl DbTransactionPool {
@@ -144,6 +150,11 @@ impl DbTransactionPool {
                     };
                 }
 
+                {
+                    let mut exts = self.request.extensions_mut();
+                    set_extra(&mut exts, db.get_connection_info());
+                }
+
                 let mut resp = action(db).await?;
 
                 if resp.headers().contains_key(X_LAST_MODIFIED) {
@@ -161,17 +172,15 @@ impl DbTransactionPool {
             }
         };
 
-        let (mut resp, db) = self.transaction_internal(check_precondition).await?;
+        let (resp, db) = self.transaction_internal(check_precondition).await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {
             None => db.commit().await?,
             Some(_) => {
-                // TODO: really should try to get any tags that are already specified.
-                // metadata tags are applied later.
-                resp.extensions_mut()
-                    .insert(set_extra(db.get_connection_info()));
+                let mut exts = self.request.extensions_mut();
+                set_extra(&mut exts, db.get_connection_info());
                 db.rollback().await?
             }
         };
@@ -201,6 +210,7 @@ impl FromRequest for DbTransactionPool {
         }
 
         let req = req.clone();
+        let treq = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
                 .expect("Could not get no_agent in DbTransactionPool::from_request");
@@ -248,6 +258,7 @@ impl FromRequest for DbTransactionPool {
                 collection,
                 bso_opt,
                 precondition,
+                request: treq,
             };
 
             req.extensions_mut().insert(pool.clone());
