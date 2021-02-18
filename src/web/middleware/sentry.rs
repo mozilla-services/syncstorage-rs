@@ -111,13 +111,21 @@ where
                 for (k, v) in t.tags.clone() {
                     tags.tags.insert(k, v);
                 }
+                for (k, v) in t.extra.clone() {
+                    tags.extra.insert(k, v);
+                }
             };
             if let Some(t) = sresp.response().extensions().get::<Tags>() {
                 trace!("Sentry: found tags in response: {:?}", &t.tags);
                 for (k, v) in t.tags.clone() {
                     tags.tags.insert(k, v);
                 }
+                for (k, v) in t.extra.clone() {
+                    tags.extra.insert(k, v);
+                }
+
             };
+            // dbg!(&tags);
             match sresp.response().error() {
                 None => {
                     // Middleware errors are eaten by current versions of Actix. Errors are now added

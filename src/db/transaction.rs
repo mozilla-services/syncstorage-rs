@@ -74,10 +74,6 @@ impl DbTransactionPool {
         if let Err(e) = result {
             db.rollback().await?;
             return Err(e.into());
-            // TODO: roll the tags into the error? Need to return ApiError to do that.
-            // let mut err:ApiError = e.into();
-            // err.tags = Some(set_extra(db.get_connection_info()));
-            // return Err(err);
         }
 
         // XXX: lock_for_x usually begins transactions but Dbs may also
@@ -172,14 +168,14 @@ impl DbTransactionPool {
             }
         };
 
-        let (resp, db) = self.transaction_internal(check_precondition).await?;
+        let (mut resp, db) = self.transaction_internal(check_precondition).await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {
             None => db.commit().await?,
             Some(_) => {
-                let mut exts = self.request.extensions_mut();
+                let mut exts = resp.extensions_mut();
                 set_extra(&mut exts, db.get_connection_info());
                 db.rollback().await?
             }
