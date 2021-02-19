@@ -29,7 +29,7 @@ pub struct DbTransactionPool {
     collection: Option<String>,
     bso_opt: Option<String>,
     precondition: PreConditionHeaderOpt,
-    request: HttpRequest,
+    // request: HttpRequest,
 }
 
 fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
@@ -146,10 +146,14 @@ impl DbTransactionPool {
                     };
                 }
 
+                /*
+                // the following causes mysql test to fail for some reason. It appears to be around
+                // getting a lock on the db.
                 {
                     let mut exts = self.request.extensions_mut();
                     set_extra(&mut exts, db.get_connection_info());
                 }
+                */
 
                 let mut resp = action(db).await?;
 
@@ -206,7 +210,7 @@ impl FromRequest for DbTransactionPool {
         }
 
         let req = req.clone();
-        let treq = req.clone();
+        // let treq = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
                 .expect("Could not get no_agent in DbTransactionPool::from_request");
@@ -254,7 +258,7 @@ impl FromRequest for DbTransactionPool {
                 collection,
                 bso_opt,
                 precondition,
-                request: treq,
+                //request: treq,
             };
 
             req.extensions_mut().insert(pool.clone());
