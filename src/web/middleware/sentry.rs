@@ -124,9 +124,6 @@ where
                     tags.extra.insert(k, v);
                 }
             };
-            // swing the chicken counter clockwise to free the transaction pool and prevent
-            // possible MySQL lock `take_body()` contention issues.
-            // sresp.request().extensions_mut().remove::<crate::db::transaction::DbTransactionPool>();
             // dbg!(&tags);
             match sresp.response().error() {
                 None => {
