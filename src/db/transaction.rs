@@ -54,6 +54,7 @@ impl DbTransactionPool {
     async fn transaction_internal<'a, A: 'a, R, F>(
         &'a self,
         action: A,
+        request: HttpRequest,
     ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
@@ -72,6 +73,7 @@ impl DbTransactionPool {
 
         // Handle lock error
         if let Err(e) = result {
+            set_extra(&mut request.extensions_mut(), db.get_connection_info());
             db.rollback().await?;
             return Err(e.into());
         }
@@ -94,12 +96,12 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A: 'a, R, F>(&'a self, action: A) -> Result<R, Error>
+    pub async fn transaction<'a, A: 'a, R, F>(&'a self, action: A, request: HttpRequest) -> Result<R, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(action).await?;
+        let (resp, db) = self.transaction_internal(action, request).await?;
 
         // No further processing before commit is possible
         db.commit().await?;
@@ -108,7 +110,7 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A: 'a, F>(&'a self, action: A) -> Result<HttpResponse, Error>
+    pub async fn transaction_http<'a, A: 'a, F>(&'a self, action: A, request: HttpRequest) -> Result<HttpResponse, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
@@ -149,6 +151,9 @@ impl DbTransactionPool {
                 /*
                 // the following causes mysql test to fail for some reason. It appears to be around
                 // getting a lock on the db.
+                // Stupid theory: by including request in DbTransactionPool, there is a possible recursion
+                // error happening with ARC that prevents Request from being fully freed. Maybe see about
+                // passing request as a param to avoid this?
                 {
                     let mut exts = self.request.extensions_mut();
                     set_extra(&mut exts, db.get_connection_info());
@@ -172,15 +177,14 @@ impl DbTransactionPool {
             }
         };
 
-        let (mut resp, db) = self.transaction_internal(check_precondition).await?;
+        let (mut resp, db) = self.transaction_internal(check_precondition, request).await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {
             None => db.commit().await?,
             Some(_) => {
-                let mut exts = resp.extensions_mut();
-                set_extra(&mut exts, db.get_connection_info());
+                set_extra(&mut resp.extensions_mut(), db.get_connection_info());
                 db.rollback().await?
             }
         };
@@ -258,7 +262,7 @@ impl FromRequest for DbTransactionPool {
                 collection,
                 bso_opt,
                 precondition,
-                //request: treq,
+                // request: treq,
             };
 
             req.extensions_mut().insert(pool.clone());
