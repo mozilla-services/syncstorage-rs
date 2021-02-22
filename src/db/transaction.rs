@@ -29,7 +29,6 @@ pub struct DbTransactionPool {
     collection: Option<String>,
     bso_opt: Option<String>,
     precondition: PreConditionHeaderOpt,
-    // request: HttpRequest,
 }
 
 fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
@@ -96,7 +95,11 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A: 'a, R, F>(&'a self, action: A, request: HttpRequest) -> Result<R, Error>
+    pub async fn transaction<'a, A: 'a, R, F>(
+        &'a self,
+        action: A,
+        request: HttpRequest,
+    ) -> Result<R, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
@@ -110,11 +113,16 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A: 'a, F>(&'a self, action: A, request: HttpRequest) -> Result<HttpResponse, Error>
+    pub async fn transaction_http<'a, A: 'a, F>(
+        &'a self,
+        action: A,
+        request: HttpRequest,
+    ) -> Result<HttpResponse, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
     {
+        let mreq = request.clone();
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
                 let resource_ts = db
@@ -148,17 +156,7 @@ impl DbTransactionPool {
                     };
                 }
 
-                /*
-                // the following causes mysql test to fail for some reason. It appears to be around
-                // getting a lock on the db.
-                // Stupid theory: by including request in DbTransactionPool, there is a possible recursion
-                // error happening with ARC that prevents Request from being fully freed. Maybe see about
-                // passing request as a param to avoid this?
-                {
-                    let mut exts = self.request.extensions_mut();
-                    set_extra(&mut exts, db.get_connection_info());
-                }
-                */
+                set_extra(&mut mreq.extensions_mut(), db.get_connection_info());
 
                 let mut resp = action(db).await?;
 
@@ -177,7 +175,9 @@ impl DbTransactionPool {
             }
         };
 
-        let (mut resp, db) = self.transaction_internal(check_precondition, request).await?;
+        let (mut resp, db) = self
+            .transaction_internal(check_precondition, request.clone())
+            .await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
