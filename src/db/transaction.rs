@@ -45,8 +45,8 @@ impl DbTransactionPool {
     /// action has succeeded (ex. check HTTP response for internal error).
     async fn transaction_internal<'a, A: 'a, R, F>(
         &'a self,
-        action: A,
         request: HttpRequest,
+        action: A,
     ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
@@ -91,14 +91,14 @@ impl DbTransactionPool {
     /// Perform an action inside of a DB transaction.
     pub async fn transaction<'a, A: 'a, R, F>(
         &'a self,
-        action: A,
         request: HttpRequest,
+        action: A,
     ) -> Result<R, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(action, request).await?;
+        let (resp, db) = self.transaction_internal(request, action ).await?;
 
         // No further processing before commit is possible
         db.commit().await?;
@@ -170,7 +170,7 @@ impl DbTransactionPool {
         };
 
         let (resp, db) = self
-            .transaction_internal(check_precondition, request.clone())
+            .transaction_internal(request.clone(),check_precondition, )
             .await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
