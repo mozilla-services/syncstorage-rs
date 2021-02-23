@@ -1,3 +1,4 @@
+use crate::db::results::ConnectionInfo;
 use crate::db::{params, Db, DbPool};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::metrics::Metrics;
@@ -6,15 +7,18 @@ use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
 use crate::web::middleware::SyncServerRequest;
+use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
+
 use actix_http::http::{HeaderValue, Method, StatusCode};
-use actix_http::Error;
+use actix_http::{Error, Extensions};
 use actix_web::dev::{Payload, PayloadStream};
 use actix_web::http::header;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
+use std::cell::RefMut;
 use std::future::Future;
 
 #[derive(Clone)]
@@ -27,6 +31,13 @@ pub struct DbTransactionPool {
     precondition: PreConditionHeaderOpt,
 }
 
+fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
+    let mut tags = Tags::default();
+    tags.add_extra("connection_age", &connection_info.age.to_string());
+    tags.add_extra("connection_idle", &connection_info.idle.to_string());
+    tags.commit(exts);
+}
+
 impl DbTransactionPool {
     /// Perform an action inside of a DB transaction. If the action fails, the
     /// transaction is rolled back. If the action succeeds, the transaction is
@@ -34,6 +45,7 @@ impl DbTransactionPool {
     /// action has succeeded (ex. check HTTP response for internal error).
     async fn transaction_internal<'a, A: 'a, R, F>(
         &'a self,
+        request: HttpRequest,
         action: A,
     ) -> Result<(R, Box<dyn Db<'a>>), Error>
     where
@@ -53,6 +65,8 @@ impl DbTransactionPool {
 
         // Handle lock error
         if let Err(e) = result {
+            // Update the extra info fields.
+            set_extra(&mut request.extensions_mut(), db.get_connection_info());
             db.rollback().await?;
             return Err(e.into());
         }
@@ -75,12 +89,16 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A: 'a, R, F>(&'a self, action: A) -> Result<R, Error>
+    pub async fn transaction<'a, A: 'a, R, F>(
+        &'a self,
+        request: HttpRequest,
+        action: A,
+    ) -> Result<R, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<R, Error>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(action).await?;
+        let (resp, db) = self.transaction_internal(request, action).await?;
 
         // No further processing before commit is possible
         db.commit().await?;
@@ -89,13 +107,20 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A: 'a, F>(&'a self, action: A) -> Result<HttpResponse, Error>
+    pub async fn transaction_http<'a, A: 'a, F>(
+        &'a self,
+        request: HttpRequest,
+        action: A,
+    ) -> Result<HttpResponse, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
         F: Future<Output = Result<HttpResponse, Error>> + 'a,
     {
+        let mreq = request.clone();
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
+                // set the extra information for all requests so we capture default err handlers.
+                set_extra(&mut mreq.extensions_mut(), db.get_connection_info());
                 let resource_ts = db
                     .extract_resource(
                         self.user_id.clone(),
@@ -144,7 +169,10 @@ impl DbTransactionPool {
             }
         };
 
-        let (resp, db) = self.transaction_internal(check_precondition).await?;
+        let (resp, db) = self
+            .transaction_internal(request.clone(), check_precondition)
+            .await?;
+        // match on error and return a composed HttpResponse (so we can use the tags?)
 
         // HttpResponse can contain an internal error
         match resp.error() {

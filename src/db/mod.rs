@@ -167,6 +167,8 @@ pub trait Db<'a>: Debug + 'a {
 
     fn check(&self) -> DbFuture<'_, results::Check>;
 
+    fn get_connection_info(&self) -> results::ConnectionInfo;
+
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.

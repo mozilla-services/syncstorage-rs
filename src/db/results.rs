@@ -87,6 +87,12 @@ pub struct PoolState {
     pub idle_connections: u32,
 }
 
+#[derive(Debug, Default)]
+pub struct ConnectionInfo {
+    pub age: i64,
+    pub idle: i64,
+}
+
 pub type GetCollectionId = i32;
 
 #[cfg(test)]
