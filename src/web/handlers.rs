@@ -35,17 +35,14 @@ pub async fn get_collections(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                meta.metrics.incr("request.get_collections");
-                let result = db.get_collection_timestamps(meta.user_id).await?;
+        .transaction_http(request, |db| async move {
+            meta.metrics.incr("request.get_collections");
+            let result = db.get_collection_timestamps(meta.user_id).await?;
 
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, result.len().to_string())
-                    .json(result))
-            },
-        )
+            Ok(HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .json(result))
+        })
         .await
 }
 
@@ -55,17 +52,14 @@ pub async fn get_collection_counts(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                meta.metrics.incr("request.get_collection_counts");
-                let result = db.get_collection_counts(meta.user_id).await?;
+        .transaction_http(request, |db| async move {
+            meta.metrics.incr("request.get_collection_counts");
+            let result = db.get_collection_counts(meta.user_id).await?;
 
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, result.len().to_string())
-                    .json(result))
-            },
-        )
+            Ok(HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .json(result))
+        })
         .await
 }
 
@@ -75,22 +69,19 @@ pub async fn get_collection_usage(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                meta.metrics.incr("request.get_collection_usage");
-                let usage: HashMap<_, _> = db
-                    .get_collection_usage(meta.user_id)
-                    .await?
-                    .into_iter()
-                    .map(|(coll, size)| (coll, size as f64 / ONE_KB))
-                    .collect();
+        .transaction_http(request, |db| async move {
+            meta.metrics.incr("request.get_collection_usage");
+            let usage: HashMap<_, _> = db
+                .get_collection_usage(meta.user_id)
+                .await?
+                .into_iter()
+                .map(|(coll, size)| (coll, size as f64 / ONE_KB))
+                .collect();
 
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_WEAVE_RECORDS, usage.len().to_string())
-                    .json(usage))
-            },
-        )
+            Ok(HttpResponse::build(StatusCode::OK)
+                .header(X_WEAVE_RECORDS, usage.len().to_string())
+                .json(usage))
+        })
         .await
 }
 
@@ -100,14 +91,11 @@ pub async fn get_quota(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                meta.metrics.incr("request.get_quota");
-                let usage = db.get_storage_usage(meta.user_id).await?;
-                Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
-            },
-        )
+        .transaction_http(request, |db| async move {
+            meta.metrics.incr("request.get_quota");
+            let usage = db.get_storage_usage(meta.user_id).await?;
+            Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
+        })
         .await
 }
 
@@ -117,13 +105,10 @@ pub async fn delete_all(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                meta.metrics.incr("request.delete_all");
-                Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
-            },
-        )
+        .transaction_http(request, |db| async move {
+            meta.metrics.incr("request.delete_all");
+            Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
+        })
         .await
 }
 
@@ -133,46 +118,43 @@ pub async fn delete_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                let delete_bsos = !coll.query.ids.is_empty();
-                let metrics = coll.metrics.clone();
-                let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
-                    metrics.incr("request.delete_bsos");
-                    db.delete_bsos(params::DeleteBsos {
-                        user_id: coll.user_id.clone(),
-                        collection: coll.collection.clone(),
-                        ids: coll.query.ids.clone(),
-                    })
-                    .await
-                } else {
-                    metrics.incr("request.delete_collection");
-                    db.delete_collection(params::DeleteCollection {
-                        user_id: coll.user_id.clone(),
-                        collection: coll.collection.clone(),
-                    })
-                    .await
-                };
+        .transaction_http(request, |db| async move {
+            let delete_bsos = !coll.query.ids.is_empty();
+            let metrics = coll.metrics.clone();
+            let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
+                metrics.incr("request.delete_bsos");
+                db.delete_bsos(params::DeleteBsos {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    ids: coll.query.ids.clone(),
+                })
+                .await
+            } else {
+                metrics.incr("request.delete_collection");
+                db.delete_collection(params::DeleteCollection {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                })
+                .await
+            };
 
-                let timestamp = match timestamp {
-                    Ok(timestamp) => timestamp,
-                    Err(e) => {
-                        if e.is_collection_not_found() || e.is_bso_not_found() {
-                            db.get_storage_timestamp(coll.user_id).await?
-                        } else {
-                            return Err(e.into());
-                        }
+            let timestamp = match timestamp {
+                Ok(timestamp) => timestamp,
+                Err(e) => {
+                    if e.is_collection_not_found() || e.is_bso_not_found() {
+                        db.get_storage_timestamp(coll.user_id).await?
+                    } else {
+                        return Err(e.into());
                     }
-                };
-
-                let mut resp = HttpResponse::Ok();
-                if delete_bsos {
-                    resp.header(X_LAST_MODIFIED, timestamp.as_header());
                 }
-                Ok(resp.json(timestamp))
-            },
-        )
+            };
+
+            let mut resp = HttpResponse::Ok();
+            if delete_bsos {
+                resp.header(X_LAST_MODIFIED, timestamp.as_header());
+            }
+            Ok(resp.json(timestamp))
+        })
         .await
         .map_err(Into::into)
 }
@@ -183,26 +165,23 @@ pub async fn get_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                coll.metrics.clone().incr("request.get_collection");
-                let params = params::GetBsos {
-                    user_id: coll.user_id.clone(),
-                    params: coll.query.clone(),
-                    collection: coll.collection.clone(),
-                };
-                let response = if coll.query.full {
-                    let result = db.get_bsos(params).await;
-                    finish_get_collection(&coll, db, result).await?
-                } else {
-                    // Changed to be a Paginated list of BSOs, need to extract IDs from them.
-                    let result = db.get_bso_ids(params).await;
-                    finish_get_collection(&coll, db, result).await?
-                };
-                Ok(response)
-            },
-        )
+        .transaction_http(request, |db| async move {
+            coll.metrics.clone().incr("request.get_collection");
+            let params = params::GetBsos {
+                user_id: coll.user_id.clone(),
+                params: coll.query.clone(),
+                collection: coll.collection.clone(),
+            };
+            let response = if coll.query.full {
+                let result = db.get_bsos(params).await;
+                finish_get_collection(&coll, db, result).await?
+            } else {
+                // Changed to be a Paginated list of BSOs, need to extract IDs from them.
+                let result = db.get_bso_ids(params).await;
+                finish_get_collection(&coll, db, result).await?
+            };
+            Ok(response)
+        })
         .await
 }
 
@@ -262,39 +241,36 @@ pub async fn post_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                coll.metrics.clone().incr("request.post_collection");
-                trace!("Collection: Post");
+        .transaction_http(request, |db| async move {
+            coll.metrics.clone().incr("request.post_collection");
+            trace!("Collection: Post");
 
-                // batches are a conceptual, singular update, so we should handle
-                // them separately.
-                if let Some(ref batch) = coll.batch {
-                    // Optimization: specifying ?batch=true&commit=true
-                    // (batch.id.is_none() && batch.commit) is equivalent to a
-                    // simpler post_bsos call. Fallthrough in that case, instead of
-                    // incurring post_collection_batch's overhead
-                    if !(batch.id.is_none() && batch.commit) {
-                        return post_collection_batch(coll, db).await;
-                    }
+            // batches are a conceptual, singular update, so we should handle
+            // them separately.
+            if let Some(ref batch) = coll.batch {
+                // Optimization: specifying ?batch=true&commit=true
+                // (batch.id.is_none() && batch.commit) is equivalent to a
+                // simpler post_bsos call. Fallthrough in that case, instead of
+                // incurring post_collection_batch's overhead
+                if !(batch.id.is_none() && batch.commit) {
+                    return post_collection_batch(coll, db).await;
                 }
+            }
 
-                let result = db
-                    .post_bsos(params::PostBsos {
-                        user_id: coll.user_id,
-                        collection: coll.collection,
-                        bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-                        for_batch: false,
-                        failed: coll.bsos.invalid,
-                    })
-                    .await?;
+            let result = db
+                .post_bsos(params::PostBsos {
+                    user_id: coll.user_id,
+                    collection: coll.collection,
+                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                    for_batch: false,
+                    failed: coll.bsos.invalid,
+                })
+                .await?;
 
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_LAST_MODIFIED, result.modified.as_header())
-                    .json(result))
-            },
-        )
+            Ok(HttpResponse::build(StatusCode::OK)
+                .header(X_LAST_MODIFIED, result.modified.as_header())
+                .json(result))
+        })
         .await
 }
 
@@ -488,20 +464,17 @@ pub async fn delete_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                bso_req.metrics.incr("request.delete_bso");
-                let result = db
-                    .delete_bso(params::DeleteBso {
-                        user_id: bso_req.user_id,
-                        collection: bso_req.collection,
-                        id: bso_req.bso,
-                    })
-                    .await?;
-                Ok(HttpResponse::Ok().json(json!({ "modified": result })))
-            },
-        )
+        .transaction_http(request, |db| async move {
+            bso_req.metrics.incr("request.delete_bso");
+            let result = db
+                .delete_bso(params::DeleteBso {
+                    user_id: bso_req.user_id,
+                    collection: bso_req.collection,
+                    id: bso_req.bso,
+                })
+                .await?;
+            Ok(HttpResponse::Ok().json(json!({ "modified": result })))
+        })
         .await
 }
 
@@ -511,24 +484,21 @@ pub async fn get_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                bso_req.metrics.incr("request.get_bso");
-                let result = db
-                    .get_bso(params::GetBso {
-                        user_id: bso_req.user_id,
-                        collection: bso_req.collection,
-                        id: bso_req.bso,
-                    })
-                    .await?;
+        .transaction_http(request, |db| async move {
+            bso_req.metrics.incr("request.get_bso");
+            let result = db
+                .get_bso(params::GetBso {
+                    user_id: bso_req.user_id,
+                    collection: bso_req.collection,
+                    id: bso_req.bso,
+                })
+                .await?;
 
-                Ok(result.map_or_else(
-                    || HttpResponse::NotFound().finish(),
-                    |bso| HttpResponse::Ok().json(bso),
-                ))
-            },
-        )
+            Ok(result.map_or_else(
+                || HttpResponse::NotFound().finish(),
+                |bso| HttpResponse::Ok().json(bso),
+            ))
+        })
         .await
 }
 
@@ -538,26 +508,23 @@ pub async fn put_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(
-            request,
-            |db| async move {
-                bso_req.metrics.incr("request.put_bso");
-                let result = db
-                    .put_bso(params::PutBso {
-                        user_id: bso_req.user_id,
-                        collection: bso_req.collection,
-                        id: bso_req.bso,
-                        sortindex: bso_req.body.sortindex,
-                        payload: bso_req.body.payload,
-                        ttl: bso_req.body.ttl,
-                    })
-                    .await?;
+        .transaction_http(request, |db| async move {
+            bso_req.metrics.incr("request.put_bso");
+            let result = db
+                .put_bso(params::PutBso {
+                    user_id: bso_req.user_id,
+                    collection: bso_req.collection,
+                    id: bso_req.bso,
+                    sortindex: bso_req.body.sortindex,
+                    payload: bso_req.body.payload,
+                    ttl: bso_req.body.ttl,
+                })
+                .await?;
 
-                Ok(HttpResponse::build(StatusCode::OK)
-                    .header(X_LAST_MODIFIED, result.as_header())
-                    .json(result))
-            },
-        )
+            Ok(HttpResponse::build(StatusCode::OK)
+                .header(X_LAST_MODIFIED, result.as_header())
+                .json(result))
+        })
         .await
 }
 
