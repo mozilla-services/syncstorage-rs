@@ -36,6 +36,7 @@ pub async fn get_collections(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 meta.metrics.incr("request.get_collections");
                 let result = db.get_collection_timestamps(meta.user_id).await?;
@@ -44,7 +45,6 @@ pub async fn get_collections(
                     .header(X_WEAVE_RECORDS, result.len().to_string())
                     .json(result))
             },
-            request,
         )
         .await
 }
@@ -56,6 +56,7 @@ pub async fn get_collection_counts(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 meta.metrics.incr("request.get_collection_counts");
                 let result = db.get_collection_counts(meta.user_id).await?;
@@ -64,7 +65,6 @@ pub async fn get_collection_counts(
                     .header(X_WEAVE_RECORDS, result.len().to_string())
                     .json(result))
             },
-            request,
         )
         .await
 }
@@ -76,6 +76,7 @@ pub async fn get_collection_usage(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 meta.metrics.incr("request.get_collection_usage");
                 let usage: HashMap<_, _> = db
@@ -89,7 +90,6 @@ pub async fn get_collection_usage(
                     .header(X_WEAVE_RECORDS, usage.len().to_string())
                     .json(usage))
             },
-            request,
         )
         .await
 }
@@ -101,12 +101,12 @@ pub async fn get_quota(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 meta.metrics.incr("request.get_quota");
                 let usage = db.get_storage_usage(meta.user_id).await?;
                 Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
             },
-            request,
         )
         .await
 }
@@ -118,11 +118,11 @@ pub async fn delete_all(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 meta.metrics.incr("request.delete_all");
                 Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
             },
-            request,
         )
         .await
 }
@@ -134,6 +134,7 @@ pub async fn delete_collection(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 let delete_bsos = !coll.query.ids.is_empty();
                 let metrics = coll.metrics.clone();
@@ -171,7 +172,6 @@ pub async fn delete_collection(
                 }
                 Ok(resp.json(timestamp))
             },
-            request,
         )
         .await
         .map_err(Into::into)
@@ -184,6 +184,7 @@ pub async fn get_collection(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 coll.metrics.clone().incr("request.get_collection");
                 let params = params::GetBsos {
@@ -201,7 +202,6 @@ pub async fn get_collection(
                 };
                 Ok(response)
             },
-            request,
         )
         .await
 }
@@ -263,6 +263,7 @@ pub async fn post_collection(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 coll.metrics.clone().incr("request.post_collection");
                 trace!("Collection: Post");
@@ -293,7 +294,6 @@ pub async fn post_collection(
                     .header(X_LAST_MODIFIED, result.modified.as_header())
                     .json(result))
             },
-            request,
         )
         .await
 }
@@ -489,6 +489,7 @@ pub async fn delete_bso(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 bso_req.metrics.incr("request.delete_bso");
                 let result = db
@@ -500,7 +501,6 @@ pub async fn delete_bso(
                     .await?;
                 Ok(HttpResponse::Ok().json(json!({ "modified": result })))
             },
-            request,
         )
         .await
 }
@@ -512,6 +512,7 @@ pub async fn get_bso(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 bso_req.metrics.incr("request.get_bso");
                 let result = db
@@ -527,7 +528,6 @@ pub async fn get_bso(
                     |bso| HttpResponse::Ok().json(bso),
                 ))
             },
-            request,
         )
         .await
 }
@@ -539,6 +539,7 @@ pub async fn put_bso(
 ) -> Result<HttpResponse, Error> {
     db_pool
         .transaction_http(
+            request,
             |db| async move {
                 bso_req.metrics.incr("request.put_bso");
                 let result = db
@@ -556,7 +557,6 @@ pub async fn put_bso(
                     .header(X_LAST_MODIFIED, result.as_header())
                     .json(result))
             },
-            request,
         )
         .await
 }
