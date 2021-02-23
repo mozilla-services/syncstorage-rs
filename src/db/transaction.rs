@@ -109,8 +109,8 @@ impl DbTransactionPool {
     /// if the HTTP response is an error.
     pub async fn transaction_http<'a, A: 'a, F>(
         &'a self,
-        action: A,
         request: HttpRequest,
+        action: A,
     ) -> Result<HttpResponse, Error>
     where
         A: FnOnce(Box<dyn Db<'a>>) -> F,
