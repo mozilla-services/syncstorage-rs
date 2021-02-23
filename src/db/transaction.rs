@@ -32,17 +32,22 @@ pub struct DbTransactionPool {
 }
 
 fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
-    let mut tags = match exts.get::<Tags>() {
-        Some(t) => t.clone(),
-        None => Tags::default(),
-    };
-    (tags.extra).insert("connection_age".to_owned(), connection_info.age.to_string());
-    (tags.extra).insert(
+    let mut new_tags = Tags::default();
+    new_tags
+        .extra
+        .insert("connection_age".to_owned(), connection_info.age.to_string());
+    new_tags.extra.insert(
         "connection_idle".to_owned(),
         connection_info.idle.to_string(),
     );
-    // dbg!(&tags.extra);
-    exts.insert(tags);
+    match exts.get_mut::<Tags>() {
+        Some(t) => {
+            t.extend(new_tags);
+        }
+        None => {
+            exts.insert(new_tags);
+        }
+    };
 }
 
 impl DbTransactionPool {

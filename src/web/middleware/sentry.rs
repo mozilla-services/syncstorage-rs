@@ -99,7 +99,7 @@ where
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        let mut tags = Tags::from_request_head(sreq.head());
+        let mut tags = Tags::from(sreq.head());
         sreq.extensions_mut().insert(tags.clone());
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
@@ -124,7 +124,7 @@ where
                     tags.extra.insert(k, v);
                 }
             };
-            // dbg!(&tags);
+            //dbg!(&tags);
             match sresp.response().error() {
                 None => {
                     // Middleware errors are eaten by current versions of Actix. Errors are now added
