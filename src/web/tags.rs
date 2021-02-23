@@ -1,5 +1,7 @@
+use core::cell::RefMut;
 use std::collections::{BTreeMap, HashMap};
 
+use actix_http::Extensions;
 use actix_web::{
     dev::{Payload, RequestHead},
     http::header::USER_AGENT,
@@ -77,6 +79,18 @@ impl Tags {
         }
     }
 
+    pub fn add_extra(&mut self, key: &str, value: &str) {
+        if !value.is_empty() {
+            self.extra.insert(key.to_owned(), value.to_owned());
+        }
+    }
+
+    pub fn add_tag(&mut self, key: &str, value: &str) {
+        if !value.is_empty() {
+            self.tags.insert(key.to_owned(), value.to_owned());
+        }
+    }
+
     pub fn get(&self, label: &str) -> String {
         let none = "None".to_owned();
         self.tags.get(label).map(String::from).unwrap_or(none)
@@ -98,6 +112,13 @@ impl Tags {
             result.insert(k.clone(), Value::from(v));
         }
         result
+    }
+
+    pub fn commit(self, exts: &mut RefMut<'_, Extensions>) {
+        match exts.get_mut::<Tags>() {
+            Some(t) => t.extend(self),
+            None => exts.insert(self),
+        }
     }
 }
 
