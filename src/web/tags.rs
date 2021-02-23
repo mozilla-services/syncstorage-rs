@@ -54,15 +54,15 @@ fn insert_if_not_empty(label: &str, val: &str, tags: &mut HashMap<String, String
     }
 }
 
-// Tags are extra data to be recorded in metric and logging calls.
-// If additional tags are required or desired, you will need to add them to the
-// mutable extensions, e.g.
-// ```
-//      let mut tags = request.extensions_mut().get::<Tags>();
-//      tags.insert("SomeLabel".to_owned(), "whatever".to_owned());
-// ```
-// how you get the request (or the response, and it's set of `extensions`) to whatever
-// function requires it, is left as an exercise for the reader.
+/// Tags are extra data to be recorded in metric and logging calls.
+///
+/// If additional tags are required or desired, you will need to add them to the
+/// mutable extensions, e.g.
+/// ```compile_fail
+///      let mut tags = Tags::default();
+///      tags.add_tag("SomeLabel", "whatever");
+///      tags.commit(&mut request.extensions_mut());
+/// ```
 impl Tags {
     pub fn extend(&mut self, new_tags: Self) {
         self.tags.extend(new_tags.tags);

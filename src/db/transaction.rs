@@ -65,6 +65,7 @@ impl DbTransactionPool {
 
         // Handle lock error
         if let Err(e) = result {
+            // Update the extra info fields.
             set_extra(&mut request.extensions_mut(), db.get_connection_info());
             db.rollback().await?;
             return Err(e.into());
@@ -118,6 +119,8 @@ impl DbTransactionPool {
         let mreq = request.clone();
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
+                // set the extra information for all requests so we capture default err handlers.
+                set_extra(&mut mreq.extensions_mut(), db.get_connection_info());
                 let resource_ts = db
                     .extract_resource(
                         self.user_id.clone(),
@@ -149,8 +152,6 @@ impl DbTransactionPool {
                     };
                 }
 
-                set_extra(&mut mreq.extensions_mut(), db.get_connection_info());
-
                 let mut resp = action(db).await?;
 
                 if resp.headers().contains_key(X_LAST_MODIFIED) {
@@ -168,7 +169,7 @@ impl DbTransactionPool {
             }
         };
 
-        let (mut resp, db) = self
+        let (resp, db) = self
             .transaction_internal(check_precondition, request.clone())
             .await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
@@ -176,10 +177,7 @@ impl DbTransactionPool {
         // HttpResponse can contain an internal error
         match resp.error() {
             None => db.commit().await?,
-            Some(_) => {
-                set_extra(&mut resp.extensions_mut(), db.get_connection_info());
-                db.rollback().await?
-            }
+            Some(_) => db.rollback().await?,
         };
         Ok(resp)
     }
@@ -207,7 +205,6 @@ impl FromRequest for DbTransactionPool {
         }
 
         let req = req.clone();
-        // let treq = req.clone();
         async move {
             let no_agent = HeaderValue::from_str("NONE")
                 .expect("Could not get no_agent in DbTransactionPool::from_request");
@@ -255,7 +252,6 @@ impl FromRequest for DbTransactionPool {
                 collection,
                 bso_opt,
                 precondition,
-                // request: treq,
             };
 
             req.extensions_mut().insert(pool.clone());
