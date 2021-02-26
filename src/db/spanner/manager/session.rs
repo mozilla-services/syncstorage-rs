@@ -4,10 +4,9 @@ use googleapis_raw::spanner::v1::{
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
-use protobuf::{SingularPtrField, well_known_types::Timestamp};
+use protobuf::{well_known_types::Timestamp, SingularPtrField};
 use std::sync::Arc;
 use std::time::SystemTime;
-
 
 use crate::{
     db::error::{DbError, DbErrorKind},
@@ -107,19 +106,16 @@ pub async fn recycle_spanner_session(
             ts_now.set_seconds(now);
             session.approximate_last_use_time = SingularPtrField::some(ts_now);
             Ok(())
-        },
-        Err(e) => {
-            match e {
-                grpcio::Error::RpcFailure(ref status)
-                    if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
-                {
-                    conn.session = create_session(&conn.client, database_name).await?;
-                    Ok(())
-                }
-                _ => return Err(e.into()),
-            }
-
         }
+        Err(e) => match e {
+            grpcio::Error::RpcFailure(ref status)
+                if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
+            {
+                conn.session = create_session(&conn.client, database_name).await?;
+                Ok(())
+            }
+            _ => return Err(e.into()),
+        },
     }
 }
 
