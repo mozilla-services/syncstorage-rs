@@ -4,8 +4,10 @@ use googleapis_raw::spanner::v1::{
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
+use protobuf::{SingularPtrField, well_known_types::Timestamp};
 use std::sync::Arc;
 use std::time::SystemTime;
+
 
 use crate::{
     db::error::{DbError, DbErrorKind},
@@ -74,44 +76,51 @@ pub async fn recycle_spanner_session(
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
+        .as_secs() as i64;
     if let Some(max_life) = max_lifetime {
-        // get the current UTC seconds
-        if let Some(age) = conn.session.create_time.clone().into_option() {
-            let age = now - age.seconds as u64;
-            if age > max_life as u64 {
-                metrics.incr("db.connection.max_life");
-                dbg!("### aging out", conn.session.get_name());
-                return Err(DbErrorKind::Expired.into());
-            }
+        let create_time = conn.session.get_create_time().seconds;
+        let age = now - create_time;
+        if age > max_life as i64 {
+            metrics.incr("db.connection.max_life");
+            dbg!("### aging out", conn.session.get_name());
+            return Err(DbErrorKind::Expired.into());
         }
     }
     // check how long that this has been idle...
     if let Some(max_idle) = max_idle {
-        if let Some(idle) = conn.session.approximate_last_use_time.clone().into_option() {
-            // get current UTC seconds
-            let idle = std::cmp::max(0, now as i64 - idle.seconds);
-            if idle > max_idle as i64 {
-                metrics.incr("db.connection.max_idle");
-                dbg!("### idling out", conn.session.get_name());
-                return Err(DbErrorKind::Expired.into());
-            }
+        let last_use = conn.session.get_approximate_last_use_time().seconds;
+        let idle = std::cmp::max(0, now - last_use);
+        if idle > max_idle as i64 {
+            metrics.incr("db.connection.max_idle");
+            dbg!("### idling out", conn.session.get_name());
+            return Err(DbErrorKind::Expired.into());
         }
     }
 
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
-    if let Err(e) = conn.client.get_session_async(&req)?.await {
-        match e {
-            grpcio::Error::RpcFailure(ref status)
-                if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
-            {
-                conn.session = create_session(&conn.client, database_name).await?;
+    match conn.client.get_session_async(&req)?.await {
+        Ok(mut session) => {
+            // set the last used time, because there's some debate if protobuf
+            // does this automatically.
+            let mut ts_now = Timestamp::default();
+            ts_now.set_seconds(now);
+            session.approximate_last_use_time = SingularPtrField::some(ts_now);
+            Ok(())
+        },
+        Err(e) => {
+            match e {
+                grpcio::Error::RpcFailure(ref status)
+                    if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
+                {
+                    conn.session = create_session(&conn.client, database_name).await?;
+                    Ok(())
+                }
+                _ => return Err(e.into()),
             }
-            _ => return Err(e.into()),
+
         }
     }
-    Ok(())
 }
 
 async fn create_session(
