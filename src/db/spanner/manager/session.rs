@@ -7,10 +7,7 @@ use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, Metada
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use crate::{
-    db::error::DbError,
-    server::metrics::Metrics,
-};
+use crate::{db::error::DbError, server::metrics::Metrics};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
