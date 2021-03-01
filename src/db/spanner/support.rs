@@ -104,19 +104,45 @@ impl ExecuteSqlRequestBuilder {
 
     /// Execute a SQL read statement but return a non-blocking streaming result
     pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
-        let stream = conn
-            .client
-            .execute_streaming_sql(&self.prepare_request(conn))?;
-        Ok(StreamedResultSetAsync::new(stream))
+        let req = self.prepare_request(conn);
+        let mut tries = 0;
+        loop {
+            match conn.client.execute_streaming_sql(&req) {
+                Ok(v) => return Ok(StreamedResultSetAsync::new(v)),
+                Err(grpcio::Error::RpcFailure(ref status))
+                    if status.status == grpcio::RpcStatusCode::UNAVAILABLE =>
+                // include ABORTED too?
+                {
+                    if tries > 9 {
+                        return Err(DbErrorKind::Expired.into());
+                    }
+                    dbg!("Retrying request for session", &conn.session, tries);
+                    tries += 1;
+                }
+                Err(e) => return Err(e.into()),
+            };
+        }
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
     pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
-        let rs = conn
-            .client
-            .execute_sql_async(&self.prepare_request(conn))?
-            .await?;
-        Ok(rs.get_stats().get_row_count_exact())
+        let req = self.prepare_request(conn);
+        let mut tries = 0;
+        loop {
+            match conn.client.execute_sql_async(&req)?.await {
+                Ok(rs) => return Ok(rs.get_stats().get_row_count_exact()),
+                Err(grpcio::Error::RpcFailure(ref status))
+                    if status.status == grpcio::RpcStatusCode::UNAVAILABLE =>
+                {
+                    if tries > 9 {
+                        return Err(DbErrorKind::Expired.into());
+                    }
+                    dbg!("Retrying request for dml session", &conn.session, tries);
+                    tries += 1;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
     }
 }
 
