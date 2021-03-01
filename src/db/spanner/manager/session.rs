@@ -4,12 +4,11 @@ use googleapis_raw::spanner::v1::{
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
-use protobuf::{well_known_types::Timestamp, SingularPtrField};
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use crate::{
-    db::error::{DbError, DbErrorKind},
+    db::error::DbError,
     server::metrics::Metrics,
 };
 
@@ -76,35 +75,29 @@ pub async fn recycle_spanner_session(
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs() as i64;
-    if let Some(max_life) = max_lifetime {
-        let create_time = conn.session.get_create_time().seconds;
-        let age = now - create_time;
-        if age > max_life as i64 {
-            metrics.incr("db.connection.max_life");
-            dbg!("### aging out", conn.session.get_name());
-            return Err(DbErrorKind::Expired.into());
-        }
-    }
-    // check how long that this has been idle...
-    if let Some(max_idle) = max_idle {
-        let last_use = conn.session.get_approximate_last_use_time().seconds;
-        let idle = std::cmp::max(0, now - last_use);
-        if idle > max_idle as i64 {
-            metrics.incr("db.connection.max_idle");
-            dbg!("### idling out", conn.session.get_name());
-            return Err(DbErrorKind::Expired.into());
-        }
-    }
-
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
     match conn.client.get_session_async(&req)?.await {
-        Ok(mut session) => {
-            // set the last used time, because there's some debate if protobuf
-            // does this automatically.
-            let mut ts_now = Timestamp::default();
-            ts_now.set_seconds(now);
-            session.approximate_last_use_time = SingularPtrField::some(ts_now);
+        Ok(session) => {
+            if let Some(max_life) = max_lifetime {
+                let create_time = session.get_create_time().seconds;
+                let age = now - create_time;
+                if age > max_life as i64 {
+                    metrics.incr("db.connection.max_life");
+                    dbg!("### aging out", conn.session.get_name());
+                    conn.session = create_session(&conn.client, database_name).await?;
+                }
+            }
+            // check how long that this has been idle...
+            if let Some(max_idle) = max_idle {
+                let last_use = session.get_approximate_last_use_time().seconds;
+                let idle = std::cmp::max(0, now - last_use);
+                if idle > max_idle as i64 {
+                    metrics.incr("db.connection.max_idle");
+                    dbg!("### idling out", session.get_name());
+                    conn.session = create_session(&conn.client, database_name).await?;
+                }
+            }
             Ok(())
         }
         Err(e) => match e {
