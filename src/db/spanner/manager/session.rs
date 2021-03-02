@@ -74,6 +74,26 @@ pub async fn recycle_spanner_session(
         .as_secs() as i64;
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
+    /*
+    Connections can sometimes produce GOAWAY errors. GOAWAYs are HTTP2 frame
+    errors that are (usually) sent before a given connection is shut down. It
+    appears that GRPC passes these up the chain. The problem is that since the
+    connection is being closed, further retries will (probably?) also fail. The
+    best course of action is to spin up a new session.
+
+    In theory, UNAVAILABLE-GOAWAY messages are retryable. How we retry them,
+    however, is not so clear. There are a few places in spanner functions where
+    we could possibly do this, but they get complicated quickly. (e.g. pass a
+    `&mut SpannerDb` to `db.execute_async`, but that gets REALLY messy, REALLY
+    fast.)
+
+    For now, we try a slightly different tactic here. Connections can age out
+    both from overall age and from lack of use. We can try to pre-emptively
+    kill off connections before we get the GOAWAY messages. Any additional
+    GOAWAY messages would be returned to the client as a 500 which will
+    result in the client re-trying.
+
+     */
     match conn.client.get_session_async(&req)?.await {
         Ok(session) => {
             if let Some(max_life) = max_lifetime {
