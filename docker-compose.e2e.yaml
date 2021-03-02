@@ -18,7 +18,7 @@ services:
         #build:
         #  context: .
         #  dockerfile: Dockerfile
-        image: syncstorage-rs:build
+        image: app:build
         restart: always
         ports:
           - "8000:8000"
@@ -45,7 +45,7 @@ services:
         depends_on:
           - db
           - syncstorage-rs
-        image: syncstorage-rs:e2e
+        image: app:e2e
         #build:
         #  context: .
         #  dockerfile: Dockerfile-e2e
