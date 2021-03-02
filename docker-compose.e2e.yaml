@@ -45,7 +45,7 @@ services:
         depends_on:
           - db
           - syncstorage-rs
-        image: app:e2e
+        image: app:build
         #build:
         #  context: .
         #  dockerfile: Dockerfile-e2e

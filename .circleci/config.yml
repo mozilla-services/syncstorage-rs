@@ -80,6 +80,8 @@ commands:
               SYNC_ENFORCE_QUOTA: 1
 
   run-e2e-tests:
+    # Note: building and running these can add upwards of 25 minutes to
+    # CI runs. They're present, but commented out for the time being.
     steps:
       - run:
           name: e2e tests
@@ -176,9 +178,10 @@ jobs:
       - run:
           name: Build Docker image
           command: docker build -t app:build .
-      - run:
-          name: Build e2e tester image
-          command: docker build -f Dockerfile-e2e -t app:e2e .
+      #- run:
+      #    name: Build e2e tester image
+      #    command: docker build -f Dockerfile-e2e -t app:e2e .
+
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
@@ -186,7 +189,11 @@ jobs:
           command: |
             mkdir -p /home/circleci/cache
             docker save -o /home/circleci/cache/docker.tar "app:build"
-            docker save -o /home/circleci/cache/docker-e2e.tar "app:e2e"
+      #- run:
+      #    name: docker save app:e2e
+      #    command: |
+      #      mkdir -p /home/circleci/cache
+      #      docker save -o /home/circleci/cache/docker-e2e.tar "app:e2e"
       - run:
           name: Save docker-compose config
           command: |
@@ -250,10 +257,10 @@ jobs:
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
               docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag app:e2e ${DOCKERHUB_REPO}:${DOCKER_TAG}_e2e
+              # docker tag app:e2e ${DOCKERHUB_REPO}:${DOCKER_TAG}_e2e
               docker images
               docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
-              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}_e2e"
+              # docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}_e2e"
             else
               echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
@@ -315,12 +322,14 @@ workflows:
               only: /.*/
       - deploy:
           requires:
+            - build-and-test
             - e2e-tests
           filters:
             tags:
               only: /.*/
       - deploy-python-utils:
           requires:
+            - build-and-test
             - e2e-tests
           filters:
             tags:
