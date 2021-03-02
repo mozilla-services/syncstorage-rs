@@ -1,5 +1,6 @@
 //! API Handlers
 use std::collections::HashMap;
+use std::convert::Into;
 
 use actix_web::{
     dev::HttpResponseBuilder, http::StatusCode, web::Data, Error, HttpRequest, HttpResponse,
@@ -31,9 +32,10 @@ pub const ONE_KB: f64 = 1024.0;
 pub async fn get_collections(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             meta.metrics.incr("request.get_collections");
             let result = db.get_collection_timestamps(meta.user_id).await?;
 
@@ -47,9 +49,10 @@ pub async fn get_collections(
 pub async fn get_collection_counts(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             meta.metrics.incr("request.get_collection_counts");
             let result = db.get_collection_counts(meta.user_id).await?;
 
@@ -63,9 +66,10 @@ pub async fn get_collection_counts(
 pub async fn get_collection_usage(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             meta.metrics.incr("request.get_collection_usage");
             let usage: HashMap<_, _> = db
                 .get_collection_usage(meta.user_id)
@@ -84,9 +88,10 @@ pub async fn get_collection_usage(
 pub async fn get_quota(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             meta.metrics.incr("request.get_quota");
             let usage = db.get_storage_usage(meta.user_id).await?;
             Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
@@ -97,9 +102,10 @@ pub async fn get_quota(
 pub async fn delete_all(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             meta.metrics.incr("request.delete_all");
             Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
         })
@@ -109,9 +115,10 @@ pub async fn delete_all(
 pub async fn delete_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             let delete_bsos = !coll.query.ids.is_empty();
             let metrics = coll.metrics.clone();
             let timestamp: ApiResult<SyncTimestamp> = if delete_bsos {
@@ -149,14 +156,16 @@ pub async fn delete_collection(
             Ok(resp.json(timestamp))
         })
         .await
+        .map_err(Into::into)
 }
 
 pub async fn get_collection(
     coll: CollectionRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             coll.metrics.clone().incr("request.get_collection");
             let params = params::GetBsos {
                 user_id: coll.user_id.clone(),
@@ -229,9 +238,10 @@ where
 pub async fn post_collection(
     coll: CollectionPostRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             coll.metrics.clone().incr("request.post_collection");
             trace!("Collection: Post");
 
@@ -320,7 +330,6 @@ pub async fn post_collection_batch(
         .await?
     };
 
-    let commit = breq.commit;
     let user_id = coll.user_id.clone();
     let collection = coll.collection.clone();
 
@@ -328,69 +337,56 @@ pub async fn post_collection_batch(
     let mut failed = coll.bsos.invalid;
     let bso_ids: Vec<_> = coll.bsos.valid.iter().map(|bso| bso.id.clone()).collect();
 
-    let result = if commit && !coll.bsos.valid.is_empty() {
-        // There's pending items to append to the batch but since we're
-        // committing, write them to bsos immediately. Otherwise under
-        // Spanner we would pay twice the mutations for those pending
-        // items (once writing them to to batch_bsos, then again
-        // writing them to bsos)
-        trace!("Batch: Committing {}", &new_batch.id);
-        db.post_bsos(params::PostBsos {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            // XXX: why does BatchBsoBody exist (it's the same struct
-            // as PostCollectionBso)?
-            bsos: coll
-                .bsos
-                .valid
-                .into_iter()
-                .map(|batch_bso| params::PostCollectionBso {
-                    id: batch_bso.id,
-                    sortindex: batch_bso.sortindex,
-                    payload: batch_bso.payload,
-                    ttl: batch_bso.ttl,
-                })
-                .collect(),
-            for_batch: true,
-            failed: Default::default(),
-        })
-        .await
-        .map(|_| ())
-    } else {
-        // We're not yet to commit the accumulated batch, but there are some
-        // additional records we need to add.
-        trace!("Batch: Appending to {}", &new_batch.id);
-        db.append_to_batch(params::AppendToBatch {
-            user_id: coll.user_id.clone(),
-            collection: coll.collection.clone(),
-            batch: new_batch.clone(),
-            bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
-        })
-        .await
-    };
+    let mut resp: Value = json!({});
 
-    // collect up the successful and failed bso_ids into a response.
-    match result {
-        Ok(_) => success.extend(bso_ids),
-        Err(e) if e.is_conflict() => return Err(e.into()),
-        Err(apperr) => {
-            if let ApiErrorKind::Db(dberr) = apperr.kind() {
-                // If we're over quota, return immediately with a 403 to let the client know.
-                // Otherwise the client will simply keep retrying records.
-                if let DbErrorKind::Quota = dberr.kind() {
-                    return Err(apperr.into());
+    macro_rules! handle_result {
+            // collect up the successful and failed bso_ids into a response.
+            ( $r: expr) => {
+            match $r {
+                Ok(_) => success.extend(bso_ids.clone()),
+                Err(e) if e.is_conflict() => return Err(e.into()),
+                Err(apperr) => {
+                    if let ApiErrorKind::Db(dberr) = apperr.kind() {
+                        // If we're over quota, return immediately with a 403 to let the client know.
+                        // Otherwise the client will simply keep retrying records.
+                        if let DbErrorKind::Quota = dberr.kind() {
+                            return Err(apperr.into());
+                        }
+                    };
+                    failed.extend(
+                        bso_ids
+                            .clone()
+                            .into_iter()
+                            .map(|id| (id, "db error".to_owned())),
+                    )
                 }
             };
-            failed.extend(bso_ids.into_iter().map(|id| (id, "db error".to_owned())))
         }
-    };
+    }
 
-    let mut resp = json!({
-        "success": success,
-        "failed": failed,
-    });
-
+    // If we're not committing the current set of records yet.
     if !breq.commit {
+        // and there are bsos included in this message.
+        if !coll.bsos.valid.is_empty() {
+            // Append the data to the requested batch.
+            let result = {
+                dbg!("Batch: Appending to {}", &new_batch.id);
+                db.append_to_batch(params::AppendToBatch {
+                    user_id: coll.user_id.clone(),
+                    collection: coll.collection.clone(),
+                    batch: new_batch.clone(),
+                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                })
+                .await
+            };
+            handle_result!(result);
+        }
+
+        // Return the batch append response without committing the current
+        // batch to the BSO table.
+        resp["success"] = json!(success);
+        resp["failed"] = json!(failed);
+
         resp["batch"] = json!(&new_batch.id);
         return Ok(HttpResponse::Accepted().json(resp));
     }
@@ -406,6 +402,8 @@ pub async fn post_collection_batch(
 
     // TODO: validate *actual* sizes of the batch items
     // (max_total_records, max_total_bytes)
+    //
+    // First, write the pending batch BSO data into the BSO table.
     let modified = if let Some(batch) = batch {
         db.commit_batch(params::CommitBatch {
             user_id: user_id.clone(),
@@ -418,6 +416,41 @@ pub async fn post_collection_batch(
         return Err(ApiError::from(err).into());
     };
 
+    // Then, write the BSOs contained in the commit request into the BSO table.
+    // (This presumes that the BSOs contained in the final "commit" message are
+    // newer, and thus more "correct", than any prior BSO info that may have been
+    // included in the prior batch creation messages. The client shouldn't really
+    // be including BSOs with the commit message, however it does and we should
+    // handle that case.)
+    if !coll.bsos.valid.is_empty() {
+        trace!("Batch: writing commit message bsos");
+        let result = db
+            .post_bsos(params::PostBsos {
+                user_id: coll.user_id.clone(),
+                collection: coll.collection.clone(),
+                bsos: coll
+                    .bsos
+                    .valid
+                    .into_iter()
+                    .map(|batch_bso| params::PostCollectionBso {
+                        id: batch_bso.id,
+                        sortindex: batch_bso.sortindex,
+                        payload: batch_bso.payload,
+                        ttl: batch_bso.ttl,
+                    })
+                    .collect(),
+                for_batch: false,
+                failed: Default::default(),
+            })
+            .await
+            .map(|_| ());
+
+        handle_result!(result);
+    }
+
+    // Always return success, failed, & modified
+    resp["success"] = json!(success);
+    resp["failed"] = json!(failed);
     resp["modified"] = json!(modified);
     trace!("Batch: Returning result: {}", &resp);
     Ok(HttpResponse::build(StatusCode::OK)
@@ -428,9 +461,10 @@ pub async fn post_collection_batch(
 pub async fn delete_bso(
     bso_req: BsoRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             bso_req.metrics.incr("request.delete_bso");
             let result = db
                 .delete_bso(params::DeleteBso {
@@ -447,9 +481,10 @@ pub async fn delete_bso(
 pub async fn get_bso(
     bso_req: BsoRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             bso_req.metrics.incr("request.get_bso");
             let result = db
                 .get_bso(params::GetBso {
@@ -470,9 +505,10 @@ pub async fn get_bso(
 pub async fn put_bso(
     bso_req: BsoPutRequest,
     db_pool: DbTransactionPool,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     db_pool
-        .transaction_http(|db| async move {
+        .transaction_http(request, |db| async move {
             bso_req.metrics.incr("request.put_bso");
             let result = db
                 .put_bso(params::PutBso {

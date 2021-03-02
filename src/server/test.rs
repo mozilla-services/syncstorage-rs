@@ -250,7 +250,9 @@ async fn test_endpoint_with_body(
         .call(req)
         .await
         .expect("Could not get sresponse in test_endpoint_with_body");
+    dbg!("got response", sresponse.response().status());
     assert!(sresponse.response().status().is_success());
+    dbg!("all good");
     test::read_body(sresponse).await
 }
 

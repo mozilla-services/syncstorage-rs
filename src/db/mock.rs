@@ -100,6 +100,10 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
     mock_db_method!(commit_batch, CommitBatch);
 
+    fn get_connection_info(&self) -> results::ConnectionInfo {
+        results::ConnectionInfo::default()
+    }
+
     mock_db_method!(get_collection_id, GetCollectionId);
     #[cfg(test)]
     mock_db_method!(create_collection, CreateCollection);

@@ -57,7 +57,7 @@ impl Drop for Metrics {
 impl From<&HttpRequest> for Metrics {
     fn from(req: &HttpRequest) -> Self {
         let exts = req.extensions();
-        let def_tags = Tags::from_request_head(req.head());
+        let def_tags = Tags::from(req.head());
         let tags = exts.get::<Tags>().unwrap_or(&def_tags);
         Metrics {
             client: match req.app_data::<Data<ServerState>>() {
@@ -109,7 +109,7 @@ impl Metrics {
     pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
         let mut mtags = self.tags.clone().unwrap_or_default();
         if let Some(t) = tags {
-            mtags.extend(t.tags)
+            mtags.extend(t)
         }
 
         trace!("⌚ Starting timer... {:?}", &label; &mtags);
@@ -138,7 +138,7 @@ impl Metrics {
             let mut tagged = client.count_with_tags(label, count);
             let mut mtags = self.tags.clone().unwrap_or_default();
             if let Some(tags) = tags {
-                mtags.extend(tags.tags);
+                mtags.extend(tags);
             }
             for key in mtags.tags.keys().clone() {
                 if let Some(val) = mtags.tags.get(key) {
@@ -207,7 +207,7 @@ mod tests {
             ),
         );
 
-        let tags = Tags::from_request_head(&rh);
+        let tags = Tags::from(&rh);
 
         let mut result = HashMap::<String, String>::new();
         result.insert("ua.os.ver".to_owned(), "NT 10.0".to_owned());
@@ -233,7 +233,7 @@ mod tests {
             header::HeaderValue::from_static("Mozilla/5.0 (curl) Gecko/20100101 curl"),
         );
 
-        let tags = Tags::from_request_head(&rh);
+        let tags = Tags::from(&rh);
         assert!(!tags.tags.contains_key("ua.os.ver"));
         println!("{:?}", tags);
     }
