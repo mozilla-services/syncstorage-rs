@@ -72,7 +72,7 @@ slog-stdlog = "4.1"
 slog-term = "2.6"
 time = "^0.2.25"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["macros", "sync"] }
+tokio = { version = "0.3.7", features = ["macros", "sync"] }
 url = "2.1"
 urlencoding = "1.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
