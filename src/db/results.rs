@@ -91,6 +91,8 @@ pub struct PoolState {
 pub struct ConnectionInfo {
     pub age: i64,
     pub idle: i64,
+    pub spanner_age: i64,
+    pub spanner_idle: i64,
 }
 
 pub type GetCollectionId = i32;

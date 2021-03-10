@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 #[macro_use]
 mod macros;
 
@@ -8,3 +10,10 @@ pub mod pool;
 mod support;
 
 pub use self::pool::SpannerDbPool;
+
+pub fn now() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}

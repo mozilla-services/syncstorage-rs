@@ -5,7 +5,6 @@ use std::{
     fmt,
     ops::Deref,
     sync::Arc,
-    time::SystemTime,
 };
 
 use futures::future::TryFutureExt;
@@ -28,6 +27,7 @@ use crate::{
     db::{
         error::{DbError, DbErrorKind},
         params, results,
+        spanner::now,
         util::SyncTimestamp,
         Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
     },
@@ -2063,21 +2063,20 @@ impl<'a> Db<'a> for SpannerDb {
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
         let session = self.conn.session.clone();
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
+        let now = now();
         results::ConnectionInfo {
-            age: session
+            spanner_age: session
                 .create_time
                 .into_option()
                 .map(|time| now - time.seconds)
                 .unwrap_or_default(),
-            idle: session
+            spanner_idle: session
                 .approximate_last_use_time
                 .into_option()
                 .map(|time| now - time.seconds)
                 .unwrap_or_default(),
+            age: now - self.conn.create_time,
+            idle: now - self.conn.last_used_time,
         }
     }
 

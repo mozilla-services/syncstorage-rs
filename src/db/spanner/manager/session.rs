@@ -5,9 +5,12 @@ use googleapis_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
 use std::sync::Arc;
-use std::time::SystemTime;
 
-use crate::{db::error::DbError, server::metrics::Metrics};
+use crate::db::spanner::now;
+use crate::{
+    db::error::{DbError, DbErrorKind},
+    server::metrics::Metrics,
+};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
@@ -20,6 +23,8 @@ pub struct SpannerSession {
     /// The underlying client (Connection/Channel) for interacting with spanner
     pub client: SpannerClient,
     pub(in crate::db::spanner) use_test_transactions: bool,
+    pub(in crate::db::spanner) create_time: i64,
+    pub(in crate::db::spanner) last_used_time: i64,
 }
 
 /// Create a Session (and the underlying gRPC Channel)
@@ -57,6 +62,8 @@ pub async fn create_spanner_session(
         session,
         client,
         use_test_transactions,
+        create_time: now(),
+        last_used_time: now(),
     })
 }
 
@@ -68,10 +75,7 @@ pub async fn recycle_spanner_session(
     max_lifetime: Option<u32>,
     max_idle: Option<u32>,
 ) -> Result<(), DbError> {
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64;
+    let now = now();
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
     /*
@@ -97,22 +101,20 @@ pub async fn recycle_spanner_session(
     match conn.client.get_session_async(&req)?.await {
         Ok(session) => {
             if let Some(max_life) = max_lifetime {
-                let create_time = session.get_create_time().seconds;
-                let age = now - create_time;
+                let age = now - conn.create_time;
                 if age > max_life as i64 {
                     metrics.incr("db.connection.max_life");
                     dbg!("### aging out", conn.session.get_name());
-                    conn.session = create_session(&conn.client, database_name).await?;
+                    return Err(DbErrorKind::Expired.into());
                 }
             }
             // check how long that this has been idle...
             if let Some(max_idle) = max_idle {
-                let last_use = session.get_approximate_last_use_time().seconds;
-                let idle = std::cmp::max(0, now - last_use);
+                let idle = std::cmp::max(0, now - conn.last_used_time);
                 if idle > max_idle as i64 {
                     metrics.incr("db.connection.max_idle");
                     dbg!("### idling out", session.get_name());
-                    conn.session = create_session(&conn.client, database_name).await?;
+                    return Err(DbErrorKind::Expired.into());
                 }
             }
             Ok(())
