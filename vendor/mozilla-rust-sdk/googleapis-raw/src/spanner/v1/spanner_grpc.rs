@@ -23,6 +23,13 @@ const METHOD_SPANNER_CREATE_SESSION: ::grpcio::Method<super::spanner::CreateSess
     resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
 };
 
+const METHOD_SPANNER_BATCH_CREATE_SESSIONS: ::grpcio::Method<super::spanner::BatchCreateSessionsRequest, super::spanner::BatchCreateSessionsResponse> = ::grpcio::Method {
+    ty: ::grpcio::MethodType::Unary,
+    name: "/google.spanner.v1.Spanner/BatchCreateSessions",
+    req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+    resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+};
+
 const METHOD_SPANNER_GET_SESSION: ::grpcio::Method<super::spanner::GetSessionRequest, super::spanner::Session> = ::grpcio::Method {
     ty: ::grpcio::MethodType::Unary,
     name: "/google.spanner.v1.Spanner/GetSession",
@@ -54,6 +61,13 @@ const METHOD_SPANNER_EXECUTE_SQL: ::grpcio::Method<super::spanner::ExecuteSqlReq
 const METHOD_SPANNER_EXECUTE_STREAMING_SQL: ::grpcio::Method<super::spanner::ExecuteSqlRequest, super::result_set::PartialResultSet> = ::grpcio::Method {
     ty: ::grpcio::MethodType::ServerStreaming,
     name: "/google.spanner.v1.Spanner/ExecuteStreamingSql",
+    req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+    resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+};
+
+const METHOD_SPANNER_EXECUTE_BATCH_DML: ::grpcio::Method<super::spanner::ExecuteBatchDmlRequest, super::spanner::ExecuteBatchDmlResponse> = ::grpcio::Method {
+    ty: ::grpcio::MethodType::Unary,
+    name: "/google.spanner.v1.Spanner/ExecuteBatchDml",
     req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
     resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
 };
@@ -135,6 +149,22 @@ impl SpannerClient {
         self.create_session_async_opt(req, ::grpcio::CallOption::default())
     }
 
+    pub fn batch_create_sessions_opt(&self, req: &super::spanner::BatchCreateSessionsRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::spanner::BatchCreateSessionsResponse> {
+        self.client.unary_call(&METHOD_SPANNER_BATCH_CREATE_SESSIONS, req, opt)
+    }
+
+    pub fn batch_create_sessions(&self, req: &super::spanner::BatchCreateSessionsRequest) -> ::grpcio::Result<super::spanner::BatchCreateSessionsResponse> {
+        self.batch_create_sessions_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn batch_create_sessions_async_opt(&self, req: &super::spanner::BatchCreateSessionsRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::spanner::BatchCreateSessionsResponse>> {
+        self.client.unary_call_async(&METHOD_SPANNER_BATCH_CREATE_SESSIONS, req, opt)
+    }
+
+    pub fn batch_create_sessions_async(&self, req: &super::spanner::BatchCreateSessionsRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::spanner::BatchCreateSessionsResponse>> {
+        self.batch_create_sessions_async_opt(req, ::grpcio::CallOption::default())
+    }
+
     pub fn get_session_opt(&self, req: &super::spanner::GetSessionRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::spanner::Session> {
         self.client.unary_call(&METHOD_SPANNER_GET_SESSION, req, opt)
     }
@@ -205,6 +235,22 @@ impl SpannerClient {
 
     pub fn execute_streaming_sql(&self, req: &super::spanner::ExecuteSqlRequest) -> ::grpcio::Result<::grpcio::ClientSStreamReceiver<super::result_set::PartialResultSet>> {
         self.execute_streaming_sql_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn execute_batch_dml_opt(&self, req: &super::spanner::ExecuteBatchDmlRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::spanner::ExecuteBatchDmlResponse> {
+        self.client.unary_call(&METHOD_SPANNER_EXECUTE_BATCH_DML, req, opt)
+    }
+
+    pub fn execute_batch_dml(&self, req: &super::spanner::ExecuteBatchDmlRequest) -> ::grpcio::Result<super::spanner::ExecuteBatchDmlResponse> {
+        self.execute_batch_dml_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn execute_batch_dml_async_opt(&self, req: &super::spanner::ExecuteBatchDmlRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::spanner::ExecuteBatchDmlResponse>> {
+        self.client.unary_call_async(&METHOD_SPANNER_EXECUTE_BATCH_DML, req, opt)
+    }
+
+    pub fn execute_batch_dml_async(&self, req: &super::spanner::ExecuteBatchDmlRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::spanner::ExecuteBatchDmlResponse>> {
+        self.execute_batch_dml_async_opt(req, ::grpcio::CallOption::default())
     }
 
     pub fn read_opt(&self, req: &super::spanner::ReadRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::result_set::ResultSet> {
@@ -317,11 +363,13 @@ impl SpannerClient {
 
 pub trait Spanner {
     fn create_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::CreateSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>);
+    fn batch_create_sessions(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::BatchCreateSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::BatchCreateSessionsResponse>);
     fn get_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::GetSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>);
     fn list_sessions(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ListSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::ListSessionsResponse>);
     fn delete_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::DeleteSessionRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
     fn execute_sql(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>);
     fn execute_streaming_sql(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>);
+    fn execute_batch_dml(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteBatchDmlRequest, sink: ::grpcio::UnarySink<super::spanner::ExecuteBatchDmlResponse>);
     fn read(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ReadRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>);
     fn streaming_read(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ReadRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>);
     fn begin_transaction(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::BeginTransactionRequest, sink: ::grpcio::UnarySink<super::transaction::Transaction>);
@@ -336,6 +384,10 @@ pub fn create_spanner<S: Spanner + Send + Clone + 'static>(s: S) -> ::grpcio::Se
     let mut instance = s.clone();
     builder = builder.add_unary_handler(&METHOD_SPANNER_CREATE_SESSION, move |ctx, req, resp| {
         instance.create_session(ctx, req, resp)
+    });
+    let mut instance = s.clone();
+    builder = builder.add_unary_handler(&METHOD_SPANNER_BATCH_CREATE_SESSIONS, move |ctx, req, resp| {
+        instance.batch_create_sessions(ctx, req, resp)
     });
     let mut instance = s.clone();
     builder = builder.add_unary_handler(&METHOD_SPANNER_GET_SESSION, move |ctx, req, resp| {
@@ -356,6 +408,10 @@ pub fn create_spanner<S: Spanner + Send + Clone + 'static>(s: S) -> ::grpcio::Se
     let mut instance = s.clone();
     builder = builder.add_server_streaming_handler(&METHOD_SPANNER_EXECUTE_STREAMING_SQL, move |ctx, req, resp| {
         instance.execute_streaming_sql(ctx, req, resp)
+    });
+    let mut instance = s.clone();
+    builder = builder.add_unary_handler(&METHOD_SPANNER_EXECUTE_BATCH_DML, move |ctx, req, resp| {
+        instance.execute_batch_dml(ctx, req, resp)
     });
     let mut instance = s.clone();
     builder = builder.add_unary_handler(&METHOD_SPANNER_READ, move |ctx, req, resp| {

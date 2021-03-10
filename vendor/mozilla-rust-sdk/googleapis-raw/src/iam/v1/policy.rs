@@ -271,6 +271,7 @@ pub struct Binding {
     // message fields
     pub role: ::std::string::String,
     pub members: ::protobuf::RepeatedField<::std::string::String>,
+    pub condition: ::protobuf::SingularPtrField<super::expr::Expr>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -337,10 +338,48 @@ impl Binding {
     pub fn take_members(&mut self) -> ::protobuf::RepeatedField<::std::string::String> {
         ::std::mem::replace(&mut self.members, ::protobuf::RepeatedField::new())
     }
+
+    // .google.type.Expr condition = 3;
+
+
+    pub fn get_condition(&self) -> &super::expr::Expr {
+        self.condition.as_ref().unwrap_or_else(|| <super::expr::Expr as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_condition(&mut self) {
+        self.condition.clear();
+    }
+
+    pub fn has_condition(&self) -> bool {
+        self.condition.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_condition(&mut self, v: super::expr::Expr) {
+        self.condition = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_condition(&mut self) -> &mut super::expr::Expr {
+        if self.condition.is_none() {
+            self.condition.set_default();
+        }
+        self.condition.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_condition(&mut self) -> super::expr::Expr {
+        self.condition.take().unwrap_or_else(|| super::expr::Expr::new())
+    }
 }
 
 impl ::protobuf::Message for Binding {
     fn is_initialized(&self) -> bool {
+        for v in &self.condition {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
         true
     }
 
@@ -353,6 +392,9 @@ impl ::protobuf::Message for Binding {
                 },
                 2 => {
                     ::protobuf::rt::read_repeated_string_into(wire_type, is, &mut self.members)?;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.condition)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -372,6 +414,10 @@ impl ::protobuf::Message for Binding {
         for value in &self.members {
             my_size += ::protobuf::rt::string_size(2, &value);
         };
+        if let Some(ref v) = self.condition.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -384,6 +430,11 @@ impl ::protobuf::Message for Binding {
         for v in &self.members {
             os.write_string(2, &v)?;
         };
+        if let Some(ref v) = self.condition.as_ref() {
+            os.write_tag(3, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
     }
@@ -432,6 +483,11 @@ impl ::protobuf::Message for Binding {
                 |m: &Binding| { &m.members },
                 |m: &mut Binding| { &mut m.members },
             ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<super::expr::Expr>>(
+                "condition",
+                |m: &Binding| { &m.condition },
+                |m: &mut Binding| { &mut m.condition },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<Binding>(
                 "Binding",
                 fields,
@@ -450,6 +506,7 @@ impl ::protobuf::Clear for Binding {
     fn clear(&mut self) {
         self.role.clear();
         self.members.clear();
+        self.condition.clear();
         self.unknown_fields.clear();
     }
 }
@@ -470,6 +527,7 @@ impl ::protobuf::reflect::ProtobufValue for Binding {
 pub struct PolicyDelta {
     // message fields
     pub binding_deltas: ::protobuf::RepeatedField<BindingDelta>,
+    pub audit_config_deltas: ::protobuf::RepeatedField<AuditConfigDelta>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -510,11 +568,41 @@ impl PolicyDelta {
     pub fn take_binding_deltas(&mut self) -> ::protobuf::RepeatedField<BindingDelta> {
         ::std::mem::replace(&mut self.binding_deltas, ::protobuf::RepeatedField::new())
     }
+
+    // repeated .google.iam.v1.AuditConfigDelta audit_config_deltas = 2;
+
+
+    pub fn get_audit_config_deltas(&self) -> &[AuditConfigDelta] {
+        &self.audit_config_deltas
+    }
+    pub fn clear_audit_config_deltas(&mut self) {
+        self.audit_config_deltas.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_audit_config_deltas(&mut self, v: ::protobuf::RepeatedField<AuditConfigDelta>) {
+        self.audit_config_deltas = v;
+    }
+
+    // Mutable pointer to the field.
+    pub fn mut_audit_config_deltas(&mut self) -> &mut ::protobuf::RepeatedField<AuditConfigDelta> {
+        &mut self.audit_config_deltas
+    }
+
+    // Take field
+    pub fn take_audit_config_deltas(&mut self) -> ::protobuf::RepeatedField<AuditConfigDelta> {
+        ::std::mem::replace(&mut self.audit_config_deltas, ::protobuf::RepeatedField::new())
+    }
 }
 
 impl ::protobuf::Message for PolicyDelta {
     fn is_initialized(&self) -> bool {
         for v in &self.binding_deltas {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        for v in &self.audit_config_deltas {
             if !v.is_initialized() {
                 return false;
             }
@@ -528,6 +616,9 @@ impl ::protobuf::Message for PolicyDelta {
             match field_number {
                 1 => {
                     ::protobuf::rt::read_repeated_message_into(wire_type, is, &mut self.binding_deltas)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_repeated_message_into(wire_type, is, &mut self.audit_config_deltas)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -545,6 +636,10 @@ impl ::protobuf::Message for PolicyDelta {
             let len = value.compute_size();
             my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
         };
+        for value in &self.audit_config_deltas {
+            let len = value.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        };
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -553,6 +648,11 @@ impl ::protobuf::Message for PolicyDelta {
     fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
         for v in &self.binding_deltas {
             os.write_tag(1, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        };
+        for v in &self.audit_config_deltas {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
             os.write_raw_varint32(v.get_cached_size())?;
             v.write_to_with_cached_sizes(os)?;
         };
@@ -599,6 +699,11 @@ impl ::protobuf::Message for PolicyDelta {
                 |m: &PolicyDelta| { &m.binding_deltas },
                 |m: &mut PolicyDelta| { &mut m.binding_deltas },
             ));
+            fields.push(::protobuf::reflect::accessor::make_repeated_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<AuditConfigDelta>>(
+                "audit_config_deltas",
+                |m: &PolicyDelta| { &m.audit_config_deltas },
+                |m: &mut PolicyDelta| { &mut m.audit_config_deltas },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<PolicyDelta>(
                 "PolicyDelta",
                 fields,
@@ -616,6 +721,7 @@ impl ::protobuf::Message for PolicyDelta {
 impl ::protobuf::Clear for PolicyDelta {
     fn clear(&mut self) {
         self.binding_deltas.clear();
+        self.audit_config_deltas.clear();
         self.unknown_fields.clear();
     }
 }
@@ -638,6 +744,7 @@ pub struct BindingDelta {
     pub action: BindingDelta_Action,
     pub role: ::std::string::String,
     pub member: ::std::string::String,
+    pub condition: ::protobuf::SingularPtrField<super::expr::Expr>,
     // special fields
     pub unknown_fields: ::protobuf::UnknownFields,
     pub cached_size: ::protobuf::CachedSize,
@@ -720,10 +827,48 @@ impl BindingDelta {
     pub fn take_member(&mut self) -> ::std::string::String {
         ::std::mem::replace(&mut self.member, ::std::string::String::new())
     }
+
+    // .google.type.Expr condition = 4;
+
+
+    pub fn get_condition(&self) -> &super::expr::Expr {
+        self.condition.as_ref().unwrap_or_else(|| <super::expr::Expr as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_condition(&mut self) {
+        self.condition.clear();
+    }
+
+    pub fn has_condition(&self) -> bool {
+        self.condition.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_condition(&mut self, v: super::expr::Expr) {
+        self.condition = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_condition(&mut self) -> &mut super::expr::Expr {
+        if self.condition.is_none() {
+            self.condition.set_default();
+        }
+        self.condition.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_condition(&mut self) -> super::expr::Expr {
+        self.condition.take().unwrap_or_else(|| super::expr::Expr::new())
+    }
 }
 
 impl ::protobuf::Message for BindingDelta {
     fn is_initialized(&self) -> bool {
+        for v in &self.condition {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
         true
     }
 
@@ -739,6 +884,9 @@ impl ::protobuf::Message for BindingDelta {
                 },
                 3 => {
                     ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.member)?;
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.condition)?;
                 },
                 _ => {
                     ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
@@ -761,6 +909,10 @@ impl ::protobuf::Message for BindingDelta {
         if !self.member.is_empty() {
             my_size += ::protobuf::rt::string_size(3, &self.member);
         }
+        if let Some(ref v) = self.condition.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
         my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
         self.cached_size.set(my_size);
         my_size
@@ -775,6 +927,11 @@ impl ::protobuf::Message for BindingDelta {
         }
         if !self.member.is_empty() {
             os.write_string(3, &self.member)?;
+        }
+        if let Some(ref v) = self.condition.as_ref() {
+            os.write_tag(4, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
         }
         os.write_unknown_fields(self.get_unknown_fields())?;
         ::std::result::Result::Ok(())
@@ -829,6 +986,11 @@ impl ::protobuf::Message for BindingDelta {
                 |m: &BindingDelta| { &m.member },
                 |m: &mut BindingDelta| { &mut m.member },
             ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<super::expr::Expr>>(
+                "condition",
+                |m: &BindingDelta| { &m.condition },
+                |m: &mut BindingDelta| { &mut m.condition },
+            ));
             ::protobuf::reflect::MessageDescriptor::new_pb_name::<BindingDelta>(
                 "BindingDelta",
                 fields,
@@ -848,6 +1010,7 @@ impl ::protobuf::Clear for BindingDelta {
         self.action = BindingDelta_Action::ACTION_UNSPECIFIED;
         self.role.clear();
         self.member.clear();
+        self.condition.clear();
         self.unknown_fields.clear();
     }
 }
@@ -917,164 +1080,606 @@ impl ::protobuf::reflect::ProtobufValue for BindingDelta_Action {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct AuditConfigDelta {
+    // message fields
+    pub action: AuditConfigDelta_Action,
+    pub service: ::std::string::String,
+    pub exempted_member: ::std::string::String,
+    pub log_type: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a AuditConfigDelta {
+    fn default() -> &'a AuditConfigDelta {
+        <AuditConfigDelta as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl AuditConfigDelta {
+    pub fn new() -> AuditConfigDelta {
+        ::std::default::Default::default()
+    }
+
+    // .google.iam.v1.AuditConfigDelta.Action action = 1;
+
+
+    pub fn get_action(&self) -> AuditConfigDelta_Action {
+        self.action
+    }
+    pub fn clear_action(&mut self) {
+        self.action = AuditConfigDelta_Action::ACTION_UNSPECIFIED;
+    }
+
+    // Param is passed by value, moved
+    pub fn set_action(&mut self, v: AuditConfigDelta_Action) {
+        self.action = v;
+    }
+
+    // string service = 2;
+
+
+    pub fn get_service(&self) -> &str {
+        &self.service
+    }
+    pub fn clear_service(&mut self) {
+        self.service.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_service(&mut self, v: ::std::string::String) {
+        self.service = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_service(&mut self) -> &mut ::std::string::String {
+        &mut self.service
+    }
+
+    // Take field
+    pub fn take_service(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.service, ::std::string::String::new())
+    }
+
+    // string exempted_member = 3;
+
+
+    pub fn get_exempted_member(&self) -> &str {
+        &self.exempted_member
+    }
+    pub fn clear_exempted_member(&mut self) {
+        self.exempted_member.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_exempted_member(&mut self, v: ::std::string::String) {
+        self.exempted_member = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_exempted_member(&mut self) -> &mut ::std::string::String {
+        &mut self.exempted_member
+    }
+
+    // Take field
+    pub fn take_exempted_member(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.exempted_member, ::std::string::String::new())
+    }
+
+    // string log_type = 4;
+
+
+    pub fn get_log_type(&self) -> &str {
+        &self.log_type
+    }
+    pub fn clear_log_type(&mut self) {
+        self.log_type.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_log_type(&mut self, v: ::std::string::String) {
+        self.log_type = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_log_type(&mut self) -> &mut ::std::string::String {
+        &mut self.log_type
+    }
+
+    // Take field
+    pub fn take_log_type(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.log_type, ::std::string::String::new())
+    }
+}
+
+impl ::protobuf::Message for AuditConfigDelta {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_proto3_enum_with_unknown_fields_into(wire_type, is, &mut self.action, 1, &mut self.unknown_fields)?
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.service)?;
+                },
+                3 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.exempted_member)?;
+                },
+                4 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.log_type)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if self.action != AuditConfigDelta_Action::ACTION_UNSPECIFIED {
+            my_size += ::protobuf::rt::enum_size(1, self.action);
+        }
+        if !self.service.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.service);
+        }
+        if !self.exempted_member.is_empty() {
+            my_size += ::protobuf::rt::string_size(3, &self.exempted_member);
+        }
+        if !self.log_type.is_empty() {
+            my_size += ::protobuf::rt::string_size(4, &self.log_type);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if self.action != AuditConfigDelta_Action::ACTION_UNSPECIFIED {
+            os.write_enum(1, ::protobuf::ProtobufEnum::value(&self.action))?;
+        }
+        if !self.service.is_empty() {
+            os.write_string(2, &self.service)?;
+        }
+        if !self.exempted_member.is_empty() {
+            os.write_string(3, &self.exempted_member)?;
+        }
+        if !self.log_type.is_empty() {
+            os.write_string(4, &self.log_type)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> AuditConfigDelta {
+        AuditConfigDelta::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeEnum<AuditConfigDelta_Action>>(
+                "action",
+                |m: &AuditConfigDelta| { &m.action },
+                |m: &mut AuditConfigDelta| { &mut m.action },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "service",
+                |m: &AuditConfigDelta| { &m.service },
+                |m: &mut AuditConfigDelta| { &mut m.service },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "exempted_member",
+                |m: &AuditConfigDelta| { &m.exempted_member },
+                |m: &mut AuditConfigDelta| { &mut m.exempted_member },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "log_type",
+                |m: &AuditConfigDelta| { &m.log_type },
+                |m: &mut AuditConfigDelta| { &mut m.log_type },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<AuditConfigDelta>(
+                "AuditConfigDelta",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static AuditConfigDelta {
+        static instance: ::protobuf::rt::LazyV2<AuditConfigDelta> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(AuditConfigDelta::new)
+    }
+}
+
+impl ::protobuf::Clear for AuditConfigDelta {
+    fn clear(&mut self) {
+        self.action = AuditConfigDelta_Action::ACTION_UNSPECIFIED;
+        self.service.clear();
+        self.exempted_member.clear();
+        self.log_type.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for AuditConfigDelta {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for AuditConfigDelta {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(Clone,PartialEq,Eq,Debug,Hash)]
+pub enum AuditConfigDelta_Action {
+    ACTION_UNSPECIFIED = 0,
+    ADD = 1,
+    REMOVE = 2,
+}
+
+impl ::protobuf::ProtobufEnum for AuditConfigDelta_Action {
+    fn value(&self) -> i32 {
+        *self as i32
+    }
+
+    fn from_i32(value: i32) -> ::std::option::Option<AuditConfigDelta_Action> {
+        match value {
+            0 => ::std::option::Option::Some(AuditConfigDelta_Action::ACTION_UNSPECIFIED),
+            1 => ::std::option::Option::Some(AuditConfigDelta_Action::ADD),
+            2 => ::std::option::Option::Some(AuditConfigDelta_Action::REMOVE),
+            _ => ::std::option::Option::None
+        }
+    }
+
+    fn values() -> &'static [Self] {
+        static values: &'static [AuditConfigDelta_Action] = &[
+            AuditConfigDelta_Action::ACTION_UNSPECIFIED,
+            AuditConfigDelta_Action::ADD,
+            AuditConfigDelta_Action::REMOVE,
+        ];
+        values
+    }
+
+    fn enum_descriptor_static() -> &'static ::protobuf::reflect::EnumDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::EnumDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            ::protobuf::reflect::EnumDescriptor::new_pb_name::<AuditConfigDelta_Action>("AuditConfigDelta.Action", file_descriptor_proto())
+        })
+    }
+}
+
+impl ::std::marker::Copy for AuditConfigDelta_Action {
+}
+
+impl ::std::default::Default for AuditConfigDelta_Action {
+    fn default() -> Self {
+        AuditConfigDelta_Action::ACTION_UNSPECIFIED
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for AuditConfigDelta_Action {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Enum(::protobuf::ProtobufEnum::descriptor(self))
+    }
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
-    \n\x1agoogle/iam/v1/policy.proto\x12\rgoogle.iam.v1\x1a\x1cgoogle/api/an\
-    notations.proto\"j\n\x06Policy\x12\x18\n\x07version\x18\x01\x20\x01(\x05\
-    R\x07version\x122\n\x08bindings\x18\x04\x20\x03(\x0b2\x16.google.iam.v1.\
-    BindingR\x08bindings\x12\x12\n\x04etag\x18\x03\x20\x01(\x0cR\x04etag\"7\
-    \n\x07Binding\x12\x12\n\x04role\x18\x01\x20\x01(\tR\x04role\x12\x18\n\
-    \x07members\x18\x02\x20\x03(\tR\x07members\"Q\n\x0bPolicyDelta\x12B\n\
-    \x0ebinding_deltas\x18\x01\x20\x03(\x0b2\x1b.google.iam.v1.BindingDeltaR\
-    \rbindingDeltas\"\xad\x01\n\x0cBindingDelta\x12:\n\x06action\x18\x01\x20\
-    \x01(\x0e2\".google.iam.v1.BindingDelta.ActionR\x06action\x12\x12\n\x04r\
-    ole\x18\x02\x20\x01(\tR\x04role\x12\x16\n\x06member\x18\x03\x20\x01(\tR\
-    \x06member\"5\n\x06Action\x12\x16\n\x12ACTION_UNSPECIFIED\x10\0\x12\x07\
-    \n\x03ADD\x10\x01\x12\n\n\x06REMOVE\x10\x02B\x83\x01\n\x11com.google.iam\
-    .v1B\x0bPolicyProtoP\x01Z0google.golang.org/genproto/googleapis/iam/v1;i\
-    am\xf8\x01\x01\xaa\x02\x13Google.Cloud.Iam.V1\xca\x02\x13Google\\Cloud\\\
-    Iam\\V1J\xb5(\n\x07\x12\x05\x0e\0\x95\x01\x01\n\xbd\x04\n\x01\x0c\x12\
-    \x03\x0e\0\x122\xb2\x04\x20Copyright\x202016\x20Google\x20Inc.\n\n\x20Li\
-    censed\x20under\x20the\x20Apache\x20License,\x20Version\x202.0\x20(the\
-    \x20\"License\");\n\x20you\x20may\x20not\x20use\x20this\x20file\x20excep\
-    t\x20in\x20compliance\x20with\x20the\x20License.\n\x20You\x20may\x20obta\
-    in\x20a\x20copy\x20of\x20the\x20License\x20at\n\n\x20\x20\x20\x20\x20htt\
-    p://www.apache.org/licenses/LICENSE-2.0\n\n\x20Unless\x20required\x20by\
-    \x20applicable\x20law\x20or\x20agreed\x20to\x20in\x20writing,\x20softwar\
-    e\n\x20distributed\x20under\x20the\x20License\x20is\x20distributed\x20on\
-    \x20an\x20\"AS\x20IS\"\x20BASIS,\n\x20WITHOUT\x20WARRANTIES\x20OR\x20CON\
-    DITIONS\x20OF\x20ANY\x20KIND,\x20either\x20express\x20or\x20implied.\n\
-    \x20See\x20the\x20License\x20for\x20the\x20specific\x20language\x20gover\
-    ning\x20permissions\x20and\n\x20limitations\x20under\x20the\x20License.\
-    \n\n\x08\n\x01\x02\x12\x03\x10\0\x16\n\t\n\x02\x03\0\x12\x03\x12\0&\n\
-    \x08\n\x01\x08\x12\x03\x14\0\x1f\n\t\n\x02\x08\x1f\x12\x03\x14\0\x1f\n\
-    \x08\n\x01\x08\x12\x03\x15\00\n\t\n\x02\x08%\x12\x03\x15\00\n\x08\n\x01\
-    \x08\x12\x03\x16\0G\n\t\n\x02\x08\x0b\x12\x03\x16\0G\n\x08\n\x01\x08\x12\
-    \x03\x17\0\"\n\t\n\x02\x08\n\x12\x03\x17\0\"\n\x08\n\x01\x08\x12\x03\x18\
-    \0,\n\t\n\x02\x08\x08\x12\x03\x18\0,\n\x08\n\x01\x08\x12\x03\x19\0*\n\t\
-    \n\x02\x08\x01\x12\x03\x19\0*\n\x08\n\x01\x08\x12\x03\x1a\00\n\t\n\x02\
-    \x08)\x12\x03\x1a\00\n\xb6\x07\n\x02\x04\0\x12\x04<\0P\x01\x1a\xa9\x07\
+    \n\x1agoogle/iam/v1/policy.proto\x12\rgoogle.iam.v1\x1a\x16google/type/e\
+    xpr.proto\x1a\x1cgoogle/api/annotations.proto\"j\n\x06Policy\x12\x18\n\
+    \x07version\x18\x01\x20\x01(\x05R\x07version\x122\n\x08bindings\x18\x04\
+    \x20\x03(\x0b2\x16.google.iam.v1.BindingR\x08bindings\x12\x12\n\x04etag\
+    \x18\x03\x20\x01(\x0cR\x04etag\"h\n\x07Binding\x12\x12\n\x04role\x18\x01\
+    \x20\x01(\tR\x04role\x12\x18\n\x07members\x18\x02\x20\x03(\tR\x07members\
+    \x12/\n\tcondition\x18\x03\x20\x01(\x0b2\x11.google.type.ExprR\tconditio\
+    n\"\xa2\x01\n\x0bPolicyDelta\x12B\n\x0ebinding_deltas\x18\x01\x20\x03(\
+    \x0b2\x1b.google.iam.v1.BindingDeltaR\rbindingDeltas\x12O\n\x13audit_con\
+    fig_deltas\x18\x02\x20\x03(\x0b2\x1f.google.iam.v1.AuditConfigDeltaR\x11\
+    auditConfigDeltas\"\xde\x01\n\x0cBindingDelta\x12:\n\x06action\x18\x01\
+    \x20\x01(\x0e2\".google.iam.v1.BindingDelta.ActionR\x06action\x12\x12\n\
+    \x04role\x18\x02\x20\x01(\tR\x04role\x12\x16\n\x06member\x18\x03\x20\x01\
+    (\tR\x06member\x12/\n\tcondition\x18\x04\x20\x01(\x0b2\x11.google.type.E\
+    xprR\tcondition\"5\n\x06Action\x12\x16\n\x12ACTION_UNSPECIFIED\x10\0\x12\
+    \x07\n\x03ADD\x10\x01\x12\n\n\x06REMOVE\x10\x02\"\xe7\x01\n\x10AuditConf\
+    igDelta\x12>\n\x06action\x18\x01\x20\x01(\x0e2&.google.iam.v1.AuditConfi\
+    gDelta.ActionR\x06action\x12\x18\n\x07service\x18\x02\x20\x01(\tR\x07ser\
+    vice\x12'\n\x0fexempted_member\x18\x03\x20\x01(\tR\x0eexemptedMember\x12\
+    \x19\n\x08log_type\x18\x04\x20\x01(\tR\x07logType\"5\n\x06Action\x12\x16\
+    \n\x12ACTION_UNSPECIFIED\x10\0\x12\x07\n\x03ADD\x10\x01\x12\n\n\x06REMOV\
+    E\x10\x02B\x83\x01\n\x11com.google.iam.v1B\x0bPolicyProtoP\x01Z0google.g\
+    olang.org/genproto/googleapis/iam/v1;iam\xf8\x01\x01\xaa\x02\x13Google.C\
+    loud.Iam.V1\xca\x02\x13Google\\Cloud\\Iam\\V1J\xd4E\n\x07\x12\x05\x0f\0\
+    \xef\x01\x01\n\xbe\x04\n\x01\x0c\x12\x03\x0f\0\x122\xb3\x04\x20Copyright\
+    \x202019\x20Google\x20LLC.\n\n\x20Licensed\x20under\x20the\x20Apache\x20\
+    License,\x20Version\x202.0\x20(the\x20\"License\");\n\x20you\x20may\x20n\
+    ot\x20use\x20this\x20file\x20except\x20in\x20compliance\x20with\x20the\
+    \x20License.\n\x20You\x20may\x20obtain\x20a\x20copy\x20of\x20the\x20Lice\
+    nse\x20at\n\n\x20\x20\x20\x20\x20http://www.apache.org/licenses/LICENSE-\
+    2.0\n\n\x20Unless\x20required\x20by\x20applicable\x20law\x20or\x20agreed\
+    \x20to\x20in\x20writing,\x20software\n\x20distributed\x20under\x20the\
+    \x20License\x20is\x20distributed\x20on\x20an\x20\"AS\x20IS\"\x20BASIS,\n\
+    \x20WITHOUT\x20WARRANTIES\x20OR\x20CONDITIONS\x20OF\x20ANY\x20KIND,\x20e\
+    ither\x20express\x20or\x20implied.\n\x20See\x20the\x20License\x20for\x20\
+    the\x20specific\x20language\x20governing\x20permissions\x20and\n\x20limi\
+    tations\x20under\x20the\x20License.\n\n\n\x08\n\x01\x02\x12\x03\x11\0\
+    \x16\n\t\n\x02\x03\0\x12\x03\x13\0\x20\n\t\n\x02\x03\x01\x12\x03\x14\0&\
+    \n\x08\n\x01\x08\x12\x03\x16\0\x1f\n\t\n\x02\x08\x1f\x12\x03\x16\0\x1f\n\
+    \x08\n\x01\x08\x12\x03\x17\00\n\t\n\x02\x08%\x12\x03\x17\00\n\x08\n\x01\
+    \x08\x12\x03\x18\0G\n\t\n\x02\x08\x0b\x12\x03\x18\0G\n\x08\n\x01\x08\x12\
+    \x03\x19\0\"\n\t\n\x02\x08\n\x12\x03\x19\0\"\n\x08\n\x01\x08\x12\x03\x1a\
+    \0,\n\t\n\x02\x08\x08\x12\x03\x1a\0,\n\x08\n\x01\x08\x12\x03\x1b\0*\n\t\
+    \n\x02\x08\x01\x12\x03\x1b\0*\n\x08\n\x01\x08\x12\x03\x1c\00\n\t\n\x02\
+    \x08)\x12\x03\x1c\00\n\xe7\x0f\n\x02\x04\0\x12\x04W\0z\x01\x1a\xda\x0f\
     \x20Defines\x20an\x20Identity\x20and\x20Access\x20Management\x20(IAM)\
     \x20policy.\x20It\x20is\x20used\x20to\n\x20specify\x20access\x20control\
     \x20policies\x20for\x20Cloud\x20Platform\x20resources.\n\n\n\x20A\x20`Po\
-    licy`\x20consists\x20of\x20a\x20list\x20of\x20`bindings`.\x20A\x20`Bindi\
-    ng`\x20binds\x20a\x20list\x20of\n\x20`members`\x20to\x20a\x20`role`,\x20\
-    where\x20the\x20members\x20can\x20be\x20user\x20accounts,\x20Google\x20g\
-    roups,\n\x20Google\x20domains,\x20and\x20service\x20accounts.\x20A\x20`r\
-    ole`\x20is\x20a\x20named\x20list\x20of\x20permissions\n\x20defined\x20by\
-    \x20IAM.\n\n\x20**Example**\n\n\x20\x20\x20\x20\x20{\n\x20\x20\x20\x20\
-    \x20\x20\x20\"bindings\":\x20[\n\x20\x20\x20\x20\x20\x20\x20\x20\x20{\n\
-    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"role\":\x20\"roles/owner\"\
-    ,\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"members\":\x20[\n\x20\
-    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"user:mike@example.com\
-    \",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"group:admins@\
-    example.com\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"do\
-    main:google.com\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\
-    \"serviceAccount:my-other-app@appspot.gserviceaccount.com\",\n\x20\x20\
-    \x20\x20\x20\x20\x20\x20\x20\x20\x20]\n\x20\x20\x20\x20\x20\x20\x20\x20\
-    \x20},\n\x20\x20\x20\x20\x20\x20\x20\x20\x20{\n\x20\x20\x20\x20\x20\x20\
-    \x20\x20\x20\x20\x20\"role\":\x20\"roles/viewer\",\n\x20\x20\x20\x20\x20\
-    \x20\x20\x20\x20\x20\x20\"members\":\x20[\"user:sean@example.com\"]\n\
-    \x20\x20\x20\x20\x20\x20\x20\x20\x20}\n\x20\x20\x20\x20\x20\x20\x20]\n\
-    \x20\x20\x20\x20\x20}\n\n\x20For\x20a\x20description\x20of\x20IAM\x20and\
-    \x20its\x20features,\x20see\x20the\n\x20[IAM\x20developer's\x20guide](ht\
-    tps://cloud.google.com/iam).\n\n\n\n\x03\x04\0\x01\x12\x03<\x08\x0e\nA\n\
-    \x04\x04\0\x02\0\x12\x03>\x02\x14\x1a4\x20Version\x20of\x20the\x20`Polic\
-    y`.\x20The\x20default\x20version\x20is\x200.\n\n\r\n\x05\x04\0\x02\0\x04\
-    \x12\x04>\x02<\x10\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03>\x02\x07\n\x0c\n\
-    \x05\x04\0\x02\0\x01\x12\x03>\x08\x0f\n\x0c\n\x05\x04\0\x02\0\x03\x12\
-    \x03>\x12\x13\n\xb0\x01\n\x04\x04\0\x02\x01\x12\x03C\x02\x20\x1a\xa2\x01\
-    \x20Associates\x20a\x20list\x20of\x20`members`\x20to\x20a\x20`role`.\n\
-    \x20Multiple\x20`bindings`\x20must\x20not\x20be\x20specified\x20for\x20t\
-    he\x20same\x20`role`.\n\x20`bindings`\x20with\x20no\x20members\x20will\
-    \x20result\x20in\x20an\x20error.\n\n\x0c\n\x05\x04\0\x02\x01\x04\x12\x03\
-    C\x02\n\n\x0c\n\x05\x04\0\x02\x01\x06\x12\x03C\x0b\x12\n\x0c\n\x05\x04\0\
-    \x02\x01\x01\x12\x03C\x13\x1b\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03C\x1e\
-    \x1f\n\xf6\x04\n\x04\x04\0\x02\x02\x12\x03O\x02\x11\x1a\xe8\x04\x20`etag\
-    `\x20is\x20used\x20for\x20optimistic\x20concurrency\x20control\x20as\x20\
-    a\x20way\x20to\x20help\n\x20prevent\x20simultaneous\x20updates\x20of\x20\
-    a\x20policy\x20from\x20overwriting\x20each\x20other.\n\x20It\x20is\x20st\
-    rongly\x20suggested\x20that\x20systems\x20make\x20use\x20of\x20the\x20`e\
-    tag`\x20in\x20the\n\x20read-modify-write\x20cycle\x20to\x20perform\x20po\
-    licy\x20updates\x20in\x20order\x20to\x20avoid\x20race\n\x20conditions:\
-    \x20An\x20`etag`\x20is\x20returned\x20in\x20the\x20response\x20to\x20`ge\
-    tIamPolicy`,\x20and\n\x20systems\x20are\x20expected\x20to\x20put\x20that\
-    \x20etag\x20in\x20the\x20request\x20to\x20`setIamPolicy`\x20to\n\x20ensu\
-    re\x20that\x20their\x20change\x20will\x20be\x20applied\x20to\x20the\x20s\
-    ame\x20version\x20of\x20the\x20policy.\n\n\x20If\x20no\x20`etag`\x20is\
-    \x20provided\x20in\x20the\x20call\x20to\x20`setIamPolicy`,\x20then\x20th\
-    e\x20existing\n\x20policy\x20is\x20overwritten\x20blindly.\n\n\r\n\x05\
-    \x04\0\x02\x02\x04\x12\x04O\x02C\x20\n\x0c\n\x05\x04\0\x02\x02\x05\x12\
-    \x03O\x02\x07\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03O\x08\x0c\n\x0c\n\x05\
-    \x04\0\x02\x02\x03\x12\x03O\x0f\x10\n1\n\x02\x04\x01\x12\x04S\0q\x01\x1a\
-    %\x20Associates\x20`members`\x20with\x20a\x20`role`.\n\n\n\n\x03\x04\x01\
-    \x01\x12\x03S\x08\x0f\n|\n\x04\x04\x01\x02\0\x12\x03W\x02\x12\x1ao\x20Ro\
-    le\x20that\x20is\x20assigned\x20to\x20`members`.\n\x20For\x20example,\
-    \x20`roles/viewer`,\x20`roles/editor`,\x20or\x20`roles/owner`.\n\x20Requ\
-    ired\n\n\r\n\x05\x04\x01\x02\0\x04\x12\x04W\x02S\x11\n\x0c\n\x05\x04\x01\
-    \x02\0\x05\x12\x03W\x02\x08\n\x0c\n\x05\x04\x01\x02\0\x01\x12\x03W\t\r\n\
-    \x0c\n\x05\x04\x01\x02\0\x03\x12\x03W\x10\x11\n\xa8\x07\n\x04\x04\x01\
-    \x02\x01\x12\x03p\x02\x1e\x1a\x9a\x07\x20Specifies\x20the\x20identities\
-    \x20requesting\x20access\x20for\x20a\x20Cloud\x20Platform\x20resource.\n\
-    \x20`members`\x20can\x20have\x20the\x20following\x20values:\n\n\x20*\x20\
-    `allUsers`:\x20A\x20special\x20identifier\x20that\x20represents\x20anyon\
-    e\x20who\x20is\n\x20\x20\x20\x20on\x20the\x20internet;\x20with\x20or\x20\
-    without\x20a\x20Google\x20account.\n\n\x20*\x20`allAuthenticatedUsers`:\
-    \x20A\x20special\x20identifier\x20that\x20represents\x20anyone\n\x20\x20\
-    \x20\x20who\x20is\x20authenticated\x20with\x20a\x20Google\x20account\x20\
-    or\x20a\x20service\x20account.\n\n\x20*\x20`user:{emailid}`:\x20An\x20em\
-    ail\x20address\x20that\x20represents\x20a\x20specific\x20Google\n\x20\
-    \x20\x20\x20account.\x20For\x20example,\x20`alice@gmail.com`\x20or\x20`j\
-    oe@example.com`.\n\n\n\x20*\x20`serviceAccount:{emailid}`:\x20An\x20emai\
-    l\x20address\x20that\x20represents\x20a\x20service\n\x20\x20\x20\x20acco\
-    unt.\x20For\x20example,\x20`my-other-app@appspot.gserviceaccount.com`.\n\
-    \n\x20*\x20`group:{emailid}`:\x20An\x20email\x20address\x20that\x20repre\
-    sents\x20a\x20Google\x20group.\n\x20\x20\x20\x20For\x20example,\x20`admi\
-    ns@example.com`.\n\n\x20*\x20`domain:{domain}`:\x20A\x20Google\x20Apps\
-    \x20domain\x20name\x20that\x20represents\x20all\x20the\n\x20\x20\x20\x20\
-    users\x20of\x20that\x20domain.\x20For\x20example,\x20`google.com`\x20or\
-    \x20`example.com`.\n\n\n\n\x0c\n\x05\x04\x01\x02\x01\x04\x12\x03p\x02\n\
-    \n\x0c\n\x05\x04\x01\x02\x01\x05\x12\x03p\x0b\x11\n\x0c\n\x05\x04\x01\
-    \x02\x01\x01\x12\x03p\x12\x19\n\x0c\n\x05\x04\x01\x02\x01\x03\x12\x03p\
-    \x1c\x1d\n8\n\x02\x04\x02\x12\x04t\0w\x01\x1a,\x20The\x20difference\x20d\
-    elta\x20between\x20two\x20policies.\n\n\n\n\x03\x04\x02\x01\x12\x03t\x08\
-    \x13\n;\n\x04\x04\x02\x02\0\x12\x03v\x02+\x1a.\x20The\x20delta\x20for\
-    \x20Bindings\x20between\x20two\x20policies.\n\n\x0c\n\x05\x04\x02\x02\0\
-    \x04\x12\x03v\x02\n\n\x0c\n\x05\x04\x02\x02\0\x06\x12\x03v\x0b\x17\n\x0c\
-    \n\x05\x04\x02\x02\0\x01\x12\x03v\x18&\n\x0c\n\x05\x04\x02\x02\0\x03\x12\
-    \x03v)*\n\x8a\x01\n\x02\x04\x03\x12\x05{\0\x95\x01\x01\x1a}\x20One\x20de\
-    lta\x20entry\x20for\x20Binding.\x20Each\x20individual\x20change\x20(only\
-    \x20one\x20member\x20in\x20each\n\x20entry)\x20to\x20a\x20binding\x20wil\
-    l\x20be\x20a\x20separate\x20entry.\n\n\n\n\x03\x04\x03\x01\x12\x03{\x08\
-    \x14\nG\n\x04\x04\x03\x04\0\x12\x05}\x02\x86\x01\x03\x1a8\x20The\x20type\
-    \x20of\x20action\x20performed\x20on\x20a\x20Binding\x20in\x20a\x20policy\
-    .\n\n\x0c\n\x05\x04\x03\x04\0\x01\x12\x03}\x07\r\n\x1d\n\x06\x04\x03\x04\
-    \0\x02\0\x12\x03\x7f\x04\x1b\x1a\x0e\x20Unspecified.\n\n\x0e\n\x07\x04\
-    \x03\x04\0\x02\0\x01\x12\x03\x7f\x04\x16\n\x0e\n\x07\x04\x03\x04\0\x02\0\
-    \x02\x12\x03\x7f\x19\x1a\n(\n\x06\x04\x03\x04\0\x02\x01\x12\x04\x82\x01\
-    \x04\x0c\x1a\x18\x20Addition\x20of\x20a\x20Binding.\n\n\x0f\n\x07\x04\
-    \x03\x04\0\x02\x01\x01\x12\x04\x82\x01\x04\x07\n\x0f\n\x07\x04\x03\x04\0\
-    \x02\x01\x02\x12\x04\x82\x01\n\x0b\n'\n\x06\x04\x03\x04\0\x02\x02\x12\
-    \x04\x85\x01\x04\x0f\x1a\x17\x20Removal\x20of\x20a\x20Binding.\n\n\x0f\n\
-    \x07\x04\x03\x04\0\x02\x02\x01\x12\x04\x85\x01\x04\n\n\x0f\n\x07\x04\x03\
-    \x04\0\x02\x02\x02\x12\x04\x85\x01\r\x0e\nE\n\x04\x04\x03\x02\0\x12\x04\
-    \x8a\x01\x02\x14\x1a7\x20The\x20action\x20that\x20was\x20performed\x20on\
-    \x20a\x20Binding.\n\x20Required\n\n\x0f\n\x05\x04\x03\x02\0\x04\x12\x06\
-    \x8a\x01\x02\x86\x01\x03\n\r\n\x05\x04\x03\x02\0\x06\x12\x04\x8a\x01\x02\
-    \x08\n\r\n\x05\x04\x03\x02\0\x01\x12\x04\x8a\x01\t\x0f\n\r\n\x05\x04\x03\
-    \x02\0\x03\x12\x04\x8a\x01\x12\x13\n}\n\x04\x04\x03\x02\x01\x12\x04\x8f\
-    \x01\x02\x12\x1ao\x20Role\x20that\x20is\x20assigned\x20to\x20`members`.\
-    \n\x20For\x20example,\x20`roles/viewer`,\x20`roles/editor`,\x20or\x20`ro\
-    les/owner`.\n\x20Required\n\n\x0f\n\x05\x04\x03\x02\x01\x04\x12\x06\x8f\
-    \x01\x02\x8a\x01\x14\n\r\n\x05\x04\x03\x02\x01\x05\x12\x04\x8f\x01\x02\
-    \x08\n\r\n\x05\x04\x03\x02\x01\x01\x12\x04\x8f\x01\t\r\n\r\n\x05\x04\x03\
-    \x02\x01\x03\x12\x04\x8f\x01\x10\x11\n\x89\x01\n\x04\x04\x03\x02\x02\x12\
-    \x04\x94\x01\x02\x14\x1a{\x20A\x20single\x20identity\x20requesting\x20ac\
-    cess\x20for\x20a\x20Cloud\x20Platform\x20resource.\n\x20Follows\x20the\
-    \x20same\x20format\x20of\x20Binding.members.\n\x20Required\n\n\x0f\n\x05\
-    \x04\x03\x02\x02\x04\x12\x06\x94\x01\x02\x8f\x01\x12\n\r\n\x05\x04\x03\
-    \x02\x02\x05\x12\x04\x94\x01\x02\x08\n\r\n\x05\x04\x03\x02\x02\x01\x12\
-    \x04\x94\x01\t\x0f\n\r\n\x05\x04\x03\x02\x02\x03\x12\x04\x94\x01\x12\x13\
-    b\x06proto3\
+    licy`\x20is\x20a\x20collection\x20of\x20`bindings`.\x20A\x20`binding`\
+    \x20binds\x20one\x20or\x20more\n\x20`members`\x20to\x20a\x20single\x20`r\
+    ole`.\x20Members\x20can\x20be\x20user\x20accounts,\x20service\x20account\
+    s,\n\x20Google\x20groups,\x20and\x20domains\x20(such\x20as\x20G\x20Suite\
+    ).\x20A\x20`role`\x20is\x20a\x20named\x20list\x20of\n\x20permissions\x20\
+    (defined\x20by\x20IAM\x20or\x20configured\x20by\x20users).\x20A\x20`bind\
+    ing`\x20can\n\x20optionally\x20specify\x20a\x20`condition`,\x20which\x20\
+    is\x20a\x20logic\x20expression\x20that\x20further\n\x20constrains\x20the\
+    \x20role\x20binding\x20based\x20on\x20attributes\x20about\x20the\x20requ\
+    est\x20and/or\n\x20target\x20resource.\n\n\x20**JSON\x20Example**\n\n\
+    \x20\x20\x20\x20\x20{\n\x20\x20\x20\x20\x20\x20\x20\"bindings\":\x20[\n\
+    \x20\x20\x20\x20\x20\x20\x20\x20\x20{\n\x20\x20\x20\x20\x20\x20\x20\x20\
+    \x20\x20\x20\"role\":\x20\"roles/resourcemanager.organizationAdmin\",\n\
+    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"members\":\x20[\n\x20\x20\
+    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"user:mike@example.com\",\n\
+    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"group:admins@examp\
+    le.com\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"domain:\
+    google.com\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"ser\
+    viceAccount:my-project-id@appspot.gserviceaccount.com\"\n\x20\x20\x20\
+    \x20\x20\x20\x20\x20\x20\x20\x20]\n\x20\x20\x20\x20\x20\x20\x20\x20\x20}\
+    ,\n\x20\x20\x20\x20\x20\x20\x20\x20\x20{\n\x20\x20\x20\x20\x20\x20\x20\
+    \x20\x20\x20\x20\"role\":\x20\"roles/resourcemanager.organizationViewer\
+    \",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"members\":\x20[\"user\
+    :eve@example.com\"],\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"cond\
+    ition\":\x20{\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\"tit\
+    le\":\x20\"expirable\x20access\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\
+    \x20\x20\x20\x20\"description\":\x20\"Does\x20not\x20grant\x20access\x20\
+    after\x20Sep\x202020\",\n\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\
+    \x20\x20\"expression\":\x20\"request.time\x20<\n\x20\x20\x20\x20\x20\x20\
+    \x20\x20\x20\x20\x20\x20\x20timestamp('2020-10-01T00:00:00.000Z')\",\n\
+    \x20\x20\x20\x20\x20\x20\x20\x20\x20\x20\x20}\n\x20\x20\x20\x20\x20\x20\
+    \x20\x20\x20}\n\x20\x20\x20\x20\x20\x20\x20]\n\x20\x20\x20\x20\x20}\n\n\
+    \x20**YAML\x20Example**\n\n\x20\x20\x20\x20\x20bindings:\n\x20\x20\x20\
+    \x20\x20-\x20members:\n\x20\x20\x20\x20\x20\x20\x20-\x20user:mike@exampl\
+    e.com\n\x20\x20\x20\x20\x20\x20\x20-\x20group:admins@example.com\n\x20\
+    \x20\x20\x20\x20\x20\x20-\x20domain:google.com\n\x20\x20\x20\x20\x20\x20\
+    \x20-\x20serviceAccount:my-project-id@appspot.gserviceaccount.com\n\x20\
+    \x20\x20\x20\x20\x20\x20role:\x20roles/resourcemanager.organizationAdmin\
+    \n\x20\x20\x20\x20\x20-\x20members:\n\x20\x20\x20\x20\x20\x20\x20-\x20us\
+    er:eve@example.com\n\x20\x20\x20\x20\x20\x20\x20role:\x20roles/resourcem\
+    anager.organizationViewer\n\x20\x20\x20\x20\x20\x20\x20condition:\n\x20\
+    \x20\x20\x20\x20\x20\x20\x20\x20title:\x20expirable\x20access\n\x20\x20\
+    \x20\x20\x20\x20\x20\x20\x20description:\x20Does\x20not\x20grant\x20acce\
+    ss\x20after\x20Sep\x202020\n\x20\x20\x20\x20\x20\x20\x20\x20\x20expressi\
+    on:\x20request.time\x20<\x20timestamp('2020-10-01T00:00:00.000Z')\n\n\
+    \x20For\x20a\x20description\x20of\x20IAM\x20and\x20its\x20features,\x20s\
+    ee\x20the\n\x20[IAM\x20developer's\x20guide](https://cloud.google.com/ia\
+    m/docs).\n\n\n\n\x03\x04\0\x01\x12\x03W\x08\x0e\n\xd5\x04\n\x04\x04\0\
+    \x02\0\x12\x03f\x02\x14\x1a\xc7\x04\x20Specifies\x20the\x20format\x20of\
+    \x20the\x20policy.\n\n\x20Valid\x20values\x20are\x200,\x201,\x20and\x203\
+    .\x20Requests\x20specifying\x20an\x20invalid\x20value\x20will\x20be\n\
+    \x20rejected.\n\n\x20Operations\x20affecting\x20conditional\x20bindings\
+    \x20must\x20specify\x20version\x203.\x20This\x20can\n\x20be\x20either\
+    \x20setting\x20a\x20conditional\x20policy,\x20modifying\x20a\x20conditio\
+    nal\x20binding,\n\x20or\x20removing\x20a\x20binding\x20(conditional\x20o\
+    r\x20unconditional)\x20from\x20the\x20stored\n\x20conditional\x20policy.\
+    \n\x20Operations\x20on\x20non-conditional\x20policies\x20may\x20specify\
+    \x20any\x20valid\x20value\x20or\n\x20leave\x20the\x20field\x20unset.\n\n\
+    \x20If\x20no\x20etag\x20is\x20provided\x20in\x20the\x20call\x20to\x20`se\
+    tIamPolicy`,\x20version\x20compliance\n\x20checks\x20against\x20the\x20s\
+    tored\x20policy\x20is\x20skipped.\n\n\r\n\x05\x04\0\x02\0\x04\x12\x04f\
+    \x02W\x10\n\x0c\n\x05\x04\0\x02\0\x05\x12\x03f\x02\x07\n\x0c\n\x05\x04\0\
+    \x02\0\x01\x12\x03f\x08\x0f\n\x0c\n\x05\x04\0\x02\0\x03\x12\x03f\x12\x13\
+    \n\xc1\x01\n\x04\x04\0\x02\x01\x12\x03k\x02\x20\x1a\xb3\x01\x20Associate\
+    s\x20a\x20list\x20of\x20`members`\x20to\x20a\x20`role`.\x20Optionally\
+    \x20may\x20specify\x20a\n\x20`condition`\x20that\x20determines\x20when\
+    \x20binding\x20is\x20in\x20effect.\n\x20`bindings`\x20with\x20no\x20memb\
+    ers\x20will\x20result\x20in\x20an\x20error.\n\n\x0c\n\x05\x04\0\x02\x01\
+    \x04\x12\x03k\x02\n\n\x0c\n\x05\x04\0\x02\x01\x06\x12\x03k\x0b\x12\n\x0c\
+    \n\x05\x04\0\x02\x01\x01\x12\x03k\x13\x1b\n\x0c\n\x05\x04\0\x02\x01\x03\
+    \x12\x03k\x1e\x1f\n\xa4\x06\n\x04\x04\0\x02\x02\x12\x03y\x02\x11\x1a\x96\
+    \x06\x20`etag`\x20is\x20used\x20for\x20optimistic\x20concurrency\x20cont\
+    rol\x20as\x20a\x20way\x20to\x20help\n\x20prevent\x20simultaneous\x20upda\
+    tes\x20of\x20a\x20policy\x20from\x20overwriting\x20each\x20other.\n\x20I\
+    t\x20is\x20strongly\x20suggested\x20that\x20systems\x20make\x20use\x20of\
+    \x20the\x20`etag`\x20in\x20the\n\x20read-modify-write\x20cycle\x20to\x20\
+    perform\x20policy\x20updates\x20in\x20order\x20to\x20avoid\x20race\n\x20\
+    conditions:\x20An\x20`etag`\x20is\x20returned\x20in\x20the\x20response\
+    \x20to\x20`getIamPolicy`,\x20and\n\x20systems\x20are\x20expected\x20to\
+    \x20put\x20that\x20etag\x20in\x20the\x20request\x20to\x20`setIamPolicy`\
+    \x20to\n\x20ensure\x20that\x20their\x20change\x20will\x20be\x20applied\
+    \x20to\x20the\x20same\x20version\x20of\x20the\x20policy.\n\n\x20If\x20no\
+    \x20`etag`\x20is\x20provided\x20in\x20the\x20call\x20to\x20`setIamPolicy\
+    `,\x20then\x20the\x20existing\n\x20policy\x20is\x20overwritten.\x20Due\
+    \x20to\x20blind-set\x20semantics\x20of\x20an\x20etag-less\x20policy,\n\
+    \x20'setIamPolicy'\x20will\x20not\x20fail\x20even\x20if\x20the\x20incomi\
+    ng\x20policy\x20version\x20does\x20not\n\x20meet\x20the\x20requirements\
+    \x20for\x20modifying\x20the\x20stored\x20policy.\n\n\r\n\x05\x04\0\x02\
+    \x02\x04\x12\x04y\x02k\x20\n\x0c\n\x05\x04\0\x02\x02\x05\x12\x03y\x02\
+    \x07\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03y\x08\x0c\n\x0c\n\x05\x04\0\
+    \x02\x02\x03\x12\x03y\x0f\x10\n2\n\x02\x04\x01\x12\x05}\0\xa1\x01\x01\
+    \x1a%\x20Associates\x20`members`\x20with\x20a\x20`role`.\n\n\n\n\x03\x04\
+    \x01\x01\x12\x03}\x08\x0f\ns\n\x04\x04\x01\x02\0\x12\x04\x80\x01\x02\x12\
+    \x1ae\x20Role\x20that\x20is\x20assigned\x20to\x20`members`.\n\x20For\x20\
+    example,\x20`roles/viewer`,\x20`roles/editor`,\x20or\x20`roles/owner`.\n\
+    \n\x0e\n\x05\x04\x01\x02\0\x04\x12\x05\x80\x01\x02}\x11\n\r\n\x05\x04\
+    \x01\x02\0\x05\x12\x04\x80\x01\x02\x08\n\r\n\x05\x04\x01\x02\0\x01\x12\
+    \x04\x80\x01\t\r\n\r\n\x05\x04\x01\x02\0\x03\x12\x04\x80\x01\x10\x11\n\
+    \x9b\x07\n\x04\x04\x01\x02\x01\x12\x04\x9a\x01\x02\x1e\x1a\x8c\x07\x20Sp\
+    ecifies\x20the\x20identities\x20requesting\x20access\x20for\x20a\x20Clou\
+    d\x20Platform\x20resource.\n\x20`members`\x20can\x20have\x20the\x20follo\
+    wing\x20values:\n\n\x20*\x20`allUsers`:\x20A\x20special\x20identifier\
+    \x20that\x20represents\x20anyone\x20who\x20is\n\x20\x20\x20\x20on\x20the\
+    \x20internet;\x20with\x20or\x20without\x20a\x20Google\x20account.\n\n\
+    \x20*\x20`allAuthenticatedUsers`:\x20A\x20special\x20identifier\x20that\
+    \x20represents\x20anyone\n\x20\x20\x20\x20who\x20is\x20authenticated\x20\
+    with\x20a\x20Google\x20account\x20or\x20a\x20service\x20account.\n\n\x20\
+    *\x20`user:{emailid}`:\x20An\x20email\x20address\x20that\x20represents\
+    \x20a\x20specific\x20Google\n\x20\x20\x20\x20account.\x20For\x20example,\
+    \x20`alice@example.com`\x20.\n\n\n\x20*\x20`serviceAccount:{emailid}`:\
+    \x20An\x20email\x20address\x20that\x20represents\x20a\x20service\n\x20\
+    \x20\x20\x20account.\x20For\x20example,\x20`my-other-app@appspot.gservic\
+    eaccount.com`.\n\n\x20*\x20`group:{emailid}`:\x20An\x20email\x20address\
+    \x20that\x20represents\x20a\x20Google\x20group.\n\x20\x20\x20\x20For\x20\
+    example,\x20`admins@example.com`.\n\n\n\x20*\x20`domain:{domain}`:\x20Th\
+    e\x20G\x20Suite\x20domain\x20(primary)\x20that\x20represents\x20all\x20t\
+    he\n\x20\x20\x20\x20users\x20of\x20that\x20domain.\x20For\x20example,\
+    \x20`google.com`\x20or\x20`example.com`.\n\n\n\n\r\n\x05\x04\x01\x02\x01\
+    \x04\x12\x04\x9a\x01\x02\n\n\r\n\x05\x04\x01\x02\x01\x05\x12\x04\x9a\x01\
+    \x0b\x11\n\r\n\x05\x04\x01\x02\x01\x01\x12\x04\x9a\x01\x12\x19\n\r\n\x05\
+    \x04\x01\x02\x01\x03\x12\x04\x9a\x01\x1c\x1d\n\xe2\x01\n\x04\x04\x01\x02\
+    \x02\x12\x04\xa0\x01\x02!\x1a\xd3\x01\x20The\x20condition\x20that\x20is\
+    \x20associated\x20with\x20this\x20binding.\n\x20NOTE:\x20An\x20unsatisfi\
+    ed\x20condition\x20will\x20not\x20allow\x20user\x20access\x20via\x20curr\
+    ent\n\x20binding.\x20Different\x20bindings,\x20including\x20their\x20con\
+    ditions,\x20are\x20examined\n\x20independently.\n\n\x0f\n\x05\x04\x01\
+    \x02\x02\x04\x12\x06\xa0\x01\x02\x9a\x01\x1e\n\r\n\x05\x04\x01\x02\x02\
+    \x06\x12\x04\xa0\x01\x02\x12\n\r\n\x05\x04\x01\x02\x02\x01\x12\x04\xa0\
+    \x01\x13\x1c\n\r\n\x05\x04\x01\x02\x02\x03\x12\x04\xa0\x01\x1f\x20\n:\n\
+    \x02\x04\x02\x12\x06\xa4\x01\0\xaa\x01\x01\x1a,\x20The\x20difference\x20\
+    delta\x20between\x20two\x20policies.\n\n\x0b\n\x03\x04\x02\x01\x12\x04\
+    \xa4\x01\x08\x13\n<\n\x04\x04\x02\x02\0\x12\x04\xa6\x01\x02+\x1a.\x20The\
+    \x20delta\x20for\x20Bindings\x20between\x20two\x20policies.\n\n\r\n\x05\
+    \x04\x02\x02\0\x04\x12\x04\xa6\x01\x02\n\n\r\n\x05\x04\x02\x02\0\x06\x12\
+    \x04\xa6\x01\x0b\x17\n\r\n\x05\x04\x02\x02\0\x01\x12\x04\xa6\x01\x18&\n\
+    \r\n\x05\x04\x02\x02\0\x03\x12\x04\xa6\x01)*\n@\n\x04\x04\x02\x02\x01\
+    \x12\x04\xa9\x01\x024\x1a2\x20The\x20delta\x20for\x20AuditConfigs\x20bet\
+    ween\x20two\x20policies.\n\n\r\n\x05\x04\x02\x02\x01\x04\x12\x04\xa9\x01\
+    \x02\n\n\r\n\x05\x04\x02\x02\x01\x06\x12\x04\xa9\x01\x0b\x1b\n\r\n\x05\
+    \x04\x02\x02\x01\x01\x12\x04\xa9\x01\x1c/\n\r\n\x05\x04\x02\x02\x01\x03\
+    \x12\x04\xa9\x0123\n\x8b\x01\n\x02\x04\x03\x12\x06\xae\x01\0\xcb\x01\x01\
+    \x1a}\x20One\x20delta\x20entry\x20for\x20Binding.\x20Each\x20individual\
+    \x20change\x20(only\x20one\x20member\x20in\x20each\n\x20entry)\x20to\x20\
+    a\x20binding\x20will\x20be\x20a\x20separate\x20entry.\n\n\x0b\n\x03\x04\
+    \x03\x01\x12\x04\xae\x01\x08\x14\nH\n\x04\x04\x03\x04\0\x12\x06\xb0\x01\
+    \x02\xb9\x01\x03\x1a8\x20The\x20type\x20of\x20action\x20performed\x20on\
+    \x20a\x20Binding\x20in\x20a\x20policy.\n\n\r\n\x05\x04\x03\x04\0\x01\x12\
+    \x04\xb0\x01\x07\r\n\x1e\n\x06\x04\x03\x04\0\x02\0\x12\x04\xb2\x01\x04\
+    \x1b\x1a\x0e\x20Unspecified.\n\n\x0f\n\x07\x04\x03\x04\0\x02\0\x01\x12\
+    \x04\xb2\x01\x04\x16\n\x0f\n\x07\x04\x03\x04\0\x02\0\x02\x12\x04\xb2\x01\
+    \x19\x1a\n(\n\x06\x04\x03\x04\0\x02\x01\x12\x04\xb5\x01\x04\x0c\x1a\x18\
+    \x20Addition\x20of\x20a\x20Binding.\n\n\x0f\n\x07\x04\x03\x04\0\x02\x01\
+    \x01\x12\x04\xb5\x01\x04\x07\n\x0f\n\x07\x04\x03\x04\0\x02\x01\x02\x12\
+    \x04\xb5\x01\n\x0b\n'\n\x06\x04\x03\x04\0\x02\x02\x12\x04\xb8\x01\x04\
+    \x0f\x1a\x17\x20Removal\x20of\x20a\x20Binding.\n\n\x0f\n\x07\x04\x03\x04\
+    \0\x02\x02\x01\x12\x04\xb8\x01\x04\n\n\x0f\n\x07\x04\x03\x04\0\x02\x02\
+    \x02\x12\x04\xb8\x01\r\x0e\nE\n\x04\x04\x03\x02\0\x12\x04\xbd\x01\x02\
+    \x14\x1a7\x20The\x20action\x20that\x20was\x20performed\x20on\x20a\x20Bin\
+    ding.\n\x20Required\n\n\x0f\n\x05\x04\x03\x02\0\x04\x12\x06\xbd\x01\x02\
+    \xb9\x01\x03\n\r\n\x05\x04\x03\x02\0\x06\x12\x04\xbd\x01\x02\x08\n\r\n\
+    \x05\x04\x03\x02\0\x01\x12\x04\xbd\x01\t\x0f\n\r\n\x05\x04\x03\x02\0\x03\
+    \x12\x04\xbd\x01\x12\x13\n}\n\x04\x04\x03\x02\x01\x12\x04\xc2\x01\x02\
+    \x12\x1ao\x20Role\x20that\x20is\x20assigned\x20to\x20`members`.\n\x20For\
+    \x20example,\x20`roles/viewer`,\x20`roles/editor`,\x20or\x20`roles/owner\
+    `.\n\x20Required\n\n\x0f\n\x05\x04\x03\x02\x01\x04\x12\x06\xc2\x01\x02\
+    \xbd\x01\x14\n\r\n\x05\x04\x03\x02\x01\x05\x12\x04\xc2\x01\x02\x08\n\r\n\
+    \x05\x04\x03\x02\x01\x01\x12\x04\xc2\x01\t\r\n\r\n\x05\x04\x03\x02\x01\
+    \x03\x12\x04\xc2\x01\x10\x11\n\x89\x01\n\x04\x04\x03\x02\x02\x12\x04\xc7\
+    \x01\x02\x14\x1a{\x20A\x20single\x20identity\x20requesting\x20access\x20\
+    for\x20a\x20Cloud\x20Platform\x20resource.\n\x20Follows\x20the\x20same\
+    \x20format\x20of\x20Binding.members.\n\x20Required\n\n\x0f\n\x05\x04\x03\
+    \x02\x02\x04\x12\x06\xc7\x01\x02\xc2\x01\x12\n\r\n\x05\x04\x03\x02\x02\
+    \x05\x12\x04\xc7\x01\x02\x08\n\r\n\x05\x04\x03\x02\x02\x01\x12\x04\xc7\
+    \x01\t\x0f\n\r\n\x05\x04\x03\x02\x02\x03\x12\x04\xc7\x01\x12\x13\nC\n\
+    \x04\x04\x03\x02\x03\x12\x04\xca\x01\x02!\x1a5\x20The\x20condition\x20th\
+    at\x20is\x20associated\x20with\x20this\x20binding.\n\n\x0f\n\x05\x04\x03\
+    \x02\x03\x04\x12\x06\xca\x01\x02\xc7\x01\x14\n\r\n\x05\x04\x03\x02\x03\
+    \x06\x12\x04\xca\x01\x02\x12\n\r\n\x05\x04\x03\x02\x03\x01\x12\x04\xca\
+    \x01\x13\x1c\n\r\n\x05\x04\x03\x02\x03\x03\x12\x04\xca\x01\x1f\x20\n\x9d\
+    \x01\n\x02\x04\x04\x12\x06\xcf\x01\0\xef\x01\x01\x1a\x8e\x01\x20One\x20d\
+    elta\x20entry\x20for\x20AuditConfig.\x20Each\x20individual\x20change\x20\
+    (only\x20one\n\x20exempted_member\x20in\x20each\x20entry)\x20to\x20a\x20\
+    AuditConfig\x20will\x20be\x20a\x20separate\x20entry.\n\n\x0b\n\x03\x04\
+    \x04\x01\x12\x04\xcf\x01\x08\x18\nU\n\x04\x04\x04\x04\0\x12\x06\xd1\x01\
+    \x02\xda\x01\x03\x1aE\x20The\x20type\x20of\x20action\x20performed\x20on\
+    \x20an\x20audit\x20configuration\x20in\x20a\x20policy.\n\n\r\n\x05\x04\
+    \x04\x04\0\x01\x12\x04\xd1\x01\x07\r\n\x1e\n\x06\x04\x04\x04\0\x02\0\x12\
+    \x04\xd3\x01\x04\x1b\x1a\x0e\x20Unspecified.\n\n\x0f\n\x07\x04\x04\x04\0\
+    \x02\0\x01\x12\x04\xd3\x01\x04\x16\n\x0f\n\x07\x04\x04\x04\0\x02\0\x02\
+    \x12\x04\xd3\x01\x19\x1a\n5\n\x06\x04\x04\x04\0\x02\x01\x12\x04\xd6\x01\
+    \x04\x0c\x1a%\x20Addition\x20of\x20an\x20audit\x20configuration.\n\n\x0f\
+    \n\x07\x04\x04\x04\0\x02\x01\x01\x12\x04\xd6\x01\x04\x07\n\x0f\n\x07\x04\
+    \x04\x04\0\x02\x01\x02\x12\x04\xd6\x01\n\x0b\n4\n\x06\x04\x04\x04\0\x02\
+    \x02\x12\x04\xd9\x01\x04\x0f\x1a$\x20Removal\x20of\x20an\x20audit\x20con\
+    figuration.\n\n\x0f\n\x07\x04\x04\x04\0\x02\x02\x01\x12\x04\xd9\x01\x04\
+    \n\n\x0f\n\x07\x04\x04\x04\0\x02\x02\x02\x12\x04\xd9\x01\r\x0e\n^\n\x04\
+    \x04\x04\x02\0\x12\x04\xde\x01\x02\x14\x1aP\x20The\x20action\x20that\x20\
+    was\x20performed\x20on\x20an\x20audit\x20configuration\x20in\x20a\x20pol\
+    icy.\n\x20Required\n\n\x0f\n\x05\x04\x04\x02\0\x04\x12\x06\xde\x01\x02\
+    \xda\x01\x03\n\r\n\x05\x04\x04\x02\0\x06\x12\x04\xde\x01\x02\x08\n\r\n\
+    \x05\x04\x04\x02\0\x01\x12\x04\xde\x01\t\x0f\n\r\n\x05\x04\x04\x02\0\x03\
+    \x12\x04\xde\x01\x12\x13\n\xda\x01\n\x04\x04\x04\x02\x01\x12\x04\xe4\x01\
+    \x02\x15\x1a\xcb\x01\x20Specifies\x20a\x20service\x20that\x20was\x20conf\
+    igured\x20for\x20Cloud\x20Audit\x20Logging.\n\x20For\x20example,\x20`sto\
+    rage.googleapis.com`,\x20`cloudsql.googleapis.com`.\n\x20`allServices`\
+    \x20is\x20a\x20special\x20value\x20that\x20covers\x20all\x20services.\n\
+    \x20Required\n\n\x0f\n\x05\x04\x04\x02\x01\x04\x12\x06\xe4\x01\x02\xde\
+    \x01\x14\n\r\n\x05\x04\x04\x02\x01\x05\x12\x04\xe4\x01\x02\x08\n\r\n\x05\
+    \x04\x04\x02\x01\x01\x12\x04\xe4\x01\t\x10\n\r\n\x05\x04\x04\x02\x01\x03\
+    \x12\x04\xe4\x01\x13\x14\n\xa5\x01\n\x04\x04\x04\x02\x02\x12\x04\xe9\x01\
+    \x02\x1d\x1a\x96\x01\x20A\x20single\x20identity\x20that\x20is\x20exempte\
+    d\x20from\x20\"data\x20access\"\x20audit\n\x20logging\x20for\x20the\x20`\
+    service`\x20specified\x20above.\n\x20Follows\x20the\x20same\x20format\
+    \x20of\x20Binding.members.\n\n\x0f\n\x05\x04\x04\x02\x02\x04\x12\x06\xe9\
+    \x01\x02\xe4\x01\x15\n\r\n\x05\x04\x04\x02\x02\x05\x12\x04\xe9\x01\x02\
+    \x08\n\r\n\x05\x04\x04\x02\x02\x01\x12\x04\xe9\x01\t\x18\n\r\n\x05\x04\
+    \x04\x02\x02\x03\x12\x04\xe9\x01\x1b\x1c\n\x82\x01\n\x04\x04\x04\x02\x03\
+    \x12\x04\xee\x01\x02\x16\x1at\x20Specifies\x20the\x20log_type\x20that\
+    \x20was\x20be\x20enabled.\x20ADMIN_ACTIVITY\x20is\x20always\n\x20enabled\
+    ,\x20and\x20cannot\x20be\x20configured.\n\x20Required\n\n\x0f\n\x05\x04\
+    \x04\x02\x03\x04\x12\x06\xee\x01\x02\xe9\x01\x1d\n\r\n\x05\x04\x04\x02\
+    \x03\x05\x12\x04\xee\x01\x02\x08\n\r\n\x05\x04\x04\x02\x03\x01\x12\x04\
+    \xee\x01\t\x11\n\r\n\x05\x04\x04\x02\x03\x03\x12\x04\xee\x01\x14\x15b\
+    \x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
