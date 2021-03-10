@@ -1403,62 +1403,506 @@ impl ::protobuf::reflect::ProtobufValue for DeleteOperationRequest {
     }
 }
 
+#[derive(PartialEq,Clone,Default)]
+pub struct WaitOperationRequest {
+    // message fields
+    pub name: ::std::string::String,
+    pub timeout: ::protobuf::SingularPtrField<::protobuf::well_known_types::Duration>,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a WaitOperationRequest {
+    fn default() -> &'a WaitOperationRequest {
+        <WaitOperationRequest as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl WaitOperationRequest {
+    pub fn new() -> WaitOperationRequest {
+        ::std::default::Default::default()
+    }
+
+    // string name = 1;
+
+
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+    pub fn clear_name(&mut self) {
+        self.name.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_name(&mut self, v: ::std::string::String) {
+        self.name = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_name(&mut self) -> &mut ::std::string::String {
+        &mut self.name
+    }
+
+    // Take field
+    pub fn take_name(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.name, ::std::string::String::new())
+    }
+
+    // .google.protobuf.Duration timeout = 2;
+
+
+    pub fn get_timeout(&self) -> &::protobuf::well_known_types::Duration {
+        self.timeout.as_ref().unwrap_or_else(|| <::protobuf::well_known_types::Duration as ::protobuf::Message>::default_instance())
+    }
+    pub fn clear_timeout(&mut self) {
+        self.timeout.clear();
+    }
+
+    pub fn has_timeout(&self) -> bool {
+        self.timeout.is_some()
+    }
+
+    // Param is passed by value, moved
+    pub fn set_timeout(&mut self, v: ::protobuf::well_known_types::Duration) {
+        self.timeout = ::protobuf::SingularPtrField::some(v);
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_timeout(&mut self) -> &mut ::protobuf::well_known_types::Duration {
+        if self.timeout.is_none() {
+            self.timeout.set_default();
+        }
+        self.timeout.as_mut().unwrap()
+    }
+
+    // Take field
+    pub fn take_timeout(&mut self) -> ::protobuf::well_known_types::Duration {
+        self.timeout.take().unwrap_or_else(|| ::protobuf::well_known_types::Duration::new())
+    }
+}
+
+impl ::protobuf::Message for WaitOperationRequest {
+    fn is_initialized(&self) -> bool {
+        for v in &self.timeout {
+            if !v.is_initialized() {
+                return false;
+            }
+        };
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.name)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_message_into(wire_type, is, &mut self.timeout)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.name.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.name);
+        }
+        if let Some(ref v) = self.timeout.as_ref() {
+            let len = v.compute_size();
+            my_size += 1 + ::protobuf::rt::compute_raw_varint32_size(len) + len;
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.name.is_empty() {
+            os.write_string(1, &self.name)?;
+        }
+        if let Some(ref v) = self.timeout.as_ref() {
+            os.write_tag(2, ::protobuf::wire_format::WireTypeLengthDelimited)?;
+            os.write_raw_varint32(v.get_cached_size())?;
+            v.write_to_with_cached_sizes(os)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> WaitOperationRequest {
+        WaitOperationRequest::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "name",
+                |m: &WaitOperationRequest| { &m.name },
+                |m: &mut WaitOperationRequest| { &mut m.name },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_singular_ptr_field_accessor::<_, ::protobuf::types::ProtobufTypeMessage<::protobuf::well_known_types::Duration>>(
+                "timeout",
+                |m: &WaitOperationRequest| { &m.timeout },
+                |m: &mut WaitOperationRequest| { &mut m.timeout },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<WaitOperationRequest>(
+                "WaitOperationRequest",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static WaitOperationRequest {
+        static instance: ::protobuf::rt::LazyV2<WaitOperationRequest> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(WaitOperationRequest::new)
+    }
+}
+
+impl ::protobuf::Clear for WaitOperationRequest {
+    fn clear(&mut self) {
+        self.name.clear();
+        self.timeout.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for WaitOperationRequest {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for WaitOperationRequest {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+#[derive(PartialEq,Clone,Default)]
+pub struct OperationInfo {
+    // message fields
+    pub response_type: ::std::string::String,
+    pub metadata_type: ::std::string::String,
+    // special fields
+    pub unknown_fields: ::protobuf::UnknownFields,
+    pub cached_size: ::protobuf::CachedSize,
+}
+
+impl<'a> ::std::default::Default for &'a OperationInfo {
+    fn default() -> &'a OperationInfo {
+        <OperationInfo as ::protobuf::Message>::default_instance()
+    }
+}
+
+impl OperationInfo {
+    pub fn new() -> OperationInfo {
+        ::std::default::Default::default()
+    }
+
+    // string response_type = 1;
+
+
+    pub fn get_response_type(&self) -> &str {
+        &self.response_type
+    }
+    pub fn clear_response_type(&mut self) {
+        self.response_type.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_response_type(&mut self, v: ::std::string::String) {
+        self.response_type = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_response_type(&mut self) -> &mut ::std::string::String {
+        &mut self.response_type
+    }
+
+    // Take field
+    pub fn take_response_type(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.response_type, ::std::string::String::new())
+    }
+
+    // string metadata_type = 2;
+
+
+    pub fn get_metadata_type(&self) -> &str {
+        &self.metadata_type
+    }
+    pub fn clear_metadata_type(&mut self) {
+        self.metadata_type.clear();
+    }
+
+    // Param is passed by value, moved
+    pub fn set_metadata_type(&mut self, v: ::std::string::String) {
+        self.metadata_type = v;
+    }
+
+    // Mutable pointer to the field.
+    // If field is not initialized, it is initialized with default value first.
+    pub fn mut_metadata_type(&mut self) -> &mut ::std::string::String {
+        &mut self.metadata_type
+    }
+
+    // Take field
+    pub fn take_metadata_type(&mut self) -> ::std::string::String {
+        ::std::mem::replace(&mut self.metadata_type, ::std::string::String::new())
+    }
+}
+
+impl ::protobuf::Message for OperationInfo {
+    fn is_initialized(&self) -> bool {
+        true
+    }
+
+    fn merge_from(&mut self, is: &mut ::protobuf::CodedInputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        while !is.eof()? {
+            let (field_number, wire_type) = is.read_tag_unpack()?;
+            match field_number {
+                1 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.response_type)?;
+                },
+                2 => {
+                    ::protobuf::rt::read_singular_proto3_string_into(wire_type, is, &mut self.metadata_type)?;
+                },
+                _ => {
+                    ::protobuf::rt::read_unknown_or_skip_group(field_number, wire_type, is, self.mut_unknown_fields())?;
+                },
+            };
+        }
+        ::std::result::Result::Ok(())
+    }
+
+    // Compute sizes of nested messages
+    #[allow(unused_variables)]
+    fn compute_size(&self) -> u32 {
+        let mut my_size = 0;
+        if !self.response_type.is_empty() {
+            my_size += ::protobuf::rt::string_size(1, &self.response_type);
+        }
+        if !self.metadata_type.is_empty() {
+            my_size += ::protobuf::rt::string_size(2, &self.metadata_type);
+        }
+        my_size += ::protobuf::rt::unknown_fields_size(self.get_unknown_fields());
+        self.cached_size.set(my_size);
+        my_size
+    }
+
+    fn write_to_with_cached_sizes(&self, os: &mut ::protobuf::CodedOutputStream<'_>) -> ::protobuf::ProtobufResult<()> {
+        if !self.response_type.is_empty() {
+            os.write_string(1, &self.response_type)?;
+        }
+        if !self.metadata_type.is_empty() {
+            os.write_string(2, &self.metadata_type)?;
+        }
+        os.write_unknown_fields(self.get_unknown_fields())?;
+        ::std::result::Result::Ok(())
+    }
+
+    fn get_cached_size(&self) -> u32 {
+        self.cached_size.get()
+    }
+
+    fn get_unknown_fields(&self) -> &::protobuf::UnknownFields {
+        &self.unknown_fields
+    }
+
+    fn mut_unknown_fields(&mut self) -> &mut ::protobuf::UnknownFields {
+        &mut self.unknown_fields
+    }
+
+    fn as_any(&self) -> &dyn (::std::any::Any) {
+        self as &dyn (::std::any::Any)
+    }
+    fn as_any_mut(&mut self) -> &mut dyn (::std::any::Any) {
+        self as &mut dyn (::std::any::Any)
+    }
+    fn into_any(self: ::std::boxed::Box<Self>) -> ::std::boxed::Box<dyn (::std::any::Any)> {
+        self
+    }
+
+    fn descriptor(&self) -> &'static ::protobuf::reflect::MessageDescriptor {
+        Self::descriptor_static()
+    }
+
+    fn new() -> OperationInfo {
+        OperationInfo::new()
+    }
+
+    fn descriptor_static() -> &'static ::protobuf::reflect::MessageDescriptor {
+        static descriptor: ::protobuf::rt::LazyV2<::protobuf::reflect::MessageDescriptor> = ::protobuf::rt::LazyV2::INIT;
+        descriptor.get(|| {
+            let mut fields = ::std::vec::Vec::new();
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "response_type",
+                |m: &OperationInfo| { &m.response_type },
+                |m: &mut OperationInfo| { &mut m.response_type },
+            ));
+            fields.push(::protobuf::reflect::accessor::make_simple_field_accessor::<_, ::protobuf::types::ProtobufTypeString>(
+                "metadata_type",
+                |m: &OperationInfo| { &m.metadata_type },
+                |m: &mut OperationInfo| { &mut m.metadata_type },
+            ));
+            ::protobuf::reflect::MessageDescriptor::new_pb_name::<OperationInfo>(
+                "OperationInfo",
+                fields,
+                file_descriptor_proto()
+            )
+        })
+    }
+
+    fn default_instance() -> &'static OperationInfo {
+        static instance: ::protobuf::rt::LazyV2<OperationInfo> = ::protobuf::rt::LazyV2::INIT;
+        instance.get(OperationInfo::new)
+    }
+}
+
+impl ::protobuf::Clear for OperationInfo {
+    fn clear(&mut self) {
+        self.response_type.clear();
+        self.metadata_type.clear();
+        self.unknown_fields.clear();
+    }
+}
+
+impl ::std::fmt::Debug for OperationInfo {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        ::protobuf::text_format::fmt(self, f)
+    }
+}
+
+impl ::protobuf::reflect::ProtobufValue for OperationInfo {
+    fn as_ref(&self) -> ::protobuf::reflect::ReflectValueRef {
+        ::protobuf::reflect::ReflectValueRef::Message(self)
+    }
+}
+
+/// Extension fields
+pub mod exts {
+
+    pub const operation_info: ::protobuf::ext::ExtFieldOptional<::protobuf::descriptor::MethodOptions, ::protobuf::types::ProtobufTypeMessage<super::OperationInfo>> = ::protobuf::ext::ExtFieldOptional { field_number: 1049, phantom: ::std::marker::PhantomData };
+}
+
 static file_descriptor_proto_data: &'static [u8] = b"\
     \n#google/longrunning/operations.proto\x12\x12google.longrunning\x1a\x1c\
-    google/api/annotations.proto\x1a\x19google/protobuf/any.proto\x1a\x1bgoo\
-    gle/protobuf/empty.proto\x1a\x17google/rpc/status.proto\"\xcf\x01\n\tOpe\
-    ration\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x120\n\x08metadata\
-    \x18\x02\x20\x01(\x0b2\x14.google.protobuf.AnyR\x08metadata\x12\x12\n\
-    \x04done\x18\x03\x20\x01(\x08R\x04done\x12*\n\x05error\x18\x04\x20\x01(\
-    \x0b2\x12.google.rpc.StatusH\0R\x05error\x122\n\x08response\x18\x05\x20\
-    \x01(\x0b2\x14.google.protobuf.AnyH\0R\x08responseB\x08\n\x06result\")\n\
-    \x13GetOperationRequest\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\"\
-    \x7f\n\x15ListOperationsRequest\x12\x12\n\x04name\x18\x04\x20\x01(\tR\
-    \x04name\x12\x16\n\x06filter\x18\x01\x20\x01(\tR\x06filter\x12\x1b\n\tpa\
-    ge_size\x18\x02\x20\x01(\x05R\x08pageSize\x12\x1d\n\npage_token\x18\x03\
-    \x20\x01(\tR\tpageToken\"\x7f\n\x16ListOperationsResponse\x12=\n\noperat\
-    ions\x18\x01\x20\x03(\x0b2\x1d.google.longrunning.OperationR\noperations\
-    \x12&\n\x0fnext_page_token\x18\x02\x20\x01(\tR\rnextPageToken\",\n\x16Ca\
-    ncelOperationRequest\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\",\n\
-    \x16DeleteOperationRequest\x12\x12\n\x04name\x18\x01\x20\x01(\tR\x04name\
-    2\x8c\x04\n\nOperations\x12\x86\x01\n\x0eListOperations\x12).google.long\
-    running.ListOperationsRequest\x1a*.google.longrunning.ListOperationsResp\
-    onse\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/v1/{name=operations}\x12x\n\
-    \x0cGetOperation\x12'.google.longrunning.GetOperationRequest\x1a\x1d.goo\
-    gle.longrunning.Operation\"\x20\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name\
-    =operations/**}\x12w\n\x0fDeleteOperation\x12*.google.longrunning.Delete\
-    OperationRequest\x1a\x16.google.protobuf.Empty\"\x20\x82\xd3\xe4\x93\x02\
-    \x1a*\x18/v1/{name=operations/**}\x12\x81\x01\n\x0fCancelOperation\x12*.\
-    google.longrunning.CancelOperationRequest\x1a\x16.google.protobuf.Empty\
-    \"*\x82\xd3\xe4\x93\x02$\"\x1f/v1/{name=operations/**}:cancel:\x01*B\x94\
-    \x01\n\x16com.google.longrunningB\x0fOperationsProtoP\x01Z=google.golang\
-    .org/genproto/googleapis/longrunning;longrunning\xaa\x02\x12Google.LongR\
-    unning\xca\x02\x12Google\\LongRunningJ\xed4\n\x07\x12\x05\x0e\0\x9e\x01\
-    \x01\n\xbd\x04\n\x01\x0c\x12\x03\x0e\0\x122\xb2\x04\x20Copyright\x202016\
-    \x20Google\x20Inc.\n\n\x20Licensed\x20under\x20the\x20Apache\x20License,\
-    \x20Version\x202.0\x20(the\x20\"License\");\n\x20you\x20may\x20not\x20us\
-    e\x20this\x20file\x20except\x20in\x20compliance\x20with\x20the\x20Licens\
-    e.\n\x20You\x20may\x20obtain\x20a\x20copy\x20of\x20the\x20License\x20at\
-    \n\n\x20\x20\x20\x20\x20http://www.apache.org/licenses/LICENSE-2.0\n\n\
-    \x20Unless\x20required\x20by\x20applicable\x20law\x20or\x20agreed\x20to\
-    \x20in\x20writing,\x20software\n\x20distributed\x20under\x20the\x20Licen\
-    se\x20is\x20distributed\x20on\x20an\x20\"AS\x20IS\"\x20BASIS,\n\x20WITHO\
-    UT\x20WARRANTIES\x20OR\x20CONDITIONS\x20OF\x20ANY\x20KIND,\x20either\x20\
-    express\x20or\x20implied.\n\x20See\x20the\x20License\x20for\x20the\x20sp\
-    ecific\x20language\x20governing\x20permissions\x20and\n\x20limitations\
-    \x20under\x20the\x20License.\n\n\x08\n\x01\x02\x12\x03\x10\0\x1b\n\t\n\
-    \x02\x03\0\x12\x03\x12\0&\n\t\n\x02\x03\x01\x12\x03\x13\0#\n\t\n\x02\x03\
-    \x02\x12\x03\x14\0%\n\t\n\x02\x03\x03\x12\x03\x15\0!\n\x08\n\x01\x08\x12\
-    \x03\x17\0/\n\t\n\x02\x08%\x12\x03\x17\0/\n\x08\n\x01\x08\x12\x03\x18\0T\
-    \n\t\n\x02\x08\x0b\x12\x03\x18\0T\n\x08\n\x01\x08\x12\x03\x19\0\"\n\t\n\
-    \x02\x08\n\x12\x03\x19\0\"\n\x08\n\x01\x08\x12\x03\x1a\00\n\t\n\x02\x08\
-    \x08\x12\x03\x1a\00\n\x08\n\x01\x08\x12\x03\x1b\0/\n\t\n\x02\x08\x01\x12\
-    \x03\x1b\0/\n\x08\n\x01\x08\x12\x03\x1c\0-\n\t\n\x02\x08)\x12\x03\x1c\0-\
-    \n\xd2\x04\n\x02\x06\0\x12\x04(\0N\x01\x1a\xc5\x04\x20Manages\x20long-ru\
-    nning\x20operations\x20with\x20an\x20API\x20service.\n\n\x20When\x20an\
-    \x20API\x20method\x20normally\x20takes\x20long\x20time\x20to\x20complete\
-    ,\x20it\x20can\x20be\x20designed\n\x20to\x20return\x20[Operation][google\
-    .longrunning.Operation]\x20to\x20the\x20client,\x20and\x20the\x20client\
+    google/api/annotations.proto\x1a\x17google/api/client.proto\x1a\x19googl\
+    e/protobuf/any.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle\
+    /protobuf/empty.proto\x1a\x17google/rpc/status.proto\x1a\x20google/proto\
+    buf/descriptor.proto\"\xcf\x01\n\tOperation\x12\x12\n\x04name\x18\x01\
+    \x20\x01(\tR\x04name\x120\n\x08metadata\x18\x02\x20\x01(\x0b2\x14.google\
+    .protobuf.AnyR\x08metadata\x12\x12\n\x04done\x18\x03\x20\x01(\x08R\x04do\
+    ne\x12*\n\x05error\x18\x04\x20\x01(\x0b2\x12.google.rpc.StatusH\0R\x05er\
+    ror\x122\n\x08response\x18\x05\x20\x01(\x0b2\x14.google.protobuf.AnyH\0R\
+    \x08responseB\x08\n\x06result\")\n\x13GetOperationRequest\x12\x12\n\x04n\
+    ame\x18\x01\x20\x01(\tR\x04name\"\x7f\n\x15ListOperationsRequest\x12\x12\
+    \n\x04name\x18\x04\x20\x01(\tR\x04name\x12\x16\n\x06filter\x18\x01\x20\
+    \x01(\tR\x06filter\x12\x1b\n\tpage_size\x18\x02\x20\x01(\x05R\x08pageSiz\
+    e\x12\x1d\n\npage_token\x18\x03\x20\x01(\tR\tpageToken\"\x7f\n\x16ListOp\
+    erationsResponse\x12=\n\noperations\x18\x01\x20\x03(\x0b2\x1d.google.lon\
+    grunning.OperationR\noperations\x12&\n\x0fnext_page_token\x18\x02\x20\
+    \x01(\tR\rnextPageToken\",\n\x16CancelOperationRequest\x12\x12\n\x04name\
+    \x18\x01\x20\x01(\tR\x04name\",\n\x16DeleteOperationRequest\x12\x12\n\
+    \x04name\x18\x01\x20\x01(\tR\x04name\"_\n\x14WaitOperationRequest\x12\
+    \x12\n\x04name\x18\x01\x20\x01(\tR\x04name\x123\n\x07timeout\x18\x02\x20\
+    \x01(\x0b2\x19.google.protobuf.DurationR\x07timeout\"Y\n\rOperationInfo\
+    \x12#\n\rresponse_type\x18\x01\x20\x01(\tR\x0cresponseType\x12#\n\rmetad\
+    ata_type\x18\x02\x20\x01(\tR\x0cmetadataType2\xaa\x05\n\nOperations\x12\
+    \x94\x01\n\x0eListOperations\x12).google.longrunning.ListOperationsReque\
+    st\x1a*.google.longrunning.ListOperationsResponse\"+\x82\xd3\xe4\x93\x02\
+    \x17\x12\x15/v1/{name=operations}\xdaA\x0bname,filter\x12\x7f\n\x0cGetOp\
+    eration\x12'.google.longrunning.GetOperationRequest\x1a\x1d.google.longr\
+    unning.Operation\"'\x82\xd3\xe4\x93\x02\x1a\x12\x18/v1/{name=operations/\
+    **}\xdaA\x04name\x12~\n\x0fDeleteOperation\x12*.google.longrunning.Delet\
+    eOperationRequest\x1a\x16.google.protobuf.Empty\"'\xdaA\x04name\x82\xd3\
+    \xe4\x93\x02\x1a*\x18/v1/{name=operations/**}\x12\x88\x01\n\x0fCancelOpe\
+    ration\x12*.google.longrunning.CancelOperationRequest\x1a\x16.google.pro\
+    tobuf.Empty\"1\x82\xd3\xe4\x93\x02$\"\x1f/v1/{name=operations/**}:cancel\
+    :\x01*\xdaA\x04name\x12Z\n\rWaitOperation\x12(.google.longrunning.WaitOp\
+    erationRequest\x1a\x1d.google.longrunning.Operation\"\0\x1a\x1d\xcaA\x1a\
+    longrunning.googleapis.com:i\n\x0eoperation_info\x18\x99\x08\x20\x01(\
+    \x0b2!.google.longrunning.OperationInfo\x12\x1e.google.protobuf.MethodOp\
+    tionsR\roperationInfoB\x97\x01\n\x16com.google.longrunningB\x0fOperation\
+    sProtoP\x01Z=google.golang.org/genproto/googleapis/longrunning;longrunni\
+    ng\xf8\x01\x01\xaa\x02\x12Google.LongRunning\xca\x02\x12Google\\LongRunn\
+    ingJ\xf1N\n\x07\x12\x05\x0e\0\xf6\x01\x01\n\xbc\x04\n\x01\x0c\x12\x03\
+    \x0e\0\x122\xb1\x04\x20Copyright\x202020\x20Google\x20LLC\n\n\x20License\
+    d\x20under\x20the\x20Apache\x20License,\x20Version\x202.0\x20(the\x20\"L\
+    icense\");\n\x20you\x20may\x20not\x20use\x20this\x20file\x20except\x20in\
+    \x20compliance\x20with\x20the\x20License.\n\x20You\x20may\x20obtain\x20a\
+    \x20copy\x20of\x20the\x20License\x20at\n\n\x20\x20\x20\x20\x20http://www\
+    .apache.org/licenses/LICENSE-2.0\n\n\x20Unless\x20required\x20by\x20appl\
+    icable\x20law\x20or\x20agreed\x20to\x20in\x20writing,\x20software\n\x20d\
+    istributed\x20under\x20the\x20License\x20is\x20distributed\x20on\x20an\
+    \x20\"AS\x20IS\"\x20BASIS,\n\x20WITHOUT\x20WARRANTIES\x20OR\x20CONDITION\
+    S\x20OF\x20ANY\x20KIND,\x20either\x20express\x20or\x20implied.\n\x20See\
+    \x20the\x20License\x20for\x20the\x20specific\x20language\x20governing\
+    \x20permissions\x20and\n\x20limitations\x20under\x20the\x20License.\n\n\
+    \x08\n\x01\x02\x12\x03\x10\0\x1b\n\t\n\x02\x03\0\x12\x03\x12\0&\n\t\n\
+    \x02\x03\x01\x12\x03\x13\0!\n\t\n\x02\x03\x02\x12\x03\x14\0#\n\t\n\x02\
+    \x03\x03\x12\x03\x15\0(\n\t\n\x02\x03\x04\x12\x03\x16\0%\n\t\n\x02\x03\
+    \x05\x12\x03\x17\0!\n\t\n\x02\x03\x06\x12\x03\x18\0*\n\x08\n\x01\x08\x12\
+    \x03\x1a\0\x1f\n\t\n\x02\x08\x1f\x12\x03\x1a\0\x1f\n\x08\n\x01\x08\x12\
+    \x03\x1b\0/\n\t\n\x02\x08%\x12\x03\x1b\0/\n\x08\n\x01\x08\x12\x03\x1c\0T\
+    \n\t\n\x02\x08\x0b\x12\x03\x1c\0T\n\x08\n\x01\x08\x12\x03\x1d\0\"\n\t\n\
+    \x02\x08\n\x12\x03\x1d\0\"\n\x08\n\x01\x08\x12\x03\x1e\00\n\t\n\x02\x08\
+    \x08\x12\x03\x1e\00\n\x08\n\x01\x08\x12\x03\x1f\0/\n\t\n\x02\x08\x01\x12\
+    \x03\x1f\0/\n\x08\n\x01\x08\x12\x03\x20\0-\n\t\n\x02\x08)\x12\x03\x20\0-\
+    \n\t\n\x01\x07\x12\x04\"\0*\x01\n\xf8\x01\n\x02\x07\0\x12\x03)\x029\x1a\
+    \xec\x01\x20Additional\x20information\x20regarding\x20long-running\x20op\
+    erations.\n\x20In\x20particular,\x20this\x20specifies\x20the\x20types\
+    \x20that\x20are\x20returned\x20from\n\x20long-running\x20operations.\n\n\
+    \x20Required\x20for\x20methods\x20that\x20return\x20`google.longrunning.\
+    Operation`;\x20invalid\n\x20otherwise.\n\n\n\n\x03\x07\0\x02\x12\x03\"\
+    \x07$\n\x0b\n\x03\x07\0\x04\x12\x04)\x02\"&\n\n\n\x03\x07\0\x06\x12\x03)\
+    \x02\"\n\n\n\x03\x07\0\x01\x12\x03)#1\n\n\n\x03\x07\0\x03\x12\x03)48\n\
+    \xd2\x04\n\x02\x06\0\x12\x045\0{\x01\x1a\xc5\x04\x20Manages\x20long-runn\
+    ing\x20operations\x20with\x20an\x20API\x20service.\n\n\x20When\x20an\x20\
+    API\x20method\x20normally\x20takes\x20long\x20time\x20to\x20complete,\
+    \x20it\x20can\x20be\x20designed\n\x20to\x20return\x20[Operation][google.\
+    longrunning.Operation]\x20to\x20the\x20client,\x20and\x20the\x20client\
     \x20can\x20use\x20this\n\x20interface\x20to\x20receive\x20the\x20real\
     \x20response\x20asynchronously\x20by\x20polling\x20the\n\x20operation\
     \x20resource,\x20or\x20pass\x20the\x20operation\x20resource\x20to\x20ano\
@@ -1466,35 +1910,47 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x20receive\x20the\x20response.\x20\x20Any\x20API\x20service\x20that\n\
     \x20returns\x20long-running\x20operations\x20should\x20implement\x20the\
     \x20`Operations`\x20interface\n\x20so\x20developers\x20can\x20have\x20a\
-    \x20consistent\x20client\x20experience.\n\n\n\n\x03\x06\0\x01\x12\x03(\
-    \x08\x12\n\xad\x02\n\x04\x06\0\x02\0\x12\x04.\x020\x03\x1a\x9e\x02\x20Li\
-    sts\x20operations\x20that\x20match\x20the\x20specified\x20filter\x20in\
-    \x20the\x20request.\x20If\x20the\n\x20server\x20doesn't\x20support\x20th\
-    is\x20method,\x20it\x20returns\x20`UNIMPLEMENTED`.\n\n\x20NOTE:\x20the\
-    \x20`name`\x20binding\x20below\x20allows\x20API\x20services\x20to\x20ove\
-    rride\x20the\x20binding\n\x20to\x20use\x20different\x20resource\x20name\
-    \x20schemes,\x20such\x20as\x20`users/*/operations`.\n\n\x0c\n\x05\x06\0\
-    \x02\0\x01\x12\x03.\x06\x14\n\x0c\n\x05\x06\0\x02\0\x02\x12\x03.\x15*\n\
-    \x0c\n\x05\x06\0\x02\0\x03\x12\x03.5K\n\x0c\n\x05\x06\0\x02\0\x04\x12\
-    \x03/\x04@\n\x10\n\t\x06\0\x02\0\x04\xb0\xca\xbc\"\x12\x03/\x04@\n\xaf\
-    \x01\n\x04\x06\0\x02\x01\x12\x045\x027\x03\x1a\xa0\x01\x20Gets\x20the\
-    \x20latest\x20state\x20of\x20a\x20long-running\x20operation.\x20\x20Clie\
-    nts\x20can\x20use\x20this\n\x20method\x20to\x20poll\x20the\x20operation\
+    \x20consistent\x20client\x20experience.\n\n\n\n\x03\x06\0\x01\x12\x035\
+    \x08\x12\n\n\n\x03\x06\0\x03\x12\x036\x02B\n\x0c\n\x05\x06\0\x03\x99\x08\
+    \x12\x036\x02B\n\xf7\x04\n\x04\x06\0\x02\0\x12\x04B\x02G\x03\x1a\xe8\x04\
+    \x20Lists\x20operations\x20that\x20match\x20the\x20specified\x20filter\
+    \x20in\x20the\x20request.\x20If\x20the\n\x20server\x20doesn't\x20support\
+    \x20this\x20method,\x20it\x20returns\x20`UNIMPLEMENTED`.\n\n\x20NOTE:\
+    \x20the\x20`name`\x20binding\x20allows\x20API\x20services\x20to\x20overr\
+    ide\x20the\x20binding\n\x20to\x20use\x20different\x20resource\x20name\
+    \x20schemes,\x20such\x20as\x20`users/*/operations`.\x20To\n\x20override\
+    \x20the\x20binding,\x20API\x20services\x20can\x20add\x20a\x20binding\x20\
+    such\x20as\n\x20`\"/v1/{name=users/*}/operations\"`\x20to\x20their\x20se\
+    rvice\x20configuration.\n\x20For\x20backwards\x20compatibility,\x20the\
+    \x20default\x20name\x20includes\x20the\x20operations\n\x20collection\x20\
+    id,\x20however\x20overriding\x20users\x20must\x20ensure\x20the\x20name\
+    \x20binding\n\x20is\x20the\x20parent\x20resource,\x20without\x20the\x20o\
+    perations\x20collection\x20id.\n\n\x0c\n\x05\x06\0\x02\0\x01\x12\x03B\
+    \x06\x14\n\x0c\n\x05\x06\0\x02\0\x02\x12\x03B\x15*\n\x0c\n\x05\x06\0\x02\
+    \0\x03\x12\x03B5K\n\r\n\x05\x06\0\x02\0\x04\x12\x04C\x04E\x06\n\x11\n\t\
+    \x06\0\x02\0\x04\xb0\xca\xbc\"\x12\x04C\x04E\x06\n\x0c\n\x05\x06\0\x02\0\
+    \x04\x12\x03F\x049\n\x0f\n\x08\x06\0\x02\0\x04\x9b\x08\0\x12\x03F\x049\n\
+    \xaf\x01\n\x04\x06\0\x02\x01\x12\x04L\x02Q\x03\x1a\xa0\x01\x20Gets\x20th\
+    e\x20latest\x20state\x20of\x20a\x20long-running\x20operation.\x20\x20Cli\
+    ents\x20can\x20use\x20this\n\x20method\x20to\x20poll\x20the\x20operation\
     \x20result\x20at\x20intervals\x20as\x20recommended\x20by\x20the\x20API\n\
-    \x20service.\n\n\x0c\n\x05\x06\0\x02\x01\x01\x12\x035\x06\x12\n\x0c\n\
-    \x05\x06\0\x02\x01\x02\x12\x035\x13&\n\x0c\n\x05\x06\0\x02\x01\x03\x12\
-    \x0351:\n\x0c\n\x05\x06\0\x02\x01\x04\x12\x036\x04C\n\x10\n\t\x06\0\x02\
-    \x01\x04\xb0\xca\xbc\"\x12\x036\x04C\n\x85\x02\n\x04\x06\0\x02\x02\x12\
-    \x04=\x02?\x03\x1a\xf6\x01\x20Deletes\x20a\x20long-running\x20operation.\
-    \x20This\x20method\x20indicates\x20that\x20the\x20client\x20is\n\x20no\
-    \x20longer\x20interested\x20in\x20the\x20operation\x20result.\x20It\x20d\
-    oes\x20not\x20cancel\x20the\n\x20operation.\x20If\x20the\x20server\x20do\
-    esn't\x20support\x20this\x20method,\x20it\x20returns\n\x20`google.rpc.Co\
-    de.UNIMPLEMENTED`.\n\n\x0c\n\x05\x06\0\x02\x02\x01\x12\x03=\x06\x15\n\
-    \x0c\n\x05\x06\0\x02\x02\x02\x12\x03=\x16,\n\x0c\n\x05\x06\0\x02\x02\x03\
-    \x12\x03=7L\n\x0c\n\x05\x06\0\x02\x02\x04\x12\x03>\x04F\n\x10\n\t\x06\0\
-    \x02\x02\x04\xb0\xca\xbc\"\x12\x03>\x04F\n\xd4\x05\n\x04\x06\0\x02\x03\
-    \x12\x04K\x02M\x03\x1a\xc5\x05\x20Starts\x20asynchronous\x20cancellation\
+    \x20service.\n\n\x0c\n\x05\x06\0\x02\x01\x01\x12\x03L\x06\x12\n\x0c\n\
+    \x05\x06\0\x02\x01\x02\x12\x03L\x13&\n\x0c\n\x05\x06\0\x02\x01\x03\x12\
+    \x03L1:\n\r\n\x05\x06\0\x02\x01\x04\x12\x04M\x04O\x06\n\x11\n\t\x06\0\
+    \x02\x01\x04\xb0\xca\xbc\"\x12\x04M\x04O\x06\n\x0c\n\x05\x06\0\x02\x01\
+    \x04\x12\x03P\x042\n\x0f\n\x08\x06\0\x02\x01\x04\x9b\x08\0\x12\x03P\x042\
+    \n\x85\x02\n\x04\x06\0\x02\x02\x12\x04W\x02\\\x03\x1a\xf6\x01\x20Deletes\
+    \x20a\x20long-running\x20operation.\x20This\x20method\x20indicates\x20th\
+    at\x20the\x20client\x20is\n\x20no\x20longer\x20interested\x20in\x20the\
+    \x20operation\x20result.\x20It\x20does\x20not\x20cancel\x20the\n\x20oper\
+    ation.\x20If\x20the\x20server\x20doesn't\x20support\x20this\x20method,\
+    \x20it\x20returns\n\x20`google.rpc.Code.UNIMPLEMENTED`.\n\n\x0c\n\x05\
+    \x06\0\x02\x02\x01\x12\x03W\x06\x15\n\x0c\n\x05\x06\0\x02\x02\x02\x12\
+    \x03W\x16,\n\x0c\n\x05\x06\0\x02\x02\x03\x12\x03W7L\n\r\n\x05\x06\0\x02\
+    \x02\x04\x12\x04X\x04Z\x06\n\x11\n\t\x06\0\x02\x02\x04\xb0\xca\xbc\"\x12\
+    \x04X\x04Z\x06\n\x0c\n\x05\x06\0\x02\x02\x04\x12\x03[\x042\n\x0f\n\x08\
+    \x06\0\x02\x02\x04\x9b\x08\0\x12\x03[\x042\n\xd4\x05\n\x04\x06\0\x02\x03\
+    \x12\x04h\x02n\x03\x1a\xc5\x05\x20Starts\x20asynchronous\x20cancellation\
     \x20on\x20a\x20long-running\x20operation.\x20\x20The\x20server\n\x20make\
     s\x20a\x20best\x20effort\x20to\x20cancel\x20the\x20operation,\x20but\x20\
     success\x20is\x20not\n\x20guaranteed.\x20\x20If\x20the\x20server\x20does\
@@ -1508,115 +1964,183 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x20an\x20[Operation.error][google.longrunning.Operation.error]\x20value\
     \x20with\x20a\x20[google.rpc.Status.code][google.rpc.Status.code]\x20of\
     \x201,\n\x20corresponding\x20to\x20`Code.CANCELLED`.\n\n\x0c\n\x05\x06\0\
-    \x02\x03\x01\x12\x03K\x06\x15\n\x0c\n\x05\x06\0\x02\x03\x02\x12\x03K\x16\
-    ,\n\x0c\n\x05\x06\0\x02\x03\x03\x12\x03K7L\n\x0c\n\x05\x06\0\x02\x03\x04\
-    \x12\x03L\x04U\n\x10\n\t\x06\0\x02\x03\x04\xb0\xca\xbc\"\x12\x03L\x04U\n\
-    j\n\x02\x04\0\x12\x04R\0t\x01\x1a^\x20This\x20resource\x20represents\x20\
-    a\x20long-running\x20operation\x20that\x20is\x20the\x20result\x20of\x20a\
-    \n\x20network\x20API\x20call.\n\n\n\n\x03\x04\0\x01\x12\x03R\x08\x11\n\
-    \xdd\x01\n\x04\x04\0\x02\0\x12\x03V\x02\x12\x1a\xcf\x01\x20The\x20server\
-    -assigned\x20name,\x20which\x20is\x20only\x20unique\x20within\x20the\x20\
-    same\x20service\x20that\n\x20originally\x20returns\x20it.\x20If\x20you\
-    \x20use\x20the\x20default\x20HTTP\x20mapping,\x20the\n\x20`name`\x20shou\
-    ld\x20have\x20the\x20format\x20of\x20`operations/some/unique/name`.\n\n\
-    \r\n\x05\x04\0\x02\0\x04\x12\x04V\x02R\x13\n\x0c\n\x05\x04\0\x02\0\x05\
-    \x12\x03V\x02\x08\n\x0c\n\x05\x04\0\x02\0\x01\x12\x03V\t\r\n\x0c\n\x05\
-    \x04\0\x02\0\x03\x12\x03V\x10\x11\n\xac\x02\n\x04\x04\0\x02\x01\x12\x03\
-    \\\x02#\x1a\x9e\x02\x20Service-specific\x20metadata\x20associated\x20wit\
-    h\x20the\x20operation.\x20\x20It\x20typically\n\x20contains\x20progress\
-    \x20information\x20and\x20common\x20metadata\x20such\x20as\x20create\x20\
-    time.\n\x20Some\x20services\x20might\x20not\x20provide\x20such\x20metada\
-    ta.\x20\x20Any\x20method\x20that\x20returns\x20a\n\x20long-running\x20op\
-    eration\x20should\x20document\x20the\x20metadata\x20type,\x20if\x20any.\
-    \n\n\r\n\x05\x04\0\x02\x01\x04\x12\x04\\\x02V\x12\n\x0c\n\x05\x04\0\x02\
-    \x01\x06\x12\x03\\\x02\x15\n\x0c\n\x05\x04\0\x02\x01\x01\x12\x03\\\x16\
-    \x1e\n\x0c\n\x05\x04\0\x02\x01\x03\x12\x03\\!\"\n\xab\x01\n\x04\x04\0\
-    \x02\x02\x12\x03a\x02\x10\x1a\x9d\x01\x20If\x20the\x20value\x20is\x20`fa\
-    lse`,\x20it\x20means\x20the\x20operation\x20is\x20still\x20in\x20progres\
-    s.\n\x20If\x20true,\x20the\x20operation\x20is\x20completed,\x20and\x20ei\
-    ther\x20`error`\x20or\x20`response`\x20is\n\x20available.\n\n\r\n\x05\
-    \x04\0\x02\x02\x04\x12\x04a\x02\\#\n\x0c\n\x05\x04\0\x02\x02\x05\x12\x03\
-    a\x02\x06\n\x0c\n\x05\x04\0\x02\x02\x01\x12\x03a\x07\x0b\n\x0c\n\x05\x04\
-    \0\x02\x02\x03\x12\x03a\x0e\x0f\n\xdd\x01\n\x04\x04\0\x08\0\x12\x04f\x02\
-    s\x03\x1a\xce\x01\x20The\x20operation\x20result,\x20which\x20can\x20be\
-    \x20either\x20an\x20`error`\x20or\x20a\x20valid\x20`response`.\n\x20If\
-    \x20`done`\x20==\x20`false`,\x20neither\x20`error`\x20nor\x20`response`\
-    \x20is\x20set.\n\x20If\x20`done`\x20==\x20`true`,\x20exactly\x20one\x20o\
-    f\x20`error`\x20or\x20`response`\x20is\x20set.\n\n\x0c\n\x05\x04\0\x08\0\
-    \x01\x12\x03f\x08\x0e\nT\n\x04\x04\0\x02\x03\x12\x03h\x04\x20\x1aG\x20Th\
-    e\x20error\x20result\x20of\x20the\x20operation\x20in\x20case\x20of\x20fa\
-    ilure\x20or\x20cancellation.\n\n\x0c\n\x05\x04\0\x02\x03\x06\x12\x03h\
-    \x04\x15\n\x0c\n\x05\x04\0\x02\x03\x01\x12\x03h\x16\x1b\n\x0c\n\x05\x04\
-    \0\x02\x03\x03\x12\x03h\x1e\x1f\n\x83\x04\n\x04\x04\0\x02\x04\x12\x03r\
-    \x04%\x1a\xf5\x03\x20The\x20normal\x20response\x20of\x20the\x20operation\
-    \x20in\x20case\x20of\x20success.\x20\x20If\x20the\x20original\n\x20metho\
-    d\x20returns\x20no\x20data\x20on\x20success,\x20such\x20as\x20`Delete`,\
-    \x20the\x20response\x20is\n\x20`google.protobuf.Empty`.\x20\x20If\x20the\
-    \x20original\x20method\x20is\x20standard\n\x20`Get`/`Create`/`Update`,\
-    \x20the\x20response\x20should\x20be\x20the\x20resource.\x20\x20For\x20ot\
-    her\n\x20methods,\x20the\x20response\x20should\x20have\x20the\x20type\
-    \x20`XxxResponse`,\x20where\x20`Xxx`\n\x20is\x20the\x20original\x20metho\
-    d\x20name.\x20\x20For\x20example,\x20if\x20the\x20original\x20method\x20\
-    name\n\x20is\x20`TakeSnapshot()`,\x20the\x20inferred\x20response\x20type\
-    \x20is\n\x20`TakeSnapshotResponse`.\n\n\x0c\n\x05\x04\0\x02\x04\x06\x12\
-    \x03r\x04\x17\n\x0c\n\x05\x04\0\x02\x04\x01\x12\x03r\x18\x20\n\x0c\n\x05\
-    \x04\0\x02\x04\x03\x12\x03r#$\nl\n\x02\x04\x01\x12\x04w\0z\x01\x1a`\x20T\
-    he\x20request\x20message\x20for\x20[Operations.GetOperation][google.long\
-    running.Operations.GetOperation].\n\n\n\n\x03\x04\x01\x01\x12\x03w\x08\
-    \x1b\n2\n\x04\x04\x01\x02\0\x12\x03y\x02\x12\x1a%\x20The\x20name\x20of\
-    \x20the\x20operation\x20resource.\n\n\r\n\x05\x04\x01\x02\0\x04\x12\x04y\
-    \x02w\x1d\n\x0c\n\x05\x04\x01\x02\0\x05\x12\x03y\x02\x08\n\x0c\n\x05\x04\
-    \x01\x02\0\x01\x12\x03y\t\r\n\x0c\n\x05\x04\x01\x02\0\x03\x12\x03y\x10\
-    \x11\nq\n\x02\x04\x02\x12\x05}\0\x89\x01\x01\x1ad\x20The\x20request\x20m\
-    essage\x20for\x20[Operations.ListOperations][google.longrunning.Operatio\
-    ns.ListOperations].\n\n\n\n\x03\x04\x02\x01\x12\x03}\x08\x1d\n4\n\x04\
-    \x04\x02\x02\0\x12\x03\x7f\x02\x12\x1a'\x20The\x20name\x20of\x20the\x20o\
-    peration\x20collection.\n\n\r\n\x05\x04\x02\x02\0\x04\x12\x04\x7f\x02}\
-    \x1f\n\x0c\n\x05\x04\x02\x02\0\x05\x12\x03\x7f\x02\x08\n\x0c\n\x05\x04\
-    \x02\x02\0\x01\x12\x03\x7f\t\r\n\x0c\n\x05\x04\x02\x02\0\x03\x12\x03\x7f\
-    \x10\x11\n)\n\x04\x04\x02\x02\x01\x12\x04\x82\x01\x02\x14\x1a\x1b\x20The\
-    \x20standard\x20list\x20filter.\n\n\x0e\n\x05\x04\x02\x02\x01\x04\x12\
-    \x05\x82\x01\x02\x7f\x12\n\r\n\x05\x04\x02\x02\x01\x05\x12\x04\x82\x01\
-    \x02\x08\n\r\n\x05\x04\x02\x02\x01\x01\x12\x04\x82\x01\t\x0f\n\r\n\x05\
-    \x04\x02\x02\x01\x03\x12\x04\x82\x01\x12\x13\n,\n\x04\x04\x02\x02\x02\
-    \x12\x04\x85\x01\x02\x16\x1a\x1e\x20The\x20standard\x20list\x20page\x20s\
-    ize.\n\n\x0f\n\x05\x04\x02\x02\x02\x04\x12\x06\x85\x01\x02\x82\x01\x14\n\
-    \r\n\x05\x04\x02\x02\x02\x05\x12\x04\x85\x01\x02\x07\n\r\n\x05\x04\x02\
-    \x02\x02\x01\x12\x04\x85\x01\x08\x11\n\r\n\x05\x04\x02\x02\x02\x03\x12\
-    \x04\x85\x01\x14\x15\n-\n\x04\x04\x02\x02\x03\x12\x04\x88\x01\x02\x18\
-    \x1a\x1f\x20The\x20standard\x20list\x20page\x20token.\n\n\x0f\n\x05\x04\
-    \x02\x02\x03\x04\x12\x06\x88\x01\x02\x85\x01\x16\n\r\n\x05\x04\x02\x02\
-    \x03\x05\x12\x04\x88\x01\x02\x08\n\r\n\x05\x04\x02\x02\x03\x01\x12\x04\
-    \x88\x01\t\x13\n\r\n\x05\x04\x02\x02\x03\x03\x12\x04\x88\x01\x16\x17\ns\
-    \n\x02\x04\x03\x12\x06\x8c\x01\0\x92\x01\x01\x1ae\x20The\x20response\x20\
-    message\x20for\x20[Operations.ListOperations][google.longrunning.Operati\
-    ons.ListOperations].\n\n\x0b\n\x03\x04\x03\x01\x12\x04\x8c\x01\x08\x1e\n\
-    V\n\x04\x04\x03\x02\0\x12\x04\x8e\x01\x02$\x1aH\x20A\x20list\x20of\x20op\
-    erations\x20that\x20matches\x20the\x20specified\x20filter\x20in\x20the\
-    \x20request.\n\n\r\n\x05\x04\x03\x02\0\x04\x12\x04\x8e\x01\x02\n\n\r\n\
-    \x05\x04\x03\x02\0\x06\x12\x04\x8e\x01\x0b\x14\n\r\n\x05\x04\x03\x02\0\
-    \x01\x12\x04\x8e\x01\x15\x1f\n\r\n\x05\x04\x03\x02\0\x03\x12\x04\x8e\x01\
-    \"#\n2\n\x04\x04\x03\x02\x01\x12\x04\x91\x01\x02\x1d\x1a$\x20The\x20stan\
-    dard\x20List\x20next-page\x20token.\n\n\x0f\n\x05\x04\x03\x02\x01\x04\
-    \x12\x06\x91\x01\x02\x8e\x01$\n\r\n\x05\x04\x03\x02\x01\x05\x12\x04\x91\
-    \x01\x02\x08\n\r\n\x05\x04\x03\x02\x01\x01\x12\x04\x91\x01\t\x18\n\r\n\
-    \x05\x04\x03\x02\x01\x03\x12\x04\x91\x01\x1b\x1c\nt\n\x02\x04\x04\x12\
-    \x06\x95\x01\0\x98\x01\x01\x1af\x20The\x20request\x20message\x20for\x20[\
-    Operations.CancelOperation][google.longrunning.Operations.CancelOperatio\
-    n].\n\n\x0b\n\x03\x04\x04\x01\x12\x04\x95\x01\x08\x1e\nC\n\x04\x04\x04\
-    \x02\0\x12\x04\x97\x01\x02\x12\x1a5\x20The\x20name\x20of\x20the\x20opera\
-    tion\x20resource\x20to\x20be\x20cancelled.\n\n\x0f\n\x05\x04\x04\x02\0\
-    \x04\x12\x06\x97\x01\x02\x95\x01\x20\n\r\n\x05\x04\x04\x02\0\x05\x12\x04\
-    \x97\x01\x02\x08\n\r\n\x05\x04\x04\x02\0\x01\x12\x04\x97\x01\t\r\n\r\n\
-    \x05\x04\x04\x02\0\x03\x12\x04\x97\x01\x10\x11\nt\n\x02\x04\x05\x12\x06\
-    \x9b\x01\0\x9e\x01\x01\x1af\x20The\x20request\x20message\x20for\x20[Oper\
-    ations.DeleteOperation][google.longrunning.Operations.DeleteOperation].\
-    \n\n\x0b\n\x03\x04\x05\x01\x12\x04\x9b\x01\x08\x1e\nA\n\x04\x04\x05\x02\
-    \0\x12\x04\x9d\x01\x02\x12\x1a3\x20The\x20name\x20of\x20the\x20operation\
-    \x20resource\x20to\x20be\x20deleted.\n\n\x0f\n\x05\x04\x05\x02\0\x04\x12\
-    \x06\x9d\x01\x02\x9b\x01\x20\n\r\n\x05\x04\x05\x02\0\x05\x12\x04\x9d\x01\
-    \x02\x08\n\r\n\x05\x04\x05\x02\0\x01\x12\x04\x9d\x01\t\r\n\r\n\x05\x04\
-    \x05\x02\0\x03\x12\x04\x9d\x01\x10\x11b\x06proto3\
+    \x02\x03\x01\x12\x03h\x06\x15\n\x0c\n\x05\x06\0\x02\x03\x02\x12\x03h\x16\
+    ,\n\x0c\n\x05\x06\0\x02\x03\x03\x12\x03h7L\n\r\n\x05\x06\0\x02\x03\x04\
+    \x12\x04i\x04l\x06\n\x11\n\t\x06\0\x02\x03\x04\xb0\xca\xbc\"\x12\x04i\
+    \x04l\x06\n\x0c\n\x05\x06\0\x02\x03\x04\x12\x03m\x042\n\x0f\n\x08\x06\0\
+    \x02\x03\x04\x9b\x08\0\x12\x03m\x042\n\xf7\x04\n\x04\x06\0\x02\x04\x12\
+    \x04y\x02z\x03\x1a\xe8\x04\x20Waits\x20until\x20the\x20specified\x20long\
+    -running\x20operation\x20is\x20done\x20or\x20reaches\x20at\x20most\n\x20\
+    a\x20specified\x20timeout,\x20returning\x20the\x20latest\x20state.\x20\
+    \x20If\x20the\x20operation\x20is\n\x20already\x20done,\x20the\x20latest\
+    \x20state\x20is\x20immediately\x20returned.\x20\x20If\x20the\x20timeout\
+    \n\x20specified\x20is\x20greater\x20than\x20the\x20default\x20HTTP/RPC\
+    \x20timeout,\x20the\x20HTTP/RPC\n\x20timeout\x20is\x20used.\x20\x20If\
+    \x20the\x20server\x20does\x20not\x20support\x20this\x20method,\x20it\x20\
+    returns\n\x20`google.rpc.Code.UNIMPLEMENTED`.\n\x20Note\x20that\x20this\
+    \x20method\x20is\x20on\x20a\x20best-effort\x20basis.\x20\x20It\x20may\
+    \x20return\x20the\x20latest\n\x20state\x20before\x20the\x20specified\x20\
+    timeout\x20(including\x20immediately),\x20meaning\x20even\x20an\n\x20imm\
+    ediate\x20response\x20is\x20no\x20guarantee\x20that\x20the\x20operation\
+    \x20is\x20done.\n\n\x0c\n\x05\x06\0\x02\x04\x01\x12\x03y\x06\x13\n\x0c\n\
+    \x05\x06\0\x02\x04\x02\x12\x03y\x14(\n\x0c\n\x05\x06\0\x02\x04\x03\x12\
+    \x03y3<\nk\n\x02\x04\0\x12\x05\x7f\0\xa1\x01\x01\x1a^\x20This\x20resourc\
+    e\x20represents\x20a\x20long-running\x20operation\x20that\x20is\x20the\
+    \x20result\x20of\x20a\n\x20network\x20API\x20call.\n\n\n\n\x03\x04\0\x01\
+    \x12\x03\x7f\x08\x11\n\xe5\x01\n\x04\x04\0\x02\0\x12\x04\x83\x01\x02\x12\
+    \x1a\xd6\x01\x20The\x20server-assigned\x20name,\x20which\x20is\x20only\
+    \x20unique\x20within\x20the\x20same\x20service\x20that\n\x20originally\
+    \x20returns\x20it.\x20If\x20you\x20use\x20the\x20default\x20HTTP\x20mapp\
+    ing,\x20the\n\x20`name`\x20should\x20be\x20a\x20resource\x20name\x20endi\
+    ng\x20with\x20`operations/{unique_id}`.\n\n\x0e\n\x05\x04\0\x02\0\x04\
+    \x12\x05\x83\x01\x02\x7f\x13\n\r\n\x05\x04\0\x02\0\x05\x12\x04\x83\x01\
+    \x02\x08\n\r\n\x05\x04\0\x02\0\x01\x12\x04\x83\x01\t\r\n\r\n\x05\x04\0\
+    \x02\0\x03\x12\x04\x83\x01\x10\x11\n\xad\x02\n\x04\x04\0\x02\x01\x12\x04\
+    \x89\x01\x02#\x1a\x9e\x02\x20Service-specific\x20metadata\x20associated\
+    \x20with\x20the\x20operation.\x20\x20It\x20typically\n\x20contains\x20pr\
+    ogress\x20information\x20and\x20common\x20metadata\x20such\x20as\x20crea\
+    te\x20time.\n\x20Some\x20services\x20might\x20not\x20provide\x20such\x20\
+    metadata.\x20\x20Any\x20method\x20that\x20returns\x20a\n\x20long-running\
+    \x20operation\x20should\x20document\x20the\x20metadata\x20type,\x20if\
+    \x20any.\n\n\x0f\n\x05\x04\0\x02\x01\x04\x12\x06\x89\x01\x02\x83\x01\x12\
+    \n\r\n\x05\x04\0\x02\x01\x06\x12\x04\x89\x01\x02\x15\n\r\n\x05\x04\0\x02\
+    \x01\x01\x12\x04\x89\x01\x16\x1e\n\r\n\x05\x04\0\x02\x01\x03\x12\x04\x89\
+    \x01!\"\n\xae\x01\n\x04\x04\0\x02\x02\x12\x04\x8e\x01\x02\x10\x1a\x9f\
+    \x01\x20If\x20the\x20value\x20is\x20`false`,\x20it\x20means\x20the\x20op\
+    eration\x20is\x20still\x20in\x20progress.\n\x20If\x20`true`,\x20the\x20o\
+    peration\x20is\x20completed,\x20and\x20either\x20`error`\x20or\x20`respo\
+    nse`\x20is\n\x20available.\n\n\x0f\n\x05\x04\0\x02\x02\x04\x12\x06\x8e\
+    \x01\x02\x89\x01#\n\r\n\x05\x04\0\x02\x02\x05\x12\x04\x8e\x01\x02\x06\n\
+    \r\n\x05\x04\0\x02\x02\x01\x12\x04\x8e\x01\x07\x0b\n\r\n\x05\x04\0\x02\
+    \x02\x03\x12\x04\x8e\x01\x0e\x0f\n\xdf\x01\n\x04\x04\0\x08\0\x12\x06\x93\
+    \x01\x02\xa0\x01\x03\x1a\xce\x01\x20The\x20operation\x20result,\x20which\
+    \x20can\x20be\x20either\x20an\x20`error`\x20or\x20a\x20valid\x20`respons\
+    e`.\n\x20If\x20`done`\x20==\x20`false`,\x20neither\x20`error`\x20nor\x20\
+    `response`\x20is\x20set.\n\x20If\x20`done`\x20==\x20`true`,\x20exactly\
+    \x20one\x20of\x20`error`\x20or\x20`response`\x20is\x20set.\n\n\r\n\x05\
+    \x04\0\x08\0\x01\x12\x04\x93\x01\x08\x0e\nU\n\x04\x04\0\x02\x03\x12\x04\
+    \x95\x01\x04\x20\x1aG\x20The\x20error\x20result\x20of\x20the\x20operatio\
+    n\x20in\x20case\x20of\x20failure\x20or\x20cancellation.\n\n\r\n\x05\x04\
+    \0\x02\x03\x06\x12\x04\x95\x01\x04\x15\n\r\n\x05\x04\0\x02\x03\x01\x12\
+    \x04\x95\x01\x16\x1b\n\r\n\x05\x04\0\x02\x03\x03\x12\x04\x95\x01\x1e\x1f\
+    \n\x84\x04\n\x04\x04\0\x02\x04\x12\x04\x9f\x01\x04%\x1a\xf5\x03\x20The\
+    \x20normal\x20response\x20of\x20the\x20operation\x20in\x20case\x20of\x20\
+    success.\x20\x20If\x20the\x20original\n\x20method\x20returns\x20no\x20da\
+    ta\x20on\x20success,\x20such\x20as\x20`Delete`,\x20the\x20response\x20is\
+    \n\x20`google.protobuf.Empty`.\x20\x20If\x20the\x20original\x20method\
+    \x20is\x20standard\n\x20`Get`/`Create`/`Update`,\x20the\x20response\x20s\
+    hould\x20be\x20the\x20resource.\x20\x20For\x20other\n\x20methods,\x20the\
+    \x20response\x20should\x20have\x20the\x20type\x20`XxxResponse`,\x20where\
+    \x20`Xxx`\n\x20is\x20the\x20original\x20method\x20name.\x20\x20For\x20ex\
+    ample,\x20if\x20the\x20original\x20method\x20name\n\x20is\x20`TakeSnapsh\
+    ot()`,\x20the\x20inferred\x20response\x20type\x20is\n\x20`TakeSnapshotRe\
+    sponse`.\n\n\r\n\x05\x04\0\x02\x04\x06\x12\x04\x9f\x01\x04\x17\n\r\n\x05\
+    \x04\0\x02\x04\x01\x12\x04\x9f\x01\x18\x20\n\r\n\x05\x04\0\x02\x04\x03\
+    \x12\x04\x9f\x01#$\nn\n\x02\x04\x01\x12\x06\xa4\x01\0\xa7\x01\x01\x1a`\
+    \x20The\x20request\x20message\x20for\x20[Operations.GetOperation][google\
+    .longrunning.Operations.GetOperation].\n\n\x0b\n\x03\x04\x01\x01\x12\x04\
+    \xa4\x01\x08\x1b\n3\n\x04\x04\x01\x02\0\x12\x04\xa6\x01\x02\x12\x1a%\x20\
+    The\x20name\x20of\x20the\x20operation\x20resource.\n\n\x0f\n\x05\x04\x01\
+    \x02\0\x04\x12\x06\xa6\x01\x02\xa4\x01\x1d\n\r\n\x05\x04\x01\x02\0\x05\
+    \x12\x04\xa6\x01\x02\x08\n\r\n\x05\x04\x01\x02\0\x01\x12\x04\xa6\x01\t\r\
+    \n\r\n\x05\x04\x01\x02\0\x03\x12\x04\xa6\x01\x10\x11\nr\n\x02\x04\x02\
+    \x12\x06\xaa\x01\0\xb6\x01\x01\x1ad\x20The\x20request\x20message\x20for\
+    \x20[Operations.ListOperations][google.longrunning.Operations.ListOperat\
+    ions].\n\n\x0b\n\x03\x04\x02\x01\x12\x04\xaa\x01\x08\x1d\n<\n\x04\x04\
+    \x02\x02\0\x12\x04\xac\x01\x02\x12\x1a.\x20The\x20name\x20of\x20the\x20o\
+    peration's\x20parent\x20resource.\n\n\x0f\n\x05\x04\x02\x02\0\x04\x12\
+    \x06\xac\x01\x02\xaa\x01\x1f\n\r\n\x05\x04\x02\x02\0\x05\x12\x04\xac\x01\
+    \x02\x08\n\r\n\x05\x04\x02\x02\0\x01\x12\x04\xac\x01\t\r\n\r\n\x05\x04\
+    \x02\x02\0\x03\x12\x04\xac\x01\x10\x11\n)\n\x04\x04\x02\x02\x01\x12\x04\
+    \xaf\x01\x02\x14\x1a\x1b\x20The\x20standard\x20list\x20filter.\n\n\x0f\n\
+    \x05\x04\x02\x02\x01\x04\x12\x06\xaf\x01\x02\xac\x01\x12\n\r\n\x05\x04\
+    \x02\x02\x01\x05\x12\x04\xaf\x01\x02\x08\n\r\n\x05\x04\x02\x02\x01\x01\
+    \x12\x04\xaf\x01\t\x0f\n\r\n\x05\x04\x02\x02\x01\x03\x12\x04\xaf\x01\x12\
+    \x13\n,\n\x04\x04\x02\x02\x02\x12\x04\xb2\x01\x02\x16\x1a\x1e\x20The\x20\
+    standard\x20list\x20page\x20size.\n\n\x0f\n\x05\x04\x02\x02\x02\x04\x12\
+    \x06\xb2\x01\x02\xaf\x01\x14\n\r\n\x05\x04\x02\x02\x02\x05\x12\x04\xb2\
+    \x01\x02\x07\n\r\n\x05\x04\x02\x02\x02\x01\x12\x04\xb2\x01\x08\x11\n\r\n\
+    \x05\x04\x02\x02\x02\x03\x12\x04\xb2\x01\x14\x15\n-\n\x04\x04\x02\x02\
+    \x03\x12\x04\xb5\x01\x02\x18\x1a\x1f\x20The\x20standard\x20list\x20page\
+    \x20token.\n\n\x0f\n\x05\x04\x02\x02\x03\x04\x12\x06\xb5\x01\x02\xb2\x01\
+    \x16\n\r\n\x05\x04\x02\x02\x03\x05\x12\x04\xb5\x01\x02\x08\n\r\n\x05\x04\
+    \x02\x02\x03\x01\x12\x04\xb5\x01\t\x13\n\r\n\x05\x04\x02\x02\x03\x03\x12\
+    \x04\xb5\x01\x16\x17\ns\n\x02\x04\x03\x12\x06\xb9\x01\0\xbf\x01\x01\x1ae\
+    \x20The\x20response\x20message\x20for\x20[Operations.ListOperations][goo\
+    gle.longrunning.Operations.ListOperations].\n\n\x0b\n\x03\x04\x03\x01\
+    \x12\x04\xb9\x01\x08\x1e\nV\n\x04\x04\x03\x02\0\x12\x04\xbb\x01\x02$\x1a\
+    H\x20A\x20list\x20of\x20operations\x20that\x20matches\x20the\x20specifie\
+    d\x20filter\x20in\x20the\x20request.\n\n\r\n\x05\x04\x03\x02\0\x04\x12\
+    \x04\xbb\x01\x02\n\n\r\n\x05\x04\x03\x02\0\x06\x12\x04\xbb\x01\x0b\x14\n\
+    \r\n\x05\x04\x03\x02\0\x01\x12\x04\xbb\x01\x15\x1f\n\r\n\x05\x04\x03\x02\
+    \0\x03\x12\x04\xbb\x01\"#\n2\n\x04\x04\x03\x02\x01\x12\x04\xbe\x01\x02\
+    \x1d\x1a$\x20The\x20standard\x20List\x20next-page\x20token.\n\n\x0f\n\
+    \x05\x04\x03\x02\x01\x04\x12\x06\xbe\x01\x02\xbb\x01$\n\r\n\x05\x04\x03\
+    \x02\x01\x05\x12\x04\xbe\x01\x02\x08\n\r\n\x05\x04\x03\x02\x01\x01\x12\
+    \x04\xbe\x01\t\x18\n\r\n\x05\x04\x03\x02\x01\x03\x12\x04\xbe\x01\x1b\x1c\
+    \nt\n\x02\x04\x04\x12\x06\xc2\x01\0\xc5\x01\x01\x1af\x20The\x20request\
+    \x20message\x20for\x20[Operations.CancelOperation][google.longrunning.Op\
+    erations.CancelOperation].\n\n\x0b\n\x03\x04\x04\x01\x12\x04\xc2\x01\x08\
+    \x1e\nC\n\x04\x04\x04\x02\0\x12\x04\xc4\x01\x02\x12\x1a5\x20The\x20name\
+    \x20of\x20the\x20operation\x20resource\x20to\x20be\x20cancelled.\n\n\x0f\
+    \n\x05\x04\x04\x02\0\x04\x12\x06\xc4\x01\x02\xc2\x01\x20\n\r\n\x05\x04\
+    \x04\x02\0\x05\x12\x04\xc4\x01\x02\x08\n\r\n\x05\x04\x04\x02\0\x01\x12\
+    \x04\xc4\x01\t\r\n\r\n\x05\x04\x04\x02\0\x03\x12\x04\xc4\x01\x10\x11\nt\
+    \n\x02\x04\x05\x12\x06\xc8\x01\0\xcb\x01\x01\x1af\x20The\x20request\x20m\
+    essage\x20for\x20[Operations.DeleteOperation][google.longrunning.Operati\
+    ons.DeleteOperation].\n\n\x0b\n\x03\x04\x05\x01\x12\x04\xc8\x01\x08\x1e\
+    \nA\n\x04\x04\x05\x02\0\x12\x04\xca\x01\x02\x12\x1a3\x20The\x20name\x20o\
+    f\x20the\x20operation\x20resource\x20to\x20be\x20deleted.\n\n\x0f\n\x05\
+    \x04\x05\x02\0\x04\x12\x06\xca\x01\x02\xc8\x01\x20\n\r\n\x05\x04\x05\x02\
+    \0\x05\x12\x04\xca\x01\x02\x08\n\r\n\x05\x04\x05\x02\0\x01\x12\x04\xca\
+    \x01\t\r\n\r\n\x05\x04\x05\x02\0\x03\x12\x04\xca\x01\x10\x11\np\n\x02\
+    \x04\x06\x12\x06\xce\x01\0\xd6\x01\x01\x1ab\x20The\x20request\x20message\
+    \x20for\x20[Operations.WaitOperation][google.longrunning.Operations.Wait\
+    Operation].\n\n\x0b\n\x03\x04\x06\x01\x12\x04\xce\x01\x08\x1c\n>\n\x04\
+    \x04\x06\x02\0\x12\x04\xd0\x01\x02\x12\x1a0\x20The\x20name\x20of\x20the\
+    \x20operation\x20resource\x20to\x20wait\x20on.\n\n\x0f\n\x05\x04\x06\x02\
+    \0\x04\x12\x06\xd0\x01\x02\xce\x01\x1e\n\r\n\x05\x04\x06\x02\0\x05\x12\
+    \x04\xd0\x01\x02\x08\n\r\n\x05\x04\x06\x02\0\x01\x12\x04\xd0\x01\t\r\n\r\
+    \n\x05\x04\x06\x02\0\x03\x12\x04\xd0\x01\x10\x11\n\xeb\x01\n\x04\x04\x06\
+    \x02\x01\x12\x04\xd5\x01\x02'\x1a\xdc\x01\x20The\x20maximum\x20duration\
+    \x20to\x20wait\x20before\x20timing\x20out.\x20If\x20left\x20blank,\x20th\
+    e\x20wait\n\x20will\x20be\x20at\x20most\x20the\x20time\x20permitted\x20b\
+    y\x20the\x20underlying\x20HTTP/RPC\x20protocol.\n\x20If\x20RPC\x20contex\
+    t\x20deadline\x20is\x20also\x20specified,\x20the\x20shorter\x20one\x20wi\
+    ll\x20be\x20used.\n\n\x0f\n\x05\x04\x06\x02\x01\x04\x12\x06\xd5\x01\x02\
+    \xd0\x01\x12\n\r\n\x05\x04\x06\x02\x01\x06\x12\x04\xd5\x01\x02\x1a\n\r\n\
+    \x05\x04\x06\x02\x01\x01\x12\x04\xd5\x01\x1b\"\n\r\n\x05\x04\x06\x02\x01\
+    \x03\x12\x04\xd5\x01%&\n\xfb\x02\n\x02\x04\x07\x12\x06\xe3\x01\0\xf6\x01\
+    \x01\x1a\xec\x02\x20A\x20message\x20representing\x20the\x20message\x20ty\
+    pes\x20used\x20by\x20a\x20long-running\x20operation.\n\n\x20Example:\n\n\
+    \x20\x20\x20rpc\x20LongRunningRecognize(LongRunningRecognizeRequest)\n\
+    \x20\x20\x20\x20\x20\x20\x20returns\x20(google.longrunning.Operation)\
+    \x20{\n\x20\x20\x20\x20\x20option\x20(google.longrunning.operation_info)\
+    \x20=\x20{\n\x20\x20\x20\x20\x20\x20\x20response_type:\x20\"LongRunningR\
+    ecognizeResponse\"\n\x20\x20\x20\x20\x20\x20\x20metadata_type:\x20\"Long\
+    RunningRecognizeMetadata\"\n\x20\x20\x20\x20\x20};\n\x20\x20\x20}\n\n\
+    \x0b\n\x03\x04\x07\x01\x12\x04\xe3\x01\x08\x15\n\xe6\x02\n\x04\x04\x07\
+    \x02\0\x12\x04\xec\x01\x02\x1b\x1a\xd7\x02\x20Required.\x20The\x20messag\
+    e\x20name\x20of\x20the\x20primary\x20return\x20type\x20for\x20this\n\x20\
+    long-running\x20operation.\n\x20This\x20type\x20will\x20be\x20used\x20to\
+    \x20deserialize\x20the\x20LRO's\x20response.\n\n\x20If\x20the\x20respons\
+    e\x20is\x20in\x20a\x20different\x20package\x20from\x20the\x20rpc,\x20a\
+    \x20fully-qualified\n\x20message\x20name\x20must\x20be\x20used\x20(e.g.\
+    \x20`google.protobuf.Struct`).\n\n\x20Note:\x20Altering\x20this\x20value\
+    \x20constitutes\x20a\x20breaking\x20change.\n\n\x0f\n\x05\x04\x07\x02\0\
+    \x04\x12\x06\xec\x01\x02\xe3\x01\x17\n\r\n\x05\x04\x07\x02\0\x05\x12\x04\
+    \xec\x01\x02\x08\n\r\n\x05\x04\x07\x02\0\x01\x12\x04\xec\x01\t\x16\n\r\n\
+    \x05\x04\x07\x02\0\x03\x12\x04\xec\x01\x19\x1a\n\xa5\x02\n\x04\x04\x07\
+    \x02\x01\x12\x04\xf5\x01\x02\x1b\x1a\x96\x02\x20Required.\x20The\x20mess\
+    age\x20name\x20of\x20the\x20metadata\x20type\x20for\x20this\x20long-runn\
+    ing\n\x20operation.\n\n\x20If\x20the\x20response\x20is\x20in\x20a\x20dif\
+    ferent\x20package\x20from\x20the\x20rpc,\x20a\x20fully-qualified\n\x20me\
+    ssage\x20name\x20must\x20be\x20used\x20(e.g.\x20`google.protobuf.Struct`\
+    ).\n\n\x20Note:\x20Altering\x20this\x20value\x20constitutes\x20a\x20brea\
+    king\x20change.\n\n\x0f\n\x05\x04\x07\x02\x01\x04\x12\x06\xf5\x01\x02\
+    \xec\x01\x1b\n\r\n\x05\x04\x07\x02\x01\x05\x12\x04\xf5\x01\x02\x08\n\r\n\
+    \x05\x04\x07\x02\x01\x01\x12\x04\xf5\x01\t\x16\n\r\n\x05\x04\x07\x02\x01\
+    \x03\x12\x04\xf5\x01\x19\x1ab\x06proto3\
 ";
 
 static file_descriptor_proto_lazy: ::protobuf::rt::LazyV2<::protobuf::descriptor::FileDescriptorProto> = ::protobuf::rt::LazyV2::INIT;
