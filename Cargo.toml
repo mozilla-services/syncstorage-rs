@@ -18,17 +18,17 @@ debug = 1
 actix-http = "2"
 actix-web = "3"
 actix-web-httpauth = "0.5"
-actix-rt = "1"
+actix-rt = "1"  # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
 async-trait = "0.1.40"
 base64 = "0.13"
-bb8 = "0.4.1"
+bb8 = "0.4.1"  # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
-cadence = "0.23"
+cadence = "0.24"
 chrono = "0.4"
 config = "0.10"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977)
-deadpool = "0.5"
+deadpool = "0.5"  # pin to 0.5
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
@@ -40,7 +40,7 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.7" }
+grpcio = { version = "0.8" }
 hyper = "0.13.10"  # RUSTSEC-2021-0020 requires 0.13.10+ or 0.14.3+
 lazy_static = "1.4.0"
 pyo3 = "0.13"
@@ -57,7 +57,7 @@ protobuf = "2.20.0"
 rand = "0.8"
 regex = "1.4"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = ["with_curl_transport"] }
+sentry = { version = "0.19", features = ["with_curl_transport"] }  # pin to 0.19 due to curl transport, failure
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }

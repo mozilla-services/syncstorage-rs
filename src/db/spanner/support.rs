@@ -276,6 +276,7 @@ fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> Result<Value> {
         | TypeCode::TIMESTAMP => merge_string(lhs, rhs),
         TypeCode::ARRAY
         | TypeCode::FLOAT64
+        | TypeCode::NUMERIC
         | TypeCode::STRUCT
         | TypeCode::TYPE_CODE_UNSPECIFIED
         | TypeCode::BOOL => unsupported_merge(field_type),
