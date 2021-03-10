@@ -1,3 +1,23 @@
+<a name="0.9.0"></a>
+## 0.9.0 (2021-02-25)
+
+
+#### Bug Fixes
+
+*   ensure "extra" data added to Hawk header in e2e tests (#1003) ([8c280ccd](https://github.com/mozilla-services/syncstorage-rs/commit/8c280ccda032ff007c4a6017d6fb0cdd94d7cd3f))
+
+#### Features
+
+*   kill old or excessively idled connections (#1006) ([082dd1f0](https://github.com/mozilla-services/syncstorage-rs/commit/082dd1f0613fc91f3ea2f02b3bcdd9ddf2b938d3))
+
+#### Chore
+
+*   fmt & clippy fixes for Rust 1.50 (#1004) ([56cadcb2](https://github.com/mozilla-services/syncstorage-rs/commit/56cadcb2cdcce99de2d425e8d0edb4a7c20c52ac))
+*   RUSTSEC-2021-0020 fix ([2e186341](https://github.com/mozilla-services/syncstorage-rs/commit/2e1863410ed92180f6fb12a9ebf8d2f462425b38), closes [#999](https://github.com/mozilla-services/syncstorage-rs/issues/999))
+*   tag 0.8.7 (#998) ([d06b3c2a](https://github.com/mozilla-services/syncstorage-rs/commit/d06b3c2a0dd1602d074d5d2da913db699eea0a9e))
+
+
+
 <a name="0.8.7"></a>
 ### 0.8.7  (2021-02-03)
 
