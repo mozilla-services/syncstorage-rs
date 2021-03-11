@@ -2952,7 +2952,6 @@ dependencies = [
  "hkdf",
  "hmac",
  "hostname",
- "hyper",
  "jsonwebtoken",
  "lazy_static",
  "log",
