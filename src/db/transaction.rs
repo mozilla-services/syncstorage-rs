@@ -34,7 +34,14 @@ pub struct DbTransactionPool {
 fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
     let mut tags = Tags::default();
     tags.add_extra("connection_age", &connection_info.age.to_string());
-    tags.add_extra("connection_idle", &connection_info.idle.to_string());
+    tags.add_extra(
+        "spanner_connection_age",
+        &connection_info.spanner_age.to_string(),
+    );
+    tags.add_extra(
+        "spanner_sconnection_idle",
+        &connection_info.spanner_idle.to_string(),
+    );
     tags.commit(exts);
 }
 

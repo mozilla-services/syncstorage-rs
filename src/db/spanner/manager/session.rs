@@ -5,8 +5,8 @@ use googleapis_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
 use std::sync::Arc;
-use std::time::SystemTime;
 
+use crate::db::spanner::now;
 use crate::{
     db::error::{DbError, DbErrorKind},
     server::metrics::Metrics,
@@ -19,10 +19,16 @@ const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 /// Session creation is expensive in Spanner so sessions should be long-lived
 /// and cached for reuse.
 pub struct SpannerSession {
+    /// This is a reference copy of the Session info.
+    /// It is used for meta info, not for actual connections.
     pub session: Session,
     /// The underlying client (Connection/Channel) for interacting with spanner
     pub client: SpannerClient,
     pub(in crate::db::spanner) use_test_transactions: bool,
+    /// A second based UTC for SpannerSession creation.
+    /// Session has a similar `create_time` value that is managed by protobuf,
+    /// but some clock skew issues are possible.
+    pub(in crate::db::spanner) create_time: i64,
 }
 
 /// Create a Session (and the underlying gRPC Channel)
@@ -60,6 +66,7 @@ pub async fn create_spanner_session(
         session,
         client,
         use_test_transactions,
+        create_time: now(),
     })
 }
 
@@ -71,47 +78,84 @@ pub async fn recycle_spanner_session(
     max_lifetime: Option<u32>,
     max_idle: Option<u32>,
 ) -> Result<(), DbError> {
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    if let Some(max_life) = max_lifetime {
-        // get the current UTC seconds
-        if let Some(age) = conn.session.create_time.clone().into_option() {
-            let age = now - age.seconds as u64;
-            if age > max_life as u64 {
-                metrics.incr("db.connection.max_life");
-                dbg!("### aging out", conn.session.get_name());
-                return Err(DbErrorKind::Expired.into());
-            }
-        }
-    }
-    // check how long that this has been idle...
-    if let Some(max_idle) = max_idle {
-        if let Some(idle) = conn.session.approximate_last_use_time.clone().into_option() {
-            // get current UTC seconds
-            let idle = std::cmp::max(0, now as i64 - idle.seconds);
-            if idle > max_idle as i64 {
-                metrics.incr("db.connection.max_idle");
-                dbg!("### idling out", conn.session.get_name());
-                return Err(DbErrorKind::Expired.into());
-            }
-        }
-    }
-
+    let now = now();
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
-    if let Err(e) = conn.client.get_session_async(&req)?.await {
-        match e {
+    /*
+    Connections can sometimes produce GOAWAY errors. GOAWAYs are HTTP2 frame
+    errors that are (usually) sent before a given connection is shut down. It
+    appears that GRPC passes these up the chain. The problem is that since the
+    connection is being closed, further retries will (probably?) also fail. The
+    best course of action is to spin up a new session.
+
+    In theory, UNAVAILABLE-GOAWAY messages are retryable. How we retry them,
+    however, is not so clear. There are a few places in spanner functions where
+    we could possibly do this, but they get complicated quickly. (e.g. pass a
+    `&mut SpannerDb` to `db.execute_async`, but that gets REALLY messy, REALLY
+    fast.)
+
+    For now, we try a slightly different tactic here. Connections can age out
+    both from overall age and from lack of use. We can try to pre-emptively
+    kill off connections before we get the GOAWAY messages. Any additional
+    GOAWAY messages would be returned to the client as a 500 which will
+    result in the client re-trying.
+
+     */
+    match conn.client.get_session_async(&req)?.await {
+        Ok(this_session) => {
+            // Remember, this_session may not be related to
+            // the SpannerSession.session, so you may need
+            // to reflect changes if you want a more permanent
+            // data reference.
+            if this_session.get_name() != conn.session.get_name() {
+                warn!(
+                    "This session may not be the session you want {} != {}",
+                    this_session.get_name(),
+                    conn.session.get_name()
+                );
+            }
+            if let Some(max_life) = max_lifetime {
+                // use our create time. (this_session has it's own
+                // `create_time` timestamp, but clock drift could
+                // be an issue.)
+                let age = now - conn.create_time;
+                if age > max_life as i64 {
+                    metrics.incr("db.connection.max_life");
+                    dbg!("### aging out", this_session.get_name());
+                    return Err(DbErrorKind::Expired.into());
+                }
+            }
+            // check how long that this has been idle...
+            if let Some(max_idle) = max_idle {
+                // use the Protobuf last use time from the saved
+                // reference Session. It's not perfect, but it's good enough.
+                let idle = conn
+                    .session
+                    .approximate_last_use_time
+                    .clone()
+                    .into_option()
+                    .map(|time| now - time.seconds)
+                    .unwrap_or_default();
+                if idle > max_idle as i64 {
+                    metrics.incr("db.connection.max_idle");
+                    dbg!("### idling out", this_session.get_name());
+                    return Err(DbErrorKind::Expired.into());
+                }
+                // and update the connection's reference session info
+                conn.session = this_session;
+            }
+            Ok(())
+        }
+        Err(e) => match e {
             grpcio::Error::RpcFailure(ref status)
                 if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
             {
                 conn.session = create_session(&conn.client, database_name).await?;
+                Ok(())
             }
             _ => return Err(e.into()),
-        }
+        },
     }
-    Ok(())
 }
 
 async fn create_session(
