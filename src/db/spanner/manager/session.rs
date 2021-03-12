@@ -107,6 +107,10 @@ pub async fn recycle_spanner_session(
             // the SpannerSession.session, so you may need
             // to reflect changes if you want a more permanent
             // data reference.
+            if this_session.get_name() != conn.session.get_name() {
+                warn!("This session may not be the session you want {} != {}",
+                        this_session.get_name(), conn.session.get_name());
+            }
             if let Some(max_life) = max_lifetime {
                 // use our create time. (this_session has it's own
                 // `create_time` timestamp, but clock drift could
@@ -120,9 +124,9 @@ pub async fn recycle_spanner_session(
             }
             // check how long that this has been idle...
             if let Some(max_idle) = max_idle {
-                // use the Protobuf last use time. It's not perfect,
-                // but it's good enough.
-                let idle = this_session
+                // use the Protobuf last use time from the saved
+                // reference Session. It's not perfect, but it's good enough.
+                let idle = conn.session
                     .approximate_last_use_time
                     .clone()
                     .into_option()
