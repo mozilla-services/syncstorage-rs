@@ -19,10 +19,15 @@ const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 /// Session creation is expensive in Spanner so sessions should be long-lived
 /// and cached for reuse.
 pub struct SpannerSession {
+    /// This is a reference copy of the Session info.
+    /// It is used for meta info, not for actual connections.
     pub session: Session,
     /// The underlying client (Connection/Channel) for interacting with spanner
     pub client: SpannerClient,
     pub(in crate::db::spanner) use_test_transactions: bool,
+    /// A second based UTC for SpannerSession creation.
+    /// Session has a similar `create_time` value that is managed by protobuf,
+    /// but some clock skew issues are possible.
     pub(in crate::db::spanner) create_time: i64,
 }
 
@@ -97,19 +102,27 @@ pub async fn recycle_spanner_session(
 
      */
     match conn.client.get_session_async(&req)?.await {
-        Ok(session) => {
+        Ok(this_session) => {
+            // Remember, this_session may not be related to
+            // the SpannerSession.session, so you may need
+            // to reflect changes if you want a more permanent
+            // data reference.
             if let Some(max_life) = max_lifetime {
+                // use our create time. (this_session has it's own
+                // `create_time` timestamp, but clock drift could
+                // be an issue.)
                 let age = now - conn.create_time;
                 if age > max_life as i64 {
                     metrics.incr("db.connection.max_life");
-                    dbg!("### aging out", conn.session.get_name());
+                    dbg!("### aging out", this_session.get_name());
                     return Err(DbErrorKind::Expired.into());
                 }
             }
             // check how long that this has been idle...
             if let Some(max_idle) = max_idle {
-                let idle = conn
-                    .session
+                // use the Protobuf last use time. It's not perfect,
+                // but it's good enough.
+                let idle = this_session
                     .approximate_last_use_time
                     .clone()
                     .into_option()
@@ -117,9 +130,11 @@ pub async fn recycle_spanner_session(
                     .unwrap_or_default();
                 if idle > max_idle as i64 {
                     metrics.incr("db.connection.max_idle");
-                    dbg!("### idling out", session.get_name());
+                    dbg!("### idling out", this_session.get_name());
                     return Err(DbErrorKind::Expired.into());
                 }
+                // and update the connection's reference session info
+                conn.session = this_session;
             }
             Ok(())
         }
