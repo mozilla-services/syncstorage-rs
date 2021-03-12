@@ -1,3 +1,18 @@
+<a name="0.9.1"></a>
+## 0.9.1 (2021-03-12)
+
+
+#### Chore
+
+*   kill the long unused db middleware ([8f9cce76](https://github.com/mozilla-services/syncstorage-rs/commit/8f9cce76ba4a52e4594f32b471f2e0259abe04d2), closes [#693](https://github.com/mozilla-services/syncstorage-rs/issues/693), [#1018](https://github.com/mozilla-services/syncstorage-rs/issues/1018))
+*   Update for March 2021 ([4e38e681](https://github.com/mozilla-services/syncstorage-rs/commit/4e38e68180766c083b651d148c24f42e5d0fd058), closes [#1018](https://github.com/mozilla-services/syncstorage-rs/issues/1018))
+
+#### Features
+
+*   Manually update the spanner session approximate_last_used_time (#1009) ([f669b257](https://github.com/mozilla-services/syncstorage-rs/commit/f669b257a2d8b8f4928a32df27eebe33f1af555e), closes [#1008](https://github.com/mozilla-services/syncstorage-rs/issues/1008))
+
+
+
 <a name="0.9.0"></a>
 ## 0.9.0 (2021-02-25)
 
