@@ -24,7 +24,6 @@ pub struct SpannerSession {
     pub client: SpannerClient,
     pub(in crate::db::spanner) use_test_transactions: bool,
     pub(in crate::db::spanner) create_time: i64,
-    pub(in crate::db::spanner) last_used_time: i64,
 }
 
 /// Create a Session (and the underlying gRPC Channel)
@@ -63,7 +62,6 @@ pub async fn create_spanner_session(
         client,
         use_test_transactions,
         create_time: now(),
-        last_used_time: now(),
     })
 }
 
@@ -110,7 +108,13 @@ pub async fn recycle_spanner_session(
             }
             // check how long that this has been idle...
             if let Some(max_idle) = max_idle {
-                let idle = std::cmp::max(0, now - conn.last_used_time);
+                let idle = conn
+                    .session
+                    .approximate_last_use_time
+                    .clone()
+                    .into_option()
+                    .map(|time| now - time.seconds)
+                    .unwrap_or_default();
                 if idle > max_idle as i64 {
                     metrics.incr("db.connection.max_idle");
                     dbg!("### idling out", session.get_name());

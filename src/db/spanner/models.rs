@@ -2076,7 +2076,6 @@ impl<'a> Db<'a> for SpannerDb {
                 .map(|time| now - time.seconds)
                 .unwrap_or_default(),
             age: now - self.conn.create_time,
-            idle: now - self.conn.last_used_time,
         }
     }
 
