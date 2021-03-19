@@ -34,6 +34,7 @@ use crate::settings::Secrets;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
+    tags::Tags,
     X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -1216,6 +1217,10 @@ impl FromRequest for BsoQueryParams {
         Box::pin(async move {
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
                 .map_err(|e| {
+                    let mut exts = req.extensions_mut();
+                    let mut tags = Tags::default();
+                    tags.add_extra("query_params", req.query_string());
+                    tags.commit(&mut exts);
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::QueryString,
