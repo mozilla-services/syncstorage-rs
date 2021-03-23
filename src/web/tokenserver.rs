@@ -80,9 +80,9 @@ pub fn get(
     let x_key_id = req
         .headers()
         .get("x-keyid")
-        .unwrap()
+        .expect("Missing x-keyid header")
         .to_str()
-        .unwrap()
+        .expect("Invalid x-keyid header")
         .to_string();
     block(move || {
         get_sync(
