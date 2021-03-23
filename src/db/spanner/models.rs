@@ -27,6 +27,7 @@ use crate::{
     db::{
         error::{DbError, DbErrorKind},
         params, results,
+        spanner::now,
         util::SyncTimestamp,
         Db, DbFuture, Sorting, FIRST_CUSTOM_COLLECTION_ID,
     },
@@ -2058,6 +2059,24 @@ impl<'a> Db<'a> for SpannerDb {
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
         Box::pin(async move { db.get_collection_id_async(&name).map_err(Into::into).await })
+    }
+
+    fn get_connection_info(&self) -> results::ConnectionInfo {
+        let session = self.conn.session.clone();
+        let now = now();
+        results::ConnectionInfo {
+            spanner_age: session
+                .create_time
+                .into_option()
+                .map(|time| now - time.seconds)
+                .unwrap_or_default(),
+            spanner_idle: session
+                .approximate_last_use_time
+                .into_option()
+                .map(|time| now - time.seconds)
+                .unwrap_or_default(),
+            age: now - self.conn.create_time,
+        }
     }
 
     #[cfg(test)]

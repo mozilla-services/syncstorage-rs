@@ -1091,6 +1091,10 @@ impl<'a> Db<'a> for MysqlDb {
         Box::pin(block(move || db.get_collection_id(&name).map_err(Into::into)).map_err(Into::into))
     }
 
+    fn get_connection_info(&self) -> results::ConnectionInfo {
+        results::ConnectionInfo::default()
+    }
+
     #[cfg(test)]
     fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();

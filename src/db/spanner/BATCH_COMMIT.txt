@@ -56,3 +56,12 @@ Totals:
 
 - quota: True
   6 + 19968 + 1 + 6 = 19981
+
+
+**NOTE** iOS hardcodes syncstorage values. ANY ALTERATION OF THE FOLLOWING VALUES
+MUST REQUIRE FILING AN ISSUE WITH THE iOS TEAM!
+<https://github.com/mozilla-mobile/firefox-ios/issues>
+* MAX_REQUEST_BYTES
+* MAX_POST_REQCORDS
+* MAX_TOTAL_RECORDS
+* MAX_TOTAL_BYTES

@@ -386,14 +386,18 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         if global_secret is not None:
             policy.secrets._secrets = [global_secret]
         self.user_id = random.randint(1, 100000)
+        self.fxa_uid = "DECAFBAD" + str(uuid.uuid4().hex)[8:]
+        self.hashed_fxa_uid = str(uuid.uuid4().hex)
+        self.fxa_kid = "0000000000000-DECAFBAD" + str(
+            uuid.uuid4().hex)[8:]
         auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
         req = Request.blank(self.host_url)
         creds = auth_policy.encode_hawk_id(
             req, self.user_id, extra={
                 # Include a hashed_fxa_uid to trigger uid/kid extraction
-                "hashed_fxa_uid": str(uuid.uuid4()),
-                "fxa_uid": str(uuid.uuid4()),
-                "fxa_kid": str(uuid.uuid4()),
+                "hashed_fxa_uid": self.hashed_fxa_uid,
+                "fxa_uid": self.fxa_uid,
+                "fxa_kid": self.fxa_kid,
             }
         )
         self.auth_token, self.auth_secret = creds
@@ -569,6 +573,8 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         # the last one aka the "most recent" secret.
         secret = self._get_token_secrets(node_name)[-1]
         data = {"uid": userid, "node": node_name}
+        if extra is not None:
+            data.update(extra)
         tokenid = tokenlib.make_token(data, secret=secret)
         key = tokenlib.get_derived_secret(tokenid, secret=secret)
         return tokenid, key

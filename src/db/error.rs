@@ -55,6 +55,9 @@ pub enum DbErrorKind {
 
     #[fail(display = "User over quota")]
     Quota,
+
+    #[fail(display = "Connection expired")]
+    Expired,
 }
 
 impl DbError {

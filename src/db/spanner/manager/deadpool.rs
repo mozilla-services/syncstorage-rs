@@ -23,6 +23,8 @@ pub struct SpannerSessionManager {
     env: Arc<Environment>,
     metrics: Metrics,
     test_transactions: bool,
+    max_lifespan: Option<u32>,
+    max_idle: Option<u32>,
 }
 
 impl fmt::Debug for SpannerSessionManager {
@@ -52,6 +54,8 @@ impl SpannerSessionManager {
             env,
             metrics: metrics.clone(),
             test_transactions,
+            max_lifespan: settings.database_pool_connection_lifespan,
+            max_idle: settings.database_pool_connection_max_idle,
         })
     }
 }
@@ -59,19 +63,26 @@ impl SpannerSessionManager {
 #[async_trait]
 impl Manager<SpannerSession, DbError> for SpannerSessionManager {
     async fn create(&self) -> Result<SpannerSession, DbError> {
-        create_spanner_session(
+        let session = create_spanner_session(
             Arc::clone(&self.env),
             self.metrics.clone(),
             &self.database_name,
             self.test_transactions,
         )
-        .await
+        .await?;
+        Ok(session)
     }
 
     async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
-        recycle_spanner_session(conn, &self.database_name)
-            .await
-            .map_err(RecycleError::Backend)
+        recycle_spanner_session(
+            conn,
+            &self.database_name,
+            &self.metrics,
+            self.max_lifespan,
+            self.max_idle,
+        )
+        .await
+        .map_err(RecycleError::Backend)
     }
 }
 

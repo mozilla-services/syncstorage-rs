@@ -1,4 +1,3 @@
-// pub mod db;
 pub mod rejectua;
 pub mod sentry;
 pub mod weave;

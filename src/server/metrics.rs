@@ -57,7 +57,7 @@ impl Drop for Metrics {
 impl From<&HttpRequest> for Metrics {
     fn from(req: &HttpRequest) -> Self {
         let exts = req.extensions();
-        let def_tags = Tags::from_request_head(req.head());
+        let def_tags = Tags::from(req.head());
         let tags = exts.get::<Tags>().unwrap_or(&def_tags);
         Metrics {
             client: match req.app_data::<Data<ServerState>>() {
@@ -109,7 +109,7 @@ impl Metrics {
     pub fn start_timer(&mut self, label: &str, tags: Option<Tags>) {
         let mut mtags = self.tags.clone().unwrap_or_default();
         if let Some(t) = tags {
-            mtags.extend(t.tags)
+            mtags.extend(t)
         }
 
         trace!("⌚ Starting timer... {:?}", &label; &mtags);
@@ -126,27 +126,7 @@ impl Metrics {
     }
 
     pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
-        if let Some(client) = self.client.as_ref() {
-            let mut tagged = client.incr_with_tags(label);
-            let mut mtags = self.tags.clone().unwrap_or_default();
-            if let Some(tags) = tags {
-                mtags.extend(tags.tags);
-            }
-            for key in mtags.tags.keys().clone() {
-                if let Some(val) = mtags.tags.get(key) {
-                    tagged = tagged.with_tag(&key, val.as_ref());
-                }
-            }
-            // Include any "hard coded" tags.
-            // incr = incr.with_tag("version", env!("CARGO_PKG_VERSION"));
-            match tagged.try_send() {
-                Err(e) => {
-                    // eat the metric, but log the error
-                    warn!("⚠️ Metric {} error: {:?} ", label, e; mtags);
-                }
-                Ok(v) => trace!("☑️ {:?}", v.as_metric_str()),
-            }
-        }
+        self.count_with_tags(label, 1, tags)
     }
 
     pub fn count(&self, label: &str, count: i64) {
@@ -158,7 +138,7 @@ impl Metrics {
             let mut tagged = client.count_with_tags(label, count);
             let mut mtags = self.tags.clone().unwrap_or_default();
             if let Some(tags) = tags {
-                mtags.extend(tags.tags);
+                mtags.extend(tags);
             }
             for key in mtags.tags.keys().clone() {
                 if let Some(val) = mtags.tags.get(key) {
@@ -227,7 +207,7 @@ mod tests {
             ),
         );
 
-        let tags = Tags::from_request_head(&rh);
+        let tags = Tags::from(&rh);
 
         let mut result = HashMap::<String, String>::new();
         result.insert("ua.os.ver".to_owned(), "NT 10.0".to_owned());
@@ -253,7 +233,7 @@ mod tests {
             header::HeaderValue::from_static("Mozilla/5.0 (curl) Gecko/20100101 curl"),
         );
 
-        let tags = Tags::from_request_head(&rh);
+        let tags = Tags::from(&rh);
         assert!(!tags.tags.contains_key("ua.os.ver"));
         println!("{:?}", tags);
     }

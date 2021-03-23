@@ -5,8 +5,6 @@
 #![allow(unknown_lints)]
 #![allow(clippy::all)]
 
-#![cfg_attr(rustfmt, rustfmt_skip)]
-
 #![allow(box_pointers)]
 #![allow(dead_code)]
 #![allow(missing_docs)]
@@ -42,6 +40,13 @@ const METHOD_OPERATIONS_DELETE_OPERATION: ::grpcio::Method<super::operations::De
 const METHOD_OPERATIONS_CANCEL_OPERATION: ::grpcio::Method<super::operations::CancelOperationRequest, super::empty::Empty> = ::grpcio::Method {
     ty: ::grpcio::MethodType::Unary,
     name: "/google.longrunning.Operations/CancelOperation",
+    req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+    resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
+};
+
+const METHOD_OPERATIONS_WAIT_OPERATION: ::grpcio::Method<super::operations::WaitOperationRequest, super::operations::Operation> = ::grpcio::Method {
+    ty: ::grpcio::MethodType::Unary,
+    name: "/google.longrunning.Operations/WaitOperation",
     req_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
     resp_mar: ::grpcio::Marshaller { ser: ::grpcio::pb_ser, de: ::grpcio::pb_de },
 };
@@ -121,6 +126,22 @@ impl OperationsClient {
     pub fn cancel_operation_async(&self, req: &super::operations::CancelOperationRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::empty::Empty>> {
         self.cancel_operation_async_opt(req, ::grpcio::CallOption::default())
     }
+
+    pub fn wait_operation_opt(&self, req: &super::operations::WaitOperationRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<super::operations::Operation> {
+        self.client.unary_call(&METHOD_OPERATIONS_WAIT_OPERATION, req, opt)
+    }
+
+    pub fn wait_operation(&self, req: &super::operations::WaitOperationRequest) -> ::grpcio::Result<super::operations::Operation> {
+        self.wait_operation_opt(req, ::grpcio::CallOption::default())
+    }
+
+    pub fn wait_operation_async_opt(&self, req: &super::operations::WaitOperationRequest, opt: ::grpcio::CallOption) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::operations::Operation>> {
+        self.client.unary_call_async(&METHOD_OPERATIONS_WAIT_OPERATION, req, opt)
+    }
+
+    pub fn wait_operation_async(&self, req: &super::operations::WaitOperationRequest) -> ::grpcio::Result<::grpcio::ClientUnaryReceiver<super::operations::Operation>> {
+        self.wait_operation_async_opt(req, ::grpcio::CallOption::default())
+    }
     pub fn spawn<F>(&self, f: F) where F: ::futures::Future<Output = ()> + Send + 'static {
         self.client.spawn(f)
     }
@@ -131,6 +152,7 @@ pub trait Operations {
     fn get_operation(&mut self, ctx: ::grpcio::RpcContext, req: super::operations::GetOperationRequest, sink: ::grpcio::UnarySink<super::operations::Operation>);
     fn delete_operation(&mut self, ctx: ::grpcio::RpcContext, req: super::operations::DeleteOperationRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
     fn cancel_operation(&mut self, ctx: ::grpcio::RpcContext, req: super::operations::CancelOperationRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
+    fn wait_operation(&mut self, ctx: ::grpcio::RpcContext, req: super::operations::WaitOperationRequest, sink: ::grpcio::UnarySink<super::operations::Operation>);
 }
 
 pub fn create_operations<S: Operations + Send + Clone + 'static>(s: S) -> ::grpcio::Service {
@@ -147,9 +169,13 @@ pub fn create_operations<S: Operations + Send + Clone + 'static>(s: S) -> ::grpc
     builder = builder.add_unary_handler(&METHOD_OPERATIONS_DELETE_OPERATION, move |ctx, req, resp| {
         instance.delete_operation(ctx, req, resp)
     });
-    let mut instance = s;
+    let mut instance = s.clone();
     builder = builder.add_unary_handler(&METHOD_OPERATIONS_CANCEL_OPERATION, move |ctx, req, resp| {
         instance.cancel_operation(ctx, req, resp)
+    });
+    let mut instance = s;
+    builder = builder.add_unary_handler(&METHOD_OPERATIONS_WAIT_OPERATION, move |ctx, req, resp| {
+        instance.wait_operation(ctx, req, resp)
     });
     builder.build()
 }
