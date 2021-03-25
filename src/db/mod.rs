@@ -306,6 +306,13 @@ pub fn spawn_pool_periodic_reporter(
                 .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
                 .with_tag("hostname", &hostname)
                 .send();
+            metrics
+                .gauge_with_tags(
+                    "storage.pool.connections.deadpool.status",
+                    (connections) as u64,
+                )
+                .with_tag("hostname", &hostname)
+                .send();
             actix_rt::time::delay_for(interval).await;
         }
     });
