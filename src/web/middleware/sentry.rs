@@ -68,8 +68,7 @@ pub fn queue_report(mut ext: RefMut<'_, Extensions>, err: &Error) {
         if let Some(events) = ext.get_mut::<Vec<Event<'static>>>() {
             events.push(event);
         } else {
-            let mut events: Vec<Event<'static>> = Vec::new();
-            events.push(event);
+            let events: Vec<Event<'static>> = vec![event];
             ext.insert(events);
         }
     }
