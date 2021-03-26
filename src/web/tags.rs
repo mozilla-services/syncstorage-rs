@@ -172,7 +172,6 @@ impl From<Tags> for BTreeMap<String, String> {
         for (k, v) in tags.tags {
             result.insert(k.clone(), v.clone());
         }
-
         result
     }
 }
