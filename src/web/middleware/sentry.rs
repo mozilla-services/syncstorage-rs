@@ -165,7 +165,6 @@ where
                         }
                         if let Some(metrics) = metrics {
                             if let Some(label) = apie.kind().metric_label() {
-                                dbg!(&label);
                                 metrics.incr(&label);
                             }
                         }
