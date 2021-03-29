@@ -133,7 +133,7 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
     Ok(())
 }
 
-/// Commits a batch to the bsos table, deleting the batch when succesful
+/// Commits a batch to the bsos table, deleting the batch when successful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
@@ -179,7 +179,7 @@ pub fn do_append(
             user_id = user_id,
             bso_id = bso_id,
         )
-    };
+    }
 
     // It's possible for the list of items to contain a duplicate key entry.
     // This means that we can't really call `ON DUPLICATE` here, because that's
@@ -192,7 +192,7 @@ pub fn do_append(
         user_id: i64,
         batch_id: i64,
         id: String,
-    };
+    }
 
     #[derive(AsChangeset)]
     #[table_name = "batch_upload_items"]

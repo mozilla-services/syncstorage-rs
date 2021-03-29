@@ -32,6 +32,7 @@ $
     .unwrap();
 }
 
+#[allow(clippy::clippy::upper_case_acronyms)]
 #[derive(Debug, Default)]
 pub struct RejectUA;
 
@@ -53,6 +54,7 @@ where
     }
 }
 
+#[allow(clippy::clippy::upper_case_acronyms)]
 pub struct RejectUAMiddleware<S> {
     service: S,
 }

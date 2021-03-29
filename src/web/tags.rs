@@ -165,11 +165,11 @@ impl FromRequest for Tags {
     }
 }
 
-impl Into<BTreeMap<String, String>> for Tags {
-    fn into(self) -> BTreeMap<String, String> {
+impl From<Tags> for BTreeMap<String, String> {
+    fn from(tags: Tags) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();
 
-        for (k, v) in self.tags {
+        for (k, v) in tags.tags {
             result.insert(k.clone(), v.clone());
         }
 
