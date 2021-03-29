@@ -166,13 +166,12 @@ impl FromRequest for Tags {
 }
 
 impl From<Tags> for BTreeMap<String, String> {
-    fn from(t: Tags) -> BTreeMap<String, String> {
+    fn from(tags: Tags) -> BTreeMap<String, String> {
         let mut result = BTreeMap::new();
 
-        for (k, v) in t.tags {
+        for (k, v) in tags.tags {
             result.insert(k.clone(), v.clone());
         }
-
         result
     }
 }
