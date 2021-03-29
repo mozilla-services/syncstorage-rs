@@ -329,7 +329,8 @@ async fn delete_collection() {
         &move |result: DeleteBso| {
             assert!(
                 result == SyncTimestamp::from_seconds(0.00),
-                "Bad Bookmarks {:?} != 0", result
+                "Bad Bookmarks {:?} != 0",
+                result
             );
         },
     )
@@ -340,7 +341,9 @@ async fn delete_collection() {
         &move |result: DeleteBso| {
             assert!(
                 result > start,
-                "Bad Bookmarks ids {:?} < {:?}", result, start
+                "Bad Bookmarks ids {:?} < {:?}",
+                result,
+                start
             );
         },
     )
@@ -351,7 +354,9 @@ async fn delete_collection() {
         &move |result: DeleteBso| {
             assert!(
                 result > start,
-                "Bad Bookmarks ids, m {:?} < {:?}", result, start
+                "Bad Bookmarks ids, m {:?} < {:?}",
+                result,
+                start
             );
         },
     )
