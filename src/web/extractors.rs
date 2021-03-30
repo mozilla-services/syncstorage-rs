@@ -34,7 +34,6 @@ use crate::settings::Secrets;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
-    tags::Tags,
     X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -2302,15 +2301,15 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_offset() {
-        let sample_offset = Offset{
+        let sample_offset = Offset {
             timestamp: Some(SyncTimestamp::default()),
-            offset: 1234
+            offset: 1234,
         };
 
         //Issue559: only use offset, don't use timestamp, even if set.
-        let test_offset = Offset{
+        let test_offset = Offset {
             timestamp: None,
-            offset: sample_offset.offset
+            offset: sample_offset.offset,
         };
 
         let offset_str = sample_offset.to_string();
