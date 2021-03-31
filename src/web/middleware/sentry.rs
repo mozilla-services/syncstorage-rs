@@ -156,9 +156,6 @@ where
                 }
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
-                        if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
-                            apie.on_response(state.as_ref());
-                        };
                         if let Some(metrics) = metrics {
                             if let Some(label) = apie.kind().metric_label() {
                                 metrics.incr(&label);
