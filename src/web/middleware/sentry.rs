@@ -159,14 +159,14 @@ where
                         if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
                             apie.on_response(state.as_ref());
                         };
-                        if !apie.is_reportable() {
-                            trace!("Sentry: Not reporting error: {:?}", apie);
-                            return future::ok(sresp);
-                        }
                         if let Some(metrics) = metrics {
                             if let Some(label) = apie.kind().metric_label() {
                                 metrics.incr(&label);
                             }
+                        }
+                        if !apie.is_reportable() {
+                            trace!("Sentry: Not reporting error: {:?}", apie);
+                            return future::ok(sresp);
                         }
                         report(&tags, sentry::integrations::failure::event_from_fail(apie));
                     }
