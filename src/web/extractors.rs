@@ -1121,7 +1121,7 @@ impl From<u32> for HawkIdentifier {
     }
 }
 
-#[derive(Debug, Default, Clone, Deserialize, Validate)]
+#[derive(Debug, Default, Clone, Deserialize, Validate, PartialEq)]
 #[serde(default)]
 pub struct Offset {
     pub timestamp: Option<SyncTimestamp>,
@@ -1130,10 +1130,14 @@ pub struct Offset {
 
 impl ToString for Offset {
     fn to_string(&self) -> String {
+        // issue559: Disable ':' support for now.
+        self.offset.to_string()
+        /*
         match self.timestamp {
-            None => format!("{}", self.offset),
+            None => self.offset.to_string(),
             Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
         }
+        */
     }
 }
 
@@ -2293,5 +2297,22 @@ mod tests {
         assert_eq!(result.bsos.valid.len(), 2);
         assert_eq!(result.bsos.invalid.len(), 1);
         assert!(result.bsos.invalid.contains_key("789"));
+    }
+
+    #[actix_rt::test]
+    async fn test_offset() {
+        let sample_offset = Offset {
+            timestamp: Some(SyncTimestamp::default()),
+            offset: 1234,
+        };
+
+        //Issue559: only use offset, don't use timestamp, even if set.
+        let test_offset = Offset {
+            timestamp: None,
+            offset: sample_offset.offset,
+        };
+
+        let offset_str = sample_offset.to_string();
+        assert!(test_offset == Offset::from_str(&offset_str).unwrap())
     }
 }
