@@ -53,6 +53,7 @@ where
         future::ok(RejectUAMiddleware { service })
     }
 }
+#[allow(clippy::clippy::upper_case_acronyms)]
 
 #[allow(clippy::clippy::upper_case_acronyms)]
 pub struct RejectUAMiddleware<S> {
