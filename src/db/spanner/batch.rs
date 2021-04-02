@@ -277,7 +277,7 @@ pub async fn do_append_async(
         sortindex: Option<i32>,
         payload: Option<String>,
         ttl: Option<u32>,
-    };
+    }
 
     //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();

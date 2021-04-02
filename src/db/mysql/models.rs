@@ -729,7 +729,7 @@ impl MysqlDb {
             .filter(user_collections::user_id.eq(user_id))
             .first::<Option<i64>>(&self.conn)?
             .unwrap_or_default();
-        Ok(SyncTimestamp::from_i64(modified)?)
+        SyncTimestamp::from_i64(modified)
     }
 
     pub fn get_collection_timestamp_sync(
@@ -766,7 +766,7 @@ impl MysqlDb {
             .first::<i64>(&self.conn)
             .optional()?
             .unwrap_or_default();
-        Ok(SyncTimestamp::from_i64(modified)?)
+        SyncTimestamp::from_i64(modified)
     }
 
     pub fn get_collection_timestamps_sync(
