@@ -29,10 +29,7 @@ impl HawkError {
     }
 
     pub fn is_reportable(&self) -> bool {
-        matches!(
-            &self.kind(),
-            HawkErrorKind::TruncatedId | HawkErrorKind::Parse(_)
-        )
+        matches!(&self.kind(), HawkErrorKind::TruncatedId)
     }
 
     pub fn metric_label(&self) -> Option<String> {
@@ -207,7 +204,6 @@ impl Serialize for ValidationErrorKind {
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(None)?;
-
         match *self {
             ValidationErrorKind::FromDetails(
                 ref description,

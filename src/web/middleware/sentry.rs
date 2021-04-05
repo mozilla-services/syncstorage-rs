@@ -15,7 +15,7 @@ use sentry::protocol::Event;
 use std::task::Poll;
 
 use crate::error::ApiError;
-use crate::server::ServerState;
+use crate::server::{metrics::Metrics, ServerState};
 use crate::web::tags::Tags;
 
 pub struct SentryWrapper;
@@ -100,6 +100,11 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from(sreq.head());
         sreq.extensions_mut().insert(tags.clone());
+        let metrics = if let Some(state) = sreq.app_data::<Data<ServerState>>() {
+            Some(Metrics::from(state.get_ref()))
+        } else {
+            None
+        };
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
             // handed an actix_error::error::Error;
@@ -151,9 +156,11 @@ where
                 }
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
-                        if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
-                            apie.on_response(state.as_ref());
-                        };
+                        if let Some(metrics) = metrics {
+                            if let Some(label) = apie.kind().metric_label() {
+                                metrics.incr(&label);
+                            }
+                        }
                         if !apie.is_reportable() {
                             trace!("Sentry: Not reporting error: {:?}", apie);
                             return future::ok(sresp);

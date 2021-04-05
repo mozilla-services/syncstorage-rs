@@ -54,7 +54,6 @@ where
     }
 }
 #[allow(clippy::clippy::upper_case_acronyms)]
-
 pub struct RejectUAMiddleware<S> {
     service: S,
 }
