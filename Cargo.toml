@@ -28,8 +28,7 @@ cadence = "0.24"
 chrono = "0.4"
 config = "0.10"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977)
-#deadpool = "0.5"  # pin to 0.5
-deadpool = { version = "0.5", path = "../../rust/deadpool" }
+deadpool = "0.5"  # pin to 0.5
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }

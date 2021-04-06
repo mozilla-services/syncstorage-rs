@@ -766,6 +766,8 @@ dependencies = [
 [[package]]
 name = "deadpool"
 version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aaff9a7a1de9893f4004fa08527b31cb2ae4121c44e053cf53f29203c73bd23"
 dependencies = [
  "async-trait",
  "config",
