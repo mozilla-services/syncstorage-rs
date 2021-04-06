@@ -1,3 +1,18 @@
+<a name="0.10.0"></a>
+## 0.10.0 (2021-04-05)
+
+
+#### Bug Fixes
+
+*   Restore hawk error metrics (#1033) ([f795eb08](https://github.com/mozilla-services/syncstorage-rs/commit/f795eb0813b4ee37463add5391c829c906fdb35d), closes [#812](https://github.com/mozilla-services/syncstorage-rs/issues/812))
+*   report query parameters with Invalid Value error (#1030) ([354cf794](https://github.com/mozilla-services/syncstorage-rs/commit/354cf794c59266dccfd3c6d12b880b466efa5650))
+
+#### Features
+
+*   Add "auto-split" arg to auto-gen UID prefixes (#1035) ([487ac11e](https://github.com/mozilla-services/syncstorage-rs/commit/487ac11ed0abf4ddc77cea1be852169846796a57))
+
+
+
 <a name="0.9.1"></a>
 ## 0.9.1 (2021-03-12)
 
