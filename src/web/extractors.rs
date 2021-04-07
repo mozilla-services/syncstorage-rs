@@ -166,7 +166,7 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.invalid_content_type"),
+                        label!("request.error.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -181,7 +181,7 @@ impl FromRequest for BsoBodies {
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.invalid_content_type"),
+                    label!("request.error.invalid_content_type"),
                 )
                 .into(),
             ));
@@ -362,7 +362,7 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.invalid_content_type"),
+                        label!("request.error.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -375,7 +375,7 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.invalid_content_type"),
+                    label!("request.error.invalid_content_type"),
                 )
                 .into(),
             ));
