@@ -158,7 +158,6 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
-        let metrics = metrics::Metrics::from(req);
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -167,7 +166,7 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.bad_content_type"),
+                        label!("request.validate.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -177,13 +176,12 @@ impl FromRequest for BsoBodies {
         trace!("BSO Body content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            metrics.incr("request.error.invalid_content_type");
             return Box::pin(future::err(
                 ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.bad_content_type"),
+                    label!("request.validate.invalid_content_type"),
                 )
                 .into(),
             ));
@@ -364,7 +362,7 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.bad_content_type"),
+                        label!("request.validate.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -377,7 +375,7 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.bad_content_type"),
+                    label!("request.validate.invalid_content_type"),
                 )
                 .into(),
             ));
