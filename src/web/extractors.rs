@@ -665,11 +665,13 @@ impl FromRequest for CollectionRequest {
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload)
-                .await?
-                .collection;
+            let (user_id, query, collection) =
+                <(HawkIdentifier, BsoQueryParams, CollectionParam)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
+            let collection = collection.collection;
 
             let accept = get_accepted(&req, &ACCEPTED_CONTENT_TYPES, "application/json");
             let reply = match accept.as_str() {
@@ -744,10 +746,12 @@ impl FromRequest for CollectionPostRequest {
 
             let max_post_records = i64::from(state.limits.max_post_records);
 
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let mut bsos = BsoBodies::from_request(&req, &mut payload).await?;
+            let (user_id, query, collection, mut bsos) =
+                <(HawkIdentifier, BsoQueryParams, CollectionParam, BsoBodies)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
 
             let collection = collection.collection;
             if collection == "crypto" {
@@ -813,12 +817,13 @@ impl FromRequest for BsoRequest {
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload)
-                .await?
-                .collection;
-            let bso = BsoParam::from_request(&req, &mut payload).await?;
+            let (user_id, query, collection, bso) =
+                <(HawkIdentifier, BsoQueryParams, CollectionParam, BsoParam)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
+            let collection = collection.collection;
 
             Ok(BsoRequest {
                 collection,
@@ -854,11 +859,15 @@ impl FromRequest for BsoPutRequest {
         let mut payload = payload.take();
 
         async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let bso = BsoParam::from_request(&req, &mut payload).await?;
-            let body = BsoBody::from_request(&req, &mut payload).await?;
+            let (user_id, query, collection, bso, body) =
+                <(
+                    HawkIdentifier,
+                    BsoQueryParams,
+                    CollectionParam,
+                    BsoParam,
+                    BsoBody,
+                )>::from_request(&req, &mut payload)
+                .await?;
 
             let collection = collection.collection;
             if collection == "crypto" {
