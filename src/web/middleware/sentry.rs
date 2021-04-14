@@ -1,10 +1,6 @@
 use std::task::Context;
-use std::{
-    cell::{RefCell, RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
-use actix_http::Extensions;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     web::Data,
@@ -55,23 +51,6 @@ where
 #[derive(Debug)]
 pub struct SentryWrapperMiddleware<S> {
     service: Rc<RefCell<S>>,
-}
-
-pub fn queue_report(mut ext: RefMut<'_, Extensions>, err: &Error) {
-    let apie: Option<&ApiError> = err.as_error();
-    if let Some(apie) = apie {
-        if !apie.is_reportable() {
-            trace!("Sentry Not reporting error: {:?}", err);
-            return;
-        }
-        let event = sentry::integrations::failure::event_from_fail(apie);
-        if let Some(events) = ext.get_mut::<Vec<Event<'static>>>() {
-            events.push(event);
-        } else {
-            let events: Vec<Event<'static>> = vec![event];
-            ext.insert(events);
-        }
-    }
 }
 
 pub fn report(tags: &Tags, mut event: Event<'static>) {
