@@ -746,8 +746,8 @@ impl FromRequest for CollectionPostRequest {
 
             let max_post_records = i64::from(state.limits.max_post_records);
 
-            let (user_id, query, collection, mut bsos) =
-                <(HawkIdentifier, BsoQueryParams, CollectionParam, BsoBodies)>::from_request(
+            let (user_id, collection, query, mut bsos) =
+                <(HawkIdentifier, CollectionParam, BsoQueryParams, BsoBodies)>::from_request(
                     &req,
                     &mut payload,
                 )
