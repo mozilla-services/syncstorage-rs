@@ -1,3 +1,13 @@
+<a name="0.10.1"></a>
+## 0.10.1 (2021-04-14)
+
+
+#### Refactor
+
+*   Remove middleware::sentry::queue_report (#1040) ([0dccb00f](https://github.com/mozilla-services/syncstorage-rs/commit/0dccb00fb95d0aebabe79d5e6ecb1fb537445444))
+
+
+
 <a name="0.10.0"></a>
 ## 0.10.0 (2021-04-05)
 
