@@ -3,16 +3,13 @@ use std::time::Instant;
 
 use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
 use cadence::{
-    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, SpyMetricSink, StatsdClient, Timed,
+    BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
 
 use crate::error::ApiError;
 use crate::server::ServerState;
 use crate::settings::Settings;
 use crate::web::tags::Tags;
-
-use std::fs::File;
-use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct MetricTimer {
@@ -178,10 +175,8 @@ pub fn metrics_from_opts(opts: &Settings) -> Result<StatsdClient, ApiError> {
 
         let host = (statsd_host.as_str(), opts.statsd_port);
         let udp_sink = BufferedUdpMetricSink::from(host, socket)?;
-        // let sink = QueuingMetricSink::from(udp_sink);
-        let file = File::create("foo.txt")?;
-        let spy = SpyMetricSink::from(Arc::new(Mutex::new(file)));
-        StatsdClient::builder(opts.statsd_label.as_ref(), spy)
+        let sink = QueuingMetricSink::from(udp_sink);
+        StatsdClient::builder(opts.statsd_label.as_ref(), sink)
     } else {
         StatsdClient::builder(opts.statsd_label.as_ref(), NopMetricSink)
     };
