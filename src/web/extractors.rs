@@ -859,11 +859,11 @@ impl FromRequest for BsoPutRequest {
         let mut payload = payload.take();
 
         async move {
-            let (user_id, query, collection, bso, body) =
+            let (user_id, collection, query, bso, body) =
                 <(
                     HawkIdentifier,
-                    BsoQueryParams,
                     CollectionParam,
+                    BsoQueryParams,
                     BsoParam,
                     BsoBody,
                 )>::from_request(&req, &mut payload)
