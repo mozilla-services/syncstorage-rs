@@ -105,6 +105,21 @@ impl ValidationError {
     pub fn kind(&self) -> &ValidationErrorKind {
         self.inner.get_context()
     }
+
+    pub fn metric_label(&self) -> Option<String> {
+        match self.kind() {
+            ValidationErrorKind::FromDetails(
+                _description,
+                ref _location,
+                Some(ref _name),
+                metric_label,
+            ) => metric_label.clone(),
+            ValidationErrorKind::FromValidationErrors(_errors, _location, metric_label) => {
+                metric_label.clone()
+            }
+            _ => None,
+        }
+    }
 }
 
 /// Causes of extractor errors.
