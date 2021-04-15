@@ -158,7 +158,6 @@ impl FromRequest for BsoBodies {
     /// No collection id is used, so payload checks are not done here.
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
         // Only try and parse the body if its a valid content-type
-        let metrics = metrics::Metrics::from(req);
         let ctype = match ContentType::parse(req) {
             Ok(v) => v,
             Err(e) => {
@@ -167,7 +166,7 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.bad_content_type"),
+                        label!("request.error.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -177,13 +176,12 @@ impl FromRequest for BsoBodies {
         trace!("BSO Body content_type: {:?}", &content_type);
 
         if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            metrics.incr("request.error.invalid_content_type");
             return Box::pin(future::err(
                 ValidationErrorKind::FromDetails(
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.bad_content_type"),
+                    label!("request.error.invalid_content_type"),
                 )
                 .into(),
             ));
@@ -364,7 +362,7 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.validate.bad_content_type"),
+                        label!("request.error.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -377,7 +375,7 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.validate.bad_content_type"),
+                    label!("request.error.invalid_content_type"),
                 )
                 .into(),
             ));
@@ -665,11 +663,13 @@ impl FromRequest for CollectionRequest {
         let req = req.clone();
         let mut payload = Payload::None;
         async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload)
-                .await?
-                .collection;
+            let (user_id, query, collection) =
+                <(HawkIdentifier, BsoQueryParams, CollectionParam)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
+            let collection = collection.collection;
 
             let accept = get_accepted(&req, &ACCEPTED_CONTENT_TYPES, "application/json");
             let reply = match accept.as_str() {
@@ -744,10 +744,12 @@ impl FromRequest for CollectionPostRequest {
 
             let max_post_records = i64::from(state.limits.max_post_records);
 
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let mut bsos = BsoBodies::from_request(&req, &mut payload).await?;
+            let (user_id, collection, query, mut bsos) =
+                <(HawkIdentifier, CollectionParam, BsoQueryParams, BsoBodies)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
 
             let collection = collection.collection;
             if collection == "crypto" {
@@ -813,12 +815,13 @@ impl FromRequest for BsoRequest {
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload)
-                .await?
-                .collection;
-            let bso = BsoParam::from_request(&req, &mut payload).await?;
+            let (user_id, query, collection, bso) =
+                <(HawkIdentifier, BsoQueryParams, CollectionParam, BsoParam)>::from_request(
+                    &req,
+                    &mut payload,
+                )
+                .await?;
+            let collection = collection.collection;
 
             Ok(BsoRequest {
                 collection,
@@ -854,11 +857,15 @@ impl FromRequest for BsoPutRequest {
         let mut payload = payload.take();
 
         async move {
-            let user_id = HawkIdentifier::from_request(&req, &mut payload).await?;
-            let collection = CollectionParam::from_request(&req, &mut payload).await?;
-            let query = BsoQueryParams::from_request(&req, &mut payload).await?;
-            let bso = BsoParam::from_request(&req, &mut payload).await?;
-            let body = BsoBody::from_request(&req, &mut payload).await?;
+            let (user_id, collection, query, bso, body) =
+                <(
+                    HawkIdentifier,
+                    CollectionParam,
+                    BsoQueryParams,
+                    BsoParam,
+                    BsoBody,
+                )>::from_request(&req, &mut payload)
+                .await?;
 
             let collection = collection.collection;
             if collection == "crypto" {

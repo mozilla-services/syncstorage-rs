@@ -81,6 +81,7 @@ impl ApiErrorKind {
         match self {
             ApiErrorKind::Db(err) => err.metric_label(),
             ApiErrorKind::Hawk(err) => err.metric_label(),
+            ApiErrorKind::Validation(err) => err.metric_label(),
             _ => None,
         }
     }
