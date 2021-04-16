@@ -353,7 +353,7 @@ pub fn bso_to_insert_row(
 ) -> Result<ListValue> {
     let sortindex = bso
         .sortindex
-        .map(|sortindex| sortindex.to_string().to_spanner_value())
+        .map(|sortindex| sortindex.to_spanner_value())
         .unwrap_or_else(null_value);
     let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
     let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
@@ -362,7 +362,7 @@ pub fn bso_to_insert_row(
     row.set_values(RepeatedField::from_vec(vec![
         user_id.fxa_uid.clone().to_spanner_value(),
         user_id.fxa_kid.clone().to_spanner_value(),
-        collection_id.to_string().to_spanner_value(),
+        collection_id.to_spanner_value(),
         bso.id.to_spanner_value(),
         sortindex,
         bso.payload.unwrap_or_default().to_spanner_value(),
@@ -382,7 +382,7 @@ pub fn bso_to_update_row(
     let mut values = vec![
         user_id.fxa_uid.clone().to_spanner_value(),
         user_id.fxa_kid.clone().to_spanner_value(),
-        collection_id.to_string().to_spanner_value(),
+        collection_id.to_spanner_value(),
         bso.id.to_spanner_value(),
     ];
 
