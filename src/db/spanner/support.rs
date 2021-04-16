@@ -54,10 +54,6 @@ impl ToSpannerValue for u32 {
     }
 }
 
-// impl<T, V> ToSpannerValue for T
-// where
-//     T: Iterator<Item = V>,
-//     V: ToSpannerValue,
 impl<T> ToSpannerValue for Vec<T>
 where
     T: ToSpannerValue + Clone,
