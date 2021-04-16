@@ -355,7 +355,8 @@ pub async fn do_append_async(
         } else {
             let sortindex = bso
                 .sortindex
-                .map(|sortindex| sortindex.to_spanner_value())
+                .as_ref()
+                .map(ToSpannerValue::to_spanner_value)
                 .unwrap_or_else(null_value);
             let payload = bso
                 .payload
