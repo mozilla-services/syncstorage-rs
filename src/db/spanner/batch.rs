@@ -359,10 +359,12 @@ pub async fn do_append_async(
                 .unwrap_or_else(null_value);
             let payload = bso
                 .payload
+                .as_ref()
                 .map(ToSpannerValue::to_spanner_value)
                 .unwrap_or_else(null_value);
             let ttl = bso
                 .ttl
+                .as_ref()
                 .map(ToSpannerValue::to_spanner_value)
                 .unwrap_or_else(null_value);
 
@@ -483,10 +485,7 @@ pub async fn do_append_async(
             };
             if let Some(sortindex) = val.sortindex {
                 fields.push("sortindex");
-                params.insert(
-                    "sortindex".to_owned(),
-                    ToSpannerValue::to_spanner_value(sortindex.to_string()),
-                );
+                params.insert("sortindex".to_owned(), sortindex.to_spanner_value());
             }
             if let Some(payload) = val.payload {
                 fields.push("payload");

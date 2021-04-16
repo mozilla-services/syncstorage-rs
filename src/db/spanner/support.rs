@@ -27,29 +27,29 @@ use crate::{
 use super::{models::Result, pool::Conn};
 
 pub trait ToSpannerValue {
-    fn to_spanner_value(self) -> Value;
+    fn to_spanner_value(&self) -> Value;
 }
 
 impl ToSpannerValue for String {
-    fn to_spanner_value(self) -> Value {
+    fn to_spanner_value(&self) -> Value {
         let mut value = Value::new();
-        value.set_string_value(self);
+        value.set_string_value(self.clone());
         value
     }
 }
 
 impl ToSpannerValue for i32 {
-    fn to_spanner_value(self) -> Value {
+    fn to_spanner_value(&self) -> Value {
         let mut value = Value::new();
-        value.set_number_value(self as f64);
+        value.set_number_value(*self as f64);
         value
     }
 }
 
 impl ToSpannerValue for u32 {
-    fn to_spanner_value(self) -> Value {
+    fn to_spanner_value(&self) -> Value {
         let mut value = Value::new();
-        value.set_number_value(self as f64);
+        value.set_number_value(*self as f64);
         value
     }
 }
@@ -62,7 +62,7 @@ impl<T> ToSpannerValue for Vec<T>
 where
     T: ToSpannerValue + Clone,
 {
-    fn to_spanner_value(self) -> Value {
+    fn to_spanner_value(&self) -> Value {
         let mut list = ListValue::new();
         list.set_values(RepeatedField::from_vec(
             self.iter().map(|v| v.clone().to_spanner_value()).collect(),
