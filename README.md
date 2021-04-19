@@ -96,11 +96,11 @@ To point to a GCP hosted Spanner instance from your local machine, follow these 
 
 #### Key Revocation
 
-Accidents happen, and you may need to revoke a credential's access if it has been publicly leaked. To do this, run:
+Accidents happen, and you may need to revoke the access of a set of credentials if they have been publicly leaked. To do this, run:
 ```sh
 gcloud auth application-default revoke
 ```
-This will revoke the access of the credentials currently stored in the `application_default_credentials.json` file. **If the file in that location does not contain the leaked credentials, you will need to copy the file containing the leaked credentials to that location and re-run the above command.** You can ensure that the leaked credentials are no longer active by attempting to connect to Spanner using the credentials. If access has been revoked, your application server should print error saying that the token has expired or has been revoked.
+This will revoke the access of the credentials currently stored in the `application_default_credentials.json` file. **If the file in that location does not contain the leaked credentials, you will need to copy the file containing the leaked credentials to that location and re-run the above command.** You can ensure that the leaked credentials are no longer active by attempting to connect to Spanner using the credentials. If access has been revoked, your application server should print an error saying that the token has expired or has been revoked.
 
 #### Emulator
 Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database. To create an instance using the REST API (exposed via port 9020 on the emulator), we can use `curl`:
