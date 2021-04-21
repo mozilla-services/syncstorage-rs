@@ -8,7 +8,7 @@ macro_rules! params {
             let _cap = params!(@count $($key),*);
             let mut _map = ::std::collections::HashMap::with_capacity(_cap);
             $(
-                _map.insert($key.to_owned(), as_value($value));
+                _map.insert($key.to_owned(), ToSpannerValue::to_spanner_value(&$value));
             )*
             _map
         }

@@ -22,8 +22,6 @@ use serde::{
 };
 
 use crate::db::error::{DbError, DbErrorKind};
-use crate::server::metrics::Metrics;
-use crate::server::ServerState;
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
 
@@ -83,6 +81,7 @@ impl ApiErrorKind {
         match self {
             ApiErrorKind::Db(err) => err.metric_label(),
             ApiErrorKind::Hawk(err) => err.metric_label(),
+            ApiErrorKind::Validation(err) => err.metric_label(),
             _ => None,
         }
     }
@@ -135,12 +134,6 @@ impl ApiError {
             _ => (),
         };
         self.kind().metric_label().is_none()
-    }
-
-    pub fn on_response(&self, state: &ServerState) {
-        if self.is_conflict() {
-            Metrics::from(state).incr("storage.confict")
-        }
     }
 
     fn weave_error_code(&self) -> WeaveError {

@@ -1,10 +1,6 @@
 use std::task::Context;
-use std::{
-    cell::{RefCell, RefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
-use actix_http::Extensions;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     web::Data,
@@ -15,7 +11,7 @@ use sentry::protocol::Event;
 use std::task::Poll;
 
 use crate::error::ApiError;
-use crate::server::ServerState;
+use crate::server::{metrics::Metrics, ServerState};
 use crate::web::tags::Tags;
 
 pub struct SentryWrapper;
@@ -57,24 +53,6 @@ pub struct SentryWrapperMiddleware<S> {
     service: Rc<RefCell<S>>,
 }
 
-pub fn queue_report(mut ext: RefMut<'_, Extensions>, err: &Error) {
-    let apie: Option<&ApiError> = err.as_error();
-    if let Some(apie) = apie {
-        if !apie.is_reportable() {
-            trace!("Sentry Not reporting error: {:?}", err);
-            return;
-        }
-        let event = sentry::integrations::failure::event_from_fail(apie);
-        if let Some(events) = ext.get_mut::<Vec<Event<'static>>>() {
-            events.push(event);
-        } else {
-            let mut events: Vec<Event<'static>> = Vec::new();
-            events.push(event);
-            ext.insert(events);
-        }
-    }
-}
-
 pub fn report(tags: &Tags, mut event: Event<'static>) {
     let tags = tags.clone();
     event.tags = tags.clone().tag_tree();
@@ -101,6 +79,11 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from(sreq.head());
         sreq.extensions_mut().insert(tags.clone());
+        let metrics = if let Some(state) = sreq.app_data::<Data<ServerState>>() {
+            Some(Metrics::from(state.get_ref()))
+        } else {
+            None
+        };
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
             // handed an actix_error::error::Error;
@@ -152,9 +135,11 @@ where
                 }
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
-                        if let Some(state) = sresp.request().app_data::<Data<ServerState>>() {
-                            apie.on_response(state.as_ref());
-                        };
+                        if let Some(metrics) = metrics {
+                            if let Some(label) = apie.kind().metric_label() {
+                                metrics.incr(&label);
+                            }
+                        }
                         if !apie.is_reportable() {
                             trace!("Sentry: Not reporting error: {:?}", apie);
                             return future::ok(sresp);

@@ -91,6 +91,9 @@ impl SpannerDbPool {
 #[async_trait(?Send)]
 impl DbPool for SpannerDbPool {
     async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.spanner.get_pool", None);
+
         self.get_async()
             .await
             .map(|db| Box::new(db) as Box<dyn Db<'a>>)

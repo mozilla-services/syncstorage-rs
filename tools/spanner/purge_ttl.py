@@ -112,6 +112,10 @@ def spanner_purge(args):
     instance = client.instance(args.instance_id)
     database = instance.database(args.database_id)
     expiry_condition = get_expiry_condition(args)
+    if args.auto_split:
+        args.uid_prefixes = [
+                hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
+                    0, 16 ** args.auto_split)]
     prefixes = args.uid_prefixes if args.uid_prefixes else [None]
 
     for prefix in prefixes:
@@ -189,6 +193,14 @@ def get_args():
         default=os.environ.get("PURGE_UID_PREFIXES", "[]"),
         help="Array of strings used to limit purges based on UID. "
              "Each entry is a separate purge run."
+    )
+    parser.add_argument(
+        "--auto_split",
+        type=int,
+        default=os.environ.get("PURGE_AUTO_SPLIT"),
+        help="""Automatically generate `uid_prefixes` for this many digits, """
+          """(e.g. `3` would produce """
+          """`uid_prefixes=["000","001","002",...,"fff"])"""
     )
     parser.add_argument(
         "--mode",

@@ -179,7 +179,7 @@ pub fn do_append(
             user_id = user_id,
             bso_id = bso_id,
         )
-    };
+    }
 
     // It's possible for the list of items to contain a duplicate key entry.
     // This means that we can't really call `ON DUPLICATE` here, because that's
@@ -192,7 +192,7 @@ pub fn do_append(
         user_id: i64,
         batch_id: i64,
         id: String,
-    };
+    }
 
     #[derive(AsChangeset)]
     #[table_name = "batch_upload_items"]

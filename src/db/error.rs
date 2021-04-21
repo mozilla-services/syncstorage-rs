@@ -75,7 +75,7 @@ impl DbError {
 
     pub fn metric_label(&self) -> Option<String> {
         match self.inner.get_context() {
-            DbErrorKind::Conflict => Some("request.error.db.conflict".to_owned()),
+            DbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }

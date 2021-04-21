@@ -39,7 +39,7 @@ fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo)
         &connection_info.spanner_age.to_string(),
     );
     tags.add_extra(
-        "spanner_sconnection_idle",
+        "spanner_connection_idle",
         &connection_info.spanner_idle.to_string(),
     );
     tags.commit(exts);
