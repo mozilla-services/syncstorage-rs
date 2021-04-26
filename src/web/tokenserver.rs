@@ -203,7 +203,7 @@ pub fn get_sync(
         user_record[0].keys_changed_at.unwrap_or(0),
         client_state_b64
     );
-    let (python_result, python_derived_result) = Python::with_gil(|py| {
+    let (python_result, python_derived_result) = Python::with_gil(|py| -> Result<(String, String), PyErr>{
         let thedict = [
             ("node", &user_record[0].node),
             ("fxa_kid", &fxa_kid), // userid component of authorization email
@@ -218,10 +218,7 @@ pub fn get_sync(
         thedict.set_item("expires", 300).unwrap(); // todo this needs to be converted to timestamp int (now + value * 1000)
         thedict.set_item("uid", user_record[0].uid).unwrap();
 
-        let tokenlib = match Tokenlib::new(py) {
-            Ok(tl) => tl,
-            Err(e) => return Err(e),
-        };
+        let tokenlib = Tokenlib::new(py)?;
         let result = tokenlib.make_token(thedict, &shared_secret)?;
         let derived_result = tokenlib.get_derived_secret(&result, &shared_secret)?;
         //assert_eq!(result, false);
