@@ -203,28 +203,29 @@ pub fn get_sync(
         user_record[0].keys_changed_at.unwrap_or(0),
         client_state_b64
     );
-    let (python_result, python_derived_result) = Python::with_gil(|py| -> Result<(String, String), PyErr>{
-        let thedict = [
-            ("node", &user_record[0].node),
-            ("fxa_kid", &fxa_kid), // userid component of authorization email
-            ("fxa_uid", &token_data.claims.sub),
-            ("hashed_device_id", &hashed_device_id),
-            ("hashed_fxa_uid", &hashed_fxa_uid),
-        ]
-        .into_py_dict(py);
-        // todo don't hardcode
-        // we're supposed to check the "duration" query
-        // param and use that if present (for testing)
-        thedict.set_item("expires", 300).unwrap(); // todo this needs to be converted to timestamp int (now + value * 1000)
-        thedict.set_item("uid", user_record[0].uid).unwrap();
+    let (python_result, python_derived_result) =
+        Python::with_gil(|py| -> Result<(String, String), PyErr> {
+            let thedict = [
+                ("node", &user_record[0].node),
+                ("fxa_kid", &fxa_kid), // userid component of authorization email
+                ("fxa_uid", &token_data.claims.sub),
+                ("hashed_device_id", &hashed_device_id),
+                ("hashed_fxa_uid", &hashed_fxa_uid),
+            ]
+            .into_py_dict(py);
+            // todo don't hardcode
+            // we're supposed to check the "duration" query
+            // param and use that if present (for testing)
+            thedict.set_item("expires", 300).unwrap(); // todo this needs to be converted to timestamp int (now + value * 1000)
+            thedict.set_item("uid", user_record[0].uid).unwrap();
 
-        let tokenlib = Tokenlib::new(py)?;
-        let result = tokenlib.make_token(thedict, &shared_secret)?;
-        let derived_result = tokenlib.get_derived_secret(&result, &shared_secret)?;
-        //assert_eq!(result, false);
-        Ok((result, derived_result))
-    })
-    .unwrap();
+            let tokenlib = Tokenlib::new(py)?;
+            let result = tokenlib.make_token(thedict, &shared_secret)?;
+            let derived_result = tokenlib.get_derived_secret(&result, &shared_secret)?;
+            //assert_eq!(result, false);
+            Ok((result, derived_result))
+        })
+        .unwrap();
     let api_endpoint = format!("{:}/1.5/{:}", user_record[0].node, user_record[0].uid);
     Ok(TokenServerResult {
         id: python_result,
