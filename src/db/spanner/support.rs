@@ -40,17 +40,13 @@ impl ToSpannerValue for String {
 
 impl ToSpannerValue for i32 {
     fn to_spanner_value(&self) -> Value {
-        let mut value = Value::new();
-        value.set_number_value(*self as f64);
-        value
+        self.to_string().to_spanner_value()
     }
 }
 
 impl ToSpannerValue for u32 {
     fn to_spanner_value(&self) -> Value {
-        let mut value = Value::new();
-        value.set_number_value(*self as f64);
-        value
+        self.to_string().to_spanner_value()
     }
 }
 
