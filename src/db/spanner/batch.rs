@@ -291,7 +291,10 @@ pub async fn do_append_async(
             .unwrap_or_else(|| "UNKNOWN".to_string()),
     );
 
-    let bso_ids = bsos.iter().map(|pbso| pbso.id.clone()).collect::<Vec<String>>();
+    let bso_ids = bsos
+        .iter()
+        .map(|pbso| pbso.id.clone())
+        .collect::<Vec<String>>();
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),

@@ -897,8 +897,7 @@ impl SpannerDb {
                 "collection_id" => collection_id,
             };
 
-            self
-                .sql(calc_sql)?
+            self.sql(calc_sql)?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
                 .execute_async(&self.conn)?
@@ -1040,9 +1039,7 @@ impl SpannerDb {
     ) -> Result<results::DeleteCollection> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
-        let collection_id = self
-            .get_collection_id_async(&params.collection)
-            .await?;
+        let collection_id = self.get_collection_id_async(&params.collection).await?;
         let (sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -1820,10 +1817,7 @@ impl SpannerDb {
                 sqlparam_types.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
             let payload = bso.payload.unwrap_or_else(|| "".to_owned());
-            sqlparams.insert(
-                "payload".to_string(),
-                payload.to_spanner_value()
-            );
+            sqlparams.insert("payload".to_string(), payload.to_spanner_value());
             sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
             let now_millis = timestamp.as_i64();
             let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
