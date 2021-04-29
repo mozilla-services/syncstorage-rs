@@ -6,28 +6,13 @@ macro_rules! params {
     ($($key:expr => $value:expr),*) => {
         {
             let _cap = params!(@count $($key),*);
-            let mut _map = ::std::collections::HashMap::with_capacity(_cap);
+            let mut _value_map = ::std::collections::HashMap::with_capacity(_cap);
+            let mut _type_map = ::std::collections::HashMap::with_capacity(_cap);
             $(
-                _map.insert($key.to_owned(), ToSpannerValue::to_spanner_value(&$value));
+                _value_map.insert($key.to_owned(), ToSpannerValue::to_spanner_value(&$value));
+                _type_map.insert($key.to_owned(), ToSpannerValue::spanner_type(&$value));
             )*
-            _map
-        }
-    };
-}
-
-macro_rules! param_types {
-    (@single $($x:tt)*) => (());
-    (@count $($rest:expr),*) => (<[()]>::len(&[$(param_types!(@single $rest)),*]));
-
-    ($($key:expr => $value:expr,)+) => { param_types!($($key => $value),+) };
-    ($($key:expr => $value:expr),*) => {
-        {
-            let _cap = param_types!(@count $($key),*);
-            let mut _map = ::std::collections::HashMap::with_capacity(_cap);
-            $(
-                _map.insert($key.to_owned(), crate::db::spanner::support::as_type($value));
-            )*
-            _map
+            (_value_map, _type_map)
         }
     };
 }
