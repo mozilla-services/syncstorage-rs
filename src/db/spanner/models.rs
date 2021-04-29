@@ -43,8 +43,8 @@ use super::{
     batch,
     pool::{CollectionCache, Conn},
     support::{
-        as_list_value, as_type, as_value, bso_from_row, bso_to_insert_row, bso_to_update_row,
-        ExecuteSqlRequestBuilder, StreamedResultSetAsync,
+        as_type, bso_from_row, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder,
+        StreamedResultSetAsync, ToSpannerValue,
     },
 };
 
@@ -639,7 +639,11 @@ impl SpannerDb {
             let mut params = HashMap::new();
             params.insert(
                 "ids".to_owned(),
-                as_list_value(uncached.into_iter().map(|id| id.to_string())),
+                uncached
+                    .into_iter()
+                    .map(|id| id.to_string())
+                    .collect::<Vec<String>>()
+                    .to_spanner_value(),
             );
             let mut rs = self
                 .sql(
@@ -892,9 +896,12 @@ impl SpannerDb {
             if self.quota.enabled {
                 sqlparams.insert(
                     "total_bytes".to_owned(),
-                    as_value(result[0].take_string_value()),
+                    result[0].take_string_value().to_spanner_value(),
                 );
-                sqlparams.insert("count".to_owned(), as_value(result[1].take_string_value()));
+                sqlparams.insert(
+                    "count".to_owned(),
+                    result[1].take_string_value().to_spanner_value(),
+                );
                 sqltypes.insert(
                     "total_bytes".to_owned(),
                     crate::db::spanner::support::as_type(TypeCode::INT64),
@@ -1175,7 +1182,7 @@ impl SpannerDb {
             "fxa_kid" => user_id.fxa_kid,
             "collection_id" => collection_id.to_string(),
         };
-        sqlparams.insert("ids".to_owned(), as_list_value(params.ids.into_iter()));
+        sqlparams.insert("ids".to_owned(), params.ids.to_spanner_value());
         self.sql(
             "DELETE FROM bsos
               WHERE fxa_uid = @fxa_uid
@@ -1220,7 +1227,7 @@ impl SpannerDb {
 
         if !ids.is_empty() {
             query = format!("{} AND bso_id IN UNNEST(@ids)", query);
-            sqlparams.insert("ids".to_owned(), as_list_value(ids.into_iter()));
+            sqlparams.insert("ids".to_owned(), ids.to_spanner_value());
         }
 
         // issue559: Dead code (timestamp always None)
@@ -1243,12 +1250,12 @@ impl SpannerDb {
         */
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
-            sqlparams.insert("older".to_string(), as_value(older.as_rfc3339()?));
+            sqlparams.insert("older".to_string(), older.as_rfc3339()?.to_spanner_value());
             sqltypes.insert("older".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query);
-            sqlparams.insert("newer".to_string(), as_value(newer.as_rfc3339()?));
+            sqlparams.insert("newer".to_string(), newer.as_rfc3339()?.to_spanner_value());
             sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         query = match sort {
@@ -1527,7 +1534,12 @@ impl SpannerDb {
         };
         sqlparams.insert(
             "ids".to_owned(),
-            as_list_value(params.bsos.iter().map(|pbso| pbso.id.clone())),
+            params
+                .bsos
+                .iter()
+                .map(|pbso| pbso.id.clone())
+                .collect::<Vec<String>>()
+                .to_spanner_value(),
         );
         let mut streaming = self
             .sql(
@@ -1700,7 +1712,7 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if let Some(sortindex) = bso.sortindex {
-                    sqlparams.insert("sortindex".to_string(), as_value(sortindex.to_string()));
+                    sqlparams.insert("sortindex".to_string(), sortindex.to_spanner_value());
                     sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
 
                     format!("{}{}", comma(&q), "sortindex = @sortindex")
@@ -1714,7 +1726,7 @@ impl SpannerDb {
                 q,
                 if let Some(ttl) = bso.ttl {
                     let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
-                    sqlparams.insert("expiry".to_string(), as_value(to_rfc3339(expiry)?));
+                    sqlparams.insert("expiry".to_string(), to_rfc3339(expiry)?.to_spanner_value());
                     sqltypes.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "expiry = @expiry")
                 } else {
@@ -1726,7 +1738,10 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if bso.payload.is_some() || bso.sortindex.is_some() {
-                    sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
+                    sqlparams.insert(
+                        "modified".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
                     sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "modified = @modified")
                 } else {
@@ -1738,7 +1753,7 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if let Some(payload) = bso.payload {
-                    sqlparams.insert("payload".to_string(), as_value(payload));
+                    sqlparams.insert("payload".to_string(), payload.to_spanner_value());
                     format!("{}{}", comma(&q), "payload = @payload")
                 } else {
                     "".to_string()
@@ -1782,14 +1797,16 @@ impl SpannerDb {
                 use super::support::null_value;
                 let sortindex = bso
                     .sortindex
-                    .map(|sortindex| as_value(sortindex.to_string()))
+                    .map(|sortindex| sortindex.to_spanner_value())
                     .unwrap_or_else(null_value);
                 sqlparams.insert("sortindex".to_string(), sortindex);
                 sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
             sqlparams.insert(
                 "payload".to_string(),
-                as_value(bso.payload.unwrap_or_else(|| "".to_owned())),
+                bso.payload
+                    .unwrap_or_else(|| "".to_owned())
+                    .to_spanner_value(),
             );
             let now_millis = timestamp.as_i64();
             let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
@@ -1801,10 +1818,13 @@ impl SpannerDb {
                 "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
                 &expirystring, timestamp, ttl
             );
-            sqlparams.insert("expiry".to_string(), as_value(expirystring));
+            sqlparams.insert("expiry".to_string(), expirystring.to_spanner_value());
             sqltypes.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
 
-            sqlparams.insert("modified".to_string(), as_value(timestamp.as_rfc3339()?));
+            sqlparams.insert(
+                "modified".to_string(),
+                timestamp.as_rfc3339()?.to_spanner_value(),
+            );
             sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
             sql.to_owned()
         };
