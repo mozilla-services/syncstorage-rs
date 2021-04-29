@@ -766,8 +766,7 @@ dependencies = [
 [[package]]
 name = "deadpool"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aaff9a7a1de9893f4004fa08527b31cb2ae4121c44e053cf53f29203c73bd23"
+source = "git+https://github.com/mozilla-services/deadpool?branch=deadpool-v0.5.2-issue92#ede2a1f1fa22a7266cf4681edd2b988dfd333af9"
 dependencies = [
  "async-trait",
  "config",
@@ -2930,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "actix-cors",
  "actix-http",

@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage"
-version = "0.10.1"
+version = "0.10.2"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -27,8 +27,10 @@ bytes = "1.0"
 cadence = "0.24"
 chrono = "0.4"
 config = "0.10"
-# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977)
-deadpool = "0.5"  # pin to 0.5
+# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
+# Fix for #803 (deadpool#92) points to our fork for now
+#deadpool = "0.5"  # pin to 0.5
+deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
