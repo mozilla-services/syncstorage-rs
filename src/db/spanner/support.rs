@@ -104,11 +104,11 @@ impl SpannerArrayElementType for Vec<String> {
 }
 
 impl SpannerArrayElementType for Vec<i32> {
-    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::STRING;
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
 }
 
 impl SpannerArrayElementType for Vec<u32> {
-    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::STRING;
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
 }
 
 pub fn as_type(v: TypeCode) -> Type {
