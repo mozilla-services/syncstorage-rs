@@ -43,14 +43,14 @@ pub async fn create_spanner_session(
     // ChannelBuilder::secure_connect) block?!
     let chan = block(move || -> Result<grpcio::Channel, grpcio::Error> {
         metrics.start_timer("storage.pool.grpc_auth", None);
-        // Requires
-        // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
         if let Some(spanner_emulator_address) = emulator_host {
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
                 .max_receive_message_len(100 << 20)
                 .connect(&spanner_emulator_address))
         } else {
+            // Requires
+            // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
             let creds = ChannelCredentials::google_default_credentials()?;
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
