@@ -42,7 +42,6 @@ pub async fn create_spanner_session(
     // XXX: issue732: Could google_default_credentials (or
     // ChannelBuilder::secure_connect) block?!
     let chan = block(move || -> Result<grpcio::Channel, grpcio::Error> {
-        metrics.start_timer("storage.pool.grpc_auth", None);
         if let Some(spanner_emulator_address) = emulator_host {
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
@@ -51,6 +50,7 @@ pub async fn create_spanner_session(
         } else {
             // Requires
             // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+            metrics.start_timer("storage.pool.grpc_auth", None);
             let creds = ChannelCredentials::google_default_credentials()?;
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
