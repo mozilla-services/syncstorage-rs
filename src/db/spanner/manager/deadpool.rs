@@ -25,6 +25,7 @@ pub struct SpannerSessionManager {
     test_transactions: bool,
     max_lifespan: Option<u32>,
     max_idle: Option<u32>,
+    emulator_host: Option<String>,
 }
 
 impl fmt::Debug for SpannerSessionManager {
@@ -56,6 +57,7 @@ impl SpannerSessionManager {
             test_transactions,
             max_lifespan: settings.database_pool_connection_lifespan,
             max_idle: settings.database_pool_connection_max_idle,
+            emulator_host: settings.spanner_emulator_host.clone(),
         })
     }
 }
@@ -68,6 +70,7 @@ impl Manager<SpannerSession, DbError> for SpannerSessionManager {
             self.metrics.clone(),
             &self.database_name,
             self.test_transactions,
+            self.emulator_host.clone(),
         )
         .await?;
         Ok(session)
