@@ -27,10 +27,20 @@ use crate::{
 use super::{models::Result, pool::Conn};
 
 pub trait ToSpannerValue {
+    const TYPE_CODE: TypeCode;
+
     fn to_spanner_value(&self) -> Value;
+
+    fn spanner_type(&self) -> Type {
+        let mut t = Type::new();
+        t.set_code(Self::TYPE_CODE);
+        t
+    }
 }
 
 impl ToSpannerValue for String {
+    const TYPE_CODE: TypeCode = TypeCode::STRING;
+
     fn to_spanner_value(&self) -> Value {
         let mut value = Value::new();
         value.set_string_value(self.clone());
@@ -39,25 +49,28 @@ impl ToSpannerValue for String {
 }
 
 impl ToSpannerValue for i32 {
+    const TYPE_CODE: TypeCode = TypeCode::INT64;
+
     fn to_spanner_value(&self) -> Value {
-        let mut value = Value::new();
-        value.set_number_value(*self as f64);
-        value
+        self.to_string().to_spanner_value()
     }
 }
 
 impl ToSpannerValue for u32 {
+    const TYPE_CODE: TypeCode = TypeCode::INT64;
+
     fn to_spanner_value(&self) -> Value {
-        let mut value = Value::new();
-        value.set_number_value(*self as f64);
-        value
+        self.to_string().to_spanner_value()
     }
 }
 
 impl<T> ToSpannerValue for Vec<T>
 where
     T: ToSpannerValue + Clone,
+    Vec<T>: SpannerArrayElementType,
 {
+    const TYPE_CODE: TypeCode = TypeCode::ARRAY;
+
     fn to_spanner_value(&self) -> Value {
         let mut list = ListValue::new();
         list.set_values(RepeatedField::from_vec(
@@ -67,6 +80,35 @@ where
         value.set_list_value(list);
         value
     }
+
+    fn spanner_type(&self) -> Type {
+        let mut t = Type::new();
+        t.set_code(Self::TYPE_CODE);
+        t.set_array_element_type(self.array_element_type());
+        t
+    }
+}
+
+pub trait SpannerArrayElementType {
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode;
+
+    fn array_element_type(&self) -> Type {
+        let mut t = Type::new();
+        t.set_code(Self::ARRAY_ELEMENT_TYPE_CODE);
+        t
+    }
+}
+
+impl SpannerArrayElementType for Vec<String> {
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::STRING;
+}
+
+impl SpannerArrayElementType for Vec<i32> {
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
+}
+
+impl SpannerArrayElementType for Vec<u32> {
+    const ARRAY_ELEMENT_TYPE_CODE: TypeCode = TypeCode::INT64;
 }
 
 pub fn as_type(v: TypeCode) -> Type {
