@@ -1,0 +1,35 @@
+version: '3'
+services:
+    db:
+    db-setup:
+    syncstorage-rs:
+        depends_on:
+          - db-setup
+        # TODO: either syncstorage-rs should retry the db connection
+        # itself a few times or should include a wait-for-it.sh script
+        # inside its docker that would do this for us. Same (probably
+        # the latter solution) for server-syncstorage below
+        entrypoint: >
+          /bin/sh -c "
+            sleep 15;
+            /app/bin/syncstorage;
+          "
+    e2e-tests:
+        depends_on:
+          - syncstorage-rs
+        image: app:build
+        privileged: true
+        user: root
+        environment:
+          SYNC_HOST: 0.0.0.0
+          SYNC_MASTER_SECRET: secret0
+          SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+          SYNC_SPANNER_EMULATOR_HOST: db:9010
+          SYNC_TOKENSERVER_DATABASE_URL: mysql://username:pw@localhost/tokenserver
+          SYNC_TOKENSERVER_JWKS_RSA_MODULUS: 2lDphW0lNZ4w1m9CfmIhC1AxYG9iwihxBdQZo7_6e0TBAi8_TNaoHHI90G9n5d8BQQnNcF4j2vOs006zlXcqGrP27b49KkN3FmbcOMovvfesMseghaqXqqFLALL9us3Wstt_fV_qV7ceRcJq5Hd_Mq85qUgYSfb9qp0vyePb26KEGy4cwO7c9nCna1a_i5rzUEJu6bAtcLS5obSvmsOOpTLHXojKKOnC4LRC3osdR6AU6v3UObKgJlkk_-8LmPhQZqOXiI_TdBpNiw6G_-eishg8V_poPlAnLNd8mfZBam-_7CdUS4-YoOvJZfYjIoboOuVmUrBjogFyDo72EPTReQ
+          SYNC_TOKENSERVER_JWKS_RSA_EXPONENT: AQAB
+          SYNC_FXA_METRICS_HASH_SECRET: insecure
+        entrypoint: >
+          /bin/sh -c "
+            sleep 28; pip3 install -r /app/tools/integration_tests/requirements.txt && python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+          "
