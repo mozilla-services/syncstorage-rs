@@ -1,3 +1,13 @@
+<a name="0.10.2"></a>
+## 0.10.2 (2021-04-28)
+
+
+#### Bug Fixes
+
+*   update deadpool w/ the incorrect pool stats fix (#1057) ([d261ac1e](https://github.com/mozilla-services/syncstorage-rs/commit/d261ac1ebcc1ed3ff2871e5fd61ab4a934149fcd), closes [#803](https://github.com/mozilla-services/syncstorage-rs/issues/803))
+
+
+
 <a name="0.10.1"></a>
 ## 0.10.1 (2021-04-14)
 
