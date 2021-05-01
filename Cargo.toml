@@ -24,7 +24,7 @@ async-trait = "0.1.40"
 base64 = "0.13"
 bb8 = "0.4.1"  # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
-cadence = "0.24"
+cadence = "0.25"
 chrono = "0.4"
 config = "0.10"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
