@@ -79,11 +79,7 @@ where
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
         let mut tags = Tags::from(sreq.head());
         sreq.extensions_mut().insert(tags.clone());
-        let metrics = if let Some(state) = sreq.app_data::<Data<ServerState>>() {
-            Some(Metrics::from(state.get_ref()))
-        } else {
-            None
-        };
+        let metrics = sreq.app_data::<Data<ServerState>>().map(|state| Metrics::from(state.get_ref()));
 
         Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
             // handed an actix_error::error::Error;
