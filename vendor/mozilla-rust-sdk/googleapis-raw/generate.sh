@@ -1,4 +1,18 @@
 #!/bin/bash
+#
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # *NOTE*: Make sure to update cargo plugins after protobuf updates
 #  cargo install grpcio-compiler
@@ -27,7 +41,8 @@ if ! [[ -x "$(command -v grpc_rust_plugin)" ]]; then
 fi
 
 echo "Pulling git submodules"
-git submodule update --init --recursive
+# comment out to work on master...
+#git submodule update --init --recursive
 
 apis=grpc/third_party/googleapis
 
@@ -45,12 +60,24 @@ for proto in $proto_files; do
         $proto
 done
 
-old_proto_dirs="
+#storage_dirs="
+#storage/v1
+#"
+
+# Big table has dependencies on "ruby_package"
+big_table_dirs="
 bigtable/admin/cluster/v1
 bigtable/admin/table/v1
 bigtable/admin/v2
 bigtable/v1
 bigtable/v2
+"
+
+proto_dirs="
+api
+api/servicecontrol/v1
+api/servicemanagement/v1
+type
 iam/v1
 longrunning
 pubsub/v1
@@ -59,9 +86,12 @@ rpc
 spanner/admin/database/v1
 spanner/admin/instance/v1
 spanner/v1
+$big_table_dirs
+$storage_dirs
 "
 
-proto_dirs="
+# The following are required to support Spanner only
+reduced_proto_dirs="
 iam/v1
 longrunning
 rpc

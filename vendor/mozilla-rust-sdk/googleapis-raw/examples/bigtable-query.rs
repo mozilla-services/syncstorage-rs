@@ -1,11 +1,26 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use std::error::Error;
 use std::sync::Arc;
 
 use futures::prelude::*;
+use futures::executor::block_on;
 use googleapis_raw::bigtable::v2::{bigtable::ReadRowsRequest, bigtable_grpc::BigtableClient};
 use grpcio::{ChannelBuilder, ChannelCredentials, EnvBuilder};
 
-fn main() -> Result<(), Box<dyn Error>> {
+async fn async_main() {
     // An example database inside Mozilla's Bigtable instance.
     let table = "projects/mozilla-rust-sdk-dev/instances/mozilla-rust-sdk/tables/prezzy";
 
@@ -14,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Set up the gRPC environment.
     let env = Arc::new(EnvBuilder::new().build());
-    let creds = ChannelCredentials::google_default_credentials()?;
+    let creds = ChannelCredentials::google_default_credentials().unwrap();
 
     // Create a Bigtable client.
     let chan = ChannelBuilder::new(env.clone())
@@ -29,11 +44,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     req.table_name = table.to_string();
 
     // Iterate over the rows and print them.
-    let mut stream = client.read_rows(&req)?;
-    while let (Some(row), s) = stream.into_future().wait().map_err(|(e, _)| e)? {
+    let mut stream = match client.read_rows(&req) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return;
+        },
+    };
+    while let (Some(row), s) = stream.into_future().await {
         stream = s;
         dbg!(row);
     }
 
-    Ok(())
+}
+
+fn main() {
+    block_on(async_main())
 }

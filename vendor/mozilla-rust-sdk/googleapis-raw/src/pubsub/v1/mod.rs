@@ -14,7 +14,5 @@
 
 pub mod pubsub;
 pub mod pubsub_grpc;
-pub mod schema_grpc;
-pub mod schema;
 
 pub(crate) use crate::empty;
