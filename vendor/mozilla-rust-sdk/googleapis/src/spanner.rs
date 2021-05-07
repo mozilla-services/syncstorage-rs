@@ -49,7 +49,7 @@ impl Client {
         let creds = ChannelCredentials::google_default_credentials()?;
 
         // Create a Spanner client.
-        let chan = ChannelBuilder::new(env.clone())
+        let chan = ChannelBuilder::new(Arc::clone(&env))
             .max_send_message_len(100 << 20)
             .max_receive_message_len(100 << 20)
             .secure_connect(&endpoint, creds);
