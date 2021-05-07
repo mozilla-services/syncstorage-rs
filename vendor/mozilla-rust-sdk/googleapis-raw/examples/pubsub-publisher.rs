@@ -13,11 +13,9 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use futures::prelude::*;
 use futures::executor::block_on;
 use googleapis_raw::pubsub::v1::{
     pubsub::AcknowledgeRequest, pubsub::ExpirationPolicy, pubsub::GetSubscriptionRequest,
@@ -85,7 +83,7 @@ fn find_or_create_subscription(
     let mut subscription = Subscription::new();
     push_config.set_attributes(attributes);
     expiration_duration.set_seconds(60 * 60 * 48);
-    expiration_policy.set_ttl(expiration_duration.clone());
+    expiration_policy.set_ttl(expiration_duration);
     subscription.set_name(subscription_name.to_string());
     subscription.set_topic(topic_name.to_string());
     subscription.set_ack_deadline_seconds(20);
@@ -141,7 +139,7 @@ fn connect(endpoint: &str) -> Channel {
         ChannelCredentials::google_default_credentials().expect("No Google redentials found");
 
     // Create a channel to connect to Gcloud.
-    ChannelBuilder::new(env.clone())
+    ChannelBuilder::new(env)
         // Set the max size to correspond to server-side limits.
         .max_send_message_len(1 << 28)
         .max_receive_message_len(1 << 28)
@@ -165,14 +163,18 @@ async fn async_main() {
     // publish a number of greeting messages
     let greetings = vec!["hello", "hi", "hola", "bonjour", "ahoi"];
     let messages = greetings.iter().map(|g| g.to_string()).collect();
-    publish_msg_async(&publisher, &topic, messages).unwrap().await.unwrap();
+    publish_msg_async(&publisher, &topic, messages)
+        .unwrap()
+        .await
+        .unwrap();
 
     // create a subscriber to consume these messages
     let subscription_name = format!("projects/{}/subscriptions/sub-greetings", project_id);
     let subscriber = SubscriberClient::new(channel.clone());
 
     // get subscription
-    let subscription = find_or_create_subscription(&subscriber, &subscription_name, &topic_name).unwrap();
+    let subscription =
+        find_or_create_subscription(&subscriber, &subscription_name, &topic_name).unwrap();
 
     // Pubsub Subscription Pull, receive all messages
     println!("Pulling messages from subscription {:?}", subscription);

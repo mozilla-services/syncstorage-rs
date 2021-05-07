@@ -13,12 +13,10 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use futures::executor::block_on;
-use futures::prelude::*;
 use googleapis_raw::bigtable::admin::v2::{
     bigtable_instance_admin::GetClusterRequest,
     bigtable_instance_admin_grpc::BigtableInstanceAdminClient,
@@ -35,6 +33,7 @@ use grpcio::{Channel, ChannelBuilder, ChannelCredentials, ClientUnaryReceiver, E
 use protobuf::well_known_types::Duration;
 use protobuf::RepeatedField;
 
+#[allow(dead_code)]
 fn timestamp() -> u128 {
     let start = SystemTime::now();
     let time = start
@@ -51,7 +50,7 @@ fn connect(endpoint: &str) -> Channel {
         ChannelCredentials::google_default_credentials().expect("No Google credentials found");
 
     // Create a channel to connect to Gcloud.
-    ChannelBuilder::new(env.clone())
+    ChannelBuilder::new(env)
         // Set the max size to correspond to server-side limits.
         .max_send_message_len(1 << 28)
         .max_receive_message_len(1 << 28)
@@ -62,7 +61,7 @@ fn connect(endpoint: &str) -> Channel {
 ///
 fn get_cluster(
     client: &BigtableInstanceAdminClient,
-    cluster_id: &String,
+    cluster_id: &str,
 ) -> ::grpcio::Result<Cluster> {
     println!("Get cluster information");
     let mut request = GetClusterRequest::new();
@@ -72,10 +71,10 @@ fn get_cluster(
 
 /// Lists all tables for a given cluster
 ///
-fn list_tables(client: &BigtableTableAdminClient, instance_id: &String) {
+fn list_tables(client: &BigtableTableAdminClient, instance_id: &str) {
     println!("List all existing tables");
     let mut request = ListTablesRequest::new();
-    request.set_parent(instance_id.clone());
+    request.set_parent(instance_id.to_string());
     match client.list_tables(&request) {
         Ok(response) => {
             response
@@ -91,13 +90,13 @@ fn list_tables(client: &BigtableTableAdminClient, instance_id: &String) {
 ///
 fn create_table(
     client: &BigtableTableAdminClient,
-    instance_id: &String,
-    table_name: &String,
+    instance_id: &str,
+    table_name: &str,
     table: Table,
 ) -> ::grpcio::Result<Table> {
     println!("Creating table {}", table_name);
     let mut request = CreateTableRequest::new();
-    request.set_parent(instance_id.clone());
+    request.set_parent(instance_id.to_string());
     request.set_table(table);
     request.set_table_id("hello-world".to_string());
     client.create_table(&request)
@@ -106,17 +105,17 @@ fn create_table(
 /// Deletes a table asynchronously, returns a future
 fn delete_table_async(
     client: &BigtableTableAdminClient,
-    table_name: &String,
+    table_name: &str,
 ) -> grpcio::Result<ClientUnaryReceiver<Empty>> {
     println!("Deleting the {} table", table_name);
     let mut request = DeleteTableRequest::new();
-    request.set_name(table_name.clone());
+    request.set_name(table_name.to_string());
     client.delete_table_async(&request)
 }
 
 async fn async_main() {
     // BigTable project id
-    let project_id = String::from("mozilla-rust-sdk-dev");
+    let _project_id = String::from("mozilla-rust-sdk-dev");
     // The BigTable instance id
     let instance_id = String::from("projects/mozilla-rust-sdk-dev/instances/mozilla-rust-sdk");
     // The cluster id
@@ -190,7 +189,7 @@ async fn async_main() {
     }
 
     let channel = connect(endpoint);
-    let client = BigtableClient::new(channel.clone());
+    let _client = BigtableClient::new(channel.clone());
     let mut request = MutateRowsRequest::new();
     request.set_table_name(table_name.to_string());
     request.set_entries(RepeatedField::from_vec(mutation_requests));
@@ -221,11 +220,14 @@ async fn async_main() {
     list_tables(&admin_client, &instance_id);
 
     // delete the table
-    delete_table_async(&admin_client, &table_name).unwrap().await;
+    delete_table_async(&admin_client, &table_name)
+        .unwrap()
+        .await
+        .map_err(|e| dbg!(e))
+        .expect("Failure");
 
     // list of tables should not have deleted table
     list_tables(&admin_client, &instance_id);
-
 }
 
 fn main() {

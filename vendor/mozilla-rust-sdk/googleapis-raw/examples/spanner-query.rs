@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::error::Error;
 use std::sync::Arc;
 
-use futures::prelude::*;
 use futures::executor::block_on;
 use googleapis_raw::spanner::v1::{
     spanner::{CreateSessionRequest, ExecuteSqlRequest},
@@ -45,7 +43,8 @@ async fn async_main() {
     let mut req = CreateSessionRequest::new();
     req.database = database.to_string();
     let mut meta = MetadataBuilder::new();
-    meta.add_str("google-cloud-resource-prefix", database).unwrap();
+    meta.add_str("google-cloud-resource-prefix", database)
+        .unwrap();
     meta.add_str("x-goog-api-client", "googleapis-rs").unwrap();
     let opt = CallOption::default().headers(meta.build());
     let session = client.create_session_opt(&req, opt).unwrap();
@@ -63,7 +62,6 @@ async fn async_main() {
     let fut = client.execute_sql_async(&req).unwrap();
     let out = fut.await.unwrap();
     dbg!(out);
-
 }
 
 fn main() {
