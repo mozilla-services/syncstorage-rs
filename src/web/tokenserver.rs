@@ -237,7 +237,7 @@ pub fn get_sync(
 }
 
 fn fxa_metrics_hash(value: &str, hmac_key: &[u8]) -> String {
-    let mut mac = Hmac::<Sha256>::new_varkey(hmac_key).unwrap();
+    let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key).unwrap();
     let v = value.split('@').next().unwrap();
     mac.update(v.as_bytes());
 

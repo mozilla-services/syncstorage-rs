@@ -147,7 +147,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     };
     let payload =
         serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");
-    let mut signature = Hmac::<Sha256>::new_varkey(&SECRETS.signing_secret)
+    let mut signature = Hmac::<Sha256>::new_from_slice(&SECRETS.signing_secret)
         .expect("Could not get signature in create_hawk_header");
     signature.update(payload.as_bytes());
     let signature = signature.finalize().into_bytes();

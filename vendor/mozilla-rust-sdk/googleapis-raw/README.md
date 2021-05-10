@@ -79,6 +79,22 @@ pub(crate) use crate::{
 ```
 _(which was taken from `src/rpc/spanner/admin/instance/v1/mod.rs`)_
 
+Please note that the source grpc repo may contiain one or more older submodule references that may
+need to be updated (e.g. `.grpc/third_party/googleapis`). This may require manual updating as well
+as manunal updating/correction of the various, `mod.rs` files. Pay close attention to interdependencies.
+These may need to be specified in the directory mods (see `.src/storage/v1/mod.rs` for an example.
+Remember, you can use the `r#` prefix in rust to except a reserved name for use, e.g.
+`use mod crate::r#type`)
+
+### When Updating
+
+Remember to update the dependent submodules by calling
+
+`git submodule update --init --recursive`
+
+**NOTE**: this may alter the pre-generated mod files requiring old
+modules to be dropped or new modules to be added. Ensure that the
+various `mod.rs` files capture these changes.
 
 ## Google Cloud Console
 

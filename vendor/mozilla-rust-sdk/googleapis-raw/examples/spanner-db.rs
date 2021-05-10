@@ -1,3 +1,17 @@
+// Copyright 2020 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 use googleapis_raw::empty::Empty;
 use googleapis_raw::longrunning::operations::GetOperationRequest;
 use googleapis_raw::longrunning::operations_grpc::OperationsClient;
@@ -8,7 +22,7 @@ use googleapis_raw::spanner::admin::database::v1::{
 use googleapis_raw::spanner::v1::{
     mutation::Mutation, mutation::Mutation_Write, spanner::BeginTransactionRequest,
     spanner::CommitRequest, spanner::CreateSessionRequest, spanner::Session,
-    spanner_grpc::SpannerClient, transaction::Transaction, transaction::TransactionOptions,
+    spanner_grpc::SpannerClient, transaction::TransactionOptions,
     transaction::TransactionOptions_ReadWrite,
 };
 use grpcio::{
@@ -112,6 +126,7 @@ fn create_database_if_not_exists(channel: &Channel, database_name: &str, instanc
 
 /// Deletes a given database
 ///
+#[allow(dead_code)]
 fn drop_database(
     channel: &Channel,
     database_name: &str,
@@ -148,7 +163,7 @@ fn connect(endpoint: &str) -> Channel {
         ChannelCredentials::google_default_credentials().expect("No Google credentials found");
 
     // Create a channel to connect to Gcloud.
-    ChannelBuilder::new(env.clone())
+    ChannelBuilder::new(env)
         // Set the max size to correspond to server-side limits.
         .max_send_message_len(1 << 28)
         .max_receive_message_len(1 << 28)
@@ -177,7 +192,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let session = create_session(&client, database_name)?;
 
     // insert data into database by using a transaction
-    let client = SpannerClient::new(channel.clone());
+    let client = SpannerClient::new(channel);
     let mut request = BeginTransactionRequest::new();
     let mut read_write = TransactionOptions::new();
     read_write.set_read_write(TransactionOptions_ReadWrite::new());

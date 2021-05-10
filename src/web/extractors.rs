@@ -1746,7 +1746,7 @@ mod tests {
     ) -> String {
         let salt = payload.salt.clone();
         let payload = serde_json::to_string(payload).unwrap();
-        let mut hmac = Hmac::<Sha256>::new_varkey(&state.secrets.signing_secret).unwrap();
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&state.secrets.signing_secret).unwrap();
         hmac.update(payload.as_bytes());
         let payload_hash = hmac.finalize().into_bytes();
         let mut id = payload.as_bytes().to_vec();

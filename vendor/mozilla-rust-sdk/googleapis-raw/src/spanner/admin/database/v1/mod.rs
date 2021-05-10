@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub mod backup;
-pub mod common;
 pub mod spanner_database_admin;
 pub mod spanner_database_admin_grpc;
 
@@ -21,5 +19,4 @@ pub(crate) use crate::{
     empty,
     iam::v1::{iam_policy, policy},
     longrunning::operations,
-    rpc::status,
 };
