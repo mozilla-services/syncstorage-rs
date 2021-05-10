@@ -74,9 +74,6 @@ bigtable/v2
 "
 
 proto_dirs="
-api
-api/servicecontrol/v1
-api/servicemanagement/v1
 type
 iam/v1
 longrunning

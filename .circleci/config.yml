@@ -221,8 +221,8 @@ jobs:
       - run:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-mysql-tests
       - run-e2e-spanner-tests
+      - run-e2e-mysql-tests
 
   deploy:
     docker:

@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let database = "projects/mozilla-rust-sdk-dev/instances/mozilla-spanner-dev/databases/mydb";
 
     // Create a Spanner client.
-    let client = spanner::Client::new(database)?;
+    let _client = spanner::Client::new(database)?;
 
     Ok(())
 }

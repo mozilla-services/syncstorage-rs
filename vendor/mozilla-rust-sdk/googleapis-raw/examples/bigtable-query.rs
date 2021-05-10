@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::error::Error;
 use std::sync::Arc;
 
+use futures::executor::block_on;
 use futures::prelude::*;
 use futures::executor::block_on;
 use googleapis_raw::bigtable::v2::{bigtable::ReadRowsRequest, bigtable_grpc::BigtableClient};
@@ -49,13 +49,17 @@ async fn async_main() {
         Err(e) => {
             println!("Error: {:?}", e);
             return;
-        },
+        }
     };
     while let (Some(row), s) = stream.into_future().await {
         stream = s;
-        dbg!(row);
+        dbg!(&row);
+        row.map_err(|e| dbg!(e)).expect("Failure");
     }
+}
 
+fn main() {
+    block_on(async_main())
 }
 
 fn main() {

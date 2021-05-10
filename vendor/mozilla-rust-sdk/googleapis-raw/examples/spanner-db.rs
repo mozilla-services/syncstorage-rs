@@ -22,7 +22,7 @@ use googleapis_raw::spanner::admin::database::v1::{
 use googleapis_raw::spanner::v1::{
     mutation::Mutation, mutation::Mutation_Write, spanner::BeginTransactionRequest,
     spanner::CommitRequest, spanner::CreateSessionRequest, spanner::Session,
-    spanner_grpc::SpannerClient, transaction::Transaction, transaction::TransactionOptions,
+    spanner_grpc::SpannerClient, transaction::TransactionOptions,
     transaction::TransactionOptions_ReadWrite,
 };
 use grpcio::{
@@ -126,6 +126,7 @@ fn create_database_if_not_exists(channel: &Channel, database_name: &str, instanc
 
 /// Deletes a given database
 ///
+#[allow(dead_code)]
 fn drop_database(
     channel: &Channel,
     database_name: &str,
@@ -162,7 +163,7 @@ fn connect(endpoint: &str) -> Channel {
         ChannelCredentials::google_default_credentials().expect("No Google credentials found");
 
     // Create a channel to connect to Gcloud.
-    ChannelBuilder::new(env.clone())
+    ChannelBuilder::new(env)
         // Set the max size to correspond to server-side limits.
         .max_send_message_len(1 << 28)
         .max_receive_message_len(1 << 28)
@@ -191,7 +192,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let session = create_session(&client, database_name)?;
 
     // insert data into database by using a transaction
-    let client = SpannerClient::new(channel.clone());
+    let client = SpannerClient::new(channel);
     let mut request = BeginTransactionRequest::new();
     let mut read_write = TransactionOptions::new();
     read_write.set_read_write(TransactionOptions_ReadWrite::new());
