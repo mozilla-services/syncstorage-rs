@@ -7,7 +7,7 @@ set -e
 PROJECT_ID=test-project
 INSTANCE_ID=test-instance
 DATABASE_ID=test-database
-DDL_STATEMENTS=$(jq -R -s -c 'split("\n")' < spanner-schema.ddl)
+DDL_STATEMENTS=$(jq -R -s -c 'split("\n")' < schema.ddl)
 
 curl -sS --request POST \
   "db:9020/v1/projects/$PROJECT_ID/instances" \
