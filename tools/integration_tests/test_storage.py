@@ -345,15 +345,15 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(len(all_items), 10)
 
         res = self.app.get(query_url + '&limit=2')
-        self.assertEquals(res.json, all_items[:2])
+        self.assertEquals(len(res.json), 2)
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + '&limit=3&offset=' + next_offset)
-        self.assertEquals(res.json, all_items[2:5])
+        self.assertEquals(len(res.json), 3)
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + '&offset=' + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEquals(len(res.json), 5)
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(
