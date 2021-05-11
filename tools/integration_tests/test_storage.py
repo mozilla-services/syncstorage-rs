@@ -266,11 +266,9 @@ class TestStorage(StorageFunctionalTestCase):
         # Sets the maximum number of ids that will be returned
         self.retry_delete(self.root + '/storage/xxx_col2')
 
-        bsos = []
         for i in range(10):
             bso = {'id': str(i).zfill(2), 'payload': 'x', 'sortindex': i}
-            bsos.append(bso)
-        self.retry_post_json(self.root + '/storage/xxx_col2', bsos)
+            self.retry_post_json(self.root + '/storage/xxx_col2', [bso])
 
         query_url = self.root + '/storage/xxx_col2?sort=index'
         res = self.app.get(query_url)
@@ -1397,7 +1395,14 @@ class TestStorage(StorageFunctionalTestCase):
         secret = auth_policy._get_token_secrets(self.host_url)[-1]
         tm = tokenlib.TokenManager(secret=secret)
         exp = time.time() - 60
-        data = {"uid": self.user_id, "node": self.host_url, "expires": exp}
+        data = {
+            "uid": self.user_id,
+            "node": self.host_url,
+            "expires": exp,
+            "hashed_fxa_uid": self.hashed_fxa_uid,
+            "fxa_uid": self.fxa_uid,
+            "fxa_kid": self.fxa_kid
+        }
         self.auth_token = tm.make_token(data)
         self.auth_secret = tm.get_derived_secret(self.auth_token)
 
