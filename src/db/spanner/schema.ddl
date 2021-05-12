@@ -21,9 +21,9 @@ CREATE TABLE user_collections (
 ) PRIMARY KEY(fxa_uid, fxa_kid, collection_id);
 
 CREATE TABLE bsos (
-  fxa_uid STRING(MAX) NOT NULL,
-  fxa_kid STRING(MAX) NOT NULL,
-  collection_id INT64 NOT NULL,
+  fxa_uid STRING(MAX)  NOT NULL,
+  fxa_kid STRING(MAX)  NOT NULL,
+  collection_id INT64  NOT NULL,
   bso_id STRING(MAX)   NOT NULL,
 
   sortindex INT64,
@@ -65,10 +65,10 @@ CREATE TABLE batches (
 INTERLEAVE IN user_collections;
 
 CREATE TABLE batch_bsos (
-  fxa_uid STRING(MAX)     NOT NULL,
-  fxa_kid STRING(MAX)     NOT NULL,
-  collection_id INT64     NOT NULL,
-  batch_id STRING(MAX)    NOT NULL,
+  fxa_uid STRING(MAX)      NOT NULL,
+  fxa_kid STRING(MAX)      NOT NULL,
+  collection_id INT64      NOT NULL,
+  batch_id STRING(MAX)     NOT NULL,
   batch_bso_id STRING(MAX) NOT NULL,
 
   sortindex INT64,
