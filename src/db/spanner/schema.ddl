@@ -11,10 +11,10 @@
 --       ALSO, CONSOLE WANTS ONE SPACE BETWEEN DDL COMMANDS
 
 CREATE TABLE user_collections (
-  fxa_uid STRING(MAX) NOT NULL,
-  fxa_kid STRING(MAX) NOT NULL,
-  collection_id INT64 NOT NULL,
-  modified TIMESTAMP  NOT NULL,
+  fxa_uid STRING(MAX)  NOT NULL,
+  fxa_kid STRING(MAX)  NOT NULL,
+  collection_id INT64  NOT NULL,
+  modified TIMESTAMP   NOT NULL,
 
   count INT64,
   total_bytes INT64,
@@ -28,10 +28,10 @@ CREATE TABLE bsos (
 
   sortindex INT64,
 
-  payload STRING(MAX) NOT NULL,
+  payload STRING(MAX)  NOT NULL,
 
-  modified TIMESTAMP  NOT NULL,
-  expiry TIMESTAMP    NOT NULL,
+  modified TIMESTAMP   NOT NULL,
+  expiry TIMESTAMP     NOT NULL,
 )   PRIMARY KEY(fxa_uid, fxa_kid, collection_id, bso_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
@@ -44,8 +44,8 @@ INTERLEAVE IN user_collections;
 INTERLEAVE IN user_collections;
 
 CREATE TABLE collections (
-  collection_id INT64 NOT NULL,
-  name STRING(32)     NOT NULL,
+  collection_id INT64  NOT NULL,
+  name STRING(32)      NOT NULL,
 ) PRIMARY KEY(collection_id);
 
     CREATE UNIQUE INDEX CollectionName
