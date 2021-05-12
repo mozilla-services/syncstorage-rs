@@ -32,7 +32,7 @@ CREATE TABLE bsos (
 
   modified TIMESTAMP   NOT NULL,
   expiry TIMESTAMP     NOT NULL,
-)   PRIMARY KEY(fxa_uid, fxa_kid, collection_id, bso_id),
+)    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, bso_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
     CREATE INDEX BsoModified
