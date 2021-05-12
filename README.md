@@ -122,7 +122,8 @@ DDL_STATEMENTS=$(
   | sed -n 's/ \+/ /gp' \
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
-  | jq -R -s -c 'split(";")')
+  | jq -R -s -c 'split(";")'
+)
 ```
 Finally, to create the database:
 ```sh
