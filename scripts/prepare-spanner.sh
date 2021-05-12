@@ -9,11 +9,11 @@ INSTANCE_ID=test-instance
 DATABASE_ID=test-database
 
 DDL_STATEMENTS=$(
-  grep -v ^-- schema.ddl \    # filter out comments
-  | sed -n 's/ \+/ /gp' \     # trim two or more whitespace characters to one
-  | tr -d '\n' \              # remove every newline
-  | sed 's/\(.*\);/\1/' \     # remove the final semicolon
-  | jq -R -s -c 'split(";")'  # split on semicolons and convert to JSON array
+  grep -v ^-- schema.ddl \
+  | sed -n 's/ \+/ /gp' \
+  | tr -d '\n' \
+  | sed 's/\(.*\);/\1/' \
+  | jq -R -s -c 'split(";")'
 ) 
 
 curl -sS --request POST \
