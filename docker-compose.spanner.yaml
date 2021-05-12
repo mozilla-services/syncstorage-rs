@@ -6,13 +6,15 @@ services:
             - "9010:9010"
             - "9020:9020"
         environment:
-            - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     db-setup:
         image: app:build
         depends_on:
           - db
         restart: "no"
         entrypoint: "/app/scripts/prepare-spanner.sh"
+        environment:
+            SYNC_SPANNER_EMULATOR_HOST: db:9020
     syncstorage-rs:
         image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always

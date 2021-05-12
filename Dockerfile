@@ -1,4 +1,4 @@
-FROM rust:1.51-buster as builder
+FROM rust:1.52.1-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -30,7 +30,7 @@ COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
-COPY --from=builder /app/src/db/spanner/schema.ddl /app
+COPY --from=builder /app/src/db/spanner/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 
