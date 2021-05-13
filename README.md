@@ -74,15 +74,7 @@ First, install the Google Cloud command-line interface by following the instruct
 ```sh
 gcloud auth application-default login
 ```
-The above command will prompt you to visit a webpage in your browser to complete the login process. Once completed, ensure that a file called `application_default_credentials.json` has been created in the appropriate directory (on Linux, this directory is `$HOME/.config/gcloud/`). Now, create a symbolic link from this file to a file called `service-account.json` in the root of the repository:
-```sh
-ln -s /path/to/application_default_credentials.json /path/to/syncstorage-rs/service-account.json
-```
-**Make sure that the filename matches `service-account.json` exactly!** The `.gitignore` file is set to ignore that filename specifically, and a misspelling or typo could result in committing a private OAuth key to the public repository. To avoid such errors, consider installing a tool like [git secrets](https://github.com/awslabs/git-secrets), which will add a git commit hook that checks for sensitive information whenever you add a new commit.
-
-Using a symbolic link (as opposed to copying the file) has a couple of benefits:
-1. If the OAuth token is updated, the update will be reflected in `service-account.json` without additional steps.
-2. Key revocation is simpler. `gcloud auth application-default revoke` requires that the key to be revoked is stored in the correct place. *Copying* the key to another location could lead to situations in which multiple active application default credentials are present on your computer; using a symbolic link helps to ensure that the only active credentials are stored in `application_default_credentials.json`. 
+The above command will prompt you to visit a webpage in your browser to complete the login process. Once completed, ensure that a file called `application_default_credentials.json` has been created in the appropriate directory (on Linux, this directory is `$HOME/.config/gcloud/`). The Google Cloud SDK knows to check this location for your credentials, so no further configuration is needed.
 
 Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
 
