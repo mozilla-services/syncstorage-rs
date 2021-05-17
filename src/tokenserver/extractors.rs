@@ -103,10 +103,7 @@ mod tests {
     use actix_web::{http::Method, test::TestRequest, HttpResponse};
     use jsonwebtoken::{encode, EncodingKey, Header};
     use lazy_static::lazy_static;
-    use openssl::{
-        pkey::Private,
-        rsa::Rsa,
-    };
+    use openssl::{pkey::Private, rsa::Rsa};
     use tokio::sync::RwLock;
 
     use crate::db::mock::MockDbPool;
@@ -122,7 +119,7 @@ mod tests {
     }
 
     const SECONDS_IN_A_YEAR: u64 = 60 * 60 * 24 * 365;
-    const TOKENSERVER_PATH: &str = "/1.0/sync/1.5"; 
+    const TOKENSERVER_PATH: &str = "/1.0/sync/1.5";
 
     #[actix_rt::test]
     async fn test_valid_tokenserver_request() {
@@ -187,10 +184,8 @@ mod tests {
 
     fn make_state(rsa: &Rsa<Private>) -> ServerState {
         let settings = Settings::default();
-        let modulus =
-            base64::encode_config(rsa.n().to_vec(), base64::URL_SAFE_NO_PAD);
-        let public_exponent =
-            base64::encode_config(rsa.e().to_vec(), base64::URL_SAFE_NO_PAD);
+        let modulus = base64::encode_config(rsa.n().to_vec(), base64::URL_SAFE_NO_PAD);
+        let public_exponent = base64::encode_config(rsa.e().to_vec(), base64::URL_SAFE_NO_PAD);
 
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
