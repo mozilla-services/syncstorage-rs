@@ -103,6 +103,10 @@ mod tests {
     use actix_web::{http::Method, test::TestRequest, HttpResponse};
     use jsonwebtoken::{encode, EncodingKey, Header};
     use lazy_static::lazy_static;
+    use openssl::{
+        pkey::Private,
+        rsa::Rsa,
+    };
     use tokio::sync::RwLock;
 
     use crate::db::mock::MockDbPool;
@@ -117,42 +121,15 @@ mod tests {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     }
 
-    const RSA_PRIVATE_KEY: &str = "-----BEGIN RSA PRIVATE KEY-----\n\
-    MIIEowIBAAKCAQEArRWWL6xF8f34ykDqFLg6O2ehmRqHonEWeruYJ8i4OPn5DwAj\n\
-    fCaCNu/A/6JCUEtNJXZ6CwVub0a6kDENdW9vkzGJPfz3EjvzxbSTCekiDrXYHFRn\n\
-    hNhgXDoeOE4NQ0Ob69BdDc7Zwyu+pIgTvCjDsuZiDm+bZdzwgWspK/Wn1qCfdkRo\n\
-    J0AV81pWUtcyRBJpQ/3hM9BbwBAWpjXNDaHHxvp/lUyJY8dbw1YxHSQ3eoNPmRz3\n\
-    ioSU1x7zDcWJzZ/RowrFqqBku+UQakxp7kq72Bv1kHcD4Cye2366sh9aLQjR6o87\n\
-    b1owiv382qaRqT0/gJP7lVRGpRnVs0orV2SxjQIDAQABAoIBAA8xmup6a/VvPvy6\n\
-    MBI7jdkTIstm2cs3tCp390Zex1UxFFztvS+zzbB24XFPVBTqV05XlSUMiAI6qjvo\n\
-    Im9RpfC843hOkX3HR4HudQ3kqjmyWtM50ZCG0gamj2qP53glIjXUJ6cDpngMigK1\n\
-    c04MIgm9UZRE1dZeS7qApq+WM/KSKBg6CtiJAU0UcXAXsrNqv315QUhqVWjnvti5\n\
-    gt+U/5oaE2J7/WYfYUC44+OqS0ItuwWToKiv1w6wwY7cNEVr0Su3aDiMa1X/m2/2\n\
-    Ykn0dPHpQpTMbpeJMFBki7Iah9Gn8XMB0OsMAd4DjGkfkn1dKDw7oewqQbFbmGx4\n\
-    6131ON0CgYEA0/uC/FHr7N251oAUA9jlJTimMNS/zBUEpIhNQTAd86T9uKwLrUWK\n\
-    KSY50ubYBwhULrZrXQBMjavokAi4WRmvK9SxxccgmDDFOpdB3DzN1wbM2r5qay2/\n\
-    guchlpM1H/D9ceLm6IZRs9KGxPV+eydmrXTSnM3fzvLHk+hmM1geH8sCgYEA0QZX\n\
-    YMWgncF92z5xW5Rcy1q9PtNmoQ5yj1TZH40+zaGrAvWQEojpb04enDfkMxhMLVTZ\n\
-    G527Q/mEEfXjWxUIKTse7olFsGbcT8T81jX4pg7uKkJGHZ2Q7+ttBev/onx9JzUf\n\
-    ieqjb1NYt8xqiptOmdDYXnoFAU2bu9lWVkuFGQcCgYEAxhpgGOl+L8guahUbn1TN\n\
-    IHHGbhAEhfaGdjSi7e7HrvBb5H90EiPQsA/3Le9pp3jTIyx7PViQMj2bgy+DCFGG\n\
-    cNG+qPQks9WwG8dLV0TDoNXMEAivbyY7uVvC+fLsTMNsN0gzPs54ADMYm2xJHVJ/\n\
-    FE7+nGeRZtdgSAuBpy4MSO0CgYBEyUByATdVEvrW7pqhV5ad+TNz/F+2uqlqj7KQ\n\
-    FoxHYV+ErskFwHaJgXzDTgVT5zgSZuy3kNWyjecvfeqe67Hu15zbRONhJMh1m87U\n\
-    s5grFZi84WhvkI3E1oXfQAW1NCB/iZTibwvvs87rVWLuUCOyrK63kJIbFq4cSG6I\n\
-    IXwgewKBgBV63Cd87I2hb+IIFwIjDmGw4aqa16fJB25GCWYDL3Annxe3JKi0UpJU\n\
-    ejg5O4GsIRARaOFzZJ2Lzcwv+C/RMyJKcrXVsflSrSFRswlXVDCoNLBpoX6FqAvh\n\
-    qQFiwEtArcfLQEC1hLaq2sWcaZ/zPVGu7wl7hSSaZa997fYiHQkt\n\
-    -----END RSA PRIVATE KEY-----";
-    const RSA_MODULUS: &str = "AK0Vli-sRfH9-MpA6hS4OjtnoZkah6JxFnq7mCfIuDj5-Q8AI3wmgjbvwP-iQlBLTSV2egsFbm9GupAxDXVvb5MxiT389xI788W0kwnpIg612BxUZ4TYYFw6HjhODUNDm-vQXQ3O2cMrvqSIE7wow7LmYg5vm2Xc8IFrKSv1p9agn3ZEaCdAFfNaVlLXMkQSaUP94TPQW8AQFqY1zQ2hx8b6f5VMiWPHW8NWMR0kN3qDT5kc94qElNce8w3Fic2f0aMKxaqgZLvlEGpMae5Ku9gb9ZB3A-Asntt-urIfWi0I0eqPO29aMIr9_Nqmkak9P4CT-5VURqUZ1bNKK1dksY0";
-    const RSA_PUBLIC_EXPONENT: &str = "AQAB";
     const SECONDS_IN_A_YEAR: u64 = 60 * 60 * 24 * 365;
+    const TOKENSERVER_PATH: &str = "/1.0/sync/1.5"; 
 
     #[actix_rt::test]
     async fn test_valid_tokenserver_request() {
-        let state = make_state();
-        let uri = "/1.0/sync/1.5";
+        let rsa = Rsa::generate(2048).unwrap();
+        let state = make_state(&rsa);
         let fxa_uid = "test123";
+
         let bearer_token = {
             let fxa_uid = "test123";
             let start = SystemTime::now();
@@ -167,12 +144,12 @@ mod tests {
             encode::<Claims>(
                 &Header::new(Algorithm::RS256),
                 &claims,
-                &EncodingKey::from_rsa_pem(RSA_PRIVATE_KEY.as_bytes()).unwrap(),
+                &EncodingKey::from_rsa_pem(&rsa.private_key_to_pem().unwrap()).unwrap(),
             )
             .unwrap()
         };
 
-        let req = TestRequest::with_uri(&uri)
+        let req = TestRequest::with_uri(TOKENSERVER_PATH)
             .data(state)
             .header("authorization", format!("Bearer {}", bearer_token))
             .header("accept", "application/json,text/plain:q=0.5")
@@ -189,11 +166,11 @@ mod tests {
 
     #[actix_rt::test]
     async fn test_invalid_tokenserver_request() {
-        let state = make_state();
-        let uri = "/1.0/sync/1.5";
+        let rsa = Rsa::generate(2048).unwrap();
+        let state = make_state(&rsa);
         let bearer_token = "I am not a valid token";
 
-        let req = TestRequest::with_uri(&uri)
+        let req = TestRequest::with_uri(TOKENSERVER_PATH)
             .data(state)
             .header("authorization", format!("Bearer {}", bearer_token))
             .header("accept", "application/json,text/plain:q=0.5")
@@ -208,16 +185,21 @@ mod tests {
         assert_eq!(response.status(), 400);
     }
 
-    fn make_state() -> ServerState {
+    fn make_state(rsa: &Rsa<Private>) -> ServerState {
         let settings = Settings::default();
+        let modulus =
+            base64::encode_config(rsa.n().to_vec(), base64::URL_SAFE_NO_PAD);
+        let public_exponent =
+            base64::encode_config(rsa.e().to_vec(), base64::URL_SAFE_NO_PAD);
+
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
             tokenserver_database_url: None,
-            tokenserver_jwks_rsa_modulus: Some(RSA_MODULUS.to_owned()),
-            tokenserver_jwks_rsa_exponent: Some(RSA_PUBLIC_EXPONENT.to_owned()),
+            tokenserver_jwks_rsa_modulus: Some(modulus),
+            tokenserver_jwks_rsa_exponent: Some(public_exponent),
             fxa_metrics_hash_secret: None,
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
