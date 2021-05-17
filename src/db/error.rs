@@ -41,6 +41,9 @@ pub enum DbErrorKind {
     #[fail(display = "Specified batch does not exist")]
     BatchNotFound,
 
+    #[fail(display = "Tokenserver user not found")]
+    TokenserverUserNotFound,
+
     #[fail(display = "An attempt at a conflicting write")]
     Conflict,
 
@@ -84,7 +87,9 @@ impl DbError {
 impl From<Context<DbErrorKind>> for DbError {
     fn from(inner: Context<DbErrorKind>) -> Self {
         let status = match inner.get_context() {
-            DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
+            DbErrorKind::TokenserverUserNotFound
+            | DbErrorKind::CollectionNotFound
+            | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
             // Matching the Python code here (a 400 vs 404)
             DbErrorKind::BatchNotFound | DbErrorKind::SpannerTooLarge(_) => StatusCode::BAD_REQUEST,
             // NOTE: the protocol specification states that we should return a

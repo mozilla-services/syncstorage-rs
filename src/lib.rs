@@ -16,4 +16,5 @@ pub mod db;
 pub mod logging;
 pub mod server;
 pub mod settings;
+pub mod tokenserver;
 pub mod web;
