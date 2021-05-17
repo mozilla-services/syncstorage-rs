@@ -151,7 +151,7 @@ pub async fn get_tokenserver_result(
         key: derived_secret,
         uid: tokenserver_request.fxa_uid,
         api_endpoint,
-        duration: "300".to_string(),
+        duration: DEFAULT_TOKEN_DURATION.to_string(),
     };
 
     Ok(HttpResponse::build(StatusCode::OK).json(result))
