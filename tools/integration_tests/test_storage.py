@@ -266,9 +266,11 @@ class TestStorage(StorageFunctionalTestCase):
         # Sets the maximum number of ids that will be returned
         self.retry_delete(self.root + '/storage/xxx_col2')
 
+        bsos = []
         for i in range(10):
             bso = {'id': str(i).zfill(2), 'payload': 'x', 'sortindex': i}
-            self.retry_post_json(self.root + '/storage/xxx_col2', [bso])
+            bsos.append(bso)
+        self.retry_post_json(self.root + '/storage/xxx_col2', bsos)
 
         query_url = self.root + '/storage/xxx_col2?sort=index'
         res = self.app.get(query_url)
@@ -345,15 +347,15 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(len(all_items), 10)
 
         res = self.app.get(query_url + '&limit=2')
-        self.assertEquals(len(res.json), 2)
+        self.assertEquals(res.json, all_items[:2])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + '&limit=3&offset=' + next_offset)
-        self.assertEquals(len(res.json), 3)
+        self.assertEquals(res.json, all_items[2:5])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + '&offset=' + next_offset)
-        self.assertEquals(len(res.json), 5)
+        self.assertEquals(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(

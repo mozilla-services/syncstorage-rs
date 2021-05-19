@@ -1242,24 +1242,21 @@ impl SpannerDb {
             sqlparam_types.insert("ids".to_owned(), ids.spanner_type());
         }
 
-        // issue559: Dead code (timestamp always None)
-        /*
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
-                    sqlparams.insert("older_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert("older_eq".to_string(), timestamp.as_rfc3339()?.to_spanner_value());
+                    sqlparam_types.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified <= @older_eq", query)
                 }
                 Sorting::Oldest => {
-                    sqlparams.insert("newer_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert("newer_eq".to_string(), timestamp.as_rfc3339()?.to_spanner_value());
+                    sqlparam_types.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified >= @newer_eq", query)
                 }
                 _ => query,
             };
         }
-        */
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), older.as_rfc3339()?.to_spanner_value());
@@ -1270,20 +1267,23 @@ impl SpannerDb {
             sqlparams.insert("newer".to_string(), newer.as_rfc3339()?.to_spanner_value());
             sqlparam_types.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
-        query = match sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
-            Sorting::Newest | Sorting::None => {
-                format!("{} ORDER BY modified DESC, bso_id DESC", query)
-            }
-            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
-            */
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
-            _ => query,
-        };
+
+        if self.stabilize_bsos_sort_order() {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
+                Sorting::Newest | Sorting::None => {
+                    format!("{} ORDER BY modified DESC, bso_id DESC", query)
+                }
+                Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            };
+        } else {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
+                Sorting::Newest => format!("{} ORDER BY modified DESC", query),
+                Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
+                _ => query,
+            };
+        }
 
         if let Some(limit) = limit {
             // fetch an extra row to detect if there are more rows that match
@@ -1311,57 +1311,60 @@ impl SpannerDb {
             .execute_async(&self.conn)
     }
 
+    /// Whether to stabilize the sort order for get_bsos_async
+    fn stabilize_bsos_sort_order(&self) -> bool {
+        self.inner.conn.using_spanner_emulator
+    }
+
     pub fn encode_next_offset(
         &self,
-        _sort: Sorting,
+        sort: Sorting,
         offset: u64,
-        _timestamp: Option<i64>,
+        timestamp: Option<i64>,
         modifieds: Vec<i64>,
     ) -> Option<String> {
-        // issue559: Use a simple numeric offset everwhere as previously for
-        // now: was previously a value of "limit + offset", modifieds.len()
-        // always equals limit
-        Some(
-            Offset {
-                offset: offset + modifieds.len() as u64,
-                timestamp: None,
-            }
-            .to_string(),
-        )
-        /*
-        let mut calc_offset = 1;
-        let mut i = (modifieds.len() as i64) - 2;
+        if self.stabilize_bsos_sort_order() {
+            let mut calc_offset = 1;
+            let mut i = (modifieds.len() as i64) - 2;
 
-        let prev_bound = match sort {
-            Sorting::Index => {
-                // Use a simple numeric offset for sortindex ordering.
-                return Some(
-                    Offset {
-                        offset: offset + modifieds.len() as u64,
-                        timestamp: None,
-                    }
-                    .to_string(),
-                );
+            let prev_bound = match sort {
+                Sorting::Index => {
+                    // Use a simple numeric offset for sortindex ordering.
+                    return Some(
+                        Offset {
+                            offset: offset + modifieds.len() as u64,
+                            timestamp: None,
+                        }
+                        .to_string(),
+                    );
+                }
+                Sorting::None => timestamp,
+                Sorting::Newest => timestamp,
+                Sorting::Oldest => timestamp,
+            };
+            // Find an appropriate upper bound for faster timestamp ordering.
+            let bound = *modifieds.last().unwrap_or(&0);
+            // Count how many previous items have that same timestamp, and hence
+            // will need to be skipped over.  The number of matches here is limited
+            // by upload batch size.
+            while i >= 0 && modifieds[i as usize] == bound {
+                calc_offset += 1;
+                i -= 1;
             }
-            Sorting::None => timestamp,
-            Sorting::Newest => timestamp,
-            Sorting::Oldest => timestamp,
-        };
-        // Find an appropriate upper bound for faster timestamp ordering.
-        let bound = *modifieds.last().unwrap_or(&0);
-        // Count how many previous items have that same timestamp, and hence
-        // will need to be skipped over.  The number of matches here is limited
-        // by upload batch size.
-        while i >= 0 && modifieds[i as usize] == bound {
-            calc_offset += 1;
-            i -= 1;
-        }
-        if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
-            calc_offset += offset;
-        }
+            if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
+                calc_offset += offset;
+            }
 
-        Some(format!("{}:{}", bound, calc_offset))
-        */
+            Some(format!("{}:{}", bound, calc_offset))
+        } else {
+            Some(
+                Offset {
+                    offset: offset + modifieds.len() as u64,
+                    timestamp: None,
+                }
+                .to_string(),
+            )
+        }
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
