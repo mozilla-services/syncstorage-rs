@@ -1242,6 +1242,8 @@ impl SpannerDb {
             sqlparam_types.insert("ids".to_owned(), ids.spanner_type());
         }
 
+        // issue559: Dead code (timestamp always None)
+        /*
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
@@ -1263,6 +1265,7 @@ impl SpannerDb {
                 _ => query,
             };
         }
+        */
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), older.as_rfc3339()?.to_spanner_value());
@@ -1324,53 +1327,55 @@ impl SpannerDb {
 
     pub fn encode_next_offset(
         &self,
-        sort: Sorting,
+        _sort: Sorting,
         offset: u64,
-        timestamp: Option<i64>,
+        _timestamp: Option<i64>,
         modifieds: Vec<i64>,
     ) -> Option<String> {
-        if self.stabilize_bsos_sort_order() {
-            let mut calc_offset = 1;
-            let mut i = (modifieds.len() as i64) - 2;
-
-            let prev_bound = match sort {
-                Sorting::Index => {
-                    // Use a simple numeric offset for sortindex ordering.
-                    return Some(
-                        Offset {
-                            offset: offset + modifieds.len() as u64,
-                            timestamp: None,
-                        }
-                        .to_string(),
-                    );
-                }
-                Sorting::None => timestamp,
-                Sorting::Newest => timestamp,
-                Sorting::Oldest => timestamp,
-            };
-            // Find an appropriate upper bound for faster timestamp ordering.
-            let bound = *modifieds.last().unwrap_or(&0);
-            // Count how many previous items have that same timestamp, and hence
-            // will need to be skipped over.  The number of matches here is limited
-            // by upload batch size.
-            while i >= 0 && modifieds[i as usize] == bound {
-                calc_offset += 1;
-                i -= 1;
+        // issue559: Use a simple numeric offset everwhere as previously for
+        // now: was previously a value of "limit + offset", modifieds.len()
+        // always equals limit
+        Some(
+            Offset {
+                offset: offset + modifieds.len() as u64,
+                timestamp: None,
             }
-            if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
-                calc_offset += offset;
-            }
+            .to_string(),
+        )
+        /*
+        let mut calc_offset = 1;
+        let mut i = (modifieds.len() as i64) - 2;
 
-            Some(format!("{}:{}", bound, calc_offset))
-        } else {
-            Some(
-                Offset {
-                    offset: offset + modifieds.len() as u64,
-                    timestamp: None,
-                }
-                .to_string(),
-            )
+        let prev_bound = match sort {
+            Sorting::Index => {
+                // Use a simple numeric offset for sortindex ordering.
+                return Some(
+                    Offset {
+                        offset: offset + modifieds.len() as u64,
+                        timestamp: None,
+                    }
+                    .to_string(),
+                );
+            }
+            Sorting::None => timestamp,
+            Sorting::Newest => timestamp,
+            Sorting::Oldest => timestamp,
+        };
+        // Find an appropriate upper bound for faster timestamp ordering.
+        let bound = *modifieds.last().unwrap_or(&0);
+        // Count how many previous items have that same timestamp, and hence
+        // will need to be skipped over.  The number of matches here is limited
+        // by upload batch size.
+        while i >= 0 && modifieds[i as usize] == bound {
+            calc_offset += 1;
+            i -= 1;
         }
+        if i < 0 && prev_bound.is_some() && prev_bound.unwrap() == bound {
+            calc_offset += offset;
+        }
+
+        Some(format!("{}:{}", bound, calc_offset))
+        */
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {

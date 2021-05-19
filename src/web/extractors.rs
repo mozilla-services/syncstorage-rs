@@ -1137,16 +1137,27 @@ pub struct Offset {
 
 impl ToString for Offset {
     fn to_string(&self) -> String {
+        // issue559: Disable ':' support for now.
+        self.offset.to_string()
+        /*
         match self.timestamp {
             None => self.offset.to_string(),
             Some(ts) => format!("{}:{}", ts.as_i64(), self.offset),
         }
+        */
     }
 }
 
 impl FromStr for Offset {
     type Err = ParseIntError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // issue559: Disable ':' support for now: simply parse as i64 as
+        // previously (it was u64 previously but i64's close enough)
+        let result = Offset {
+            timestamp: None,
+            offset: s.parse::<u64>()?,
+        };
+        /*
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
@@ -1163,6 +1174,7 @@ impl FromStr for Offset {
                 }
             }
         };
+        */
         Ok(result)
     }
 }
@@ -1231,7 +1243,8 @@ impl FromRequest for BsoQueryParams {
                     None,
                 )
             })?;
-
+            // issue559: Dead code (timestamp always None)
+            /*
             if params.sort != Sorting::Index {
                 if let Some(timestamp) = params.offset.as_ref().and_then(|offset| offset.timestamp)
                 {
@@ -1259,7 +1272,7 @@ impl FromRequest for BsoQueryParams {
                     }
                 }
             }
-
+            */
             Ok(params)
         })
     }
@@ -2301,7 +2314,7 @@ mod tests {
         };
 
         let test_offset = Offset {
-            timestamp: Some(SyncTimestamp::default()),
+            timestamp: None,
             offset: sample_offset.offset,
         };
 
