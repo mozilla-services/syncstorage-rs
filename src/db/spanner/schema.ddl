@@ -15,6 +15,9 @@ CREATE TABLE user_collections (
   fxa_kid STRING(MAX)  NOT NULL,
   collection_id INT64  NOT NULL,
   modified TIMESTAMP   NOT NULL,
+
+  count INT64,
+  total_bytes INT64,
 ) PRIMARY KEY(fxa_uid, fxa_kid, collection_id);
 
 CREATE TABLE bsos (
@@ -57,8 +60,9 @@ CREATE TABLE batches (
 )    PRIMARY KEY(fxa_uid, fxa_kid, collection_id, batch_id),
   INTERLEAVE IN PARENT user_collections ON DELETE CASCADE;
 
-    CREATE INDEX BatchExpiry
-        ON batches(expiry);
+    CREATE INDEX BatchExpireId
+        ON batches(fxa_uid, fxa_kid, collection_id, expiry),
+INTERLEAVE IN user_collections;
 
 CREATE TABLE batch_bsos (
   fxa_uid STRING(MAX)      NOT NULL,
@@ -78,21 +82,6 @@ CREATE TABLE batch_bsos (
 -- no "modified" column because the modification timestamp gets set on
 -- batch commit.
 
--- 8< Cut Here >8 -- 
--- Inserting values into table(s) should happen only
--- after table creation.
-
-INSERT INTO collections (collection_id, name) VALUES
-    ( 1, "clients"),
-    ( 2, "crypto"),
-    ( 3, "forms"),
-    ( 4, "history"),
-    ( 5, "keys"),
-    ( 6, "meta"),
-    ( 7, "bookmarks"),
-    ( 8, "prefs"),
-    ( 9, "tabs"),
-    (10, "passwords"),
-    (11, "addons"),
-    (12, "addresses"),
-    (13, "creditcards");
+-- *NOTE*: 
+-- Newly created Spanner instances should pre-populate the `collections` table by 
+-- running the content of `insert_standard_collections.sql `
