@@ -1245,12 +1245,18 @@ impl SpannerDb {
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
-                    sqlparams.insert("older_eq".to_string(), timestamp.as_rfc3339()?.to_spanner_value());
+                    sqlparams.insert(
+                        "older_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
                     sqlparam_types.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified <= @older_eq", query)
                 }
                 Sorting::Oldest => {
-                    sqlparams.insert("newer_eq".to_string(), timestamp.as_rfc3339()?.to_spanner_value());
+                    sqlparams.insert(
+                        "newer_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
                     sqlparam_types.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified >= @newer_eq", query)
                 }
