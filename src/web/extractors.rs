@@ -2300,9 +2300,8 @@ mod tests {
             offset: 1234,
         };
 
-        //Issue559: only use offset, don't use timestamp, even if set.
         let test_offset = Offset {
-            timestamp: None,
+            timestamp: Some(SyncTimestamp::default()),
             offset: sample_offset.offset,
         };
 
