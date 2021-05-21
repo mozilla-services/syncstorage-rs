@@ -35,3 +35,6 @@ pub fn get_tokenserver_user_sync(
 
     Ok(user_record)
 }
+
+// todo add params::UpdateTokenserverUser, collection_data! macro?
+pub update_tokenserver_user_sync(id: i64, generation: i64,)

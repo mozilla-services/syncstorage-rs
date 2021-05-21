@@ -3,7 +3,7 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
-use actix_web::{dev::Payload, web::Data, Error, FromRequest, HttpRequest};
+use actix_web::{dev::Payload, http::{HeaderMap, HeaderValue}, web::Data, Error, FromRequest, HttpRequest};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 
 use futures::future::LocalBoxFuture;
@@ -13,24 +13,43 @@ use crate::server::ServerState;
 use crate::web::error::ValidationErrorKind;
 use crate::web::extractors::RequestErrorLocation;
 
+// TODO: These claims came from a JWT dumped from the tokenserver request made
+// by my local firefox browser after clicking sync. It would be good to find
+// documentation about this somewhere to ensure that this is the correct format
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
-pub struct Claims {
-    pub sub: String,
-    pub iat: i64,
+struct Claims {
+    pub aud: String,
+    pub iss: String,
+    #[serde(rename = "fxa-profileChangedAt")]
+    pub profile_changed_at: i64,
+    pub jti: String,
     pub exp: i64,
+    pub scope: String,
+    pub client_id: String,
+    pub iat: i64,
+    #[serde(rename = "fxa-generation")]
+    pub generation: i64,
+    pub sub: String,
 }
 pub struct TokenserverRequest {
     pub fxa_uid: String,
+    pub generation: i64,
+    pub keys_changed_at: i64,
+    pub client_state: Vec<u8>,
 }
 
 impl TokenserverRequest {
-    fn get_fxa_uid(jwt: &str, rsa_modulus: String, rsa_exponent: String) -> Result<String, Error> {
+    fn extract_claims(
+        jwt: &str,
+        rsa_modulus: String,
+        rsa_exponent: String,
+    ) -> Result<Claims, Error> {
         decode::<Claims>(
             &jwt,
             &DecodingKey::from_rsa_components(&rsa_modulus, &rsa_exponent),
             &Validation::new(Algorithm::RS256),
         )
-        .map(|token_data| token_data.claims.sub)
+        .map(|token_data| token_data.claims)
         .map_err(|e| {
             ValidationErrorKind::FromDetails(
                 format!("Unable to decode token JWT: {:?}", e),
@@ -40,6 +59,29 @@ impl TokenserverRequest {
             )
             .into()
         })
+    }
+
+    fn extract_header(headers: &HeaderMap, name: &str) -> Result<String, Error> {
+        // headers.get(name).ok_or(Err("header does not exist"))?.to_str().map(ToOwned::to_owned)
+        headers.get(name).ok_or("header does not exist")
+        .and_then(|h: &HeaderValue| h.to_str())
+        .map(ToOwned::to_owned)
+    }
+
+    // TODO we might want to put this in a util.rs file eventually. Same with
+    // the functions at the bottom of handlers.rs
+    fn parse_key_id(key_id: String) -> Result<(i64, Vec<u8>), Error> {
+        const ERROR_MESSAGE: &str = "Invalid X-KeyID header";
+        const KEY_ID_DELIMITER: &str = "-";
+
+        let components = key_id.split(KEY_ID_DELIMITER);
+        // TODO we need to add correct error handling here
+        let keys_changed_at = components.next().ok_or(ERROR_MESSAGE).and_then(str::parse::<i64>)?;
+        let key_hash = components.next().ok_or(ERROR_MESSAGE).and_then(|encoded_hash| {
+            base64::decode_config(encoded_hash, base64::URL_SAFE_NO_PAD)
+        })?;
+
+        Ok((keys_changed_at, key_hash))
     }
 }
 
@@ -68,7 +110,7 @@ impl FromRequest for TokenserverRequest {
                 }
             };
             let auth = BearerAuth::from_request(&req, &mut payload).await?;
-            let fxa_uid = {
+            let claims = {
                 let rsa_modulus = state.tokenserver_jwks_rsa_modulus.clone().ok_or_else(|| {
                     error!("⚠️ Tokenserver JWK RSA modulus not set");
                     ValidationErrorKind::FromDetails(
@@ -88,10 +130,19 @@ impl FromRequest for TokenserverRequest {
                             None,
                         )
                     })?;
-                Self::get_fxa_uid(auth.token(), rsa_modulus, rsa_exponent)?
+                // todo should this be another extractor?
+                Self::extract_claims(auth.token(), rsa_modulus, rsa_exponent)?
             };
 
-            Ok(Self { fxa_uid })
+            let key_id = Self::extract_header(req.headers(), "X-KeyID")?;
+            let (keys_changed_at, client_state) = Self::parse_key_id(key_id)?;
+
+            Ok(Self {
+                fxa_uid: claims.sub,
+                generation: claims.generation,
+                keys_changed_at,
+                client_state,
+            })
         })
     }
 }
@@ -126,16 +177,23 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let state = make_state(&rsa);
         let fxa_uid = "test123";
+        let generation = 5;
 
         let bearer_token = {
-            let fxa_uid = "test123";
             let start = SystemTime::now();
             let current_time = start.duration_since(UNIX_EPOCH).unwrap();
             let exp_duration = current_time + Duration::new(SECONDS_IN_A_YEAR, 0);
             let claims = Claims {
-                sub: fxa_uid.to_owned(),
+                aud: Default::default(),
                 iat: current_time.as_secs() as i64,
                 exp: exp_duration.as_secs() as i64,
+                iss: Default::default(),
+                profile_changed_at: Default::default(),
+                jti: Default::default(),
+                scope: Default::default(),
+                client_id: Default::default(),
+                sub: fxa_uid.to_owned(),
+                generation,
             };
 
             encode::<Claims>(

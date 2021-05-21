@@ -90,59 +90,64 @@ pub async fn get_tokenserver_result(
         get_tokenserver_user_sync(&user_email, &database_url).map_err(ApiError::from)?
     };
 
-    let fxa_metrics_hash_secret = state
-        .fxa_metrics_hash_secret
-        .clone()
-        .ok_or_else(|| internal_error("Failed to read FxA metrics hash secret"))?
-        .into_bytes();
+    // Update generation and keys_changed_at
 
-    let hashed_fxa_uid = fxa_metrics_hash(&user_email, &fxa_metrics_hash_secret);
-    let hashed_device_id = {
-        let device_id = "none".to_string();
-        hash_device_id(&hashed_fxa_uid, &device_id, &fxa_metrics_hash_secret)
-    };
 
-    let fxa_kid = {
-        let client_state_b64 =
-            base64::encode_config(&tokenserver_user.client_state, base64::URL_SAFE_NO_PAD);
+    // Build the token and the derived secret
+    let (token, derived_secret) = {
+        let fxa_metrics_hash_secret = state
+            .fxa_metrics_hash_secret
+            .clone()
+            .ok_or_else(|| internal_error("Failed to read FxA metrics hash secret"))?
+            .into_bytes();
 
-        format!(
-            "{:013}-{:}",
-            tokenserver_user.keys_changed_at.unwrap_or(0),
-            client_state_b64
-        )
-    };
-
-    let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
-        .map_err(|_| internal_error("Failed to read master secret"))?;
-
-    let (token, derived_secret) = Python::with_gil(|py| -> Result<(String, String), PyErr> {
-        let dict = [
-            ("node", &tokenserver_user.node),
-            ("fxa_kid", &fxa_kid),
-            ("fxa_uid", &tokenserver_request.fxa_uid),
-            ("hashed_device_id", &hashed_device_id),
-            ("hashed_fxa_uid", &hashed_fxa_uid),
-        ]
-        .into_py_dict(py);
-
-        let expires = {
-            let start = SystemTime::now();
-            let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-            current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0)
+        let hashed_fxa_uid = fxa_metrics_hash(&user_email, &fxa_metrics_hash_secret);
+        let hashed_device_id = {
+            let device_id = "none".to_string();
+            hash_device_id(&hashed_fxa_uid, &device_id, &fxa_metrics_hash_secret)
         };
 
-        // These need to be set separately since they aren't strings, and
-        // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", expires.as_secs_f64()).unwrap();
-        dict.set_item("uid", tokenserver_user.uid).unwrap();
+        let fxa_kid = {
+            let client_state_b64 =
+                base64::encode_config(&tokenserver_user.client_state, base64::URL_SAFE_NO_PAD);
 
-        let tokenlib = Tokenlib::new(py)?;
-        let token = tokenlib.make_token(dict, &shared_secret)?;
-        let derived_secret = tokenlib.get_derived_secret(&token, &shared_secret)?;
-        Ok((token, derived_secret))
-    })
-    .unwrap();
+            format!(
+                "{:013}-{:}",
+                tokenserver_user.keys_changed_at.unwrap_or(0),
+                client_state_b64
+            )
+        };
+
+        let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
+            .map_err(|_| internal_error("Failed to read master secret"))?;
+        Python::with_gil(|py| -> Result<(String, String), PyErr> {
+            let dict = [
+                ("node", &tokenserver_user.node),
+                ("fxa_kid", &fxa_kid),
+                ("fxa_uid", &tokenserver_request.fxa_uid),
+                ("hashed_device_id", &hashed_device_id),
+                ("hashed_fxa_uid", &hashed_fxa_uid),
+            ]
+            .into_py_dict(py);
+
+            let expires = {
+                let start = SystemTime::now();
+                let current_time = start.duration_since(UNIX_EPOCH).unwrap();
+                current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0)
+            };
+
+            // These need to be set separately since they aren't strings, and
+            // Rust doesn't support heterogeneous arrays
+            dict.set_item("expires", expires.as_secs_f64()).unwrap();
+            dict.set_item("uid", tokenserver_user.uid).unwrap();
+
+            let tokenlib = Tokenlib::new(py)?;
+            let token = tokenlib.make_token(dict, &shared_secret)?;
+            let derived_secret = tokenlib.get_derived_secret(&token, &shared_secret)?;
+            Ok((token, derived_secret))
+        })
+        .unwrap()
+    };
 
     let api_endpoint = format!("{:}/1.5/{:}", tokenserver_user.node, tokenserver_user.uid);
 
