@@ -74,6 +74,7 @@ pub struct TokenserverResult {
     duration: String,
 }
 
+// TODO can we split up this function to make it shorter and more easily digestible?
 pub async fn get_tokenserver_result(
     tokenserver_request: TokenserverRequest,
     request: HttpRequest,
@@ -93,6 +94,8 @@ pub async fn get_tokenserver_result(
     // Update generation and keys_changed_at
 
 
+    // TODO: maybe keeping local vars scoped like this is an improvement?
+    // though I still find it difficult to follow what's going on
     // Build the token and the derived secret
     let (token, derived_secret) = {
         let fxa_metrics_hash_secret = state
