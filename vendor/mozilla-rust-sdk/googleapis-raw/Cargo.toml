@@ -20,8 +20,8 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
-grpcio = "0.8.0"
-protobuf = "2.16.2"
+grpcio = "0.8.2"
+protobuf = "2.23.0"
 
 [dev-dependencies]
 slog = "2.5"

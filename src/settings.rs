@@ -80,6 +80,8 @@ pub struct Settings {
 
     pub enable_quota: bool,
     pub enforce_quota: bool,
+
+    pub spanner_emulator_host: Option<String>,
 }
 
 impl Default for Settings {
@@ -109,6 +111,7 @@ impl Default for Settings {
             human_logs: false,
             enable_quota: false,
             enforce_quota: false,
+            spanner_emulator_host: None,
         }
     }
 }

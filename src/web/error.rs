@@ -173,7 +173,7 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
             _ => StatusCode::BAD_REQUEST,
         };
 
-        Self { inner, status }
+        Self { status, inner }
     }
 }
 

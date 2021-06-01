@@ -144,13 +144,15 @@ impl SpannerDb {
         if let Some(id) = self.coll_cache.get_id(name).await {
             return Ok(id);
         }
+        let (sqlparams, sqlparam_types) = params! { "name" => name.to_string() };
         let result = self
             .sql(
                 "SELECT collection_id
                    FROM collections
                   WHERE name = @name",
             )?
-            .params(params! {"name" => name.to_string()})
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?
@@ -185,15 +187,17 @@ impl SpannerDb {
             .parse::<i32>()
             .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
         let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
+        let (sqlparams, sqlparam_types) = params! {
+            "name" => name.to_string(),
+            "collection_id" => id,
+        };
 
         self.sql(
             "INSERT INTO collections (collection_id, name)
              VALUES (@collection_id, @name)",
         )?
-        .params(params! {
-            "name" => name.to_string(),
-            "collection_id" => id.to_string(),
-        })
+        .params(sqlparams)
+        .param_types(sqlparam_types)
         .execute_dml_async(&self.conn)
         .await?;
         Ok(id)
@@ -260,6 +264,13 @@ impl SpannerDb {
         {
             Err(DbError::internal("Can't escalate read-lock to write-lock"))?
         }
+        let (sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid.clone(),
+            "fxa_kid" => params.user_id.fxa_kid.clone(),
+            "collection_id" => collection_id,
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
 
         let result = self
             .sql(
@@ -270,15 +281,8 @@ impl SpannerDb {
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
             )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid.clone(),
-                "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collection_id" => collection_id.to_string(),
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
-            .param_types(param_types! {
-                "pretouch_ts" => TypeCode::TIMESTAMP,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -550,6 +554,13 @@ impl SpannerDb {
         {
             return Ok(*modified);
         }
+        let (sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => collection_id,
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
 
         let result = self
             .sql(
@@ -560,15 +571,8 @@ impl SpannerDb {
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
             )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid,
-                "fxa_kid" => params.user_id.fxa_kid,
-                "collection_id" => collection_id.to_string(),
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
-            .param_types(param_types! {
-                "pretouch_ts" => TypeCode::TIMESTAMP,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?
@@ -581,6 +585,13 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> Result<results::GetCollectionTimestamps> {
+        let (sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid,
+            "collection_id" => TOMBSTONE,
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
         let mut streaming = self
             .sql(
                 "SELECT collection_id, modified
@@ -590,15 +601,8 @@ impl SpannerDb {
                     AND collection_id != @collection_id
                     AND modified > @pretouch_ts",
             )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid,
-                "collection_id" => TOMBSTONE.to_string(),
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
-            .param_types(param_types! {
-                "pretouch_ts" => TypeCode::TIMESTAMP,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut results = HashMap::new();
         while let Some(row) = streaming.next_async().await {
@@ -674,6 +678,10 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionCounts,
     ) -> Result<results::GetCollectionCounts> {
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid,
+        };
         let mut streaming = self
             .sql(
                 "SELECT collection_id, COUNT(collection_id)
@@ -683,10 +691,8 @@ impl SpannerDb {
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY collection_id",
             )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut counts = HashMap::new();
         while let Some(row) = streaming.next_async().await {
@@ -708,6 +714,10 @@ impl SpannerDb {
         &self,
         user_id: params::GetCollectionUsage,
     ) -> Result<results::GetCollectionUsage> {
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid
+        };
         let mut streaming = self
             .sql(
                 "SELECT collection_id, SUM(BYTE_LENGTH(payload))
@@ -717,10 +727,8 @@ impl SpannerDb {
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY collection_id",
             )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut usages = HashMap::new();
         while let Some(row) = streaming.next_async().await {
@@ -742,6 +750,12 @@ impl SpannerDb {
         &self,
         user_id: params::GetStorageTimestamp,
     ) -> Result<SyncTimestamp> {
+        let (sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid,
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
         let row = self
             .sql(
                 "SELECT MAX(modified)
@@ -750,14 +764,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND modified > @pretouch_ts",
             )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid,
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
-            .param_types(param_types! {
-                "pretouch_ts" => TypeCode::TIMESTAMP,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one()
             .await?;
@@ -772,6 +780,10 @@ impl SpannerDb {
         &self,
         user_id: params::GetStorageUsage,
     ) -> Result<results::GetStorageUsage> {
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid
+        };
         let result = self
             .sql(
                 "SELECT SUM(BYTE_LENGTH(payload))
@@ -781,10 +793,8 @@ impl SpannerDb {
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY fxa_uid",
             )?
-            .params(params! {
-                "fxa_uid" => user_id.fxa_uid,
-                "fxa_kid" => user_id.fxa_kid
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -811,13 +821,15 @@ impl SpannerDb {
            WHERE fxa_uid = @fxa_uid
              AND fxa_kid = @fxa_kid
              AND collection_id = @collection_id";
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid.clone(),
+            "fxa_kid" => params.user_id.fxa_kid.clone(),
+            "collection_id" => params.collection_id,
+        };
         let result = self
             .sql(check_sql)?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid.clone(),
-                "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collection_id" => params.collection_id.to_string(),
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -851,15 +863,13 @@ impl SpannerDb {
         // specifying a TOMBSTONE collection_id.
         // This function should be called after any write operation.
         let timestamp = self.timestamp()?;
-        let mut sqlparams = params! {
+        let (mut sqlparams, mut sqltypes) = params! {
             "fxa_uid" => user.fxa_uid.clone(),
             "fxa_kid" => user.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
+            "collection_id" => collection_id,
             "modified" => timestamp.as_rfc3339()?,
         };
-        let mut sqltypes = param_types! {
-            "modified" => TypeCode::TIMESTAMP,
-        };
+        sqltypes.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
 
         self.metrics
             .clone()
@@ -879,16 +889,21 @@ impl SpannerDb {
              AND collection_id = @collection_id
            GROUP BY fxa_uid"
         };
-        let result = self
-            .sql(calc_sql)?
-            .params(params! {
+
+        let result = {
+            let (sqlparams, sqlparam_types) = params! {
                 "fxa_uid" => user.fxa_uid.clone(),
                 "fxa_kid" => user.fxa_kid.clone(),
-                "collection_id" => collection_id.to_string(),
-            })
-            .execute_async(&self.conn)?
-            .one_or_none()
-            .await?;
+                "collection_id" => collection_id,
+            };
+
+            self.sql(calc_sql)?
+                .params(sqlparams)
+                .param_types(sqlparam_types)
+                .execute_async(&self.conn)?
+                .one_or_none()
+                .await?
+        };
         let set_sql = if let Some(mut result) = result {
             // Update the user_collections table to reflect current numbers.
             // If there are BSOs, there are user_collections (or else something
@@ -968,16 +983,13 @@ impl SpannerDb {
 
     async fn erect_tombstone(&self, user_id: &HawkIdentifier) -> Result<SyncTimestamp> {
         // Delete the old tombstone (if it exists)
-        let params = params! {
+        let (params, mut param_types) = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => TOMBSTONE.to_string(),
+            "collection_id" => TOMBSTONE,
             "modified" => self.timestamp()?.as_rfc3339()?
         };
-        let types = param_types! {
-            "collection_id" => TypeCode::INT64,
-            "modified" => TypeCode::TIMESTAMP,
-        };
+        param_types.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
         self.sql(
             "DELETE FROM user_collections
               WHERE fxa_uid = @fxa_uid
@@ -985,7 +997,7 @@ impl SpannerDb {
                 AND collection_id = @collection_id",
         )?
         .params(params.clone())
-        .param_types(types.clone())
+        .param_types(param_types.clone())
         .execute_dml_async(&self.conn)
         .await?;
         self.update_user_collection_quotas(user_id, TOMBSTONE)
@@ -998,15 +1010,17 @@ impl SpannerDb {
     pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> Result<()> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => user_id.fxa_uid,
+            "fxa_kid" => user_id.fxa_kid
+        };
         self.sql(
             "DELETE FROM user_collections
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid",
         )?
-        .params(params! {
-            "fxa_uid" => user_id.fxa_uid,
-            "fxa_kid" => user_id.fxa_kid,
-        })
+        .params(sqlparams)
+        .param_types(sqlparam_types)
         .execute_dml_async(&self.conn)
         .await?;
         Ok(())
@@ -1025,10 +1039,14 @@ impl SpannerDb {
     ) -> Result<results::DeleteCollection> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
-        let collection_id = self
-            .get_collection_id_async(&params.collection)
-            .await?
-            .to_string();
+        let collection_id = self.get_collection_id_async(&params.collection).await?;
+        let (sqlparams, mut sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid.clone(),
+            "fxa_kid" => params.user_id.fxa_kid.clone(),
+            "collection_id" => collection_id.clone(),
+            "pretouch_ts" => PRETOUCH_TS.to_owned(),
+        };
+        sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
         let affected_rows = self
             .sql(
                 "DELETE FROM user_collections
@@ -1037,15 +1055,8 @@ impl SpannerDb {
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
             )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid.clone(),
-                "fxa_kid" => params.user_id.fxa_kid.clone(),
-                "collection_id" => collection_id.clone(),
-                "pretouch_ts" => PRETOUCH_TS.to_owned(),
-            })
-            .param_types(param_types! {
-                "pretouch_ts" => TypeCode::TIMESTAMP,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_dml_async(&self.conn)
             .await?;
         if affected_rows > 0 {
@@ -1082,15 +1093,13 @@ impl SpannerDb {
             return Ok(timestamp);
         }
 
-        let sqlparams = params! {
+        let (sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
+            "collection_id" => collection_id,
             "modified" => timestamp.as_rfc3339()?,
         };
-        let sql_types = param_types! {
-            "modified" => TypeCode::TIMESTAMP,
-        };
+        sqlparam_types.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
         let result = self
             .sql(
                 "SELECT 1
@@ -1100,6 +1109,7 @@ impl SpannerDb {
                     AND collection_id = @collection_id",
             )?
             .params(sqlparams.clone())
+            .param_types(sqlparam_types.clone())
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -1114,7 +1124,7 @@ impl SpannerDb {
                     AND collection_id = @collection_id";
             self.sql(sql)?
                 .params(sqlparams)
-                .param_types(sql_types)
+                .param_types(sqlparam_types)
                 .execute_dml_async(&self.conn)
                 .await?;
         } else {
@@ -1133,7 +1143,7 @@ impl SpannerDb {
             };
             self.sql(update_sql)?
                 .params(sqlparams)
-                .param_types(sql_types)
+                .param_types(sqlparam_types)
                 .execute_dml_async(&self.conn)
                 .await?;
         }
@@ -1144,6 +1154,12 @@ impl SpannerDb {
     pub async fn delete_bso_async(&self, params: params::DeleteBso) -> Result<results::DeleteBso> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
         let user_id = params.user_id.clone();
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => collection_id,
+            "bso_id" => params.id,
+        };
         let affected_rows = self
             .sql(
                 "DELETE FROM bsos
@@ -1152,12 +1168,8 @@ impl SpannerDb {
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id",
             )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid,
-                "fxa_kid" => params.user_id.fxa_kid,
-                "collection_id" => collection_id.to_string(),
-                "bso_id" => params.id,
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_dml_async(&self.conn)
             .await?;
         if affected_rows == 0 {
@@ -1177,12 +1189,12 @@ impl SpannerDb {
         let user_id = params.user_id.clone();
         let collection_id = self.get_collection_id_async(&params.collection).await?;
 
-        let mut sqlparams = params! {
+        let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid,
             "fxa_kid" => user_id.fxa_kid,
-            "collection_id" => collection_id.to_string(),
+            "collection_id" => collection_id,
+            "ids" => params.ids,
         };
-        sqlparams.insert("ids".to_owned(), params.ids.to_spanner_value());
         self.sql(
             "DELETE FROM bsos
               WHERE fxa_uid = @fxa_uid
@@ -1191,6 +1203,7 @@ impl SpannerDb {
                 AND bso_id IN UNNEST(@ids)",
         )?
         .params(sqlparams)
+        .param_types(sqlparam_types)
         .execute_dml_async(&self.conn)
         .await?;
         let mut tags = Tags::default();
@@ -1208,10 +1221,10 @@ impl SpannerDb {
         params: params::GetBsos,
     ) -> Result<StreamedResultSetAsync> {
         let mut query = query_str.to_owned();
-        let mut sqlparams = params! {
+        let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
             "fxa_kid" => params.user_id.fxa_kid,
-            "collection_id" => self.get_collection_id_async(&params.collection).await?.to_string(),
+            "collection_id" => self.get_collection_id_async(&params.collection).await?,
         };
         let BsoQueryParams {
             newer,
@@ -1223,11 +1236,10 @@ impl SpannerDb {
             ..
         } = params.params;
 
-        let mut sqltypes = HashMap::new();
-
         if !ids.is_empty() {
             query = format!("{} AND bso_id IN UNNEST(@ids)", query);
             sqlparams.insert("ids".to_owned(), ids.to_spanner_value());
+            sqlparam_types.insert("ids".to_owned(), ids.spanner_type());
         }
 
         // issue559: Dead code (timestamp always None)
@@ -1235,13 +1247,19 @@ impl SpannerDb {
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
-                    sqlparams.insert("older_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert(
+                        "older_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
+                    sqlparam_types.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified <= @older_eq", query)
                 }
                 Sorting::Oldest => {
-                    sqlparams.insert("newer_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert(
+                        "newer_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
+                    sqlparam_types.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified >= @newer_eq", query)
                 }
                 _ => query,
@@ -1251,27 +1269,30 @@ impl SpannerDb {
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
             sqlparams.insert("older".to_string(), older.as_rfc3339()?.to_spanner_value());
-            sqltypes.insert("older".to_string(), as_type(TypeCode::TIMESTAMP));
+            sqlparam_types.insert("older".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query);
             sqlparams.insert("newer".to_string(), newer.as_rfc3339()?.to_spanner_value());
-            sqltypes.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
+            sqlparam_types.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
-        query = match sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
-            Sorting::Newest | Sorting::None => {
-                format!("{} ORDER BY modified DESC, bso_id DESC", query)
-            }
-            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
-            */
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
-            _ => query,
-        };
+
+        if self.stabilize_bsos_sort_order() {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
+                Sorting::Newest | Sorting::None => {
+                    format!("{} ORDER BY modified DESC, bso_id DESC", query)
+                }
+                Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            };
+        } else {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
+                Sorting::Newest => format!("{} ORDER BY modified DESC", query),
+                Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
+                _ => query,
+            };
+        }
 
         if let Some(limit) = limit {
             // fetch an extra row to detect if there are more rows that match
@@ -1295,8 +1316,13 @@ impl SpannerDb {
         }
         self.sql(&query)?
             .params(sqlparams)
-            .param_types(sqltypes)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)
+    }
+
+    /// Whether to stabilize the sort order for get_bsos_async
+    fn stabilize_bsos_sort_order(&self) -> bool {
+        self.inner.conn.using_spanner_emulator
     }
 
     pub fn encode_next_offset(
@@ -1436,6 +1462,12 @@ impl SpannerDb {
 
     pub async fn get_bso_async(&self, params: params::GetBso) -> Result<Option<results::GetBso>> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => collection_id,
+            "bso_id" => params.id,
+        };
         self.sql(
             "SELECT bso_id, sortindex, payload, modified, expiry
                FROM bsos
@@ -1445,12 +1477,8 @@ impl SpannerDb {
                 AND bso_id = @bso_id
                 AND expiry > CURRENT_TIMESTAMP()",
         )?
-        .params(params! {
-            "fxa_uid" => params.user_id.fxa_uid,
-            "fxa_kid" => params.user_id.fxa_kid,
-            "collection_id" => collection_id.to_string(),
-            "bso_id" => params.id,
-        })
+        .params(sqlparams)
+        .param_types(sqlparam_types)
         .execute_async(&self.conn)?
         .one_or_none()
         .await?
@@ -1463,6 +1491,12 @@ impl SpannerDb {
         params: params::GetBsoTimestamp,
     ) -> Result<SyncTimestamp> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
+        let (sqlparams, sqlparam_types) = params! {
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => collection_id,
+            "bso_id" => params.id,
+        };
 
         let result = self
             .sql(
@@ -1474,12 +1508,8 @@ impl SpannerDb {
                     AND bso_id = @bso_id
                     AND expiry > CURRENT_TIMESTAMP()",
             )?
-            .params(params! {
-                "fxa_uid" => params.user_id.fxa_uid,
-                "fxa_kid" => params.user_id.fxa_kid,
-                "collection_id" => collection_id.to_string(),
-                "bso_id" => params.id.to_string(),
-            })
+            .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -1527,20 +1557,16 @@ impl SpannerDb {
             .update_collection_async(&user_id, collection_id, &params.collection)
             .await?;
 
-        let mut sqlparams = params! {
+        let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-        };
-        sqlparams.insert(
-            "ids".to_owned(),
-            params
+            "collection_id" => collection_id,
+            "ids" => params
                 .bsos
                 .iter()
                 .map(|pbso| pbso.id.clone())
-                .collect::<Vec<String>>()
-                .to_spanner_value(),
-        );
+                .collect::<Vec<String>>(),
+        };
         let mut streaming = self
             .sql(
                 "SELECT bso_id
@@ -1551,6 +1577,7 @@ impl SpannerDb {
                     AND bso_id IN UNNEST(@ids)",
             )?
             .params(sqlparams)
+            .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut existing = HashSet::new();
         while let Some(row) = streaming.next_async().await {
@@ -1677,13 +1704,12 @@ impl SpannerDb {
         self.check_quota(&bso.user_id, &bso.collection, collection_id)
             .await?;
 
-        let mut sqlparams = params! {
+        let (mut sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => bso.user_id.fxa_uid.clone(),
             "fxa_kid" => bso.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.to_string(),
-            "bso_id" => bso.id.to_string(),
+            "collection_id" => collection_id,
+            "bso_id" => bso.id,
         };
-        let mut sqltypes = HashMap::new();
         // prewarm the collections table by ensuring that the row is added if not present.
         self.update_collection_async(&bso.user_id, collection_id, &bso.collection)
             .await?;
@@ -1699,6 +1725,7 @@ impl SpannerDb {
                     AND bso_id = @bso_id",
             )?
             .params(sqlparams.clone())
+            .param_types(sqlparam_types.clone())
             .execute_async(&self.conn)?
             .one_or_none()
             .await?;
@@ -1713,7 +1740,7 @@ impl SpannerDb {
                 q,
                 if let Some(sortindex) = bso.sortindex {
                     sqlparams.insert("sortindex".to_string(), sortindex.to_spanner_value());
-                    sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
+                    sqlparam_types.insert("sortindex".to_string(), sortindex.spanner_type());
 
                     format!("{}{}", comma(&q), "sortindex = @sortindex")
                 } else {
@@ -1727,7 +1754,7 @@ impl SpannerDb {
                 if let Some(ttl) = bso.ttl {
                     let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
                     sqlparams.insert("expiry".to_string(), to_rfc3339(expiry)?.to_spanner_value());
-                    sqltypes.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "expiry = @expiry")
                 } else {
                     "".to_string()
@@ -1742,7 +1769,7 @@ impl SpannerDb {
                         "modified".to_string(),
                         timestamp.as_rfc3339()?.to_spanner_value(),
                     );
-                    sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "modified = @modified")
                 } else {
                     "".to_string()
@@ -1754,6 +1781,7 @@ impl SpannerDb {
                 q,
                 if let Some(payload) = bso.payload {
                     sqlparams.insert("payload".to_string(), payload.to_spanner_value());
+                    sqlparam_types.insert("payload".to_string(), payload.spanner_type());
                     format!("{}{}", comma(&q), "payload = @payload")
                 } else {
                     "".to_string()
@@ -1800,14 +1828,11 @@ impl SpannerDb {
                     .map(|sortindex| sortindex.to_spanner_value())
                     .unwrap_or_else(null_value);
                 sqlparams.insert("sortindex".to_string(), sortindex);
-                sqltypes.insert("sortindex".to_string(), as_type(TypeCode::INT64));
+                sqlparam_types.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
-            sqlparams.insert(
-                "payload".to_string(),
-                bso.payload
-                    .unwrap_or_else(|| "".to_owned())
-                    .to_spanner_value(),
-            );
+            let payload = bso.payload.unwrap_or_else(|| "".to_owned());
+            sqlparams.insert("payload".to_string(), payload.to_spanner_value());
+            sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
             let now_millis = timestamp.as_i64();
             let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
                 ttl.try_into()
@@ -1819,19 +1844,19 @@ impl SpannerDb {
                 &expirystring, timestamp, ttl
             );
             sqlparams.insert("expiry".to_string(), expirystring.to_spanner_value());
-            sqltypes.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
+            sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
 
             sqlparams.insert(
                 "modified".to_string(),
                 timestamp.as_rfc3339()?.to_spanner_value(),
             );
-            sqltypes.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
+            sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
             sql.to_owned()
         };
 
         self.sql(&sql)?
             .params(sqlparams)
-            .param_types(sqltypes)
+            .param_types(sqlparam_types)
             .execute_dml_async(&self.conn)
             .await?;
         // update the counts for the user_collections table.

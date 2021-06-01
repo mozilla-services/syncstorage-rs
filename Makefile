@@ -16,14 +16,23 @@ clippy:
 	# Matches what's run in circleci
 	cargo clippy --all --all-targets -- -D warnings
 
-docker_start:
-	docker-compose up -d
+docker_start_mysql:
+	docker-compose -f docker-compose.mysql.yaml up -d
 
-docker_start_rebuild:
-	docker-compose up --build -d
+docker_start_mysql_rebuild:
+	docker-compose -f docker-compose.mysql.yaml up --build -d
 
-docker_stop:
-	docker-compose down
+docker_stop_mysql:
+	docker-compose -f docker-compose.mysql.yaml down
+
+docker_start_spanner:
+	docker-compose -f docker-compose.spanner.yaml up -d
+
+docker_start_spanner_rebuild:
+	docker-compose -f docker-compose.spanner.yaml up --build -d
+
+docker_stop_spanner:
+	docker-compose -f docker-compose.spanner.yaml down
 
 run:
 	RUST_LOG=debug RUST_BACKTRACE=full cargo run -- --config config/local.toml
