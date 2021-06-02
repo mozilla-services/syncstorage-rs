@@ -14,7 +14,8 @@ use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-use crate::web::{handlers, middleware, tokenserver};
+use crate::tokenserver;
+use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
@@ -40,8 +41,9 @@ pub struct ServerState {
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
 
+    // TODO: These will eventually be added as settings passed to a more mature
+    // database adapter (which will be added in #1054)
     pub tokenserver_database_url: Option<String>,
-    /// Secrets used for validating jwt created by fxa.
     pub tokenserver_jwks_rsa_modulus: Option<String>,
     pub tokenserver_jwks_rsa_exponent: Option<String>,
     pub fxa_metrics_hash_secret: Option<String>, // SYNC_FXA_METRICS_HASH_SECRET
@@ -140,7 +142,8 @@ macro_rules! build_app {
             )
             // Tokenserver
             .service(
-                web::resource("/1.0/sync/1.5".to_string()).route(web::get().to(tokenserver::get)),
+                web::resource("/1.0/sync/1.5".to_string())
+                    .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
             )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS

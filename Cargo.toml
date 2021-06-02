@@ -54,6 +54,7 @@ jsonwebtoken = "7.2.0"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 mime = "0.3"
 num_cpus = "1"
+openssl = "0.10.34"
 # must match what's used by googleapis-raw
 protobuf = "2.20.0"
 rand = "0.8"
