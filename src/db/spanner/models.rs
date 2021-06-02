@@ -1247,13 +1247,19 @@ impl SpannerDb {
         if let Some(timestamp) = offset.clone().unwrap_or_default().timestamp {
             query = match sort {
                 Sorting::Newest => {
-                    sqlparams.insert("older_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert(
+                        "older_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
+                    sqlparam_types.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified <= @older_eq", query)
                 }
                 Sorting::Oldest => {
-                    sqlparams.insert("newer_eq".to_string(), as_value(timestamp.as_rfc3339()?));
-                    sqltypes.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
+                    sqlparams.insert(
+                        "newer_eq".to_string(),
+                        timestamp.as_rfc3339()?.to_spanner_value(),
+                    );
+                    sqlparam_types.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified >= @newer_eq", query)
                 }
                 _ => query,
@@ -1270,20 +1276,23 @@ impl SpannerDb {
             sqlparams.insert("newer".to_string(), newer.as_rfc3339()?.to_spanner_value());
             sqlparam_types.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
-        query = match sort {
-            // issue559: Revert to previous sorting
-            /*
-            Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
-            Sorting::Newest | Sorting::None => {
-                format!("{} ORDER BY modified DESC, bso_id DESC", query)
-            }
-            Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
-            */
-            Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
-            Sorting::Newest => format!("{} ORDER BY modified DESC", query),
-            Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
-            _ => query,
-        };
+
+        if self.stabilize_bsos_sort_order() {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC, bso_id DESC", query),
+                Sorting::Newest | Sorting::None => {
+                    format!("{} ORDER BY modified DESC, bso_id DESC", query)
+                }
+                Sorting::Oldest => format!("{} ORDER BY modified ASC, bso_id ASC", query),
+            };
+        } else {
+            query = match sort {
+                Sorting::Index => format!("{} ORDER BY sortindex DESC", query),
+                Sorting::Newest => format!("{} ORDER BY modified DESC", query),
+                Sorting::Oldest => format!("{} ORDER BY modified ASC", query),
+                _ => query,
+            };
+        }
 
         if let Some(limit) = limit {
             // fetch an extra row to detect if there are more rows that match
@@ -1309,6 +1318,11 @@ impl SpannerDb {
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_async(&self.conn)
+    }
+
+    /// Whether to stabilize the sort order for get_bsos_async
+    fn stabilize_bsos_sort_order(&self) -> bool {
+        self.inner.conn.using_spanner_emulator
     }
 
     pub fn encode_next_offset(
