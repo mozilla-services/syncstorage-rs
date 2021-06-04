@@ -85,7 +85,7 @@ gcloud auth application-default revoke
 This will revoke the access of the credentials currently stored in the `application_default_credentials.json` file. **If the file in that location does not contain the leaked credentials, you will need to copy the file containing the leaked credentials to that location and re-run the above command.** You can ensure that the leaked credentials are no longer active by attempting to connect to Spanner using the credentials. If access has been revoked, your application server should print an error saying that the token has expired or has been revoked.
 
 #### Authenticating via Service Account
-An alternative to authentication via application default credentials is authentication via a service account. *Note that this method of authentication is not recommended. Service accounts are intended to be used by other applications or virtual machines and not people. See [this article](https://cloud.google.com/iam/docs/service-accounts#what_are_service_accounts) for more information.*
+An alternative to authentication via application default credentials is authentication via a service account. **Note that this method of authentication is not recommended. Service accounts are intended to be used by other applications or virtual machines and not people. See [this article](https://cloud.google.com/iam/docs/service-accounts#what_are_service_accounts) for more information.**
 
 Your system administrator will be able to tell you which service account keys have access to the Spanner instance to which you are trying to connect. Once you are given the email identifier of an active key, log into the [Google Cloud Console Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page. Be sure to select the correct project.
 
@@ -113,7 +113,7 @@ The proper key file is in JSON format. An example file is provided below, with p
 }
 ```
 
-*Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`.*
+**Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`.**
 
 #### Connecting to Spanner
 To point to a GCP-hosted Spanner instance from your local machine, follow these steps:
