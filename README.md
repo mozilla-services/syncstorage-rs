@@ -77,16 +77,6 @@ gcloud auth application-default login
 ```
 The above command will prompt you to visit a webpage in your browser to complete the login process. Once completed, ensure that a file called `application_default_credentials.json` has been created in the appropriate directory (on Linux, this directory is `$HOME/.config/gcloud/`). The Google Cloud SDK knows to check this location for your credentials, so no further configuration is needed.
 
-Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
-
-To point to a GCP hosted Spanner instance from your local machine, follow these steps:
-
-1. Create an OAuth token file as shown above.
-2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
-3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
-4. `make run_spanner`.
-5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
-
 #### Authenticating via Service Account
 An alternative to authentication via application default credentials is authentication via a service account. *Note that this method of authentication is not recommended. Service accounts are intended to be used by other applications or virtual machines and not people. See [this article](https://cloud.google.com/iam/docs/service-accounts#what_are_service_accounts) for more information.*
 
@@ -116,15 +106,18 @@ The proper key file is in JSON format. An example file is provided below, with p
 }
 ```
 
-Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+*Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`.*
 
-To point to a GCP hosted Spanner instance from your local machine, follow these steps:
+#### Connecting to Spanner
+To point to a GCP-hosted Spanner instance from your local machine, follow these steps:
 
-1. Download the key file as shown above and place it in the root directory of the project. *Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`*
+1. Authenticate via either of the two methods outlined above.
 2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
-3. Ensure you've correctly set `PATH_TO_GRPC_CERT` in the Makefile
+3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
 4. `make run_spanner`.
 5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
+
+Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
 
 #### Key Revocation
 
