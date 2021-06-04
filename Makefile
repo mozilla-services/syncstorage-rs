@@ -5,6 +5,8 @@
 SYNC_DATABASE_URL = 'mysql://sample_user:sample_password@localhost/syncstorage_rs'
 
 # This key can live anywhere on your machine. Adjust path as needed.
+PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
+
 # TODO: replace with rust grpc alternative when ready
 # Assumes you've cloned the server-syncstorage repo locally into a peer dir.
 # https://github.com/mozilla-services/server-syncstorage
@@ -36,7 +38,7 @@ run:
 	RUST_LOG=debug RUST_BACKTRACE=full cargo run -- --config config/local.toml
 
 run_spanner:
-	GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
+	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
 
 test:
 	SYNC_DATABASE_URL=$(SYNC_DATABASE_URL) RUST_TEST_THREADS=1 cargo test

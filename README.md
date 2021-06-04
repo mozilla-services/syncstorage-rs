@@ -68,6 +68,7 @@ GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
 
 ### Spanner
 
+#### Authenticating via OAuth
 The correct way to authenticate with Spanner is by generating an OAuth token and pointing your local application server to the token. In order for this to work, your Google Cloud must have the correct permissions; contact the Ops team to ensure the correct permissions are added to your account.
 
 First, install the Google Cloud command-line interface by following the instructions for your operating system [here](https://cloud.google.com/sdk/docs/install). Next, run the following to log in with your Google account (this should be the Google account associated with your Mozilla LDAP credentials):
@@ -83,6 +84,45 @@ To point to a GCP hosted Spanner instance from your local machine, follow these 
 1. Create an OAuth token file as shown above.
 2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
 3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
+4. `make run_spanner`.
+5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
+
+#### Authenticating via Service Account
+An alternative to authentication via application default credentials is authentication via a service account. *Note that this method of authentication is not recommended. Service accounts are intended to be used by other applications or virtual machines and not people. See [this article](https://cloud.google.com/iam/docs/service-accounts#what_are_service_accounts) for more information.*
+
+Your system administrator will be able to tell you which service account keys have access to the Spanner instance to which you are trying to connect. Once you are given the email identifier of an active key, log into the [Google Cloud Console Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page. Be sure to select the correct project.
+
+- Locate the email identifier of the access key and pick the vertical dot menu at the far right of the row.
+- Select "_Create Key_" from the pop-up menu.
+- Select "JSON" from the Dialog Box.
+
+A proper key file will be downloaded to your local directory. It's important to safeguard that key file. For this example, we're going to name the file
+`service-account.json`.
+
+The proper key file is in JSON format. An example file is provided below, with private information replaced by "`...`"
+
+```json
+{
+  "type": "service_account",
+  "project_id": "...",
+  "private_key_id": "...",
+  "private_key": "...",
+  "client_email": "...",
+  "client_id": "...",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "..."
+}
+```
+
+Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+
+To point to a GCP hosted Spanner instance from your local machine, follow these steps:
+
+1. Download the key file as shown above and place it in the root directory of the project. *Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`*
+2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
+3. Ensure you've correctly set `PATH_TO_GRPC_CERT` in the Makefile
 4. `make run_spanner`.
 5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
