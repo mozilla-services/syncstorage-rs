@@ -263,36 +263,16 @@ impl InstanceAdminClient {
 }
 
 pub trait InstanceAdmin {
-    fn list_instance_configs(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::ListInstanceConfigsRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::ListInstanceConfigsResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn get_instance_config(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::GetInstanceConfigRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::InstanceConfig>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn list_instances(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::ListInstancesRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::ListInstancesResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn get_instance(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::GetInstanceRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::Instance>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn create_instance(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::CreateInstanceRequest, sink: ::grpcio::UnarySink<super::operations::Operation>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn update_instance(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::UpdateInstanceRequest, sink: ::grpcio::UnarySink<super::operations::Operation>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn delete_instance(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner_instance_admin::DeleteInstanceRequest, sink: ::grpcio::UnarySink<super::empty::Empty>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn set_iam_policy(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::SetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn get_iam_policy(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::GetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn test_iam_permissions(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::TestIamPermissionsRequest, sink: ::grpcio::UnarySink<super::iam_policy::TestIamPermissionsResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
+    fn list_instance_configs(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::ListInstanceConfigsRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::ListInstanceConfigsResponse>);
+    fn get_instance_config(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::GetInstanceConfigRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::InstanceConfig>);
+    fn list_instances(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::ListInstancesRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::ListInstancesResponse>);
+    fn get_instance(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::GetInstanceRequest, sink: ::grpcio::UnarySink<super::spanner_instance_admin::Instance>);
+    fn create_instance(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::CreateInstanceRequest, sink: ::grpcio::UnarySink<super::operations::Operation>);
+    fn update_instance(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::UpdateInstanceRequest, sink: ::grpcio::UnarySink<super::operations::Operation>);
+    fn delete_instance(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner_instance_admin::DeleteInstanceRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
+    fn set_iam_policy(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::SetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>);
+    fn get_iam_policy(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::GetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>);
+    fn test_iam_permissions(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::TestIamPermissionsRequest, sink: ::grpcio::UnarySink<super::iam_policy::TestIamPermissionsResponse>);
 }
 
 pub fn create_instance_admin<S: InstanceAdmin + Send + Clone + 'static>(s: S) -> ::grpcio::Service {

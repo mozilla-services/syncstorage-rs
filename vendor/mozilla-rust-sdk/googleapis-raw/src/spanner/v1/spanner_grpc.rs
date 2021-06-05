@@ -362,51 +362,21 @@ impl SpannerClient {
 }
 
 pub trait Spanner {
-    fn create_session(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::CreateSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn batch_create_sessions(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::BatchCreateSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::BatchCreateSessionsResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn get_session(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::GetSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn list_sessions(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ListSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::ListSessionsResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn delete_session(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::DeleteSessionRequest, sink: ::grpcio::UnarySink<super::empty::Empty>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn execute_sql(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn execute_streaming_sql(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn execute_batch_dml(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ExecuteBatchDmlRequest, sink: ::grpcio::UnarySink<super::spanner::ExecuteBatchDmlResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn read(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ReadRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn streaming_read(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::ReadRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn begin_transaction(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::BeginTransactionRequest, sink: ::grpcio::UnarySink<super::transaction::Transaction>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn commit(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::CommitRequest, sink: ::grpcio::UnarySink<super::spanner::CommitResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn rollback(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::RollbackRequest, sink: ::grpcio::UnarySink<super::empty::Empty>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn partition_query(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::PartitionQueryRequest, sink: ::grpcio::UnarySink<super::spanner::PartitionResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn partition_read(&mut self, ctx: ::grpcio::RpcContext, _req: super::spanner::PartitionReadRequest, sink: ::grpcio::UnarySink<super::spanner::PartitionResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
+    fn create_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::CreateSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>);
+    fn batch_create_sessions(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::BatchCreateSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::BatchCreateSessionsResponse>);
+    fn get_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::GetSessionRequest, sink: ::grpcio::UnarySink<super::spanner::Session>);
+    fn list_sessions(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ListSessionsRequest, sink: ::grpcio::UnarySink<super::spanner::ListSessionsResponse>);
+    fn delete_session(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::DeleteSessionRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
+    fn execute_sql(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>);
+    fn execute_streaming_sql(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteSqlRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>);
+    fn execute_batch_dml(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ExecuteBatchDmlRequest, sink: ::grpcio::UnarySink<super::spanner::ExecuteBatchDmlResponse>);
+    fn read(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ReadRequest, sink: ::grpcio::UnarySink<super::result_set::ResultSet>);
+    fn streaming_read(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::ReadRequest, sink: ::grpcio::ServerStreamingSink<super::result_set::PartialResultSet>);
+    fn begin_transaction(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::BeginTransactionRequest, sink: ::grpcio::UnarySink<super::transaction::Transaction>);
+    fn commit(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::CommitRequest, sink: ::grpcio::UnarySink<super::spanner::CommitResponse>);
+    fn rollback(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::RollbackRequest, sink: ::grpcio::UnarySink<super::empty::Empty>);
+    fn partition_query(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::PartitionQueryRequest, sink: ::grpcio::UnarySink<super::spanner::PartitionResponse>);
+    fn partition_read(&mut self, ctx: ::grpcio::RpcContext, req: super::spanner::PartitionReadRequest, sink: ::grpcio::UnarySink<super::spanner::PartitionResponse>);
 }
 
 pub fn create_spanner<S: Spanner + Send + Clone + 'static>(s: S) -> ::grpcio::Service {

@@ -102,15 +102,9 @@ impl IamPolicyClient {
 }
 
 pub trait IamPolicy {
-    fn set_iam_policy(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::SetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn get_iam_policy(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::GetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
-    fn test_iam_permissions(&mut self, ctx: ::grpcio::RpcContext, _req: super::iam_policy::TestIamPermissionsRequest, sink: ::grpcio::UnarySink<super::iam_policy::TestIamPermissionsResponse>) {
-        grpcio::unimplemented_call!(ctx, sink)
-    }
+    fn set_iam_policy(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::SetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>);
+    fn get_iam_policy(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::GetIamPolicyRequest, sink: ::grpcio::UnarySink<super::policy::Policy>);
+    fn test_iam_permissions(&mut self, ctx: ::grpcio::RpcContext, req: super::iam_policy::TestIamPermissionsRequest, sink: ::grpcio::UnarySink<super::iam_policy::TestIamPermissionsResponse>);
 }
 
 pub fn create_iam_policy<S: IamPolicy + Send + Clone + 'static>(s: S) -> ::grpcio::Service {
