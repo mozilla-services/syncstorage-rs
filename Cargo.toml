@@ -24,9 +24,9 @@ async-trait = "0.1.40"
 base64 = "0.13"
 bb8 = "0.4.1"  # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
-cadence = "0.24"
+cadence = "0.25"
 chrono = "0.4"
-config = "0.10"
+config = "0.11"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
@@ -48,12 +48,13 @@ pyo3 = "0.13"
 hawk = "3.2"
 hex = "0.4.3"
 hostname = "0.3.1"
-hkdf = "0.10"
-hmac = "0.10"
+hkdf = "0.11"
+hmac = "0.11"
 jsonwebtoken = "7.2.0"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 mime = "0.3"
 num_cpus = "1"
+openssl = "0.10.34"
 # must match what's used by googleapis-raw
 protobuf = "2.20.0"
 rand = "0.8"
@@ -78,8 +79,8 @@ tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 urlencoding = "1.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
-validator = "0.12"
-validator_derive = "0.12"
+validator = "0.13"
+validator_derive = "0.13"
 woothee = "0.11"
 
 [features]

@@ -23,4 +23,3 @@ pub mod table;
 pub(crate) use crate::empty;
 pub(crate) use crate::iam::v1::{iam_policy, policy};
 pub(crate) use crate::longrunning::operations;
-pub(crate) use crate::rpc::status;
