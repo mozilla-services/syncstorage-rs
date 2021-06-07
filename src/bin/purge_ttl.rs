@@ -250,12 +250,12 @@ fn retryable(err: &grpcio::Error) -> bool {
     // if it is NOT an ABORT, we should not retry this function.
     match err {
         grpcio::Error::RpcFailure(ref status)
-            if status.status == grpcio::RpcStatusCode::ABORTED =>
+            if status.code() == grpcio::RpcStatusCode::ABORTED =>
         {
             true
         }
         grpcio::Error::RpcFinished(Some(ref status))
-            if status.status == grpcio::RpcStatusCode::ABORTED =>
+            if status.code() == grpcio::RpcStatusCode::ABORTED =>
         {
             true
         }
