@@ -60,14 +60,14 @@ impl Tokenlib {
                     e.print_and_set_sys_last_vars(py);
                     e
                 })
-                .map(|x| x.extract().unwrap())?;
+                .and_then(|x| x.extract())?;
             let derived_secret = module
                 .call("get_derived_secret", (&token,), Some(&kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
                 })
-                .map(|x| x.extract().unwrap())?;
+                .and_then(|x| x.extract())?;
 
             Ok((token, derived_secret))
         })
