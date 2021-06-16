@@ -69,8 +69,6 @@ pub struct Settings {
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
 
-    pub tokenserver_jwks_rsa_modulus: Option<String>,
-    pub tokenserver_jwks_rsa_exponent: Option<String>,
     pub fxa_metrics_hash_secret: Option<String>,
     pub human_logs: bool,
 
@@ -82,6 +80,9 @@ pub struct Settings {
     pub enforce_quota: bool,
 
     pub spanner_emulator_host: Option<String>,
+
+    /// The URL of the FxA server used for verifying Tokenserver OAuth tokens
+    pub fxa_oauth_server_url: Option<String>,
 }
 
 impl Default for Settings {
@@ -102,8 +103,6 @@ impl Default for Settings {
             actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
-            tokenserver_jwks_rsa_exponent: None,
-            tokenserver_jwks_rsa_modulus: None,
             fxa_metrics_hash_secret: None,
             statsd_host: None,
             statsd_port: 8125,
@@ -112,6 +111,7 @@ impl Default for Settings {
             enable_quota: false,
             enforce_quota: false,
             spanner_emulator_host: None,
+            fxa_oauth_server_url: None,
         }
     }
 }
@@ -138,8 +138,6 @@ impl Settings {
         // for database_pool_max_size doesn't quite work. Generally the max pool size is
         // 10.
         s.set_default::<Option<String>>("tokenserver_database_url", None)?;
-        s.set_default::<Option<String>>("tokenserver_jwks_rsa_modulus", None)?;
-        s.set_default::<Option<String>>("tokenserver_jwks_rsa_exponent", None)?;
         s.set_default::<Option<String>>("fxa_metrics_hash_secret", None)?;
         s.set_default("master_secret", "")?;
         s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
