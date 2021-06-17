@@ -166,7 +166,7 @@ pub async fn recycle_spanner_session(
                 conn.session = create_session(&conn.client, database_name).await?;
                 Ok(())
             }
-            _ => return Err(e.into()),
+            _ => Err(e.into()),
         },
     }
 }
