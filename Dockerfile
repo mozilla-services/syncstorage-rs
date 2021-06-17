@@ -16,6 +16,7 @@ RUN \
 
 FROM debian:buster-slim
 WORKDIR /app
+COPY --from=builder /app/requirements.txt /app
 RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
