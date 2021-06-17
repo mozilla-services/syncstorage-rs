@@ -176,7 +176,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
         .await?;
     assert_eq!(bsos.items.len(), 5);
     if let Some(ref offset) = bsos.offset {
-        if offset.chars().position(|c| c == ':').is_none() {
+        if !offset.chars().any(|c| c == ':') {
             assert_eq!(offset, &"5".to_string());
         }
     }
@@ -198,7 +198,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
         .await?;
     assert_eq!(bsos2.items.len(), 5);
     if let Some(ref offset) = bsos2.offset {
-        if offset.chars().position(|c| c == ':').is_none() {
+        if !offset.chars().any(|c| c == ':') {
             assert_eq!(offset, &"10".to_owned());
         }
     }
