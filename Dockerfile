@@ -21,7 +21,7 @@ RUN \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
     apt-get -q update && \
     apt-get -q install -y build-essential default-libmysqlclient-dev libssl-dev ca-certificates libcurl4 python3-dev python3-pip python3-setuptools curl jq && \
-    pip3 install -r requirements.txt && \
+    pip3 install -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/bin /app/bin
