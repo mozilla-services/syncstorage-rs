@@ -4,7 +4,7 @@ ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
 # temp removed --no-install-recommends due to CI docker build issue
 RUN apt-get -q update && \
-    apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go python3-dev python3-pip && \
+    apt-get -q install -y --no-install-recommends default-libmysqlclient-dev cmake golang-go python3-dev python3-pip python3-setuptools && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
@@ -20,7 +20,7 @@ RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
     apt-get -q update && \
-    apt-get -q install -y build-essential default-libmysqlclient-dev libssl-dev ca-certificates libcurl4 python3-dev python3-pip curl jq && \
+    apt-get -q install -y build-essential default-libmysqlclient-dev libssl-dev ca-certificates libcurl4 python3-dev python3-pip python3-setuptools curl jq && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
