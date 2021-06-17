@@ -2133,7 +2133,7 @@ mod tests {
             .batch
             .expect("Could not get batch in test_valid_collection_batch_post_request");
         assert!(batch.id.is_none());
-        assert!(batch.commit);
+        assert!(!batch.commit);
 
         let result2 = post_collection("batch", &bso_body)
             .await
@@ -2142,7 +2142,7 @@ mod tests {
             .batch
             .expect("Could not get batch2 in test_valid_collection_batch_post_request");
         assert!(batch2.id.is_none());
-        assert!(batch2.commit);
+        assert!(!batch2.commit);
 
         let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body)
             .await
