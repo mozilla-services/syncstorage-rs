@@ -75,7 +75,7 @@ time = "^0.2.25"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
-urlencoding = "1.1"
+urlencoding = "1.3"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.13"
 validator_derive = "0.13"
