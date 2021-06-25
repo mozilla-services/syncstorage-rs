@@ -71,7 +71,7 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
-time = "^0.2.25"
+time = "^0.2.27"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
