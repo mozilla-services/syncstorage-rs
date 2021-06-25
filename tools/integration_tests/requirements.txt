@@ -1,9 +1,14 @@
 hawkauthlib
 konfig
+mock
+mysql-connector-python
+pyjwt
 pyramid
 pyramid_hawkauth
+PyFxA
 requests
 simplejson
+testfixtures
 tokenlib
 unittest2
 webtest
