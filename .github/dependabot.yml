@@ -1,0 +1,54 @@
+version: 2
+updates:
+- package-ecosystem: cargo
+  directory: "/"
+  schedule:
+    interval: monthly
+    timezone: UCT
+  open-pull-requests-limit: 99
+  labels:
+  - dependencies
+  ignore:
+  - dependency-name: actix-rt
+    versions:
+    - ">= 2.a, < 3"
+  - dependency-name: protobuf
+    versions:
+    - ">= 2.14.a, < 2.15"
+  - dependency-name: tokio
+    versions:
+    - ">= 0.3.a, < 0.4"
+  - dependency-name: tokio
+    versions:
+    - ">= 1.a, < 2"
+  - dependency-name: futures
+    versions:
+    - 0.3.12
+    - 0.3.13
+  - dependency-name: serde_json
+    versions:
+    - 1.0.64
+  - dependency-name: hyper
+    versions:
+    - 0.14.4
+  - dependency-name: url
+    versions:
+    - 2.2.1
+  - dependency-name: cadence
+    versions:
+    - 0.24.0
+  - dependency-name: slog-async
+    versions:
+    - 2.6.0
+  - dependency-name: log
+    versions:
+    - 0.4.14
+  - dependency-name: serde
+    versions:
+    - 1.0.121
+  - dependency-name: sha2
+    versions:
+    - 0.9.3
+  - dependency-name: slog-scope
+    versions:
+    - 4.4.0
