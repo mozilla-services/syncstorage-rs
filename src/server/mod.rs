@@ -14,7 +14,7 @@ use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-use crate::tokenserver;
+use crate::tokenserver::{self, OAuthVerifier, VerifyToken};
 use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -44,9 +44,9 @@ pub struct ServerState {
     // TODO: These will eventually be added as settings passed to a more mature
     // database adapter (which will be added in #1054)
     pub tokenserver_database_url: Option<String>,
-    pub tokenserver_jwks_rsa_modulus: Option<String>,
-    pub tokenserver_jwks_rsa_exponent: Option<String>,
     pub fxa_metrics_hash_secret: Option<String>, // SYNC_FXA_METRICS_HASH_SECRET
+
+    pub tokenserver_oauth_verifier: Box<dyn VerifyToken>,
 
     /// Metric reporting
     pub metrics: Box<StatsdClient>,
@@ -183,9 +183,7 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let tokenserver_database_url = Arc::new(settings.tokenserver_database_url.clone());
-        let tokenserver_jwks_rsa_modulus = Arc::new(settings.tokenserver_jwks_rsa_modulus.clone());
-        let tokenserver_jwks_rsa_exponent =
-            Arc::new(settings.tokenserver_jwks_rsa_exponent.clone());
+        let fxa_oauth_server_url = settings.fxa_oauth_server_url;
         let fxa_metrics_hash_secret = Arc::new(settings.fxa_metrics_hash_secret.clone());
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
@@ -204,9 +202,10 @@ impl Server {
                 limits_json: limits_json.clone(),
                 secrets: Arc::clone(&secrets),
                 tokenserver_database_url: (*tokenserver_database_url).clone(),
-                tokenserver_jwks_rsa_modulus: (*tokenserver_jwks_rsa_modulus).clone(),
-                tokenserver_jwks_rsa_exponent: (*tokenserver_jwks_rsa_exponent).clone(),
                 fxa_metrics_hash_secret: (*fxa_metrics_hash_secret).clone(),
+                tokenserver_oauth_verifier: Box::new(OAuthVerifier {
+                    fxa_oauth_server_url: fxa_oauth_server_url.clone(),
+                }),
                 metrics: Box::new(metrics.clone()),
                 port,
                 quota_enabled,

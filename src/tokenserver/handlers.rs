@@ -5,67 +5,22 @@ use actix_web::web::Data;
 use actix_web::Error;
 use actix_web::{HttpRequest, HttpResponse};
 use hmac::{Hmac, Mac, NewMac};
-use pyo3::prelude::*;
-use pyo3::types::{IntoPyDict, PyDict};
+use serde::Serialize;
 use sha2::Sha256;
 
 use super::db::models::get_tokenserver_user_sync;
 use super::extractors::TokenserverRequest;
-use crate::{error::ApiError, server::ServerState};
+use super::support::Tokenlib;
+use crate::tokenserver::support::MakeTokenPlaintext;
+use crate::{
+    error::{ApiError, ApiErrorKind},
+    server::ServerState,
+};
 
 const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 const FXA_EMAIL_DOMAIN: &str = "api.accounts.firefox.com";
 
-pub struct Tokenlib<'a> {
-    py: Python<'a>,
-    inner: &'a PyModule,
-}
-
-impl<'a> Tokenlib<'a> {
-    pub fn new(py: Python<'a>) -> Result<Self, PyErr> {
-        let inner = PyModule::import(py, "tokenlib").map_err(|e| {
-            e.print_and_set_sys_last_vars(py);
-            e
-        })?;
-
-        Ok(Self { py, inner })
-    }
-
-    pub fn make_token(&self, plaintext: &PyDict, shared_secret: &str) -> Result<String, PyErr> {
-        let kwargs = PyDict::new(self.py);
-        kwargs.set_item("secret", shared_secret)?;
-
-        match self.inner.call("make_token", (plaintext,), Some(kwargs)) {
-            Err(e) => {
-                e.print_and_set_sys_last_vars(self.py);
-                Err(e)
-            }
-            Ok(x) => Ok(x.extract::<String>().unwrap()),
-        }
-    }
-
-    pub fn get_derived_secret(
-        &self,
-        plaintext: &str,
-        shared_secret: &str,
-    ) -> Result<String, PyErr> {
-        let kwargs = PyDict::new(self.py);
-        kwargs.set_item("secret", shared_secret)?;
-
-        match self
-            .inner
-            .call("get_derived_secret", (plaintext,), Some(kwargs))
-        {
-            Err(e) => {
-                e.print_and_set_sys_last_vars(self.py);
-                Err(e)
-            }
-            Ok(x) => Ok(x.extract::<String>().unwrap()),
-        }
-    }
-}
-
-#[derive(serde::Serialize)]
+#[derive(Debug, Serialize)]
 pub struct TokenserverResult {
     id: String,
     key: String,
@@ -96,10 +51,12 @@ pub async fn get_tokenserver_result(
         .ok_or_else(|| internal_error("Failed to read FxA metrics hash secret"))?
         .into_bytes();
 
-    let hashed_fxa_uid = fxa_metrics_hash(&user_email, &fxa_metrics_hash_secret);
+    let hashed_fxa_uid_full =
+        fxa_metrics_hash(&tokenserver_request.fxa_uid, &fxa_metrics_hash_secret)?;
+    let hashed_fxa_uid = &hashed_fxa_uid_full[0..32];
     let hashed_device_id = {
         let device_id = "none".to_string();
-        hash_device_id(&hashed_fxa_uid, &device_id, &fxa_metrics_hash_secret)
+        hash_device_id(hashed_fxa_uid, &device_id, &fxa_metrics_hash_secret)?
     };
 
     let fxa_kid = {
@@ -108,41 +65,39 @@ pub async fn get_tokenserver_result(
 
         format!(
             "{:013}-{:}",
-            tokenserver_user.keys_changed_at.unwrap_or(0),
+            tokenserver_user
+                .keys_changed_at
+                .unwrap_or(tokenserver_request.generation),
             client_state_b64
         )
     };
 
-    let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
-        .map_err(|_| internal_error("Failed to read master secret"))?;
+    let (token, derived_secret) = {
+        let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
+            .map_err(|_| internal_error("Failed to read master secret"))?;
 
-    let (token, derived_secret) = Python::with_gil(|py| -> Result<(String, String), PyErr> {
-        let dict = [
-            ("node", &tokenserver_user.node),
-            ("fxa_kid", &fxa_kid),
-            ("fxa_uid", &tokenserver_request.fxa_uid),
-            ("hashed_device_id", &hashed_device_id),
-            ("hashed_fxa_uid", &hashed_fxa_uid),
-        ]
-        .into_py_dict(py);
+        let make_token_plaintext = {
+            let expires = {
+                let start = SystemTime::now();
+                let current_time = start.duration_since(UNIX_EPOCH).unwrap();
+                let expires = current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0);
 
-        let expires = {
-            let start = SystemTime::now();
-            let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-            current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0)
+                expires.as_secs_f64()
+            };
+
+            MakeTokenPlaintext {
+                node: tokenserver_user.node.clone(),
+                fxa_kid,
+                fxa_uid: tokenserver_request.fxa_uid.clone(),
+                hashed_device_id,
+                hashed_fxa_uid: hashed_fxa_uid.to_owned(),
+                expires,
+                uid: tokenserver_user.uid,
+            }
         };
 
-        // These need to be set separately since they aren't strings, and
-        // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", expires.as_secs_f64()).unwrap();
-        dict.set_item("uid", tokenserver_user.uid).unwrap();
-
-        let tokenlib = Tokenlib::new(py)?;
-        let token = tokenlib.make_token(dict, &shared_secret)?;
-        let derived_secret = tokenlib.get_derived_secret(&token, &shared_secret)?;
-        Ok((token, derived_secret))
-    })
-    .unwrap();
+        Tokenlib::get_token_and_derived_secret(make_token_plaintext, &shared_secret)?
+    };
 
     let api_endpoint = format!("{:}/1.5/{:}", tokenserver_user.node, tokenserver_user.uid);
 
@@ -157,20 +112,21 @@ pub async fn get_tokenserver_result(
     Ok(HttpResponse::build(StatusCode::OK).json(result))
 }
 
-fn fxa_metrics_hash(value: &str, hmac_key: &[u8]) -> String {
-    let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key).unwrap();
-    let v = value.split('@').next().unwrap();
-    mac.update(v.as_bytes());
+fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> Result<String, Error> {
+    let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key)
+        .map_err::<ApiError, _>(|err| ApiErrorKind::Internal(err.to_string()).into())?;
+    mac.update(fxa_uid.as_bytes());
 
     let result = mac.finalize().into_bytes();
-    hex::encode(result)
+    Ok(hex::encode(result))
 }
 
-fn hash_device_id(fxa_uid: &str, device: &str, hmac_key: &[u8]) -> String {
-    let mut to_hash = String::from(&fxa_uid[0..32]);
+fn hash_device_id(fxa_uid: &str, device: &str, hmac_key: &[u8]) -> Result<String, Error> {
+    let mut to_hash = String::from(fxa_uid);
     to_hash.push_str(device);
+    let fxa_metrics_hash = fxa_metrics_hash(&to_hash, hmac_key)?;
 
-    String::from(&fxa_metrics_hash(&to_hash, hmac_key)[0..32])
+    Ok(String::from(&fxa_metrics_hash[0..32]))
 }
 
 fn internal_error(message: &str) -> HttpResponse {

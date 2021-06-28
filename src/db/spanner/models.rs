@@ -364,22 +364,20 @@ impl SpannerDb {
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.
     fn get_transaction(&self) -> Result<Option<TransactionSelector>> {
-        Ok(if self.session.borrow().transaction.is_some() {
-            self.session.borrow().transaction.clone()
-        } else {
+        if self.session.borrow().transaction.is_none() {
             self.begin(true)?;
-            self.session.borrow().transaction.clone()
-        })
+        }
+
+        Ok(self.session.borrow().transaction.clone())
     }
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.
     async fn get_transaction_async(&self) -> Result<Option<TransactionSelector>> {
-        Ok(if self.session.borrow().transaction.is_some() {
-            self.session.borrow().transaction.clone()
-        } else {
+        if self.session.borrow().transaction.is_none() {
             self.begin_async(true).await?;
-            self.session.borrow().transaction.clone()
-        })
+        }
+
+        Ok(self.session.borrow().transaction.clone())
     }
 
     fn sql_request(&self, sql: &str) -> Result<ExecuteSqlRequest> {
@@ -1114,9 +1112,6 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if result.is_some() {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection".to_owned(), collection.to_owned());
             let sql = "UPDATE user_collections
                     SET modified = @modified
                   WHERE fxa_uid = @fxa_uid

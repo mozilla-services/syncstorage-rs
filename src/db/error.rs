@@ -118,7 +118,7 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
     // Convert ABORTED (typically due to a transaction abort) into 503s
     match inner {
         grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
-            if status.status == grpcio::RpcStatusCode::ABORTED =>
+            if status.code() == grpcio::RpcStatusCode::ABORTED =>
         {
             DbErrorKind::Conflict
         }

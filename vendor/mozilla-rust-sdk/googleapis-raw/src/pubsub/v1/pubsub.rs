@@ -9392,8 +9392,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x93\x02'*%/v1/{snapshot=projects/*/snapshots/*}\x12\x84\x01\n\x04Seek\
     \x12\x1d.google.pubsub.v1.SeekRequest\x1a\x1e.google.pubsub.v1.SeekRespo\
     nse\"=\x82\xd3\xe4\x93\x027\"2/v1/{subscription=projects/*/subscriptions\
-    /*}:seek:\x01*\x1ap\xd2AUhttps://www.googleapis.com/auth/cloud-platform,\
-    https://www.googleapis.com/auth/pubsub\xcaA\x15pubsub.googleapis.comB\
+    /*}:seek:\x01*\x1ap\xcaA\x15pubsub.googleapis.com\xd2AUhttps://www.googl\
+    eapis.com/auth/cloud-platform,https://www.googleapis.com/auth/pubsubB\
     \xae\x01\n\x14com.google.pubsub.v1B\x0bPubsubProtoP\x01Z6google.golang.o\
     rg/genproto/googleapis/pubsub/v1;pubsub\xf8\x01\x01\xaa\x02\x16Google.Cl\
     oud.PubSub.V1\xca\x02\x16Google\\Cloud\\PubSub\\V1\xea\x02\x19Google::Cl\

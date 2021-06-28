@@ -3784,8 +3784,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     ze\x18\x07\x20\x01(\x05R\tvalueSize\x12\x1d\n\treset_row\x18\x08\x20\x01\
     (\x08H\0R\x08resetRow\x12\x1f\n\ncommit_row\x18\t\x20\x01(\x08H\0R\tcomm\
     itRowB\x0c\n\nrow_status\"\x82\x01\n\x14SampleRowKeysRequest\x12D\n\ntab\
-    le_name\x18\x01\x20\x01(\tR\ttableNameB%\xfaA\x1f\n\x1dbigtable.googleap\
-    is.com/Table\xe0A\x02\x12$\n\x0eapp_profile_id\x18\x02\x20\x01(\tR\x0cap\
+    le_name\x18\x01\x20\x01(\tR\ttableNameB%\xe0A\x02\xfaA\x1f\n\x1dbigtable\
+    .googleapis.com/Table\x12$\n\x0eapp_profile_id\x18\x02\x20\x01(\tR\x0cap\
     pProfileId\"S\n\x15SampleRowKeysResponse\x12\x17\n\x07row_key\x18\x01\
     \x20\x01(\x0cR\x06rowKey\x12!\n\x0coffset_bytes\x18\x02\x20\x01(\x03R\
     \x0boffsetBytes\"\xdd\x01\n\x10MutateRowRequest\x12D\n\ntable_name\x18\
@@ -3794,8 +3794,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x12\x1c\n\x07row_key\x18\x02\x20\x01(\x0cR\x06rowKeyB\x03\xe0A\x02\x12?\
     \n\tmutations\x18\x03\x20\x03(\x0b2\x1c.google.bigtable.v2.MutationR\tmu\
     tationsB\x03\xe0A\x02\"\x13\n\x11MutateRowResponse\"\xae\x02\n\x11Mutate\
-    RowsRequest\x12D\n\ntable_name\x18\x01\x20\x01(\tR\ttableNameB%\xfaA\x1f\
-    \n\x1dbigtable.googleapis.com/Table\xe0A\x02\x12$\n\x0eapp_profile_id\
+    RowsRequest\x12D\n\ntable_name\x18\x01\x20\x01(\tR\ttableNameB%\xe0A\x02\
+    \xfaA\x1f\n\x1dbigtable.googleapis.com/Table\x12$\n\x0eapp_profile_id\
     \x18\x03\x20\x01(\tR\x0cappProfileId\x12J\n\x07entries\x18\x02\x20\x03(\
     \x0b2+.google.bigtable.v2.MutateRowsRequest.EntryR\x07entriesB\x03\xe0A\
     \x02\x1aa\n\x05Entry\x12\x17\n\x07row_key\x18\x01\x20\x01(\x0cR\x06rowKe\
@@ -3814,8 +3814,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     tations\x18\x05\x20\x03(\x0b2\x1c.google.bigtable.v2.MutationR\x0efalseM\
     utations\"H\n\x19CheckAndMutateRowResponse\x12+\n\x11predicate_matched\
     \x18\x01\x20\x01(\x08R\x10predicateMatched\"\xe9\x01\n\x19ReadModifyWrit\
-    eRowRequest\x12D\n\ntable_name\x18\x01\x20\x01(\tR\ttableNameB%\xe0A\x02\
-    \xfaA\x1f\n\x1dbigtable.googleapis.com/Table\x12$\n\x0eapp_profile_id\
+    eRowRequest\x12D\n\ntable_name\x18\x01\x20\x01(\tR\ttableNameB%\xfaA\x1f\
+    \n\x1dbigtable.googleapis.com/Table\xe0A\x02\x12$\n\x0eapp_profile_id\
     \x18\x04\x20\x01(\tR\x0cappProfileId\x12\x1c\n\x07row_key\x18\x02\x20\
     \x01(\x0cR\x06rowKeyB\x03\xe0A\x02\x12B\n\x05rules\x18\x03\x20\x03(\x0b2\
     '.google.bigtable.v2.ReadModifyWriteRuleR\x05rulesB\x03\xe0A\x02\"G\n\
@@ -3837,15 +3837,15 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \xdaA!table_name,entries,app_profile_id\x82\xd3\xe4\x93\x02@\";/v2/{tabl\
     e_name=projects/*/instances/*/tables/*}:mutateRows:\x01*0\x01\x12\xd9\
     \x02\n\x11CheckAndMutateRow\x12,.google.bigtable.v2.CheckAndMutateRowReq\
-    uest\x1a-.google.bigtable.v2.CheckAndMutateRowResponse\"\xe6\x01\xdaABta\
-    ble_name,row_key,predicate_filter,true_mutations,false_mutations\xdaAQta\
-    ble_name,row_key,predicate_filter,true_mutations,false_mutations,app_pro\
-    file_id\x82\xd3\xe4\x93\x02G\"B/v2/{table_name=projects/*/instances/*/ta\
-    bles/*}:checkAndMutateRow:\x01*\x12\x89\x02\n\x12ReadModifyWriteRow\x12-\
+    uest\x1a-.google.bigtable.v2.CheckAndMutateRowResponse\"\xe6\x01\x82\xd3\
+    \xe4\x93\x02G\"B/v2/{table_name=projects/*/instances/*/tables/*}:checkAn\
+    dMutateRow:\x01*\xdaABtable_name,row_key,predicate_filter,true_mutations\
+    ,false_mutations\xdaAQtable_name,row_key,predicate_filter,true_mutations\
+    ,false_mutations,app_profile_id\x12\x89\x02\n\x12ReadModifyWriteRow\x12-\
     .google.bigtable.v2.ReadModifyWriteRowRequest\x1a..google.bigtable.v2.Re\
-    adModifyWriteRowResponse\"\x93\x01\xdaA\x18table_name,row_key,rules\xdaA\
-    'table_name,row_key,rules,app_profile_id\x82\xd3\xe4\x93\x02H\"C/v2/{tab\
-    le_name=projects/*/instances/*/tables/*}:readModifyWriteRow:\x01*\x1a\
+    adModifyWriteRowResponse\"\x93\x01\x82\xd3\xe4\x93\x02H\"C/v2/{table_nam\
+    e=projects/*/instances/*/tables/*}:readModifyWriteRow:\x01*\xdaA\x18tabl\
+    e_name,row_key,rules\xdaA'table_name,row_key,rules,app_profile_id\x1a\
     \xdb\x02\xd2A\xbd\x02https://www.googleapis.com/auth/bigtable.data,https\
     ://www.googleapis.com/auth/bigtable.data.readonly,https://www.googleapis\
     .com/auth/cloud-bigtable.data,https://www.googleapis.com/auth/cloud-bigt\

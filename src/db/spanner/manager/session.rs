@@ -161,12 +161,12 @@ pub async fn recycle_spanner_session(
         }
         Err(e) => match e {
             grpcio::Error::RpcFailure(ref status)
-                if status.status == grpcio::RpcStatusCode::NOT_FOUND =>
+                if status.code() == grpcio::RpcStatusCode::NOT_FOUND =>
             {
                 conn.session = create_session(&conn.client, database_name).await?;
                 Ok(())
             }
-            _ => return Err(e.into()),
+            _ => Err(e.into()),
         },
     }
 }
