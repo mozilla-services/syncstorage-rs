@@ -34,7 +34,7 @@ deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "dea
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-docopt = "1.1.0"
+docopt = "1.1.1"
 env_logger = "0.8"
 failure = "0.1.8"
 futures = { version = "0.3", features = ["compat"] }
