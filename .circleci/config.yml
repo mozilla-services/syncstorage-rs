@@ -29,7 +29,8 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson tokenlib unittest2 WebTest WSGIProxy2
+            pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2
+            pip3 install -r requirements.txt
   rust-check:
     steps:
       - run:
@@ -38,6 +39,11 @@ commands:
             cargo fmt -- --check
             # https://github.com/bodil/sized-chunks/issues/11
             cargo audit --ignore RUSTSEC-2020-0041
+  python-check:
+    steps:
+      - run:
+          name: Core Python Checks
+          command: flake8 src/tokenserver/verify.py
   rust-clippy:
     steps:
       - run:

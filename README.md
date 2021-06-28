@@ -68,9 +68,26 @@ GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
 
 ### Spanner
 
-Spanner requires a key in order to access the database. It's important that you know which keys have access to the spanner database. Contact your administrator
-to find out. One you know the key, log into the [Google Cloud Console Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page. Be sure to
-select the correct project.
+#### Authenticating via OAuth
+The correct way to authenticate with Spanner is by generating an OAuth token and pointing your local application server to the token. In order for this to work, your Google Cloud account must have the correct permissions; contact the Ops team to ensure the correct permissions are added to your account.
+
+First, install the Google Cloud command-line interface by following the instructions for your operating system [here](https://cloud.google.com/sdk/docs/install). Next, run the following to log in with your Google account (this should be the Google account associated with your Mozilla LDAP credentials):
+```sh
+gcloud auth application-default login
+```
+The above command will prompt you to visit a webpage in your browser to complete the login process. Once completed, ensure that a file called `application_default_credentials.json` has been created in the appropriate directory (on Linux, this directory is `$HOME/.config/gcloud/`). The Google Cloud SDK knows to check this location for your credentials, so no further configuration is needed.
+
+##### Key Revocation
+Accidents happen, and you may need to revoke the access of a set of credentials if they have been publicly leaked. To do this, run:
+```sh
+gcloud auth application-default revoke
+```
+This will revoke the access of the credentials currently stored in the `application_default_credentials.json` file. **If the file in that location does not contain the leaked credentials, you will need to copy the file containing the leaked credentials to that location and re-run the above command.** You can ensure that the leaked credentials are no longer active by attempting to connect to Spanner using the credentials. If access has been revoked, your application server should print an error saying that the token has expired or has been revoked.
+
+#### Authenticating via Service Account
+An alternative to authentication via application default credentials is authentication via a service account. **Note that this method of authentication is not recommended. Service accounts are intended to be used by other applications or virtual machines and not people. See [this article](https://cloud.google.com/iam/docs/service-accounts#what_are_service_accounts) for more information.**
+
+Your system administrator will be able to tell you which service account keys have access to the Spanner instance to which you are trying to connect. Once you are given the email identifier of an active key, log into the [Google Cloud Console Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page. Be sure to select the correct project.
 
 - Locate the email identifier of the access key and pick the vertical dot menu at the far right of the row.
 - Select "_Create Key_" from the pop-up menu.
@@ -96,15 +113,18 @@ The proper key file is in JSON format. An example file is provided below, with p
 }
 ```
 
-Note, that unlike MySQL, there is no automatic migrations facility. Currently Spanner schema must be hand edited and modified.
+**Note that the name `service-account.json` must be exactly correct to be ignored by `.gitignore`.**
 
-To point to a GCP hosted Spanner instance from your local machine, follow these steps:
+#### Connecting to Spanner
+To point to a GCP-hosted Spanner instance from your local machine, follow these steps:
 
-1. Download the key file as shown above.
+1. Authenticate via either of the two methods outlined above.
 2. Open `local.toml` and replace `database_url` with a link to your spanner instance.
 3. Open the Makefile and ensure you've correctly set you `PATH_TO_GRPC_CERT`.
 4. `make run_spanner`.
 5. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
+
+Note, that unlike MySQL, there is no automatic migrations facility. Currently, the Spanner schema must be hand edited and modified.
 
 #### Emulator
 Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database. To create an instance using the REST API (exposed via port 9020 on the emulator), we can use `curl`:

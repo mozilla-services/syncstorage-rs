@@ -6037,9 +6037,9 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     ase}/sessions/{session}\"O\n\x11GetSessionRequest\x12:\n\x04name\x18\x01\
     \x20\x01(\tR\x04nameB&\xe0A\x02\xfaA\x20\n\x1espanner.googleapis.com/Ses\
     sion\"\xae\x01\n\x13ListSessionsRequest\x12C\n\x08database\x18\x01\x20\
-    \x01(\tR\x08databaseB'\xe0A\x02\xfaA!\n\x1fspanner.googleapis.com/Databa\
-    se\x12\x1b\n\tpage_size\x18\x02\x20\x01(\x05R\x08pageSize\x12\x1d\n\npag\
-    e_token\x18\x03\x20\x01(\tR\tpageToken\x12\x16\n\x06filter\x18\x04\x20\
+    \x01(\tR\x08databaseB'\xfaA!\n\x1fspanner.googleapis.com/Database\xe0A\
+    \x02\x12\x1b\n\tpage_size\x18\x02\x20\x01(\x05R\x08pageSize\x12\x1d\n\np\
+    age_token\x18\x03\x20\x01(\tR\tpageToken\x12\x16\n\x06filter\x18\x04\x20\
     \x01(\tR\x06filter\"v\n\x14ListSessionsResponse\x126\n\x08sessions\x18\
     \x01\x20\x03(\x0b2\x1a.google.spanner.v1.SessionR\x08sessions\x12&\n\x0f\
     next_page_token\x18\x02\x20\x01(\tR\rnextPageToken\"R\n\x14DeleteSession\
@@ -6087,8 +6087,8 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     artitionOptions\x1aV\n\x0fParamTypesEntry\x12\x10\n\x03key\x18\x01\x20\
     \x01(\tR\x03key\x12-\n\x05value\x18\x02\x20\x01(\x0b2\x17.google.spanner\
     .v1.TypeR\x05value:\x028\x01\"\xf8\x02\n\x14PartitionReadRequest\x12@\n\
-    \x07session\x18\x01\x20\x01(\tR\x07sessionB&\xe0A\x02\xfaA\x20\n\x1espan\
-    ner.googleapis.com/Session\x12H\n\x0btransaction\x18\x02\x20\x01(\x0b2&.\
+    \x07session\x18\x01\x20\x01(\tR\x07sessionB&\xfaA\x20\n\x1espanner.googl\
+    eapis.com/Session\xe0A\x02\x12H\n\x0btransaction\x18\x02\x20\x01(\x0b2&.\
     google.spanner.v1.TransactionSelectorR\x0btransaction\x12\x19\n\x05table\
     \x18\x03\x20\x01(\tR\x05tableB\x03\xe0A\x02\x12\x14\n\x05index\x18\x04\
     \x20\x01(\tR\x05index\x12\x18\n\x07columns\x18\x05\x20\x03(\tR\x07column\
@@ -6100,7 +6100,7 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     \x1c.google.spanner.v1.PartitionR\npartitions\x12@\n\x0btransaction\x18\
     \x02\x20\x01(\x0b2\x1e.google.spanner.v1.TransactionR\x0btransaction\"\
     \x84\x03\n\x0bReadRequest\x12@\n\x07session\x18\x01\x20\x01(\tR\x07sessi\
-    onB&\xe0A\x02\xfaA\x20\n\x1espanner.googleapis.com/Session\x12H\n\x0btra\
+    onB&\xfaA\x20\n\x1espanner.googleapis.com/Session\xe0A\x02\x12H\n\x0btra\
     nsaction\x18\x02\x20\x01(\x0b2&.google.spanner.v1.TransactionSelectorR\
     \x0btransaction\x12\x19\n\x05table\x18\x03\x20\x01(\tR\x05tableB\x03\xe0\
     A\x02\x12\x14\n\x05index\x18\x04\x20\x01(\tR\x05index\x12\x1d\n\x07colum\
@@ -6133,19 +6133,19 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     er.v1.GetSessionRequest\x1a\x1a.google.spanner.v1.Session\"G\x82\xd3\xe4\
     \x93\x02:\x128/v1/{name=projects/*/instances/*/databases/*/sessions/*}\
     \xdaA\x04name\x12\xae\x01\n\x0cListSessions\x12&.google.spanner.v1.ListS\
-    essionsRequest\x1a'.google.spanner.v1.ListSessionsResponse\"M\x82\xd3\
-    \xe4\x93\x02<\x12:/v1/{database=projects/*/instances/*/databases/*}/sess\
-    ions\xdaA\x08database\x12\x99\x01\n\rDeleteSession\x12'.google.spanner.v\
-    1.DeleteSessionRequest\x1a\x16.google.protobuf.Empty\"G\xdaA\x04name\x82\
-    \xd3\xe4\x93\x02:*8/v1/{name=projects/*/instances/*/databases/*/sessions\
-    /*}\x12\xa3\x01\n\nExecuteSql\x12$.google.spanner.v1.ExecuteSqlRequest\
-    \x1a\x1c.google.spanner.v1.ResultSet\"Q\x82\xd3\xe4\x93\x02K\"F/v1/{sess\
-    ion=projects/*/instances/*/databases/*/sessions/*}:executeSql:\x01*\x12\
-    \xbe\x01\n\x13ExecuteStreamingSql\x12$.google.spanner.v1.ExecuteSqlReque\
-    st\x1a#.google.spanner.v1.PartialResultSet\"Z\x82\xd3\xe4\x93\x02T\"O/v1\
-    /{session=projects/*/instances/*/databases/*/sessions/*}:executeStreamin\
-    gSql:\x01*0\x01\x12\xc0\x01\n\x0fExecuteBatchDml\x12).google.spanner.v1.\
-    ExecuteBatchDmlRequest\x1a*.google.spanner.v1.ExecuteBatchDmlResponse\"V\
+    essionsRequest\x1a'.google.spanner.v1.ListSessionsResponse\"M\xdaA\x08da\
+    tabase\x82\xd3\xe4\x93\x02<\x12:/v1/{database=projects/*/instances/*/dat\
+    abases/*}/sessions\x12\x99\x01\n\rDeleteSession\x12'.google.spanner.v1.D\
+    eleteSessionRequest\x1a\x16.google.protobuf.Empty\"G\x82\xd3\xe4\x93\x02\
+    :*8/v1/{name=projects/*/instances/*/databases/*/sessions/*}\xdaA\x04name\
+    \x12\xa3\x01\n\nExecuteSql\x12$.google.spanner.v1.ExecuteSqlRequest\x1a\
+    \x1c.google.spanner.v1.ResultSet\"Q\x82\xd3\xe4\x93\x02K\"F/v1/{session=\
+    projects/*/instances/*/databases/*/sessions/*}:executeSql:\x01*\x12\xbe\
+    \x01\n\x13ExecuteStreamingSql\x12$.google.spanner.v1.ExecuteSqlRequest\
+    \x1a#.google.spanner.v1.PartialResultSet\"Z\x82\xd3\xe4\x93\x02T\"O/v1/{\
+    session=projects/*/instances/*/databases/*/sessions/*}:executeStreamingS\
+    ql:\x01*0\x01\x12\xc0\x01\n\x0fExecuteBatchDml\x12).google.spanner.v1.Ex\
+    ecuteBatchDmlRequest\x1a*.google.spanner.v1.ExecuteBatchDmlResponse\"V\
     \x82\xd3\xe4\x93\x02P\"K/v1/{session=projects/*/instances/*/databases/*/\
     sessions/*}:executeBatchDml:\x01*\x12\x91\x01\n\x04Read\x12\x1e.google.s\
     panner.v1.ReadRequest\x1a\x1c.google.spanner.v1.ResultSet\"K\x82\xd3\xe4\
@@ -6154,13 +6154,13 @@ static file_descriptor_proto_data: &'static [u8] = b"\
     quest\x1a#.google.spanner.v1.PartialResultSet\"T\x82\xd3\xe4\x93\x02N\"I\
     /v1/{session=projects/*/instances/*/databases/*/sessions/*}:streamingRea\
     d:\x01*0\x01\x12\xc9\x01\n\x10BeginTransaction\x12*.google.spanner.v1.Be\
-    ginTransactionRequest\x1a\x1e.google.spanner.v1.Transaction\"i\xdaA\x0fs\
-    ession,options\x82\xd3\xe4\x93\x02Q\"L/v1/{session=projects/*/instances/\
-    */databases/*/sessions/*}:beginTransaction:\x01*\x12\xeb\x01\n\x06Commit\
-    \x12\x20.google.spanner.v1.CommitRequest\x1a!.google.spanner.v1.CommitRe\
-    sponse\"\x9b\x01\xdaA\x20session,transaction_id,mutations\xdaA(session,s\
-    ingle_use_transaction,mutations\x82\xd3\xe4\x93\x02G\"B/v1/{session=proj\
-    ects/*/instances/*/databases/*/sessions/*}:commit:\x01*\x12\xb0\x01\n\
+    ginTransactionRequest\x1a\x1e.google.spanner.v1.Transaction\"i\x82\xd3\
+    \xe4\x93\x02Q\"L/v1/{session=projects/*/instances/*/databases/*/sessions\
+    /*}:beginTransaction:\x01*\xdaA\x0fsession,options\x12\xeb\x01\n\x06Comm\
+    it\x12\x20.google.spanner.v1.CommitRequest\x1a!.google.spanner.v1.Commit\
+    Response\"\x9b\x01\x82\xd3\xe4\x93\x02G\"B/v1/{session=projects/*/instan\
+    ces/*/databases/*/sessions/*}:commit:\x01*\xdaA\x20session,transaction_i\
+    d,mutations\xdaA(session,single_use_transaction,mutations\x12\xb0\x01\n\
     \x08Rollback\x12\".google.spanner.v1.RollbackRequest\x1a\x16.google.prot\
     obuf.Empty\"h\x82\xd3\xe4\x93\x02I\"D/v1/{session=projects/*/instances/*\
     /databases/*/sessions/*}:rollback:\x01*\xdaA\x16session,transaction_id\

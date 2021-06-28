@@ -307,7 +307,7 @@ impl StreamedResultSetAsync {
         for value in values {
             self.current_row.push(value);
             if self.current_row.len() == width {
-                let current_row = mem::replace(&mut self.current_row, vec![]);
+                let current_row = mem::take(&mut self.current_row);
                 self.rows.push_back(current_row);
             }
         }

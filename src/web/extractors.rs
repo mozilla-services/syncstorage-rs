@@ -1693,6 +1693,7 @@ mod tests {
     };
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
+    use crate::tokenserver::MockOAuthVerifier;
 
     use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
@@ -1722,9 +1723,8 @@ mod tests {
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
             tokenserver_database_url: None,
-            tokenserver_jwks_rsa_modulus: None,
-            tokenserver_jwks_rsa_exponent: None,
             fxa_metrics_hash_secret: None,
+            tokenserver_oauth_verifier: Box::new(MockOAuthVerifier::default()),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,
@@ -1876,7 +1876,7 @@ mod tests {
         assert_eq!(result.ids, vec!["1", "2"]);
         assert_eq!(result.sort, Sorting::Index);
         assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
-        assert_eq!(result.full, true);
+        assert!(result.full);
     }
 
     #[test]
@@ -2133,7 +2133,7 @@ mod tests {
             .batch
             .expect("Could not get batch in test_valid_collection_batch_post_request");
         assert!(batch.id.is_none());
-        assert_eq!(batch.commit, false);
+        assert!(!batch.commit);
 
         let result2 = post_collection("batch", &bso_body)
             .await
@@ -2142,7 +2142,7 @@ mod tests {
             .batch
             .expect("Could not get batch2 in test_valid_collection_batch_post_request");
         assert!(batch2.id.is_none());
-        assert_eq!(batch2.commit, false);
+        assert!(!batch2.commit);
 
         let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body)
             .await
@@ -2151,7 +2151,7 @@ mod tests {
             .batch
             .expect("Could not get batch3 in test_valid_collection_batch_post_request");
         assert!(batch3.id.is_some());
-        assert_eq!(batch3.commit, true);
+        assert!(batch3.commit);
     }
 
     #[actix_rt::test]
