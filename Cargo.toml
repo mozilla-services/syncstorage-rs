@@ -54,7 +54,7 @@ log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.20.0"
+protobuf = "2.24.1"
 rand = "0.8"
 regex = "1.4"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
