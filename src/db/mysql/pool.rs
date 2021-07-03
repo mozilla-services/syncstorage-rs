@@ -29,8 +29,7 @@ use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::{Quota, Settings};
 
-embed_migrations!();
-
+embed_migrations!("migrations/mysql");
 /// Run the diesel embedded migrations
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's

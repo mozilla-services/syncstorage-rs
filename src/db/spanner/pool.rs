@@ -18,7 +18,7 @@ use super::{
     models::SpannerDb,
 };
 
-embed_migrations!();
+//embed_migrations!("migrations/mysql");
 
 /// Run the diesel embedded migrations
 ///
