@@ -6,6 +6,7 @@ pub mod mysql;
 pub mod params;
 pub mod results;
 pub mod spanner;
+pub mod sqlite;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
@@ -275,6 +276,7 @@ pub async fn pool_from_settings(
     Ok(match url.scheme() {
         "mysql" => Box::new(mysql::pool::MysqlDbPool::new(&settings, &metrics)?),
         "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics).await?),
+        "sqlite" => Box::new(sqlite::pool::SqliteDbPool::new(&settings, &metrics)?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }

@@ -12,6 +12,7 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - [Local Setup](#local-setup)
   - [MySQL](#mysql)
   - [Spanner](#spanner)
+  - [Sqlite](#sqlite)
   - [Running via Docker](#running-via-docker)
   - [Connecting to Firefox](#connecting-to-firefox)
 - [Logging](#logging)
@@ -159,6 +160,15 @@ To run an application server that points to the local Spanner emulator:
 ```sh
 SYNC_SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
+
+### Sqlite
+
+Setting up the server with sqlite only requires a path to the database file,
+which will be created automatically:
+
+`sqlite:path/syncdb.sqlite`
+
+This requires at least sqlite v3.24.0 to be installed on the host system.
 
 ### Running via Docker
 This requires access to the mozilla-rust-sdk which is now available at `/vendor/mozilla-rust-adk`.
