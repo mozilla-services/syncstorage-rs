@@ -211,6 +211,36 @@ jobs:
           paths:
             - /home/circleci/cache
 
+  build-and-test-sqlite:
+    docker:
+      - image: circleci/rust:latest
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          SYNC_DATABASE_URL: sqlite:syncstorage.db
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+          = run:
+            name: Login to Dockerhub
+            command: |
+              if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
+                echo "Skipping Login to DockerHub, credentials unavailable"
+              else
+                echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
+              fi
+      - checkout
+      - setup-rust
+      - setup-python
+      - setup-gcp-grpc
+      - write-version
+      - cargo-build
+      - run-tests
+
   e2e-tests:
     docker:
       - image: docker/compose:1.24.0
@@ -310,6 +340,10 @@ workflows:
   build-deploy:
     jobs:
       - checks:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test-sqlite:
           filters:
             tags:
               only: /.*/
