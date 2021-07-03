@@ -10,32 +10,28 @@ use std::{
 };
 
 use diesel::{
-    mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
+    sqlite::SqliteConnection,
     Connection,
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 
-use super::models::{MysqlDb, Result};
+use super::models::{Result, SqliteDb};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{
-    error::DbError,
-    results::{self, PoolState},
-    Db, DbPool, STD_COLLS,
-};
+use crate::db::{error::DbError, results, Db, DbPool, STD_COLLS};
 use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::{Quota, Settings};
 
-embed_migrations!("migrations/mysql");
+embed_migrations!("migrations/sqlite");
 /// Run the diesel embedded migrations
 ///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
+/// Sqlite DDL statements implicitly commit which could disrupt SqlitePool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
-    let conn = MysqlConnection::establish(&settings.database_url)?;
+    let conn = SqliteConnection::establish(strip_sqlite_prefix(&settings.database_url))?;
     #[cfg(test)]
     // XXX: this doesn't show the DDL statements
     // https://github.com/shssoichiro/diesel-logger/issues/1
@@ -45,10 +41,16 @@ pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
     Ok(())
 }
 
+/// Diesel expects a simple file path or `:memory:`, not necessarily a full URL. This functions strips
+/// the `sqlite:` prefix and returns the rest.
+pub fn strip_sqlite_prefix(sqlite_url: &str) -> &str {
+    &sqlite_url["sqlite:".len()..]
+}
+
 #[derive(Clone)]
-pub struct MysqlDbPool {
+pub struct SqliteDbPool {
     /// Pool of db connections
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<ConnectionManager<SqliteConnection>>,
     /// Thread Pool for running synchronous db calls
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -57,17 +59,18 @@ pub struct MysqlDbPool {
     quota: Quota,
 }
 
-impl MysqlDbPool {
-    /// Creates a new pool of Mysql db connections.
+impl SqliteDbPool {
+    /// Creates a new pool of Sqlite db connections.
     ///
-    /// Also initializes the Mysql db, ensuring all migrations are ran.
+    /// Also initializes the Sqlite db, ensuring all migrations are ran.
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
         run_embedded_migrations(settings)?;
         Self::new_without_migrations(settings, metrics)
     }
 
     pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
+        let manager =
+            ConnectionManager::<SqliteConnection>::new(strip_sqlite_prefix(&settings.database_url));
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size.unwrap_or(10))
             .connection_timeout(Duration::from_secs(
@@ -94,8 +97,8 @@ impl MysqlDbPool {
         })
     }
 
-    pub fn get_sync(&self) -> Result<MysqlDb> {
-        Ok(MysqlDb::new(
+    pub fn get_sync(&self) -> Result<SqliteDb> {
+        Ok(SqliteDb::new(
             self.pool.get()?,
             Arc::clone(&self.coll_cache),
             &self.metrics,
@@ -105,7 +108,7 @@ impl MysqlDbPool {
 }
 
 #[async_trait(?Send)]
-impl DbPool for MysqlDbPool {
+impl DbPool for SqliteDbPool {
     async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         let pool = self.clone();
         let db = block(move || pool.get_sync().map_err(ApiError::from)).await?;
@@ -126,9 +129,9 @@ impl DbPool for MysqlDbPool {
     }
 }
 
-impl fmt::Debug for MysqlDbPool {
+impl fmt::Debug for SqliteDbPool {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("MysqlDbPool")
+        fmt.debug_struct("SqliteDbPool")
             .field("coll_cache", &self.coll_cache)
             .finish()
     }
@@ -196,15 +199,6 @@ impl Default for CollectionCache {
                     .map(|(k, v)| (*k, (*v).to_owned()))
                     .collect(),
             ),
-        }
-    }
-}
-
-impl From<diesel::r2d2::State> for PoolState {
-    fn from(state: diesel::r2d2::State) -> PoolState {
-        PoolState {
-            connections: state.connections,
-            idle_connections: state.idle_connections,
         }
     }
 }
