@@ -14,7 +14,7 @@ use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-use crate::tokenserver::{self, OAuthVerifier, VerifyToken};
+use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -41,12 +41,10 @@ pub struct ServerState {
     /// Secrets used during Hawk authentication.
     pub secrets: Arc<Secrets>,
 
-    // TODO: These will eventually be added as settings passed to a more mature
-    // database adapter (which will be added in #1054)
-    pub tokenserver_database_url: Option<String>,
-    pub fxa_metrics_hash_secret: Option<String>, // SYNC_FXA_METRICS_HASH_SECRET
-
-    pub tokenserver_oauth_verifier: Box<dyn VerifyToken>,
+    // XXX: This is only any Option temporarily. Once Tokenserver is rolled out to production,
+    // it will always be enabled, and syncstorage will always have state associated with
+    // Tokenserver.
+    pub tokenserver_state: Option<tokenserver::ServerState>,
 
     /// Metric reporting
     pub metrics: Box<StatsdClient>,
@@ -182,15 +180,19 @@ impl Server {
         let secrets = Arc::new(settings.master_secret);
         let host = settings.host.clone();
         let port = settings.port;
-        let tokenserver_database_url = Arc::new(settings.tokenserver_database_url.clone());
-        let fxa_oauth_server_url = settings.fxa_oauth_server_url;
-        let fxa_metrics_hash_secret = Arc::new(settings.fxa_metrics_hash_secret.clone());
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
         let deadman = Arc::new(RwLock::new(Deadman {
             max_size: settings.database_pool_max_size,
             ..Default::default()
         }));
+        let tokenserver_state = if settings.enable_tokenserver {
+            Some(tokenserver::ServerState::from_settings(
+                &settings.tokenserver,
+            )?)
+        } else {
+            None
+        };
 
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
@@ -201,11 +203,7 @@ impl Server {
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
                 secrets: Arc::clone(&secrets),
-                tokenserver_database_url: (*tokenserver_database_url).clone(),
-                fxa_metrics_hash_secret: (*fxa_metrics_hash_secret).clone(),
-                tokenserver_oauth_verifier: Box::new(OAuthVerifier {
-                    fxa_oauth_server_url: fxa_oauth_server_url.clone(),
-                }),
+                tokenserver_state: tokenserver_state.clone(),
                 metrics: Box::new(metrics.clone()),
                 port,
                 quota_enabled,

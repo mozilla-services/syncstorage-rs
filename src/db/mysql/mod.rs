@@ -8,3 +8,5 @@ mod schema;
 mod test;
 
 pub use self::pool::MysqlDbPool;
+#[cfg(test)]
+pub use self::test::TestTransactionCustomizer;

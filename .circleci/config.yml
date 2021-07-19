@@ -62,6 +62,18 @@ commands:
       - run:
           name: Install grpcio dependencies
           command: sudo apt-get update && sudo apt-get install -y cmake golang-go
+  setup-mysql:
+    steps:
+      - run:
+          name: Install MySQL client
+          command: sudo apt-get update && sudo apt-get install -y default-mysql-client
+  create-tokenserver-database:
+    steps:
+      - run:
+          name: Create Tokenserver database
+          command: |
+            mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'   
+            mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
 
   write-version:
     steps:
@@ -163,6 +175,7 @@ jobs:
           password: $DOCKER_PASS
         environment:
             SYNC_DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
             RUST_BACKTRACE: 1
             # XXX: begin_test_transaction doesn't play nice over threaded tests
             RUST_TEST_THREADS: 1
@@ -171,7 +184,7 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            MYSQL_ROOT_PASSWORD: random
+            MYSQL_ROOT_PASSWORD: password
             MYSQL_USER: test
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
@@ -190,6 +203,8 @@ jobs:
       - setup-rust
       - setup-python
       - setup-gcp-grpc
+      - setup-mysql
+      - create-tokenserver-database
       # XXX: currently the time needed to setup-sccache negates its savings
       #- setup-sccache
       #- restore-sccache-cache
