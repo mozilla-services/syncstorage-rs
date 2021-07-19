@@ -85,10 +85,18 @@ pub struct TokenData {
 }
 
 /// Implementers of this trait can be used to verify OAuth tokens for Tokenserver.
-pub trait VerifyToken {
+pub trait VerifyToken: Sync + Send {
     fn verify_token(&self, token: &str) -> Result<TokenData, Error>;
+    fn box_clone(&self) -> Box<dyn VerifyToken>;
 }
 
+impl Clone for Box<dyn VerifyToken> {
+    fn clone(&self) -> Box<dyn VerifyToken> {
+        self.box_clone()
+    }
+}
+
+#[derive(Clone)]
 /// An adapter to the PyFxA Python library.
 pub struct OAuthVerifier {
     pub fxa_oauth_server_url: Option<String>,
@@ -134,10 +142,14 @@ impl VerifyToken for OAuthVerifier {
             .into()),
         }
     }
+
+    fn box_clone(&self) -> Box<dyn VerifyToken> {
+        Box::new(self.clone())
+    }
 }
 
 /// A mock OAuth verifier to be used for testing purposes.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MockOAuthVerifier {
     pub valid: bool,
     pub token_data: TokenData,
@@ -154,6 +166,10 @@ impl VerifyToken for MockOAuthVerifier {
             )
             .into()
         })
+    }
+
+    fn box_clone(&self) -> Box<dyn VerifyToken> {
+        Box::new(self.clone())
     }
 }
 

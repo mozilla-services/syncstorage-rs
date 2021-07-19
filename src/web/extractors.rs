@@ -1693,7 +1693,6 @@ mod tests {
     };
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-    use crate::tokenserver::MockOAuthVerifier;
 
     use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
@@ -1722,9 +1721,7 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
-            tokenserver_database_url: None,
-            fxa_metrics_hash_secret: None,
-            tokenserver_oauth_verifier: Box::new(MockOAuthVerifier::default()),
+            tokenserver_state: None,
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,

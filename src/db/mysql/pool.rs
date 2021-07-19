@@ -35,8 +35,8 @@ embed_migrations!();
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
-    let conn = MysqlConnection::establish(&settings.database_url)?;
+pub fn run_embedded_migrations(database_url: &str) -> Result<()> {
+    let conn = MysqlConnection::establish(database_url)?;
     #[cfg(test)]
     // XXX: this doesn't show the DDL statements
     // https://github.com/shssoichiro/diesel-logger/issues/1
@@ -63,7 +63,7 @@ impl MysqlDbPool {
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        run_embedded_migrations(settings)?;
+        run_embedded_migrations(&settings.database_url)?;
         Self::new_without_migrations(settings, metrics)
     }
 

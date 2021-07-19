@@ -69,7 +69,10 @@ impl FromRequest for TokenData {
                     .into());
                 }
             };
-            state.tokenserver_oauth_verifier.verify_token(auth.token())
+            // XXX: tokenserver_state will no longer be an Option once the Tokenserver
+            // code is rolled out, so we will eventually be able to remove this unwrap().
+            let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
+            tokenserver_state.oauth_verifier.verify_token(auth.token())
         })
     }
 }
@@ -85,7 +88,9 @@ mod tests {
     use crate::db::mock::MockDbPool;
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-    use crate::tokenserver::MockOAuthVerifier;
+    use crate::tokenserver::{
+        self, db::mock::MockDbPool as MockTokenserverPool, MockOAuthVerifier,
+    };
 
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -167,15 +172,19 @@ mod tests {
 
     fn make_state(verifier: MockOAuthVerifier) -> ServerState {
         let settings = Settings::default();
+        let tokenserver_state = tokenserver::ServerState {
+            fxa_email_domain: "test.com".to_owned(),
+            fxa_metrics_hash_secret: "".to_owned(),
+            oauth_verifier: Box::new(verifier),
+            db_pool: Box::new(MockTokenserverPool::new()),
+        };
 
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
-            tokenserver_database_url: None,
-            fxa_metrics_hash_secret: None,
-            tokenserver_oauth_verifier: Box::new(verifier),
+            tokenserver_state: Some(tokenserver_state),
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,

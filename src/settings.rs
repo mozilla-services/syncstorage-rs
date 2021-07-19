@@ -7,6 +7,7 @@ use url::Url;
 
 use crate::db::spanner::models::MAX_SPANNER_LOAD_SIZE;
 use crate::error::ApiError;
+use crate::tokenserver::settings::Settings as TokenserverSettings;
 use crate::web::auth::hkdf_expand_32;
 
 static DEFAULT_PORT: u16 = 8000;
@@ -46,7 +47,6 @@ pub struct Settings {
     pub port: u16,
     pub host: String,
     pub database_url: String,
-    pub tokenserver_database_url: Option<String>,
     pub database_pool_max_size: Option<u32>,
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
@@ -69,7 +69,6 @@ pub struct Settings {
     /// that are used during Hawk authentication.
     pub master_secret: Secrets,
 
-    pub fxa_metrics_hash_secret: Option<String>,
     pub human_logs: bool,
 
     pub statsd_host: Option<String>,
@@ -81,8 +80,13 @@ pub struct Settings {
 
     pub spanner_emulator_host: Option<String>,
 
-    /// The URL of the FxA server used for verifying Tokenserver OAuth tokens
-    pub fxa_oauth_server_url: Option<String>,
+    /// Settings specific to Tokenserver
+    pub tokenserver: TokenserverSettings,
+
+    // XXX: This is a temporary setting used to enable Tokenserver-related features. In
+    // the future, Tokenserver will always be enabled, and this setting will be
+    // removed.
+    pub enable_tokenserver: bool,
 }
 
 impl Default for Settings {
@@ -92,7 +96,6 @@ impl Default for Settings {
             port: DEFAULT_PORT,
             host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
-            tokenserver_database_url: None,
             database_pool_max_size: None,
             database_pool_min_idle: None,
             database_pool_connection_lifespan: None,
@@ -103,7 +106,6 @@ impl Default for Settings {
             actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
-            fxa_metrics_hash_secret: None,
             statsd_host: None,
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
@@ -111,7 +113,8 @@ impl Default for Settings {
             enable_quota: false,
             enforce_quota: false,
             spanner_emulator_host: None,
-            fxa_oauth_server_url: None,
+            tokenserver: TokenserverSettings::default(),
+            enable_tokenserver: false,
         }
     }
 }
@@ -137,8 +140,6 @@ impl Settings {
         // Each backend does their own default process, so specifying a "universal" value
         // for database_pool_max_size doesn't quite work. Generally the max pool size is
         // 10.
-        s.set_default::<Option<String>>("tokenserver_database_url", None)?;
-        s.set_default::<Option<String>>("fxa_metrics_hash_secret", None)?;
         s.set_default("master_secret", "")?;
         s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
         s.set_default(
@@ -165,6 +166,11 @@ impl Settings {
         s.set_default("statsd_label", "syncstorage")?;
         s.set_default("enable_quota", false)?;
         s.set_default("enforce_quota", false)?;
+
+        // Set Tokenserver defaults
+        s.set_default("enable_tokenserver", false)?;
+        s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
+        s.set_default("tokenserver.fxa_email_domain", "test.com")?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
