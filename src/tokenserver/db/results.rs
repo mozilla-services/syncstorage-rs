@@ -4,8 +4,11 @@ use diesel::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Deserialize, QueryableByName, Serialize)]
-pub struct GetTokenserverUser {
+#[cfg(test)]
+use diesel::sql_types::Integer;
+
+#[derive(Clone, Debug, Default, Deserialize, QueryableByName, Serialize)]
+pub struct GetUser {
     #[sql_type = "Bigint"]
     pub uid: i64,
     #[sql_type = "Text"]
@@ -18,4 +21,25 @@ pub struct GetTokenserverUser {
     pub keys_changed_at: Option<i64>,
     #[sql_type = "Bigint"]
     pub created_at: i64,
+}
+
+#[cfg(test)]
+#[derive(Default, QueryableByName)]
+pub struct PostNode {
+    #[sql_type = "Bigint"]
+    pub id: i64,
+}
+
+#[cfg(test)]
+#[derive(Default, QueryableByName)]
+pub struct PostService {
+    #[sql_type = "Integer"]
+    pub id: i32,
+}
+
+#[cfg(test)]
+#[derive(Default, QueryableByName)]
+pub struct PostUser {
+    #[sql_type = "Bigint"]
+    pub uid: i64,
 }

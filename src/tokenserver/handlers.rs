@@ -8,7 +8,6 @@ use hmac::{Hmac, Mac, NewMac};
 use serde::Serialize;
 use sha2::Sha256;
 
-use super::db::models::get_tokenserver_user_sync;
 use super::extractors::TokenserverRequest;
 use super::support::Tokenlib;
 use crate::tokenserver::support::MakeTokenPlaintext;
@@ -18,7 +17,6 @@ use crate::{
 };
 
 const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
-const FXA_EMAIL_DOMAIN: &str = "api.accounts.firefox.com";
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -36,19 +34,21 @@ pub async fn get_tokenserver_result(
     let state = request
         .app_data::<Data<ServerState>>()
         .ok_or_else(|| internal_error("Could not load the app state"))?;
-    let user_email = format!("{}@{}", tokenserver_request.fxa_uid, FXA_EMAIL_DOMAIN);
-    let tokenserver_user = {
-        let database_url = state
-            .tokenserver_database_url
-            .clone()
-            .ok_or_else(|| internal_error("Could not load the app state"))?;
-        get_tokenserver_user_sync(&user_email, &database_url).map_err(ApiError::from)?
+    let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
+    let db = {
+        let db_pool = tokenserver_state.db_pool.clone();
+        db_pool.get().map_err(ApiError::from)?
     };
 
-    let fxa_metrics_hash_secret = state
+    let user_email = format!(
+        "{}@{}",
+        tokenserver_request.fxa_uid, tokenserver_state.fxa_email_domain
+    );
+    let tokenserver_user = db.get_user(user_email).await?;
+
+    let fxa_metrics_hash_secret = tokenserver_state
         .fxa_metrics_hash_secret
         .clone()
-        .ok_or_else(|| internal_error("Failed to read FxA metrics hash secret"))?
         .into_bytes();
 
     let hashed_fxa_uid_full =

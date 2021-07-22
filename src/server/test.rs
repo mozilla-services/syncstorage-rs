@@ -24,7 +24,6 @@ use crate::db::pool_from_settings;
 use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use crate::db::util::SyncTimestamp;
 use crate::settings::{test_settings, Secrets, ServerLimits};
-use crate::tokenserver::MockOAuthVerifier;
 use crate::web::{auth::HawkPayload, extractors::BsoBody, X_LAST_MODIFIED};
 
 lazy_static! {
@@ -70,9 +69,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         secrets: Arc::clone(&SECRETS),
-        tokenserver_database_url: None,
-        fxa_metrics_hash_secret: None,
-        tokenserver_oauth_verifier: Box::new(MockOAuthVerifier::default()),
+        tokenserver_state: None,
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
