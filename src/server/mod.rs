@@ -186,7 +186,7 @@ impl Server {
             max_size: settings.database_pool_max_size,
             ..Default::default()
         }));
-        let tokenserver_state = if settings.enable_tokenserver {
+        let tokenserver_state = if settings.tokenserver.enabled {
             Some(tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
             )?)

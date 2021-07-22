@@ -3,11 +3,20 @@ use serde::Deserialize;
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub database_url: String,
+
     pub database_pool_max_size: Option<u32>,
+
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
+
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
+
+    // XXX: This is a temporary setting used to enable Tokenserver-related features. In
+    // the future, Tokenserver will always be enabled, and this setting will be
+    // removed.
+    pub enabled: bool,
+
     pub fxa_metrics_hash_secret: String,
 
     /// The email domain for users' FxA accounts. This should be set according to the
@@ -25,6 +34,7 @@ impl Default for Settings {
             database_pool_max_size: None,
             database_pool_min_idle: None,
             database_pool_connection_timeout: Some(30),
+            enabled: false,
             fxa_email_domain: "api.accounts.firefox.com".to_owned(),
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: None,

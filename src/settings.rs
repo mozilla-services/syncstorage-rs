@@ -82,11 +82,6 @@ pub struct Settings {
 
     /// Settings specific to Tokenserver
     pub tokenserver: TokenserverSettings,
-
-    // XXX: This is a temporary setting used to enable Tokenserver-related features. In
-    // the future, Tokenserver will always be enabled, and this setting will be
-    // removed.
-    pub enable_tokenserver: bool,
 }
 
 impl Default for Settings {
@@ -114,7 +109,6 @@ impl Default for Settings {
             enforce_quota: false,
             spanner_emulator_host: None,
             tokenserver: TokenserverSettings::default(),
-            enable_tokenserver: false,
         }
     }
 }
@@ -168,9 +162,10 @@ impl Settings {
         s.set_default("enforce_quota", false)?;
 
         // Set Tokenserver defaults
-        s.set_default("enable_tokenserver", false)?;
-        s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
+        s.set_default("tokenserver.database_url", "mysql://root@127.0.0.1/tokenserver")?;
+        s.set_default("tokenserver.enabled", false)?;
         s.set_default("tokenserver.fxa_email_domain", "test.com")?;
+        s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
