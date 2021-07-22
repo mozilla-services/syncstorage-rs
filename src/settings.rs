@@ -162,7 +162,10 @@ impl Settings {
         s.set_default("enforce_quota", false)?;
 
         // Set Tokenserver defaults
-        s.set_default("tokenserver.database_url", "mysql://root@127.0.0.1/tokenserver")?;
+        s.set_default(
+            "tokenserver.database_url",
+            "mysql://root@127.0.0.1/tokenserver",
+        )?;
         s.set_default("tokenserver.enabled", false)?;
         s.set_default("tokenserver.fxa_email_domain", "test.com")?;
         s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
