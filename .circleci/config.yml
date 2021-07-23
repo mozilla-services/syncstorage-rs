@@ -152,6 +152,8 @@ jobs:
       - setup-gcp-grpc
       - rust-check
       - rust-clippy
+      - setup-python
+      - python-check
 
   build-and-test:
     docker:
