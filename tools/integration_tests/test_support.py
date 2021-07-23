@@ -43,6 +43,7 @@ class Secrets(object):
     Options:
     - **filename**: a list of file paths, or a single path.
     """
+
     def __init__(self, filename=None):
         self._secrets = defaultdict(list)
         if filename is not None:
@@ -56,9 +57,9 @@ class Secrets(object):
             filename = [filename]
 
         for name in filename:
-            with open(name, 'rb') as f:
+            with open(name, "rb") as f:
 
-                reader = csv.reader(f, delimiter=',')
+                reader = csv.reader(f, delimiter=",")
                 for line, row in enumerate(reader):
                     if len(row) < 2:
                         continue
@@ -67,7 +68,7 @@ class Secrets(object):
                         raise ValueError("Duplicate node line %d" % line)
                     secrets = []
                     for secret in row[1:]:
-                        secret = secret.split(':')
+                        secret = secret.split(":")
                         if len(secret) != 2:
                             raise ValueError("Invalid secret line %d" % line)
                         secrets.append(tuple(secret))
@@ -75,11 +76,13 @@ class Secrets(object):
                     self._secrets[node] = secrets
 
     def save(self, filename):
-        with open(filename, 'wb') as f:
-            writer = csv.writer(f, delimiter=',')
+        with open(filename, "wb") as f:
+            writer = csv.writer(f, delimiter=",")
             for node, secrets in self._secrets.items():
-                secrets = ['%s:%s' % (timestamp, secret)
-                           for timestamp, secret in secrets]
+                secrets = [
+                    "%s:%s" % (timestamp, secret)
+                    for timestamp, secret in secrets
+                ]
                 secrets.insert(0, node)
                 writer.writerow(secrets)
 
@@ -107,6 +110,7 @@ class FixedSecrets(object):
     Options:
     - **secrets**: a list of hex-encoded secrets to use for all nodes.
     """
+
     def __init__(self, secrets):
         if isinstance(secrets, str):
             secrets = secrets.split()
@@ -149,7 +153,7 @@ def load_into_settings(filename, settings):
     # Konfig keywords are added to every section when present, we have to
     # filter them out, otherwise plugin.load_from_config and
     # plugin.load_from_settings are unable to create instances.
-    konfig_keywords = ['extends', 'overrides']
+    konfig_keywords = ["extends", "overrides"]
 
     # Put values from the config file into the pyramid settings dict.
     for section in config.sections():
@@ -159,7 +163,7 @@ def load_into_settings(filename, settings):
                 settings[setting_prefix + "." + name] = value
 
     # Store a reference to the Config object itself for later retrieval.
-    settings['config'] = config
+    settings["config"] = config
     return config
 
 
@@ -178,7 +182,8 @@ def get_test_configurator(root, ini_file="tests.ini"):
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
     authn_policy = TokenServerAuthenticationPolicy.from_settings(
-        config.get_settings())
+        config.get_settings()
+    )
     config.set_authentication_policy(authn_policy)
     return config
 
@@ -193,7 +198,7 @@ def get_configurator(global_config, **settings):
     """
     # Populate a SettingsDict with settings from the deployment file.
     settings = SettingsDict(settings)
-    config_file = global_config.get('__file__')
+    config_file = global_config.get("__file__")
     if config_file is not None:
         load_into_settings(config_file, settings)
     # Update with default pyramid settings, and then insert for all to use.
@@ -210,6 +215,7 @@ def restore_env(*keys):
     current values of those environment variables at the start of the call
     and restore them to those values at the end.
     """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwds):
@@ -222,7 +228,9 @@ def restore_env(*keys):
                         os.environ.pop(key, None)
                     else:
                         os.environ[key] = value
+
         return wrapper
+
     return decorator
 
 
@@ -246,8 +254,9 @@ class TestCase(unittest2.TestCase):
                 self.ini_file = self.TEST_INI_FILE
             else:
                 # The file to use may be specified in the environment.
-                self.ini_file = os.environ.get("MOZSVC_TEST_INI_FILE",
-                                               "tests.ini")
+                self.ini_file = os.environ.get(
+                    "MOZSVC_TEST_INI_FILE", "tests.ini"
+                )
         __file__ = sys.modules[self.__class__.__module__].__file__
         config = get_test_configurator(__file__, self.ini_file)
         config.begin()
@@ -308,18 +317,18 @@ class StorageTestCase(TestCase):
             # For server-based dbs, drop the tables to clear them.
             if storage.dbconnector.driver in ("mysql", "postgres"):
                 with storage.dbconnector.connect() as c:
-                    c.execute('DROP TABLE bso')
-                    c.execute('DROP TABLE user_collections')
-                    c.execute('DROP TABLE collections')
-                    c.execute('DROP TABLE batch_uploads')
-                    c.execute('DROP TABLE batch_upload_items')
+                    c.execute("DROP TABLE bso")
+                    c.execute("DROP TABLE user_collections")
+                    c.execute("DROP TABLE collections")
+                    c.execute("DROP TABLE batch_uploads")
+                    c.execute("DROP TABLE batch_upload_items")
             # Explicitly free any pooled connections.
             storage.dbconnector.engine.dispose()
         # Find any sqlite database files and delete them.
         for key, value in self.config.registry.settings.items():
             if key.endswith(".sqluri"):
                 sqluri = urlparse.urlparse(value)
-                if sqluri.scheme == 'sqlite' and ":memory:" not in value:
+                if sqluri.scheme == "sqlite" and ":memory:" not in value:
                     if os.path.isfile(sqluri.path):
                         os.remove(sqluri.path)
 
@@ -349,13 +358,16 @@ class FunctionalTestCase(TestCase):
         self.config.make_wsgi_app()
 
         host_url = urlparse.urlparse(self.host_url)
-        self.app = TestApp(self.host_url, extra_environ={
-            "HTTP_HOST": host_url.netloc,
-            "wsgi.url_scheme": host_url.scheme or "http",
-            "SERVER_NAME": host_url.hostname,
-            "REMOTE_ADDR": "127.0.0.1",
-            "SCRIPT_NAME": host_url.path,
-        })
+        self.app = TestApp(
+            self.host_url,
+            extra_environ={
+                "HTTP_HOST": host_url.netloc,
+                "wsgi.url_scheme": host_url.scheme or "http",
+                "SERVER_NAME": host_url.hostname,
+                "REMOTE_ADDR": "127.0.0.1",
+                "SCRIPT_NAME": host_url.path,
+            },
+        )
 
 
 class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
@@ -373,6 +385,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         def new_do_request(req, *args, **kwds):
             hawkauthlib.sign_request(req, self.auth_token, self.auth_secret)
             return orig_do_request(req, *args, **kwds)
+
         orig_do_request = self.app.do_request
         self.app.do_request = new_do_request
 
@@ -388,17 +401,18 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
         self.user_id = random.randint(1, 100000)
         self.fxa_uid = "DECAFBAD" + str(uuid.uuid4().hex)[8:]
         self.hashed_fxa_uid = str(uuid.uuid4().hex)
-        self.fxa_kid = "0000000000000-DECAFBAD" + str(
-            uuid.uuid4().hex)[8:]
+        self.fxa_kid = "0000000000000-DECAFBAD" + str(uuid.uuid4().hex)[8:]
         auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
         req = Request.blank(self.host_url)
         creds = auth_policy.encode_hawk_id(
-            req, self.user_id, extra={
+            req,
+            self.user_id,
+            extra={
                 # Include a hashed_fxa_uid to trigger uid/kid extraction
                 "hashed_fxa_uid": self.hashed_fxa_uid,
                 "fxa_uid": self.fxa_uid,
                 "fxa_kid": self.fxa_kid,
-            }
+            },
         )
         self.auth_token, self.auth_secret = creds
 
@@ -438,18 +452,18 @@ MOCKMYID_PRIVATE_KEY_DATA = {
     "algorithm": "DS",
     "x": "385cb3509f086e110c5e24bdd395a84b335a09ae",
     "y": "738ec929b559b604a232a9b55a5295afc368063bb9c20fac4e53a74970a4db795"
-         "6d48e4c7ed523405f629b4cc83062f13029c4d615bbacb8b97f5e56f0c7ac9bc1"
-         "d4e23809889fa061425c984061fca1826040c399715ce7ed385c4dd0d40225691"
-         "2451e03452d3c961614eb458f188e3e8d2782916c43dbe2e571251ce38262",
+    "6d48e4c7ed523405f629b4cc83062f13029c4d615bbacb8b97f5e56f0c7ac9bc1"
+    "d4e23809889fa061425c984061fca1826040c399715ce7ed385c4dd0d40225691"
+    "2451e03452d3c961614eb458f188e3e8d2782916c43dbe2e571251ce38262",
     "p": "ff600483db6abfc5b45eab78594b3533d550d9f1bf2a992a7a8daa6dc34f8045a"
-         "d4e6e0c429d334eeeaaefd7e23d4810be00e4cc1492cba325ba81ff2d5a5b305a"
-         "8d17eb3bf4a06a349d392e00d329744a5179380344e82a18c47933438f891e22a"
-         "eef812d69c8f75e326cb70ea000c3f776dfdbd604638c2ef717fc26d02e17",
+    "d4e6e0c429d334eeeaaefd7e23d4810be00e4cc1492cba325ba81ff2d5a5b305a"
+    "8d17eb3bf4a06a349d392e00d329744a5179380344e82a18c47933438f891e22a"
+    "eef812d69c8f75e326cb70ea000c3f776dfdbd604638c2ef717fc26d02e17",
     "q": "e21e04f911d1ed7991008ecaab3bf775984309c3",
     "g": "c52a4a0ff3b7e61fdf1867ce84138369a6154f4afa92966e3c827e25cfa6cf508b"
-         "90e5de419e1337e07a2e9e2a3cd5dea704d175f8ebf6af397d69e110b96afb17c7"
-         "a03259329e4829b0d03bbc7896b15b4ade53e130858cc34d96269aa89041f40913"
-         "6c7242a38895c9d5bccad4f389af1d7a4bd1398bd072dffa896233397a",
+    "90e5de419e1337e07a2e9e2a3cd5dea704d175f8ebf6af397d69e110b96afb17c7"
+    "a03259329e4829b0d03bbc7896b15b4ade53e130858cc34d96269aa89041f40913"
+    "6c7242a38895c9d5bccad4f389af1d7a4bd1398bd072dffa896233397a",
 }
 
 
@@ -496,9 +510,11 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             # twiddle any configuration files, but probably not what anyone
             # wants to use long-term.
             secrets = None
-            msgs = ["WARNING: using a randomly-generated token secret.",
-                    "You probably want to set 'secret' or 'secrets_file' in "
-                    "the [hawkauth] section of your configuration"]
+            msgs = [
+                "WARNING: using a randomly-generated token secret.",
+                "You probably want to set 'secret' or 'secrets_file' in "
+                "the [hawkauth] section of your configuration",
+            ]
             for msg in msgs:
                 print("warn:", msg)
         elif isinstance(secrets, (str, list)):
@@ -530,7 +546,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         for name in settings.keys():
             if name.startswith(secrets_prefix):
                 secrets[name[len(secrets_prefix):]] = settings.pop(name)
-        kwds['secrets'] = secrets
+        kwds["secrets"] = secrets
         return kwds
 
     def decode_hawk_id(self, request, tokenid):
@@ -795,16 +811,31 @@ def run_live_functional_tests(TestCaseClass, argv=None):
 
     usage = "Usage: %prog [options] <server-url>"
     parser = optparse.OptionParser(usage=usage)
-    parser.add_option("-x", "--failfast", action="store_true",
-                      help="stop after the first failed test")
-    parser.add_option("", "--config-file",
-                      help="name of the config file in use by the server")
-    parser.add_option("", "--use-token-server", action="store_true",
-                      help="the given URL is a tokenserver, not an endpoint")
-    parser.add_option("", "--email",
-                      help="email address to use for tokenserver tests")
-    parser.add_option("", "--audience",
-                      help="assertion audience to use for tokenserver tests")
+    parser.add_option(
+        "-x",
+        "--failfast",
+        action="store_true",
+        help="stop after the first failed test",
+    )
+    parser.add_option(
+        "",
+        "--config-file",
+        help="name of the config file in use by the server",
+    )
+    parser.add_option(
+        "",
+        "--use-token-server",
+        action="store_true",
+        help="the given URL is a tokenserver, not an endpoint",
+    )
+    parser.add_option(
+        "", "--email", help="email address to use for tokenserver tests"
+    )
+    parser.add_option(
+        "",
+        "--audience",
+        help="assertion audience to use for tokenserver tests",
+    )
 
     try:
         opts, args = parser.parse_args(argv)
@@ -832,11 +863,12 @@ def run_live_functional_tests(TestCaseClass, argv=None):
         global global_secret
         global_secret = host_url.fragment
         host_url = host_url._replace(fragment="")
-    os.environ["MOZSVC_TEST_REMOTE"] = 'localhost'
+    os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
 
     # Now use the unittest2 runner to execute them.
     suite = unittest2.TestSuite()
     import test_storage
+
     test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
     suite.addTest(unittest2.findTestCases(test_storage, test_prefix))
     # suite.addTest(unittest2.makeSuite(LiveTestCases, prefix=test_prefix))
