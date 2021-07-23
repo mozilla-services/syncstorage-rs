@@ -64,10 +64,11 @@ impl TokenserverDb {
     fn get_user_sync(&self, email: String) -> DbResult<results::GetUser> {
         let query = r#"
             SELECT users.uid, users.email, users.client_state, users.generation,
-                users.keys_changed_at, users.created_at, nodes.node
-            FROM users
-            JOIN nodes ON nodes.id = users.nodeid
-            WHERE users.email = ?
+                   users.keys_changed_at, users.created_at, nodes.node
+              FROM users
+              JOIN nodes
+                ON nodes.id = users.nodeid
+             WHERE users.email = ?
         "#;
         let mut user_records = diesel::sql_query(query)
             .bind::<Text, _>(email)
@@ -87,9 +88,8 @@ impl TokenserverDb {
     fn post_node_sync(&self, node: params::PostNode) -> DbResult<results::PostNode> {
         let query = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         "#;
-
         diesel::sql_query(query)
             .bind::<Integer, _>(node.service_id)
             .bind::<Text, _>(&node.node)
@@ -101,16 +101,16 @@ impl TokenserverDb {
             .execute(&self.inner.conn)?;
 
         let query = r#"
-            SELECT id FROM nodes
-            WHERE service = ? AND
-                  node = ? AND
-                  available = ? AND
-                  current_load = ? AND
-                  capacity = ? AND
-                  downed = ? AND
-                  backoff = ?
+            SELECT id
+              FROM nodes
+             WHERE service = ?
+               AND node = ?
+               AND available = ?
+               AND current_load = ?
+               AND capacity = ?
+               AND downed = ?
+               AND backoff = ?
         "#;
-
         diesel::sql_query(query)
             .bind::<Integer, _>(node.service_id)
             .bind::<Text, _>(&node.node)
@@ -125,13 +125,21 @@ impl TokenserverDb {
 
     #[cfg(test)]
     fn post_service_sync(&self, service: params::PostService) -> DbResult<results::PostService> {
-        let query = "INSERT INTO services (service, pattern) VALUES (?, ?)";
+        let query = r#"
+            INSERT INTO services (service, pattern)
+            VALUES (?, ?)
+        "#;
         diesel::sql_query(query)
             .bind::<Text, _>(&service.service)
             .bind::<Text, _>(service.pattern)
             .execute(&self.inner.conn)?;
 
-        let query = "SELECT id FROM services WHERE service = ? AND pattern = ?";
+        let query = r#"
+            SELECT id
+              FROM services
+             WHERE service = ?
+               AND pattern = ?
+        "#;
         diesel::sql_query(query)
             .bind::<Text, _>(&service.service)
             .bind::<Text, _>(&service.service)
@@ -143,9 +151,8 @@ impl TokenserverDb {
     fn post_user_sync(&self, user: params::PostUser) -> DbResult<results::PostUser> {
         let query = r#"
             INSERT INTO users (service, email, generation, client_state, created_at, replaced_at, nodeid, keys_changed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#;
-
         diesel::sql_query(query)
             .bind::<Integer, _>(user.service_id)
             .bind::<Text, _>(&user.email)
@@ -157,7 +164,11 @@ impl TokenserverDb {
             .bind::<Nullable<Bigint>, _>(user.keys_changed_at)
             .execute(&self.inner.conn)?;
 
-        let query = "SELECT uid FROM users WHERE email = ?";
+        let query = r#"
+            SELECT uid
+              FROM users
+             WHERE email = ?
+        "#;
         diesel::sql_query(query)
             .bind::<Text, _>(&user.email)
             .get_result::<results::PostUser>(&self.inner.conn)
