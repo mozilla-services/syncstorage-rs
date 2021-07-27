@@ -188,18 +188,21 @@ impl Default for CollectionCache {
     }
 }
 
+/*
 /// Logs internal bb8 errors
 #[derive(Debug, Clone, Copy)]
 pub struct LoggingErrorSink;
 
-impl<E: failure::Fail> ErrorSink<E> for LoggingErrorSink {
+impl<E: thiserror::Error> ErrorSink<E> for LoggingErrorSink {
     fn sink(&self, e: E) {
         error!("bb8 Error: {}", e);
-        let event = sentry::integrations::failure::event_from_fail(&e);
-        sentry::capture_event(event);
+        //let event = sentry::integrations::failure::event_from_fail(&e);
+        //sentry::capture_event(event);
     }
 
     fn boxed_clone(&self) -> Box<dyn ErrorSink<E>> {
         Box::new(*self)
     }
 }
+
+ */

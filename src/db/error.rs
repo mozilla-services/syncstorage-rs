@@ -1,71 +1,68 @@
 use std::fmt;
 
 use actix_web::http::StatusCode;
-use failure::{Backtrace, Context, Fail};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub struct DbError {
-    inner: Context<DbErrorKind>,
+    kind: DbErrorKind,
     pub status: StatusCode,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum DbErrorKind {
-    #[fail(display = "A database error occurred: {}", _0)]
-    DieselQuery(#[cause] diesel::result::Error),
+    #[error("A database error occurred: {}", _0)]
+    DieselQuery(#[from] diesel::result::Error),
 
-    #[fail(
-        display = "An error occurred while establishing a db connection: {}",
-        _0
-    )]
-    DieselConnection(#[cause] diesel::result::ConnectionError),
+    #[error("An error occurred while establishing a db connection: {}", _0)]
+    DieselConnection(#[from] diesel::result::ConnectionError),
 
-    #[fail(display = "A database error occurred: {}", _0)]
-    SpannerGrpc(#[cause] grpcio::Error),
+    #[error("A database error occurred: {}", _0)]
+    SpannerGrpc(#[from] grpcio::Error),
 
-    #[fail(display = "Spanner data load too large: {}", _0)]
+    #[error("Spanner data load too large: {}", _0)]
     SpannerTooLarge(String),
 
-    #[fail(display = "A database pool error occurred: {}", _0)]
+    #[error("A database pool error occurred: {}", _0)]
     Pool(diesel::r2d2::PoolError),
 
-    #[fail(display = "Error migrating the database: {}", _0)]
+    #[error("Error migrating the database: {}", _0)]
     Migration(diesel_migrations::RunMigrationsError),
 
-    #[fail(display = "Specified collection does not exist")]
+    #[error("Specified collection does not exist")]
     CollectionNotFound,
 
-    #[fail(display = "Specified bso does not exist")]
+    #[error("Specified bso does not exist")]
     BsoNotFound,
 
-    #[fail(display = "Specified batch does not exist")]
+    #[error("Specified batch does not exist")]
     BatchNotFound,
 
-    #[fail(display = "Tokenserver user not found")]
+    #[error("Tokenserver user not found")]
     TokenserverUserNotFound,
 
-    #[fail(display = "An attempt at a conflicting write")]
+    #[error("An attempt at a conflicting write")]
     Conflict,
 
-    #[fail(display = "Database integrity error: {}", _0)]
+    #[error("Database integrity error: {}", _0)]
     Integrity(String),
 
-    #[fail(display = "Invalid SYNC_DATABASE_URL: {}", _0)]
+    #[error("Invalid SYNC_DATABASE_URL: {}", _0)]
     InvalidUrl(String),
 
-    #[fail(display = "Unexpected error: {}", _0)]
+    #[error("Unexpected error: {}", _0)]
     Internal(String),
 
-    #[fail(display = "User over quota")]
+    #[error("User over quota")]
     Quota,
 
-    #[fail(display = "Connection expired")]
+    #[error("Connection expired")]
     Expired,
 }
 
 impl DbError {
     pub fn kind(&self) -> &DbErrorKind {
-        self.inner.get_context()
+        &self.kind
     }
 
     pub fn internal(msg: &str) -> Self {
@@ -73,20 +70,20 @@ impl DbError {
     }
 
     pub fn is_reportable(&self) -> bool {
-        !matches!(self.inner.get_context(), DbErrorKind::Conflict)
+        !matches!(&self.kind, DbErrorKind::Conflict)
     }
 
     pub fn metric_label(&self) -> Option<String> {
-        match self.inner.get_context() {
+        match &self.kind {
             DbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }
 }
 
-impl From<Context<DbErrorKind>> for DbError {
-    fn from(inner: Context<DbErrorKind>) -> Self {
-        let status = match inner.get_context() {
+impl From<DbErrorKind> for DbError {
+    fn from(kind: DbErrorKind) -> Self {
+        let status = match kind {
             DbErrorKind::TokenserverUserNotFound
             | DbErrorKind::CollectionNotFound
             | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
@@ -102,11 +99,11 @@ impl From<Context<DbErrorKind>> for DbError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        Self { inner, status }
+        Self { kind, status }
     }
 }
 
-failure_boilerplate!(DbError, DbErrorKind);
+impl_fmt_display!(DbError, DbErrorKind);
 
 from_error!(diesel::result::Error, DbError, DbErrorKind::DieselQuery);
 from_error!(
