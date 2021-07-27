@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, sync::Arc, time::Duration, error::Error};
+use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bb8::ErrorSink;
@@ -188,7 +188,6 @@ impl Default for CollectionCache {
     }
 }
 
-
 /// Logs internal bb8 errors
 #[derive(Debug, Clone, Copy)]
 pub struct LoggingErrorSink;
@@ -204,5 +203,3 @@ impl<E: std::error::Error> ErrorSink<E> for LoggingErrorSink {
         Box::new(*self)
     }
 }
-
-

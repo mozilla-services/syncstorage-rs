@@ -14,6 +14,7 @@ use std::task::Poll;
 use crate::error::ApiError;
 use crate::server::{metrics::Metrics, ServerState};
 use crate::web::tags::Tags;
+use sentry_backtrace::parse_stacktrace;
 
 pub struct SentryWrapper;
 
@@ -186,7 +187,7 @@ fn exception_from_error_with_backtrace(err: &ApiError) -> sentry::protocol::Exce
     let mut exception = exception_from_error(err);
     // format the stack trace with alternate debug to get addresses
     let bt = format!("{:#?}", err.backtrace);
-    //exception.stacktrace = sentry_backtrace::parse_stacktrace(&bt);
+    exception.stacktrace = parse_stacktrace(&bt);
     exception
 }
 
