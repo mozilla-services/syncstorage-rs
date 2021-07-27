@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use std::task::Context;
 use std::{cell::RefCell, rc::Rc};
 
@@ -142,11 +143,59 @@ where
                             trace!("Sentry: Not reporting error: {:?}", apie);
                             return future::ok(sresp);
                         }
-                        report(&tags, sentry::integrations::failure::event_from_fail(apie));
+                        report(&tags, event_from_error(apie));
                     }
                 }
             }
             future::ok(sresp)
         }))
+    }
+}
+
+/// Custom `sentry::event_from_error` for `ApiError`
+///
+/// `sentry::event_from_error` can't access `std::Error` backtraces as its
+/// `backtrace()` method is currently Rust nightly only. This function works
+/// against `HandlerError` instead to access its backtrace.
+pub fn event_from_error(err: &ApiError) -> Event<'static> {
+    let mut exceptions = vec![exception_from_error_with_backtrace(err)];
+
+    let mut source = err.source();
+    while let Some(err) = source {
+        let exception = if let Some(err) = err.downcast_ref() {
+            exception_from_error_with_backtrace(err)
+        } else {
+            exception_from_error(err)
+        };
+        exceptions.push(exception);
+        source = err.source();
+    }
+
+    exceptions.reverse();
+    Event {
+        exception: exceptions.into(),
+        level: sentry::protocol::Level::Error,
+        ..Default::default()
+    }
+}
+
+/// Custom `exception_from_error` support function for `ApiError`
+///
+/// Based moreso on sentry_failure's `exception_from_single_fail`.
+fn exception_from_error_with_backtrace(err: &ApiError) -> sentry::protocol::Exception {
+    let mut exception = exception_from_error(err);
+    // format the stack trace with alternate debug to get addresses
+    let bt = format!("{:#?}", err.backtrace);
+    //exception.stacktrace = sentry_backtrace::parse_stacktrace(&bt);
+    exception
+}
+
+/// Exact copy of sentry's unfortunately private `exception_from_error`
+fn exception_from_error<E: StdError + ?Sized>(err: &E) -> sentry::protocol::Exception {
+    let dbg = format!("{:?}", err);
+    sentry::protocol::Exception {
+        ty: sentry::parse_type_from_debug(&dbg).to_owned(),
+        value: Some(err.to_string()),
+        ..Default::default()
     }
 }

@@ -21,7 +21,7 @@ actix-web-httpauth = "0.5"
 actix-rt = "1"  # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
 async-trait = "0.1.40"
-backtrace = "0.3"
+backtrace = "0.3.61"
 base64 = "0.13"
 bb8 = "0.4.1"  # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
@@ -58,7 +58,8 @@ protobuf = "2.20.0"
 rand = "0.8"
 regex = "1.4"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = ["with_curl_transport"] }  # pin to 0.19 due to curl transport, failure
+sentry = { version = "0.19", features = ["with_curl_transport"] }# pin to 0.19 due to curl transport, failure
+sentry-backtrace = "0.23.0"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
