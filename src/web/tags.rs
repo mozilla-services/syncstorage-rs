@@ -179,7 +179,7 @@ impl From<Tags> for BTreeMap<String, String> {
 impl KV for Tags {
     fn serialize(&self, _rec: &Record<'_>, serializer: &mut dyn slog::Serializer) -> slog::Result {
         for (key, val) in &self.tags {
-            serializer.emit_str(Key::from(key.clone()), &val)?;
+            serializer.emit_str(Key::from(key.clone()), val)?;
         }
         Ok(())
     }

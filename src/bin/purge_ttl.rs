@@ -167,7 +167,7 @@ fn delete_incremental(
     max_to_delete: u64,
 ) -> Result<(), Box<grpcio::Error>> {
     let mut total: u64 = 0;
-    let (mut req, mut txn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
+    let (mut req, mut txn) = begin_transaction(client, session, RequestType::ReadWrite)?;
     loop {
         let select_sql = format!("SELECT fxa_uid, fxa_kid, collection_id, {} FROM {} WHERE expiry < CURRENT_TIMESTAMP() LIMIT {}", column, table, chunk_size);
         trace!(
@@ -214,12 +214,12 @@ fn delete_incremental(
             delete_sql.trim_end_matches(&", ".to_string()).to_string()
         );
         trace!("Deleting chunk with: {}", delete_sql);
-        let mut delete_req = continue_transaction(&session, txn.clone());
+        let mut delete_req = continue_transaction(session, txn.clone());
         delete_req.set_sql(delete_sql);
         client.execute_sql(&delete_req)?;
         info!("{}: removed {} rows", table, total);
-        commit_transaction(&client, &session, txn.clone())?;
-        let (newreq, newtxn) = begin_transaction(&client, &session, RequestType::ReadWrite)?;
+        commit_transaction(client, session, txn.clone())?;
+        let (newreq, newtxn) = begin_transaction(client, session, RequestType::ReadWrite)?;
         req = newreq;
         txn = newtxn;
     }

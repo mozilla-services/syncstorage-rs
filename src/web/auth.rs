@@ -187,7 +187,7 @@ impl HawkPayload {
             Utc::now().timestamp() as u64
         };
 
-        HawkPayload::new(header, method, path.as_str(), host, port, &secrets, expiry)
+        HawkPayload::new(header, method, path.as_str(), host, port, secrets, expiry)
     }
 }
 

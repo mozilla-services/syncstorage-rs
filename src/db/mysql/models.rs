@@ -986,7 +986,7 @@ impl MysqlDb {
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-        batch::get(&self, params)
+        batch::get(self, params)
     }
 
     pub fn timestamp(&self) -> SyncTimestamp {

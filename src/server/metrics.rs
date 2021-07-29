@@ -38,7 +38,7 @@ impl Drop for Metrics {
                 let tags = timer.tags.tags.clone();
                 let keys = tags.keys();
                 for tag in keys {
-                    tagged = tagged.with_tag(tag, &tags.get(tag).unwrap())
+                    tagged = tagged.with_tag(tag, tags.get(tag).unwrap())
                 }
                 match tagged.try_send() {
                     Err(e) => {
@@ -142,7 +142,7 @@ impl Metrics {
             }
             for key in mtags.tags.keys().clone() {
                 if let Some(val) = mtags.tags.get(key) {
-                    tagged = tagged.with_tag(&key, val.as_ref());
+                    tagged = tagged.with_tag(key, val.as_ref());
                 }
             }
             // Include any "hard coded" tags.
