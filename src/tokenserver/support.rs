@@ -55,14 +55,14 @@ impl Tokenlib {
             })?;
             let kwargs = [("secret", shared_secret)].into_py_dict(py);
             let token = module
-                .call("make_token", (plaintext,), Some(&kwargs))
+                .call("make_token", (plaintext,), Some(kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
                 })
                 .and_then(|x| x.extract())?;
             let derived_secret = module
-                .call("get_derived_secret", (&token,), Some(&kwargs))
+                .call("get_derived_secret", (&token,), Some(kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e

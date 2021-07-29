@@ -33,7 +33,7 @@ impl SyncServerRequest for ServiceRequest {
         let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
             ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
         })?;
-        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
+        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, state)
     }
 }
 
@@ -51,6 +51,6 @@ impl SyncServerRequest for HttpRequest {
             .ok_or_else(|| -> ApiError {
                 ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
             })?;
-        HawkIdentifier::extrude(self, &method.as_str(), &self.uri(), &ci, &state)
+        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, state)
     }
 }
