@@ -378,7 +378,7 @@ pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
         },
         payload: row[2].take_string_value(),
         modified,
-        expiry: SyncTimestamp::from_rfc3339(&row[4].get_string_value())?.as_i64(),
+        expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())?.as_i64(),
     })
 }
 

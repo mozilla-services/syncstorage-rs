@@ -222,7 +222,7 @@ impl FromRequest for DbTransactionPool {
                 .to_str()
                 .unwrap_or("NONE");
 
-            let col_result = CollectionParam::extrude(&req.uri(), &mut req.extensions_mut());
+            let col_result = CollectionParam::extrude(req.uri(), &mut req.extensions_mut());
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(v) => v,
                 None => {
@@ -251,7 +251,7 @@ impl FromRequest for DbTransactionPool {
             let bso_opt = bso.map(|b| b.bso);
 
             let is_read = matches!(method, Method::GET | Method::HEAD);
-            let precondition = PreConditionHeaderOpt::extrude(&req.headers())?;
+            let precondition = PreConditionHeaderOpt::extrude(req.headers())?;
             let pool = Self {
                 pool: state.db_pool.clone(),
                 is_read,
