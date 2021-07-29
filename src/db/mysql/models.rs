@@ -994,6 +994,7 @@ impl MysqlDb {
     }
 }
 
+#[macro_export]
 macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident) => {
         sync_db_method!($name, $sync_name, $type, results::$type);

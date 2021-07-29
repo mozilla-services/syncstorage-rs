@@ -1,9 +1,9 @@
 version: '3'
 services:
-    db:
+    sync-db:
         image: mysql:5.7
         volumes:
-            - db_data:/var/lib/mysql
+            - sync_db_data:/var/lib/mysql
         restart: always
         ports:
             - "3306"
@@ -14,24 +14,37 @@ services:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
 
+    tokenserver-db:
+        image: mysql:5.7
+        volumes:
+            - tokenserver_db_data:/var/lib/mysql
+        restart: always
+        ports:
+            - "3307"
+        environment:
+            #MYSQL_RANDOM_ROOT_PASSWORD: yes
+            MYSQL_ROOT_PASSWORD: random
+            MYSQL_DATABASE: tokenserver
+            MYSQL_USER: test
+            MYSQL_PASSWORD: test
+
     syncstorage-rs:
         image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always
         ports:
           - "8000:8000"
         depends_on:
-          - db
+          - sync-db
+          - tokenserver-db
         environment:
           SYNC_HOST: 0.0.0.0
           SYNC_MASTER_SECRET: secret0
-          SYNC_DATABASE_URL: mysql://test:test@db:3306/syncstorage
-          SYNC_TOKENSERVER_DATABASE_URL: mysql://username:pw@localhost/tokenserver
-          SYNC_TOKENSERVER_JWKS_RSA_MODULUS: 2lDphW0lNZ4w1m9CfmIhC1AxYG9iwihxBdQZo7_6e0TBAi8_TNaoHHI90G9n5d8BQQnNcF4j2vOs006zlXcqGrP27b49KkN3FmbcOMovvfesMseghaqXqqFLALL9us3Wstt_fV_qV7ceRcJq5Hd_Mq85qUgYSfb9qp0vyePb26KEGy4cwO7c9nCna1a_i5rzUEJu6bAtcLS5obSvmsOOpTLHXojKKOnC4LRC3osdR6AU6v3UObKgJlkk_-8LmPhQZqOXiI_TdBpNiw6G_-eishg8V_poPlAnLNd8mfZBam-_7CdUS4-YoOvJZfYjIoboOuVmUrBjogFyDo72EPTReQ
-          SYNC_TOKENSERVER_JWKS_RSA_EXPONENT: AQAB
-          SYNC_FXA_METRICS_HASH_SECRET: insecure
+          SYNC_DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3307/tokenserver
 
 volumes:
-    db_data:
+    sync_db_data:
+    tokenserver_db_data:
 
 # Application runs off of port 8000.
 # you can test if it's available with
