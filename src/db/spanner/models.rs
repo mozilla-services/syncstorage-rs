@@ -575,7 +575,7 @@ impl SpannerDb {
             .one_or_none()
             .await?
             .ok_or(DbErrorKind::CollectionNotFound)?;
-        let modified = SyncTimestamp::from_rfc3339(&result[0].get_string_value())?;
+        let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
         Ok(modified)
     }
 
@@ -609,7 +609,7 @@ impl SpannerDb {
                 .get_string_value()
                 .parse::<i32>()
                 .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
-            let modified = SyncTimestamp::from_rfc3339(&row[1].get_string_value())?;
+            let modified = SyncTimestamp::from_rfc3339(row[1].get_string_value())?;
             results.insert(collection_id, modified);
         }
         self.map_collection_names(results).await
@@ -1509,7 +1509,7 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if let Some(result) = result {
-            SyncTimestamp::from_rfc3339(&result[0].get_string_value())
+            SyncTimestamp::from_rfc3339(result[0].get_string_value())
         } else {
             SyncTimestamp::from_i64(0)
         }

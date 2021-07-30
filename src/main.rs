@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
     let curl_transport_factory = |options: &sentry::ClientOptions| {
-        Arc::new(sentry::transports::CurlHttpTransport::new(&options))
+        Arc::new(sentry::transports::CurlHttpTransport::new(options))
             as Arc<dyn sentry::internals::Transport>
     };
     let _sentry = sentry::init(sentry::ClientOptions {

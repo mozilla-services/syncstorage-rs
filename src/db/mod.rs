@@ -273,8 +273,8 @@ pub async fn pool_from_settings(
     let url =
         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
     Ok(match url.scheme() {
-        "mysql" => Box::new(mysql::pool::MysqlDbPool::new(&settings, &metrics)?),
-        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(&settings, &metrics).await?),
+        "mysql" => Box::new(mysql::pool::MysqlDbPool::new(settings, metrics)?),
+        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(settings, metrics).await?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }

@@ -5,7 +5,7 @@ use std::fmt;
 use actix_web::http::{header::ToStrError, StatusCode};
 use actix_web::Error as ActixError;
 use base64::DecodeError;
-use failure::{Backtrace, Context, Fail};
+
 use hawk::Error as ParseError;
 use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use serde::{
@@ -17,15 +17,17 @@ use serde_json::{Error as JsonError, Value};
 use super::extractors::RequestErrorLocation;
 use crate::error::ApiError;
 
+use thiserror::Error;
+
 /// An error occurred during HAWK authentication.
 #[derive(Debug)]
 pub struct HawkError {
-    inner: Context<HawkErrorKind>,
+    kind: HawkErrorKind,
 }
 
 impl HawkError {
     pub fn kind(&self) -> &HawkErrorKind {
-        self.inner.get_context()
+        &self.kind
     }
 
     pub fn is_reportable(&self) -> bool {
@@ -52,58 +54,58 @@ impl HawkError {
 }
 
 /// Causes of HAWK errors.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum HawkErrorKind {
-    #[fail(display = "{}", _0)]
-    Base64(#[cause] DecodeError),
+    #[error("{}", _0)]
+    Base64(DecodeError),
 
-    #[fail(display = "expired payload")]
+    #[error("expired payload")]
     Expired,
 
-    #[fail(display = "{}", _0)]
-    Header(#[cause] ToStrError),
+    #[error("{}", _0)]
+    Header(ToStrError),
 
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Hmac(MacError),
 
-    #[fail(display = "validation failed")]
+    #[error("validation failed")]
     InvalidHeader,
 
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     InvalidKeyLength(InvalidKeyLength),
 
-    #[fail(display = "{}", _0)]
-    Json(#[cause] JsonError),
+    #[error("{}", _0)]
+    Json(JsonError),
 
-    #[fail(display = "missing header")]
+    #[error("missing header")]
     MissingHeader,
 
-    #[fail(display = "missing id property")]
+    #[error("missing id property")]
     MissingId,
 
-    #[fail(display = "missing path")]
+    #[error("missing path")]
     MissingPath,
 
-    #[fail(display = "missing \"Hawk \" prefix")]
+    #[error("missing \"Hawk \" prefix")]
     MissingPrefix,
 
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Parse(ParseError),
 
-    #[fail(display = "id property is too short")]
+    #[error("id property is too short")]
     TruncatedId,
 }
 
 /// An error occurred in an Actix extractor.
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub struct ValidationError {
     pub status: StatusCode,
-    inner: Context<ValidationErrorKind>,
+    kind: ValidationErrorKind,
 }
 
 impl ValidationError {
     pub fn kind(&self) -> &ValidationErrorKind {
-        self.inner.get_context()
+        &self.kind
     }
 
     pub fn metric_label(&self) -> Option<String> {
@@ -123,21 +125,21 @@ impl ValidationError {
 }
 
 /// Causes of extractor errors.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum ValidationErrorKind {
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     FromDetails(String, RequestErrorLocation, Option<String>, Option<String>),
 
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     FromValidationErrors(
-        #[cause] validator::ValidationErrors,
+        validator::ValidationErrors,
         RequestErrorLocation,
         Option<String>,
     ),
 }
 
-failure_boilerplate!(HawkError, HawkErrorKind);
-failure_boilerplate!(ValidationError, ValidationErrorKind);
+impl_fmt_display!(HawkError, HawkErrorKind);
+impl_fmt_display!(ValidationError, ValidationErrorKind);
 
 from_error!(DecodeError, ApiError, HawkErrorKind::Base64);
 from_error!(InvalidKeyLength, ApiError, HawkErrorKind::InvalidKeyLength);
@@ -145,16 +147,16 @@ from_error!(JsonError, ApiError, HawkErrorKind::Json);
 from_error!(MacError, ApiError, HawkErrorKind::Hmac);
 from_error!(ToStrError, ApiError, HawkErrorKind::Header);
 
-impl From<Context<HawkErrorKind>> for HawkError {
-    fn from(inner: Context<HawkErrorKind>) -> Self {
-        Self { inner }
+impl From<HawkErrorKind> for HawkError {
+    fn from(kind: HawkErrorKind) -> Self {
+        Self { kind }
     }
 }
 
-impl From<Context<ValidationErrorKind>> for ValidationError {
-    fn from(inner: Context<ValidationErrorKind>) -> Self {
-        trace!("Validation Error: {:?}", inner.get_context());
-        let status = match inner.get_context() {
+impl From<ValidationErrorKind> for ValidationError {
+    fn from(kind: ValidationErrorKind) -> Self {
+        trace!("Validation Error: {:?}", kind);
+        let status = match kind {
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Header =>
             {
@@ -173,13 +175,13 @@ impl From<Context<ValidationErrorKind>> for ValidationError {
             _ => StatusCode::BAD_REQUEST,
         };
 
-        Self { status, inner }
+        Self { status, kind }
     }
 }
 
 impl From<HawkErrorKind> for ApiError {
     fn from(kind: HawkErrorKind) -> Self {
-        let hawk_error: HawkError = Context::new(kind).into();
+        let hawk_error: HawkError = kind.into();
         hawk_error.into()
     }
 }
@@ -192,7 +194,7 @@ impl From<ParseError> for ApiError {
 
 impl From<ValidationErrorKind> for ApiError {
     fn from(kind: ValidationErrorKind) -> Self {
-        let validation_error: ValidationError = Context::new(kind).into();
+        let validation_error: ValidationError = kind.into();
         validation_error.into()
     }
 }
@@ -209,7 +211,7 @@ impl Serialize for ValidationError {
     where
         S: Serializer,
     {
-        Serialize::serialize(&self.inner.get_context(), serializer)
+        Serialize::serialize(&self.kind, serializer)
     }
 }
 

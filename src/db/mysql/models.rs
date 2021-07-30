@@ -986,7 +986,7 @@ impl MysqlDb {
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
     pub fn get_batch_sync(&self, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
-        batch::get(&self, params)
+        batch::get(self, params)
     }
 
     pub fn timestamp(&self) -> SyncTimestamp {
@@ -994,6 +994,7 @@ impl MysqlDb {
     }
 }
 
+#[macro_export]
 macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident) => {
         sync_db_method!($name, $sync_name, $type, results::$type);

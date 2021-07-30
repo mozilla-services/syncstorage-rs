@@ -240,7 +240,7 @@ impl FromRequest for BsoBodies {
                 let mut bsos = Vec::new();
                 for item in body.lines() {
                     // Check that its a valid JSON map like we expect
-                    if let Ok(raw_json) = serde_json::from_str::<Value>(&item) {
+                    if let Ok(raw_json) = serde_json::from_str::<Value>(item) {
                         bsos.push(raw_json);
                     } else {
                         // Per Python version, BSO's must json deserialize
@@ -398,7 +398,7 @@ impl FromRequest for BsoBody {
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
-        let fut = <Json<BsoBody>>::from_request(&req, payload)
+        let fut = <Json<BsoBody>>::from_request(req, payload)
             .map_err(|e| {
                 warn!("⚠️ Could not parse BSO Body: {:?}", e);
                 let err: ApiError = ValidationErrorKind::FromDetails(
@@ -569,7 +569,7 @@ impl CollectionParam {
             return Ok(collection.clone());
         }
 
-        let collection = Self::col_from_path(&uri)?;
+        let collection = Self::col_from_path(uri)?;
         let result = if let Some(collection) = collection {
             collection.validate().map_err(|e| {
                 ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Path, None)
@@ -592,7 +592,7 @@ impl FromRequest for CollectionParam {
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         Box::pin(async move {
-            if let Some(collection) = Self::extrude(&req.uri(), &mut req.extensions_mut())? {
+            if let Some(collection) = Self::extrude(req.uri(), &mut req.extensions_mut())? {
                 Ok(collection)
             } else {
                 Err(ValidationErrorKind::FromDetails(
@@ -1067,7 +1067,7 @@ impl HawkIdentifier {
         uri: &Uri,
     ) -> Result<Self, Error> {
         let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
-        let puid = Self::uid_from_path(&uri)?;
+        let puid = Self::uid_from_path(uri)?;
         if payload.user_id != puid {
             warn!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
             Err(ValidationErrorKind::FromDetails(
@@ -1114,7 +1114,7 @@ impl FromRequest for HawkIdentifier {
             let connection_info = req.connection_info().clone();
             let method = req.method().as_str();
             let uri = req.uri();
-            Self::extrude(&req, method, uri, &connection_info, &state)
+            Self::extrude(&req, method, uri, &connection_info, state)
         })
     }
 }
@@ -1400,7 +1400,7 @@ impl FromRequest for BatchRequestOpt {
 
             let id = match params.batch {
                 None => None,
-                Some(ref batch) if batch.is_empty() || TRUE_REGEX.is_match(&batch) => None,
+                Some(ref batch) if batch.is_empty() || TRUE_REGEX.is_match(batch) => None,
                 Some(batch) => {
                     let transaction_pool = DbTransactionPool::extract(&req).await?;
                     let pool = transaction_pool.get_pool()?;
@@ -1558,7 +1558,7 @@ fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
         ));
     }
     for id in ids {
-        if !VALID_ID_REGEX.is_match(&id) {
+        if !VALID_ID_REGEX.is_match(id) {
             return Err(request_error(
                 "Invalid id in ids",
                 RequestErrorLocation::QueryString,
@@ -1693,7 +1693,6 @@ mod tests {
     };
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
-    use crate::tokenserver::MockOAuthVerifier;
 
     use crate::web::auth::{hkdf_expand_32, HawkPayload};
 
@@ -1722,9 +1721,7 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             secrets: Arc::clone(&SECRETS),
-            tokenserver_database_url: None,
-            fxa_metrics_hash_secret: None,
-            tokenserver_oauth_verifier: Box::new(MockOAuthVerifier::default()),
+            tokenserver_state: None,
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,
@@ -2175,7 +2172,7 @@ mod tests {
     #[test]
     fn test_invalid_precondition_headers() {
         fn assert_invalid_header(req: HttpRequest, _error_header: &str, _error_message: &str) {
-            let result = PreConditionHeaderOpt::extrude(&req.headers());
+            let result = PreConditionHeaderOpt::extrude(req.headers());
             assert!(result.is_err());
             let response: HttpResponse = result.err().unwrap().into();
             assert_eq!(response.status(), 400);
@@ -2215,7 +2212,7 @@ mod tests {
             .data(make_state())
             .header("X-If-Modified-Since", "32.1")
             .to_http_request();
-        let result = PreConditionHeaderOpt::extrude(&req.headers())
+        let result = PreConditionHeaderOpt::extrude(req.headers())
             .unwrap()
             .opt
             .unwrap();
@@ -2227,7 +2224,7 @@ mod tests {
             .data(make_state())
             .header("X-If-Unmodified-Since", "32.14")
             .to_http_request();
-        let result = PreConditionHeaderOpt::extrude(&req.headers())
+        let result = PreConditionHeaderOpt::extrude(req.headers())
             .unwrap()
             .opt
             .unwrap();

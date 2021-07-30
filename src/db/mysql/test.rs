@@ -32,7 +32,7 @@ pub fn db(settings: &Settings) -> Result<MysqlDb> {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
 
-    let pool = MysqlDbPool::new(&settings, &metrics::Metrics::noop())?;
+    let pool = MysqlDbPool::new(settings, &metrics::Metrics::noop())?;
     pool.get_sync()
 }
 
