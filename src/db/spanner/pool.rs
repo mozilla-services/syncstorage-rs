@@ -192,10 +192,10 @@ impl Default for CollectionCache {
 #[derive(Debug, Clone, Copy)]
 pub struct LoggingErrorSink;
 
-impl<E: failure::Fail> ErrorSink<E> for LoggingErrorSink {
+impl<E: std::error::Error> ErrorSink<E> for LoggingErrorSink {
     fn sink(&self, e: E) {
         error!("bb8 Error: {}", e);
-        let event = sentry::integrations::failure::event_from_fail(&e);
+        let event = sentry::event_from_error(&e);
         sentry::capture_event(event);
     }
 

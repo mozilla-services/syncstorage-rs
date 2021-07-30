@@ -4,7 +4,7 @@
 // this cascades into Failure requiring std::error::Error being implemented
 // which is out of scope.
 #![allow(clippy::single_match, clippy::large_enum_variant)]
-
+use backtrace::Backtrace;
 use std::convert::From;
 use std::fmt;
 
@@ -15,15 +15,18 @@ use actix_web::{
     middleware::errhandlers::ErrorHandlerResponse,
     HttpResponse, Result,
 };
-use failure::{Backtrace, Context, Fail};
+
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
     Serialize,
 };
 
+use thiserror::Error;
+
 use crate::db::error::{DbError, DbErrorKind};
 use crate::web::error::{HawkError, ValidationError, ValidationErrorKind};
 use crate::web::extractors::RequestErrorLocation;
+use std::error::Error;
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
 /// information and replacing it with one of these error codes.
@@ -53,27 +56,32 @@ pub const RETRY_AFTER: u8 = 10;
 /// Top-level error type.
 #[derive(Debug)]
 pub struct ApiError {
-    inner: Context<ApiErrorKind>,
+    kind: ApiErrorKind,
+    pub(crate) backtrace: Backtrace,
     status: StatusCode,
 }
 
 /// Top-level ErrorKind.
-#[derive(Debug, Fail)]
+#[derive(Error, Debug)]
 pub enum ApiErrorKind {
-    #[fail(display = "{}", _0)]
-    Db(#[cause] DbError),
+    // Note, `#[from]` applies some derivation to the target error, but can fail
+    // if the target has any complexity associated with it. It's best to add
+    // #[derive(thiserror::Error,...)] to the target error to ensure that various
+    // traits are defined.
+    #[error("{}", _0)]
+    Db(DbError),
 
-    #[fail(display = "HAWK authentication error: {}", _0)]
-    Hawk(#[cause] HawkError),
+    #[error("HAWK authentication error: {}", _0)]
+    Hawk(HawkError),
 
-    #[fail(display = "No app_data ServerState")]
+    #[error("No app_data ServerState")]
     NoServerState,
 
-    #[fail(display = "{}", _0)]
+    #[error("{}", _0)]
     Internal(String),
 
-    #[fail(display = "{}", _0)]
-    Validation(#[cause] ValidationError),
+    #[error("{}", _0)]
+    Validation(ValidationError),
 }
 
 impl ApiErrorKind {
@@ -89,7 +97,7 @@ impl ApiErrorKind {
 
 impl ApiError {
     pub fn kind(&self) -> &ApiErrorKind {
-        self.inner.get_context()
+        &self.kind
     }
 
     pub fn is_collection_not_found(&self) -> bool {
@@ -199,6 +207,11 @@ impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
         }
     }
 }
+impl Error for ApiError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.kind.source()
+    }
+}
 
 impl From<ApiError> for HttpResponse {
     fn from(inner: ApiError) -> Self {
@@ -218,9 +231,9 @@ impl From<std::io::Error> for ApiError {
     }
 }
 
-impl From<Context<ApiErrorKind>> for ApiError {
-    fn from(inner: Context<ApiErrorKind>) -> Self {
-        let status = match inner.get_context() {
+impl From<ApiErrorKind> for ApiError {
+    fn from(kind: ApiErrorKind) -> Self {
+        let status = match &kind {
             ApiErrorKind::Db(error) => error.status,
             ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
             ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) => {
@@ -229,7 +242,11 @@ impl From<Context<ApiErrorKind>> for ApiError {
             ApiErrorKind::Validation(error) => error.status,
         };
 
-        Self { inner, status }
+        Self {
+            kind,
+            backtrace: Backtrace::new(),
+            status,
+        }
     }
 }
 
@@ -265,7 +282,7 @@ impl Serialize for ApiError {
         map.serialize_entry("reason", self.status.canonical_reason().unwrap_or(""))?;
 
         if self.status != StatusCode::UNAUTHORIZED {
-            map.serialize_entry("errors", &self.inner.get_context())?;
+            map.serialize_entry("errors", &self.kind)?;
         }
 
         map.end()
@@ -301,33 +318,17 @@ where
     seq.end()
 }
 
-macro_rules! failure_boilerplate {
+macro_rules! impl_fmt_display {
     ($error:ty, $kind:ty) => {
-        impl Fail for $error {
-            fn cause(&self) -> Option<&dyn Fail> {
-                self.inner.cause()
-            }
-
-            fn backtrace(&self) -> Option<&Backtrace> {
-                self.inner.backtrace()
-            }
-        }
-
         impl fmt::Display for $error {
             fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                fmt::Display::fmt(&self.inner, formatter)
-            }
-        }
-
-        impl From<$kind> for $error {
-            fn from(kind: $kind) -> Self {
-                Context::new(kind).into()
+                fmt::Display::fmt(&self.kind, formatter)
             }
         }
     };
 }
 
-failure_boilerplate!(ApiError, ApiErrorKind);
+impl_fmt_display!(ApiError, ApiErrorKind);
 
 macro_rules! from_error {
     ($from:ty, $to:ty, $to_kind:expr) => {
