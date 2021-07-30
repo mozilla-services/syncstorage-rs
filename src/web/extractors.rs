@@ -62,10 +62,12 @@ pub struct UidParam {
 }
 
 fn urldecode(s: &str) -> Result<String, ApiError> {
-    let decoded: String = urlencoding::decode(s).map_err(|e| {
-        trace!("Extract: unclean urldecode entry: {:?} {:?}", s, e);
-        ApiErrorKind::Internal(e.to_string())
-    })?;
+    let decoded: String = urlencoding::decode(s)
+        .map_err(|e| {
+            trace!("Extract: unclean urldecode entry: {:?} {:?}", s, e);
+            ApiErrorKind::Internal(e.to_string())
+        })?
+        .to_string();
     Ok(decoded)
 }
 
