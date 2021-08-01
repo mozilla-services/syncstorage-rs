@@ -36,7 +36,7 @@ diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
-env_logger = "0.8"
+env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw" }
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
