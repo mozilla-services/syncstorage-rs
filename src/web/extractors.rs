@@ -67,7 +67,7 @@ fn urldecode(s: &str) -> Result<String, ApiError> {
             trace!("Extract: unclean urldecode entry: {:?} {:?}", s, e);
             ApiErrorKind::Internal(e.to_string())
         })?
-        .to_string();
+        .into_owned();
     Ok(decoded)
 }
 
