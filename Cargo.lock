@@ -1426,9 +1426,9 @@ checksum = "1f7280c75fb2e2fc47080ec80ccc481376923acb04501957fc38f935c3de5088"
 
 [[package]]
 name = "im"
-version = "14.3.0"
+version = "15.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "696059c87b83c5a258817ecd67c3af915e3ed141891fc35a1e79908801cf0ce7"
+checksum = "111c1983f3c5bb72732df25cddacee9b546d08325fb584b5ebd38148be7b0246"
 dependencies = [
  "bitmaps",
  "rand_core 0.5.1",
@@ -2481,16 +2481,16 @@ dependencies = [
 
 [[package]]
 name = "sentry"
-version = "0.19.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd0927ec4a785fc4328abe9089afbe074b3874983b3373fc328a73a9f8310cb"
+checksum = "144e85b28d129f056ef91664fe2b985eade906d2838752c2f61c9f233cd98e4a"
 dependencies = [
  "curl",
  "httpdate",
  "reqwest",
- "sentry-backtrace",
+ "sentry-backtrace 0.20.1",
  "sentry-contexts",
- "sentry-core",
+ "sentry-core 0.20.1",
  "sentry-failure",
  "sentry-panic",
  "serde_json",
@@ -2505,21 +2505,33 @@ dependencies = [
  "backtrace",
  "lazy_static",
  "regex",
- "sentry-core",
+ "sentry-core 0.19.1",
+]
+
+[[package]]
+name = "sentry-backtrace"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92dabd890482f152fb6d261fe2034a193facc2c99c0c571bbf7687c356fcb2e8"
+dependencies = [
+ "backtrace",
+ "lazy_static",
+ "regex",
+ "sentry-core 0.20.1",
 ]
 
 [[package]]
 name = "sentry-contexts"
-version = "0.19.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d607b3be0593e026f1c089f0086c244429fe3026eca8e075e8f9e834703ee4c0"
+checksum = "039ac50d2d740d51c5d376c2e9e93725eea662fa3acdcbcfe1b8b93a3b30c478"
 dependencies = [
  "hostname",
  "lazy_static",
  "libc",
  "regex",
  "rustc_version 0.2.3",
- "sentry-core",
+ "sentry-core 0.20.1",
  "uname",
 ]
 
@@ -2529,31 +2541,43 @@ version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9c118347dc0958e66f8b0f3866f0d85bbf8a63bffe64603baebe3f989e929e6"
 dependencies = [
+ "lazy_static",
+ "sentry-types 0.19.1",
+]
+
+[[package]]
+name = "sentry-core"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fe4fe890b12416701f838c702898a9c5e574c333cfbbee9fb7855a14e6490a3"
+dependencies = [
  "im",
  "lazy_static",
  "rand 0.7.3",
- "sentry-types",
+ "sentry-types 0.20.1",
+ "serde 1.0.126",
+ "serde_json",
 ]
 
 [[package]]
 name = "sentry-failure"
-version = "0.19.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8599d375040329e106653a133a1d876af53df8b504cff1de7b6f4471fd41eec3"
+checksum = "ead35e7019f77a79ed0345b3f3c28427139100f87f318c1c3e2788db2cdea8b7"
 dependencies = [
  "failure",
- "sentry-backtrace",
- "sentry-core",
+ "sentry-backtrace 0.20.1",
+ "sentry-core 0.20.1",
 ]
 
 [[package]]
 name = "sentry-panic"
-version = "0.19.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3943c3fc7fff39244158b625bb2235a27e7e4d0b862b5e52cb57db51e6a6e6e"
+checksum = "ab8a3ac989339a76efd6155f9d02675ce4b04419cd8083ca58d083c222554147"
 dependencies = [
- "sentry-backtrace",
- "sentry-core",
+ "sentry-backtrace 0.20.1",
+ "sentry-core 0.20.1",
 ]
 
 [[package]]
@@ -2561,6 +2585,21 @@ name = "sentry-types"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87b41bac48a3586249431fa9efb88cd1414c3455117eb57c02f5bda9634e158d"
+dependencies = [
+ "chrono",
+ "debugid",
+ "serde 1.0.126",
+ "serde_json",
+ "thiserror",
+ "url 2.2.2",
+ "uuid",
+]
+
+[[package]]
+name = "sentry-types"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8124f0e9bc1113ecbcc8c3746e0e590943cf23e7d09c70a088c116869bb12e3"
 dependencies = [
  "chrono",
  "debugid",
@@ -2681,9 +2720,9 @@ dependencies = [
 
 [[package]]
 name = "sized-chunks"
-version = "0.5.3"
+version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d59044ea371ad781ff976f7b06480b9f0180e834eda94114f2afb4afc12b7718"
+checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
 dependencies = [
  "bitmaps",
  "typenum",
@@ -2939,7 +2978,7 @@ dependencies = [
  "regex",
  "scheduled-thread-pool",
  "sentry",
- "sentry-backtrace",
+ "sentry-backtrace 0.19.1",
  "serde 1.0.126",
  "serde_derive",
  "serde_json",
