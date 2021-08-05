@@ -368,48 +368,39 @@ mod tests {
         let db = pool.get()?;
 
         // Add a node
-        let node_id = {
-            let node = params::PostNode {
+        let node_id = db
+            .post_node(params::PostNode {
                 service_id: db::SYNC_1_5_SERVICE_ID,
                 ..Default::default()
-            };
-            db.post_node(node).await?
-        };
+            })
+            .await?;
 
         // Add a user
         let email1 = "test_user_1";
-        let user_id = {
-            let user = params::PostUser {
+        let user_id = db
+            .post_user(params::PostUser {
                 service_id: db::SYNC_1_5_SERVICE_ID,
                 node_id: node_id.id,
                 email: email1.to_owned(),
                 ..Default::default()
-            };
-
-            db.post_user(user).await?
-        };
+            })
+            .await?;
 
         // Add another user
-        {
-            let email2 = "test_user_2";
-            let user = params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                node_id: node_id.id,
-                email: email2.to_owned(),
-                ..Default::default()
-            };
+        db.post_user(params::PostUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            node_id: node_id.id,
+            email: "test_user_2".to_owned(),
+            ..Default::default()
+        })
+        .await?;
 
-            db.post_user(user).await?;
-        }
-
-        let user = {
-            let params = params::GetUser {
+        let user = db
+            .get_user(params::GetUser {
                 email: email1.to_owned(),
                 service_id: db::SYNC_1_5_SERVICE_ID,
-            };
-
-            db.get_user(params).await?
-        };
+            })
+            .await?;
 
         // Ensure that the correct user has been returned
         assert_eq!(user.uid, user_id.id);
@@ -435,16 +426,15 @@ mod tests {
 
         // Add a user
         let email = "test_user";
-        let uid = {
-            let user = params::PostUser {
+        let uid = db
+            .post_user(params::PostUser {
                 service_id: db::SYNC_1_5_SERVICE_ID,
                 node_id,
                 email: email.to_owned(),
                 ..Default::default()
-            };
-
-            db.post_user(user).await?.id
-        };
+            })
+            .await?
+            .id;
 
         let user = db
             .get_user(params::GetUser {
@@ -512,16 +502,15 @@ mod tests {
 
         // Add a user
         let email = "test_user";
-        let uid = {
-            let user = params::PostUser {
+        let uid = db
+            .post_user(params::PostUser {
                 service_id: db::SYNC_1_5_SERVICE_ID,
                 node_id,
                 email: email.to_owned(),
                 ..Default::default()
-            };
-
-            db.post_user(user).await?.id
-        };
+            })
+            .await?
+            .id;
 
         let user = db
             .get_user(params::GetUser {
@@ -585,120 +574,125 @@ mod tests {
         let an_hour_ago = now - MILLISECONDS_IN_AN_HOUR;
 
         // Add a node
-        let node_id = {
-            let params = params::PostNode {
+        let node_id = db
+            .post_node(params::PostNode {
                 service_id: db::SYNC_1_5_SERVICE_ID,
                 ..Default::default()
-            };
-            db.post_node(params).await?
-        };
+            })
+            .await?;
 
         // Add a user to be updated
         let email1 = "test_user_1";
         let uid1 = {
-            let params = params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                node_id: node_id.id,
-                email: email1.to_owned(),
-                ..Default::default()
-            };
-
             // Set created_at to be an hour ago
-            let uid = db.post_user(params).await?.id;
-            let params = params::SetUserCreatedAt {
+            let uid = db
+                .post_user(params::PostUser {
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    node_id: node_id.id,
+                    email: email1.to_owned(),
+                    ..Default::default()
+                })
+                .await?
+                .id;
+
+            db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
                 uid,
-            };
-
-            db.set_user_created_at(params).await?;
+            })
+            .await?;
 
             uid
         };
 
         // Add a user that has already been replaced
         let uid2 = {
-            let mut params = params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                node_id: node_id.id,
-                email: email1.to_owned(),
-                ..Default::default()
-            };
-
-            params.replaced_at = Some(an_hour_ago + MILLISECONDS_IN_A_MINUTE);
-
             // Set created_at to be an hour ago
-            let uid = db.post_user(params).await?.id;
-            let params = params::SetUserCreatedAt {
+            let uid = db
+                .post_user(params::PostUser {
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    node_id: node_id.id,
+                    email: email1.to_owned(),
+                    replaced_at: Some(an_hour_ago + MILLISECONDS_IN_A_MINUTE),
+                    ..Default::default()
+                })
+                .await?
+                .id;
+
+            db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
                 uid,
-            };
-
-            db.set_user_created_at(params).await?;
+            })
+            .await?;
 
             uid
         };
 
         // Add a user created too recently
         {
-            let params = params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                node_id: node_id.id,
-                email: email1.to_owned(),
-                ..Default::default()
-            };
+            let uid = db
+                .post_user(params::PostUser {
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    node_id: node_id.id,
+                    email: email1.to_owned(),
+                    ..Default::default()
+                })
+                .await?
+                .id;
 
-            let uid = db.post_user(params).await?.id;
-            let created_at = now + MILLISECONDS_IN_AN_HOUR;
-            let params = params::SetUserCreatedAt { created_at, uid };
-
-            db.set_user_created_at(params).await?;
+            db.set_user_created_at(params::SetUserCreatedAt {
+                created_at: now + MILLISECONDS_IN_AN_HOUR,
+                uid,
+            })
+            .await?;
         }
 
         // Add a user with the wrong email address
         let email2 = "test_user_2";
         {
-            let params = params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                node_id: node_id.id,
-                email: email2.to_owned(),
-                ..Default::default()
-            };
-
             // Set created_at to be an hour ago
-            let uid = db.post_user(params).await?.id;
-            let params = params::SetUserCreatedAt {
+            let uid = db
+                .post_user(params::PostUser {
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    node_id: node_id.id,
+                    email: email2.to_owned(),
+                    ..Default::default()
+                })
+                .await?
+                .id;
+
+            db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
                 uid,
-            };
-
-            db.set_user_created_at(params).await?;
+            })
+            .await?;
         }
 
         // Add a user with the wrong service
         {
-            let params = params::PostUser {
-                service_id: db::SYNC_1_1_SERVICE_ID,
-                node_id: node_id.id,
-                email: email1.to_owned(),
-                ..Default::default()
-            };
+            let uid = db
+                .post_user(params::PostUser {
+                    service_id: db::SYNC_1_1_SERVICE_ID,
+                    node_id: node_id.id,
+                    email: email1.to_owned(),
+                    ..Default::default()
+                })
+                .await?
+                .id;
 
             // Set created_at to be an hour ago
-            let uid = db.post_user(params).await?.id;
-            let params = params::SetUserCreatedAt {
+            db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
                 uid,
-            };
-
-            db.set_user_created_at(params).await?;
+            })
+            .await?;
         }
 
         // Perform the bulk update
-        let bulk_update_params = params::ReplaceUsers {
+        db.replace_users(params::ReplaceUsers {
             service_id: db::SYNC_1_5_SERVICE_ID,
             email: email1.to_owned(),
-        };
-        db.replace_users(bulk_update_params).await?;
+        })
+        .await?;
 
         // Get all of the users
         let users = {
