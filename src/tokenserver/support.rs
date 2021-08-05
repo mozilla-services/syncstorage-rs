@@ -55,14 +55,16 @@ impl Tokenlib {
             })?;
             let kwargs = [("secret", shared_secret)].into_py_dict(py);
             let token = module
-                .call("make_token", (plaintext,), Some(kwargs))
+                .getattr("make_token")?
+                .call((plaintext,), Some(kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
                 })
                 .and_then(|x| x.extract())?;
             let derived_secret = module
-                .call("get_derived_secret", (&token,), Some(kwargs))
+                .getattr("get_derived_secret")?
+                .call((&token,), Some(kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
@@ -117,10 +119,13 @@ impl VerifyToken for OAuthVerifier {
                 .fxa_oauth_server_url
                 .clone()
                 .map(|url| [("server_url", url)].into_py_dict(py));
-            let result: &PyAny = module.call("verify_token", (token,), kwargs).map_err(|e| {
-                e.print_and_set_sys_last_vars(py);
-                e
-            })?;
+            let result: &PyAny = module
+                .getattr("verify_token")?
+                .call((token,), kwargs)
+                .map_err(|e| {
+                    e.print_and_set_sys_last_vars(py);
+                    e
+                })?;
 
             if result.is_none() {
                 Ok(None)
