@@ -40,13 +40,15 @@ impl FromRequest for TokenserverRequest {
                     (Some("sync"), Some("1.5")) => db::SYNC_1_5_SERVICE_ID,
                     // XXX: This error will be replaced with a more descriptive error as part of
                     // #1133
-                    _ => return Err(ValidationErrorKind::FromDetails(
-                        "Invalid application and version".to_owned(),
-                        RequestErrorLocation::Path,
-                        None,
-                        None,
-                    )
-                    .into()),
+                    _ => {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Invalid application and version".to_owned(),
+                            RequestErrorLocation::Path,
+                            None,
+                            None,
+                        )
+                        .into())
+                    }
                 }
             };
             let tokenserver_request = Self {

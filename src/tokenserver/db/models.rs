@@ -179,7 +179,7 @@ impl TokenserverDb {
         // protection, to ensure that concurrent updates don't accidentally move
         // timestamp fields backwards in time. The handling of `keys_changed_at`
         // is additionally weird because we want to treat the default `NULL` value
-        // as zero. 
+        // as zero.
         const QUERY: &str = r#"
             UPDATE users
                SET generation = ?,
@@ -424,11 +424,14 @@ mod tests {
 
         // Add a node
         let node = "node";
-        let node_id = db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
-            node: node.to_owned(),
-            ..Default::default()
-        }).await?.id;
+        let node_id = db
+            .post_node(params::PostNode {
+                service_id: db::SYNC_1_5_SERVICE_ID,
+                node: node.to_owned(),
+                ..Default::default()
+            })
+            .await?
+            .id;
 
         // Add a user
         let email = "test_user";
@@ -443,10 +446,12 @@ mod tests {
             db.post_user(user).await?.id
         };
 
-        let user = db.get_user(params::GetUser {
-            email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
-        }).await?;
+        let user = db
+            .get_user(params::GetUser {
+                email: email.to_owned(),
+                service_id: db::SYNC_1_5_SERVICE_ID,
+            })
+            .await?;
 
         assert_eq!(user.generation, 0);
         assert_eq!(user.client_state, "");
@@ -457,12 +462,15 @@ mod tests {
             service_id: db::SYNC_1_5_SERVICE_ID,
             generation: 42,
             keys_changed_at: user.keys_changed_at,
-        }).await?;
+        })
+        .await?;
 
-        let user = db.get_user(params::GetUser {
-            email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
-        }).await?;
+        let user = db
+            .get_user(params::GetUser {
+                email: email.to_owned(),
+                service_id: db::SYNC_1_5_SERVICE_ID,
+            })
+            .await?;
 
         assert_eq!(user.uid, uid);
         assert_eq!(user.node, node);
@@ -475,7 +483,8 @@ mod tests {
             service_id: db::SYNC_1_5_SERVICE_ID,
             generation: 17,
             keys_changed_at: user.keys_changed_at,
-        }).await?;
+        })
+        .await?;
 
         assert_eq!(user.uid, uid);
         assert_eq!(user.node, node);
@@ -492,11 +501,14 @@ mod tests {
 
         // Add a node
         let node = "node";
-        let node_id = db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
-            node: node.to_owned(),
-            ..Default::default()
-        }).await?.id;
+        let node_id = db
+            .post_node(params::PostNode {
+                service_id: db::SYNC_1_5_SERVICE_ID,
+                node: node.to_owned(),
+                ..Default::default()
+            })
+            .await?
+            .id;
 
         // Add a user
         let email = "test_user";
@@ -511,10 +523,12 @@ mod tests {
             db.post_user(user).await?.id
         };
 
-        let user = db.get_user(params::GetUser {
-            email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
-        }).await?;
+        let user = db
+            .get_user(params::GetUser {
+                email: email.to_owned(),
+                service_id: db::SYNC_1_5_SERVICE_ID,
+            })
+            .await?;
 
         assert_eq!(user.keys_changed_at, None);
         assert_eq!(user.client_state, "");
@@ -525,12 +539,15 @@ mod tests {
             service_id: db::SYNC_1_5_SERVICE_ID,
             generation: user.generation,
             keys_changed_at: Some(42),
-        }).await?;
+        })
+        .await?;
 
-        let user = db.get_user(params::GetUser {
-            email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
-        }).await?;
+        let user = db
+            .get_user(params::GetUser {
+                email: email.to_owned(),
+                service_id: db::SYNC_1_5_SERVICE_ID,
+            })
+            .await?;
 
         assert_eq!(user.uid, uid);
         assert_eq!(user.node, node);
@@ -543,7 +560,8 @@ mod tests {
             service_id: db::SYNC_1_5_SERVICE_ID,
             generation: user.generation,
             keys_changed_at: Some(17),
-        }).await?;
+        })
+        .await?;
 
         assert_eq!(user.uid, uid);
         assert_eq!(user.node, node);
