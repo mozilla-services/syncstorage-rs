@@ -37,8 +37,7 @@ commands:
           name: Core Rust Checks
           command: |
             cargo fmt -- --check
-            # https://github.com/bodil/sized-chunks/issues/11
-            cargo audit --ignore RUSTSEC-2020-0041
+            cargo audit
   python-check:
     steps:
       - run:
