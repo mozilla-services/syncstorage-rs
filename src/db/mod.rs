@@ -59,7 +59,7 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 
 type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
 
-#[async_trait(?Send)]
+#[async_trait]
 pub trait DbPool: Sync + Send + Debug {
     async fn get(&self) -> ApiResult<Box<dyn Db<'_>>>;
 

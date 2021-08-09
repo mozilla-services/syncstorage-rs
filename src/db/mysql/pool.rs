@@ -105,7 +105,7 @@ impl MysqlDbPool {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl DbPool for MysqlDbPool {
     async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         let pool = self.clone();
