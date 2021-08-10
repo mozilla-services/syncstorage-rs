@@ -15,7 +15,7 @@ pub struct MakeTokenPlaintext {
     pub fxa_uid: String,
     pub hashed_device_id: String,
     pub hashed_fxa_uid: String,
-    pub expires: f64,
+    pub expires: u64,
     pub uid: i64,
 }
 
