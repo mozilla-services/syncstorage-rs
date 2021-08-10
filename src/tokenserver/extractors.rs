@@ -8,6 +8,7 @@ use actix_web_httpauth::extractors::bearer::BearerAuth;
 
 use futures::future::LocalBoxFuture;
 
+use super::db;
 use super::support::TokenData;
 use crate::server::ServerState;
 use crate::web::error::ValidationErrorKind;
@@ -17,15 +18,7 @@ use crate::web::extractors::RequestErrorLocation;
 pub struct TokenserverRequest {
     pub fxa_uid: String,
     pub generation: i64,
-}
-
-impl From<TokenData> for TokenserverRequest {
-    fn from(token_data: TokenData) -> Self {
-        Self {
-            fxa_uid: token_data.user,
-            generation: token_data.generation,
-        }
-    }
+    pub service_id: i32,
 }
 
 impl FromRequest for TokenserverRequest {
@@ -39,8 +32,32 @@ impl FromRequest for TokenserverRequest {
 
         Box::pin(async move {
             let token_data = TokenData::from_request(&req, &mut payload).await?;
+            let service_id = {
+                let path = req.match_info();
 
-            Ok(token_data.into())
+                match (path.get("application"), path.get("version")) {
+                    (Some("sync"), Some("1.1")) => db::SYNC_1_1_SERVICE_ID,
+                    (Some("sync"), Some("1.5")) => db::SYNC_1_5_SERVICE_ID,
+                    // XXX: This error will be replaced with a more descriptive error as part of
+                    // #1133
+                    _ => {
+                        return Err(ValidationErrorKind::FromDetails(
+                            "Invalid application and version".to_owned(),
+                            RequestErrorLocation::Path,
+                            None,
+                            None,
+                        )
+                        .into())
+                    }
+                }
+            };
+            let tokenserver_request = Self {
+                fxa_uid: token_data.user,
+                generation: token_data.generation,
+                service_id,
+            };
+
+            Ok(tokenserver_request)
         })
     }
 }
@@ -100,8 +117,6 @@ mod tests {
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     }
 
-    const TOKENSERVER_PATH: &str = "/1.0/sync/1.5";
-
     #[actix_rt::test]
     async fn test_valid_tokenserver_request() {
         let fxa_uid = "test123";
@@ -121,11 +136,13 @@ mod tests {
         };
         let state = make_state(verifier);
 
-        let req = TestRequest::with_uri(TOKENSERVER_PATH)
+        let req = TestRequest::default()
             .data(state)
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
+            .param("application", "sync")
+            .param("version", "1.5")
             .to_http_request();
 
         let mut payload = Payload::None;
@@ -155,11 +172,13 @@ mod tests {
         };
         let state = make_state(verifier);
 
-        let req = TestRequest::with_uri(TOKENSERVER_PATH)
+        let req = TestRequest::default()
             .data(state)
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
+            .param("application", "sync")
+            .param("version", "1.5")
             .to_http_request();
 
         let mut payload = Payload::None;

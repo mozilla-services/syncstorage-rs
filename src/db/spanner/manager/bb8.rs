@@ -19,7 +19,7 @@ use super::session::{create_spanner_session, recycle_spanner_session, SpannerSes
 #[allow(dead_code)]
 pub type Conn<'a> = PooledConnection<'a, SpannerSessionManager<SpannerSession>>;
 
-pub struct SpannerSessionManager<T> {
+pub struct SpannerSessionManager {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,
@@ -28,7 +28,7 @@ pub struct SpannerSessionManager<T> {
     phantom: PhantomData<T>,
 }
 
-impl<_T> fmt::Debug for SpannerSessionManager<_T> {
+impl fmt::Debug for SpannerSessionManager {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt.debug_struct("bb8::SpannerSessionManager")
             .field("database_name", &self.database_name)
@@ -37,32 +37,8 @@ impl<_T> fmt::Debug for SpannerSessionManager<_T> {
     }
 }
 
-impl<T> SpannerSessionManager<T> {
-    #[allow(dead_code)]
-    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
-        let database_name = settings
-            .spanner_database_name()
-            .ok_or_else(|| DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?
-            .to_owned();
-        let env = Arc::new(EnvBuilder::new().build());
-
-        #[cfg(not(test))]
-        let test_transactions = false;
-        #[cfg(test)]
-        let test_transactions = settings.database_use_test_transactions;
-
-        Ok(SpannerSessionManager::<T> {
-            database_name,
-            env,
-            metrics: metrics.clone(),
-            test_transactions,
-            phantom: PhantomData,
-        })
-    }
-}
-
 #[async_trait]
-impl<T: Send + Sync + 'static> ManageConnection for SpannerSessionManager<T> {
+impl ManageConnection for SpannerSessionManager {
     type Connection = SpannerSession;
     type Error = DbError;
 
