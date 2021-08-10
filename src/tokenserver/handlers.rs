@@ -8,6 +8,7 @@ use hmac::{Hmac, Mac, NewMac};
 use serde::Serialize;
 use sha2::Sha256;
 
+use super::db::{self, params::GetUser};
 use super::extractors::TokenserverRequest;
 use super::support::Tokenlib;
 use crate::tokenserver::support::MakeTokenPlaintext;
@@ -44,7 +45,14 @@ pub async fn get_tokenserver_result(
         "{}@{}",
         tokenserver_request.fxa_uid, tokenserver_state.fxa_email_domain
     );
-    let tokenserver_user = db.get_user(user_email).await?;
+    let tokenserver_user = {
+        let params = GetUser {
+            email: user_email.clone(),
+            service_id: db::SYNC_1_5_SERVICE_ID,
+        };
+
+        db.get_user(params).await?
+    };
 
     let fxa_metrics_hash_secret = tokenserver_state
         .fxa_metrics_hash_secret
@@ -82,7 +90,7 @@ pub async fn get_tokenserver_result(
                 let current_time = start.duration_since(UNIX_EPOCH).unwrap();
                 let expires = current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0);
 
-                expires.as_secs_f64()
+                expires.as_secs()
             };
 
             MakeTokenPlaintext {
