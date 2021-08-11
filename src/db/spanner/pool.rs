@@ -88,7 +88,7 @@ impl SpannerDbPool {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl DbPool for SpannerDbPool {
     async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         let mut metrics = self.metrics.clone();
