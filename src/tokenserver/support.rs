@@ -3,9 +3,8 @@ use pyo3::prelude::{IntoPy, PyAny, PyErr, PyModule, PyObject, Python};
 use pyo3::types::{IntoPyDict, PyString};
 use serde::Deserialize;
 
+use super::error::TokenserverError;
 use crate::error::{ApiError, ApiErrorKind};
-use crate::web::error::ValidationErrorKind;
-use crate::web::extractors::RequestErrorLocation;
 
 /// The plaintext needed to build a token.
 #[derive(Clone)]
@@ -82,13 +81,13 @@ pub struct TokenData {
     pub user: String,
     pub client_id: String,
     pub scope: Vec<String>,
-    pub generation: i64,
-    pub profile_changed_at: i64,
+    pub generation: Option<i64>,
+    pub profile_changed_at: Option<i64>,
 }
 
 /// Implementers of this trait can be used to verify OAuth tokens for Tokenserver.
 pub trait VerifyToken: Sync + Send {
-    fn verify_token(&self, token: &str) -> Result<TokenData, Error>;
+    fn verify_token(&self, token: &str) -> Result<TokenData, TokenserverError>;
     fn box_clone(&self) -> Box<dyn VerifyToken>;
 }
 
@@ -111,7 +110,7 @@ impl OAuthVerifier {
 impl VerifyToken for OAuthVerifier {
     /// Verifies an OAuth token. Returns `TokenData` for valid tokens and an `Error` for invalid
     /// tokens.
-    fn verify_token(&self, token: &str) -> Result<TokenData, Error> {
+    fn verify_token(&self, token: &str) -> Result<TokenData, TokenserverError> {
         let maybe_token_data_string = Python::with_gil(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
@@ -134,17 +133,12 @@ impl VerifyToken for OAuthVerifier {
                 token_data_python_string.extract::<String>().map(Some)
             }
         })
-        .map_err(pyerr_to_actix_error)?;
+        .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
 
         match maybe_token_data_string {
-            Some(token_data_string) => serde_json::from_str(&token_data_string).map_err(Into::into),
-            None => Err(ValidationErrorKind::FromDetails(
-                "Invalid bearer auth token".to_owned(),
-                RequestErrorLocation::Header,
-                Some("Bearer".to_owned()),
-                label!("request.error.invalid_bearer_auth"),
-            )
-            .into()),
+            Some(token_data_string) => serde_json::from_str(&token_data_string)
+                .map_err(|_| TokenserverError::invalid_credentials("Unauthorized")),
+            None => Err(TokenserverError::invalid_credentials("Unauthorized")),
         }
     }
 
@@ -161,16 +155,10 @@ pub struct MockOAuthVerifier {
 }
 
 impl VerifyToken for MockOAuthVerifier {
-    fn verify_token(&self, _token: &str) -> Result<TokenData, Error> {
-        self.valid.then(|| self.token_data.clone()).ok_or_else(|| {
-            ValidationErrorKind::FromDetails(
-                "Invalid bearer auth token".to_owned(),
-                RequestErrorLocation::Header,
-                Some("Bearer".to_owned()),
-                label!("request.error.invalid_bearer_auth"),
-            )
-            .into()
-        })
+    fn verify_token(&self, _token: &str) -> Result<TokenData, TokenserverError> {
+        self.valid
+            .then(|| self.token_data.clone())
+            .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))
     }
 
     fn box_clone(&self) -> Box<dyn VerifyToken> {
