@@ -147,7 +147,7 @@ impl FromRequest for TokenData {
                 .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))?
                 .to_str()
                 .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
-    
+
             // The request must use Bearer auth
             if let Some((auth_type, _)) = authorization_header.split_once(" ") {
                 if auth_type.to_ascii_lowercase() != "bearer" {

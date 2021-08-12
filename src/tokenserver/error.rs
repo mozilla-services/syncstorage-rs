@@ -108,7 +108,11 @@ impl fmt::Display for ErrorLocation {
 
 impl fmt::Display for TokenserverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", serde_json::to_string(&self).map_err(|_| fmt::Error)?)
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(&self).map_err(|_| fmt::Error)?
+        )
     }
 }
 
