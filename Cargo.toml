@@ -44,7 +44,7 @@ googleapis-raw = { version = "0", path = "vendor/mozilla-rust-sdk/googleapis-raw
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.9" }
 lazy_static = "1.4.0"
-pyo3 = "0.14"
+pyo3 = { version = "0.14", features = ["auto-initialize"] }
 hawk = "3.2"
 hex = "0.4.3"
 hostname = "0.3.1"
