@@ -15,14 +15,24 @@ pub struct TokenserverError {
     http_status: StatusCode,
 }
 
+impl Default for TokenserverError {
+    fn default() -> Self {
+        Self {
+            status: "",
+            location: ErrorLocation::default(),
+            name: "",
+            description: "Unauthorized",
+            http_status: StatusCode::UNAUTHORIZED,
+        }
+    }
+}
+
 impl TokenserverError {
     pub fn invalid_generation() -> Self {
         TokenserverError {
             status: "invalid-generation",
             location: ErrorLocation::Body,
-            name: "",
-            description: "Unauthorized",
-            http_status: StatusCode::UNAUTHORIZED,
+            ..Self::default()
         }
     }
 
@@ -30,39 +40,31 @@ impl TokenserverError {
         TokenserverError {
             status: "invalid-keysChangedAt",
             location: ErrorLocation::Body,
-            name: "",
-            description: "Unauthorized",
-            http_status: StatusCode::UNAUTHORIZED,
+            ..Self::default()
         }
     }
 
     pub fn invalid_key_id(description: &'static str) -> Self {
         TokenserverError {
             status: "invalid-key-id",
-            location: ErrorLocation::Header,
-            name: "",
             description,
-            http_status: StatusCode::UNAUTHORIZED,
+            ..Self::default()
         }
     }
 
     pub fn invalid_credentials(description: &'static str) -> Self {
         Self {
             status: "invalid-credentials",
-            location: ErrorLocation::Header,
-            name: "",
             description,
-            http_status: StatusCode::UNAUTHORIZED,
+            ..Self::default()
         }
     }
 
     pub fn invalid_client_state(description: &'static str) -> Self {
         Self {
             status: "invalid-client-state",
-            location: ErrorLocation::Header,
-            name: "",
             description,
-            http_status: StatusCode::UNAUTHORIZED,
+            ..Self::default()
         }
     }
 
@@ -70,9 +72,9 @@ impl TokenserverError {
         Self {
             status: "internal-error",
             location: ErrorLocation::Internal,
-            name: "",
             description: "Server error",
             http_status: StatusCode::INTERNAL_SERVER_ERROR,
+            ..Self::default()
         }
     }
 
@@ -80,9 +82,9 @@ impl TokenserverError {
         Self {
             status: "error",
             location: ErrorLocation::Url,
-            name: "",
             description,
             http_status: StatusCode::NOT_FOUND,
+            ..Self::default()
         }
     }
 }
@@ -93,6 +95,12 @@ pub enum ErrorLocation {
     Url,
     Body,
     Internal,
+}
+
+impl Default for ErrorLocation {
+    fn default() -> Self {
+        Self::Header
+    }
 }
 
 impl fmt::Display for ErrorLocation {
