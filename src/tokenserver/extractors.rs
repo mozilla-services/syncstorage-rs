@@ -320,7 +320,7 @@ mod tests {
             fxa_uid: fxa_uid.to_owned(),
             generation: 1234,
             keys_changed_at: 1234,
-            client_state: "aaa".to_owned(),
+            client_state: "616161".to_owned(),
             shared_secret: "Ted Koppel is a robot".to_owned(),
             hashed_fxa_uid: "4d00ecae64b98dd7dc7dea68d0dd615d".to_owned(),
             hashed_device_id: "3a41cccbdd666ebc4199f1f9d1249d44".to_owned(),
@@ -588,7 +588,7 @@ mod tests {
         {
             let request = build_request()
                 .header("x-keyid", "0000000001234-YWFh")
-                .header("x-client-state", "bbb")
+                .header("x-client-state", "626262")
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -602,11 +602,11 @@ mod tests {
         {
             let request = build_request()
                 .header("x-keyid", "0000000001234-YWFh")
-                .header("x-client-state", "aaa")
+                .header("x-client-state", "616161")
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
-                client_state: "aaa".to_owned(),
+                client_state: "616161".to_owned(),
                 keys_changed_at: 1234,
             };
 
@@ -620,7 +620,7 @@ mod tests {
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
-                client_state: "aaa".to_owned(),
+                client_state: "616161".to_owned(),
                 keys_changed_at: 1234,
             };
 
