@@ -197,24 +197,26 @@ impl FromRequest for KeyId {
                 .split_once("-")
                 .ok_or_else(|| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
 
-            let client_state_bytes =
-                base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                    .map_err(|_| TokenserverError::invalid_key_id("Invalid base64 encoding"))?;
+            let client_state = {
+                let client_state_bytes =
+                    base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
+                        .map_err(|_| TokenserverError::invalid_key_id("Invalid base64 encoding"))?;
 
-            let client_state = String::from_utf8(client_state_bytes).map_err(|_| {
-                TokenserverError::invalid_client_state("Invalid client state bytes")
-            })?;
+                let client_state = hex::encode(client_state_bytes);
 
-            // If there's a client state value in the X-Client-State header, verify that it matches
-            // the value in X-KeyID.
-            let maybe_x_client_state = headers
-                .get("X-Client-State")
-                .and_then(|header| header.to_str().ok());
-            if let Some(x_client_state) = maybe_x_client_state {
-                if x_client_state != client_state {
-                    return Err(TokenserverError::invalid_client_state("Unauthorized").into());
+                // If there's a client state value in the X-Client-State header, verify that it matches
+                // the value in X-KeyID.
+                let maybe_x_client_state = headers
+                    .get("X-Client-State")
+                    .and_then(|header| header.to_str().ok());
+                if let Some(x_client_state) = maybe_x_client_state {
+                    if x_client_state != client_state {
+                        return Err(TokenserverError::invalid_client_state("Unauthorized").into());
+                    }
                 }
-            }
+
+                client_state
+            };
 
             let keys_changed_at = keys_changed_at_string
                 .parse::<i64>()
