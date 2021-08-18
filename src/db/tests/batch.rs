@@ -6,11 +6,10 @@ use crate::{
     error::ApiErrorKind,
 };
 
-fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
+fn cb(user_id: u32, coll: &str) -> params::CreateBatch {
     params::CreateBatch {
         user_id: hid(user_id),
         collection: coll.to_owned(),
-        bsos,
     }
 }
 
@@ -51,7 +50,7 @@ async fn create_delete() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
     assert!(
         db.validate_batch(vb(uid, coll, new_batch.id.clone()))
             .await?
@@ -75,7 +74,7 @@ async fn expiry() -> Result<()> {
     let uid = 1;
     let coll = "clients";
     let new_batch = with_delta!(db, -(BATCH_LIFETIME + 11), {
-        db.create_batch(cb(uid, coll, vec![])).await
+        db.create_batch(cb(uid, coll)).await
     })?;
     assert!(
         !db.validate_batch(vb(uid, coll, new_batch.id.clone()))
@@ -101,7 +100,7 @@ async fn update() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
     assert!(db
         .get_batch(gb(uid, coll, new_batch.id.clone()))
         .await?
@@ -125,11 +124,7 @@ async fn append_commit() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let bsos1 = vec![
-        postbso("b0", Some("payload 0"), Some(10), None),
-        postbso("b1", Some("payload 1"), Some(1_000_000_000), None),
-    ];
-    let new_batch = db.create_batch(cb(uid, coll, bsos1)).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
 
     let bsos2 = vec![postbso("b2", Some("payload 2"), None, Some(1000))];
     db.append_to_batch(ab(uid, coll, new_batch.clone(), bsos2))
@@ -144,7 +139,6 @@ async fn append_commit() -> Result<()> {
         })
         .await?;
 
-    assert!(db.get_bso(gbso(uid, coll, "b0")).await?.is_some());
     assert!(db.get_bso(gbso(uid, coll, "b2")).await?.is_some());
 
     let ts = db
@@ -155,9 +149,9 @@ async fn append_commit() -> Result<()> {
         .await?;
     assert_eq!(modified, ts);
 
-    let bso = db.get_bso(gbso(uid, coll, "b1")).await?.unwrap();
-    assert_eq!(bso.sortindex, Some(1_000_000_000));
-    assert_eq!(bso.payload, "payload 1");
+    let bso = db.get_bso(gbso(uid, coll, "b2")).await?.unwrap();
+    assert_eq!(bso.sortindex, Some(1000));
+    assert_eq!(bso.payload, "payload 2");
     Ok(())
 }
 
@@ -178,13 +172,9 @@ async fn quota_test_create_batch() -> Result<()> {
 
     let uid = 1;
     let coll = "clients";
-    let filler = (0..limit - 10).map(|_| "#").collect::<Vec<_>>().concat();
 
-    // create too many records.
-    let bsos1 = vec![postbso("b0", Some(filler.as_ref()), None, None)];
-    let bsos2 = vec![postbso("b1", Some(filler.as_ref()), None, None)];
 
-    let new_batch = db.create_batch(cb(uid, coll, bsos1)).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
     let batch = db.get_batch(gb(uid, coll, new_batch.id)).await?.unwrap();
     db.commit_batch(params::CommitBatch {
         user_id: hid(uid),
@@ -193,7 +183,7 @@ async fn quota_test_create_batch() -> Result<()> {
     })
     .await?;
 
-    let result = db.create_batch(cb(uid, coll, bsos2)).await;
+    let result = db.create_batch(cb(uid, coll)).await;
     if settings.enforce_quota {
         assert!(result.is_err());
     } else {
@@ -223,11 +213,9 @@ async fn quota_test_append_batch() -> Result<()> {
     let filler = (0..limit / 3).map(|_| "#").collect::<Vec<_>>().concat();
 
     // create too many records.
-    let bsos1 = vec![postbso("b0", Some(filler.as_ref()), None, None)];
-    let bsos2 = vec![postbso("b1", Some(filler.as_ref()), None, None)];
     let bsos3 = vec![postbso("b2", Some(filler.as_ref()), None, None)];
 
-    let new_batch = db.create_batch(cb(uid, coll, bsos1)).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
     let batch = db
         .get_batch(gb(uid, coll, new_batch.id.clone()))
         .await?
@@ -238,7 +226,7 @@ async fn quota_test_append_batch() -> Result<()> {
         batch,
     })
     .await?;
-    let id2 = db.create_batch(cb(uid, coll, bsos2)).await?;
+    let id2 = db.create_batch(cb(uid, coll)).await?;
     let result = db.append_to_batch(ab(uid, coll, id2.clone(), bsos3)).await;
     if settings.enforce_quota {
         assert!(result.is_err())
@@ -269,7 +257,7 @@ async fn test_append_async_w_null() -> Result<()> {
     db.put_bso(second_bso).await?;
 
     let tomorrow = ttl_0 + 86_400;
-    let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+    let new_batch = db.create_batch(cb(uid, coll)).await?;
     // update the single bso twice, leaving payload the same.
     db.append_to_batch(ab(
         uid,

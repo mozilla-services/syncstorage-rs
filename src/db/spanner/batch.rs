@@ -57,7 +57,7 @@ pub async fn create_async(
         params.user_id,
         collection_id,
         new_batch.clone(),
-        params.bsos,
+        vec![],
         &params.collection,
     )
     .await?;

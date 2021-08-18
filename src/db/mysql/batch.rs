@@ -53,7 +53,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
             }
         })?;
 
-    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
+    do_append(db, batch_id, params.user_id, collection_id,vec![])?;
     Ok(results::CreateBatch {
         id: encode_id(batch_id),
         size: None,

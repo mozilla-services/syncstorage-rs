@@ -72,7 +72,7 @@ collection_data! {
     },
 
     CreateBatch {
-        bsos: Vec<PostCollectionBso>,
+        //bsos: Vec<PostCollectionBso>,
     },
     ValidateBatch {
         id: String,

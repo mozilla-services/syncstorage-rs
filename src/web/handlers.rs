@@ -325,7 +325,6 @@ pub async fn post_collection_batch(
         db.create_batch(params::CreateBatch {
             user_id: coll.user_id.clone(),
             collection: coll.collection.clone(),
-            bsos: vec![],
         })
         .await?
     };
