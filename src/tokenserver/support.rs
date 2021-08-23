@@ -1,7 +1,7 @@
 use actix_web::Error;
 use pyo3::prelude::{IntoPy, PyAny, PyErr, PyModule, PyObject, Python};
 use pyo3::types::{IntoPyDict, PyString};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::TokenserverError;
 use crate::error::{ApiError, ApiErrorKind};
@@ -76,7 +76,7 @@ impl Tokenlib {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct TokenData {
     pub user: String,
     pub client_id: String,
@@ -147,6 +147,52 @@ impl VerifyToken for OAuthVerifier {
     }
 }
 
+#[derive(Deserialize, Serialize)]
+struct JwtPayload {
+    client_id: String,
+    scope: String,
+    sub: String,
+    #[serde(rename(serialize = "fxa-generation", deserialize = "fxa-generation"))]
+    fxa_generation: Option<i64>,
+    #[serde(rename(
+        serialize = "fxa-profileChangedAt",
+        deserialize = "fxa-profileChangedAt"
+    ))]
+    fxa_profile_changed_at: Option<i64>,
+}
+
+#[derive(Clone)]
+pub struct TestModeOAuthVerifier;
+
+impl VerifyToken for TestModeOAuthVerifier {
+    fn verify_token(&self, token: &str) -> Result<TokenData, TokenserverError> {
+        let token_components: Vec<&str> = token.split('.').collect();
+
+        if token_components.len() != 3 {
+            return Err(TokenserverError::invalid_credentials("Invalid JWT"));
+        }
+
+        let payload_bytes = base64::decode_config(token_components[1], base64::URL_SAFE_NO_PAD)
+            .map_err(|_| TokenserverError::invalid_credentials("Invalid JWT base64"))?;
+        let payload_string = String::from_utf8(payload_bytes)
+            .map_err(|_| TokenserverError::invalid_credentials("JWT payload not a valid string"))?;
+        let payload: JwtPayload = serde_json::from_str(&payload_string)
+            .map_err(|_| TokenserverError::invalid_credentials("Invalid JWT payload"))?;
+
+        Ok(TokenData {
+            user: payload.sub,
+            client_id: payload.client_id,
+            scope: payload.scope.split(' ').map(String::from).collect(),
+            generation: payload.fxa_generation,
+            profile_changed_at: payload.fxa_profile_changed_at,
+        })
+    }
+
+    fn box_clone(&self) -> Box<dyn VerifyToken> {
+        Box::new(self.clone())
+    }
+}
+
 /// A mock OAuth verifier to be used for testing purposes.
 #[derive(Clone, Default)]
 pub struct MockOAuthVerifier {
@@ -169,4 +215,40 @@ impl VerifyToken for MockOAuthVerifier {
 fn pyerr_to_actix_error(e: PyErr) -> Error {
     let api_error: ApiError = ApiErrorKind::Internal(e.to_string()).into();
     api_error.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use jsonwebtoken::{EncodingKey, Header};
+
+    #[test]
+    fn test_test_mode_oauth_verifier() {
+        let test_mode_oauth_verifier = TestModeOAuthVerifier;
+        let claims = JwtPayload {
+            sub: "test user".to_owned(),
+            client_id: "test client ID".to_owned(),
+            scope: "test1 test2".to_owned(),
+            fxa_generation: Some(1234),
+            fxa_profile_changed_at: Some(5678),
+        };
+
+        let token = jsonwebtoken::encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret("secret".as_ref()),
+        )
+        .unwrap();
+        let decoded_claims = test_mode_oauth_verifier.verify_token(&token).unwrap();
+        let expected_claims = TokenData {
+            user: "test user".to_owned(),
+            client_id: "test client ID".to_owned(),
+            scope: vec!["test1".to_owned(), "test2".to_owned()],
+            generation: Some(1234),
+            profile_changed_at: Some(5678),
+        };
+
+        assert_eq!(expected_claims, decoded_claims);
+    }
 }

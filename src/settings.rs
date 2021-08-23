@@ -169,6 +169,7 @@ impl Settings {
         s.set_default("tokenserver.enabled", false)?;
         s.set_default("tokenserver.fxa_email_domain", "test.com")?;
         s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
+        s.set_default("tokenserver.test_mode_enabled", false)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
