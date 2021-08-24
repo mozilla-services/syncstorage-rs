@@ -5,7 +5,7 @@ pub mod handlers;
 pub mod settings;
 pub mod support;
 
-pub use self::support::{MockOAuthVerifier, OAuthVerifier, VerifyToken};
+pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
 use db::pool::{DbPool, TokenserverPool};
 use settings::Settings;
@@ -22,8 +22,20 @@ pub struct ServerState {
 
 impl ServerState {
     pub fn from_settings(settings: &Settings) -> Result<Self, ApiError> {
-        let oauth_verifier = OAuthVerifier {
-            fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
+        let oauth_verifier: Box<dyn VerifyToken> = if settings.test_mode_enabled {
+            #[cfg(debug_assertions)]
+            let oauth_verifier = Box::new(TestModeOAuthVerifier);
+
+            #[cfg(not(debug_assertions))]
+            let oauth_verifier = Box::new(OAuthVerifier {
+                fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
+            });
+
+            oauth_verifier
+        } else {
+            Box::new(OAuthVerifier {
+                fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
+            })
         };
         let use_test_transactions = false;
 
@@ -31,7 +43,7 @@ impl ServerState {
             .map(|db_pool| ServerState {
                 fxa_email_domain: settings.fxa_email_domain.clone(),
                 fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
-                oauth_verifier: Box::new(oauth_verifier),
+                oauth_verifier,
                 db_pool: Box::new(db_pool),
             })
             .map_err(Into::into)
