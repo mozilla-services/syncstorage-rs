@@ -3,16 +3,23 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
-use actix_web::{dev::Payload, web::Data, Error, FromRequest, HttpRequest};
+use actix_web::{
+    dev::Payload,
+    web::{Data, Query},
+    Error, FromRequest, HttpRequest,
+};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use futures::future::LocalBoxFuture;
 use hmac::{Hmac, Mac, NewMac};
+use serde::Deserialize;
 use sha2::Sha256;
 
 use super::db::{self, models::Db, params, results};
 use super::error::TokenserverError;
 use super::support::TokenData;
 use crate::server::ServerState;
+
+const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 
 /// Information from the request needed to process a Tokenserver request.
 #[derive(Debug, PartialEq)]
@@ -26,6 +33,7 @@ pub struct TokenserverRequest {
     pub hashed_fxa_uid: String,
     pub hashed_device_id: String,
     pub service_id: i32,
+    pub duration: u64,
 }
 
 impl FromRequest for TokenserverRequest {
@@ -91,6 +99,7 @@ impl FromRequest for TokenserverRequest {
 
                 db.get_user(params::GetUser { email, service_id }).await?
             };
+            let TokenDuration(duration) = TokenDuration::extract(&req).await?;
 
             let tokenserver_request = TokenserverRequest {
                 user,
@@ -102,9 +111,42 @@ impl FromRequest for TokenserverRequest {
                 hashed_fxa_uid,
                 hashed_device_id,
                 service_id,
+                duration: duration.unwrap_or(DEFAULT_TOKEN_DURATION),
             };
 
             Ok(tokenserver_request)
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct QueryParams {
+    pub duration: Option<String>,
+}
+
+struct TokenDuration(Option<u64>);
+
+impl FromRequest for TokenDuration {
+    type Config = ();
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let params = Query::<QueryParams>::extract(&req).await?;
+
+            // An error in the "duration" query parameter should never cause a request to fail.
+            // Instead, we should simply resort to using the default token duration.
+            Ok(Self(params.duration.clone().and_then(|duration_string| {
+                match duration_string.parse::<u64>() {
+                    // The specified token duration should never be greater than the default
+                    // token duration set on the server.
+                    Ok(duration) if duration <= DEFAULT_TOKEN_DURATION => Some(duration),
+                    _ => None,
+                }
+            })))
         })
     }
 }
@@ -308,6 +350,7 @@ mod tests {
             .header("x-keyid", "0000000001234-YWFh")
             .param("application", "sync")
             .param("version", "1.5")
+            .uri("/1.0/sync/1.5?duration=100")
             .method(Method::GET)
             .to_http_request();
 
@@ -325,6 +368,7 @@ mod tests {
             hashed_fxa_uid: "4d00ecae64b98dd7dc7dea68d0dd615d".to_owned(),
             hashed_device_id: "3a41cccbdd666ebc4199f1f9d1249d44".to_owned(),
             service_id: db::SYNC_1_5_SERVICE_ID,
+            duration: 100,
         };
 
         assert_eq!(result, expected_tokenserver_request);
