@@ -141,7 +141,7 @@ macro_rules! build_app {
             // XXX: This route will be enabled when we are ready to roll out Tokenserver
             // Tokenserver
             // .service(
-            //     web::resource("/1.0/{application}/{version}".to_string())
+            //     web::resource("/1.0/{application}/{version}")
             //         .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
             // )
             // Dockerflow

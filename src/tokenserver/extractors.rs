@@ -179,7 +179,7 @@ impl FromRequest for TokenData {
             // The request must use Bearer auth
             if let Some((auth_type, _)) = authorization_header.split_once(" ") {
                 if auth_type.to_ascii_lowercase() != "bearer" {
-                    return Err(TokenserverError::invalid_credentials("Unsupported").into());
+                    return Err(TokenserverError::unauthorized("Unsupported").into());
                 }
             }
 

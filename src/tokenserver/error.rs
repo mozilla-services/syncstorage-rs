@@ -29,7 +29,7 @@ impl Default for TokenserverError {
 
 impl TokenserverError {
     pub fn invalid_generation() -> Self {
-        TokenserverError {
+        Self {
             status: "invalid-generation",
             location: ErrorLocation::Body,
             ..Self::default()
@@ -37,7 +37,7 @@ impl TokenserverError {
     }
 
     pub fn invalid_keys_changed_at() -> Self {
-        TokenserverError {
+        Self {
             status: "invalid-keysChangedAt",
             location: ErrorLocation::Body,
             ..Self::default()
@@ -45,7 +45,7 @@ impl TokenserverError {
     }
 
     pub fn invalid_key_id(description: &'static str) -> Self {
-        TokenserverError {
+        Self {
             status: "invalid-key-id",
             description,
             ..Self::default()
@@ -84,6 +84,14 @@ impl TokenserverError {
             location: ErrorLocation::Url,
             description,
             http_status: StatusCode::NOT_FOUND,
+            ..Self::default()
+        }
+    }
+
+    pub fn unauthorized(description: &'static str) -> Self {
+        Self {
+            status: "error",
+            description,
             ..Self::default()
         }
     }
