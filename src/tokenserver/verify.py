@@ -2,7 +2,8 @@ from fxa.oauth import Client
 from fxa.errors import ClientError, TrustError
 import json
 
-DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync' 
+DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
+
 
 def verify_token(token, server_url=None):
     client = Client(server_url=server_url)
