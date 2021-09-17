@@ -3,10 +3,10 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 import unittest
 
-from .test_authorization import TestAuthorization
-from .test_e2e import TestE2e
-from .test_misc import TestMisc
-from .test_node_assignment import TestNodeAssignment
+from tokenserver.test_authorization import TestAuthorization
+from tokenserver.test_e2e import TestE2e
+from tokenserver.test_misc import TestMisc
+from tokenserver.test_node_assignment import TestNodeAssignment
 
 
 def run_local_tests():
