@@ -99,7 +99,20 @@ impl FromRequest for TokenserverRequest {
 
                 db.get_user(params::GetUser { email, service_id }).await?
             };
-            let TokenDuration(duration) = TokenDuration::extract(&req).await?;
+            let duration = {
+                let params = Query::<QueryParams>::extract(&req).await?;
+
+                // An error in the "duration" query parameter should never cause a request to fail.
+                // Instead, we should simply resort to using the default token duration.
+                params.duration.clone().and_then(|duration_string| {
+                    match duration_string.parse::<u64>() {
+                        // The specified token duration should never be greater than the default
+                        // token duration set on the server.
+                        Ok(duration) if duration <= DEFAULT_TOKEN_DURATION => Some(duration),
+                        _ => None,
+                    }
+                })
+            };
 
             let tokenserver_request = TokenserverRequest {
                 user,
@@ -122,33 +135,6 @@ impl FromRequest for TokenserverRequest {
 #[derive(Deserialize)]
 struct QueryParams {
     pub duration: Option<String>,
-}
-
-struct TokenDuration(Option<u64>);
-
-impl FromRequest for TokenDuration {
-    type Config = ();
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let req = req.clone();
-
-        Box::pin(async move {
-            let params = Query::<QueryParams>::extract(&req).await?;
-
-            // An error in the "duration" query parameter should never cause a request to fail.
-            // Instead, we should simply resort to using the default token duration.
-            Ok(Self(params.duration.clone().and_then(|duration_string| {
-                match duration_string.parse::<u64>() {
-                    // The specified token duration should never be greater than the default
-                    // token duration set on the server.
-                    Ok(duration) if duration <= DEFAULT_TOKEN_DURATION => Some(duration),
-                    _ => None,
-                }
-            })))
-        })
-    }
 }
 
 impl FromRequest for Box<dyn Db> {
