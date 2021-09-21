@@ -104,7 +104,7 @@ impl FromRequest for TokenserverRequest {
 
                 // An error in the "duration" query parameter should never cause a request to fail.
                 // Instead, we should simply resort to using the default token duration.
-                params.duration.clone().and_then(|duration_string| {
+                params.duration.as_ref().and_then(|duration_string| {
                     match duration_string.parse::<u64>() {
                         // The specified token duration should never be greater than the default
                         // token duration set on the server.
