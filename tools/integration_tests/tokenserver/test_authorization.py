@@ -490,3 +490,27 @@ class TestAuthorization(TestCase, unittest.TestCase):
         user = self._get_user(uid)
         # Ensure that the user had the correct generation set
         self.assertEqual(user['keys_changed_at'], 1234)
+
+    def test_x_client_state_must_have_same_client_state_as_key_id(self):
+        self._add_user(client_state='616161')
+        headers = {
+            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
+            'X-KeyID': '1234-YWFh',
+            'X-Client-State': '626262'
+        }
+        # If present, the X-Client-State header must have the same client
+        # state as the X-KeyID header
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Unauthorized',
+                    'location': 'body',
+                    'name': ''
+                }
+            ],
+            'status': 'invalid-client-state'
+        }
+        self.assertEqual(res.json, expected_error_response)
+        headers['X-Client-State'] = '616161'
+        res = self.app.get('/1.0/sync/1.5', headers=headers)

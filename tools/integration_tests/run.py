@@ -10,7 +10,6 @@ from test_storage import TestStorage
 from test_support import run_live_functional_tests
 import time
 
-
 DEBUG_BUILD = "target/debug/syncstorage"
 RELEASE_BUILD = "/app/bin/syncstorage"
 
