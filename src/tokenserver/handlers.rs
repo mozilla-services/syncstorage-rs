@@ -17,15 +17,13 @@ use crate::{
     server::ServerState,
 };
 
-const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
-
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
     id: String,
     key: String,
     uid: String,
     api_endpoint: String,
-    duration: String,
+    duration: u64,
 }
 
 pub async fn get_tokenserver_result(
@@ -88,7 +86,7 @@ pub async fn get_tokenserver_result(
             let expires = {
                 let start = SystemTime::now();
                 let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-                let expires = current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0);
+                let expires = current_time + Duration::new(tokenserver_request.duration, 0);
 
                 expires.as_secs()
             };
@@ -114,7 +112,7 @@ pub async fn get_tokenserver_result(
         key: derived_secret,
         uid: tokenserver_request.fxa_uid,
         api_endpoint,
-        duration: DEFAULT_TOKEN_DURATION.to_string(),
+        duration: tokenserver_request.duration,
     };
 
     Ok(HttpResponse::build(StatusCode::OK).json(result))
