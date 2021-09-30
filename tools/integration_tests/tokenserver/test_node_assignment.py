@@ -15,9 +15,9 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_user_creation(self):
         # Add a few more nodes
-        self._add_node(available=0)
-        self._add_node(available=1)
-        self._add_node(available=5)
+        self._add_node(available=0, node='https://node1')
+        self._add_node(available=1, node='https://node2')
+        self._add_node(available=5, node='https://node3')
         # Send a request from an unseen user
         oauth_token = self._forge_oauth_token(generation=1234)
         headers = {
@@ -49,11 +49,16 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         cursor = self._execute_sql('DELETE FROM nodes', ())
         cursor.close()
 
-        self._add_node(available=100, current_load=0, capacity=100, backoff=1)
-        self._add_node(available=100, current_load=0, capacity=100, downed=1)
-        node_id = self._add_node(available=99, current_load=1, capacity=100)
-        self._add_node(available=98, current_load=2, capacity=100)
-        self._add_node(available=97, current_load=3, capacity=100)
+        self._add_node(available=100, current_load=0, capacity=100, backoff=1,
+                       node='https://node1')
+        self._add_node(available=100, current_load=0, capacity=100, downed=1,
+                       node='https://node2')
+        node_id = self._add_node(available=99, current_load=1, capacity=100,
+                                 node='https://node3')
+        self._add_node(available=98, current_load=2, capacity=100,
+                       node='https://node4')
+        self._add_node(available=97, current_load=3, capacity=100,
+                       node='https://node5')
         headers = {
             'Authorization': 'Bearer %s' % self._forge_oauth_token(),
             'X-KeyID': '1234-YWFh'
@@ -76,15 +81,15 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         cursor.close()
 
         node_id1 = self._add_node(available=0, current_load=99, capacity=100,
-                                  node='node1')
+                                  node='https://node1')
         node_id2 = self._add_node(available=0, current_load=90, capacity=100,
-                                  node='node2')
+                                  node='https://node2')
         node_id3 = self._add_node(available=0, current_load=80, capacity=81,
-                                  node='node3')
+                                  node='https://node3')
         node_id4 = self._add_node(available=0, current_load=70, capacity=71,
-                                  node='node4', backoff=1)
+                                  node='https://node4', backoff=1)
         node_id5 = self._add_node(available=0, current_load=60, capacity=61,
-                                  node='node4', downed=1)
+                                  node='https://node5', downed=1)
         headers = {
             'Authorization': 'Bearer %s' % self._forge_oauth_token(),
             'X-KeyID': '1234-YWFh'
@@ -120,9 +125,11 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         cursor.close()
 
         self._add_node(available=0, current_load=100, capacity=100,
-                       node='node1')
-        self._add_node(available=0, current_load=90, capacity=90, node='node2')
-        self._add_node(available=0, current_load=80, capacity=80, node='node3')
+                       node='https://node1')
+        self._add_node(available=0, current_load=90, capacity=90,
+                       node='https://node2')
+        self._add_node(available=0, current_load=80, capacity=80,
+                       node='https://node3')
         headers = {
             'Authorization': 'Bearer %s' % self._forge_oauth_token(),
             'X-KeyID': '1234-YWFh'

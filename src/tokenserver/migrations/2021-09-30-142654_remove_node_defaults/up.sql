@@ -1,0 +1,5 @@
+ALTER TABLE `nodes` ALTER `available` DROP DEFAULT;
+ALTER TABLE `nodes` ALTER `current_load` DROP DEFAULT;
+ALTER TABLE `nodes` ALTER `capacity` DROP DEFAULT;
+ALTER TABLE `nodes` ALTER `downed` DROP DEFAULT;
+ALTER TABLE `nodes` ALTER `backoff` DROP DEFAULT;
