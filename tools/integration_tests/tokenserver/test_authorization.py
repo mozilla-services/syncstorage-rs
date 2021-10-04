@@ -367,8 +367,10 @@ class TestAuthorization(TestCase, unittest.TestCase):
         }
         # They sync again, but hit a tokenserver node that isn't updated yet.
         # This would trigger the allocation of a new user, so we simulate this
-        # by adding a new user.
-        uid = self._add_user(generation=2345, client_state='626262')
+        # by adding a new user. We set keys_changed_at to be the last-used
+        # value, since we are simulating a server that doesn't pay attention
+        # to keys_changed_at.
+        uid = self._add_user(generation=2345, keys_changed_at=1200, client_state='626262')
         user2 = self._get_user(uid)
         self.assertNotEqual(user1['uid'], user2['uid'])
         self.assertEqual(user1['nodeid'], user2['nodeid'])
@@ -384,11 +386,11 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_update_client_state(self):
         uid = self._add_user(generation=0, keys_changed_at=None,
-                             client_state='616161')
+                             client_state='')
         user1 = self._get_user(uid)
         # The user starts out with no client_state
         self.assertEqual(user1['generation'], 0)
-        self.assertEqual(user1['client_state'], '616161')
+        self.assertEqual(user1['client_state'], '')
         seen_uids = set((uid,))
         orig_node = user1['nodeid']
         # Changing client_state allocates a new user, resulting in a new uid
@@ -445,7 +447,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         oauth_token = self._forge_oauth_token(generation=1236)
         headers = {
             'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1236-YWFh'
+            'X-KeyID': '1236-YmJi'
         }
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
         expected_error_response = {

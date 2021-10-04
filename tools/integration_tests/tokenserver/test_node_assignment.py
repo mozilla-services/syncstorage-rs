@@ -66,7 +66,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # The user should have been allocated to the least-loaded node
         # (computed as current_load / capacity) that has backoff and downed
-        # set to false
+        # set to 0
         user = self._get_user(res.json['uid'])
         self.assertEqual(user['nodeid'], node_id)
         # The selected node should have current_load incremented and available

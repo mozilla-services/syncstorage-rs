@@ -21,8 +21,8 @@ class TestCase:
     SYNC_1_1_SERVICE_ID = 1
     SYNC_1_5_SERVICE_ID = 2
     SYNC_1_5_SERVICE_NAME = 'sync-1.5'
-    TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
     TOKEN_SIGNING_SECRET = 'secret'
+    TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
 
     def setUp(self):
         self.database = mysql.connector.connect(
