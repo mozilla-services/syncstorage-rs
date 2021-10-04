@@ -370,7 +370,8 @@ class TestAuthorization(TestCase, unittest.TestCase):
         # by adding a new user. We set keys_changed_at to be the last-used
         # value, since we are simulating a server that doesn't pay attention
         # to keys_changed_at.
-        uid = self._add_user(generation=2345, keys_changed_at=1200, client_state='626262')
+        uid = self._add_user(generation=2345, keys_changed_at=1200,
+                             client_state='626262')
         user2 = self._get_user(uid)
         self.assertNotEqual(user1['uid'], user2['uid'])
         self.assertEqual(user1['nodeid'], user2['nodeid'])
