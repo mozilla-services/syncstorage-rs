@@ -57,6 +57,10 @@ impl Db for MockDb {
         Box::pin(future::ok(true))
     }
 
+    fn get_node_id(&self, _params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId> {
+        Box::pin(future::ok(results::GetNodeId::default()))
+    }
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,

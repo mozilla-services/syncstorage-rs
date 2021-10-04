@@ -6,11 +6,11 @@ use serde::{
     Serialize,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TokenserverError {
     status: &'static str,
     location: ErrorLocation,
-    name: &'static str,
+    name: String,
     description: &'static str,
     http_status: StatusCode,
 }
@@ -20,7 +20,7 @@ impl Default for TokenserverError {
         Self {
             status: "",
             location: ErrorLocation::default(),
-            name: "",
+            name: "".to_owned(),
             description: "Unauthorized",
             http_status: StatusCode::UNAUTHORIZED,
         }
@@ -63,7 +63,9 @@ impl TokenserverError {
     pub fn invalid_client_state(description: &'static str) -> Self {
         Self {
             status: "invalid-client-state",
+            location: ErrorLocation::Body,
             description,
+            name: "X-Client-State".to_owned(),
             ..Self::default()
         }
     }
@@ -78,13 +80,13 @@ impl TokenserverError {
         }
     }
 
-    pub fn unsupported(description: &'static str) -> Self {
+    pub fn unsupported(description: &'static str, name: String) -> Self {
         Self {
             status: "error",
             location: ErrorLocation::Url,
             description,
+            name,
             http_status: StatusCode::NOT_FOUND,
-            ..Self::default()
         }
     }
 
@@ -97,7 +99,7 @@ impl TokenserverError {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ErrorLocation {
     Header,
     Url,
@@ -149,7 +151,7 @@ struct ErrorResponse {
 
 struct ErrorInstance {
     location: ErrorLocation,
-    name: &'static str,
+    name: String,
     description: &'static str,
 }
 
@@ -159,7 +161,7 @@ impl From<&TokenserverError> for ErrorResponse {
             status: error.status,
             errors: [ErrorInstance {
                 location: error.location,
-                name: error.name,
+                name: error.name.clone(),
                 description: error.description,
             }],
         }

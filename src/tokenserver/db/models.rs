@@ -10,11 +10,7 @@ use diesel_logger::LoggingConnection;
 use futures::future::LocalBoxFuture;
 use futures::TryFutureExt;
 
-use std::{
-    result,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{result, sync::Arc};
 
 use super::{params, results};
 use crate::db::error::{DbError, DbErrorKind};
@@ -94,6 +90,7 @@ impl TokenserverDb {
         }
 
         raw_users.sort_by_key(|raw_user| (raw_user.generation, raw_user.created_at));
+        raw_users.reverse();
 
         // The user with the greatest `generation` and `created_at` is the current user
         let raw_user = raw_users[0].clone();
@@ -132,6 +129,21 @@ impl TokenserverDb {
         Ok(user)
     }
 
+    fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
+        const QUERY: &str = r#"
+            SELECT id
+              FROM nodes
+             WHERE service = ?
+               AND node = ?
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(&params.node)
+            .get_result(&self.inner.conn)
+            .map_err(Into::into)
+    }
+
     /// Mark users matching the given email and service ID as replaced.
     fn replace_users_sync(&self, params: params::ReplaceUsers) -> DbResult<results::ReplaceUsers> {
         const QUERY: &str = r#"
@@ -142,13 +154,12 @@ impl TokenserverDb {
                AND replaced_at IS NULL
                AND created_at < ?
         "#;
-        let timestamp = Self::get_timestamp_in_milliseconds();
 
         diesel::sql_query(QUERY)
-            .bind::<Bigint, _>(timestamp)
+            .bind::<Bigint, _>(params.replaced_at)
             .bind::<Integer, _>(&params.service_id)
             .bind::<Text, _>(&params.email)
-            .bind::<Bigint, _>(timestamp)
+            .bind::<Bigint, _>(params.replaced_at)
             .execute(&self.inner.conn)
             .map(|_| ())
             .map_err(Into::into)
@@ -214,7 +225,7 @@ impl TokenserverDb {
             .bind::<Text, _>(&user.email)
             .bind::<Bigint, _>(user.generation)
             .bind::<Text, _>(&user.client_state)
-            .bind::<Bigint, _>(Self::get_timestamp_in_milliseconds())
+            .bind::<Bigint, _>(user.created_at)
             .bind::<Bigint, _>(user.node_id)
             .bind::<Nullable<Bigint>, _>(user.keys_changed_at)
             .execute(&self.inner.conn)?;
@@ -229,13 +240,6 @@ impl TokenserverDb {
         // has the database been up for more than 0 seconds?
         let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.inner.conn)?;
         Ok(result as u64 > 0)
-    }
-
-    fn get_timestamp_in_milliseconds() -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64
     }
 
     #[cfg(test)]
@@ -315,6 +319,7 @@ impl Db for TokenserverDb {
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
     sync_db_method!(post_user, post_user_sync, PostUser);
     sync_db_method!(put_user, put_user_sync, PutUser);
+    sync_db_method!(get_node_id, get_node_id_sync, GetNodeId);
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
@@ -349,6 +354,8 @@ pub trait Db {
 
     fn check(&self) -> DbFuture<'_, results::Check>;
 
+    fn get_node_id(&self, params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId>;
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,
@@ -368,6 +375,8 @@ pub trait Db {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::settings::test_settings;
     use crate::tokenserver::db;
@@ -704,6 +713,7 @@ mod tests {
         db.replace_users(params::ReplaceUsers {
             service_id: db::SYNC_1_5_SERVICE_ID,
             email: email1.to_owned(),
+            replaced_at: now,
         })
         .await?;
 
@@ -797,7 +807,45 @@ mod tests {
         Ok(())
     }
 
-    pub async fn db_pool() -> DbResult<TokenserverPool> {
+    #[tokio::test]
+    async fn get_node_id() -> Result<()> {
+        let pool = db_pool().await?;
+        let db = pool.get()?;
+
+        // Add a node
+        let node_id1 = db
+            .post_node(params::PostNode {
+                service_id: db::SYNC_1_5_SERVICE_ID,
+                node: "node 1".to_owned(),
+                ..Default::default()
+            })
+            .await?
+            .id;
+
+        // Add another node
+        db.post_node(params::PostNode {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            node: "node 2".to_owned(),
+            ..Default::default()
+        })
+        .await?;
+
+        // Get the ID of the first node
+        let id = db
+            .get_node_id(params::GetNodeId {
+                service_id: db::SYNC_1_5_SERVICE_ID,
+                node: "node 1".to_owned(),
+            })
+            .await?
+            .id;
+
+        // The ID should match that of the first node
+        assert_eq!(node_id1, id);
+
+        Ok(())
+    }
+
+    async fn db_pool() -> DbResult<TokenserverPool> {
         let _ = env_logger::try_init();
 
         let tokenserver_settings = test_settings().tokenserver;
