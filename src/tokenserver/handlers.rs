@@ -21,9 +21,10 @@ use crate::{
 pub struct TokenserverResult {
     id: String,
     key: String,
-    uid: String,
+    uid: i64,
     api_endpoint: String,
     duration: u64,
+    hashed_fxa_uid: String,
 }
 
 pub async fn get_tokenserver_result(
@@ -110,9 +111,10 @@ pub async fn get_tokenserver_result(
     let result = TokenserverResult {
         id: token,
         key: derived_secret,
-        uid: tokenserver_request.fxa_uid,
+        uid: tokenserver_user.uid,
         api_endpoint,
         duration: tokenserver_request.duration,
+        hashed_fxa_uid: hashed_fxa_uid.to_owned(),
     };
 
     Ok(HttpResponse::build(StatusCode::OK).json(result))
