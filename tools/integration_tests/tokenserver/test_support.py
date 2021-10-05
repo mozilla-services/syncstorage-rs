@@ -5,7 +5,6 @@ from base64 import urlsafe_b64encode as b64encode
 import json
 import os
 import math
-import mysql.connector
 import time
 import urllib.parse as urlparse
 
@@ -27,7 +26,9 @@ class TestCase:
 
     def setUp(self):
         engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
-        self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
+        self.database = engine. \
+            execution_options(isolation_level="AUTOCOMMIT"). \
+            connect()
 
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
         self.app = TestApp(self.TOKENSERVER_HOST, extra_environ={
