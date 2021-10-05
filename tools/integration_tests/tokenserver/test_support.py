@@ -9,6 +9,7 @@ import mysql.connector
 import time
 import urllib.parse as urlparse
 
+from sqlalchemy import create_engine
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
 
@@ -25,13 +26,8 @@ class TestCase:
     TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
 
     def setUp(self):
-        self.database = mysql.connector.connect(
-            user=os.environ['TOKENSERVER_DATABASE_USER'],
-            password=os.environ['TOKENSERVER_DATABASE_PASSWORD'],
-            host=os.environ['TOKENSERVER_DATABASE_HOST'],
-            database=os.environ['TOKENSERVER_DATABASE_NAME']
-        )
-        self.database.autocommit = True
+        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
+        self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
 
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
         self.app = TestApp(self.TOKENSERVER_HOST, extra_environ={
@@ -221,8 +217,7 @@ class TestCase:
         return count
 
     def _execute_sql(self, query, args):
-        cursor = self.database.cursor()
-        cursor.execute(query, args)
+        cursor = self.database.execute(query, args)
 
         return cursor
 
