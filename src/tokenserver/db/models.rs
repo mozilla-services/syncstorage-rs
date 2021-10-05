@@ -816,7 +816,7 @@ mod tests {
         let node_id1 = db
             .post_node(params::PostNode {
                 service_id: db::SYNC_1_5_SERVICE_ID,
-                node: "node 1".to_owned(),
+                node: "https://node1".to_owned(),
                 ..Default::default()
             })
             .await?
@@ -825,7 +825,7 @@ mod tests {
         // Add another node
         db.post_node(params::PostNode {
             service_id: db::SYNC_1_5_SERVICE_ID,
-            node: "node 2".to_owned(),
+            node: "https://node2".to_owned(),
             ..Default::default()
         })
         .await?;
@@ -834,7 +834,7 @@ mod tests {
         let id = db
             .get_node_id(params::GetNodeId {
                 service_id: db::SYNC_1_5_SERVICE_ID,
-                node: "node 1".to_owned(),
+                node: "https://node1".to_owned(),
             })
             .await?
             .id;

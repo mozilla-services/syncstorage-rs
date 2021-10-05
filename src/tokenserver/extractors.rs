@@ -93,8 +93,7 @@ impl TokenserverRequest {
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
-        // be accompanied by a valid change in keys_changed_at (if the client reports
-        // keys_changed_at).
+        // be accompanied by a valid change in keys_changed_at
         if let Some(user_keys_changed_at) = self.user.keys_changed_at {
             if self.client_state != self.user.client_state
                 && self.keys_changed_at <= user_keys_changed_at
