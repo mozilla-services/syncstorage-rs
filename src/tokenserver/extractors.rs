@@ -327,7 +327,7 @@ impl FromRequest for KeyId {
             let maybe_x_client_state = headers
                 .get("X-Client-State")
                 .and_then(|header| header.to_str().ok());
-            
+
             // If there's a client state value in the X-Client-State header, make sure it is valid
             if let Some(x_client_state) = maybe_x_client_state {
                 if !CLIENT_STATE_REGEX.is_match(x_client_state) {
@@ -337,7 +337,8 @@ impl FromRequest for KeyId {
                         description: "Invalid client state value",
                         name: "X-Client-State".to_owned(),
                         http_status: StatusCode::BAD_REQUEST,
-                    }.into());
+                    }
+                    .into());
                 }
             }
 
