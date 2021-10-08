@@ -1,4 +1,7 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use actix_web::http::StatusCode;
 use actix_web::web::Data;
@@ -6,15 +9,18 @@ use actix_web::Error;
 use actix_web::{HttpRequest, HttpResponse};
 use hmac::{Hmac, Mac, NewMac};
 use serde::Serialize;
+use serde_json::Value;
 use sha2::Sha256;
+use std::collections::HashMap;
 
-use super::db::{self, params::GetUser};
+use super::db::{self, models::Db, params::GetUser};
 use super::extractors::TokenserverRequest;
 use super::support::Tokenlib;
-use crate::tokenserver::support::MakeTokenPlaintext;
+use super::ServerState;
 use crate::{
     error::{ApiError, ApiErrorKind},
-    server::ServerState,
+    settings::Secrets,
+    tokenserver::support::MakeTokenPlaintext,
 };
 
 #[derive(Debug, Serialize)]
@@ -32,18 +38,17 @@ pub async fn get_tokenserver_result(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let state = request
-        .app_data::<Data<ServerState>>()
-        .ok_or_else(|| internal_error("Could not load the app state"))?;
-    let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
+        .app_data::<Data<Option<ServerState>>>()
+        .ok_or_else(|| internal_error("Could not load the app state"))?
+        .as_ref()
+        .as_ref()
+        .unwrap();
     let db = {
-        let db_pool = tokenserver_state.db_pool.clone();
+        let db_pool = state.db_pool.clone();
         db_pool.get().map_err(ApiError::from)?
     };
 
-    let user_email = format!(
-        "{}@{}",
-        tokenserver_request.fxa_uid, tokenserver_state.fxa_email_domain
-    );
+    let user_email = format!("{}@{}", tokenserver_request.fxa_uid, state.fxa_email_domain);
     let tokenserver_user = {
         let params = GetUser {
             email: user_email.clone(),
@@ -53,10 +58,7 @@ pub async fn get_tokenserver_result(
         db.get_user(params).await?
     };
 
-    let fxa_metrics_hash_secret = tokenserver_state
-        .fxa_metrics_hash_secret
-        .clone()
-        .into_bytes();
+    let fxa_metrics_hash_secret = state.fxa_metrics_hash_secret.clone().into_bytes();
 
     let hashed_fxa_uid_full =
         fxa_metrics_hash(&tokenserver_request.fxa_uid, &fxa_metrics_hash_secret)?;
@@ -80,8 +82,14 @@ pub async fn get_tokenserver_result(
     };
 
     let (token, derived_secret) = {
-        let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
-            .map_err(|_| internal_error("Failed to read master secret"))?;
+        let shared_secret = String::from_utf8(
+            request
+                .app_data::<Data<Arc<Secrets>>>()
+                .ok_or_else(|| internal_error("Could not load the app secrets"))?
+                .master_secret
+                .clone(),
+        )
+        .map_err(|_| internal_error("Failed to read master secret"))?;
 
         let make_token_plaintext = {
             let expires = {
@@ -141,4 +149,35 @@ fn internal_error(message: &str) -> HttpResponse {
     error!("⚠️ {}", message);
 
     HttpResponse::InternalServerError().body("")
+}
+
+pub async fn heartbeat(db: Box<dyn Db>) -> Result<HttpResponse, Error> {
+    let mut checklist = HashMap::new();
+    checklist.insert(
+        "version".to_owned(),
+        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
+    );
+
+    match db.check().await {
+        Ok(result) => {
+            if result {
+                checklist.insert("database".to_owned(), Value::from("Ok"));
+            } else {
+                checklist.insert("database".to_owned(), Value::from("Err"));
+                checklist.insert(
+                    "database_msg".to_owned(),
+                    Value::from("check failed without error"),
+                );
+            };
+            let status = if result { "Ok" } else { "Err" };
+            checklist.insert("status".to_owned(), Value::from(status));
+            Ok(HttpResponse::Ok().json(checklist))
+        }
+        Err(e) => {
+            error!("Heartbeat error: {:?}", e);
+            checklist.insert("status".to_owned(), Value::from("Err"));
+            checklist.insert("database".to_owned(), Value::from("Unknown"));
+            Ok(HttpResponse::ServiceUnavailable().json(checklist))
+        }
+    }
 }

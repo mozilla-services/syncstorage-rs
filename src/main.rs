@@ -47,7 +47,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Setup and run the server
     let banner = settings.banner();
-    let server = server::Server::with_settings(settings).await.unwrap();
+    let server = if settings.disable_syncstorage {
+        server::Server::tokenserver_only_with_settings(settings)
+            .await
+            .unwrap()
+    } else {
+        server::Server::with_settings(settings).await.unwrap()
+    };
     info!("Server running on {}", banner);
     server.await?;
     info!("Server closing");

@@ -24,6 +24,7 @@ use crate::db::pool_from_settings;
 use crate::db::results::{DeleteBso, GetBso, PostBsos, PutBso};
 use crate::db::util::SyncTimestamp;
 use crate::settings::{test_settings, Secrets, ServerLimits};
+use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody, X_LAST_MODIFIED};
 
 lazy_static! {
@@ -68,8 +69,6 @@ async fn get_test_state(settings: &Settings) -> ServerState {
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        secrets: Arc::clone(&SECRETS),
-        tokenserver_state: None,
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
@@ -91,7 +90,13 @@ macro_rules! init_app {
         async {
             crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.limits.clone());
-            test::init_service(build_app!(get_test_state(&$settings).await, limits)).await
+            test::init_service(build_app!(
+                get_test_state(&$settings).await,
+                None::<tokenserver::ServerState>,
+                Arc::clone(&SECRETS),
+                limits
+            ))
+            .await
         }
     };
 }
@@ -207,7 +212,13 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings).await, limits)).await;
+    let mut app = test::init_service(build_app!(
+        get_test_state(&settings).await,
+        None::<tokenserver::ServerState>,
+        Arc::clone(&SECRETS),
+        limits
+    ))
+    .await;
 
     let req = create_request(method, path, None, None).to_request();
     let sresponse = match app.call(req).await {
@@ -241,7 +252,13 @@ async fn test_endpoint_with_body(
 ) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.limits.clone());
-    let mut app = test::init_service(build_app!(get_test_state(&settings).await, limits)).await;
+    let mut app = test::init_service(build_app!(
+        get_test_state(&settings).await,
+        None::<tokenserver::ServerState>,
+        Arc::clone(&SECRETS),
+        limits
+    ))
+    .await;
     let req = create_request(method, path, None, Some(body)).to_request();
     let sresponse = app
         .call(req)

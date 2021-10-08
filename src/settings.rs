@@ -80,6 +80,10 @@ pub struct Settings {
 
     pub spanner_emulator_host: Option<String>,
 
+    /// Disable all of the endpoints related to syncstorage. To be used when running Tokenserver
+    /// in isolation.
+    pub disable_syncstorage: bool,
+
     /// Settings specific to Tokenserver
     pub tokenserver: TokenserverSettings,
 }
@@ -108,6 +112,7 @@ impl Default for Settings {
             enable_quota: false,
             enforce_quota: false,
             spanner_emulator_host: None,
+            disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
         }
     }
@@ -160,6 +165,7 @@ impl Settings {
         s.set_default("statsd_label", "syncstorage")?;
         s.set_default("enable_quota", false)?;
         s.set_default("enforce_quota", false)?;
+        s.set_default("disable_syncstorage", false)?;
 
         // Set Tokenserver defaults
         s.set_default(
