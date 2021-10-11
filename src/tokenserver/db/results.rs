@@ -32,7 +32,7 @@ pub type GetRawUsers = Vec<GetRawUser>;
 /// Represents the relevant information from the most recently-created user record in the database
 /// for a given email and service ID, along with any previously-seen client states seen for the
 /// user.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct GetUser {
     pub uid: i64,
     pub client_state: String,
@@ -41,20 +41,6 @@ pub struct GetUser {
     pub keys_changed_at: Option<i64>,
     pub created_at: i64,
     pub old_client_states: Vec<String>,
-}
-
-impl Default for GetUser {
-    fn default() -> Self {
-        Self {
-            uid: Default::default(),
-            client_state: "616161".to_owned(),
-            generation: 1234,
-            node: Default::default(),
-            keys_changed_at: Some(1234),
-            created_at: Default::default(),
-            old_client_states: Default::default(),
-        }
-    }
 }
 
 #[cfg(test)]
