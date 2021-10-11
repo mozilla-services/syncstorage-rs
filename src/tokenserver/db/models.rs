@@ -225,6 +225,12 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
+    fn check_sync(&self) -> DbResult<results::Check> {
+        // has the database been up for more than 0 seconds?
+        let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.inner.conn)?;
+        Ok(result as u64 > 0)
+    }
+
     fn get_timestamp_in_milliseconds() -> i64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -310,6 +316,11 @@ impl Db for TokenserverDb {
     sync_db_method!(post_user, post_user_sync, PostUser);
     sync_db_method!(put_user, put_user_sync, PutUser);
 
+    fn check(&self) -> DbFuture<'_, results::Check> {
+        let db = self.clone();
+        Box::pin(block(move || db.check_sync().map_err(Into::into)).map_err(Into::into))
+    }
+
     #[cfg(test)]
     sync_db_method!(
         set_user_created_at,
@@ -335,6 +346,8 @@ pub trait Db {
     fn post_user(&self, params: params::PostUser) -> DbFuture<'_, results::PostUser>;
 
     fn put_user(&self, params: params::PutUser) -> DbFuture<'_, results::PutUser>;
+
+    fn check(&self) -> DbFuture<'_, results::Check>;
 
     #[cfg(test)]
     fn set_user_created_at(

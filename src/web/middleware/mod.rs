@@ -6,11 +6,13 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
+use std::sync::Arc;
+
 use actix_web::{dev::ServiceRequest, Error, HttpRequest};
 
 use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::ServerState;
+use crate::settings::Secrets;
 use crate::web::{extractors::HawkIdentifier, DOCKER_FLOW_ENDPOINTS};
 use actix_web::web::Data;
 
@@ -30,10 +32,12 @@ impl SyncServerRequest for ServiceRequest {
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
         let ci = &self.connection_info().clone();
-        let state = &self.app_data::<ServerState>().ok_or_else(|| -> ApiError {
-            ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
-        })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, state)
+        let secrets = &self
+            .app_data::<Data<Arc<Secrets>>>()
+            .ok_or_else(|| -> ApiError {
+                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
+            })?;
+        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
     }
 }
 
@@ -46,11 +50,11 @@ impl SyncServerRequest for HttpRequest {
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
         let ci = &self.connection_info().clone();
-        let state = &self
-            .app_data::<Data<ServerState>>()
+        let secrets = &self
+            .app_data::<Data<Arc<Secrets>>>()
             .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data ServerState".to_owned()).into()
+                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
             })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, state)
+        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
     }
 }

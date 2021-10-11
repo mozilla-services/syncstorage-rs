@@ -72,3 +72,5 @@ pub type SetUserCreatedAt = ();
 
 #[cfg(test)]
 pub type GetUsers = Vec<GetUser>;
+
+pub type Check = bool;

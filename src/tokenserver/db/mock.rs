@@ -53,6 +53,10 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
+    fn check(&self) -> DbFuture<'_, results::Check> {
+        Box::pin(future::ok(true))
+    }
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,

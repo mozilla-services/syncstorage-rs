@@ -3,6 +3,8 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
+use std::sync::Arc;
+
 use actix_web::{
     dev::Payload,
     web::{Data, Query},
@@ -17,7 +19,8 @@ use sha2::Sha256;
 use super::db::{self, models::Db, params, results};
 use super::error::TokenserverError;
 use super::support::TokenData;
-use crate::server::ServerState;
+use super::ServerState;
+use crate::settings::Secrets;
 
 const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 
@@ -46,15 +49,9 @@ impl FromRequest for TokenserverRequest {
 
         Box::pin(async move {
             let token_data = TokenData::extract(&req).await?;
-            let state = get_server_state(&req)?;
-            let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
-            let fxa_metrics_hash_secret = &tokenserver_state.fxa_metrics_hash_secret.as_bytes();
-            let shared_secret =
-                String::from_utf8(state.secrets.master_secret.clone()).map_err(|_| {
-                    error!("⚠️ Failed to read master secret");
-
-                    TokenserverError::internal_error()
-                })?;
+            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let shared_secret = get_secret(&req)?;
+            let fxa_metrics_hash_secret = &state.fxa_metrics_hash_secret.as_bytes();
             let key_id = KeyId::extract(&req).await?;
             let fxa_uid = token_data.user;
             let hashed_fxa_uid = {
@@ -90,12 +87,12 @@ impl FromRequest for TokenserverRequest {
                 }
             };
             let user = {
-                let db = tokenserver_state.db_pool.get().map_err(|_| {
+                let db = state.db_pool.get().map_err(|_| {
                     error!("⚠️ Could not acquire database connection");
 
                     TokenserverError::internal_error()
                 })?;
-                let email = format!("{}@{}", fxa_uid, tokenserver_state.fxa_email_domain);
+                let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
 
                 db.get_user(params::GetUser { email, service_id }).await?
             };
@@ -146,9 +143,8 @@ impl FromRequest for Box<dyn Db> {
         let req = req.clone();
 
         Box::pin(async move {
-            let state = get_server_state(&req)?;
-            let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
-            let db = tokenserver_state.db_pool.get().map_err(|_| {
+            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let db = state.db_pool.get().map_err(|_| {
                 error!("⚠️ Could not acquire database connection");
 
                 TokenserverError::internal_error()
@@ -186,12 +182,12 @@ impl FromRequest for TokenData {
             let auth = BearerAuth::extract(&req)
                 .await
                 .map_err(|_| TokenserverError::invalid_credentials("Unsupported"))?;
-            let state = get_server_state(&req)?;
 
-            // XXX: tokenserver_state will no longer be an Option once the Tokenserver
+            // XXX: The Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
-            let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
-            tokenserver_state
+            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+
+            state
                 .oauth_verifier
                 .verify_token(auth.token())
                 .map_err(Into::into)
@@ -258,9 +254,23 @@ impl FromRequest for KeyId {
     }
 }
 
-fn get_server_state(req: &HttpRequest) -> Result<&Data<ServerState>, Error> {
-    req.app_data::<Data<ServerState>>().ok_or_else(|| {
+fn get_server_state(req: &HttpRequest) -> Result<&Data<Option<ServerState>>, Error> {
+    req.app_data::<Data<Option<ServerState>>>().ok_or_else(|| {
         error!("⚠️ Could not load the app state");
+
+        TokenserverError::internal_error().into()
+    })
+}
+
+fn get_secret(req: &HttpRequest) -> Result<String, Error> {
+    let secrets = req.app_data::<Data<Arc<Secrets>>>().ok_or_else(|| {
+        error!("⚠️ Could not load the app secrets");
+
+        Error::from(TokenserverError::internal_error())
+    })?;
+
+    String::from_utf8(secrets.master_secret.clone()).map_err(|_| {
+        error!("⚠️ Failed to read master secret");
 
         TokenserverError::internal_error().into()
     })
@@ -295,13 +305,10 @@ mod tests {
     use futures::executor::block_on;
     use lazy_static::lazy_static;
     use serde_json;
-    use tokio::sync::RwLock;
 
-    use crate::db::mock::MockDbPool;
-    use crate::server::{metrics, ServerState};
-    use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
+    use crate::settings::{Secrets, ServerLimits};
     use crate::tokenserver::{
-        self, db::mock::MockDbPool as MockTokenserverPool, MockOAuthVerifier,
+        db::mock::MockDbPool as MockTokenserverPool, MockOAuthVerifier, ServerState,
     };
 
     use std::sync::Arc;
@@ -330,7 +337,8 @@ mod tests {
         let state = make_state(verifier);
 
         let req = TestRequest::default()
-            .data(state)
+            .data(Some(state))
+            .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
             .header("x-keyid", "0000000001234-YWFh")
@@ -380,7 +388,8 @@ mod tests {
         let state = make_state(verifier);
 
         let request = TestRequest::default()
-            .data(state)
+            .data(Some(state))
+            .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
             .header("x-keyid", "0000000001234-YWFh")
@@ -421,7 +430,8 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(make_state(verifier))
+                .data(Some(make_state(verifier)))
+                .data(Arc::clone(&SECRETS))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
                 .header("x-keyid", "0000000001234-YWFh")
@@ -530,7 +540,7 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(make_state(verifier))
+                .data(Some(make_state(verifier)))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
                 .param("application", "sync")
@@ -663,24 +673,11 @@ mod tests {
     }
 
     fn make_state(verifier: MockOAuthVerifier) -> ServerState {
-        let settings = Settings::default();
-        let tokenserver_state = tokenserver::ServerState {
+        ServerState {
             fxa_email_domain: "test.com".to_owned(),
             fxa_metrics_hash_secret: "".to_owned(),
             oauth_verifier: Box::new(verifier),
             db_pool: Box::new(MockTokenserverPool::new()),
-        };
-
-        ServerState {
-            db_pool: Box::new(MockDbPool::new()),
-            limits: Arc::clone(&SERVER_LIMITS),
-            limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-            secrets: Arc::clone(&SECRETS),
-            tokenserver_state: Some(tokenserver_state),
-            port: 8000,
-            metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
-            quota_enabled: settings.enable_quota,
-            deadman: Arc::new(RwLock::new(Deadman::default())),
         }
     }
 }

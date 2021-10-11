@@ -2,7 +2,9 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr};
+use std::{
+    self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr, sync::Arc,
+};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -1041,7 +1043,7 @@ impl HawkIdentifier {
         method: &str,
         uri: &Uri,
         ci: &ConnectionInfo,
-        state: &ServerState,
+        secrets: &Secrets,
     ) -> Result<Self, Error>
     where
         T: HttpMessage,
@@ -1056,7 +1058,7 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier = Self::generate(&state.secrets, method, auth_header, ci, uri)?;
+        let identifier = Self::generate(secrets, method, auth_header, ci, uri)?;
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1099,14 +1101,14 @@ impl FromRequest for HawkIdentifier {
         let req = req.clone();
 
         Box::pin(async move {
-            let state = match req.app_data::<Data<ServerState>>() {
+            let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
                 Some(s) => s,
                 None => {
-                    error!("⚠️ Could not load the app state");
+                    error!("⚠️ Could not load the app secrets");
                     return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
-                        Some("state".to_owned()),
+                        Some("secrets".to_owned()),
                         None,
                     )
                     .into());
@@ -1116,7 +1118,7 @@ impl FromRequest for HawkIdentifier {
             let connection_info = req.connection_info().clone();
             let method = req.method().as_str();
             let uri = req.uri();
-            Self::extrude(&req, method, uri, &connection_info, state)
+            Self::extrude(&req, method, uri, &connection_info, secrets)
         })
     }
 }
@@ -1722,8 +1724,6 @@ mod tests {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-            secrets: Arc::clone(&SECRETS),
-            tokenserver_state: None,
             port: 8000,
             metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
             quota_enabled: settings.enable_quota,
@@ -1737,7 +1737,7 @@ mod tests {
 
     fn create_valid_hawk_header(
         payload: &HawkPayload,
-        state: &ServerState,
+        secrets: &Secrets,
         method: &str,
         path: &str,
         host: &str,
@@ -1745,7 +1745,7 @@ mod tests {
     ) -> String {
         let salt = payload.salt.clone();
         let payload = serde_json::to_string(payload).unwrap();
-        let mut hmac = Hmac::<Sha256>::new_from_slice(&state.secrets.signing_secret).unwrap();
+        let mut hmac = Hmac::<Sha256>::new_from_slice(&secrets.signing_secret).unwrap();
         hmac.update(payload.as_bytes());
         let payload_hash = hmac.finalize().into_bytes();
         let mut id = payload.as_bytes().to_vec();
@@ -1774,6 +1774,7 @@ mod tests {
     ) -> Result<CollectionPostRequest, Error> {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let path = format!(
             "/1.5/{}/storage/tabs{}{}",
             *USER_ID,
@@ -1782,9 +1783,10 @@ mod tests {
         );
         let bod_str = body.to_string();
         let header =
-            create_valid_hawk_header(&payload, &state, "POST", &path, TEST_HOST, TEST_PORT);
+            create_valid_hawk_header(&payload, &secrets, "POST", &path, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&format!("http://{}:{}{}", TEST_HOST, TEST_PORT, path))
             .data(state)
+            .data(secrets)
             .method(Method::POST)
             .header("authorization", header)
             .header("content-type", "application/json; charset=UTF-8")
@@ -1882,10 +1884,13 @@ mod tests {
     fn test_valid_bso_request() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .method(Method::GET)
             .param("uid", &USER_ID_STR)
@@ -1904,10 +1909,13 @@ mod tests {
     fn test_invalid_bso_request() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, INVALID_BSO_NAME);
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .method(Method::GET)
             // `param` sets the value that would be extracted from the tokenized URI, as if the router did it.
@@ -1938,13 +1946,16 @@ mod tests {
     fn test_valid_bso_post_body() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
             "id": "128", "payload": "x"
         });
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .header("content-type", "application/json")
             .method(Method::POST)
@@ -1968,13 +1979,16 @@ mod tests {
     fn test_invalid_bso_post_body() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "POST", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "POST", &uri, TEST_HOST, TEST_PORT);
         let bso_body = json!({
             "payload": "xxx", "sortindex": -9_999_999_999_i64,
         });
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .header("content-type", "application/json")
             .method(Method::POST)
@@ -2006,10 +2020,13 @@ mod tests {
     fn test_valid_collection_request() {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/tabs", *USER_ID);
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
@@ -2028,14 +2045,17 @@ mod tests {
         let payload = HawkPayload::test_default(*USER_ID);
         let altered_bso = format!("\"{{{}}}\"", *USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!(
             "/1.5/{}/storage/tabs/{}",
             *USER_ID,
             urlencoding::encode(&altered_bso)
         );
-        let header = create_valid_hawk_header(&payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+        let header =
+            create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .header("accept", "application/json,text/plain:q=0.5")
             .method(Method::GET)
@@ -2052,13 +2072,15 @@ mod tests {
     fn test_invalid_collection_request() {
         let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/{}", *USER_ID, INVALID_COLLECTION_NAME);
         let header =
-            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+            create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
+            .data(secrets)
             .param("uid", &USER_ID_STR)
             .param("collection", INVALID_COLLECTION_NAME)
             .to_http_request();
@@ -2240,13 +2262,15 @@ mod tests {
     fn valid_header_with_valid_path() {
         let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
         let header =
-            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+            create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .header("authorization", header)
             .method(Method::GET)
             .data(state)
+            .data(secrets)
             .param("uid", &USER_ID_STR)
             .to_http_request();
         let mut payload = Payload::None;
@@ -2261,11 +2285,13 @@ mod tests {
         let hawk_payload = HawkPayload::test_default(*USER_ID);
         let mismatch_uid = "5";
         let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
         let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
         let header =
-            create_valid_hawk_header(&hawk_payload, &state, "GET", &uri, TEST_HOST, TEST_PORT);
+            create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
+            .data(secrets)
             .header("authorization", header)
             .method(Method::GET)
             .param("uid", mismatch_uid)
