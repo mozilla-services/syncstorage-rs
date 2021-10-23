@@ -1,5 +1,3 @@
-[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
-
 # Tokenserver
 
 Tokenserver is used to:
