@@ -9,6 +9,21 @@ Tokenserver is used to:
 
 This functionality was previously provided by a [Python service](https://github.com/mozilla-services/tokenserver/). Originally, the intent was to use Tokenserver as a standalone authentication service for use with various, independent microservices. In practice, it is only used for Firefox Sync, so it was rewritten in Rust to be part of the same code repository as the Sync Storage node.
 
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Configuration](#configuration)
+  - [Disabling Syncstorage](#disabling-syncstorage)
+  - [Test Mode](#test-mode)
+  - [Connecting to Firefox](#connecting-to-firefox)
+- [Database](#database)
+- [Running](#running)
+- [Testing](#testing)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Configuration
 
 You can find example settings for Tokenserver in [config/local.example.toml](../../config/local.example.toml). The available settings are:
