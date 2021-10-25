@@ -57,9 +57,9 @@ fn get_token_plaintext(req: &TokenserverRequest, updates: &UserUpdates) -> MakeT
     let expires = {
         let start = SystemTime::now();
         let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-        let expires = current_time + Duration::new(req.duration, 0);
+        let expires = current_time + Duration::from_secs(req.duration);
 
-        expires.as_millis() as u64
+        expires.as_secs()
     };
 
     MakeTokenPlaintext {
