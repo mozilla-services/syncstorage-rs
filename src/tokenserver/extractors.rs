@@ -169,6 +169,11 @@ impl FromRequest for TokenserverRequest {
                         .into());
                     }
                 } else {
+                    // NOTE: It would probably be better to include the name of the unsupported
+                    // application in the error message, but the old Tokenserver only includes
+                    // "application" in the error message. To keep the APIs between the old and
+                    // new Tokenservers as close as possible, we defer to the error message from
+                    // the old Tokenserver.
                     return Err(TokenserverError::unsupported(
                         "Unsupported application",
                         "application".to_owned(),
