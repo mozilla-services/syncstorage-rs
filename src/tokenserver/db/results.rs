@@ -67,6 +67,12 @@ pub type ReplaceUsers = ();
 pub type ReplaceUser = ();
 pub type PutUser = ();
 
+#[derive(Default, QueryableByName)]
+pub struct GetNodeId {
+    #[sql_type = "Bigint"]
+    pub id: i64,
+}
+
 #[cfg(test)]
 pub type SetUserCreatedAt = ();
 

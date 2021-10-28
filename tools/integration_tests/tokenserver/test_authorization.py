@@ -517,3 +517,21 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
         headers['X-Client-State'] = '616161'
         res = self.app.get('/1.0/sync/1.5', headers=headers)
+
+    def test_x_key_id_header_required(self):
+        headers = {
+            'Authorization': 'Bearer %s' % self._forge_oauth_token()
+        }
+        # A request without an X-KeyID header should fail
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Missing X-KeyID header',
+                    'location': 'header',
+                    'name': ''
+                }
+            ],
+            'status': 'invalid-key-id'
+        }
+        self.assertEqual(res.json, expected_error_response)
