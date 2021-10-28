@@ -183,7 +183,7 @@ class TestMisc(TestCase, unittest.TestCase):
             'X-KeyID': '1234-YWFh'
         }
         # Retired users cannot make requests with a generation smaller than
-        # max generation
+        # the max generation
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
         expected_error_response = {
             "status": "invalid-generation",
