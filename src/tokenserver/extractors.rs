@@ -25,11 +25,12 @@ use crate::settings::Secrets;
 const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 
 /// Information from the request needed to process a Tokenserver request.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct TokenserverRequest {
     pub user: results::GetUser,
     pub fxa_uid: String,
-    pub generation: i64,
+    pub email: String,
+    pub generation: Option<i64>,
     pub keys_changed_at: i64,
     pub client_state: String,
     pub shared_secret: String,
@@ -37,6 +38,90 @@ pub struct TokenserverRequest {
     pub hashed_device_id: String,
     pub service_id: i32,
     pub duration: u64,
+}
+
+impl TokenserverRequest {
+    /// Performs an elaborate set of consistency checks on the
+    /// provided claims, which we expect to behave as follows:
+    ///
+    ///   * `generation` is a monotonic timestamp, and increases every time
+    ///     there is an authentication-related change on the user's account.
+    ///
+    ///   * `keys_changed_at` is a monotonic timestamp, and increases every time
+    ///     the user's keys change. This is a type of auth-related change, so
+    ///     `keys_changed_at` <= `generation` at all times.
+    ///
+    ///   * `client_state` is a key fingerprint and should never change back
+    ///      to a previously-seen value.
+    ///
+    /// Callers who provide identity claims that violate any of these rules
+    /// either have stale credetials (in which case they should re-authenticate)
+    /// or are buggy (in which case we deny them access to the user's data).
+    ///
+    /// The logic here is slightly complicated by the fact that older versions
+    /// of the FxA server may not have been sending all the expected fields, and
+    /// that some clients do not report the `generation` timestamp.
+    fn validate(&self) -> Result<(), TokenserverError> {
+        // If the caller reports a generation number, then a change
+        // in keys should correspond to a change in generation number.
+        // Unfortunately a previous version of the server that didn't
+        // have `keys_changed_at` support may have already seen and
+        // written the new value of `generation`. The best we can do
+        // here is enforce that `keys_changed_at` <= `generation`.
+        if let (Some(generation), Some(user_keys_changed_at)) =
+            (self.generation, self.user.keys_changed_at)
+        {
+            if self.keys_changed_at > user_keys_changed_at && generation < self.keys_changed_at {
+                return Err(TokenserverError::invalid_keys_changed_at());
+            }
+        }
+
+        // The client state on the request must not have been used in the past.
+        if self.user.old_client_states.contains(&self.client_state) {
+            let error_message = "Unacceptable client-state value stale value";
+            return Err(TokenserverError::invalid_client_state(error_message));
+        }
+
+        // If the client state on the request differs from the most recently-used client state, it must
+        // be accompanied by a valid change in generation (if the client reports a generation).
+        if let Some(generation) = self.generation {
+            if self.client_state != self.user.client_state && generation <= self.user.generation {
+                let error_message =
+                    "Unacceptable client-state value new value with no generation change";
+                return Err(TokenserverError::invalid_client_state(error_message));
+            }
+        }
+
+        // If the client state on the request differs from the most recently-used client state, it must
+        // be accompanied by a valid change in keys_changed_at
+        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
+            if self.client_state != self.user.client_state
+                && self.keys_changed_at <= user_keys_changed_at
+            {
+                let error_message =
+                    "Unacceptable client-state value new value with no keys_changed_at change";
+                return Err(TokenserverError::invalid_client_state(error_message));
+            }
+        }
+
+        // The generation on the request cannot be earlier than the generation stored on the user
+        // record.
+        if let Some(generation) = self.generation {
+            if self.user.generation > generation {
+                return Err(TokenserverError::invalid_generation());
+            }
+        }
+
+        // The keys_changed_at on the request cannot be earlier than the keys_changed_at stored on
+        // the user record.
+        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
+            if user_keys_changed_at > self.keys_changed_at {
+                return Err(TokenserverError::invalid_keys_changed_at());
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl FromRequest for TokenserverRequest {
@@ -79,22 +164,36 @@ impl FromRequest for TokenserverRequest {
                     } else {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version",
+                            version.to_owned(),
                         )
                         .into());
                     }
                 } else {
-                    return Err(TokenserverError::unsupported("Unsupported application").into());
+                    // NOTE: It would probably be better to include the name of the unsupported
+                    // application in the error message, but the old Tokenserver only includes
+                    // "application" in the error message. To keep the APIs between the old and
+                    // new Tokenservers as close as possible, we defer to the error message from
+                    // the old Tokenserver.
+                    return Err(TokenserverError::unsupported(
+                        "Unsupported application",
+                        "application".to_owned(),
+                    )
+                    .into());
                 }
             };
+            let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
             let user = {
                 let db = state.db_pool.get().map_err(|_| {
                     error!("⚠️ Could not acquire database connection");
 
                     TokenserverError::internal_error()
                 })?;
-                let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
 
-                db.get_user(params::GetUser { email, service_id }).await?
+                db.get_user(params::GetUser {
+                    email: email.clone(),
+                    service_id,
+                })
+                .await?
             };
             let duration = {
                 let params = Query::<QueryParams>::extract(&req).await?;
@@ -114,7 +213,8 @@ impl FromRequest for TokenserverRequest {
             let tokenserver_request = TokenserverRequest {
                 user,
                 fxa_uid,
-                generation: token_data.generation.unwrap_or(0),
+                email,
+                generation: token_data.generation,
                 keys_changed_at: key_id.keys_changed_at,
                 client_state: key_id.client_state,
                 shared_secret,
@@ -123,6 +223,8 @@ impl FromRequest for TokenserverRequest {
                 service_id,
                 duration: duration.unwrap_or(DEFAULT_TOKEN_DURATION),
             };
+
+            tokenserver_request.validate()?;
 
             Ok(tokenserver_request)
         })
@@ -355,7 +457,8 @@ mod tests {
         let expected_tokenserver_request = TokenserverRequest {
             user: results::GetUser::default(),
             fxa_uid: fxa_uid.to_owned(),
-            generation: 1234,
+            email: "test123@test.com".to_owned(),
+            generation: Some(1234),
             keys_changed_at: 1234,
             client_state: "616161".to_owned(),
             shared_secret: "Ted Koppel is a robot".to_owned(),
@@ -372,14 +475,12 @@ mod tests {
     async fn test_invalid_auth_token() {
         let fxa_uid = "test123";
         let verifier = {
-            let start = SystemTime::now();
-            let current_time = start.duration_since(UNIX_EPOCH).unwrap();
             let token_data = TokenData {
                 user: fxa_uid.to_owned(),
                 client_id: "client id".to_owned(),
                 scope: vec!["scope".to_owned()],
-                generation: Some(current_time.as_secs() as i64),
-                profile_changed_at: Some(current_time.as_secs() as i64),
+                generation: Some(1234),
+                profile_changed_at: None,
             };
             let valid = false;
 
@@ -415,14 +516,12 @@ mod tests {
         fn build_request() -> TestRequest {
             let fxa_uid = "test123";
             let verifier = {
-                let start = SystemTime::now();
-                let current_time = start.duration_since(UNIX_EPOCH).unwrap();
                 let token_data = TokenData {
                     user: fxa_uid.to_owned(),
                     client_id: "client id".to_owned(),
                     scope: vec!["scope".to_owned()],
-                    generation: Some(current_time.as_secs() as i64),
-                    profile_changed_at: Some(current_time.as_secs() as i64),
+                    generation: Some(1234),
+                    profile_changed_at: None,
                 };
                 let valid = true;
 
@@ -452,7 +551,8 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported("Unsupported application version");
+            let expected_error =
+                TokenserverError::unsupported("Unsupported application version", "1.0".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -471,7 +571,8 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported("Unsupported application");
+            let expected_error =
+                TokenserverError::unsupported("Unsupported application", "application".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -490,7 +591,8 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported("Unsupported application");
+            let expected_error =
+                TokenserverError::unsupported("Unsupported application", "application".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -666,6 +768,187 @@ mod tests {
 
             assert_eq!(key_id, expected_key_id);
         }
+    }
+
+    #[actix_rt::test]
+    async fn test_old_generation() {
+        // The request includes a generation that is less than the generation currently stored on
+        // the user record
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec![],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1233),
+            keys_changed_at: 1234,
+            client_state: "616161".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        assert_eq!(error, TokenserverError::invalid_generation());
+    }
+
+    #[actix_rt::test]
+    async fn test_old_keys_changed_at() {
+        // The request includes a keys_changed_at that is less than the keys_changed_at currently
+        // stored on the user record
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec![],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1234),
+            keys_changed_at: 1233,
+            client_state: "616161".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        assert_eq!(error, TokenserverError::invalid_keys_changed_at());
+    }
+
+    #[actix_rt::test]
+    async fn test_keys_changed_without_generation_change() {
+        // The request includes a new value for keys_changed_at without a new value for generation
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec![],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1234),
+            keys_changed_at: 1235,
+            client_state: "616161".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        assert_eq!(error, TokenserverError::invalid_keys_changed_at());
+    }
+
+    #[actix_rt::test]
+    async fn test_old_client_state() {
+        // The request includes a previously-used client state that is not the user's current
+        // client state
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec!["626262".to_owned()],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1234),
+            keys_changed_at: 1234,
+            client_state: "626262".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        let error_message = "Unacceptable client-state value stale value";
+        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+    }
+
+    #[actix_rt::test]
+    async fn test_new_client_state_without_generation_change() {
+        // The request includes a new client state without a new generation value
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec![],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1234),
+            keys_changed_at: 1234,
+            client_state: "626262".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        let error_message = "Unacceptable client-state value new value with no generation change";
+        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+    }
+
+    #[actix_rt::test]
+    async fn test_new_client_state_without_key_change() {
+        // The request includes a new client state without a new keys_changed_at value
+        let tokenserver_request = TokenserverRequest {
+            user: results::GetUser {
+                uid: 1,
+                client_state: "616161".to_owned(),
+                generation: 1234,
+                node: "node".to_owned(),
+                keys_changed_at: Some(1234),
+                created_at: 1234,
+                old_client_states: vec![],
+            },
+            fxa_uid: "test".to_owned(),
+            email: "test@test.com".to_owned(),
+            generation: Some(1235),
+            keys_changed_at: 1234,
+            client_state: "626262".to_owned(),
+            shared_secret: "secret".to_owned(),
+            hashed_fxa_uid: "abcdef".to_owned(),
+            hashed_device_id: "abcdef".to_owned(),
+            service_id: 1,
+            duration: DEFAULT_TOKEN_DURATION,
+        };
+
+        let error = tokenserver_request.validate().unwrap_err();
+        let error_message =
+            "Unacceptable client-state value new value with no keys_changed_at change";
+        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
     }
 
     fn extract_body_as_str(sresponse: ServiceResponse) -> String {

@@ -66,7 +66,7 @@ impl DbPool for TokenserverPool {
     fn get(&self) -> Result<Box<dyn Db>, DbError> {
         self.inner
             .get()
-            .map(|db_pool| Box::new(TokenserverDb::new(db_pool)) as Box<dyn Db>)
+            .map(|conn| Box::new(TokenserverDb::new(conn)) as Box<dyn Db>)
             .map_err(DbError::from)
     }
 

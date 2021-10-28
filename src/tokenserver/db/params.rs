@@ -29,6 +29,7 @@ pub struct PostUser {
     pub email: String,
     pub generation: i64,
     pub client_state: String,
+    pub created_at: i64,
     pub replaced_at: Option<i64>,
     pub node_id: i64,
     pub keys_changed_at: Option<i64>,
@@ -48,6 +49,7 @@ pub struct PutUser {
 pub struct ReplaceUsers {
     pub email: String,
     pub service_id: i32,
+    pub replaced_at: i64,
 }
 
 #[derive(Default)]
@@ -55,6 +57,12 @@ pub struct ReplaceUser {
     pub uid: i64,
     pub service_id: i32,
     pub replaced_at: i64,
+}
+
+#[derive(Debug, Default)]
+pub struct GetNodeId {
+    pub service_id: i32,
+    pub node: String,
 }
 
 #[cfg(test)]
