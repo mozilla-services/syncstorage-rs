@@ -65,7 +65,7 @@ Then, run the migrations:
 ```
 diesel --database-url mysql://sample_user:sample_password@localhost/tokenserver_rs migration --migration-dir src/tokenserver/migrations run
 ```
-You should replace the above database URL with the URL of the database you are using.
+You should replace the above database Data Source Name (DSN) with the DSN of the database you are using.
 
 ## Running
 
