@@ -28,6 +28,9 @@ pub struct Settings {
 
     /// When test mode is enabled, OAuth tokens are unpacked without being verified.
     pub test_mode_enabled: bool,
+
+    /// The rate at which capacity should be released from nodes that are at capacity.
+    pub node_capacity_release_rate: Option<f32>,
 }
 
 impl Default for Settings {
@@ -42,6 +45,7 @@ impl Default for Settings {
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: None,
             test_mode_enabled: false,
+            node_capacity_release_rate: None,
         }
     }
 }
