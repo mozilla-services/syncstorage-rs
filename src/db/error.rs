@@ -94,6 +94,8 @@ impl From<DbErrorKind> for DbError {
             //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
             DbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
             DbErrorKind::Quota => StatusCode::FORBIDDEN,
+            // NOTE: TokenserverUserRetired is an internal service error for compatibility reasons
+            // (the legacy Tokenserver returned an internal service error in this situation)
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

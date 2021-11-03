@@ -55,8 +55,11 @@ fn get_token_plaintext(
     let fxa_kid = {
         // If decoding the hex bytes fails, it means we did something wrong when we stored the
         // client state in the database
-        let client_state = hex::decode(req.client_state.clone())
-            .map_err(|_| TokenserverError::internal_error())?;
+        let client_state = hex::decode(req.client_state.clone()).map_err(|_| {
+            error!("⚠️ Failed to decode client state hex");
+
+            TokenserverError::internal_error()
+        })?;
         let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
 
         format!("{:013}-{:}", updates.keys_changed_at, client_state_b64)
