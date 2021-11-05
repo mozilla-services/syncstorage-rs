@@ -18,6 +18,7 @@ pub struct ServerState {
     pub fxa_email_domain: String,
     pub fxa_metrics_hash_secret: String,
     pub oauth_verifier: Box<dyn VerifyToken>,
+    pub node_capacity_release_rate: Option<f32>,
 }
 
 impl ServerState {
@@ -45,6 +46,7 @@ impl ServerState {
                 fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
                 oauth_verifier,
                 db_pool: Box::new(db_pool),
+                node_capacity_release_rate: settings.node_capacity_release_rate,
             })
             .map_err(Into::into)
     }

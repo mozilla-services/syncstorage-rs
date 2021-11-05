@@ -8,17 +8,17 @@ use serde::{
 
 #[derive(Debug, PartialEq)]
 pub struct TokenserverError {
-    status: &'static str,
-    location: ErrorLocation,
-    name: String,
-    description: &'static str,
-    http_status: StatusCode,
+    pub status: &'static str,
+    pub location: ErrorLocation,
+    pub name: String,
+    pub description: &'static str,
+    pub http_status: StatusCode,
 }
 
 impl Default for TokenserverError {
     fn default() -> Self {
         Self {
-            status: "",
+            status: "error",
             location: ErrorLocation::default(),
             name: "".to_owned(),
             description: "Unauthorized",
@@ -55,6 +55,7 @@ impl TokenserverError {
     pub fn invalid_credentials(description: &'static str) -> Self {
         Self {
             status: "invalid-credentials",
+            location: ErrorLocation::Body,
             description,
             ..Self::default()
         }
@@ -63,7 +64,6 @@ impl TokenserverError {
     pub fn invalid_client_state(description: &'static str) -> Self {
         Self {
             status: "invalid-client-state",
-            location: ErrorLocation::Body,
             description,
             name: "X-Client-State".to_owned(),
             ..Self::default()
@@ -92,7 +92,7 @@ impl TokenserverError {
 
     pub fn unauthorized(description: &'static str) -> Self {
         Self {
-            status: "error",
+            location: ErrorLocation::Body,
             description,
             ..Self::default()
         }
