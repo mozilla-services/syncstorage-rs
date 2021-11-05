@@ -134,6 +134,9 @@ impl FromRequest for TokenserverRequest {
 
         Box::pin(async move {
             let token_data = TokenData::extract(&req).await?;
+
+            // XXX: Tokenserver state will no longer be an Option once the Tokenserver
+            // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
             let shared_secret = get_secret(&req)?;
             let fxa_metrics_hash_secret = &state.fxa_metrics_hash_secret.as_bytes();
@@ -249,6 +252,8 @@ impl FromRequest for Box<dyn Db> {
         let req = req.clone();
 
         Box::pin(async move {
+            // XXX: Tokenserver state will no longer be an Option once the Tokenserver
+            // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
             let db = state.db_pool.get().map_err(|_| {
                 error!("⚠️ Could not acquire database connection");
