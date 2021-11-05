@@ -1,11 +1,5 @@
 //! Parameter types for database methods.
 
-#[derive(Default)]
-pub struct GetUser {
-    pub email: String,
-    pub service_id: i32,
-}
-
 #[derive(Clone, Default)]
 pub struct PostNode {
     pub service_id: i32,
@@ -17,11 +11,28 @@ pub struct PostNode {
     pub backoff: i32,
 }
 
+#[derive(Clone, Default)]
+pub struct GetNode {
+    pub id: i64,
+}
+
 #[derive(Default)]
 pub struct PostService {
     pub service: String,
     pub pattern: String,
 }
+
+#[derive(Clone, Default)]
+pub struct GetOrCreateUser {
+    pub service_id: i32,
+    pub email: String,
+    pub generation: i64,
+    pub client_state: String,
+    pub keys_changed_at: Option<i64>,
+    pub capacity_release_rate: Option<f32>,
+}
+
+pub type AllocateUser = GetOrCreateUser;
 
 #[derive(Clone, Default)]
 pub struct PostUser {
@@ -30,7 +41,6 @@ pub struct PostUser {
     pub generation: i64,
     pub client_state: String,
     pub created_at: i64,
-    pub replaced_at: Option<i64>,
     pub node_id: i64,
     pub keys_changed_at: Option<i64>,
 }
@@ -65,6 +75,18 @@ pub struct GetNodeId {
     pub node: String,
 }
 
+#[derive(Default)]
+pub struct GetBestNode {
+    pub service_id: i32,
+    pub capacity_release_rate: Option<f32>,
+}
+
+#[derive(Default)]
+pub struct AddUserToNode {
+    pub service_id: i32,
+    pub node: String,
+}
+
 #[cfg(test)]
 pub type GetRawUsers = String;
 
@@ -72,4 +94,26 @@ pub type GetRawUsers = String;
 pub struct SetUserCreatedAt {
     pub uid: i64,
     pub created_at: i64,
+}
+
+#[cfg(test)]
+pub struct SetUserReplacedAt {
+    pub uid: i64,
+    pub replaced_at: i64,
+}
+
+#[cfg(test)]
+#[derive(Default)]
+pub struct GetUser {
+    pub id: i64,
+}
+
+#[cfg(test)]
+pub struct UnassignNode {
+    pub node_id: i64,
+}
+
+#[cfg(test)]
+pub struct RemoveNode {
+    pub node_id: i64,
 }

@@ -37,8 +37,8 @@ impl MockDb {
 }
 
 impl Db for MockDb {
-    fn get_user(&self, _params: params::GetUser) -> DbFuture<'_, results::GetUser> {
-        Box::pin(future::ok(results::GetUser::default()))
+    fn replace_user(&self, _params: params::ReplaceUser) -> DbFuture<'_, results::ReplaceUser> {
+        Box::pin(future::ok(()))
     }
 
     fn replace_users(&self, _params: params::ReplaceUsers) -> DbFuture<'_, results::ReplaceUsers> {
@@ -47,6 +47,10 @@ impl Db for MockDb {
 
     fn post_user(&self, _params: params::PostUser) -> DbFuture<'_, results::PostUser> {
         Box::pin(future::ok(results::PostUser::default()))
+    }
+
+    fn allocate_user(&self, _params: params::AllocateUser) -> DbFuture<'_, results::AllocateUser> {
+        Box::pin(future::ok(results::AllocateUser::default()))
     }
 
     fn put_user(&self, _params: params::PutUser) -> DbFuture<'_, results::PutUser> {
@@ -61,12 +65,43 @@ impl Db for MockDb {
         Box::pin(future::ok(results::GetNodeId::default()))
     }
 
+    fn get_best_node(&self, _params: params::GetBestNode) -> DbFuture<'_, results::GetBestNode> {
+        Box::pin(future::ok(results::GetBestNode::default()))
+    }
+
+    fn add_user_to_node(
+        &self,
+        _params: params::AddUserToNode,
+    ) -> DbFuture<'_, results::AddUserToNode> {
+        Box::pin(future::ok(()))
+    }
+
+    fn get_or_create_user(
+        &self,
+        _params: params::GetOrCreateUser,
+    ) -> DbFuture<'_, results::GetOrCreateUser> {
+        Box::pin(future::ok(results::GetOrCreateUser::default()))
+    }
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,
         _params: params::SetUserCreatedAt,
     ) -> DbFuture<'_, results::SetUserCreatedAt> {
         Box::pin(future::ok(()))
+    }
+
+    #[cfg(test)]
+    fn set_user_replaced_at(
+        &self,
+        _params: params::SetUserReplacedAt,
+    ) -> DbFuture<'_, results::SetUserReplacedAt> {
+        Box::pin(future::ok(()))
+    }
+
+    #[cfg(test)]
+    fn get_user(&self, _params: params::GetUser) -> DbFuture<'_, results::GetUser> {
+        Box::pin(future::ok(results::GetUser::default()))
     }
 
     #[cfg(test)]
@@ -77,6 +112,21 @@ impl Db for MockDb {
     #[cfg(test)]
     fn post_node(&self, _params: params::PostNode) -> DbFuture<'_, results::PostNode> {
         Box::pin(future::ok(results::PostNode::default()))
+    }
+
+    #[cfg(test)]
+    fn get_node(&self, _params: params::GetNode) -> DbFuture<'_, results::GetNode> {
+        Box::pin(future::ok(results::GetNode::default()))
+    }
+
+    #[cfg(test)]
+    fn unassign_node(&self, _params: params::UnassignNode) -> DbFuture<'_, results::UnassignNode> {
+        Box::pin(future::ok(()))
+    }
+
+    #[cfg(test)]
+    fn remove_node(&self, _params: params::RemoveNode) -> DbFuture<'_, results::RemoveNode> {
+        Box::pin(future::ok(()))
     }
 
     #[cfg(test)]

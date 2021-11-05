@@ -5,6 +5,8 @@ import unittest
 
 from tokenserver.test_support import TestCase
 
+MAX_GENERATION = 9223372036854775807
+
 
 class TestMisc(TestCase, unittest.TestCase):
     def setUp(self):
@@ -171,3 +173,72 @@ class TestMisc(TestCase, unittest.TestCase):
         user = self._get_user(uid)
         self.assertEqual(user['generation'], 1235)
         self.assertEqual(user['keys_changed_at'], 1235)
+
+    def test_retired_users_can_make_requests(self):
+        # Add a retired user to the database
+        self._add_user(generation=MAX_GENERATION)
+        oauth_token = self._forge_oauth_token(generation=1234)
+        headers = {
+            'Authorization': 'Bearer %s' % oauth_token,
+            'X-KeyID': '1234-YWFh'
+        }
+        # Retired users cannot make requests with a generation smaller than
+        # the max generation
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            "status": "invalid-generation",
+            "errors": [
+                {
+                    "location": "body",
+                    "name": "",
+                    "description": "Unauthorized"
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)
+        # Retired users can make requests with a generation number equal to
+        # the max generation
+        oauth_token = self._forge_oauth_token(generation=MAX_GENERATION)
+        headers['Authorization'] = 'Bearer %s' % oauth_token
+        self.app.get('/1.0/sync/1.5', headers=headers)
+
+    def test_replaced_users_can_make_requests(self):
+        # Add a replaced user to the database
+        self._add_user(generation=1234, created_at=1234, replaced_at=1234)
+        oauth_token = self._forge_oauth_token(generation=1234)
+        headers = {
+            'Authorization': 'Bearer %s' % oauth_token,
+            'X-KeyID': '1234-YWFh'
+        }
+        # Replaced users can make requests
+        self.app.get('/1.0/sync/1.5', headers=headers)
+
+    def test_retired_users_with_no_node_cannot_make_requests(self):
+        # Add a retired user to the database
+        invalid_node_id = self.NODE_ID + 1
+        self._add_user(generation=MAX_GENERATION, nodeid=invalid_node_id)
+        oauth_token = self._forge_oauth_token(generation=1234)
+        headers = {
+            'Authorization': 'Bearer %s' % oauth_token,
+            'X-KeyID': '1234-YWFh'
+        }
+        # Retired users without a node cannot make requests
+        oauth_token = self._forge_oauth_token(generation=MAX_GENERATION)
+        headers['Authorization'] = 'Bearer %s' % oauth_token
+        self.app.get('/1.0/sync/1.5', headers=headers, status=500)
+
+    def test_replaced_users_with_no_node_can_make_requests(self):
+        # Add a replaced user to the database
+        invalid_node_id = self.NODE_ID + 1
+        self._add_user(created_at=1234, replaced_at=1234,
+                       nodeid=invalid_node_id)
+        oauth_token = self._forge_oauth_token(generation=1234)
+        headers = {
+            'Authorization': 'Bearer %s' % oauth_token,
+            'X-KeyID': '1234-YWFh'
+        }
+        # Replaced users without a node can make requests
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(res.json['uid'])
+        # The user is assigned to a new node
+        self.assertEqual(user['nodeid'], self.NODE_ID)

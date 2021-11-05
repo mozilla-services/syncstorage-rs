@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use super::db::models::Db;
 use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
+use super::error::TokenserverError;
 use super::extractors::TokenserverRequest;
 use super::support::Tokenlib;
 use crate::tokenserver::support::MakeTokenPlaintext;
@@ -31,7 +32,7 @@ pub async fn get_tokenserver_result(
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
-        let token_plaintext = get_token_plaintext(&req, &updates);
+        let token_plaintext = get_token_plaintext(&req, &updates)?;
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
 
@@ -47,9 +48,19 @@ pub async fn get_tokenserver_result(
     Ok(HttpResponse::build(StatusCode::OK).json(result))
 }
 
-fn get_token_plaintext(req: &TokenserverRequest, updates: &UserUpdates) -> MakeTokenPlaintext {
+fn get_token_plaintext(
+    req: &TokenserverRequest,
+    updates: &UserUpdates,
+) -> Result<MakeTokenPlaintext, TokenserverError> {
     let fxa_kid = {
-        let client_state_b64 = base64::encode_config(&req.client_state, base64::URL_SAFE_NO_PAD);
+        // If decoding the hex bytes fails, it means we did something wrong when we stored the
+        // client state in the database
+        let client_state = hex::decode(req.client_state.clone()).map_err(|_| {
+            error!("⚠️ Failed to decode client state hex");
+
+            TokenserverError::internal_error()
+        })?;
+        let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
 
         format!("{:013}-{:}", updates.keys_changed_at, client_state_b64)
     };
@@ -62,7 +73,7 @@ fn get_token_plaintext(req: &TokenserverRequest, updates: &UserUpdates) -> MakeT
         expires.as_secs()
     };
 
-    MakeTokenPlaintext {
+    Ok(MakeTokenPlaintext {
         node: req.user.node.to_owned(),
         fxa_kid,
         fxa_uid: req.fxa_uid.clone(),
@@ -70,7 +81,7 @@ fn get_token_plaintext(req: &TokenserverRequest, updates: &UserUpdates) -> MakeT
         hashed_fxa_uid: req.hashed_fxa_uid.clone(),
         expires,
         uid: updates.uid.to_owned(),
-    }
+    })
 }
 
 struct UserUpdates {
@@ -115,7 +126,6 @@ async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUp
             email: req.email.clone(),
             generation,
             client_state: req.client_state.clone(),
-            replaced_at: None,
             node_id: db
                 .get_node_id(GetNodeId {
                     service_id: req.service_id,

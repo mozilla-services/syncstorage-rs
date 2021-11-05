@@ -17,7 +17,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 
 use super::db::{self, models::Db, params, results};
-use super::error::TokenserverError;
+use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
 use super::ServerState;
 use crate::settings::Secrets;
@@ -27,7 +27,7 @@ const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 /// Information from the request needed to process a Tokenserver request.
 #[derive(Debug, Default, PartialEq)]
 pub struct TokenserverRequest {
-    pub user: results::GetUser,
+    pub user: results::GetOrCreateUser,
     pub fxa_uid: String,
     pub email: String,
     pub generation: Option<i64>,
@@ -189,9 +189,13 @@ impl FromRequest for TokenserverRequest {
                     TokenserverError::internal_error()
                 })?;
 
-                db.get_user(params::GetUser {
-                    email: email.clone(),
+                db.get_or_create_user(params::GetOrCreateUser {
                     service_id,
+                    email: email.clone(),
+                    generation: token_data.generation.unwrap_or(0),
+                    client_state: key_id.client_state.clone(),
+                    keys_changed_at: Some(key_id.keys_changed_at),
+                    capacity_release_rate: state.node_capacity_release_rate,
                 })
                 .await?
             };
@@ -321,12 +325,12 @@ impl FromRequest for KeyId {
 
             let (keys_changed_at_string, encoded_client_state) = x_key_id
                 .split_once("-")
-                .ok_or_else(|| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
+                .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))?;
 
             let client_state = {
                 let client_state_bytes =
                     base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                        .map_err(|_| TokenserverError::invalid_key_id("Invalid base64 encoding"))?;
+                        .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
 
                 let client_state = hex::encode(client_state_bytes);
 
@@ -337,7 +341,12 @@ impl FromRequest for KeyId {
                     .and_then(|header| header.to_str().ok());
                 if let Some(x_client_state) = maybe_x_client_state {
                     if x_client_state != client_state {
-                        return Err(TokenserverError::invalid_client_state("Unauthorized").into());
+                        return Err(TokenserverError {
+                            status: "invalid-client-state",
+                            location: ErrorLocation::Body,
+                            ..TokenserverError::default()
+                        }
+                        .into());
                     }
                 }
 
@@ -346,7 +355,7 @@ impl FromRequest for KeyId {
 
             let keys_changed_at = keys_changed_at_string
                 .parse::<i64>()
-                .map_err(|_| TokenserverError::invalid_credentials("invalid keysChangedAt"))?;
+                .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
 
             Ok(KeyId {
                 client_state,
@@ -455,7 +464,7 @@ mod tests {
             .await
             .unwrap();
         let expected_tokenserver_request = TokenserverRequest {
-            user: results::GetUser::default(),
+            user: results::GetOrCreateUser::default(),
             fxa_uid: fxa_uid.to_owned(),
             email: "test123@test.com".to_owned(),
             generation: Some(1234),
@@ -682,7 +691,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_key_id("Invalid X-KeyID header");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -695,7 +704,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_key_id("Invalid base64 encoding");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -721,7 +730,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("invalid keysChangedAt");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -735,7 +744,11 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_client_state("Unauthorized");
+            let expected_error = TokenserverError {
+                status: "invalid-client-state",
+                location: ErrorLocation::Body,
+                ..TokenserverError::default()
+            };
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -775,12 +788,14 @@ mod tests {
         // The request includes a generation that is less than the generation currently stored on
         // the user record
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
+                replaced_at: None,
                 created_at: 1234,
                 old_client_states: vec![],
             },
@@ -805,13 +820,15 @@ mod tests {
         // The request includes a keys_changed_at that is less than the keys_changed_at currently
         // stored on the user record
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                replaced_at: None,
                 old_client_states: vec![],
             },
             fxa_uid: "test".to_owned(),
@@ -834,13 +851,15 @@ mod tests {
     async fn test_keys_changed_without_generation_change() {
         // The request includes a new value for keys_changed_at without a new value for generation
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                replaced_at: None,
                 old_client_states: vec![],
             },
             fxa_uid: "test".to_owned(),
@@ -864,13 +883,15 @@ mod tests {
         // The request includes a previously-used client state that is not the user's current
         // client state
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                replaced_at: None,
                 old_client_states: vec!["626262".to_owned()],
             },
             fxa_uid: "test".to_owned(),
@@ -894,13 +915,15 @@ mod tests {
     async fn test_new_client_state_without_generation_change() {
         // The request includes a new client state without a new generation value
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                replaced_at: None,
                 old_client_states: vec![],
             },
             fxa_uid: "test".to_owned(),
@@ -924,13 +947,15 @@ mod tests {
     async fn test_new_client_state_without_key_change() {
         // The request includes a new client state without a new keys_changed_at value
         let tokenserver_request = TokenserverRequest {
-            user: results::GetUser {
+            user: results::GetOrCreateUser {
                 uid: 1,
+                email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                replaced_at: None,
                 old_client_states: vec![],
             },
             fxa_uid: "test".to_owned(),
@@ -961,6 +986,7 @@ mod tests {
             fxa_metrics_hash_secret: "".to_owned(),
             oauth_verifier: Box::new(verifier),
             db_pool: Box::new(MockTokenserverPool::new()),
+            node_capacity_release_rate: None,
         }
     }
 }
