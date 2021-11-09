@@ -20,7 +20,6 @@ from util import get_timestamp
 class TestScripts(unittest.TestCase):
     NODE_ID = 800
     NODE_URL = 'https://node1'
-    SERVICE_ID = 2
 
     def setUp(self):
         self.database = Database()
@@ -56,7 +55,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.current_load, 9)
         self.assertEqual(res.downed, 0)
         self.assertEqual(res.backoff, 0)
-        self.assertEqual(res.service, self.SERVICE_ID)
+        self.assertEqual(res.service, self.database.service_id)
 
     def test_add_node_with_explicit_available(self):
         args = ['--current-load', '9', '--available', '5', 'test_node', '100']
@@ -68,7 +67,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.current_load, 9)
         self.assertEqual(res.downed, 0)
         self.assertEqual(res.backoff, 0)
-        self.assertEqual(res.service, self.SERVICE_ID)
+        self.assertEqual(res.service, self.database.service_id)
 
     def test_add_downed_node(self):
         add_node_script(
@@ -81,7 +80,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.current_load, 0)
         self.assertEqual(res.downed, 1)
         self.assertEqual(res.backoff, 0)
-        self.assertEqual(res.service, self.SERVICE_ID)
+        self.assertEqual(res.service, self.database.service_id)
 
     def test_add_backoff_node(self):
         add_node_script(
@@ -94,7 +93,7 @@ class TestScripts(unittest.TestCase):
         self.assertEqual(res.current_load, 0)
         self.assertEqual(res.downed, 0)
         self.assertEqual(res.backoff, 1)
-        self.assertEqual(res.service, self.SERVICE_ID)
+        self.assertEqual(res.service, self.database.service_id)
 
     def test_allocate_user_user_already_exists(self):
         email = 'test@test.com'
