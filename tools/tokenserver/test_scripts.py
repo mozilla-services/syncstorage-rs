@@ -7,8 +7,6 @@ import os
 import unittest
 import uuid
 
-from sqlalchemy import text as sqltext
-
 from add_node import main as add_node_script
 from allocate_user import main as allocate_user_script
 from count_users import main as count_users_script
