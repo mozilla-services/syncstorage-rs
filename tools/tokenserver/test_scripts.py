@@ -35,21 +35,7 @@ class TestScripts(unittest.TestCase):
         cursor.close()
 
         # Ensure we have a node with enough capacity to run the tests.
-        query = sqltext("""
-            INSERT INTO nodes (capacity, node, id, service, available,
-                               current_load, downed, backoff)
-            VALUES(:capacity, :node, :id, :service, :available, :current_load,
-                   :downed, :backoff)
-        """)
-        self.database._execute_sql(query,
-                                   capacity=100,
-                                   node=self.NODE_URL,
-                                   id=self.NODE_ID,
-                                   service=self.SERVICE_ID,
-                                   available=100,
-                                   current_load=0,
-                                   downed=0,
-                                   backoff=0)
+        self.database.add_node(self.NODE_URL, 100, id=self.NODE_ID)
 
     def tearDown(self):
         # And clean up at the end, for good measure.

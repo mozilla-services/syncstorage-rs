@@ -4,6 +4,7 @@
 
 import time
 import unittest
+
 from collections import defaultdict
 from database import MAX_GENERATION, Database
 from util import get_timestamp
