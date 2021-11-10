@@ -1,1 +1,3 @@
 boto
+hawkauthlib
+sqlalchemy
