@@ -30,7 +30,6 @@ COPY --from=builder /app/version.json /app
 COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
-COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder /app/src/db/spanner/schema.ddl /app/schema.ddl
 

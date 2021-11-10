@@ -119,8 +119,8 @@ commands:
       - run:
           name: Tokenserver scripts tests
           command: >
-               pip3 install -r /app/tools/tokenserver/requirements.txt &&
-               python3 /app/tools/tokenserver/run_tests.py
+               pip3 install -r tools/tokenserver/requirements.txt &&
+               python3 tools/tokenserver/run_tests.py
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
