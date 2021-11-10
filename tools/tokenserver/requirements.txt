@@ -1,3 +1,5 @@
 boto
 hawkauthlib
+pyramid
 sqlalchemy
+testfixtures
