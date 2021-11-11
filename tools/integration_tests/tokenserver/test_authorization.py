@@ -30,11 +30,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_no_auth(self):
-        self.app.get('/1.0/sync/1.5', status=401)
-
-    def test_invalid_client_state(self):
-        headers = {'X-KeyID': '1234-state!'}
-        resp = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        res = self.app.get('/1.0/sync/1.5', status=401)
 
         expected_error_response = {
             'status': 'error',
@@ -46,7 +42,46 @@ class TestAuthorization(TestCase, unittest.TestCase):
                 }
             ]
         }
-        self.assertEqual(resp.json, expected_error_response)
+        self.assertEqual(res.json, expected_error_response)
+
+    def test_invalid_client_state_in_key_id(self):
+        headers = {
+            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
+            'X-KeyID': '1234-state!'
+        }
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+
+        expected_error_response = {
+            'status': 'invalid-credentials',
+            'errors': [
+                {
+                    'location': 'body',
+                    'name': '',
+                    'description': 'Unauthorized'
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)
+
+    def test_invalid_client_state_in_x_client_state(self):
+        headers = {
+            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
+            'X-KeyID': '1234-YWFh',
+            'X-Client-State': 'state!'
+        }
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=400)
+
+        expected_error_response = {
+            'status': 'error',
+            'errors': [
+                {
+                    'location': 'header',
+                    'name': 'X-Client-State',
+                    'description': 'Invalid client state value'
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)
 
     def test_keys_changed_at_less_than_equal_to_generation(self):
         self._add_user(generation=1232, keys_changed_at=1234)
