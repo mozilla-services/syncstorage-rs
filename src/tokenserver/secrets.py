@@ -5,6 +5,7 @@ from tokenlib import HKDF
 # Namespace prefix for HKDF "info" parameter.
 HKDF_INFO_NODE_SECRET = b"services.mozilla.com/mozsvc/v1/node_secret/"
 
+
 def derive_secrets(master_secrets, node):
     hkdf_params = {
         "salt": None,
@@ -17,6 +18,7 @@ def derive_secrets(master_secrets, node):
         # size as its (presumably hex-encoded) master secret.
         size = len(master_secret) // 2
 
-        node_secret = HKDF(master_secret.encode("utf-8"), size=size, **hkdf_params)
+        node_secret = HKDF(master_secret.encode("utf-8"), size=size,
+                           **hkdf_params)
         node_secrets.append(binascii.b2a_hex(node_secret).decode())
     return node_secrets

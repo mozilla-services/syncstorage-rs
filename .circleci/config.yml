@@ -44,7 +44,7 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 src/tokenserver/verify.py
+            flake8 src/tokenserver
             flake8 tools/integration_tests
   rust-clippy:
     steps:
