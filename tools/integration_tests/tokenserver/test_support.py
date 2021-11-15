@@ -45,15 +45,6 @@ class TestCase:
         cursor = self._execute_sql(('DELETE FROM nodes'), ())
         cursor.close()
 
-        cursor = self._execute_sql(('DELETE FROM services'), ())
-        cursor.close()
-
-        # Ensure the necessary services exists in the db.
-        self._add_service('sync-1.1', '{node}/1.1/{uid}',
-                          self.SYNC_1_1_SERVICE_ID)
-        self._add_service('sync-1.5', '{node}/1.5/{uid}',
-                          self.SYNC_1_5_SERVICE_ID)
-
         # Ensure we have a node with enough capacity to run the tests.
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
 
@@ -63,9 +54,6 @@ class TestCase:
         cursor.close()
 
         cursor = self._execute_sql(('DELETE FROM nodes'), ())
-        cursor.close()
-
-        cursor = self._execute_sql(('DELETE FROM services'), ())
         cursor.close()
 
         self.database.close()
