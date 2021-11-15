@@ -1,6 +1,7 @@
 //! Application settings objects and initialization
 use std::{cmp::min, env};
 
+use actix_cors::Cors;
 use config::{Config, ConfigError, Environment, File};
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
@@ -86,6 +87,10 @@ pub struct Settings {
 
     /// Settings specific to Tokenserver
     pub tokenserver: TokenserverSettings,
+
+    /// Cors Settings
+    pub cors_allowed_origin: Option<String>,
+    pub cors_max_age: Option<usize>,
 }
 
 impl Default for Settings {
@@ -114,6 +119,8 @@ impl Default for Settings {
             spanner_emulator_host: None,
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
+            cors_allowed_origin: None,
+            cors_max_age: None,
         }
     }
 }
@@ -271,6 +278,20 @@ impl Settings {
             .map(|url| url.scheme().to_owned())
             .unwrap_or_else(|_| "<invalid db>".to_owned());
         format!("http://{}:{} ({}) {}", self.host, self.port, db, quota)
+    }
+
+    pub fn build_cors(&self) -> Cors {
+        let mut cors = Cors::permissive();
+
+        if let Some(allowed_origin) = &self.cors_allowed_origin {
+            cors = cors.allowed_origin(allowed_origin);
+        }
+
+        if let Some(max_age) = &self.cors_max_age {
+            cors = cors.max_age(*max_age);
+        }
+
+        cors
     }
 }
 
