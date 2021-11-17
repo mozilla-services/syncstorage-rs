@@ -38,7 +38,7 @@ commands:
           command: |
             cargo fmt -- --check
             # https://github.com/bodil/sized-chunks/issues/11
-            cargo audit --ignore RUSTSEC-2020-0041 --ignore RUSTSEC-2021-0078 --ignore RUSTSEC-2021-0079 --ignore RUSTSEC-2020-0159 --ignore RUSTSEC-2020-0071
+            cargo audit --ignore RUSTSEC-2020-0041 --ignore RUSTSEC-2021-0078 --ignore RUSTSEC-2021-0079 --ignore RUSTSEC-2020-0159 --ignore RUSTSEC-2020-0071 --ignore RUSTSEC-2021-0124
   python-check:
     steps:
       - run:
