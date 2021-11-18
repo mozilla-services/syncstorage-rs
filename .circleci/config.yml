@@ -38,7 +38,7 @@ commands:
           command: |
             cargo fmt -- --check
             # https://github.com/bodil/sized-chunks/issues/11
-            cargo audit --ignore RUSTSEC-2020-0041 --ignore RUSTSEC-2021-0078 --ignore RUSTSEC-2021-0079 --ignore RUSTSEC-2020-0159 --ignore RUSTSEC-2020-0071
+            cargo audit --ignore RUSTSEC-2020-0041 --ignore RUSTSEC-2021-0078 --ignore RUSTSEC-2021-0079 --ignore RUSTSEC-2020-0159 --ignore RUSTSEC-2020-0071 --ignore RUSTSEC-2021-0124
   python-check:
     steps:
       - run:
@@ -46,6 +46,7 @@ commands:
           command: |
             flake8 src/tokenserver/verify.py
             flake8 tools/integration_tests
+            flake8 tools/tokenserver
   rust-clippy:
     steps:
       - run:
@@ -110,6 +111,16 @@ commands:
                up
                --exit-code-from e2e-tests
                --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
+
+  run-tokenserver-scripts-tests:
+    steps:
+      - run:
+          name: Tokenserver scripts tests
+          command: >
+               pip3 install -r tools/tokenserver/requirements.txt &&
+               python3 tools/tokenserver/run_tests.py
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
@@ -211,6 +222,7 @@ jobs:
       - write-version
       - cargo-build
       - run-tests
+      - run-tokenserver-scripts-tests
       #- save-sccache-cache
       - run:
           name: Build Docker image
