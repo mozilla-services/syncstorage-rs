@@ -203,8 +203,8 @@ class TestE2e(TestCase, unittest.TestCase):
         signature = raw[-32:]
         payload_dict = json.loads(payload.decode('utf-8'))
 
-        signing_secret = binascii. \
-            hexlify(self.TOKEN_SIGNING_SECRET.encode("utf-8")).decode()
+        signing_secret = binascii.hexlify(
+            self.TOKEN_SIGNING_SECRET.encode("utf-8")).decode()
         node_specific_secret = self._derive_secret(signing_secret,
                                                    self.NODE_URL)
         expected_token = tokenlib.make_token(payload_dict,
@@ -214,8 +214,8 @@ class TestE2e(TestCase, unittest.TestCase):
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))
         # Check that the given key is a secret derived from the hawk ID
-        expected_secret = tokenlib. \
-            get_derived_secret(res.json['id'], secret=node_specific_secret)
+        expected_secret = tokenlib.get_derived_secret(
+            res.json['id'], secret=node_specific_secret)
         self.assertEqual(res.json['key'], expected_secret)
         # Check to make sure the remainder of the fields are valid
         self.assertEqual(res.json['uid'], user['uid'])
