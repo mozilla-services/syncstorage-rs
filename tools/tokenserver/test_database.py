@@ -178,25 +178,43 @@ class TestDatabase(unittest.TestCase):
         self.database.update_user(user2, client_state='b')
         records = list(self.database.get_user_records(email2))
         self.assertEqual(len(records), 3)
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         # That should be a total of 7 old records.
         old_records = list(self.database.get_old_user_records(0))
         self.assertEqual(len(old_records), 7)
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         # And with max_offset of 3, the first record should be id 4
         old_records = list(self.database.get_old_user_records(0,
                                                               100, 3))
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         # The 'limit' parameter should be respected.
         old_records = list(self.database.get_old_user_records(0, 2))
         self.assertEqual(len(old_records), 2)
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         # The default grace period is too big to pick them up.
         old_records = list(self.database.get_old_user_records())
         self.assertEqual(len(old_records), 0)
         # The grace period can select a subset of the records.
         grace = time.time() - break_time
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         old_records = list(self.database.get_old_user_records(grace))
         self.assertEqual(len(old_records), 3)
         # Old records can be successfully deleted:
         for record in old_records:
             self.database.delete_user_record(record.uid)
+        # Sleep briefly to ensure that time has passed since the last
+        # operation
+        time.sleep(0.1)
         old_records = list(self.database.get_old_user_records(0))
         self.assertEqual(len(old_records), 4)
 
