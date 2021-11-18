@@ -183,7 +183,6 @@ class TestDatabase(unittest.TestCase):
         time.sleep(0.1)
         # That should be a total of 7 old records.
         old_records = list(self.database.get_old_user_records(0))
-        print([record[-1] for record in old_records])
         self.assertEqual(len(old_records), 7)
         # Sleep briefly to ensure that time has passed since the last
         # operation

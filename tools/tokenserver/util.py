@@ -55,4 +55,6 @@ def format_key_id(keys_changed_at, key_hash):
 
 def get_timestamp():
     """Get current timestamp in milliseconds."""
-    return int(time.time() * 1000)
+    a = int(time.time() * 1000)
+    print(a)
+    return a
