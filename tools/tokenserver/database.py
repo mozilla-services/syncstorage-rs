@@ -431,10 +431,9 @@ class Database:
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
         grace_period = int(grace_period * 1000)  # convert seconds -> millis
-        timestamp = get_timestamp()
         params = {
             "service": self.service_id,
-            "timestamp": timestamp - grace_period,
+            "timestamp": get_timestamp() - grace_period,
             "limit": limit,
             "offset": offset
         }
