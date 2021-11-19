@@ -428,11 +428,7 @@ class Database:
         
     def get_all_users(self):
         res = self._execute_sql(sqltext('SELECT * FROM users'))
-        try:
-            for row in res:
-                yield row
-        finally:
-            res.close()
+        return res.fetchall()
 
     def get_old_user_records(self, expected, grace_period=-1, limit=100,
                              offset=0):
@@ -453,7 +449,7 @@ class Database:
             print('FAIL#####################')
             print(all)
             print(timestamp)
-            print(self.get_all_users().fetchall())
+            print(self.get_all_users())
             print('#########################')
         try:
             for row in all:
