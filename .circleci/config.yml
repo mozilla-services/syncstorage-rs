@@ -211,7 +211,7 @@ jobs:
                 echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
               fi
       - checkout
-      # - setup-rust
+      - setup-rust
       - setup-python
       - setup-gcp-grpc
       - setup-mysql
@@ -220,8 +220,8 @@ jobs:
       #- setup-sccache
       #- restore-sccache-cache
       - write-version
-      # - cargo-build
-      # - run-tests
+      - cargo-build
+      - run-tests
       - run-tokenserver-scripts-tests
       #- save-sccache-cache
       - run:
