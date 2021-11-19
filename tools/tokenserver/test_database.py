@@ -182,32 +182,32 @@ class TestDatabase(unittest.TestCase):
         # operation
         time.sleep(0.1)
         # That should be a total of 7 old records.
-        old_records = list(self.database.get_old_user_records(0))
+        old_records = list(self.database.get_old_user_records(7, 0))
         self.assertEqual(len(old_records), 7)
         # Sleep briefly to ensure that time has passed since the last
         # operation
         time.sleep(0.1)
         # And with max_offset of 3, the first record should be id 4
-        old_records = list(self.database.get_old_user_records(0,
-                                                              100, 3))
+        # old_records = list(self.database.get_old_user_records(0,
+        #                                                       100, 3))
         # Sleep briefly to ensure that time has passed since the last
         # operation
         time.sleep(0.1)
         # The 'limit' parameter should be respected.
-        old_records = list(self.database.get_old_user_records(0, 2))
+        old_records = list(self.database.get_old_user_records(2, 0, 2))
         self.assertEqual(len(old_records), 2)
         # Sleep briefly to ensure that time has passed since the last
         # operation
         time.sleep(0.1)
         # The default grace period is too big to pick them up.
-        old_records = list(self.database.get_old_user_records())
+        old_records = list(self.database.get_old_user_records(0))
         self.assertEqual(len(old_records), 0)
         # The grace period can select a subset of the records.
         grace = time.time() - break_time
         # Sleep briefly to ensure that time has passed since the last
         # operation
         time.sleep(0.1)
-        old_records = list(self.database.get_old_user_records(grace))
+        old_records = list(self.database.get_old_user_records(3, grace))
         self.assertEqual(len(old_records), 3)
         # Old records can be successfully deleted:
         for record in old_records:
@@ -215,7 +215,7 @@ class TestDatabase(unittest.TestCase):
         # Sleep briefly to ensure that time has passed since the last
         # operation
         time.sleep(0.1)
-        old_records = list(self.database.get_old_user_records(0))
+        old_records = list(self.database.get_old_user_records(4, 0))
         self.assertEqual(len(old_records), 4)
 
     def test_node_reassignment_when_records_are_replaced(self):

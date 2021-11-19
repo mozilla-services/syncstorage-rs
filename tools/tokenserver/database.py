@@ -425,22 +425,38 @@ class Database:
                 yield row
         finally:
             res.close()
+        
+    def get_all_users(self):
+        res = self._execute_sql(sqltext('SELECT * FROM users'))
+        try:
+            for row in res:
+                yield row
+        finally:
+            res.close()
 
-    def get_old_user_records(self, grace_period=-1, limit=100,
+    def get_old_user_records(self, expected, grace_period=-1, limit=100,
                              offset=0):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
         grace_period = int(grace_period * 1000)  # convert seconds -> millis
+        timestamp = get_timestamp()
         params = {
             "service": self.service_id,
-            "timestamp": get_timestamp() - grace_period,
+            "timestamp": timestamp - grace_period,
             "limit": limit,
             "offset": offset
         }
         res = self._execute_sql(_GET_OLD_USER_RECORDS_FOR_SERVICE, **params)
+        all = res.fetchall()
+        if len(all) != expected:
+            print('FAIL#####################')
+            print(all)
+            print(timestamp)
+            print(self.get_all_users())
+            print('#########################')
         try:
-            for row in res:
+            for row in all:
                 yield row
         finally:
             res.close()
