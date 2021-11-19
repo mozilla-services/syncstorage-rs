@@ -387,6 +387,7 @@ class Database:
             user['keys_changed_at'] = keys_changed_at
             user['old_client_states'][user['client_state']] = True
             user['client_state'] = client_state
+            print('created new user %s' % user['uid'])
             # mark old records as having been replaced.
             # if we crash here, they are unmarked and we may fail to
             # garbage collect them for a while, but the active state
