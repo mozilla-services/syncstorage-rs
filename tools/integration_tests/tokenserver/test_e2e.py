@@ -203,7 +203,7 @@ class TestE2e(TestCase, unittest.TestCase):
         signature = raw[-32:]
         payload_dict = json.loads(payload.decode('utf-8'))
 
-        signing_secret = binascii.hexlify(
+        signing_secret = binascii.b2a_hex(
             self.TOKEN_SIGNING_SECRET.encode("utf-8")).decode()
         node_specific_secret = self._derive_secret(signing_secret,
                                                    self.NODE_URL)
