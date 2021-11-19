@@ -162,60 +162,54 @@ class TestDatabase(unittest.TestCase):
         # Do a sleep halfway through so we can test use of grace period.
         email1 = 'test1@mozilla.com'
         user1 = self.database.allocate_user(email1)
+        # We have to sleep between every user create/update operation: if two
+        # users are created with the same timestamp, it can lead to a
+        # situation where two active user records exist for a single email.
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='a')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='b')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='c')
+        time.sleep(0.1)
         break_time = time.time()
         time.sleep(0.1)
         self.database.update_user(user1, client_state='d')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='e')
+        time.sleep(0.1)
         records = list(self.database.get_user_records(email1))
         self.assertEqual(len(records), 6)
         # Create 3 user records for the second user.
         email2 = 'test2@mozilla.com'
         user2 = self.database.allocate_user(email2)
+        time.sleep(0.1)
         self.database.update_user(user2, client_state='a')
+        time.sleep(0.1)
         self.database.update_user(user2, client_state='b')
+        time.sleep(0.1)
         records = list(self.database.get_user_records(email2))
         self.assertEqual(len(records), 3)
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
         # That should be a total of 7 old records.
-        old_records = list(self.database.get_old_user_records(7, 0))
-        self.assertEqual(len(old_records), 7)
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
-        # And with max_offset of 3, the first record should be id 4
-        # old_records = list(self.database.get_old_user_records(0,
-        #                                                       100, 3))
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
-        # The 'limit' parameter should be respected.
-        old_records = list(self.database.get_old_user_records(2, 0, 2))
-        self.assertEqual(len(old_records), 2)
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
-        # The default grace period is too big to pick them up.
         old_records = list(self.database.get_old_user_records(0))
+        self.assertEqual(len(old_records), 7)
+        # And with max_offset of 3, the first record should be id 4
+        old_records = list(self.database.get_old_user_records(0,
+                                                              100, 3))
+        # The 'limit' parameter should be respected.
+        old_records = list(self.database.get_old_user_records(0, 2))
+        self.assertEqual(len(old_records), 2)
+        # The default grace period is too big to pick them up.
+        old_records = list(self.database.get_old_user_records())
         self.assertEqual(len(old_records), 0)
         # The grace period can select a subset of the records.
         grace = time.time() - break_time
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
-        old_records = list(self.database.get_old_user_records(3, grace))
+        old_records = list(self.database.get_old_user_records(grace))
         self.assertEqual(len(old_records), 3)
         # Old records can be successfully deleted:
         for record in old_records:
             self.database.delete_user_record(record.uid)
-        # Sleep briefly to ensure that time has passed since the last
-        # operation
-        time.sleep(0.1)
-        old_records = list(self.database.get_old_user_records(4, 0))
+        old_records = list(self.database.get_old_user_records(0))
         self.assertEqual(len(old_records), 4)
 
     def test_node_reassignment_when_records_are_replaced(self):

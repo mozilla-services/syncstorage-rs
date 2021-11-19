@@ -387,7 +387,6 @@ class Database:
             user['keys_changed_at'] = keys_changed_at
             user['old_client_states'][user['client_state']] = True
             user['client_state'] = client_state
-            print('created new user %s' % user['uid'])
             # mark old records as having been replaced.
             # if we crash here, they are unmarked and we may fail to
             # garbage collect them for a while, but the active state
@@ -425,12 +424,8 @@ class Database:
                 yield row
         finally:
             res.close()
-        
-    def get_all_users(self):
-        res = self._execute_sql(sqltext('SELECT * FROM users'))
-        return res.fetchall()
 
-    def get_old_user_records(self, expected, grace_period=-1, limit=100,
+    def get_old_user_records(self, grace_period=-1, limit=100,
                              offset=0):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
@@ -444,15 +439,8 @@ class Database:
             "offset": offset
         }
         res = self._execute_sql(_GET_OLD_USER_RECORDS_FOR_SERVICE, **params)
-        all = res.fetchall()
-        if len(all) != expected:
-            print('FAIL#####################')
-            print(all)
-            print(timestamp)
-            print(self.get_all_users())
-            print('#########################')
         try:
-            for row in all:
+            for row in res:
                 yield row
         finally:
             res.close()
