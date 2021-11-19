@@ -453,7 +453,7 @@ class Database:
             print('FAIL#####################')
             print(all)
             print(timestamp)
-            print(self.get_all_users())
+            print(self.get_all_users().fetchall())
             print('#########################')
         try:
             for row in all:
