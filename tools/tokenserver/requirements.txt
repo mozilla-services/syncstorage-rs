@@ -1,0 +1,6 @@
+boto
+hawkauthlib
+mysqlclient
+pyramid
+sqlalchemy
+testfixtures
