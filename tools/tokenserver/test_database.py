@@ -162,20 +162,32 @@ class TestDatabase(unittest.TestCase):
         # Do a sleep halfway through so we can test use of grace period.
         email1 = 'test1@mozilla.com'
         user1 = self.database.allocate_user(email1)
+        # We have to sleep between every user create/update operation: if two
+        # users are created with the same timestamp, it can lead to a
+        # situation where two active user records exist for a single email.
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='a')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='b')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='c')
+        time.sleep(0.1)
         break_time = time.time()
         time.sleep(0.1)
         self.database.update_user(user1, client_state='d')
+        time.sleep(0.1)
         self.database.update_user(user1, client_state='e')
+        time.sleep(0.1)
         records = list(self.database.get_user_records(email1))
         self.assertEqual(len(records), 6)
         # Create 3 user records for the second user.
         email2 = 'test2@mozilla.com'
         user2 = self.database.allocate_user(email2)
+        time.sleep(0.1)
         self.database.update_user(user2, client_state='a')
+        time.sleep(0.1)
         self.database.update_user(user2, client_state='b')
+        time.sleep(0.1)
         records = list(self.database.get_user_records(email2))
         self.assertEqual(len(records), 3)
         # That should be a total of 7 old records.
