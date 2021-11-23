@@ -14,3 +14,12 @@ human_logs = 1
 enable_quota = 0
 # set the quota limit to 2GB.
 # max_quota_limit = 200000000
+
+# Example Tokenserver settings:
+disable_syncstorage = false
+tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
+tokenserver.enabled = true
+tokenserver.fxa_email_domain = "api-accounts.stage.mozaws.net"
+tokenserver.fxa_metrics_hash_secret = "INSERT_SECRET_KEY_HERE"
+tokenserver.fxa_oauth_server_url = "https://oauth.stage.mozaws.net"
+tokenserver.test_mode_enabled = false
