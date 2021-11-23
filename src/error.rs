@@ -187,13 +187,18 @@ impl ApiError {
     }
 
     pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
-        // Replace the outbound error message with our own.
-        let resp =
-            HttpResponseBuilder::new(StatusCode::NOT_FOUND).json(WeaveError::UnknownError as u32);
-        Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
-            res.request().clone(),
-            resp.into_body(),
-        )))
+        if res.request().path().starts_with("/1.0/") {
+            // Do not use a custom response for Tokenserver requests.
+            Ok(ErrorHandlerResponse::Response(res))
+        } else {
+            // Replace the outbound error message with our own for Sync requests.
+            let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND)
+                .json(WeaveError::UnknownError as u32);
+            Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
+                res.request().clone(),
+                resp.into_body(),
+            )))
+        }
     }
 }
 

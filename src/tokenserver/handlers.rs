@@ -1,136 +1,214 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-use actix_web::http::StatusCode;
-use actix_web::web::Data;
-use actix_web::Error;
-use actix_web::{HttpRequest, HttpResponse};
-use hmac::{Hmac, Mac, NewMac};
-use serde::Serialize;
-use sha2::Sha256;
-
-use super::extractors::TokenserverRequest;
-use super::support::Tokenlib;
-use crate::tokenserver::support::MakeTokenPlaintext;
-use crate::{
-    error::{ApiError, ApiErrorKind},
-    server::ServerState,
+use std::{
+    cmp,
+    collections::HashMap,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
+use actix_web::{http::StatusCode, Error, HttpResponse};
+use serde::Serialize;
+use serde_json::Value;
+
+use super::db::models::Db;
+use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
+use super::error::TokenserverError;
+use super::extractors::TokenserverRequest;
+use super::support::{self, Tokenlib};
+use crate::tokenserver::support::MakeTokenPlaintext;
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
     id: String,
     key: String,
-    uid: String,
+    uid: i64,
     api_endpoint: String,
-    duration: String,
+    duration: u64,
+    hashed_fxa_uid: String,
 }
 
 pub async fn get_tokenserver_result(
-    tokenserver_request: TokenserverRequest,
-    request: HttpRequest,
+    req: TokenserverRequest,
+    db: Box<dyn Db>,
 ) -> Result<HttpResponse, Error> {
-    let state = request
-        .app_data::<Data<ServerState>>()
-        .ok_or_else(|| internal_error("Could not load the app state"))?;
-    let tokenserver_state = state.tokenserver_state.as_ref().unwrap();
-    let db = {
-        let db_pool = tokenserver_state.db_pool.clone();
-        db_pool.get().map_err(ApiError::from)?
-    };
-
-    let user_email = format!(
-        "{}@{}",
-        tokenserver_request.fxa_uid, tokenserver_state.fxa_email_domain
-    );
-    let tokenserver_user = db.get_user(user_email).await?;
-
-    let fxa_metrics_hash_secret = tokenserver_state
-        .fxa_metrics_hash_secret
-        .clone()
-        .into_bytes();
-
-    let hashed_fxa_uid_full =
-        fxa_metrics_hash(&tokenserver_request.fxa_uid, &fxa_metrics_hash_secret)?;
-    let hashed_fxa_uid = &hashed_fxa_uid_full[0..32];
-    let hashed_device_id = {
-        let device_id = "none".to_string();
-        hash_device_id(hashed_fxa_uid, &device_id, &fxa_metrics_hash_secret)?
-    };
-
-    let fxa_kid = {
-        let client_state_b64 =
-            base64::encode_config(&tokenserver_user.client_state, base64::URL_SAFE_NO_PAD);
-
-        format!(
-            "{:013}-{:}",
-            tokenserver_user
-                .keys_changed_at
-                .unwrap_or(tokenserver_request.generation),
-            client_state_b64
-        )
-    };
+    let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
-        let shared_secret = String::from_utf8(state.secrets.master_secret.clone())
-            .map_err(|_| internal_error("Failed to read master secret"))?;
+        // Get the plaintext that will be used to derive the token and secret to be returned to
+        // the client
+        let token_plaintext = get_token_plaintext(&req, &updates)?;
 
-        let make_token_plaintext = {
-            let expires = {
-                let start = SystemTime::now();
-                let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-                let expires = current_time + Duration::new(DEFAULT_TOKEN_DURATION, 0);
+        // Derive the node-specific secret that will be used to derive the token and secret to be
+        // returned to the client
+        let secrets =
+            support::derive_node_secrets(vec![&hex::encode(req.shared_secret)], &req.user.node)
+                .map_err(|_| {
+                    error!("⚠️ Failed to derive node secret");
 
-                expires.as_secs_f64()
-            };
+                    TokenserverError::internal_error()
+                })?;
 
-            MakeTokenPlaintext {
-                node: tokenserver_user.node.clone(),
-                fxa_kid,
-                fxa_uid: tokenserver_request.fxa_uid.clone(),
-                hashed_device_id,
-                hashed_fxa_uid: hashed_fxa_uid.to_owned(),
-                expires,
-                uid: tokenserver_user.uid,
-            }
-        };
-
-        Tokenlib::get_token_and_derived_secret(make_token_plaintext, &shared_secret)?
+        // Get the token and secret
+        Tokenlib::get_token_and_derived_secret(token_plaintext, &secrets[secrets.len() - 1])?
     };
-
-    let api_endpoint = format!("{:}/1.5/{:}", tokenserver_user.node, tokenserver_user.uid);
 
     let result = TokenserverResult {
         id: token,
         key: derived_secret,
-        uid: tokenserver_request.fxa_uid,
-        api_endpoint,
-        duration: DEFAULT_TOKEN_DURATION.to_string(),
+        uid: updates.uid,
+        api_endpoint: format!("{:}/1.5/{:}", req.user.node, req.user.uid),
+        duration: req.duration,
+        hashed_fxa_uid: req.hashed_fxa_uid,
     };
 
     Ok(HttpResponse::build(StatusCode::OK).json(result))
 }
 
-fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> Result<String, Error> {
-    let mut mac = Hmac::<Sha256>::new_from_slice(hmac_key)
-        .map_err::<ApiError, _>(|err| ApiErrorKind::Internal(err.to_string()).into())?;
-    mac.update(fxa_uid.as_bytes());
+fn get_token_plaintext(
+    req: &TokenserverRequest,
+    updates: &UserUpdates,
+) -> Result<MakeTokenPlaintext, TokenserverError> {
+    let fxa_kid = {
+        // If decoding the hex bytes fails, it means we did something wrong when we stored the
+        // client state in the database
+        let client_state = hex::decode(req.client_state.clone()).map_err(|_| {
+            error!("⚠️ Failed to decode client state hex");
 
-    let result = mac.finalize().into_bytes();
-    Ok(hex::encode(result))
+            TokenserverError::internal_error()
+        })?;
+        let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
+
+        format!("{:013}-{:}", updates.keys_changed_at, client_state_b64)
+    };
+
+    let expires = {
+        let start = SystemTime::now();
+        let current_time = start.duration_since(UNIX_EPOCH).unwrap();
+        let expires = current_time + Duration::from_secs(req.duration);
+
+        expires.as_secs()
+    };
+
+    Ok(MakeTokenPlaintext {
+        node: req.user.node.to_owned(),
+        fxa_kid,
+        fxa_uid: req.fxa_uid.clone(),
+        hashed_device_id: req.hashed_device_id.clone(),
+        hashed_fxa_uid: req.hashed_fxa_uid.clone(),
+        expires,
+        uid: updates.uid.to_owned(),
+    })
 }
 
-fn hash_device_id(fxa_uid: &str, device: &str, hmac_key: &[u8]) -> Result<String, Error> {
-    let mut to_hash = String::from(fxa_uid);
-    to_hash.push_str(device);
-    let fxa_metrics_hash = fxa_metrics_hash(&to_hash, hmac_key)?;
-
-    Ok(String::from(&fxa_metrics_hash[0..32]))
+struct UserUpdates {
+    keys_changed_at: i64,
+    uid: i64,
 }
 
-fn internal_error(message: &str) -> HttpResponse {
-    error!("⚠️ {}", message);
+async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUpdates, Error> {
+    // If the keys_changed_at in the request is larger than that stored on the user record,
+    // update to the value in the request.
+    let keys_changed_at = if let Some(user_keys_changed_at) = req.user.keys_changed_at {
+        cmp::max(req.keys_changed_at, user_keys_changed_at)
+    } else {
+        req.keys_changed_at
+    };
 
-    HttpResponse::InternalServerError().body("")
+    let generation = if let Some(generation) = req.generation {
+        // If there's a generation on the request, choose the larger of that and the generation
+        // already stored on the user record.
+        cmp::max(generation, req.user.generation)
+    } else if req.keys_changed_at > req.user.generation {
+        // If there's not a generation on the request and the keys_changed_at on the request is
+        // larger than the generation stored on the user record, set the user's generation to be
+        // the keys_changed_at on the request.
+        req.keys_changed_at
+    } else {
+        // As a fallback, set the user's generation to be 0.
+        0
+    };
+
+    // If the client state changed, we need to mark the current user as "replaced" and create a
+    // new user record. Otherwise, we can update the user in place.
+    if req.client_state != req.user.client_state {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+
+        // Create new user record with updated generation/keys_changed_at
+        let post_user_params = PostUser {
+            service_id: req.service_id,
+            email: req.email.clone(),
+            generation,
+            client_state: req.client_state.clone(),
+            node_id: db
+                .get_node_id(GetNodeId {
+                    service_id: req.service_id,
+                    node: req.user.node.clone(),
+                })
+                .await?
+                .id,
+            keys_changed_at: Some(keys_changed_at),
+            created_at: timestamp,
+        };
+        let uid = db.post_user(post_user_params).await?.id;
+
+        // Make sure each old row is marked as replaced (they might not be, due to races in row
+        // creation)
+        db.replace_users(ReplaceUsers {
+            email: req.email.clone(),
+            service_id: req.service_id,
+            replaced_at: timestamp,
+        })
+        .await?;
+
+        Ok(UserUpdates {
+            keys_changed_at,
+            uid,
+        })
+    } else {
+        let params = PutUser {
+            email: req.email.clone(),
+            service_id: req.service_id,
+            generation,
+            keys_changed_at: Some(keys_changed_at),
+        };
+
+        db.put_user(params).await?;
+
+        Ok(UserUpdates {
+            keys_changed_at,
+            uid: req.user.uid,
+        })
+    }
+}
+
+pub async fn heartbeat(db: Box<dyn Db>) -> Result<HttpResponse, Error> {
+    let mut checklist = HashMap::new();
+    checklist.insert(
+        "version".to_owned(),
+        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
+    );
+
+    match db.check().await {
+        Ok(result) => {
+            if result {
+                checklist.insert("database".to_owned(), Value::from("Ok"));
+            } else {
+                checklist.insert("database".to_owned(), Value::from("Err"));
+                checklist.insert(
+                    "database_msg".to_owned(),
+                    Value::from("check failed without error"),
+                );
+            };
+            let status = if result { "Ok" } else { "Err" };
+            checklist.insert("status".to_owned(), Value::from(status));
+            Ok(HttpResponse::Ok().json(checklist))
+        }
+        Err(e) => {
+            error!("Heartbeat error: {:?}", e);
+            checklist.insert("status".to_owned(), Value::from("Err"));
+            checklist.insert("database".to_owned(), Value::from("Unknown"));
+            Ok(HttpResponse::ServiceUnavailable().json(checklist))
+        }
+    }
 }

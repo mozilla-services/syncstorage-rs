@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
-use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
+use crate::settings::{Deadman, ServerLimits, Settings};
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
@@ -37,14 +37,6 @@ pub struct ServerState {
 
     /// limits rendered as JSON
     pub limits_json: String,
-
-    /// Secrets used during Hawk authentication.
-    pub secrets: Arc<Secrets>,
-
-    // XXX: This is only any Option temporarily. Once Tokenserver is rolled out to production,
-    // it will always be enabled, and syncstorage will always have state associated with
-    // Tokenserver.
-    pub tokenserver_state: Option<tokenserver::ServerState>,
 
     /// Metric reporting
     pub metrics: Box<StatsdClient>,
@@ -70,9 +62,11 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($state: expr, $limits: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr) => {
         App::new()
-            .data($state)
+            .data($syncstorage_state)
+            .data($tokenserver_state)
+            .data($secrets)
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
@@ -141,7 +135,7 @@ macro_rules! build_app {
             // XXX: This route will be enabled when we are ready to roll out Tokenserver
             // Tokenserver
             // .service(
-            //     web::resource("/1.0/sync/1.5".to_string())
+            //     web::resource("/1.0/{application}/{version}")
             //         .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
             // )
             // Dockerflow
@@ -171,16 +165,65 @@ macro_rules! build_app {
     };
 }
 
+#[macro_export]
+macro_rules! build_app_without_syncstorage {
+    ($state: expr, $secrets: expr) => {
+        App::new()
+            .data($state)
+            .data($secrets)
+            // Middleware is applied LIFO
+            // These will wrap all outbound responses with matching status codes.
+            .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
+            // These are our wrappers
+            .wrap(middleware::sentry::SentryWrapper::default())
+            .wrap(middleware::rejectua::RejectUA::default())
+            // Followed by the "official middleware" so they run first.
+            // actix is getting increasingly tighter about CORS headers. Our server is
+            // not a huge risk but does deliver XHR JSON content.
+            // For now, let's be permissive and use NGINX (the wrapping server)
+            // for finer grained specification.
+            .wrap(Cors::permissive())
+            .service(
+                web::resource("/1.0/{application}/{version}")
+                    .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
+            )
+            // Dockerflow
+            // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
+            // when applying changes to endpoint names.
+            .service(
+                web::resource("/__heartbeat__")
+                    .route(web::get().to(tokenserver::handlers::heartbeat)),
+            )
+            .service(
+                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
+                    // used by the load balancers, just return OK.
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body("{}")
+                })),
+            )
+            .service(
+                web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                    // return the contents of the version.json file created by circleci
+                    // and stored in the docker root
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body(include_str!("../../version.json"))
+                })),
+            )
+    };
+}
+
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let metrics = metrics::metrics_from_opts(&settings)?;
+        let host = settings.host.clone();
+        let port = settings.port;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
         let limits = Arc::new(settings.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
         let secrets = Arc::new(settings.master_secret);
-        let host = settings.host.clone();
-        let port = settings.port;
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
         let deadman = Arc::new(RwLock::new(Deadman {
@@ -198,24 +241,47 @@ impl Server {
         spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
 
         let mut server = HttpServer::new(move || {
-            // Setup the server state
-            let state = ServerState {
+            let syncstorage_state = ServerState {
                 db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
-                secrets: Arc::clone(&secrets),
-                tokenserver_state: tokenserver_state.clone(),
                 metrics: Box::new(metrics.clone()),
                 port,
                 quota_enabled,
                 deadman: Arc::clone(&deadman),
             };
 
-            build_app!(state, limits)
+            build_app!(
+                syncstorage_state,
+                tokenserver_state.clone(),
+                Arc::clone(&secrets),
+                limits
+            )
         });
+
         if let Some(keep_alive) = actix_keep_alive {
             server = server.keep_alive(keep_alive as usize);
         }
+
+        let server = server
+            .bind(format!("{}:{}", host, port))
+            .expect("Could not get Server in Server::with_settings")
+            .run();
+        Ok(server)
+    }
+
+    pub async fn tokenserver_only_with_settings(
+        settings: Settings,
+    ) -> Result<dev::Server, ApiError> {
+        let host = settings.host.clone();
+        let port = settings.port;
+        let secrets = Arc::new(settings.master_secret);
+        let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
+
+        let server = HttpServer::new(move || {
+            build_app_without_syncstorage!(Some(tokenserver_state.clone()), Arc::clone(&secrets))
+        });
+
         let server = server
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")

@@ -1,9 +1,14 @@
 hawkauthlib
 konfig
+mysqlclient
+psutil
+pyjwt
 pyramid
 pyramid_hawkauth
+pyfxa
 requests
 simplejson
+sqlalchemy
 tokenlib
 unittest2
 webtest

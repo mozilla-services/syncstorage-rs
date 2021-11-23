@@ -14,7 +14,7 @@ impl MockDbPool {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl DbPool for MockDbPool {
     async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
         Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)

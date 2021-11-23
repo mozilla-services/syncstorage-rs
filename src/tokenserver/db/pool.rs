@@ -1,3 +1,5 @@
+use actix_web::web::block;
+use async_trait::async_trait;
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
@@ -8,7 +10,7 @@ use diesel_logger::LoggingConnection;
 use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
-use crate::db::error::DbError;
+use crate::db::{error::DbError, DbErrorKind};
 use crate::tokenserver::settings::Settings;
 
 #[cfg(test)]
@@ -62,12 +64,24 @@ impl TokenserverPool {
     }
 }
 
+impl From<actix_web::error::BlockingError<DbError>> for DbError {
+    fn from(inner: actix_web::error::BlockingError<DbError>) -> Self {
+        match inner {
+            actix_web::error::BlockingError::Error(e) => e,
+            actix_web::error::BlockingError::Canceled => {
+                DbErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
+            }
+        }
+    }
+}
+
+#[async_trait]
 impl DbPool for TokenserverPool {
-    fn get(&self) -> Result<Box<dyn Db>, DbError> {
-        self.inner
-            .get()
-            .map(|db_pool| Box::new(TokenserverDb::new(db_pool)) as Box<dyn Db>)
-            .map_err(DbError::from)
+    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
+        let pool = self.inner.clone();
+        let conn = block(move || pool.get().map_err(DbError::from)).await?;
+
+        Ok(Box::new(TokenserverDb::new(conn)) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -75,8 +89,9 @@ impl DbPool for TokenserverPool {
     }
 }
 
+#[async_trait]
 pub trait DbPool: Sync + Send {
-    fn get(&self) -> Result<Box<dyn Db>, DbError>;
+    async fn get(&self) -> Result<Box<dyn Db>, DbError>;
 
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
