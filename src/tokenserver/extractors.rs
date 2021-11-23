@@ -19,10 +19,10 @@ use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 
-use super::NodeType;
 use super::db::{self, models::Db, params, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
+use super::NodeType;
 use super::ServerState;
 use crate::settings::Secrets;
 

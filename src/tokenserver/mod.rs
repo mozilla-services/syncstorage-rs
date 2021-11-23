@@ -8,8 +8,8 @@ pub mod support;
 pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
 use db::pool::{DbPool, TokenserverPool};
-use settings::Settings;
 use serde::{Deserialize, Serialize};
+use settings::Settings;
 
 use crate::error::ApiError;
 

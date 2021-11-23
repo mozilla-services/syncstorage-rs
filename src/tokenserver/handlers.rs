@@ -8,12 +8,12 @@ use actix_web::{http::StatusCode, Error, HttpResponse};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::NodeType;
 use super::db::models::Db;
 use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
 use super::error::TokenserverError;
 use super::extractors::TokenserverRequest;
 use super::support::{self, Tokenlib};
+use super::NodeType;
 use crate::tokenserver::support::MakeTokenPlaintext;
 
 #[derive(Debug, Serialize)]
