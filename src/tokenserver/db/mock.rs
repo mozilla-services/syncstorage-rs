@@ -1,5 +1,6 @@
 #![allow(clippy::new_without_default)]
 
+use async_trait::async_trait;
 use futures::future;
 
 use super::models::{Db, DbFuture};
@@ -17,8 +18,9 @@ impl MockDbPool {
     }
 }
 
+#[async_trait]
 impl DbPool for MockDbPool {
-    fn get(&self) -> Result<Box<dyn Db>, DbError> {
+    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         Ok(Box::new(MockDb::new()))
     }
 

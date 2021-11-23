@@ -707,7 +707,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_generation() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let node_id = db
@@ -772,7 +772,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_keys_changed_at() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let node_id = db
@@ -840,7 +840,7 @@ mod tests {
         const MILLISECONDS_IN_AN_HOUR: i64 = MILLISECONDS_IN_A_MINUTE * 60;
 
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -1002,7 +1002,7 @@ mod tests {
     #[tokio::test]
     async fn post_user() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let post_node_params = params::PostNode {
@@ -1059,7 +1059,7 @@ mod tests {
     #[tokio::test]
     async fn get_node_id() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let node_id1 = db
@@ -1097,7 +1097,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_allocation() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let node_id = db
@@ -1135,7 +1135,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_to_least_loaded_node() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add two nodes
         db.post_node(params::PostNode {
@@ -1191,7 +1191,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_downed_nodes() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a downed node
         db.post_node(params::PostNode {
@@ -1225,7 +1225,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_backoff_nodes() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a backoff node
         db.post_node(params::PostNode {
@@ -1259,7 +1259,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_when_records_are_replaced() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         db.post_node(params::PostNode {
@@ -1324,7 +1324,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_not_done_for_retired_users() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         db.post_node(params::PostNode {
@@ -1371,7 +1371,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_and_removal() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add two nodes
         let node1_id = db
@@ -1513,7 +1513,7 @@ mod tests {
     #[tokio::test]
     async fn test_gradual_release_of_node_capacity() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add two nodes
         let node1_id = db
@@ -1670,7 +1670,7 @@ mod tests {
     #[tokio::test]
     async fn test_correct_created_at_used_during_node_reassignment() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         let node_id = db
@@ -1725,7 +1725,7 @@ mod tests {
     #[tokio::test]
     async fn test_correct_created_at_used_during_user_retrieval() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get()?;
+        let db = pool.get().await?;
 
         // Add a node
         db.post_node(params::PostNode {

@@ -193,7 +193,7 @@ impl FromRequest for TokenserverRequest {
             };
             let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
             let user = {
-                let db = state.db_pool.get().map_err(|_| {
+                let db = state.db_pool.get().await.map_err(|_| {
                     error!("⚠️ Could not acquire database connection");
 
                     TokenserverError::internal_error()
@@ -262,7 +262,7 @@ impl FromRequest for Box<dyn Db> {
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
-            let db = state.db_pool.get().map_err(|_| {
+            let db = state.db_pool.get().await.map_err(|_| {
                 error!("⚠️ Could not acquire database connection");
 
                 TokenserverError::internal_error()

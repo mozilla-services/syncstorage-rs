@@ -565,7 +565,11 @@ pub async fn heartbeat(hb: HeartbeatRequest, req: HttpRequest) -> Result<HttpRes
 
     let mut tokenserver_service_unavailable = false;
     if let Some(tokenserver_state) = tokenserver_state.as_ref() {
-        let db = tokenserver_state.db_pool.get().map_err(ApiError::from)?;
+        let db = tokenserver_state
+            .db_pool
+            .get()
+            .await
+            .map_err(ApiError::from)?;
         let mut tokenserver_checklist = Map::new();
 
         match db.check().await {
