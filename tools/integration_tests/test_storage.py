@@ -2257,9 +2257,8 @@ class TestStorage(StorageFunctionalTestCase):
             },
         )
 
-        self.assertIn(
-            ["access-control-max-age", "access-control-allow-origin"],
-            res.headerlist,
+        self.assertEqual(
+            int(res.headers["access-control-max-age"]), 555
         )
         self.assertEqual(
             res.headers["access-control-allow-origin"], "localhost"
