@@ -281,6 +281,11 @@ impl Settings {
     }
 
     pub fn build_cors(&self) -> Cors {
+        // Followed by the "official middleware" so they run first.
+        // actix is getting increasingly tighter about CORS headers. Our server is
+        // not a huge risk but does deliver XHR JSON content.
+        // For now, let's be permissive and use NGINX (the wrapping server)
+        // for finer grained specification.
         let mut cors = Cors::permissive();
 
         if let Some(allowed_origin) = &self.cors_allowed_origin {
