@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import atexit
 import os.path
 import psutil
 import signal
