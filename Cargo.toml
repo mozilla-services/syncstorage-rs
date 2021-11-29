@@ -89,6 +89,7 @@ jsonwebtoken = "7.2.0"
 
 [features]
 no_auth = []
+tokenserver_test_mode = []
 
 [[bin]]
 name = "purge_ttl"

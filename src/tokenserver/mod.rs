@@ -26,10 +26,10 @@ pub struct ServerState {
 impl ServerState {
     pub fn from_settings(settings: &Settings) -> Result<Self, ApiError> {
         let oauth_verifier: Box<dyn VerifyToken> = if settings.test_mode_enabled {
-            #[cfg(debug_assertions)]
+            #[cfg(feature = "tokenserver_test_mode")]
             let oauth_verifier = Box::new(TestModeOAuthVerifier);
 
-            #[cfg(not(debug_assertions))]
+            #[cfg(not(feature = "tokenserver_test_mode"))]
             let oauth_verifier = Box::new(OAuthVerifier {
                 fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
             });
