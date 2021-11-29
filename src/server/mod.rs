@@ -128,12 +128,11 @@ macro_rules! build_app {
                     .route(web::get().to(handlers::get_bso))
                     .route(web::put().to(handlers::put_bso)),
             )
-            // XXX: This route will be enabled when we are ready to roll out Tokenserver
             // Tokenserver
-            // .service(
-            //     web::resource("/1.0/{application}/{version}")
-            //         .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
-            // )
+            .service(
+                web::resource("/1.0/{application}/{version}")
+                    .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
+            )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.

@@ -25,8 +25,13 @@ services:
           SYNC_HOST: 0.0.0.0
           SYNC_MASTER_SECRET: secret0
           SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
           SYNC_SPANNER_EMULATOR_HOST: sync-db:9010
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
+          SYNC_TOKENSERVER__ENABLED: true
+          SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+          SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+          SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL: https://oauth.stage.mozaws.net
+          TOKENSERVER_HOST: http://localhost:8000
         entrypoint: >
           /bin/sh -c "
             sleep 28; pip3 install -r /app/tools/integration_tests/requirements.txt && python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
