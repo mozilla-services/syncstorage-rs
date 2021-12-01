@@ -1,3 +1,4 @@
+cryptography==3.4.8
 hawkauthlib
 konfig
 mysqlclient
