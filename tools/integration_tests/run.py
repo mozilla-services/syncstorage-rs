@@ -50,10 +50,6 @@ if __name__ == "__main__":
     os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
     os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
     os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "localhost")
-    os.environ.setdefault("SYNC_CORS_ALLOWED_HEADERS",
-                          ["Content-Type", "X-Verify-Code"])
-    os.environ.setdefault("SYNC_CORS_ALLOWED_METHODS", ["GET", "OPTIONS"])
-
 
     the_server_subprocess = start_server()
     atexit.register(lambda: terminate_process(the_server_subprocess))

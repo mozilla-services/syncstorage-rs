@@ -16,6 +16,7 @@ consider it a bug.
 
 import unittest2
 
+
 import re
 import json
 import time
@@ -29,6 +30,7 @@ import contextlib
 import simplejson
 
 from pyramid.interfaces import IAuthenticationPolicy
+from webtest.app import AppError
 from test_support import StorageFunctionalTestCase
 
 import tokenlib
@@ -2263,11 +2265,11 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEqual(
             res.headers["access-control-allow-origin"], "localhost"
         )
-        self.assertEqual(
-            res.headers["access-control-allow-methods"], ["GET", "OPTIONS"]
-        )
 
-        self.assertEqual(
-            res.headers["access-control-allow-headers",
-                        ["content-type", "x-verify-code"]]
-        )
+    # PATCH is not a default allowed method, so request should return 405
+    def test_patch_is_not_allowed(self):
+        collection = self.root + "/storage/xxx_col1"
+        with self.assertRaises(AppError) as error:
+            self.app.patch_json(collection)
+            self.assertIn("405", error)
+
