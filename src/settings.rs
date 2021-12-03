@@ -91,6 +91,9 @@ pub struct Settings {
     /// Cors Settings
     pub cors_allowed_origin: Option<String>,
     pub cors_max_age: Option<usize>,
+    pub cors_allowed_methods: Option<Vec<String>>,
+    pub cors_allowed_headers: Option<Vec<String>>,
+
 }
 
 impl Default for Settings {
@@ -120,6 +123,8 @@ impl Default for Settings {
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
             cors_allowed_origin: None,
+            cors_allowed_method: Some(vec![ "DELETE", "GET", "POST", "PUT", "OPTIONS"]),
+            cors_allowed_headers: None,
             cors_max_age: None,
         }
     }
@@ -286,8 +291,8 @@ impl Settings {
         // not a huge risk but does deliver XHR JSON content.
         // For now, let's be permissive and use NGINX (the wrapping server)
         // for finer grained specification.
-        let mut cors = Cors::permissive();
-
+        let mut cors = Cors::default();
+        /*
         if let Some(allowed_origin) = &self.cors_allowed_origin {
             cors = cors.allowed_origin(allowed_origin);
         }
@@ -295,6 +300,27 @@ impl Settings {
         if let Some(max_age) = &self.cors_max_age {
             cors = cors.max_age(*max_age);
         }
+
+         */
+
+        cors = cors
+            .allowed_methods(vec![ "DELETE", "GET", "POST", "PUT", "OPTIONS"])
+            .allowed_headers(vec![
+                "Authorization",
+                "Content-Type",
+                "UserAgent",
+                crate::web::X_LAST_MODIFIED,
+                crate::web::X_WEAVE_TIMESTAMP,
+                crate::web::X_WEAVE_NEXT_OFFSET,
+                crate::web::X_WEAVE_RECORDS,
+                // might want to add these to `crate::web` so we're consistent.
+                "X-Weave-Bytes",
+                "X-Weave-Total-Records",
+                "X-Weave-Total-Bytes",
+                "X-Verify-Code",
+                // I think this is only used for tests.
+                "TEST_IDLES"
+            ]);
 
         cors
     }
