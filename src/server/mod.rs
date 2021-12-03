@@ -62,7 +62,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $settings: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $url_info: expr) => {
         App::new()
             .data($syncstorage_state)
             .data($tokenserver_state)
@@ -162,17 +162,17 @@ macro_rules! build_app {
                 })),
             )
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
-            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
-                HttpResponse::Found()
-                    .header(LOCATION, $settings)
-                    .finish()
-            })))
+            .service(web::resource("/").route(
+                web::get().to(|_: HttpRequest| {
+                    HttpResponse::Found().header(LOCATION, $url_info).finish()
+                }),
+            ))
     };
 }
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr, $settings: expr) => {
+    ($state: expr, $secrets: expr, $info_url: expr) => {
         App::new()
             .data($state)
             .data($secrets)
@@ -216,11 +216,11 @@ macro_rules! build_app_without_syncstorage {
                         .body(include_str!("../../version.json"))
                 })),
             )
-            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
-                HttpResponse::Found()
-                    .header(LOCATION, $settings)
-                    .finish()
-            })))
+            .service(web::resource("/").route(
+                web::get().to(|_: HttpRequest| {
+                    HttpResponse::Found().header(LOCATION, $url_info).finish()
+                }),
+            ))
     };
 }
 
@@ -292,7 +292,11 @@ impl Server {
         let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
 
         let server = HttpServer::new(move || {
-            build_app_without_syncstorage!(Some(tokenserver_state.clone()), Arc::clone(&secrets), sync_info_url)
+            build_app_without_syncstorage!(
+                Some(tokenserver_state.clone()),
+                Arc::clone(&secrets),
+                sync_info_url
+            )
         });
 
         let server = server
