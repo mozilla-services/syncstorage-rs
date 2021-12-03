@@ -2253,7 +2253,7 @@ class TestStorage(StorageFunctionalTestCase):
             headers={
                 "Access-Control-Request-Method": "GET",
                 "Origin": "localhost",
-                "Access-Control-Request-Headers": "*",
+                "Access-Control-Request-Headers": "Content-Type",
             },
         )
 
@@ -2262,4 +2262,12 @@ class TestStorage(StorageFunctionalTestCase):
         )
         self.assertEqual(
             res.headers["access-control-allow-origin"], "localhost"
+        )
+        self.assertEqual(
+            res.headers["access-control-allow-methods"], ["GET", "OPTIONS"]
+        )
+
+        self.assertEqual(
+            res.headers["access-control-allow-headers",
+                        ["content-type", "x-verify-code"]]
         )

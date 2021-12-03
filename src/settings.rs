@@ -3,6 +3,7 @@ use std::{cmp::min, env};
 
 use actix_cors::Cors;
 use config::{Config, ConfigError, Environment, File};
+use http::method::Method;
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
@@ -10,6 +11,10 @@ use crate::db::spanner::models::MAX_SPANNER_LOAD_SIZE;
 use crate::error::ApiError;
 use crate::tokenserver::settings::Settings as TokenserverSettings;
 use crate::web::auth::hkdf_expand_32;
+use crate::web::{
+    X_LAST_MODIFIED, X_VERIFY_CODE, X_WEAVE_BYTES, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS,
+    X_WEAVE_TIMESTAMP, X_WEAVE_TOTAL_BYTES, X_WEAVE_TOTAL_RECORDS,
+};
 
 static DEFAULT_PORT: u16 = 8000;
 
@@ -93,7 +98,6 @@ pub struct Settings {
     pub cors_max_age: Option<usize>,
     pub cors_allowed_methods: Option<Vec<String>>,
     pub cors_allowed_headers: Option<Vec<String>>,
-
 }
 
 impl Default for Settings {
@@ -123,7 +127,7 @@ impl Default for Settings {
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
             cors_allowed_origin: None,
-            cors_allowed_method: Some(vec![ "DELETE", "GET", "POST", "PUT", "OPTIONS"]),
+            cors_allowed_methods: None,
             cors_allowed_headers: None,
             cors_max_age: None,
         }
@@ -188,6 +192,29 @@ impl Settings {
         s.set_default("tokenserver.fxa_email_domain", "test.com")?;
         s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
         s.set_default("tokenserver.test_mode_enabled", false)?;
+
+        // Set Cors defaults
+        s.set_default(
+            "cors_allowed_headers",
+            Some(vec![
+                "Authorization",
+                "Content-Type",
+                "UserAgent",
+                X_LAST_MODIFIED,
+                X_WEAVE_TIMESTAMP,
+                X_WEAVE_NEXT_OFFSET,
+                X_WEAVE_RECORDS,
+                X_WEAVE_BYTES,
+                X_WEAVE_TOTAL_RECORDS,
+                X_WEAVE_TOTAL_BYTES,
+                X_VERIFY_CODE,
+                "TEST_IDLES",
+            ]),
+        )?;
+        s.set_default(
+            "cors_allowed_methods",
+            Some(vec!["DELETE", "GET", "POST", "PUT"]),
+        )?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -292,35 +319,26 @@ impl Settings {
         // For now, let's be permissive and use NGINX (the wrapping server)
         // for finer grained specification.
         let mut cors = Cors::default();
-        /*
+
         if let Some(allowed_origin) = &self.cors_allowed_origin {
             cors = cors.allowed_origin(allowed_origin);
+        }
+
+        if let Some(allowed_methods) = &self.cors_allowed_methods {
+            let mut methods = vec![];
+            for method_string in allowed_methods {
+                let method = Method::from_bytes(method_string.as_bytes()).unwrap();
+                methods.push(method);
+            }
+            cors = cors.allowed_methods(methods);
+        }
+        if let Some(allowed_headers) = &self.cors_allowed_headers {
+            cors = cors.allowed_headers(allowed_headers);
         }
 
         if let Some(max_age) = &self.cors_max_age {
             cors = cors.max_age(*max_age);
         }
-
-         */
-
-        cors = cors
-            .allowed_methods(vec![ "DELETE", "GET", "POST", "PUT", "OPTIONS"])
-            .allowed_headers(vec![
-                "Authorization",
-                "Content-Type",
-                "UserAgent",
-                crate::web::X_LAST_MODIFIED,
-                crate::web::X_WEAVE_TIMESTAMP,
-                crate::web::X_WEAVE_NEXT_OFFSET,
-                crate::web::X_WEAVE_RECORDS,
-                // might want to add these to `crate::web` so we're consistent.
-                "X-Weave-Bytes",
-                "X-Weave-Total-Records",
-                "X-Weave-Total-Bytes",
-                "X-Verify-Code",
-                // I think this is only used for tests.
-                "TEST_IDLES"
-            ]);
 
         cors
     }
