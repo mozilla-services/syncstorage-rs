@@ -84,6 +84,8 @@ pub struct Settings {
     /// in isolation.
     pub disable_syncstorage: bool,
 
+    pub sync_info_url: String,
+
     /// Settings specific to Tokenserver
     pub tokenserver: TokenserverSettings,
 }
@@ -113,6 +115,7 @@ impl Default for Settings {
             enforce_quota: false,
             spanner_emulator_host: None,
             disable_syncstorage: false,
+            sync_info_url: "https://google.ca".to_string(),
             tokenserver: TokenserverSettings::default(),
         }
     }
@@ -219,7 +222,7 @@ impl Settings {
                     s.enable_quota = false
                 }
                 if s.enforce_quota {
-                    s.enable_quota = true
+                     s.enable_quota = true
                 }
                 s
             }

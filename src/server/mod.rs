@@ -19,8 +19,6 @@ use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
-pub const SYNC_DOCS_URL: &str =
-    "https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html";
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
@@ -64,7 +62,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $settings: expr) => {
         App::new()
             .data($syncstorage_state)
             .data($tokenserver_state)
@@ -156,7 +154,7 @@ macro_rules! build_app {
             )))
             .service(
                 web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
-                    // return the contents of the version.json file created by circleci
+                    // return the contents of the version.json file createƒd by circleci
                     // and stored in the docker root
                     HttpResponse::Ok()
                         .content_type("application/json")
@@ -166,7 +164,7 @@ macro_rules! build_app {
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
             .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
                 HttpResponse::Found()
-                    .header(LOCATION, SYNC_DOCS_URL)
+                    .header(LOCATION, $settings)
                     .finish()
             })))
     };
@@ -174,7 +172,7 @@ macro_rules! build_app {
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr) => {
+    ($state: expr, $secrets: expr, $settings: expr) => {
         App::new()
             .data($state)
             .data($secrets)
@@ -220,7 +218,7 @@ macro_rules! build_app_without_syncstorage {
             )
             .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
                 HttpResponse::Found()
-                    .header(LOCATION, SYNC_DOCS_URL)
+                    .header(LOCATION, $settings)
                     .finish()
             })))
     };
@@ -228,6 +226,7 @@ macro_rules! build_app_without_syncstorage {
 
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
+        let sync_info_url = settings.sync_info_url.clone();
         let metrics = metrics::metrics_from_opts(&settings)?;
         let host = settings.host.clone();
         let port = settings.port;
@@ -267,7 +266,8 @@ impl Server {
                 syncstorage_state,
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
-                limits
+                limits,
+                sync_info_url
             )
         });
 
@@ -285,13 +285,14 @@ impl Server {
     pub async fn tokenserver_only_with_settings(
         settings: Settings,
     ) -> Result<dev::Server, ApiError> {
+        let sync_info_url = settings.sync_info_url.clone();
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret);
         let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
 
         let server = HttpServer::new(move || {
-            build_app_without_syncstorage!(Some(tokenserver_state.clone()), Arc::clone(&secrets))
+            build_app_without_syncstorage!(Some(tokenserver_state.clone()), Arc::clone(&secrets), sync_info_url)
         });
 
         let server = server
