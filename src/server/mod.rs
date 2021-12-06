@@ -3,8 +3,8 @@
 use std::{sync::Arc, time::Duration};
 
 use actix_web::{
-    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
-    HttpResponse, HttpServer,
+    dev, http::header::LOCATION, http::StatusCode, middleware::errhandlers::ErrorHandlers, web,
+    App, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
 use tokio::sync::RwLock;
@@ -18,6 +18,8 @@ use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
+pub const SYNC_DOCS_URL: &str =
+    "https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html";
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
@@ -156,6 +158,11 @@ macro_rules! build_app {
                 })),
             )
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
+            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
+                HttpResponse::Found()
+                    .header(LOCATION, SYNC_DOCS_URL)
+                    .finish()
+            })))
     };
 }
 
@@ -205,6 +212,11 @@ macro_rules! build_app_without_syncstorage {
                         .body(include_str!("../../version.json"))
                 })),
             )
+            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
+                HttpResponse::Found()
+                    .header(LOCATION, SYNC_DOCS_URL)
+                    .finish()
+            })))
     };
 }
 
