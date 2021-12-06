@@ -2272,4 +2272,3 @@ class TestStorage(StorageFunctionalTestCase):
         with self.assertRaises(AppError) as error:
             self.app.patch_json(collection)
             self.assertIn("405", error)
-
