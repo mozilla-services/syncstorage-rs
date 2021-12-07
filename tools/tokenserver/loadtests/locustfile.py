@@ -6,13 +6,13 @@ DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 MOCKMYID_DOMAIN = "mockmyid.s3-us-west-2.amazonaws.com"
 TOKENSERVER_PATH = '/1.0/sync/1.5'
 
-# An instance of this class represents a single Tokenserver user. Instances
-# will live for the entire duration of the load test. Based on the `wait_time`
-# class variable and the `@task` decorators, each user will make sporadic
-# requests to the server under test.
-
 
 class TokenserverTestUser(HttpUser):
+    # An instance of this class represents a single Tokenserver user. Instances
+    # will live for the entire duration of the load test. Based on the
+    # `wait_time` class variable and the `@task` decorators, each user will
+    # make sporadic requests to the server under test.
+
     wait_time = between(1, 5)
 
     def __init__(self, *args, **kwargs):
