@@ -37,9 +37,9 @@ if __name__ == "__main__":
         )
 
     def start_server():
-        the_server_subprocess = subprocess.Popen(target_binary,
-                                                 shell=True,
-                                                 env=os.environ)
+        the_server_subprocess = subprocess.Popen(
+            target_binary, shell=True, env=os.environ
+        )
 
         # TODO we should change this to watch for a log message on startup
         # to know when to continue instead of sleeping for a fixed amount
@@ -47,7 +47,10 @@ if __name__ == "__main__":
 
         return the_server_subprocess
 
-    os.environ.setdefault('SYNC_MASTER_SECRET', 'secret0')
+    os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
+    os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
+    os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "localhost")
+
     the_server_subprocess = start_server()
     atexit.register(lambda: terminate_process(the_server_subprocess))
     res = run_live_functional_tests(TestStorage, sys.argv)
