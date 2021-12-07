@@ -54,6 +54,14 @@ class TokenserverTestUser(HttpUser):
 
         self._do_token_exchange(token)
 
+    @task(5)
+    def test_password_change(self):
+        # When a user's password changes, the generation number increases.
+        self.generation_counter += 1
+        token = self._make_oauth_token(self.email)
+
+        self._do_token_exchange(token)
+
     def _make_oauth_token(self, user=None, status=200, **fields):
         # For mock oauth tokens, we bundle the desired status code
         # and response body into a JSON blob for the mock verifier
