@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use super::NodeType;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub database_url: String,
@@ -31,6 +33,9 @@ pub struct Settings {
 
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
+
+    /// The type of the storage nodes used by this instance of Tokenserver.
+    pub node_type: NodeType,
 }
 
 impl Default for Settings {
@@ -46,6 +51,7 @@ impl Default for Settings {
             fxa_oauth_server_url: None,
             test_mode_enabled: false,
             node_capacity_release_rate: None,
+            node_type: NodeType::Spanner,
         }
     }
 }

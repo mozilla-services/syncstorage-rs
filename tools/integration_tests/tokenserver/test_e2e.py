@@ -225,4 +225,4 @@ class TestE2e(TestCase, unittest.TestCase):
         self.assertEqual(res.json['hashalg'], 'sha256')
         self.assertEqual(res.json['hashed_fxa_uid'],
                          self._fxa_metrics_hash(fxa_uid)[:32])
-        self.assertEqual(res.json['node_type'], 'example')
+        self.assertEqual(res.json['node_type'], 'spanner')
