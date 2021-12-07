@@ -35,20 +35,19 @@ where
 _SERVICE_NAME = 'sync-1.5'
 
 
-"""This class creates a bunch of users associated with the sync-1.5 service.
+# This class creates a bunch of users associated with the sync-1.5 service.
 
-The resulting users will have an address in the form of <uid>@<host> where
-uid is an int from 0 to :param user_range:.
+# The resulting users will have an address in the form of <uid>@<host> where
+# uid is an int from 0 to :param user_range:.
 
-This function is useful to populate the database during the load tests. It
-allows us to test a specific behaviour: making sure that we are not reading
-the values from memory when retrieving the node information.
+# This class is useful to populate the database during the load tests. It
+# allows us to test a specific behaviour: making sure that we are not reading
+# the values from memory when retrieving the node information.
 
-:param sqluri: the sqluri string used to connect to the database
-:param nodes: the list of available nodes for this service
-:param user_range: the number of users to create
-:param host: the hostname to use when generating users
-"""
+# :param sqluri: the sqluri string used to connect to the database
+# :param nodes: the list of available nodes for this service
+# :param user_range: the number of users to create
+# :param host: the hostname to use when generating users
 class PopulateDatabase:
     def __init__(self, sqluri, nodes, user_range, host="loadtest.local"):
         engine = create_engine(sqluri)
@@ -63,7 +62,9 @@ class PopulateDatabase:
 
     def _get_node_id(self, node_name):
         """Get numeric id for a node."""
-        res = self.database.execute(_GET_NODE_ID, service=self.service_id, node=node_name)
+        res = self.database.execute(_GET_NODE_ID,
+                                    service=self.service_id,
+                                    node=node_name)
         row = res.fetchone()
         res.close()
         if row is None:
@@ -82,19 +83,23 @@ class PopulateDatabase:
             'timestamp': int(time.time() * 1000),
         }
 
-        # for each user in the range, assign him to a node
+        # for each user in the range, assign them to a node
         for idx in range(0, self.user_range):
             email = "%s@%s" % (idx, self.host)
             nodeid = random.choice(self.node_ids)
-            self.database.execute(_CREATE_USER_RECORD, email=email, nodeid=nodeid, **params)
+            self.database.execute(_CREATE_USER_RECORD,
+                                  email=email,
+                                  nodeid=nodeid,
+                                  **params)
+
 
 def main():
     """Read the arguments from the command line and pass them to the
-    populate_db function.
+    PopulateDb class.
 
     Example use:
 
-        python populate-db.py sqlite:////tmp/tokenserver\
+        python3 populate-db.py sqlite:////tmp/tokenserver\
         node1,node2,node3,node4,node5,node6 100
     """
     import sys

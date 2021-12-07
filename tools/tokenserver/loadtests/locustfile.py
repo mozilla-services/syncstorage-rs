@@ -6,10 +6,12 @@ DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 MOCKMYID_DOMAIN = "mockmyid.s3-us-west-2.amazonaws.com"
 TOKENSERVER_PATH = '/1.0/sync/1.5'
 
-# An instance of this class represents a single Tokenserver user. Instances 
+# An instance of this class represents a single Tokenserver user. Instances
 # will live for the entire duration of the load test. Based on the `wait_time`
 # class variable and the `@task` decorators, each user will make sporadic
 # requests to the server under test.
+
+
 class TokenserverTestUser(HttpUser):
     wait_time = between(1, 5)
 
@@ -95,7 +97,7 @@ class TokenserverTestUser(HttpUser):
         keys_changed_at = self.generation_counter
         client_state = b64encode(
             str(keys_changed_at).encode('utf8')).strip(b'=').decode('utf-8')
-        
+
         return '%s-%s' % (keys_changed_at, client_state)
 
     def _do_token_exchange(self, token, status=200):
@@ -104,6 +106,8 @@ class TokenserverTestUser(HttpUser):
             'X-KeyID': self.x_key_id,
         }
 
-        with self.client.get(TOKENSERVER_PATH, catch_response=True, headers=headers) as res:
+        with self.client.get(TOKENSERVER_PATH,
+                             catch_response=True,
+                             headers=headers) as res:
             if res.status_code == status:
                 res.success()
