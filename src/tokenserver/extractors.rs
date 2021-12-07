@@ -348,7 +348,7 @@ impl FromRequest for KeyId {
             }
 
             let x_key_id = headers
-                .get("X-KeyId")
+                .get("X-KeyID")
                 .ok_or_else(|| TokenserverError::invalid_key_id("Missing X-KeyID header"))?
                 .to_str()
                 .map_err(|_| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
