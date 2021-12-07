@@ -36,14 +36,14 @@ _SERVICE_NAME = 'sync-1.5'
 
 
 # This class creates a bunch of users associated with the sync-1.5 service.
-
+#
 # The resulting users will have an address in the form of <uid>@<host> where
 # uid is an int from 0 to :param user_range:.
-
+#
 # This class is useful to populate the database during the load tests. It
 # allows us to test a specific behaviour: making sure that we are not reading
 # the values from memory when retrieving the node information.
-
+#
 # :param sqluri: the sqluri string used to connect to the database
 # :param nodes: the list of available nodes for this service
 # :param user_range: the number of users to create
@@ -94,14 +94,13 @@ class PopulateDatabase:
 
 
 def main():
-    """Read the arguments from the command line and pass them to the
-    PopulateDb class.
-
-    Example use:
-
-        python3 populate-db.py sqlite:////tmp/tokenserver\
-        node1,node2,node3,node4,node5,node6 100
-    """
+    # Read the arguments from the command line and pass them to the
+    # PopulateDb class.
+    #
+    # Example use:
+    #
+    #     python3 populate-db.py sqlite:////tmp/tokenserver\
+    #     node1,node2,node3,node4,node5,node6 100
     import sys
     if len(sys.argv) < 4:
         raise ValueError('You need to specify (in this order) sqluri, '
