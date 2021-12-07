@@ -17,6 +17,7 @@ class TokenserverTestUser(HttpUser):
         super().__init__(*args, **kwargs)
         # Keep track of this user's generation number.
         self.generation_counter = 0
+        self.x_key_id = self._make_x_key_id_header()
         # Locust spawns a new instance of this class for each user. Using the
         # object ID as the FxA UID guarantees uniqueness.
         self.fxa_uid = id(self)
@@ -25,9 +26,8 @@ class TokenserverTestUser(HttpUser):
     @task(1000)
     def test_success(self):
         token = self._make_oauth_token(self.email)
-        x_key_id = self._make_x_key_id_header()
 
-        self._do_token_exchange(token, x_key_id)
+        self._do_token_exchange(token)
 
     @task(5)
     def test_invalid_scope(self):
@@ -35,27 +35,24 @@ class TokenserverTestUser(HttpUser):
             user=str(self.fxa_uid),
             scope=["unrelated", "scopes"],
         )
-        x_key_id = self._make_x_key_id_header()
 
-        self._do_token_exchange(token, x_key_id, status=401)
+        self._do_token_exchange(token, status=401)
 
     @task(5)
     def test_invalid_token(self):
         token = self._make_oauth_token(status=400, errno=108)
-        x_key_id = self._make_x_key_id_header()
 
-        self._do_token_exchange(token, x_key_id, status=401)
+        self._do_token_exchange(token, status=401)
 
     @task(5)
     def test_encryption_key_change(self):
         # When a user's encryption keys change, the generation number and
         # keys_changed_at for the user both increase.
         self.generation_counter += 1
+        self.x_key_id = self._make_x_key_id_header()
+        token = self._make_oauth_token(self.email)
 
-        token = self._make_oauth_token(self.email, generation=self.generation_counter)
-        x_key_id = self._make_x_key_id_header(keys_changed_at=self.generation_counter)
-
-        self._do_token_exchange(token, x_key_id)
+        self._do_token_exchange(token)
 
     def _make_oauth_token(self, user=None, status=200, **fields):
         # For mock oauth tokens, we bundle the desired status code
@@ -83,7 +80,7 @@ class TokenserverTestUser(HttpUser):
           "body": body
         })
 
-    def _make_x_key_id_header(self, keys_changed_at=None):
+    def _make_x_key_id_header(self):
         # In practice, the generation number and keys_changed_at may not be
         # the same, but for our purposes, making this assumption is sufficient:
         # the accuracy of the load test is unaffected.
@@ -93,10 +90,10 @@ class TokenserverTestUser(HttpUser):
         
         return '%s-%s' % (keys_changed_at, client_state)
 
-    def _do_token_exchange(self, token, x_key_id, status=200):
+    def _do_token_exchange(self, token, status=200):
         headers = {
             'Authorization': 'Bearer %s' % token,
-            'X-KeyID': x_key_id,
+            'X-KeyID': self.x_key_id,
         }
 
         with self.client.get(TOKENSERVER_PATH, catch_response=True, headers=headers) as res:
