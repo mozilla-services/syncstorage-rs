@@ -15,13 +15,13 @@ from webtest import TestApp
 
 class TestCase:
     FXA_EMAIL_DOMAIN = 'api-accounts.stage.mozaws.net'
-    FXA_METRICS_HASH_SECRET = 'secret'
+    FXA_METRICS_HASH_SECRET = 'secret0'
     NODE_ID = 800
     NODE_URL = 'https://example.com'
     SYNC_1_1_SERVICE_ID = 1
     SYNC_1_5_SERVICE_ID = 2
     SYNC_1_5_SERVICE_NAME = 'sync-1.5'
-    TOKEN_SIGNING_SECRET = 'secret'
+    TOKEN_SIGNING_SECRET = 'secret0'
     TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
 
     def setUp(self):

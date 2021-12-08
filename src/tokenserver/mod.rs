@@ -8,6 +8,7 @@ pub mod support;
 pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
 use db::pool::{DbPool, TokenserverPool};
+use serde::{Deserialize, Serialize};
 use settings::Settings;
 
 use crate::error::ApiError;
@@ -19,15 +20,16 @@ pub struct ServerState {
     pub fxa_metrics_hash_secret: String,
     pub oauth_verifier: Box<dyn VerifyToken>,
     pub node_capacity_release_rate: Option<f32>,
+    pub node_type: NodeType,
 }
 
 impl ServerState {
     pub fn from_settings(settings: &Settings) -> Result<Self, ApiError> {
         let oauth_verifier: Box<dyn VerifyToken> = if settings.test_mode_enabled {
-            #[cfg(debug_assertions)]
+            #[cfg(feature = "tokenserver_test_mode")]
             let oauth_verifier = Box::new(TestModeOAuthVerifier);
 
-            #[cfg(not(debug_assertions))]
+            #[cfg(not(feature = "tokenserver_test_mode"))]
             let oauth_verifier = Box::new(OAuthVerifier {
                 fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
             });
@@ -47,7 +49,22 @@ impl ServerState {
                 oauth_verifier,
                 db_pool: Box::new(db_pool),
                 node_capacity_release_rate: settings.node_capacity_release_rate,
+                node_type: settings.node_type,
             })
             .map_err(Into::into)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub enum NodeType {
+    #[serde(rename = "mysql")]
+    MySql,
+    #[serde(rename = "spanner")]
+    Spanner,
+}
+
+impl Default for NodeType {
+    fn default() -> Self {
+        Self::Spanner
     }
 }

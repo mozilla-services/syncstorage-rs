@@ -16,6 +16,7 @@ consider it a bug.
 
 import unittest2
 
+
 import re
 import json
 import time
@@ -29,6 +30,7 @@ import contextlib
 import simplejson
 
 from pyramid.interfaces import IAuthenticationPolicy
+from webtest.app import AppError
 from test_support import StorageFunctionalTestCase
 
 import tokenlib
@@ -1746,8 +1748,8 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue("max_request_bytes" in limits)
 
         endpoint = self.root + "/storage/xxx_col2?batch=true"
-        # There are certain obvious constraints on these limits,
-        # violations of which would be very confusing for clients.
+# There are certain obvious constraints on these limits,
+# violations of which would be very confusing for clients.
 #
 #         self.assertTrue(
 #             limits['max_request_bytes'] > limits['max_post_bytes']
@@ -2245,3 +2247,28 @@ class TestStorage(StorageFunctionalTestCase):
         testEmptyCommit("application/newlines", "\n", status=400)
         testEmptyCommit("application/newlines", "{}", status=400)
         testEmptyCommit("application/newlines", "[]", status=400)
+
+    def test_cors_settings_are_set(self):
+
+        res = self.app.options(
+            self.root + "/__heartbeat__",
+            headers={
+                "Access-Control-Request-Method": "GET",
+                "Origin": "localhost",
+                "Access-Control-Request-Headers": "Content-Type",
+            },
+        )
+
+        self.assertEqual(
+            int(res.headers["access-control-max-age"]), 555
+        )
+        self.assertEqual(
+            res.headers["access-control-allow-origin"], "localhost"
+        )
+
+    # PATCH is not a default allowed method, so request should return 405
+    def test_patch_is_not_allowed(self):
+        collection = self.root + "/storage/xxx_col1"
+        with self.assertRaises(AppError) as error:
+            self.app.patch_json(collection)
+            self.assertIn("405", error)

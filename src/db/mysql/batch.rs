@@ -189,7 +189,6 @@ pub fn do_append(
     #[derive(Debug, QueryableByName)]
     #[table_name = "batch_upload_items"]
     struct ExistsResult {
-        user_id: i64,
         batch_id: i64,
         id: String,
     }

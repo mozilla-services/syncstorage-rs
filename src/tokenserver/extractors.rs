@@ -22,6 +22,7 @@ use sha2::Sha256;
 use super::db::{self, models::Db, params, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
+use super::NodeType;
 use super::ServerState;
 use crate::settings::Secrets;
 
@@ -45,6 +46,7 @@ pub struct TokenserverRequest {
     pub hashed_device_id: String,
     pub service_id: i32,
     pub duration: u64,
+    pub node_type: NodeType,
 }
 
 impl TokenserverRequest {
@@ -236,6 +238,7 @@ impl FromRequest for TokenserverRequest {
                 hashed_device_id,
                 service_id,
                 duration: duration.unwrap_or(DEFAULT_TOKEN_DURATION),
+                node_type: state.node_type,
             };
 
             tokenserver_request.validate()?;
@@ -502,6 +505,7 @@ mod tests {
             hashed_device_id: "3a41cccbdd666ebc4199f1f9d1249d44".to_owned(),
             service_id: db::SYNC_1_5_SERVICE_ID,
             duration: 100,
+            node_type: NodeType::default(),
         };
 
         assert_eq!(result, expected_tokenserver_request);
@@ -836,6 +840,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -868,6 +873,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -899,6 +905,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -931,6 +938,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -963,6 +971,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -995,6 +1004,7 @@ mod tests {
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
             duration: DEFAULT_TOKEN_DURATION,
+            node_type: NodeType::default(),
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1014,6 +1024,7 @@ mod tests {
             oauth_verifier: Box::new(verifier),
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
+            node_type: NodeType::default(),
         }
     }
 }

@@ -94,7 +94,8 @@ macro_rules! init_app {
                 get_test_state(&$settings).await,
                 None::<tokenserver::ServerState>,
                 Arc::clone(&SECRETS),
-                limits
+                limits,
+                $settings.build_cors()
             ))
             .await
         }
@@ -216,7 +217,8 @@ where
         get_test_state(&settings).await,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
-        limits
+        limits,
+        settings.build_cors()
     ))
     .await;
 
@@ -256,7 +258,8 @@ async fn test_endpoint_with_body(
         get_test_state(&settings).await,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
-        limits
+        limits,
+        settings.build_cors()
     ))
     .await;
     let req = create_request(method, path, None, Some(body)).to_request();
