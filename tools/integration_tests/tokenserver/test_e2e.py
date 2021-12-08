@@ -124,7 +124,7 @@ class TestE2e(TestCase, unittest.TestCase):
         hasher.update(value.encode('utf-8'))
         return hasher.hexdigest()
 
-    def _derive_secret(self, master_secret, node):
+    def _derive_secret(self, master_secret):
         info = "services.mozilla.com/mozsvc/v1/node_secret/%s" % self.NODE_URL
         hkdf_params = {
             "salt": None,
@@ -205,8 +205,7 @@ class TestE2e(TestCase, unittest.TestCase):
 
         signing_secret = binascii.b2a_hex(
             self.TOKEN_SIGNING_SECRET.encode("utf-8")).decode()
-        node_specific_secret = self._derive_secret(signing_secret,
-                                                   self.NODE_URL)
+        node_specific_secret = self._derive_secret(signing_secret)
         expected_token = tokenlib.make_token(payload_dict,
                                              secret=node_specific_secret)
         expected_signature = urlsafe_b64decode(expected_token)[-32:]

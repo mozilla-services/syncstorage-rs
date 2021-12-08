@@ -57,7 +57,7 @@ commands:
     steps:
       - run:
           name: cargo build
-          command: cargo build
+          command: cargo build --features tokenserver_test_mode
   setup-gcp-grpc:
     steps:
       - run:
