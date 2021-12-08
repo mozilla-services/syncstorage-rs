@@ -3001,7 +3001,7 @@ dependencies = [
  "slog-stdlog",
  "slog-term",
  "thiserror",
- "time 0.3.0",
+ "time 0.3.5",
  "tokio",
  "url 2.2.2",
  "urlencoding",
@@ -3128,9 +3128,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.0"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cf2535c6456e772ad756a0854ec907ede55d73d0b5a34855d808cb2d2f0942e"
+checksum = "41effe7cfa8af36f439fac33861b66b049edc6f9a32331e2312660529c1c24ad"
 dependencies = [
  "libc",
 ]
