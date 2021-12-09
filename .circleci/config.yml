@@ -103,7 +103,7 @@ commands:
   run-e2e-mysql-tests:
     steps:
       - run:
-          name: e2e tests
+          name: e2e tests (syncstorage mysql)
           command: >
                /usr/local/bin/docker-compose
                -f docker-compose.mysql.yaml
@@ -127,7 +127,7 @@ commands:
   run-e2e-spanner-tests:
     steps:
       - run:
-          name: e2e tests
+          name: e2e tests (syncstorage spanner)
           command: >
                /usr/local/bin/docker-compose
                -f docker-compose.spanner.yaml
