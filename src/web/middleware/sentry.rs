@@ -85,10 +85,14 @@ where
             .app_data::<Data<ServerState>>()
             .map(|state| Metrics::from(state.get_ref()));
 
-        Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
+        let fut = self.service.call(sreq);
+
+        Box::pin(async move {
             // handed an actix_error::error::Error;
             // Fetch out the tags (in case any have been added.) NOTE: request extensions
             // are NOT automatically passed to responses. You need to check both.
+
+            let sresp = fut.await?;
             if let Some(t) = sresp.request().extensions().get::<Tags>() {
                 trace!("Sentry: found tags in request: {:?}", &t.tags);
                 for (k, v) in t.tags.clone() {
@@ -142,14 +146,14 @@ where
                         }
                         if !apie.is_reportable() {
                             trace!("Sentry: Not reporting error: {:?}", apie);
-                            return future::ok(sresp);
+                            return Ok(sresp);
                         }
                         report(&tags, event_from_error(apie));
                     }
                 }
             }
-            future::ok(sresp)
-        }))
+            Ok(sresp)
+        })
     }
 }
 
