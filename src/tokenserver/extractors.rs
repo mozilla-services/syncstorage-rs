@@ -8,7 +8,7 @@ use std::sync::Arc;
 use actix_web::{
     dev::Payload,
     http::StatusCode,
-    web::{Data, Query},
+    web::{self, Data, Query},
     Error, FromRequest, HttpRequest,
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
@@ -19,7 +19,7 @@ use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 
-use super::db::{self, models::Db, params, results};
+use super::db::{self, models::Db, params, pool::DbPool, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
 use super::NodeType;
@@ -195,11 +195,7 @@ impl FromRequest for TokenserverRequest {
             };
             let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
             let user = {
-                let db = state.db_pool.get().await.map_err(|_| {
-                    error!("⚠️ Could not acquire database connection");
-
-                    TokenserverError::internal_error()
-                })?;
+                let db = <Box<dyn Db>>::extract(&req).await?;
 
                 db.get_or_create_user(params::GetOrCreateUser {
                     service_id,
@@ -262,16 +258,33 @@ impl FromRequest for Box<dyn Db> {
         let req = req.clone();
 
         Box::pin(async move {
+            <Box<dyn DbPool>>::extract(&req)
+                .await?
+                .get()
+                .await
+                .map_err(|_| {
+                    error!("⚠️ Could not acquire database connection");
+
+                    TokenserverError::internal_error().into()
+                })
+        })
+    }
+}
+
+impl FromRequest for Box<dyn DbPool> {
+    type Config = ();
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
-            let db = state.db_pool.get().await.map_err(|_| {
-                error!("⚠️ Could not acquire database connection");
 
-                TokenserverError::internal_error()
-            })?;
-
-            Ok(db)
+            Ok(state.db_pool.clone())
         })
     }
 }
@@ -303,20 +316,22 @@ impl FromRequest for TokenData {
             let auth = BearerAuth::extract(&req)
                 .await
                 .map_err(|_| TokenserverError::invalid_credentials("Unsupported"))?;
-
             // XXX: The Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let oauth_verifier = state.oauth_verifier.clone();
 
-            state
-                .oauth_verifier
-                .verify_token(auth.token())
-                .map_err(Into::into)
+            web::block(move || {
+                oauth_verifier.verify_token(auth.token())
+            })
+            .await
+            .map_err(TokenserverError::from)
+            .map_err(Into::into)
         })
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 struct KeyId {
     client_state: String,
     keys_changed_at: i64,

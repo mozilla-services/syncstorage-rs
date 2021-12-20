@@ -26,6 +26,8 @@ pub struct GetRawUser {
     pub replaced_at: Option<i64>,
 }
 
+pub type GetUsers = Vec<GetRawUser>;
+
 #[derive(Debug, Default, PartialEq)]
 pub struct AllocateUser {
     pub uid: i64,
@@ -74,9 +76,6 @@ pub struct GetBestNode {
 }
 
 pub type AddUserToNode = ();
-
-#[cfg(test)]
-pub type GetRawUsers = Vec<GetRawUser>;
 
 #[cfg(test)]
 #[derive(Debug, Default, PartialEq, QueryableByName)]
@@ -140,9 +139,6 @@ pub type SetUserCreatedAt = ();
 
 #[cfg(test)]
 pub type SetUserReplacedAt = ();
-
-#[cfg(test)]
-pub type GetUsers = Vec<GetUser>;
 
 pub type Check = bool;
 
