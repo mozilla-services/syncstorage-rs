@@ -411,16 +411,17 @@ impl TokenserverDb {
             let start = SystemTime::now();
             start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
         };
-        let uid = self.post_user_sync(params::PostUser {
-            service_id: params.service_id,
-            email: params.email.clone(),
-            generation: params.generation,
-            client_state: params.client_state.clone(),
-            created_at,
-            node_id: node.id,
-            keys_changed_at: params.keys_changed_at,
-        })?
-        .id;
+        let uid = self
+            .post_user_sync(params::PostUser {
+                service_id: params.service_id,
+                email: params.email.clone(),
+                generation: params.generation,
+                client_state: params.client_state.clone(),
+                created_at,
+                node_id: node.id,
+                keys_changed_at: params.keys_changed_at,
+            })?
+            .id;
 
         Ok(results::AllocateUser {
             uid,

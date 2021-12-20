@@ -1,6 +1,10 @@
 use std::fmt;
 
-use actix_web::{error::{BlockingError, ResponseError}, http::StatusCode, HttpResponse};
+use actix_web::{
+    error::{BlockingError, ResponseError},
+    http::StatusCode,
+    HttpResponse,
+};
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,

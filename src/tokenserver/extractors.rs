@@ -321,12 +321,10 @@ impl FromRequest for TokenData {
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
             let oauth_verifier = state.oauth_verifier.clone();
 
-            web::block(move || {
-                oauth_verifier.verify_token(auth.token())
-            })
-            .await
-            .map_err(TokenserverError::from)
-            .map_err(Into::into)
+            web::block(move || oauth_verifier.verify_token(auth.token()))
+                .await
+                .map_err(TokenserverError::from)
+                .map_err(Into::into)
         })
     }
 }
