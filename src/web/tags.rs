@@ -18,19 +18,10 @@ use slog::{Key, Record, KV};
 
 use crate::server::user_agent::parse_user_agent;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Tags {
     pub tags: HashMap<String, String>,
     pub extra: HashMap<String, String>,
-}
-
-impl Default for Tags {
-    fn default() -> Tags {
-        Tags {
-            tags: HashMap::new(),
-            extra: HashMap::new(),
-        }
-    }
 }
 
 impl Serialize for Tags {

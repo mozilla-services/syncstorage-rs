@@ -2,10 +2,9 @@
 
 use std::{sync::Arc, time::Duration};
 
-use actix_cors::Cors;
 use actix_web::{
-    dev, http::StatusCode, middleware::errhandlers::ErrorHandlers, web, App, HttpRequest,
-    HttpResponse, HttpServer,
+    dev, http::header::LOCATION, http::StatusCode, middleware::errhandlers::ErrorHandlers, web,
+    App, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
 use tokio::sync::RwLock;
@@ -19,6 +18,8 @@ use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
+pub const SYNC_DOCS_URL: &str =
+    "https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html";
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
@@ -62,7 +63,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr) => {
         App::new()
             .data($syncstorage_state)
             .data($tokenserver_state)
@@ -74,12 +75,7 @@ macro_rules! build_app {
             .wrap(middleware::weave::WeaveTimestamp::new())
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
-            // Followed by the "official middleware" so they run first.
-            // actix is getting increasingly tighter about CORS headers. Our server is
-            // not a huge risk but does deliver XHR JSON content.
-            // For now, let's be permissive and use NGINX (the wrapping server)
-            // for finer grained specification.
-            .wrap(Cors::permissive())
+            .wrap($cors)
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),
@@ -132,12 +128,11 @@ macro_rules! build_app {
                     .route(web::get().to(handlers::get_bso))
                     .route(web::put().to(handlers::put_bso)),
             )
-            // XXX: This route will be enabled when we are ready to roll out Tokenserver
             // Tokenserver
-            // .service(
-            //     web::resource("/1.0/{application}/{version}")
-            //         .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
-            // )
+            .service(
+                web::resource("/1.0/{application}/{version}")
+                    .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
+            )
             // Dockerflow
             // Remember to update .::web::middleware::DOCKER_FLOW_ENDPOINTS
             // when applying changes to endpoint names.
@@ -162,12 +157,17 @@ macro_rules! build_app {
                 })),
             )
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
+            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
+                HttpResponse::Found()
+                    .header(LOCATION, SYNC_DOCS_URL)
+                    .finish()
+            })))
     };
 }
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr) => {
+    ($state: expr, $secrets: expr, $cors: expr) => {
         App::new()
             .data($state)
             .data($secrets)
@@ -182,7 +182,7 @@ macro_rules! build_app_without_syncstorage {
             // not a huge risk but does deliver XHR JSON content.
             // For now, let's be permissive and use NGINX (the wrapping server)
             // for finer grained specification.
-            .wrap(Cors::permissive())
+            .wrap($cors)
             .service(
                 web::resource("/1.0/{application}/{version}")
                     .route(web::get().to(tokenserver::handlers::get_tokenserver_result)),
@@ -211,11 +211,17 @@ macro_rules! build_app_without_syncstorage {
                         .body(include_str!("../../version.json"))
                 })),
             )
+            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
+                HttpResponse::Found()
+                    .header(LOCATION, SYNC_DOCS_URL)
+                    .finish()
+            })))
     };
 }
 
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
+        let settings_copy = settings.clone();
         let metrics = metrics::metrics_from_opts(&settings)?;
         let host = settings.host.clone();
         let port = settings.port;
@@ -255,7 +261,8 @@ impl Server {
                 syncstorage_state,
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
-                limits
+                limits,
+                settings_copy.build_cors()
             )
         });
 
@@ -273,13 +280,17 @@ impl Server {
     pub async fn tokenserver_only_with_settings(
         settings: Settings,
     ) -> Result<dev::Server, ApiError> {
+        let settings_copy = settings.clone();
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret);
         let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
-
         let server = HttpServer::new(move || {
-            build_app_without_syncstorage!(Some(tokenserver_state.clone()), Arc::clone(&secrets))
+            build_app_without_syncstorage!(
+                Some(tokenserver_state.clone()),
+                Arc::clone(&secrets),
+                settings_copy.build_cors()
+            )
         });
 
         let server = server

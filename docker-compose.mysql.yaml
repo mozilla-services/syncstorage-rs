@@ -20,7 +20,7 @@ services:
             - tokenserver_db_data:/var/lib/mysql
         restart: always
         ports:
-            - "3307"
+            - "3306"
         environment:
             #MYSQL_RANDOM_ROOT_PASSWORD: yes
             MYSQL_ROOT_PASSWORD: random
@@ -40,7 +40,7 @@ services:
           SYNC_HOST: 0.0.0.0
           SYNC_MASTER_SECRET: secret0
           SYNC_DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
-          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3307/tokenserver
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
 
 volumes:
     sync_db_data:

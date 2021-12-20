@@ -13,6 +13,7 @@ use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
 use super::error::TokenserverError;
 use super::extractors::TokenserverRequest;
 use super::support::{self, Tokenlib};
+use super::NodeType;
 use crate::tokenserver::support::MakeTokenPlaintext;
 
 #[derive(Debug, Serialize)]
@@ -23,6 +24,8 @@ pub struct TokenserverResult {
     api_endpoint: String,
     duration: u64,
     hashed_fxa_uid: String,
+    hashalg: &'static str,
+    node_type: NodeType,
 }
 
 pub async fn get_tokenserver_result(
@@ -57,6 +60,8 @@ pub async fn get_tokenserver_result(
         api_endpoint: format!("{:}/1.5/{:}", req.user.node, req.user.uid),
         duration: req.duration,
         hashed_fxa_uid: req.hashed_fxa_uid,
+        hashalg: "sha256",
+        node_type: req.node_type,
     };
 
     Ok(HttpResponse::build(StatusCode::OK).json(result))
