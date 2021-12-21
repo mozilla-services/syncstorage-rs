@@ -1,0 +1,231 @@
+#
+# This is a CloudFormation script to deploy a tiny lambda+API-gateway
+# service that can mock out FxA OAuth verification responses.
+#
+# When deployed, this API will proxy all HTTP requests through to a live
+# FxA OAuth server except that `POST /v1/verify` will attempt to parse
+# the submitted token as JSON. If it succeeds, then it will use the `status`
+# and `body` fields from that JSON to return a mocked response.
+#
+# The idea is to let this API be used as a stand-in for the real FxA OAuth
+# server, and have it function correctly for manual testing with real accounts,
+# but then also to be able to make fake OAuth tokens during a loadtest, like
+# this:
+#
+#  requests.get("https://mock-oauth-stage.dev.lcip.org", json={
+#      "token": json.dumps({
+#        "status": 200,
+#        "body": {
+#          "user": "loadtest123456",
+#          "scope": ["myscope"],
+#          "client_id": "my_client_id",
+#        }
+#      })
+#  })
+#
+# Or to be able to simulate OAuth token failures like this:
+#
+#  requests.get("https://mock-oauth-stage.dev.lcip.org", json={
+#      "token": json.dumps({
+#        "status": 400,
+#        "body": {
+#          "errno": "108",
+#          "message": "invalid token",
+#        }
+#      })
+#  })
+#
+# You'll notice that there's some javascript written inline in this yaml file.
+# That does make it a little bit annoying to edit, but that's outweighed by
+# the advantage of have a single file that can be deployed with a single
+# command with no pre-processing palaver.
+#
+Parameters:
+  ProxyTarget:
+    Type: "String"
+    Default: "oauth.stage.mozaws.net"
+    Description: "The live OAuth server to which un-mocked requests should be proxied"
+  MockIssuer:
+    Type: "String"
+    Default: "mockmyid.s3-us-west-2.amazonaws.com"
+    Description: "The issuer domain to use for mock tokens"
+  DomainName:
+    Type: "String"
+    Default: "mock-oauth-stage.dev.lcip.org"
+    Description: "The domain name at which to expose the API"
+  CertificateArn:
+    Type: "String"
+    Default: "arn:aws:acm:us-east-1:927034868273:certificate/675e0ac8-23af-4153-8295-acb28ccc9f0f"
+    Description: "The certificate to use with $DomainName"
+  HostedZoneName:
+    Type: "String"
+    Default: "lcip.org"
+    Description: "The hosted zone in which to create a DNS record"
+  Owner:
+    Type: "String"
+    Default: "rfkelly@mozilla.com"
+    Description: "Email address of owner to tag resources with"
+
+Resources:
+  Handler:
+    Type: "AWS::Lambda::Function"
+    Properties: 
+      Description: "Mock FxA OAuth verifier"
+      Handler: "index.handler"
+      Role:  !GetAtt HandlerRole.Arn
+      Tags:
+        - Key: "Owner"
+          Value: !Ref Owner
+      Runtime: "nodejs6.10"
+      Code: 
+        ZipFile: !Sub |-
+
+          const https = require('https');
+          const url = require('url');
+
+          function proxy(event, context, callback) {
+            const output = []
+            const req = https.request({
+              hostname: "${ProxyTarget}",
+              post: 443,
+              path: url.format({
+                pathname: event.path,
+                query: event.queryStringParameters
+              }),
+              method: event.httpMethod,
+            }, res => {
+              res.setEncoding('utf8');
+              res.on('data', d => {
+                output.push(d);
+              })
+              res.on('end', () => {
+                callback(null, {
+                  statusCode: res.statusCode,
+                  headers: res.headers,
+                  body: output.join('')
+                });
+              })
+            });            
+            req.on('error', e => {
+              callback(e);
+            })
+            if (event.body) {
+              req.write(event.body, 'utf8');
+            }
+            req.end();
+          }
+
+          const HANDLERS = {
+            'POST:/v1/verify': function(event, context, callback) {
+              try {
+                const token = JSON.parse(event.body).token;
+                const mockResponse = JSON.parse(token);
+                const mockStatus = mockResponse.status || 200;
+                const mockBody = mockResponse.body || {};
+                // Ensure that successful responses always claim to be from
+                // the mock issuer. Otherwise you could use a mock token to
+                // any account, even accounts backed by accounts.firefox.com!
+                if (mockStatus < 400) {
+                  mockBody.issuer = "${MockIssuer}";
+                }
+                // Return the mocked response from the token.
+                return callback(null, {
+                  statusCode: mockStatus,
+                  headers: {
+                    "content-type": "application/json"
+                  },
+                  body: JSON.stringify(mockBody)
+                });
+              } catch (e) {
+                // If it's not a mock token, forward to real server.
+                return proxy(event, context, callback);
+              }
+            }
+          }
+
+          exports.handler = (event, context, callback) => {
+            const h = HANDLERS[event.httpMethod + ':' + event.path] || proxy;
+            return h(event, context, callback);
+          };
+
+  HandlerRole:
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+  HandlerPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      Action: "lambda:invokeFunction"
+      FunctionName: !GetAtt Handler.Arn
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${API}/*"
+
+  API:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Description: "Mock FxA OAuth API"
+      Name: !Sub "${AWS::StackName}-mock-fxa-oauth"
+      FailOnWarnings: true
+
+  APIResource:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      RestApiId: !Ref API
+      ParentId:  !GetAtt API.RootResourceId
+      PathPart: "{proxy+}"
+
+  APIMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn:
+      - HandlerPermission
+    Properties:
+      AuthorizationType: "NONE"
+      HttpMethod: "ANY"
+      ResourceId:  !Ref APIResource
+      RestApiId:  !Ref API
+      Integration:
+        Type: "AWS_PROXY"
+        IntegrationHttpMethod: "POST"
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${Handler.Arn}/invocations"
+
+  APIDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    DependsOn:
+      - APIMethod
+    Properties:
+      RestApiId: !Ref API
+      StageName: "main"
+
+  APIDomainName:
+    Type: "AWS::ApiGateway::DomainName"
+    Properties:
+      DomainName: !Ref DomainName
+      CertificateArn: !Ref CertificateArn
+
+  APIDomainMapping:
+    Type: "AWS::ApiGateway::BasePathMapping"
+    Properties:
+      DomainName: !Ref APIDomainName
+      RestApiId:  !Ref API
+      Stage: "main"
+
+  APIDNSRecord:
+    Type : "AWS::Route53::RecordSet"
+    Properties :
+      HostedZoneName : !Sub "${HostedZoneName}."
+      Name : !Sub "${DomainName}."
+      Type : "A"
+      AliasTarget:
+        DNSName: !GetAtt APIDomainName.DistributionDomainName
+        HostedZoneId: "Z2FDTNDATAQYW2" # Published ZoneId for CloudFront

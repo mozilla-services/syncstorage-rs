@@ -78,8 +78,8 @@ impl From<actix_web::error::BlockingError<DbError>> for DbError {
 #[async_trait]
 impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
-        let pool = self.inner.clone();
-        let conn = block(move || pool.get().map_err(DbError::from)).await?;
+        let pool = self.clone();
+        let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
         Ok(Box::new(TokenserverDb::new(conn)) as Box<dyn Db>)
     }
