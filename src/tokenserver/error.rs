@@ -1,12 +1,16 @@
 use std::fmt;
 
-use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
+use actix_web::{
+    error::{BlockingError, ResponseError},
+    http::StatusCode,
+    HttpResponse,
+};
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TokenserverError {
     pub status: &'static str,
     pub location: ErrorLocation,
@@ -95,6 +99,18 @@ impl TokenserverError {
             location: ErrorLocation::Body,
             description,
             ..Self::default()
+        }
+    }
+}
+
+impl From<BlockingError<TokenserverError>> for TokenserverError {
+    fn from(inner: BlockingError<TokenserverError>) -> Self {
+        match inner {
+            BlockingError::Error(e) => e,
+            BlockingError::Canceled => {
+                error!("Tokenserver threadpool operation canceled");
+                TokenserverError::internal_error()
+            }
         }
     }
 }

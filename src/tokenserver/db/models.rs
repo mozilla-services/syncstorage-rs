@@ -165,6 +165,7 @@ impl TokenserverDb {
             INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NULL);
         "#;
+
         diesel::sql_query(QUERY)
             .bind::<Integer, _>(user.service_id)
             .bind::<Text, _>(&user.email)
@@ -264,6 +265,171 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
+    fn get_users_sync(&self, params: params::GetUsers) -> DbResult<results::GetUsers> {
+        const QUERY: &str = r#"
+                     SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at,
+                            replaced_at
+                       FROM users
+            LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
+                      WHERE email = ?
+                        AND users.service = ?
+                   ORDER BY created_at DESC, uid DESC
+                      LIMIT 20
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Text, _>(&params.email)
+            .bind::<Integer, _>(params.service_id)
+            .load::<results::GetRawUser>(&self.inner.conn)
+            .map_err(Into::into)
+    }
+
+    /// Gets the user with the given email and service ID, or if one doesn't exist, allocates a new
+    /// user.
+    fn get_or_create_user_sync(
+        &self,
+        params: params::GetOrCreateUser,
+    ) -> DbResult<results::GetOrCreateUser> {
+        let mut raw_users = self.get_users_sync(params::GetUsers {
+            service_id: params.service_id,
+            email: params.email.clone(),
+        })?;
+
+        if raw_users.is_empty() {
+            // There are no users in the database with the given email and service ID, so
+            // allocate a new one.
+            let allocate_user_result =
+                self.allocate_user_sync(params.clone() as params::AllocateUser)?;
+
+            Ok(results::GetOrCreateUser {
+                uid: allocate_user_result.uid,
+                email: params.email,
+                client_state: params.client_state,
+                generation: params.generation,
+                node: allocate_user_result.node,
+                keys_changed_at: params.keys_changed_at,
+                created_at: allocate_user_result.created_at,
+                replaced_at: None,
+                old_client_states: vec![],
+            })
+        } else {
+            raw_users.sort_by_key(|raw_user| (raw_user.generation, raw_user.created_at));
+            raw_users.reverse();
+
+            // The user with the greatest `generation` and `created_at` is the current user
+            let raw_user = raw_users[0].clone();
+
+            // Collect any old client states that differ from the current client state
+            let old_client_states = {
+                raw_users[1..]
+                    .iter()
+                    .map(|user| user.client_state.clone())
+                    .filter(|client_state| client_state != &raw_user.client_state)
+                    .collect()
+            };
+
+            // Make sure every old row is marked as replaced. They might not be, due to races in row
+            // creation.
+            for old_user in &raw_users[1..] {
+                if old_user.replaced_at.is_none() {
+                    let params = params::ReplaceUser {
+                        uid: old_user.uid,
+                        service_id: params.service_id,
+                        replaced_at: raw_user.created_at,
+                    };
+
+                    self.replace_user_sync(params)?;
+                }
+            }
+
+            match (raw_user.replaced_at, raw_user.node) {
+                // If the most up-to-date user is marked as replaced or does not have a node
+                // assignment, allocate a new user. Note that, if the current user is marked
+                // as replaced, we do not want to create a new user with the account metadata
+                // in the parameters to this method. Rather, we want to create a duplicate of
+                // the replaced user assigned to a new node. This distinction is important
+                // because the account metadata in the parameters to this method may not match
+                // that currently stored on the most up-to-date user and may be invalid.
+                (Some(_), _) | (_, None) if raw_user.generation < MAX_GENERATION => {
+                    let allocate_user_result = {
+                        self.allocate_user_sync(params::AllocateUser {
+                            service_id: params.service_id,
+                            email: params.email.clone(),
+                            generation: raw_user.generation,
+                            client_state: raw_user.client_state.clone(),
+                            keys_changed_at: raw_user.keys_changed_at,
+                            capacity_release_rate: params.capacity_release_rate,
+                        })?
+                    };
+
+                    Ok(results::GetOrCreateUser {
+                        uid: allocate_user_result.uid,
+                        email: params.email,
+                        client_state: raw_user.client_state,
+                        generation: raw_user.generation,
+                        node: allocate_user_result.node,
+                        keys_changed_at: raw_user.keys_changed_at,
+                        created_at: allocate_user_result.created_at,
+                        replaced_at: None,
+                        old_client_states,
+                    })
+                }
+                // The most up-to-date user has a node. Note that this user may be retired or
+                // replaced.
+                (_, Some(node)) => Ok(results::GetOrCreateUser {
+                    uid: raw_user.uid,
+                    email: params.email,
+                    client_state: raw_user.client_state,
+                    generation: raw_user.generation,
+                    node,
+                    keys_changed_at: raw_user.keys_changed_at,
+                    created_at: raw_user.created_at,
+                    replaced_at: None,
+                    old_client_states,
+                }),
+                // The most up-to-date user doesn't have a node and is retired.
+                (_, None) => Err(DbError::from(DbErrorKind::TokenserverUserRetired)),
+            }
+        }
+    }
+
+    /// Creates a new user and assigns them to a node.
+    fn allocate_user_sync(&self, params: params::AllocateUser) -> DbResult<results::AllocateUser> {
+        // Get the least-loaded node
+        let node = self.get_best_node_sync(params::GetBestNode {
+            service_id: params.service_id,
+            capacity_release_rate: params.capacity_release_rate,
+        })?;
+
+        // Decrement `available` and increment `current_load` on the node assigned to the user.
+        self.add_user_to_node_sync(params::AddUserToNode {
+            service_id: params.service_id,
+            node: node.node.clone(),
+        })?;
+
+        let created_at = {
+            let start = SystemTime::now();
+            start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+        };
+        let uid = self
+            .post_user_sync(params::PostUser {
+                service_id: params.service_id,
+                email: params.email.clone(),
+                generation: params.generation,
+                client_state: params.client_state.clone(),
+                created_at,
+                node_id: node.id,
+                keys_changed_at: params.keys_changed_at,
+            })?
+            .id;
+
+        Ok(results::AllocateUser {
+            uid,
+            node: node.node,
+            created_at,
+        })
+    }
+
     #[cfg(test)]
     fn set_user_created_at_sync(
         &self,
@@ -311,22 +477,6 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
             .get_result::<results::GetUser>(&self.inner.conn)
-            .map_err(Into::into)
-    }
-
-    #[cfg(test)]
-    fn get_users_sync(&self, email: String) -> DbResult<results::GetRawUsers> {
-        const QUERY: &str = r#"
-            SELECT users.uid, users.email, users.client_state, users.generation,
-                   users.keys_changed_at, users.created_at, users.replaced_at, nodes.node
-              FROM users
-              JOIN nodes
-                ON nodes.id = users.nodeid
-             WHERE users.email = ?
-        "#;
-        diesel::sql_query(QUERY)
-            .bind::<Text, _>(email)
-            .load::<results::GetRawUser>(&self.inner.conn)
             .map_err(Into::into)
     }
 
@@ -419,175 +569,12 @@ impl Db for TokenserverDb {
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
     sync_db_method!(post_user, post_user_sync, PostUser);
 
-    /// Creates a new user and assigns them to a node.
-    fn allocate_user(&self, params: params::AllocateUser) -> DbFuture<'_, results::AllocateUser> {
-        Box::pin(async move {
-            // Get the least-loaded node
-            let node = self
-                .get_best_node(params::GetBestNode {
-                    service_id: params.service_id,
-                    capacity_release_rate: params.capacity_release_rate,
-                })
-                .await?;
-
-            // Decrement `available` and increment `current_load` on the node assigned to the user.
-            self.add_user_to_node(params::AddUserToNode {
-                service_id: params.service_id,
-                node: node.node.clone(),
-            })
-            .await?;
-
-            let created_at = {
-                let start = SystemTime::now();
-                start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
-            };
-            let uid = self
-                .post_user(params::PostUser {
-                    service_id: params.service_id,
-                    email: params.email.clone(),
-                    generation: params.generation,
-                    client_state: params.client_state.clone(),
-                    created_at,
-                    node_id: node.id,
-                    keys_changed_at: params.keys_changed_at,
-                })
-                .await?
-                .id;
-
-            Ok(results::AllocateUser {
-                uid,
-                node: node.node,
-                created_at,
-            })
-        })
-    }
-
     sync_db_method!(put_user, put_user_sync, PutUser);
     sync_db_method!(get_node_id, get_node_id_sync, GetNodeId);
     sync_db_method!(get_best_node, get_best_node_sync, GetBestNode);
     sync_db_method!(add_user_to_node, add_user_to_node_sync, AddUserToNode);
-
-    /// Gets the user with the given email and service ID, or if one doesn't exist, allocates a new
-    /// user.
-    fn get_or_create_user(
-        &self,
-        params: params::GetOrCreateUser,
-    ) -> DbFuture<'_, results::GetOrCreateUser> {
-        const QUERY: &str = r#"
-                     SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at,
-                            replaced_at
-                       FROM users
-            LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
-                      WHERE email = ?
-                        AND users.service = ?
-                   ORDER BY created_at DESC, uid DESC
-                      LIMIT 20
-        "#;
-
-        Box::pin(async move {
-            let mut raw_users = diesel::sql_query(QUERY)
-                .bind::<Text, _>(&params.email)
-                .bind::<Integer, _>(params.service_id)
-                .load::<results::GetRawUser>(&self.inner.conn)
-                .map_err(|e| ApiError::from(DbError::from(e)))?;
-
-            if raw_users.is_empty() {
-                // There are no users in the database with the given email and service ID, so
-                // allocate a new one.
-                let allocate_user_result = self
-                    .allocate_user(params.clone() as params::AllocateUser)
-                    .await?;
-
-                Ok(results::GetOrCreateUser {
-                    uid: allocate_user_result.uid,
-                    email: params.email.clone(),
-                    client_state: params.client_state,
-                    generation: params.generation,
-                    node: allocate_user_result.node,
-                    keys_changed_at: params.keys_changed_at,
-                    created_at: allocate_user_result.created_at,
-                    replaced_at: None,
-                    old_client_states: vec![],
-                })
-            } else {
-                raw_users.sort_by_key(|raw_user| (raw_user.generation, raw_user.created_at));
-                raw_users.reverse();
-
-                // The user with the greatest `generation` and `created_at` is the current user
-                let raw_user = raw_users[0].clone();
-
-                // Collect any old client states that differ from the current client state
-                let old_client_states = raw_users[1..]
-                    .iter()
-                    .map(|user| user.client_state.clone())
-                    .filter(|client_state| client_state != &raw_user.client_state)
-                    .collect();
-
-                // Make sure every old row is marked as replaced. They might not be, due to races in row
-                // creation.
-                for old_user in &raw_users[1..] {
-                    if old_user.replaced_at.is_none() {
-                        let params = params::ReplaceUser {
-                            uid: old_user.uid,
-                            service_id: params.service_id,
-                            replaced_at: raw_user.created_at,
-                        };
-
-                        self.replace_user(params).await?;
-                    }
-                }
-
-                match (raw_user.replaced_at, raw_user.node) {
-                    // If the most up-to-date user is marked as replaced or does not have a node
-                    // assignment, allocate a new user. Note that, if the current user is marked
-                    // as replaced, we do not want to create a new user with the account metadata
-                    // in the parameters to this method. Rather, we want to create a duplicate of
-                    // the replaced user assigned to a new node. This distinction is important
-                    // because the account metadata in the parameters to this method may not match
-                    // that currently stored on the most up-to-date user and may be invalid.
-                    (Some(_), _) | (_, None) if raw_user.generation < MAX_GENERATION => {
-                        let allocate_user_result = self
-                            .allocate_user(params::AllocateUser {
-                                service_id: params.service_id,
-                                email: params.email.clone(),
-                                generation: raw_user.generation,
-                                client_state: raw_user.client_state.clone(),
-                                keys_changed_at: raw_user.keys_changed_at,
-                                capacity_release_rate: params.capacity_release_rate,
-                            })
-                            .await?;
-
-                        Ok(results::GetOrCreateUser {
-                            uid: allocate_user_result.uid,
-                            email: params.email.clone(),
-                            client_state: raw_user.client_state,
-                            generation: raw_user.generation,
-                            node: allocate_user_result.node,
-                            keys_changed_at: raw_user.keys_changed_at,
-                            created_at: allocate_user_result.created_at,
-                            replaced_at: None,
-                            old_client_states,
-                        })
-                    }
-                    // The most up-to-date user has a node. Note that this user may be retired or
-                    // replaced.
-                    (_, Some(node)) => Ok(results::GetOrCreateUser {
-                        uid: raw_user.uid,
-                        email: params.email.clone(),
-                        client_state: raw_user.client_state,
-                        generation: raw_user.generation,
-                        node,
-                        keys_changed_at: raw_user.keys_changed_at,
-                        created_at: raw_user.created_at,
-                        replaced_at: None,
-                        old_client_states,
-                    }),
-                    // The most up-to-date user doesn't have a node and is retired.
-                    (_, None) => Err(DbError::from(DbErrorKind::TokenserverUserRetired).into()),
-                }
-            }
-        })
-    }
+    sync_db_method!(get_users, get_users_sync, GetUsers);
+    sync_db_method!(get_or_create_user, get_or_create_user_sync, GetOrCreateUser);
 
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
@@ -612,9 +599,6 @@ impl Db for TokenserverDb {
     );
 
     #[cfg(test)]
-    sync_db_method!(get_users, get_users_sync, GetRawUsers);
-
-    #[cfg(test)]
     sync_db_method!(post_node, post_node_sync, PostNode);
 
     #[cfg(test)]
@@ -637,8 +621,6 @@ pub trait Db {
 
     fn post_user(&self, params: params::PostUser) -> DbFuture<'_, results::PostUser>;
 
-    fn allocate_user(&self, params: params::AllocateUser) -> DbFuture<'_, results::AllocateUser>;
-
     fn put_user(&self, params: params::PutUser) -> DbFuture<'_, results::PutUser>;
 
     fn check(&self) -> DbFuture<'_, results::Check>;
@@ -651,6 +633,8 @@ pub trait Db {
         &self,
         params: params::AddUserToNode,
     ) -> DbFuture<'_, results::AddUserToNode>;
+
+    fn get_users(&self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers>;
 
     fn get_or_create_user(
         &self,
@@ -671,9 +655,6 @@ pub trait Db {
 
     #[cfg(test)]
     fn get_user(&self, params: params::GetUser) -> DbFuture<'_, results::GetUser>;
-
-    #[cfg(test)]
-    fn get_users(&self, params: params::GetRawUsers) -> DbFuture<'_, results::GetRawUsers>;
 
     #[cfg(test)]
     fn post_node(&self, params: params::PostNode) -> DbFuture<'_, results::PostNode>;
@@ -976,8 +957,18 @@ mod tests {
 
         // Get all of the users
         let users = {
-            let mut users1 = db.get_users(email1.to_owned()).await?;
-            let mut users2 = db.get_users(email2.to_owned()).await?;
+            let mut users1 = db
+                .get_users(params::GetUsers {
+                    email: email1.to_owned(),
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                })
+                .await?;
+            let mut users2 = db
+                .get_users(params::GetUsers {
+                    email: email2.to_owned(),
+                    service_id: db::SYNC_1_5_SERVICE_ID,
+                })
+                .await?;
             users1.append(&mut users2);
 
             users1
@@ -1097,7 +1088,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_allocation() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let db = pool.get_tokenserver_db().await?;
 
         // Add a node
         let node_id = db
@@ -1113,16 +1104,14 @@ mod tests {
             .id;
 
         // Allocating a user assigns it to the node
-        let user = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await?;
+        let user = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        })?;
         assert_eq!(user.node, "https://node1");
 
         // Getting the user from the database does not affect node assignment
@@ -1135,7 +1124,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_to_least_loaded_node() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let db = pool.get_tokenserver_db().await?;
 
         // Add two nodes
         db.post_node(params::PostNode {
@@ -1159,27 +1148,23 @@ mod tests {
         .await?;
 
         // Allocate two users
-        let user1 = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test1@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await?;
+        let user1 = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test1@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        })?;
 
-        let user2 = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test2@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await?;
+        let user2 = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test2@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        })?;
 
         // Because users are always assigned to the least-loaded node, the users should have been
         // assigned to different nodes
@@ -1191,7 +1176,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_downed_nodes() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let db = pool.get_tokenserver_db().await?;
 
         // Add a downed node
         db.post_node(params::PostNode {
@@ -1206,16 +1191,14 @@ mod tests {
         .await?;
 
         // User allocation fails because allocation is not allowed to downed nodes
-        let result = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await;
+        let result = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
 
@@ -1225,7 +1208,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_backoff_nodes() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let db = pool.get_tokenserver_db().await?;
 
         // Add a backoff node
         db.post_node(params::PostNode {
@@ -1240,16 +1223,14 @@ mod tests {
         .await?;
 
         // User allocation fails because allocation is not allowed to backoff nodes
-        let result = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await;
+        let result = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
 
@@ -1259,7 +1240,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_when_records_are_replaced() -> Result<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let db = pool.get_tokenserver_db().await?;
 
         // Add a node
         db.post_node(params::PostNode {
@@ -1273,16 +1254,14 @@ mod tests {
         .await?;
 
         // Allocate a user
-        let allocate_user_result = db
-            .allocate_user(params::AllocateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
-                generation: 1234,
-                email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
-                keys_changed_at: Some(1234),
-                capacity_release_rate: None,
-            })
-            .await?;
+        let allocate_user_result = db.allocate_user_sync(params::AllocateUser {
+            service_id: db::SYNC_1_5_SERVICE_ID,
+            generation: 1234,
+            email: "test@test.com".to_owned(),
+            client_state: "616161".to_owned(),
+            keys_changed_at: Some(1234),
+            capacity_release_rate: None,
+        })?;
         let user1 = db
             .get_user(params::GetUser {
                 id: allocate_user_result.uid,

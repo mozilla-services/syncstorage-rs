@@ -22,6 +22,11 @@ pub struct PostService {
     pub pattern: String,
 }
 
+pub struct GetUsers {
+    pub service_id: i32,
+    pub email: String,
+}
+
 #[derive(Clone, Default)]
 pub struct GetOrCreateUser {
     pub service_id: i32,
@@ -86,9 +91,6 @@ pub struct AddUserToNode {
     pub service_id: i32,
     pub node: String,
 }
-
-#[cfg(test)]
-pub type GetRawUsers = String;
 
 #[cfg(test)]
 pub struct SetUserCreatedAt {
