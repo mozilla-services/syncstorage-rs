@@ -1027,7 +1027,7 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            service_id: i32::default(),
+            service_id: None,
         }
     }
 }
