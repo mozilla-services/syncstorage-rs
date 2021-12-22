@@ -85,6 +85,10 @@ impl Db for MockDb {
         Box::pin(future::ok(results::GetOrCreateUser::default()))
     }
 
+    fn get_service_id(&self, _params: params::GetServiceId) -> DbFuture<'_, results::GetServiceId> {
+        Box::pin(future::ok(results::GetServiceId::default()))
+    }
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,

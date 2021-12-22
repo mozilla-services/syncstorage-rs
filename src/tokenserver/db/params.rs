@@ -92,6 +92,11 @@ pub struct AddUserToNode {
     pub node: String,
 }
 
+// #[derive(Default)]
+pub struct GetServiceId {
+    pub service: String,
+}
+
 #[cfg(test)]
 pub struct SetUserCreatedAt {
     pub uid: i64,

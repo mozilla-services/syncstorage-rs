@@ -19,7 +19,7 @@ use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 
-use super::db::{self, models::Db, params, pool::DbPool, results};
+use super::db::{models::Db, params, pool::DbPool, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
 use super::NodeType;
@@ -31,6 +31,7 @@ lazy_static! {
 }
 
 const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
+const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 /// Information from the request needed to process a Tokenserver request.
 #[derive(Debug, Default, PartialEq)]
@@ -159,6 +160,7 @@ impl FromRequest for TokenserverRequest {
                 let device_id = "none".to_string();
                 hash_device_id(&hashed_fxa_uid, &device_id, fxa_metrics_hash_secret)
             };
+            let db = <Box<dyn Db>>::extract(&req).await?;
             let service_id = {
                 let path = req.match_info();
 
@@ -169,10 +171,14 @@ impl FromRequest for TokenserverRequest {
                 let version = path.get("version").unwrap();
 
                 if application == "sync" {
-                    if version == "1.1" {
-                        db::SYNC_1_1_SERVICE_ID
-                    } else if version == "1.5" {
-                        db::SYNC_1_5_SERVICE_ID
+                    if version == "1.5" {
+                        state.service_id.unwrap_or(
+                            db.get_service_id(params::GetServiceId {
+                                service: SYNC_SERVICE_NAME.to_owned(),
+                            })
+                            .await?
+                            .id,
+                        )
                     } else {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version",
@@ -194,10 +200,8 @@ impl FromRequest for TokenserverRequest {
                 }
             };
             let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
-            let user = {
-                let db = <Box<dyn Db>>::extract(&req).await?;
-
-                db.get_or_create_user(params::GetOrCreateUser {
+            let user = db
+                .get_or_create_user(params::GetOrCreateUser {
                     service_id,
                     email: email.clone(),
                     generation: token_data.generation.unwrap_or(0),
@@ -205,8 +209,7 @@ impl FromRequest for TokenserverRequest {
                     keys_changed_at: Some(key_id.keys_changed_at),
                     capacity_release_rate: state.node_capacity_release_rate,
                 })
-                .await?
-            };
+                .await?;
             let duration = {
                 let params = Query::<QueryParams>::extract(&req).await?;
 
@@ -516,7 +519,7 @@ mod tests {
             shared_secret: "Ted Koppel is a robot".to_owned(),
             hashed_fxa_uid: "4d00ecae64b98dd7dc7dea68d0dd615d".to_owned(),
             hashed_device_id: "3a41cccbdd666ebc4199f1f9d1249d44".to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id: i32::default(),
             duration: 100,
             node_type: NodeType::default(),
         };
@@ -650,28 +653,14 @@ mod tests {
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
 
-        // Valid application and valid version (1.5)
+        // Valid application and valid version
         {
             let request = build_request()
                 .param("application", "sync")
                 .param("version", "1.5")
                 .to_http_request();
 
-            let tokenserver_request = TokenserverRequest::extract(&request).await.unwrap();
-
-            assert_eq!(tokenserver_request.service_id, db::SYNC_1_5_SERVICE_ID);
-        }
-
-        // Valid application and valid version (1.1)
-        {
-            let request = build_request()
-                .param("application", "sync")
-                .param("version", "1.1")
-                .to_http_request();
-
-            let tokenserver_request = TokenserverRequest::extract(&request).await.unwrap();
-
-            assert_eq!(tokenserver_request.service_id, db::SYNC_1_1_SERVICE_ID);
+            assert!(TokenserverRequest::extract(&request).await.is_ok());
         }
     }
 
@@ -1038,6 +1027,7 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
+            service_id: i32::default(),
         }
     }
 }

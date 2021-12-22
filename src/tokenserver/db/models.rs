@@ -430,6 +430,22 @@ impl TokenserverDb {
         })
     }
 
+    pub fn get_service_id_sync(
+        &self,
+        params: params::GetServiceId,
+    ) -> DbResult<results::GetServiceId> {
+        const QUERY: &str = r#"
+            SELECT id
+              FROM services
+             WHERE service = ?
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Text, _>(params.service)
+            .get_result::<results::GetServiceId>(&self.inner.conn)
+            .map_err(Into::into)
+    }
+
     #[cfg(test)]
     fn set_user_created_at_sync(
         &self,
@@ -553,13 +569,17 @@ impl TokenserverDb {
             INSERT INTO services (service, pattern)
             VALUES (?, ?)
         "#;
+
         diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
             .execute(&self.inner.conn)?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::PostService>(&self.inner.conn)
+            .get_result::<results::LastInsertId>(&self.inner.conn)
+            .map(|result| results::PostService {
+                id: result.id as i32,
+            })
             .map_err(Into::into)
     }
 }
@@ -575,6 +595,7 @@ impl Db for TokenserverDb {
     sync_db_method!(add_user_to_node, add_user_to_node_sync, AddUserToNode);
     sync_db_method!(get_users, get_users_sync, GetUsers);
     sync_db_method!(get_or_create_user, get_or_create_user_sync, GetOrCreateUser);
+    sync_db_method!(get_service_id, get_service_id_sync, GetServiceId);
 
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
@@ -641,6 +662,8 @@ pub trait Db {
         params: params::GetOrCreateUser,
     ) -> DbFuture<'_, results::GetOrCreateUser>;
 
+    fn get_service_id(&self, params: params::GetServiceId) -> DbFuture<'_, results::GetServiceId>;
+
     #[cfg(test)]
     fn set_user_created_at(
         &self,
@@ -680,7 +703,6 @@ mod tests {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use crate::settings::test_settings;
-    use crate::tokenserver::db;
     use crate::tokenserver::db::pool::{DbPool, TokenserverPool};
 
     type Result<T> = std::result::Result<T, ApiError>;
@@ -690,10 +712,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 ..Default::default()
             })
@@ -704,7 +735,7 @@ mod tests {
         let email = "test_user";
         let uid = db
             .post_user(params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node_id,
                 email: email.to_owned(),
                 ..Default::default()
@@ -720,7 +751,7 @@ mod tests {
         // Changing generation should leave other properties unchanged.
         db.put_user(params::PutUser {
             email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 42,
             keys_changed_at: user.keys_changed_at,
         })
@@ -735,7 +766,7 @@ mod tests {
         // It's not possible to move the generation number backwards.
         db.put_user(params::PutUser {
             email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 17,
             keys_changed_at: user.keys_changed_at,
         })
@@ -755,10 +786,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node".to_owned(),
                 ..Default::default()
             })
@@ -769,7 +809,7 @@ mod tests {
         let email = "test_user";
         let uid = db
             .post_user(params::PostUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node_id,
                 email: email.to_owned(),
                 ..Default::default()
@@ -785,7 +825,7 @@ mod tests {
         // Changing keys_changed_at should leave other properties unchanged.
         db.put_user(params::PutUser {
             email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: user.generation,
             keys_changed_at: Some(42),
         })
@@ -800,7 +840,7 @@ mod tests {
         // It's not possible to move keys_changed_at backwards.
         db.put_user(params::PutUser {
             email: email.to_owned(),
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: user.generation,
             keys_changed_at: Some(17),
         })
@@ -828,10 +868,19 @@ mod tests {
             .as_millis() as i64;
         let an_hour_ago = now - MILLISECONDS_IN_AN_HOUR;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 ..Default::default()
             })
             .await?;
@@ -842,7 +891,7 @@ mod tests {
             // Set created_at to be an hour ago
             let uid = db
                 .post_user(params::PostUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     node_id: node_id.id,
                     email: email1.to_owned(),
                     ..Default::default()
@@ -864,7 +913,7 @@ mod tests {
             // Set created_at to be an hour ago
             let uid = db
                 .post_user(params::PostUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     node_id: node_id.id,
                     email: email1.to_owned(),
                     ..Default::default()
@@ -891,7 +940,7 @@ mod tests {
         {
             let uid = db
                 .post_user(params::PostUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     node_id: node_id.id,
                     email: email1.to_owned(),
                     ..Default::default()
@@ -912,7 +961,7 @@ mod tests {
             // Set created_at to be an hour ago
             let uid = db
                 .post_user(params::PostUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     node_id: node_id.id,
                     email: email2.to_owned(),
                     ..Default::default()
@@ -931,7 +980,7 @@ mod tests {
         {
             let uid = db
                 .post_user(params::PostUser {
-                    service_id: db::SYNC_1_1_SERVICE_ID,
+                    service_id: service_id + 1,
                     node_id: node_id.id,
                     email: email1.to_owned(),
                     ..Default::default()
@@ -949,7 +998,7 @@ mod tests {
 
         // Perform the bulk update
         db.replace_users(params::ReplaceUsers {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             email: email1.to_owned(),
             replaced_at: now,
         })
@@ -960,13 +1009,13 @@ mod tests {
             let mut users1 = db
                 .get_users(params::GetUsers {
                     email: email1.to_owned(),
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                 })
                 .await?;
             let mut users2 = db
                 .get_users(params::GetUsers {
                     email: email2.to_owned(),
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                 })
                 .await?;
             users1.append(&mut users2);
@@ -995,9 +1044,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let post_node_params = params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             ..Default::default()
         };
         let node_id = db.post_node(post_node_params.clone()).await?.id;
@@ -1005,7 +1063,7 @@ mod tests {
         // Add a user
         let email1 = "test_user_1";
         let post_user_params1 = params::PostUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             email: email1.to_owned(),
             generation: 1,
             client_state: "616161".to_owned(),
@@ -1018,7 +1076,7 @@ mod tests {
         // Add another user
         let email2 = "test_user_2";
         let post_user_params2 = params::PostUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node_id,
             email: email2.to_owned(),
             ..Default::default()
@@ -1033,7 +1091,7 @@ mod tests {
 
         // Ensure the user has the expected values
         let expected_get_user = results::GetUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             email: email1.to_owned(),
             generation: 1,
             client_state: "616161".to_owned(),
@@ -1052,10 +1110,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id1 = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 ..Default::default()
             })
@@ -1064,7 +1131,7 @@ mod tests {
 
         // Add another node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node2".to_owned(),
             ..Default::default()
         })
@@ -1073,7 +1140,7 @@ mod tests {
         // Get the ID of the first node
         let id = db
             .get_node_id(params::GetNodeId {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
             })
             .await?
@@ -1090,10 +1157,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get_tokenserver_db().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 current_load: 0,
                 capacity: 100,
@@ -1105,7 +1181,7 @@ mod tests {
 
         // Allocating a user assigns it to the node
         let user = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1126,9 +1202,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get_tokenserver_db().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add two nodes
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1138,7 +1223,7 @@ mod tests {
         .await?;
 
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node2".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1149,7 +1234,7 @@ mod tests {
 
         // Allocate two users
         let user1 = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test1@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1158,7 +1243,7 @@ mod tests {
         })?;
 
         let user2 = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test2@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1178,9 +1263,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get_tokenserver_db().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a downed node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1192,7 +1286,7 @@ mod tests {
 
         // User allocation fails because allocation is not allowed to downed nodes
         let result = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1210,9 +1304,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get_tokenserver_db().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a backoff node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1224,7 +1327,7 @@ mod tests {
 
         // User allocation fails because allocation is not allowed to backoff nodes
         let result = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1242,9 +1345,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get_tokenserver_db().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1255,7 +1367,7 @@ mod tests {
 
         // Allocate a user
         let allocate_user_result = db.allocate_user_sync(params::AllocateUser {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
             client_state: "616161".to_owned(),
@@ -1271,7 +1383,7 @@ mod tests {
         // Mark the user as replaced
         db.replace_user(params::ReplaceUser {
             uid: allocate_user_result.uid,
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             replaced_at: 1234,
         })
         .await?;
@@ -1279,7 +1391,7 @@ mod tests {
         let user2 = db
             .get_or_create_user(params::GetOrCreateUser {
                 email: "test@test.com".to_owned(),
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1235,
                 client_state: "626262".to_owned(),
                 keys_changed_at: Some(1235),
@@ -1305,9 +1417,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 0,
             capacity: 100,
@@ -1319,7 +1440,7 @@ mod tests {
         // Add a retired user
         let user1 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: MAX_GENERATION,
                 email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1330,7 +1451,7 @@ mod tests {
 
         let user2 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1352,10 +1473,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add two nodes
         let node1_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 current_load: 0,
                 capacity: 100,
@@ -1367,7 +1497,7 @@ mod tests {
 
         let node2_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node2".to_owned(),
                 current_load: 0,
                 capacity: 100,
@@ -1380,7 +1510,7 @@ mod tests {
         // Create four users. We should get two on each node.
         let user1 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test1@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1391,7 +1521,7 @@ mod tests {
 
         let user2 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test2@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1402,7 +1532,7 @@ mod tests {
 
         let user3 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test3@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1413,7 +1543,7 @@ mod tests {
 
         let user4 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1445,7 +1575,7 @@ mod tests {
         for user in [&user1, &user2, &user3, &user4] {
             let new_user = db
                 .get_or_create_user(params::GetOrCreateUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     email: user.email.clone(),
                     generation: user.generation,
                     client_state: user.client_state.clone(),
@@ -1474,7 +1604,7 @@ mod tests {
         for user in [&user1, &user2, &user3, &user4] {
             let new_user = db
                 .get_or_create_user(params::GetOrCreateUser {
-                    service_id: db::SYNC_1_5_SERVICE_ID,
+                    service_id,
                     email: user.email.clone(),
                     generation: user.generation,
                     client_state: user.client_state.clone(),
@@ -1494,10 +1624,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add two nodes
         let node1_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 current_load: 4,
                 capacity: 8,
@@ -1509,7 +1648,7 @@ mod tests {
 
         let node2_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node2".to_owned(),
                 current_load: 4,
                 capacity: 6,
@@ -1523,7 +1662,7 @@ mod tests {
         // The users should be assigned to different nodes.
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test1@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1540,7 +1679,7 @@ mod tests {
 
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test2@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1559,7 +1698,7 @@ mod tests {
         // each node.
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test3@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1576,7 +1715,7 @@ mod tests {
 
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1594,7 +1733,7 @@ mod tests {
         // Now that node2 is full, further allocations will go to node1.
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test5@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1611,7 +1750,7 @@ mod tests {
 
         let user = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test6@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1629,7 +1768,7 @@ mod tests {
         // Once the capacity is reached, further user allocations will result in an error.
         let result = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test7@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1651,10 +1790,19 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         let node_id = db
             .post_node(params::PostNode {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 node: "https://node1".to_owned(),
                 current_load: 4,
                 capacity: 8,
@@ -1667,7 +1815,7 @@ mod tests {
         // Create a user
         let user1 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1686,7 +1834,7 @@ mod tests {
         // Get the user, prompting the user's reassignment to the same node
         let user2 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1706,9 +1854,18 @@ mod tests {
         let pool = db_pool().await?;
         let db = pool.get().await?;
 
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
         // Add a node
         db.post_node(params::PostNode {
-            service_id: db::SYNC_1_5_SERVICE_ID,
+            service_id,
             node: "https://node1".to_owned(),
             current_load: 4,
             capacity: 8,
@@ -1720,7 +1877,7 @@ mod tests {
         // Create a user
         let user1 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
@@ -1736,7 +1893,7 @@ mod tests {
         // Get the user
         let user2 = db
             .get_or_create_user(params::GetOrCreateUser {
-                service_id: db::SYNC_1_5_SERVICE_ID,
+                service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
                 client_state: "616161".to_owned(),
