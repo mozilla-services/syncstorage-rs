@@ -21,6 +21,10 @@ class TestDatabase(unittest.TestCase):
         cursor = self.database._execute_sql(('DELETE FROM nodes'), ())
         cursor.close()
 
+        cursor = self.database._execute_sql(('DELETE FROM services'), ())
+        cursor.close()
+
+        self.database.add_service('sync-1.5', r'{node}/1.5/{uid}')
         self.database.add_node('https://phx12', 100)
 
     def tearDown(self):
@@ -30,6 +34,9 @@ class TestDatabase(unittest.TestCase):
         cursor.close()
 
         cursor = self.database._execute_sql(('DELETE FROM nodes'), ())
+        cursor.close()
+
+        cursor = self.database._execute_sql(('DELETE FROM services'), ())
         cursor.close()
 
         self.database.close()
