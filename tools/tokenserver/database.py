@@ -229,7 +229,6 @@ class Database:
         self.database = engine. \
             execution_options(isolation_level="AUTOCOMMIT"). \
             connect()
-        self.service_id = self._get_service_id(SERVICE_NAME)
         self.capacity_release_rate = os.environ. \
             get("NODE_CAPACITY_RELEASE_RATE", 0.1)
 
@@ -240,7 +239,7 @@ class Database:
         self.database.close()
 
     def get_user(self, email):
-        params = {'service': self.service_id, 'email': email}
+        params = {'service': self._get_service_id(SERVICE_NAME), 'email': email}
         res = self._execute_sql(_GET_USER_RECORDS, **params)
         try:
             # The query fetches rows ordered by created_at, but we want
@@ -298,7 +297,7 @@ class Database:
         else:
             nodeid = self.get_node_id(node)
         params = {
-            'service': self.service_id,
+            'service': self._get_service_id(SERVICE_NAME),
             'email': email,
             'nodeid': nodeid,
             'generation': generation,
@@ -326,7 +325,7 @@ class Database:
             # client_state, it's because we're seeing an existing value of
             # keys_changed_at for the first time.
             params = {
-                'service': self.service_id,
+                'service': self._get_service_id(SERVICE_NAME),
                 'email': user['email'],
                 'generation': generation,
                 'keys_changed_at': keys_changed_at
@@ -375,7 +374,7 @@ class Database:
                 keys_changed_at = user['keys_changed_at']
             now = get_timestamp()
             params = {
-                'service': self.service_id, 'email': user['email'],
+                'service': self._get_service_id(SERVICE_NAME), 'email': user['email'],
                 'nodeid': nodeid, 'generation': generation,
                 'keys_changed_at': keys_changed_at,
                 'client_state': client_state, 'timestamp': now,
@@ -417,7 +416,7 @@ class Database:
 
     def get_user_records(self, email):
         """Get all the user's records, including the old ones."""
-        params = {'service': self.service_id, 'email': email}
+        params = {'service': self._get_service_id(SERVICE_NAME), 'email': email}
         res = self._execute_sql(_GET_ALL_USER_RECORDS_FOR_SERVICE, **params)
         try:
             for row in res:
@@ -432,7 +431,7 @@ class Database:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
         grace_period = int(grace_period * 1000)  # convert seconds -> millis
         params = {
-            "service": self.service_id,
+            "service": self._get_service_id(SERVICE_NAME),
             "timestamp": get_timestamp() - grace_period,
             "limit": limit,
             "offset": offset
@@ -449,7 +448,7 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self.service_id, 'email': email, 'timestamp': timestamp
+            'service': self._get_service_id(SERVICE_NAME), 'email': email, 'timestamp': timestamp
         }
         res = self._execute_sql(_REPLACE_USER_RECORDS, **params)
         res.close()
@@ -459,14 +458,14 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self.service_id, 'uid': uid, 'timestamp': timestamp
+            'service': self._get_service_id(SERVICE_NAME), 'uid': uid, 'timestamp': timestamp
         }
         res = self._execute_sql(_REPLACE_USER_RECORD, **params)
         res.close()
 
     def delete_user_record(self, uid):
         """Delete the user record with the given uid."""
-        params = {'service': self.service_id, 'uid': uid}
+        params = {'service': self._get_service_id(SERVICE_NAME), 'uid': uid}
         res = self._execute_sql(_FREE_SLOT_ON_NODE, **params)
         res.close()
         res = self._execute_sql(_DELETE_USER_RECORD, **params)
@@ -477,12 +476,17 @@ class Database:
     #
 
     def _get_service_id(self, service):
-        res = self._execute_sql(_GET_SERVICE_ID, service=service)
-        row = res.fetchone()
-        res.close()
-        if row is None:
-            raise Exception('unknown service: ' + service)
-        return row.id
+        if self.service_id:
+            return self.service_id
+        else:
+            res = self._execute_sql(_GET_SERVICE_ID, service=service)
+            row = res.fetchone()
+            res.close()
+            if row is None:
+                raise Exception('unknown service: ' + service)
+            self.service_id = row.id
+
+            return row.id
 
     def add_service(self, service_name, pattern, **kwds):
         """Add definition for a new service."""
@@ -513,7 +517,7 @@ class Database:
         res = self._execute_sql(
             sqltext(query),
             nodeid=kwds.get('nodeid'),
-            service=self.service_id,
+            service=self._get_service_id(SERVICE_NAME),
             node=node,
             capacity=capacity,
             available=available,
@@ -541,7 +545,7 @@ class Database:
         query += """
             where service = :service and node = :node
         """
-        values['service'] = self.service_id
+        values['service'] = self._get_service_id(SERVICE_NAME)
         values['node'] = node
         if kwds:
             raise ValueError("unknown fields: " + str(kwds.keys()))
@@ -555,7 +559,7 @@ class Database:
             select id from nodes
             where service=:service and node=:node
             """),
-            service=self.service_id, node=node
+            service=self._get_service_id(SERVICE_NAME), node=node
         )
         row = res.fetchone()
         res.close()
@@ -598,7 +602,7 @@ class Database:
         # We may have to re-try the query if we need to release more capacity.
         # This loop allows a maximum of five retries before bailing out.
         for _ in range(5):
-            res = self._execute_sql(_GET_BEST_NODE, service=self.service_id)
+            res = self._execute_sql(_GET_BEST_NODE, service=self._get_service_id(SERVICE_NAME))
             row = res.fetchone()
             res.close()
             if row is None:
@@ -607,7 +611,7 @@ class Database:
                 res = self._execute_sql(
                     _RELEASE_NODE_CAPACITY,
                     capacity_release_rate=self.capacity_release_rate,
-                    service=self.service_id
+                    service=self._get_service_id(SERVICE_NAME)
                 )
                 res.close()
                 if res.rowcount == 0:
@@ -626,14 +630,14 @@ class Database:
         # This is a little racy with concurrent assignments, but no big
         # deal.
         con = self._execute_sql(_ADD_USER_TO_NODE,
-                                service=self.service_id,
+                                service=self._get_service_id(SERVICE_NAME),
                                 node=node)
         con.close()
 
         return nodeid, node
 
     def get_node(self, node):
-        res = self._execute_sql(_GET_NODE, service=self.service_id, node=node)
+        res = self._execute_sql(_GET_NODE, service=self._get_service_id(SERVICE_NAME), node=node)
         row = res.fetchone()
         res.close()
         if row is None:
