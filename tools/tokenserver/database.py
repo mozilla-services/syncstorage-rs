@@ -239,7 +239,8 @@ class Database:
         self.database.close()
 
     def get_user(self, email):
-        params = {'service': self._get_service_id(SERVICE_NAME), 'email': email}
+        params = {'service': self._get_service_id(SERVICE_NAME),
+                  'email': email}
         res = self._execute_sql(_GET_USER_RECORDS, **params)
         try:
             # The query fetches rows ordered by created_at, but we want
@@ -374,9 +375,9 @@ class Database:
                 keys_changed_at = user['keys_changed_at']
             now = get_timestamp()
             params = {
-                'service': self._get_service_id(SERVICE_NAME), 'email': user['email'],
-                'nodeid': nodeid, 'generation': generation,
-                'keys_changed_at': keys_changed_at,
+                'service': self._get_service_id(SERVICE_NAME),
+                'email': user['email'], 'nodeid': nodeid,
+                'generation': generation, 'keys_changed_at': keys_changed_at,
                 'client_state': client_state, 'timestamp': now,
             }
             res = self._execute_sql(_CREATE_USER_RECORD, **params)
@@ -416,7 +417,8 @@ class Database:
 
     def get_user_records(self, email):
         """Get all the user's records, including the old ones."""
-        params = {'service': self._get_service_id(SERVICE_NAME), 'email': email}
+        params = {'service': self._get_service_id(SERVICE_NAME),
+                  'email': email}
         res = self._execute_sql(_GET_ALL_USER_RECORDS_FOR_SERVICE, **params)
         try:
             for row in res:
@@ -448,7 +450,8 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self._get_service_id(SERVICE_NAME), 'email': email, 'timestamp': timestamp
+            'service': self._get_service_id(SERVICE_NAME), 'email': email,
+            'timestamp': timestamp
         }
         res = self._execute_sql(_REPLACE_USER_RECORDS, **params)
         res.close()
@@ -458,7 +461,8 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self._get_service_id(SERVICE_NAME), 'uid': uid, 'timestamp': timestamp
+            'service': self._get_service_id(SERVICE_NAME), 'uid': uid,
+            'timestamp': timestamp
         }
         res = self._execute_sql(_REPLACE_USER_RECORD, **params)
         res.close()
@@ -602,7 +606,8 @@ class Database:
         # We may have to re-try the query if we need to release more capacity.
         # This loop allows a maximum of five retries before bailing out.
         for _ in range(5):
-            res = self._execute_sql(_GET_BEST_NODE, service=self._get_service_id(SERVICE_NAME))
+            res = self._execute_sql(_GET_BEST_NODE,
+                                    service=self._get_service_id(SERVICE_NAME))
             row = res.fetchone()
             res.close()
             if row is None:
@@ -637,7 +642,9 @@ class Database:
         return nodeid, node
 
     def get_node(self, node):
-        res = self._execute_sql(_GET_NODE, service=self._get_service_id(SERVICE_NAME), node=node)
+        res = self._execute_sql(_GET_NODE,
+                                service=self._get_service_id(SERVICE_NAME),
+                                node=node)
         row = res.fetchone()
         res.close()
         if row is None:

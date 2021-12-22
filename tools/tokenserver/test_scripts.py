@@ -35,7 +35,8 @@ class TestScripts(unittest.TestCase):
         cursor.close()
 
         # Add a service
-        self.database.add_service('sync-1.5', r'{node}/1.5/{uid}')
+        self.service_id = self.database.add_service('sync-1.5',
+                                                    r'{node}/1.5/{uid}')
 
         # Ensure we have a node with enough capacity to run the tests.
         self.database.add_node(self.NODE_URL, 100, id=self.NODE_ID)
