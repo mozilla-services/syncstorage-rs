@@ -47,7 +47,7 @@ impl ServerState {
         let use_test_transactions = false;
 
         TokenserverPool::new(settings, use_test_transactions)
-            .and_then(|db_pool| {
+            .map(|db_pool| {
                 let service_id = db_pool
                     .get_sync()
                     .and_then(|db| {
@@ -58,7 +58,7 @@ impl ServerState {
                     .ok()
                     .map(|result| result.id);
 
-                Ok(ServerState {
+                ServerState {
                     fxa_email_domain: settings.fxa_email_domain.clone(),
                     fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
                     oauth_verifier,
@@ -66,7 +66,7 @@ impl ServerState {
                     node_capacity_release_rate: settings.node_capacity_release_rate,
                     node_type: settings.node_type,
                     service_id,
-                })
+                }
             })
             .map_err(Into::into)
     }
