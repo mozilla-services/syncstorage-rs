@@ -480,7 +480,7 @@ class Database:
     #
 
     def _get_service_id(self, service):
-        if self.service_id:
+        if hasattr(self, 'service_id'):
             return self.service_id
         else:
             res = self._execute_sql(_GET_SERVICE_ID, service=service)
