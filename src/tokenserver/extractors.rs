@@ -23,8 +23,8 @@ use super::db::{models::Db, params, pool::DbPool, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
 use super::{LogItemsMutator, NodeType, ServerState};
-use crate::settings::Secrets;
 use crate::server::metrics::Metrics;
+use crate::settings::Secrets;
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -143,7 +143,7 @@ impl FromRequest for TokenserverRequest {
         let req = req.clone();
 
         Box::pin(async move {
-            let mut log_items_mutator  = LogItemsMutator::from(&req);
+            let mut log_items_mutator = LogItemsMutator::from(&req);
             let token_data = TokenData::extract(&req).await?;
 
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver

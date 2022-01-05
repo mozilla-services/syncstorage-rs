@@ -53,7 +53,7 @@ pub async fn get_tokenserver_result(
                     TokenserverError::internal_error()
                 })?
         };
-        
+
         metrics.start_timer("tokenserver.token_creation", None);
         // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &secrets[secrets.len() - 1])?

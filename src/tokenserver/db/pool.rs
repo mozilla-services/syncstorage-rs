@@ -42,7 +42,11 @@ pub struct TokenserverPool {
 }
 
 impl TokenserverPool {
-    pub fn new(settings: &Settings, metrics: &Metrics, _use_test_transactions: bool) -> DbResult<Self> {
+    pub fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        _use_test_transactions: bool,
+    ) -> DbResult<Self> {
         run_embedded_migrations(&settings.database_url)?;
 
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
@@ -62,7 +66,7 @@ impl TokenserverPool {
 
         Ok(Self {
             inner: builder.build(manager)?,
-            metrics: metrics.clone()
+            metrics: metrics.clone(),
         })
     }
 

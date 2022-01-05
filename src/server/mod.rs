@@ -288,7 +288,8 @@ impl Server {
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
         let metrics = metrics::metrics_from_opts(&settings)?;
-        let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver, metrics)?;
+        let tokenserver_state =
+            tokenserver::ServerState::from_settings(&settings.tokenserver, metrics)?;
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
                 Some(tokenserver_state.clone()),

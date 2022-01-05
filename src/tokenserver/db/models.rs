@@ -73,7 +73,7 @@ impl TokenserverDb {
 
         Self {
             inner: Arc::new(inner),
-            metrics: metrics.clone()
+            metrics: metrics.clone(),
         }
     }
 
@@ -1928,6 +1928,10 @@ mod tests {
         let tokenserver_settings = test_settings().tokenserver;
         let use_test_transactions = true;
 
-        TokenserverPool::new(&tokenserver_settings, &Metrics::noop(), use_test_transactions)
+        TokenserverPool::new(
+            &tokenserver_settings,
+            &Metrics::noop(),
+            use_test_transactions,
+        )
     }
 }

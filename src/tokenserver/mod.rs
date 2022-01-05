@@ -8,11 +8,7 @@ pub mod support;
 
 pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
-use actix_web::{
-    dev::RequestHead,
-    http::header::USER_AGENT,
-    HttpRequest,
-};
+use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpRequest};
 use cadence::StatsdClient;
 use db::{
     params,
@@ -38,7 +34,7 @@ pub struct ServerState {
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
     pub service_id: Option<i32>,
-    pub metrics: Box<StatsdClient>
+    pub metrics: Box<StatsdClient>,
 }
 
 impl ServerState {
