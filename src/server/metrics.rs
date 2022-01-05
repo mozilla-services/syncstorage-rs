@@ -1,10 +1,17 @@
 use std::net::UdpSocket;
 use std::time::Instant;
 
-use actix_web::{error::ErrorInternalServerError, web::Data, Error, HttpRequest};
+use actix_web::{
+    error::ErrorInternalServerError,
+    dev::Payload,
+    web::Data,
+    Error, FromRequest, HttpRequest,
+};
 use cadence::{
     BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
+use futures::future;
+use futures::future::Ready;
 
 use crate::error::ApiError;
 use crate::server::ServerState;
@@ -54,12 +61,17 @@ impl Drop for Metrics {
     }
 }
 
-impl From<&HttpRequest> for Metrics {
-    fn from(req: &HttpRequest) -> Self {
+impl FromRequest for Metrics {
+    type Config = ();
+    type Error = Error;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         let exts = req.extensions();
         let def_tags = Tags::from(req.head());
         let tags = exts.get::<Tags>().unwrap_or(&def_tags);
-        Metrics {
+
+        future::ok(Metrics {
             client: match req.app_data::<Data<ServerState>>() {
                 Some(v) => Some(*v.metrics.clone()),
                 None => {
@@ -69,7 +81,7 @@ impl From<&HttpRequest> for Metrics {
             },
             tags: Some(tags.clone()),
             timer: None,
-        }
+        })
     }
 }
 

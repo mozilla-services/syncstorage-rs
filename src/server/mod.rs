@@ -73,6 +73,7 @@ macro_rules! build_app {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap(middleware::weave::WeaveTimestamp::new())
+            .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
             .wrap($cors)
@@ -176,6 +177,7 @@ macro_rules! build_app_without_syncstorage {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap(middleware::sentry::SentryWrapper::default())
+            .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap(middleware::rejectua::RejectUA::default())
             // Followed by the "official middleware" so they run first.
             // actix is getting increasingly tighter about CORS headers. Our server is
@@ -239,6 +241,7 @@ impl Server {
         let tokenserver_state = if settings.tokenserver.enabled {
             Some(tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
+                metrics.clone(),
             )?)
         } else {
             None
@@ -283,8 +286,9 @@ impl Server {
         let settings_copy = settings.clone();
         let host = settings.host.clone();
         let port = settings.port;
-        let secrets = Arc::new(settings.master_secret);
-        let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
+        let secrets = Arc::new(settings.master_secret.clone());
+        let metrics = metrics::metrics_from_opts(&settings)?;
+        let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver, metrics)?;
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
                 Some(tokenserver_state.clone()),

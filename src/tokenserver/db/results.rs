@@ -45,6 +45,7 @@ pub struct GetOrCreateUser {
     pub keys_changed_at: Option<i64>,
     pub created_at: i64,
     pub replaced_at: Option<i64>,
+    pub first_seen_at: i64,
     pub old_client_states: Vec<String>,
 }
 
