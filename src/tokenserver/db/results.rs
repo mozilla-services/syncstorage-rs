@@ -1,11 +1,8 @@
 use diesel::{
-    sql_types::{Bigint, Nullable, Text},
+    sql_types::{Bigint, Integer, Nullable, Text},
     QueryableByName,
 };
 use serde::{Deserialize, Serialize};
-
-#[cfg(test)]
-use diesel::sql_types::Integer;
 
 /// Represents a user record as it is stored in the database.
 #[derive(Clone, Debug, Default, Deserialize, QueryableByName, Serialize)]
@@ -52,11 +49,12 @@ pub struct GetOrCreateUser {
 }
 
 #[derive(Default, QueryableByName)]
-pub struct PostUser {
+pub struct LastInsertId {
     #[sql_type = "Bigint"]
     pub id: i64,
 }
 
+pub type PostUser = LastInsertId;
 pub type ReplaceUsers = ();
 pub type ReplaceUser = ();
 pub type PutUser = ();
@@ -76,6 +74,12 @@ pub struct GetBestNode {
 }
 
 pub type AddUserToNode = ();
+
+#[derive(Default, QueryableByName)]
+pub struct GetServiceId {
+    #[sql_type = "Integer"]
+    pub id: i32,
+}
 
 #[cfg(test)]
 #[derive(Debug, Default, PartialEq, QueryableByName)]
@@ -99,11 +103,7 @@ pub struct GetUser {
 }
 
 #[cfg(test)]
-#[derive(Default, QueryableByName)]
-pub struct PostNode {
-    #[sql_type = "Bigint"]
-    pub id: i64,
-}
+pub type PostNode = LastInsertId;
 
 #[cfg(test)]
 #[derive(Default, QueryableByName)]

@@ -144,7 +144,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user['client_state'], '616161')
         # Get all the replaced users
         email = 'test@%s' % self.FXA_EMAIL_DOMAIN
-        replaced_users = self._get_replaced_users(self.SYNC_1_5_SERVICE_ID,
+        replaced_users = self._get_replaced_users(self.service_id,
                                                   email)
         # Only one user should be replaced
         self.assertEqual(len(replaced_users), 1)
