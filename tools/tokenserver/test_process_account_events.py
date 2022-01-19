@@ -33,6 +33,7 @@ class TestProcessAccountEvents(unittest.TestCase):
 
     def setUp(self):
         self.database = Database()
+        self.database.add_service('sync-1.5', r'{node}/1.5/{uid}')
         self.database.add_node("https://phx12", 100)
         self.logs = LogCapture()
 
@@ -40,11 +41,14 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.logs.uninstall()
         testing.tearDown()
 
+        cursor = self.database._execute_sql('DELETE FROM users')
+        cursor.close
+
         cursor = self.database._execute_sql('DELETE FROM nodes')
         cursor.close()
 
-        cursor = self.database._execute_sql('DELETE FROM users')
-        cursor.close
+        cursor = self.database._execute_sql('DELETE FROM services')
+        cursor.close()
 
     def assertMessageWasLogged(self, msg):
         """Check that a metric was logged during the request."""

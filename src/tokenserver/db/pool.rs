@@ -62,6 +62,20 @@ impl TokenserverPool {
             inner: builder.build(manager)?,
         })
     }
+
+    pub fn get_sync(&self) -> Result<TokenserverDb, DbError> {
+        let conn = self.inner.get().map_err(DbError::from)?;
+
+        Ok(TokenserverDb::new(conn))
+    }
+
+    #[cfg(test)]
+    pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
+        let pool = self.clone();
+        let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
+
+        Ok(TokenserverDb::new(conn))
+    }
 }
 
 impl From<actix_web::error::BlockingError<DbError>> for DbError {

@@ -7,7 +7,10 @@ pub mod support;
 
 pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
-use db::pool::{DbPool, TokenserverPool};
+use db::{
+    params,
+    pool::{DbPool, TokenserverPool},
+};
 use serde::{Deserialize, Serialize};
 use settings::Settings;
 
@@ -21,6 +24,7 @@ pub struct ServerState {
     pub oauth_verifier: Box<dyn VerifyToken>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
+    pub service_id: Option<i32>,
 }
 
 impl ServerState {
@@ -43,13 +47,26 @@ impl ServerState {
         let use_test_transactions = false;
 
         TokenserverPool::new(settings, use_test_transactions)
-            .map(|db_pool| ServerState {
-                fxa_email_domain: settings.fxa_email_domain.clone(),
-                fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
-                oauth_verifier,
-                db_pool: Box::new(db_pool),
-                node_capacity_release_rate: settings.node_capacity_release_rate,
-                node_type: settings.node_type,
+            .map(|db_pool| {
+                let service_id = db_pool
+                    .get_sync()
+                    .and_then(|db| {
+                        db.get_service_id_sync(params::GetServiceId {
+                            service: "sync-1.5".to_owned(),
+                        })
+                    })
+                    .ok()
+                    .map(|result| result.id);
+
+                ServerState {
+                    fxa_email_domain: settings.fxa_email_domain.clone(),
+                    fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
+                    oauth_verifier,
+                    db_pool: Box::new(db_pool),
+                    node_capacity_release_rate: settings.node_capacity_release_rate,
+                    node_type: settings.node_type,
+                    service_id,
+                }
             })
             .map_err(Into::into)
     }

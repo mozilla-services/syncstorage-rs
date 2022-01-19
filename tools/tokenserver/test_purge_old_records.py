@@ -41,13 +41,17 @@ class TestPurgeOldRecords(unittest.TestCase):
 
         # Configure the node-assignment backend to talk to our test service.
         self.database = Database()
+        self.database.add_service('sync-1.5', r'{node}/1.5/{uid}')
         self.database.add_node(self.service_node, 100)
 
     def tearDown(self):
+        cursor = self.database._execute_sql('DELETE FROM users')
+        cursor.close()
+
         cursor = self.database._execute_sql('DELETE FROM nodes')
         cursor.close()
 
-        cursor = self.database._execute_sql('DELETE FROM users')
+        cursor = self.database._execute_sql('DELETE FROM services')
         cursor.close()
 
         del self.service_requests[:]

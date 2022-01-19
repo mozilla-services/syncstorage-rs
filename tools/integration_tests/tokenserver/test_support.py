@@ -18,9 +18,6 @@ class TestCase:
     FXA_METRICS_HASH_SECRET = 'secret0'
     NODE_ID = 800
     NODE_URL = 'https://example.com'
-    SYNC_1_1_SERVICE_ID = 1
-    SYNC_1_5_SERVICE_ID = 2
-    SYNC_1_5_SERVICE_NAME = 'sync-1.5'
     TOKEN_SIGNING_SECRET = 'secret0'
     TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
 
@@ -45,6 +42,8 @@ class TestCase:
         cursor = self._execute_sql(('DELETE FROM nodes'), ())
         cursor.close()
 
+        self.service_id = self._add_service('sync-1.5', r'{node}/1.5/{uid}')
+
         # Ensure we have a node with enough capacity to run the tests.
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
 
@@ -54,6 +53,9 @@ class TestCase:
         cursor.close()
 
         cursor = self._execute_sql(('DELETE FROM nodes'), ())
+        cursor.close()
+
+        cursor = self._execute_sql(('DELETE FROM services'), ())
         cursor.close()
 
         self.database.close()
@@ -73,14 +75,12 @@ class TestCase:
 
         return '%s.%s.%s' % (header, claims, signature)
 
-    def _add_node(self, service=SYNC_1_5_SERVICE_NAME, capacity=100,
-                  available=100, node=NODE_URL, id=None, current_load=0,
-                  backoff=0, downed=0):
-        service_id = self._get_service_id(service)
+    def _add_node(self, capacity=100, available=100, node=NODE_URL, id=None,
+                  current_load=0, backoff=0, downed=0):
         query = 'INSERT INTO nodes (service, node, available, capacity, \
             current_load, backoff, downed'
-        data = (service_id, node, available, capacity, current_load, backoff,
-                downed)
+        data = (self.service_id, node, available, capacity, current_load,
+                backoff, downed)
 
         if id:
             query += ', id) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)'
@@ -118,15 +118,17 @@ class TestCase:
 
         return id
 
-    def _add_service(self, service_name, pattern, id):
-        query = 'INSERT INTO services (service, pattern, id) \
-            VALUES(%s, %s, %s)'
-        cursor = self._execute_sql(query, (service_name, pattern, id))
+    def _add_service(self, service_name, pattern):
+        query = 'INSERT INTO services (service, pattern) \
+            VALUES(%s, %s)'
+        cursor = self._execute_sql(query, (service_name, pattern))
         cursor.close()
 
-    def _add_user(self, service=SYNC_1_5_SERVICE_ID, email=None,
-                  generation=1234, client_state='616161', created_at=None,
-                  nodeid=NODE_ID, keys_changed_at=1234, replaced_at=None):
+        return self._last_insert_id()
+
+    def _add_user(self, email=None, generation=1234, client_state='616161',
+                  created_at=None, nodeid=NODE_ID, keys_changed_at=1234,
+                  replaced_at=None):
         query = '''
             INSERT INTO users (service, email, generation, client_state, \
                 created_at, nodeid, keys_changed_at, replaced_at)
@@ -134,7 +136,7 @@ class TestCase:
         '''
         created_at = created_at or math.trunc(time.time() * 1000)
         cursor = self._execute_sql(query,
-                                   (service,
+                                   (self.service_id,
                                     email or 'test@%s' % self.FXA_EMAIL_DOMAIN,
                                     generation, client_state,
                                     created_at, nodeid, keys_changed_at,

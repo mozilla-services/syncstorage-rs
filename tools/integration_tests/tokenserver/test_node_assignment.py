@@ -33,7 +33,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(user1['keys_changed_at'], 1234)
         self.assertEqual(user1['client_state'], '616161')
         self.assertEqual(user1['nodeid'], self.NODE_ID)
-        self.assertEqual(user1['service'], self.SYNC_1_5_SERVICE_ID)
+        self.assertEqual(user1['service'], self.service_id)
         # Ensure the 'available' and 'current_load' counts on the node
         # assigned to the user have been decremented appropriately
         node = self._get_node(self.NODE_ID)

@@ -51,10 +51,6 @@ impl Db for MockDb {
         Box::pin(future::ok(results::PostUser::default()))
     }
 
-    fn allocate_user(&self, _params: params::AllocateUser) -> DbFuture<'_, results::AllocateUser> {
-        Box::pin(future::ok(results::AllocateUser::default()))
-    }
-
     fn put_user(&self, _params: params::PutUser) -> DbFuture<'_, results::PutUser> {
         Box::pin(future::ok(()))
     }
@@ -78,11 +74,19 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
+    fn get_users(&self, _params: params::GetUsers) -> DbFuture<'_, results::GetUsers> {
+        Box::pin(future::ok(results::GetUsers::default()))
+    }
+
     fn get_or_create_user(
         &self,
         _params: params::GetOrCreateUser,
     ) -> DbFuture<'_, results::GetOrCreateUser> {
         Box::pin(future::ok(results::GetOrCreateUser::default()))
+    }
+
+    fn get_service_id(&self, _params: params::GetServiceId) -> DbFuture<'_, results::GetServiceId> {
+        Box::pin(future::ok(results::GetServiceId::default()))
     }
 
     #[cfg(test)]
@@ -104,11 +108,6 @@ impl Db for MockDb {
     #[cfg(test)]
     fn get_user(&self, _params: params::GetUser) -> DbFuture<'_, results::GetUser> {
         Box::pin(future::ok(results::GetUser::default()))
-    }
-
-    #[cfg(test)]
-    fn get_users(&self, _params: params::GetRawUsers) -> DbFuture<'_, results::GetRawUsers> {
-        Box::pin(future::ok(results::GetRawUsers::default()))
     }
 
     #[cfg(test)]
