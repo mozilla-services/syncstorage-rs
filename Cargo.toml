@@ -7,7 +7,7 @@ authors = [
   "Phil Jenvey <pjenvey@underboss.org>",
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>"
 ]
-edition = "2021"
+edition = "2018"
 default-run = "syncstorage"
 
 [profile.release]
@@ -32,7 +32,7 @@ config = "0.11"
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
-diesel = { version = "1.4.8", features = ["mysql", "r2d2"] }
+diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
