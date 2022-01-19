@@ -12,7 +12,6 @@ use futures::future::Ready;
 
 use crate::error::ApiError;
 use crate::server::ServerState;
-use crate::settings::Settings;
 use crate::web::tags::Tags;
 
 #[derive(Debug, Clone)]
@@ -176,18 +175,21 @@ pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
         .clone())
 }
 
-/// Create a cadence StatsdClient from the given options
-pub fn metrics_from_opts(opts: &Settings) -> Result<StatsdClient, ApiError> {
-    let builder = if let Some(statsd_host) = opts.statsd_host.as_ref() {
+pub fn metrics_from_opts(
+    label: String,
+    host: Option<String>,
+    port: u16,
+) -> Result<StatsdClient, ApiError> {
+    let builder = if let Some(statsd_host) = host.as_ref() {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
 
-        let host = (statsd_host.as_str(), opts.statsd_port);
+        let host = (statsd_host.as_str(), port);
         let udp_sink = BufferedUdpMetricSink::from(host, socket)?;
         let sink = QueuingMetricSink::from(udp_sink);
-        StatsdClient::builder(opts.statsd_label.as_ref(), sink)
+        StatsdClient::builder(label.as_ref(), sink)
     } else {
-        StatsdClient::builder(opts.statsd_label.as_ref(), NopMetricSink)
+        StatsdClient::builder(label.as_ref(), NopMetricSink)
     };
     Ok(builder
         .with_error_handler(|err| {

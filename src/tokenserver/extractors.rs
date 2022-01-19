@@ -1035,6 +1035,8 @@ mod tests {
     }
 
     fn make_state(verifier: MockOAuthVerifier) -> ServerState {
+        let settings = Settings::default();
+
         ServerState {
             fxa_email_domain: "test.com".to_owned(),
             fxa_metrics_hash_secret: "".to_owned(),
@@ -1043,7 +1045,14 @@ mod tests {
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
             service_id: None,
-            metrics: Box::new(metrics::metrics_from_opts(&Settings::default()).unwrap()),
+            metrics: Box::new(
+                metrics::metrics_from_opts(
+                    settings.tokenserver.statsd_label,
+                    settings.statsd_host,
+                    settings.statsd_port,
+                )
+                .unwrap(),
+            ),
         }
     }
 }

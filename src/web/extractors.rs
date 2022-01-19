@@ -1725,7 +1725,14 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,
-            metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
+            metrics: Box::new(
+                metrics::metrics_from_opts(
+                    settings.statsd_label,
+                    settings.statsd_host,
+                    settings.statsd_port,
+                )
+                .unwrap(),
+            ),
             quota_enabled: settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
         }

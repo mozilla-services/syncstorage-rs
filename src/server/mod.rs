@@ -224,7 +224,11 @@ macro_rules! build_app_without_syncstorage {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
-        let metrics = metrics::metrics_from_opts(&settings)?;
+        let metrics = metrics::metrics_from_opts(
+            settings.statsd_label.clone(),
+            settings.statsd_host.clone(),
+            settings.statsd_port,
+        )?;
         let host = settings.host.clone();
         let port = settings.port;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
@@ -241,7 +245,11 @@ impl Server {
         let tokenserver_state = if settings.tokenserver.enabled {
             Some(tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
-                metrics.clone(),
+                metrics::metrics_from_opts(
+                    settings.tokenserver.statsd_label.clone(),
+                    settings.statsd_host,
+                    settings.statsd_port,
+                )?,
             )?)
         } else {
             None
@@ -287,9 +295,14 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
-        let metrics = metrics::metrics_from_opts(&settings)?;
-        let tokenserver_state =
-            tokenserver::ServerState::from_settings(&settings.tokenserver, metrics)?;
+        let tokenserver_state = tokenserver::ServerState::from_settings(
+            &settings.tokenserver,
+            metrics::metrics_from_opts(
+                settings.tokenserver.statsd_label.clone(),
+                settings.statsd_host,
+                settings.statsd_port,
+            )?,
+        )?;
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
                 Some(tokenserver_state.clone()),
