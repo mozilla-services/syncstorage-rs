@@ -211,7 +211,7 @@ fn delete_incremental(
         }
         delete_sql = format!(
             "{})",
-            delete_sql.trim_end_matches(&", ".to_string()).to_string()
+            delete_sql.trim_end_matches(&", ".to_string())
         );
         trace!("Deleting chunk with: {}", delete_sql);
         let mut delete_req = continue_transaction(session, txn.clone());
