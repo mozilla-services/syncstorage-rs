@@ -1186,8 +1186,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
-name = "googleapis-raw"
-version = "0.1.0"
+name = "google-cloud-rust-raw"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0f0936883f3207fa424f69fc218956a5778de6fb847ea3c491f1dc47a39fb26"
 dependencies = [
  "futures 0.3.16",
  "grpcio",
@@ -2103,9 +2105,9 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.24.1"
+version = "2.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db50e77ae196458ccd3dc58a31ea1a90b0698ab1b7928d89f644c25d72070267"
+checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
 
 [[package]]
 name = "pyo3"
@@ -2969,7 +2971,7 @@ dependencies = [
  "docopt",
  "env_logger",
  "futures 0.3.16",
- "googleapis-raw",
+ "google-cloud-rust-raw",
  "grpcio",
  "hawk",
  "hex",

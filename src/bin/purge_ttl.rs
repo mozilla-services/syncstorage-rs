@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use cadence::{
     BufferedUdpMetricSink, Metric, QueuingMetricSink, StatsdClient, Timed, DEFAULT_PORT,
 };
-use googleapis_raw::spanner::v1::{
+use google_cloud_rust_raw::spanner::v1::{
     spanner::{
         BeginTransactionRequest, CommitRequest, CreateSessionRequest, ExecuteSqlRequest, Session,
     },
@@ -141,7 +141,7 @@ fn commit_transaction(
 }
 
 pub struct SyncResultSet {
-    result: googleapis_raw::spanner::v1::result_set::ResultSet,
+    result: google_cloud_rust_raw::spanner::v1::result_set::ResultSet,
 }
 
 impl Iterator for SyncResultSet {

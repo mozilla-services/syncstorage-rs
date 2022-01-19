@@ -5,7 +5,7 @@ use std::{
 };
 
 use futures::stream::{StreamExt, StreamFuture};
-use googleapis_raw::spanner::v1::{
+use google_cloud_rust_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
     type_pb::{StructType_Field, Type, TypeCode},
