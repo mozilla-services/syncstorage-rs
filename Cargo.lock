@@ -3679,9 +3679,9 @@ dependencies = [
 
 [[package]]
 name = "woothee"
-version = "0.11.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89d5a45c5d9c772e577c263597681448fd91a46aed911783394eec396e45d4ee"
+checksum = "896174c6a4779d4d7d4523dd27aef7d46609eda2497e370f6c998325c6bf6971"
 dependencies = [
  "lazy_static",
  "regex",
