@@ -870,7 +870,7 @@ async fn get_bsos() -> Result<()> {
             uid,
             coll,
             // XXX: to_string?
-            &format!("b{}", revi.to_string()),
+            &format!("b{}", revi),
             Some("Hello"),
             Some(*sortindex),
             None,

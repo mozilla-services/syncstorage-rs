@@ -84,7 +84,7 @@ impl SyncTimestamp {
     /// string such as 1996-12-19T16:39:57-08:00
     pub fn from_rfc3339(val: &str) -> Result<Self, DbError> {
         let dt = DateTime::parse_from_rfc3339(val)
-            .map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e.to_string())))?;
+            .map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }
 

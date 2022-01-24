@@ -8,7 +8,7 @@ use std::{
 };
 
 use futures::future::TryFutureExt;
-use googleapis_raw::spanner::v1::{
+use google_cloud_rust_raw::spanner::v1::{
     mutation::{Mutation, Mutation_Write},
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
     transaction::{
