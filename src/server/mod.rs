@@ -225,8 +225,8 @@ impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
         let metrics = metrics::metrics_from_opts(
-            settings.statsd_label.clone(),
-            settings.statsd_host.clone(),
+            &settings.statsd_label,
+            settings.statsd_host.as_deref(),
             settings.statsd_port,
         )?;
         let host = settings.host.clone();
@@ -246,8 +246,8 @@ impl Server {
             Some(tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
                 metrics::metrics_from_opts(
-                    settings.tokenserver.statsd_label.clone(),
-                    settings.statsd_host,
+                    &settings.tokenserver.statsd_label,
+                    settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )?,
             )?)
@@ -298,8 +298,8 @@ impl Server {
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
             metrics::metrics_from_opts(
-                settings.tokenserver.statsd_label.clone(),
-                settings.statsd_host,
+                &settings.tokenserver.statsd_label,
+                settings.statsd_host.as_deref(),
                 settings.statsd_port,
             )?,
         )?;

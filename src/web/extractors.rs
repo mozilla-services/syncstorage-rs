@@ -1727,8 +1727,8 @@ mod tests {
             port: 8000,
             metrics: Box::new(
                 metrics::metrics_from_opts(
-                    settings.statsd_label,
-                    settings.statsd_host,
+                    &settings.statsd_label,
+                    settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )
                 .unwrap(),

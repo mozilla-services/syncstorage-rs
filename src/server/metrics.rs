@@ -176,20 +176,20 @@ pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
 }
 
 pub fn metrics_from_opts(
-    label: String,
-    host: Option<String>,
+    label: &str,
+    host: Option<&str>,
     port: u16,
 ) -> Result<StatsdClient, ApiError> {
-    let builder = if let Some(statsd_host) = host.as_ref() {
+    let builder = if let Some(statsd_host) = host {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
 
-        let host = (statsd_host.as_str(), port);
+        let host = (statsd_host, port);
         let udp_sink = BufferedUdpMetricSink::from(host, socket)?;
         let sink = QueuingMetricSink::from(udp_sink);
-        StatsdClient::builder(label.as_ref(), sink)
+        StatsdClient::builder(label, sink)
     } else {
-        StatsdClient::builder(label.as_ref(), NopMetricSink)
+        StatsdClient::builder(label, NopMetricSink)
     };
     Ok(builder
         .with_error_handler(|err| {

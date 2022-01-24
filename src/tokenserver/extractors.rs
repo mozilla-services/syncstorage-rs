@@ -1047,8 +1047,8 @@ mod tests {
             service_id: None,
             metrics: Box::new(
                 metrics::metrics_from_opts(
-                    settings.tokenserver.statsd_label,
-                    settings.statsd_host,
+                    &settings.tokenserver.statsd_label,
+                    settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )
                 .unwrap(),
