@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use googleapis_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
+use google_cloud_rust_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
 use protobuf::{
     well_known_types::{ListValue, Value},
     RepeatedField,

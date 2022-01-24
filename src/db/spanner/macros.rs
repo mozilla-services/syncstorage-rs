@@ -20,7 +20,7 @@ macro_rules! params {
 #[test]
 fn test_params_macro() {
     use crate::db::spanner::support::ToSpannerValue;
-    use googleapis_raw::spanner::v1::type_pb::{Type, TypeCode};
+    use google_cloud_rust_raw::spanner::v1::type_pb::{Type, TypeCode};
     use protobuf::{
         well_known_types::{ListValue, Value},
         RepeatedField,
