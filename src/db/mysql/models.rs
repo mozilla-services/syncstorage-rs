@@ -97,7 +97,6 @@ pub struct MysqlDb {
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
 /// don't spawn multiple MysqlDb calls at a time in the thread pool. Calls are
 /// queued to the thread pool via Futures, naturally serialized.
-#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl Send for MysqlDb {}
 
 pub struct MysqlDbInner {
