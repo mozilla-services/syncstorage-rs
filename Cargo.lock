@@ -549,9 +549,9 @@ dependencies = [
 
 [[package]]
 name = "cadence"
-version = "0.26.0"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7685b737fff763407351ce3a0d18c980a68e154b36f2d0b0fafebbac47de032"
+checksum = "3ada38d706104adf7e9f01b97f6bc7f30bd7e27904c16759d7ac85a0d5c732b5"
 dependencies = [
  "crossbeam-channel",
 ]
