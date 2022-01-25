@@ -633,7 +633,7 @@ impl FromRequest for MetaRequest {
 
             Ok(MetaRequest {
                 user_id,
-                metrics: metrics::Metrics::from(&req),
+                metrics: metrics::Metrics::extract(&req).await?,
             })
         }
         .boxed_local()
@@ -695,7 +695,7 @@ impl FromRequest for CollectionRequest {
                 user_id,
                 query,
                 reply,
-                metrics: metrics::Metrics::from(&req),
+                metrics: metrics::Metrics::extract(&req).await?,
             })
         }
         .boxed_local()
@@ -791,7 +791,7 @@ impl FromRequest for CollectionPostRequest {
                 query,
                 bsos,
                 batch: batch.opt,
-                metrics: metrics::Metrics::from(&req),
+                metrics: metrics::Metrics::extract(&req).await?,
                 quota_enabled: state.quota_enabled,
             })
         })
@@ -832,7 +832,7 @@ impl FromRequest for BsoRequest {
                 user_id,
                 query,
                 bso: bso.bso,
-                metrics: metrics::Metrics::from(&req),
+                metrics: metrics::Metrics::extract(&req).await?,
             })
         })
     }
@@ -856,11 +856,11 @@ impl FromRequest for BsoPutRequest {
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        let metrics = metrics::Metrics::from(req);
         let req = req.clone();
         let mut payload = payload.take();
 
         async move {
+            let metrics = metrics::Metrics::extract(&req).await?;
             let (user_id, collection, query, bso, body) =
                 <(
                     HawkIdentifier,
@@ -1725,7 +1725,14 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,
-            metrics: Box::new(metrics::metrics_from_opts(&settings).unwrap()),
+            metrics: Box::new(
+                metrics::metrics_from_opts(
+                    &settings.statsd_label,
+                    settings.statsd_host.as_deref(),
+                    settings.statsd_port,
+                )
+                .unwrap(),
+            ),
             quota_enabled: settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
         }

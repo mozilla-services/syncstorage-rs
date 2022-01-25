@@ -193,6 +193,7 @@ impl Settings {
         s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
         s.set_default("tokenserver.test_mode_enabled", false)?;
         s.set_default("tokenserver.node_type", "spanner")?;
+        s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
 
         // Set Cors defaults
         s.set_default(
