@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
 use crate::db::{error::DbError, DbErrorKind};
+use crate::server::metrics::Metrics;
 use crate::tokenserver::settings::Settings;
 
 #[cfg(test)]
@@ -37,10 +38,15 @@ pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 pub struct TokenserverPool {
     /// Pool of db connections
     inner: Pool<ConnectionManager<MysqlConnection>>,
+    metrics: Metrics,
 }
 
 impl TokenserverPool {
-    pub fn new(settings: &Settings, _use_test_transactions: bool) -> DbResult<Self> {
+    pub fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        _use_test_transactions: bool,
+    ) -> DbResult<Self> {
         run_embedded_migrations(&settings.database_url)?;
 
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
@@ -60,13 +66,14 @@ impl TokenserverPool {
 
         Ok(Self {
             inner: builder.build(manager)?,
+            metrics: metrics.clone(),
         })
     }
 
     pub fn get_sync(&self) -> Result<TokenserverDb, DbError> {
         let conn = self.inner.get().map_err(DbError::from)?;
 
-        Ok(TokenserverDb::new(conn))
+        Ok(TokenserverDb::new(conn, &self.metrics))
     }
 
     #[cfg(test)]
@@ -74,7 +81,7 @@ impl TokenserverPool {
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(TokenserverDb::new(conn))
+        Ok(TokenserverDb::new(conn, &self.metrics))
     }
 }
 
@@ -92,10 +99,13 @@ impl From<actix_web::error::BlockingError<DbError>> for DbError {
 #[async_trait]
 impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("tokenserver.storage.get_pool", None);
+
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(Box::new(TokenserverDb::new(conn)) as Box<dyn Db>)
+        Ok(Box::new(TokenserverDb::new(conn, &self.metrics)) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
