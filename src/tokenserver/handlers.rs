@@ -12,9 +12,8 @@ use super::db::models::Db;
 use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
 use super::error::TokenserverError;
 use super::extractors::TokenserverRequest;
-use super::support::{self, Tokenlib};
+use super::support::Tokenlib;
 use super::NodeType;
-use crate::server::metrics::Metrics;
 use crate::tokenserver::support::MakeTokenPlaintext;
 
 #[derive(Debug, Serialize)]
@@ -32,31 +31,12 @@ pub struct TokenserverResult {
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
-    mut metrics: Metrics,
 ) -> Result<HttpResponse, Error> {
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
-        // Get the plaintext that will be used to derive the token and secret to be returned to
-        // the client
         let token_plaintext = get_token_plaintext(&req, &updates)?;
-
-        // Derive the node-specific secret that will be used to derive the token and secret to be
-        // returned to the client
-        let secrets = {
-            metrics.start_timer("tokenserver.node_secret_derivation", None);
-
-            support::derive_node_secrets(vec![&hex::encode(req.shared_secret)], &req.user.node)
-                .map_err(|_| {
-                    error!("⚠️ Failed to derive node secret");
-
-                    TokenserverError::internal_error()
-                })?
-        };
-
-        metrics.start_timer("tokenserver.token_creation", None);
-        // Get the token and secret
-        Tokenlib::get_token_and_derived_secret(token_plaintext, &secrets[secrets.len() - 1])?
+        Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
 
     let result = TokenserverResult {
