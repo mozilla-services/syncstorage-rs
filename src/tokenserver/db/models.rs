@@ -19,6 +19,7 @@ use std::{
 use super::{params, results};
 use crate::db::error::{DbError, DbErrorKind};
 use crate::error::ApiError;
+use crate::server::metrics::Metrics;
 use crate::sync_db_method;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
@@ -39,6 +40,7 @@ pub struct TokenserverDb {
     /// conn. structs are !Sync (Arc requires both for Send). See the Send impl
     /// below.
     pub(super) inner: Arc<DbInner>,
+    metrics: Metrics,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -61,7 +63,7 @@ impl TokenserverDb {
     // get IDs from records created during other requests.
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
 
-    pub fn new(conn: Conn) -> Self {
+    pub fn new(conn: Conn, metrics: &Metrics) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
             conn,
@@ -71,6 +73,7 @@ impl TokenserverDb {
 
         Self {
             inner: Arc::new(inner),
+            metrics: metrics.clone(),
         }
     }
 
@@ -211,6 +214,9 @@ impl TokenserverDb {
         "#;
         const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
 
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("tokenserver.storage.get_best_node", None);
+
         // We may have to retry the query if we need to release more capacity. This loop allows
         // a maximum of five retries before bailing out.
         for _ in 0..5 {
@@ -310,6 +316,7 @@ impl TokenserverDb {
                 keys_changed_at: params.keys_changed_at,
                 created_at: allocate_user_result.created_at,
                 replaced_at: None,
+                first_seen_at: allocate_user_result.created_at,
                 old_client_states: vec![],
             })
         } else {
@@ -342,6 +349,8 @@ impl TokenserverDb {
                 }
             }
 
+            let first_seen_at = raw_users[raw_users.len() - 1].created_at;
+
             match (raw_user.replaced_at, raw_user.node) {
                 // If the most up-to-date user is marked as replaced or does not have a node
                 // assignment, allocate a new user. Note that, if the current user is marked
@@ -371,6 +380,7 @@ impl TokenserverDb {
                         keys_changed_at: raw_user.keys_changed_at,
                         created_at: allocate_user_result.created_at,
                         replaced_at: None,
+                        first_seen_at,
                         old_client_states,
                     })
                 }
@@ -385,6 +395,7 @@ impl TokenserverDb {
                     keys_changed_at: raw_user.keys_changed_at,
                     created_at: raw_user.created_at,
                     replaced_at: None,
+                    first_seen_at,
                     old_client_states,
                 }),
                 // The most up-to-date user doesn't have a node and is retired.
@@ -395,6 +406,9 @@ impl TokenserverDb {
 
     /// Creates a new user and assigns them to a node.
     fn allocate_user_sync(&self, params: params::AllocateUser) -> DbResult<results::AllocateUser> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("tokenserver.storage.allocate_user", None);
+
         // Get the least-loaded node
         let node = self.get_best_node_sync(params::GetBestNode {
             service_id: params.service_id,
@@ -1914,6 +1928,10 @@ mod tests {
         let tokenserver_settings = test_settings().tokenserver;
         let use_test_transactions = true;
 
-        TokenserverPool::new(&tokenserver_settings, use_test_transactions)
+        TokenserverPool::new(
+            &tokenserver_settings,
+            &Metrics::noop(),
+            use_test_transactions,
+        )
     }
 }

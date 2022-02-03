@@ -22,8 +22,8 @@ use sha2::Sha256;
 use super::db::{models::Db, params, pool::DbPool, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
-use super::NodeType;
-use super::ServerState;
+use super::{LogItemsMutator, NodeType, ServerState};
+use crate::server::metrics::Metrics;
 use crate::settings::Secrets;
 
 lazy_static! {
@@ -143,6 +143,7 @@ impl FromRequest for TokenserverRequest {
         let req = req.clone();
 
         Box::pin(async move {
+            let mut log_items_mutator = LogItemsMutator::from(&req);
             let token_data = TokenData::extract(&req).await?;
 
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver
@@ -154,8 +155,10 @@ impl FromRequest for TokenserverRequest {
             let fxa_uid = token_data.user;
             let hashed_fxa_uid = {
                 let hashed_fxa_uid_full = fxa_metrics_hash(&fxa_uid, fxa_metrics_hash_secret);
+                log_items_mutator.insert("uid".to_owned(), hashed_fxa_uid_full.clone());
                 hashed_fxa_uid_full[0..32].to_owned()
             };
+            log_items_mutator.insert("metrics_uid".to_owned(), hashed_fxa_uid.clone());
             let hashed_device_id = {
                 let device_id = "none".to_string();
                 hash_device_id(&hashed_fxa_uid, &device_id, fxa_metrics_hash_secret)
@@ -210,6 +213,8 @@ impl FromRequest for TokenserverRequest {
                     capacity_release_rate: state.node_capacity_release_rate,
                 })
                 .await?;
+            log_items_mutator.insert("first_seen_at".to_owned(), user.first_seen_at.to_string());
+
             let duration = {
                 let params = Query::<QueryParams>::extract(&req).await?;
 
@@ -323,6 +328,9 @@ impl FromRequest for TokenData {
             // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
             let oauth_verifier = state.oauth_verifier.clone();
+
+            let mut metrics = Metrics::extract(&req).await?;
+            metrics.start_timer("tokenserver.oauth_token_verification", None);
 
             web::block(move || oauth_verifier.verify_token(auth.token()))
                 .await
@@ -463,7 +471,8 @@ mod tests {
     use lazy_static::lazy_static;
     use serde_json;
 
-    use crate::settings::{Secrets, ServerLimits};
+    use crate::server::metrics;
+    use crate::settings::{Secrets, ServerLimits, Settings};
     use crate::tokenserver::{
         db::mock::MockDbPool as MockTokenserverPool, MockOAuthVerifier, ServerState,
     };
@@ -830,6 +839,7 @@ mod tests {
                 keys_changed_at: Some(1234),
                 replaced_at: None,
                 created_at: 1234,
+                first_seen_at: 1234,
                 old_client_states: vec![],
             },
             fxa_uid: "test".to_owned(),
@@ -862,6 +872,7 @@ mod tests {
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                first_seen_at: 1234,
                 replaced_at: None,
                 old_client_states: vec![],
             },
@@ -894,6 +905,7 @@ mod tests {
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                first_seen_at: 1234,
                 replaced_at: None,
                 old_client_states: vec![],
             },
@@ -927,6 +939,7 @@ mod tests {
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                first_seen_at: 1234,
                 replaced_at: None,
                 old_client_states: vec!["626262".to_owned()],
             },
@@ -960,6 +973,7 @@ mod tests {
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                first_seen_at: 1234,
                 replaced_at: None,
                 old_client_states: vec![],
             },
@@ -993,6 +1007,7 @@ mod tests {
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
+                first_seen_at: 1234,
                 replaced_at: None,
                 old_client_states: vec![],
             },
@@ -1020,6 +1035,8 @@ mod tests {
     }
 
     fn make_state(verifier: MockOAuthVerifier) -> ServerState {
+        let settings = Settings::default();
+
         ServerState {
             fxa_email_domain: "test.com".to_owned(),
             fxa_metrics_hash_secret: "".to_owned(),
@@ -1028,6 +1045,14 @@ mod tests {
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
             service_id: None,
+            metrics: Box::new(
+                metrics::metrics_from_opts(
+                    &settings.tokenserver.statsd_label,
+                    settings.statsd_host.as_deref(),
+                    settings.statsd_port,
+                )
+                .unwrap(),
+            ),
         }
     }
 }

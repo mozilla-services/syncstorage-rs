@@ -1,5 +1,5 @@
 use actix_web::web::block;
-use googleapis_raw::spanner::v1::{
+use google_cloud_rust_raw::spanner::v1::{
     spanner::{CreateSessionRequest, GetSessionRequest, Session},
     spanner_grpc::SpannerClient,
 };

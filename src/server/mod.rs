@@ -73,6 +73,7 @@ macro_rules! build_app {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap(middleware::weave::WeaveTimestamp::new())
+            .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
             .wrap($cors)
@@ -176,6 +177,7 @@ macro_rules! build_app_without_syncstorage {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap(middleware::sentry::SentryWrapper::default())
+            .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap(middleware::rejectua::RejectUA::default())
             // Followed by the "official middleware" so they run first.
             // actix is getting increasingly tighter about CORS headers. Our server is
@@ -222,7 +224,11 @@ macro_rules! build_app_without_syncstorage {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
-        let metrics = metrics::metrics_from_opts(&settings)?;
+        let metrics = metrics::metrics_from_opts(
+            &settings.statsd_label,
+            settings.statsd_host.as_deref(),
+            settings.statsd_port,
+        )?;
         let host = settings.host.clone();
         let port = settings.port;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
@@ -239,6 +245,11 @@ impl Server {
         let tokenserver_state = if settings.tokenserver.enabled {
             Some(tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
+                metrics::metrics_from_opts(
+                    &settings.tokenserver.statsd_label,
+                    settings.statsd_host.as_deref(),
+                    settings.statsd_port,
+                )?,
             )?)
         } else {
             None
@@ -283,8 +294,15 @@ impl Server {
         let settings_copy = settings.clone();
         let host = settings.host.clone();
         let port = settings.port;
-        let secrets = Arc::new(settings.master_secret);
-        let tokenserver_state = tokenserver::ServerState::from_settings(&settings.tokenserver)?;
+        let secrets = Arc::new(settings.master_secret.clone());
+        let tokenserver_state = tokenserver::ServerState::from_settings(
+            &settings.tokenserver,
+            metrics::metrics_from_opts(
+                &settings.tokenserver.statsd_label,
+                settings.statsd_host.as_deref(),
+                settings.statsd_port,
+            )?,
+        )?;
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
                 Some(tokenserver_state.clone()),

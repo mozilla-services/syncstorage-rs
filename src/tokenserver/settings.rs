@@ -36,6 +36,9 @@ pub struct Settings {
 
     /// The type of the storage nodes used by this instance of Tokenserver.
     pub node_type: NodeType,
+
+    /// The label to be used when reporting Metrics.
+    pub statsd_label: String,
 }
 
 impl Default for Settings {
@@ -52,6 +55,7 @@ impl Default for Settings {
             test_mode_enabled: false,
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
+            statsd_label: "syncstorage.tokenserver".to_owned(),
         }
     }
 }

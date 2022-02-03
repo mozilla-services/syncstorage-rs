@@ -1,3 +1,0 @@
-[submodule "googleapis-raw/grpc"]
-	path = googleapis-raw/grpc
-	url = https://github.com/grpc/grpc.git
