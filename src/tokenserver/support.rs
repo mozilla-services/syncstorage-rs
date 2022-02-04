@@ -76,25 +76,6 @@ impl Tokenlib {
     }
 }
 
-pub fn derive_node_secrets(secrets: Vec<&str>, node: &str) -> Result<Vec<String>, Error> {
-    const FILENAME: &str = "secrets.py";
-
-    Python::with_gil(|py| {
-        let code = include_str!("secrets.py");
-        let module = PyModule::from_code(py, code, FILENAME, FILENAME)?;
-
-        module
-            .getattr("derive_secrets")?
-            .call((secrets, node), None)
-            .map_err(|e| {
-                e.print_and_set_sys_last_vars(py);
-                e
-            })
-            .and_then(|x| x.extract())
-    })
-    .map_err(pyerr_to_actix_error)
-}
-
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct TokenData {
     pub user: String,
@@ -285,17 +266,5 @@ mod tests {
         };
 
         assert_eq!(expected_claims, decoded_claims);
-    }
-
-    #[test]
-    fn test_derive_secret_success() {
-        let secrets = vec!["deadbeefdeadbeefdeadbeefdeadbeef"];
-        let node = "https://node";
-        let derived_secrets = derive_node_secrets(secrets, node).unwrap();
-
-        assert_eq!(
-            derived_secrets,
-            vec!["a227eb0deb5fb4fd8002166f555c9071".to_owned()]
-        );
     }
 }
