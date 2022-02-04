@@ -24,29 +24,11 @@ This functionality was previously provided by a [Python service](https://github.
 
 ## Configuration
 
-You can find example settings for Tokenserver in [config/local.example.toml](../../config/local.example.toml). The available settings are:
-
-| Option | Default value | Description |
-| --- | --- | --- |
-| `disable_syncstorage` | `false` | whether to disable the Sync Storage endpoints (see [Disabling Syncstorage](#disabling-syncstorage) for more information) |
-| `tokenserver.database_url` | `"mysql://root@127.0.0.1/tokenserver_rs"` | database DSN |
-| `tokenserver.database_pool_max_size` | `None` | the maximum number of connections in the database pool |
-| `tokenserver.database_pool_min_idle` | `None` | the minimum number of idle database connections to maintain at all times |
-| `tokenserver.database_pool_connection_timeout` | `Some(30)` | the timeout (in seconds) when waiting for an available connection |
-| `tokenserver.fxa_metrics_hash_secret` | `"secret"` | the secret used to hash users' FxA UIDs |
-| `tokenserver.fxa_email_domain` | `"api.accounts.firefox.com"` | the email domain used to contruct the FxA email address from the user's FxA UID |
-| `tokenserver.fxa_oauth_server_url` | `None` | the URL of the FxA OAuth server to be used to verify user's OAuth tokens |
-| `tokenserver.test_mode_enabled` | `false` | whether to enable Tokenserver's [test mode](#test-mode) |
+You can find example settings for Tokenserver in [config/local.example.toml](../../config/local.example.toml). The available settings are described in doc comments [here](../../src/tokenserver/settings.rs).
 
 ### Disabling Syncstorage
 
 Tokenserver can be run as a standalone service by disabling the Sync Storage endpoints. This can be done simply by setting the `disable_syncstorage` setting to `true`. **Note that the Sync Storage settings must still be set even when those endpoints are disabled.**
-
-### Test Mode
-
-When Tokenserver's "test mode" is enabled, OAuth tokens are unpacked without being verified by FxA. Essentially, this allows one to "forge" an OAuth token as though it were created by FxA. This can be useful to test new functionality during development or to run integration tests.
-
-**NOTE:** This should **never** be run in production.
 
 ### Connecting to Firefox
 

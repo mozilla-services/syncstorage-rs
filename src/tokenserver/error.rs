@@ -84,6 +84,15 @@ impl TokenserverError {
         }
     }
 
+    pub fn resource_unavailable() -> Self {
+        Self {
+            location: ErrorLocation::Body,
+            description: "Resource is not available",
+            http_status: StatusCode::SERVICE_UNAVAILABLE,
+            ..Default::default()
+        }
+    }
+
     pub fn unsupported(description: &'static str, name: String) -> Self {
         Self {
             status: "error",

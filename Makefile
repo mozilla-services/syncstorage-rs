@@ -36,10 +36,10 @@ docker_stop_spanner:
 	docker-compose -f docker-compose.spanner.yaml down
 
 run:
-	RUST_LOG=debug RUST_BACKTRACE=full cargo run --features tokenserver_test_mode -- --config config/local.toml
+	RUST_LOG=debug RUST_BACKTRACE=full cargo run --features grpcio/openssl -- --config config/local.toml
 
 run_spanner:
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
 
 test:
-	SYNC_DATABASE_URL=$(SYNC_DATABASE_URL) SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) RUST_TEST_THREADS=1 cargo test --features tokenserver_test_mode
+	SYNC_DATABASE_URL=$(SYNC_DATABASE_URL) SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) RUST_TEST_THREADS=1 cargo test --features grpcio/openssl

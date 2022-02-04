@@ -1080,7 +1080,7 @@ mod tests {
             service_id,
             email: email1.to_owned(),
             generation: 1,
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             created_at: 2,
             node_id,
             keys_changed_at: Some(3),
@@ -1108,7 +1108,7 @@ mod tests {
             service_id,
             email: email1.to_owned(),
             generation: 1,
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             replaced_at: None,
             node_id,
             keys_changed_at: Some(3),
@@ -1198,7 +1198,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         })?;
@@ -1251,7 +1251,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test1@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         })?;
@@ -1260,7 +1260,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test2@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         })?;
@@ -1303,7 +1303,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         });
@@ -1344,7 +1344,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         });
@@ -1384,7 +1384,7 @@ mod tests {
             service_id,
             generation: 1234,
             email: "test@test.com".to_owned(),
-            client_state: "616161".to_owned(),
+            client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
         })?;
@@ -1407,7 +1407,7 @@ mod tests {
                 email: "test@test.com".to_owned(),
                 service_id,
                 generation: 1235,
-                client_state: "626262".to_owned(),
+                client_state: "bbbb".to_owned(),
                 keys_changed_at: Some(1235),
                 capacity_release_rate: None,
             })
@@ -1457,7 +1457,7 @@ mod tests {
                 service_id,
                 generation: MAX_GENERATION,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1468,7 +1468,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1527,7 +1527,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test1@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1538,7 +1538,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test2@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1549,7 +1549,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test3@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1560,7 +1560,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1679,7 +1679,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test1@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1696,7 +1696,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test2@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1715,7 +1715,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test3@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1732,7 +1732,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1750,7 +1750,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test5@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1767,7 +1767,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test6@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1785,7 +1785,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test7@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1832,7 +1832,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1851,7 +1851,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1894,7 +1894,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })
@@ -1910,7 +1910,7 @@ mod tests {
                 service_id,
                 generation: 1234,
                 email: "test4@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
             })

@@ -112,50 +112,50 @@ class TestDatabase(unittest.TestCase):
         orig_node = user['node']
 
         # Changing client-state allocates a new userid.
-        self.database.update_user(user, client_state='aaa')
+        self.database.update_user(user, client_state='aaaa')
         self.assertTrue(user['uid'] not in seen_uids)
         self.assertEqual(user['node'], orig_node)
         self.assertEqual(user['generation'], 0)
-        self.assertEqual(user['client_state'], 'aaa')
+        self.assertEqual(user['client_state'], 'aaaa')
         self.assertEqual(set(user['old_client_states']), set(('',)))
 
         user = self.database.get_user('test1@example.com')
         self.assertTrue(user['uid'] not in seen_uids)
         self.assertEqual(user['node'], orig_node)
         self.assertEqual(user['generation'], 0)
-        self.assertEqual(user['client_state'], 'aaa')
+        self.assertEqual(user['client_state'], 'aaaa')
         self.assertEqual(set(user['old_client_states']), set(('',)))
 
         seen_uids.add(user['uid'])
 
         # It's possible to change client-state and generation at once.
         self.database.update_user(user,
-                                  client_state='bbb', generation=12)
+                                  client_state='bbbb', generation=12)
         self.assertTrue(user['uid'] not in seen_uids)
         self.assertEqual(user['node'], orig_node)
         self.assertEqual(user['generation'], 12)
-        self.assertEqual(user['client_state'], 'bbb')
-        self.assertEqual(set(user['old_client_states']), set(('', 'aaa')))
+        self.assertEqual(user['client_state'], 'bbbb')
+        self.assertEqual(set(user['old_client_states']), set(('', 'aaaa')))
 
         user = self.database.get_user('test1@example.com')
         self.assertTrue(user['uid'] not in seen_uids)
         self.assertEqual(user['node'], orig_node)
         self.assertEqual(user['generation'], 12)
-        self.assertEqual(user['client_state'], 'bbb')
-        self.assertEqual(set(user['old_client_states']), set(('', 'aaa')))
+        self.assertEqual(user['client_state'], 'bbbb')
+        self.assertEqual(set(user['old_client_states']), set(('', 'aaaa')))
 
         # You can't got back to an old client_state.
         orig_uid = user['uid']
         with self.assertRaises(Exception):
             self.database.update_user(user,
-                                      client_state='aaa')
+                                      client_state='aaaa')
 
         user = self.database.get_user('test1@example.com')
         self.assertEqual(user['uid'], orig_uid)
         self.assertEqual(user['node'], orig_node)
         self.assertEqual(user['generation'], 12)
-        self.assertEqual(user['client_state'], 'bbb')
-        self.assertEqual(set(user['old_client_states']), set(('', 'aaa')))
+        self.assertEqual(user['client_state'], 'bbbb')
+        self.assertEqual(set(user['old_client_states']), set(('', 'aaaa')))
 
     def test_user_retirement(self):
         self.database.allocate_user('test@mozilla.com')
@@ -173,17 +173,17 @@ class TestDatabase(unittest.TestCase):
         # users are created with the same timestamp, it can lead to a
         # situation where two active user records exist for a single email.
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='a')
+        self.database.update_user(user1, client_state='aaaa')
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='b')
+        self.database.update_user(user1, client_state='bbbb')
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='c')
+        self.database.update_user(user1, client_state='cccc')
         time.sleep(0.1)
         break_time = time.time()
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='d')
+        self.database.update_user(user1, client_state='dddd')
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='e')
+        self.database.update_user(user1, client_state='eeee')
         time.sleep(0.1)
         records = list(self.database.get_user_records(email1))
         self.assertEqual(len(records), 6)
@@ -191,9 +191,9 @@ class TestDatabase(unittest.TestCase):
         email2 = 'test2@mozilla.com'
         user2 = self.database.allocate_user(email2)
         time.sleep(0.1)
-        self.database.update_user(user2, client_state='a')
+        self.database.update_user(user2, client_state='aaaa')
         time.sleep(0.1)
-        self.database.update_user(user2, client_state='b')
+        self.database.update_user(user2, client_state='bbbb')
         time.sleep(0.1)
         records = list(self.database.get_user_records(email2))
         self.assertEqual(len(records), 3)
@@ -223,7 +223,7 @@ class TestDatabase(unittest.TestCase):
         self.database.allocate_user('test@mozilla.com',
                                     generation=42,
                                     keys_changed_at=12,
-                                    client_state='aaa')
+                                    client_state='aaaa')
         user1 = self.database.get_user('test@mozilla.com')
         self.database.replace_user_records('test@mozilla.com')
         user2 = self.database.get_user('test@mozilla.com')
@@ -236,7 +236,7 @@ class TestDatabase(unittest.TestCase):
 
     def test_node_reassignment_not_done_for_retired_users(self):
         self.database.allocate_user('test@mozilla.com',
-                                    generation=42, client_state='aaa')
+                                    generation=42, client_state='aaaa')
         user1 = self.database.get_user('test@mozilla.com')
         self.database.retire_user('test@mozilla.com')
         user2 = self.database.get_user('test@mozilla.com')
@@ -438,7 +438,7 @@ class TestDatabase(unittest.TestCase):
         user = self.database.allocate_user('rfkelly@mozilla.com')
         self.assertEqual(self.database.count_users(), 2)
         # Updating a user doesn't change the count.
-        self.database.update_user(user, client_state='aaa')
+        self.database.update_user(user, client_state='aaaa')
         self.assertEqual(self.database.count_users(), 2)
         # Looking back in time doesn't count newer users.
         self.assertEqual(self.database.count_users(old_timestamp), 1)
@@ -454,7 +454,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user1['first_seen_at'], user0['first_seen_at'])
         # It should stay consistent if we re-allocate the user's node.
         time.sleep(0.1)
-        self.database.update_user(user1, client_state='aaa')
+        self.database.update_user(user1, client_state='aaaa')
         user2 = self.database.get_user(EMAIL)
         self.assertNotEqual(user2['uid'], user0['uid'])
         self.assertEqual(user2['first_seen_at'], user0['first_seen_at'])

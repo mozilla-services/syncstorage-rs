@@ -1,36 +1,38 @@
+pub mod auth;
 pub mod db;
 pub mod error;
 pub mod extractors;
 pub mod handlers;
 pub mod logging;
 pub mod settings;
-pub mod support;
-
-pub use self::support::{MockOAuthVerifier, OAuthVerifier, TestModeOAuthVerifier, VerifyToken};
 
 use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpRequest};
 use cadence::StatsdClient;
-use db::{
-    params,
-    pool::{DbPool, TokenserverPool},
-};
 use serde::{
     ser::{SerializeMap, Serializer},
     Deserialize, Serialize,
 };
+
+use crate::{
+    error::ApiError,
+    server::{metrics::Metrics, user_agent},
+};
+use auth::{browserid, oauth, VerifyToken};
+use db::{
+    params,
+    pool::{DbPool, TokenserverPool},
+};
 use settings::Settings;
 
-use crate::error::ApiError;
-use crate::server::{metrics::Metrics, user_agent};
-
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, convert::TryFrom, fmt};
 
 #[derive(Clone)]
 pub struct ServerState {
     pub db_pool: Box<dyn DbPool>,
     pub fxa_email_domain: String,
     pub fxa_metrics_hash_secret: String,
-    pub oauth_verifier: Box<dyn VerifyToken>,
+    pub oauth_verifier: Box<dyn VerifyToken<Output = oauth::VerifyOutput>>,
+    pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
     pub service_id: Option<i32>,
@@ -39,23 +41,14 @@ pub struct ServerState {
 
 impl ServerState {
     pub fn from_settings(settings: &Settings, metrics: StatsdClient) -> Result<Self, ApiError> {
-        let oauth_verifier: Box<dyn VerifyToken> = if settings.test_mode_enabled {
-            #[cfg(feature = "tokenserver_test_mode")]
-            let oauth_verifier = Box::new(TestModeOAuthVerifier);
-
-            #[cfg(not(feature = "tokenserver_test_mode"))]
-            let oauth_verifier = Box::new(
-                OAuthVerifier::new(settings.fxa_oauth_server_url.as_deref())
-                    .expect("failed to create Tokenserver OAuth verifier"),
-            );
-
-            oauth_verifier
-        } else {
-            Box::new(
-                OAuthVerifier::new(settings.fxa_oauth_server_url.as_deref())
-                    .expect("failed to create Tokenserver OAuth verifier"),
-            )
-        };
+        let oauth_verifier = Box::new(
+            oauth::RemoteVerifier::try_from(settings)
+                .expect("failed to create Tokenserver OAuth verifier"),
+        );
+        let browserid_verifier = Box::new(
+            browserid::RemoteVerifier::try_from(settings)
+                .expect("failed to create Tokenserver BrowserID verifier"),
+        );
         let use_test_transactions = false;
 
         TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
@@ -74,6 +67,7 @@ impl ServerState {
                     fxa_email_domain: settings.fxa_email_domain.clone(),
                     fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
                     oauth_verifier,
+                    browserid_verifier,
                     db_pool: Box::new(db_pool),
                     node_capacity_release_rate: settings.node_capacity_release_rate,
                     node_type: settings.node_type,
