@@ -125,12 +125,11 @@ pub struct OAuthVerifier {
 impl OAuthVerifier {
     const FILENAME: &'static str = "verify.py";
 
-    pub fn new(fxa_oauth_server_url: Option<String>) -> Result<Self, Error> {
+    pub fn new(fxa_oauth_server_url: Option<&str>) -> Result<Self, Error> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
             let kwargs = fxa_oauth_server_url
-                .clone()
                 .map(|url| [("server_url", url)].into_py_dict(py));
             let object: Py<PyAny> = module
                 .getattr("FxaOAuthClient")?

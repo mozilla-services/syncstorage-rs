@@ -45,14 +45,14 @@ impl ServerState {
 
             #[cfg(not(feature = "tokenserver_test_mode"))]
             let oauth_verifier = Box::new(
-                OAuthVerifier::new(settings.fxa_oauth_server_url.clone())
+                OAuthVerifier::new(settings.fxa_oauth_server_url.as_deref())
                     .expect("failed to create Tokenserver OAuth verifier"),
             );
 
             oauth_verifier
         } else {
             Box::new(
-                OAuthVerifier::new(settings.fxa_oauth_server_url.clone())
+                OAuthVerifier::new(settings.fxa_oauth_server_url.as_deref())
                     .expect("failed to create Tokenserver OAuth verifier"),
             )
         };
