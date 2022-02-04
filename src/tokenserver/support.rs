@@ -129,8 +129,7 @@ impl OAuthVerifier {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
-            let kwargs = fxa_oauth_server_url
-                .map(|url| [("server_url", url)].into_py_dict(py));
+            let kwargs = fxa_oauth_server_url.map(|url| [("server_url", url)].into_py_dict(py));
             let object: Py<PyAny> = module
                 .getattr("FxaOAuthClient")?
                 .call((), kwargs)
