@@ -4,6 +4,7 @@ import json
 
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
+
 class FxaOAuthClient:
     def __init__(self, server_url=None):
         self._client = Client(server_url=server_url)
