@@ -4,14 +4,15 @@ import json
 
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
+class FxaOAuthClient:
+    def __init__(self, server_url=None):
+        self._client = Client(server_url=server_url)
 
-def verify_token(token, server_url=None):
-    client = Client(server_url=server_url)
+    def verify_token(self, token):
+        try:
+            token_data = self._client.verify_token(token, DEFAULT_OAUTH_SCOPE)
 
-    try:
-        token_data = client.verify_token(token, DEFAULT_OAUTH_SCOPE)
-
-        # Serialize the data to make it easier to parse in Rust
-        return json.dumps(token_data)
-    except (ClientError, TrustError):
-        return None
+            # Serialize the data to make it easier to parse in Rust
+            return json.dumps(token_data)
+        except (ClientError, TrustError):
+            return None

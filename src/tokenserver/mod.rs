@@ -50,9 +50,10 @@ impl ServerState {
 
             oauth_verifier
         } else {
-            Box::new(OAuthVerifier {
-                fxa_oauth_server_url: settings.fxa_oauth_server_url.clone(),
-            })
+            Box::new(
+                OAuthVerifier::new(settings.fxa_oauth_server_url.clone())
+                    .expect("failed to create Tokenserver OAuth verifier"),
+            )
         };
         let use_test_transactions = false;
 
