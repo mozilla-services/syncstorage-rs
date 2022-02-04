@@ -11,8 +11,8 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --features tokenserver_test_mode --path . --locked --root /app && \
-    cargo install --features tokenserver_test_mode --path . --bin purge_ttl --locked --root /app
+    cargo install --path . --locked --root /app --features grpcio/openssl && \
+    cargo install --path . --bin purge_ttl --locked --root /app --features grpcio/openssl
 
 FROM debian:buster-slim
 WORKDIR /app
@@ -43,6 +43,7 @@ COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner
 COPY --from=builder /app/src/db/spanner/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
+RUN pip3 install -r /app/tools/integration_tests/requirements.txt
 
 USER app:app
 

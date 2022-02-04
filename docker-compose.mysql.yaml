@@ -28,6 +28,14 @@ services:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
 
+    mock-fxa-server:
+        image: app:build
+        restart: "no"
+        entrypoint: python3 /app/tools/integration_tests/tokenserver/mock_fxa_server.py
+        environment:
+            MOCK_FXA_SERVER_HOST: 0.0.0.0
+            MOCK_FXA_SERVER_PORT: 6000
+
     syncstorage-rs:
         image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always

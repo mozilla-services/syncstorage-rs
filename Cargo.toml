@@ -36,6 +36,7 @@ diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
+dyn-clone = "1.0.4"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 google-cloud-rust-raw = "0.11.0"
@@ -44,7 +45,6 @@ google-cloud-rust-raw = "0.11.0"
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.9" }
 lazy_static = "1.4.0"
-pyo3 = { version = "0.14", features = ["auto-initialize"] }
 hawk = "3.2"
 hex = "0.4.3"
 hostname = "0.3.1"
@@ -53,11 +53,14 @@ hmac = "0.11"
 http = "0.2.5"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 mime = "0.3"
+mockito = "0.30.0"
 num_cpus = "1"
 # must match what's used by googleapis-raw
 protobuf = "2.20.0"
+pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
 regex = "1.4"
+reqwest = { version = "0.11.9", features = ["blocking", "json"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
 sentry = { version = "0.19", features = ["with_curl_transport"] }# pin to 0.19 until on-prem sentry server is updated
 sentry-backtrace = "0.19"
@@ -84,12 +87,8 @@ validator = "0.14"
 validator_derive = "0.14"
 woothee = "0.11"
 
-[dev-dependencies]
-jsonwebtoken = "7.2.0"
-
 [features]
 no_auth = []
-tokenserver_test_mode = []
 
 [[bin]]
 name = "purge_ttl"
