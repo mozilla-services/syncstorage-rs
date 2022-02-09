@@ -23,9 +23,9 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    client: Option<StatsdClient>,
-    tags: Option<Tags>,
-    timer: Option<MetricTimer>,
+    pub client: Option<StatsdClient>,
+    pub tags: Option<Tags>,
+    pub timer: Option<MetricTimer>,
 }
 
 impl Drop for Metrics {
