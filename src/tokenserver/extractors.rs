@@ -78,12 +78,13 @@ impl TokenserverRequest {
         // have `keys_changed_at` support may have already seen and
         // written the new value of `generation`. The best we can do
         // here is enforce that `keys_changed_at` <= `generation`.
-        if let (Some(generation), Some(user_keys_changed_at)) =
-            (self.generation, self.user.keys_changed_at)
+        if matches!(
+            (self.generation, self.user.keys_changed_at),
+            (Some(generation), Some(user_keys_changed_at))
+                if self.keys_changed_at > user_keys_changed_at
+                && generation < self.keys_changed_at)
         {
-            if self.keys_changed_at > user_keys_changed_at && generation < self.keys_changed_at {
-                return Err(TokenserverError::invalid_keys_changed_at());
-            }
+            return Err(TokenserverError::invalid_keys_changed_at());
         }
 
         // The client state on the request must not have been used in the past.
@@ -94,40 +95,42 @@ impl TokenserverRequest {
 
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in generation (if the client reports a generation).
-        if let Some(generation) = self.generation {
-            if self.client_state != self.user.client_state && generation <= self.user.generation {
-                let error_message =
-                    "Unacceptable client-state value new value with no generation change";
-                return Err(TokenserverError::invalid_client_state(error_message));
-            }
+        if matches!(
+            self.generation,
+            Some(generation)
+                if self.client_state != self.user.client_state
+                && generation <= self.user.generation)
+        {
+            let error_message =
+                "Unacceptable client-state value new value with no generation change";
+            return Err(TokenserverError::invalid_client_state(error_message));
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in keys_changed_at
-        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
-            if self.client_state != self.user.client_state
-                && self.keys_changed_at <= user_keys_changed_at
-            {
-                let error_message =
-                    "Unacceptable client-state value new value with no keys_changed_at change";
-                return Err(TokenserverError::invalid_client_state(error_message));
-            }
+        if matches!(
+            self.user.keys_changed_at,
+            Some(user_keys_changed_at)
+                if self.client_state != self.user.client_state
+                && self.keys_changed_at <= user_keys_changed_at)
+        {
+            let error_message =
+                "Unacceptable client-state value new value with no keys_changed_at change";
+            return Err(TokenserverError::invalid_client_state(error_message));
         }
 
         // The generation on the request cannot be earlier than the generation stored on the user
         // record.
-        if let Some(generation) = self.generation {
-            if self.user.generation > generation {
-                return Err(TokenserverError::invalid_generation());
-            }
+        if matches!(self.generation, Some(generation) if self.user.generation > generation) {
+            return Err(TokenserverError::invalid_generation());
         }
 
         // The keys_changed_at on the request cannot be earlier than the keys_changed_at stored on
         // the user record.
-        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
-            if user_keys_changed_at > self.keys_changed_at {
-                return Err(TokenserverError::invalid_keys_changed_at());
-            }
+        if matches!(self.user.keys_changed_at,
+                    Some(user_keys_changed_at) if user_keys_changed_at > self.keys_changed_at)
+        {
+            return Err(TokenserverError::invalid_keys_changed_at());
         }
 
         Ok(())
