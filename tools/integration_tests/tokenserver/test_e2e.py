@@ -2,8 +2,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 from base64 import urlsafe_b64decode
-import binascii
-import hashlib
 import hmac
 import json
 import jwt
@@ -21,7 +19,6 @@ from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
-from tokenlib import HKDF
 
 from tokenserver.test_support import TestCase
 
@@ -124,19 +121,6 @@ class TestE2e(TestCase, unittest.TestCase):
         hasher.update(value.encode('utf-8'))
         return hasher.hexdigest()
 
-    def _derive_secret(self, master_secret):
-        info = "services.mozilla.com/mozsvc/v1/node_secret/%s" % self.NODE_URL
-        hkdf_params = {
-            "salt": None,
-            "info": info.encode("utf-8"),
-            "hashmod": hashlib.sha256,
-        }
-        size = len(master_secret) // 2
-        derived_secret = HKDF(master_secret.encode("utf-8"), size=size,
-                              **hkdf_params)
-
-        return binascii.b2a_hex(derived_secret).decode()
-
     def test_unauthorized_error_status(self):
         # Totally busted auth -> generic error.
         headers = {
@@ -202,19 +186,16 @@ class TestE2e(TestCase, unittest.TestCase):
         payload = raw[:-32]
         signature = raw[-32:]
         payload_dict = json.loads(payload.decode('utf-8'))
-
-        signing_secret = binascii.b2a_hex(
-            self.TOKEN_SIGNING_SECRET.encode("utf-8")).decode()
-        node_specific_secret = self._derive_secret(signing_secret)
+        signing_secret = self.TOKEN_SIGNING_SECRET
         expected_token = tokenlib.make_token(payload_dict,
-                                             secret=node_specific_secret)
+                                             secret=signing_secret)
         expected_signature = urlsafe_b64decode(expected_token)[-32:]
         # Using the #compare_digest method here is not strictly necessary, as
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))
         # Check that the given key is a secret derived from the hawk ID
-        expected_secret = tokenlib.get_derived_secret(
-            res.json['id'], secret=node_specific_secret)
+        expected_secret = tokenlib.get_derived_secret(res.json['id'],
+                                                      secret=signing_secret)
         self.assertEqual(res.json['key'], expected_secret)
         # Check to make sure the remainder of the fields are valid
         self.assertEqual(res.json['uid'], user['uid'])

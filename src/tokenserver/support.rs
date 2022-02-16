@@ -1,5 +1,5 @@
 use actix_web::Error;
-use pyo3::prelude::{IntoPy, PyAny, PyErr, PyModule, PyObject, Python};
+use pyo3::prelude::{IntoPy, Py, PyAny, PyErr, PyModule, PyObject, Python};
 use pyo3::types::{IntoPyDict, PyString};
 use serde::{Deserialize, Serialize};
 
@@ -76,25 +76,6 @@ impl Tokenlib {
     }
 }
 
-pub fn derive_node_secrets(secrets: Vec<&str>, node: &str) -> Result<Vec<String>, Error> {
-    const FILENAME: &str = "secrets.py";
-
-    Python::with_gil(|py| {
-        let code = include_str!("secrets.py");
-        let module = PyModule::from_code(py, code, FILENAME, FILENAME)?;
-
-        module
-            .getattr("derive_secrets")?
-            .call((secrets, node), None)
-            .map_err(|e| {
-                e.print_and_set_sys_last_vars(py);
-                e
-            })
-            .and_then(|x| x.extract())
-    })
-    .map_err(pyerr_to_actix_error)
-}
-
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct TokenData {
     pub user: String,
@@ -119,11 +100,32 @@ impl Clone for Box<dyn VerifyToken> {
 #[derive(Clone)]
 /// An adapter to the PyFxA Python library.
 pub struct OAuthVerifier {
-    pub fxa_oauth_server_url: Option<String>,
+    inner: Py<PyAny>,
 }
 
 impl OAuthVerifier {
     const FILENAME: &'static str = "verify.py";
+
+    pub fn new(fxa_oauth_server_url: Option<&str>) -> Result<Self, Error> {
+        let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
+            let code = include_str!("verify.py");
+            let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
+            let kwargs = fxa_oauth_server_url.map(|url| [("server_url", url)].into_py_dict(py));
+            let object: Py<PyAny> = module
+                .getattr("FxaOAuthClient")?
+                .call((), kwargs)
+                .map_err(|e| {
+                    e.print_and_set_sys_last_vars(py);
+                    e
+                })?
+                .into();
+
+            Ok(object)
+        })
+        .map_err(pyerr_to_actix_error)?;
+
+        Ok(Self { inner })
+    }
 }
 
 impl VerifyToken for OAuthVerifier {
@@ -131,15 +133,10 @@ impl VerifyToken for OAuthVerifier {
     /// tokens.
     fn verify_token(&self, token: &str) -> Result<TokenData, TokenserverError> {
         let maybe_token_data_string = Python::with_gil(|py| {
-            let code = include_str!("verify.py");
-            let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
-            let kwargs = self
-                .fxa_oauth_server_url
-                .clone()
-                .map(|url| [("server_url", url)].into_py_dict(py));
-            let result: &PyAny = module
+            let client = self.inner.as_ref(py);
+            let result: &PyAny = client
                 .getattr("verify_token")?
-                .call((token,), kwargs)
+                .call((token,), None)
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
@@ -269,17 +266,5 @@ mod tests {
         };
 
         assert_eq!(expected_claims, decoded_claims);
-    }
-
-    #[test]
-    fn test_derive_secret_success() {
-        let secrets = vec!["deadbeefdeadbeefdeadbeefdeadbeef"];
-        let node = "https://node";
-        let derived_secrets = derive_node_secrets(secrets, node).unwrap();
-
-        assert_eq!(
-            derived_secrets,
-            vec!["a227eb0deb5fb4fd8002166f555c9071".to_owned()]
-        );
     }
 }
