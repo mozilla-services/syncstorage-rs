@@ -202,6 +202,7 @@ impl Settings {
             "https://verifier.stage.mozaws.net/v2",
         )?;
         s.set_default("tokenserver.fxa_browserid_request_timeout", 10)?;
+        s.set_default("tokenserver.fxa_browserid_connect_timeout", 5)?;
         s.set_default(
             "tokenserver.fxa_email_domain",
             "api-accounts.stage.mozaws.net",

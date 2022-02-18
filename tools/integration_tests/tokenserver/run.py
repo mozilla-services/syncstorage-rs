@@ -11,12 +11,12 @@ from tokenserver.test_node_assignment import TestNodeAssignment
 
 
 def run_local_tests(include_browserid_specific_tests=True):
+    test_classes = [TestAuthorization, TestMisc, TestNodeAssignment]
+
     if include_browserid_specific_tests:
-        test_classes = [TestAuthorization, TestBrowserId, TestMisc,
-                        TestNodeAssignment]
-        return run_tests(test_classes)
-    else:
-        return run_tests([TestAuthorization, TestMisc, TestNodeAssignment])
+        test_classes.append(TestBrowserId)
+
+    return run_tests(test_classes)
 
 
 def run_end_to_end_tests():

@@ -201,7 +201,7 @@ jobs:
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
-          = run:
+          - run:
             name: Login to Dockerhub
             command: |
               if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then

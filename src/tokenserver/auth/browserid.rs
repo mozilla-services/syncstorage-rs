@@ -1,6 +1,5 @@
-use actix_web::{web, Error};
 use async_trait::async_trait;
-use reqwest::{blocking::Client as ReqwestClient, StatusCode};
+use reqwest::{Client as ReqwestClient, Response};
 use serde::{de::Deserializer, Deserialize, Serialize};
 
 use super::VerifyToken;
@@ -10,7 +9,7 @@ use crate::tokenserver::{
 };
 
 use core::time::Duration;
-use std::{convert::TryFrom, sync::Arc};
+use std::convert::TryFrom;
 
 /// The information extracted from a valid BrowserID assertion.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -27,24 +26,23 @@ pub struct RemoteVerifier {
     audience: String,
     issuer: String,
     fxa_verifier_url: String,
-    // We need to use an Arc here because reqwest's blocking client doesn't use one internally,
-    // and we want to share keep-alive connections across threads
-    request_client: Arc<ReqwestClient>,
+    // reqwest's async client uses an `Arc` internally, so we don't need to use one here to take
+    // advantage of keep-alive connections across threads.
+    request_client: ReqwestClient,
 }
 
 impl TryFrom<&Settings> for RemoteVerifier {
-    type Error = Error;
+    type Error = &'static str;
 
-    fn try_from(settings: &Settings) -> Result<Self, Error> {
+    fn try_from(settings: &Settings) -> Result<Self, Self::Error> {
         Ok(Self {
             audience: settings.fxa_browserid_audience.clone(),
             issuer: settings.fxa_browserid_issuer.clone(),
-            request_client: Arc::new(
-                ReqwestClient::builder()
-                    .timeout(Duration::new(settings.fxa_browserid_request_timeout, 0))
-                    .build()
-                    .map_err(|_| Error::from(()))?,
-            ),
+            request_client: ReqwestClient::builder()
+                .timeout(Duration::new(settings.fxa_browserid_request_timeout, 0))
+                .connect_timeout(Duration::new(settings.fxa_browserid_connect_timeout, 0))
+                .build()
+                .map_err(|_| "failed to build BrowserID reqwest client")?,
             fxa_verifier_url: settings.fxa_browserid_server_url.clone(),
         })
     }
@@ -57,80 +55,73 @@ impl VerifyToken for RemoteVerifier {
     /// Verifies a BrowserID assertion. Returns `VerifyOutput` for valid assertions and a
     /// `TokenserverError` for invalid assertions.
     async fn verify(&self, assertion: String) -> Result<VerifyOutput, TokenserverError> {
-        let verifier = self.clone();
+        let response = self
+            .request_client
+            .post(&self.fxa_verifier_url)
+            .json(&VerifyRequest {
+                assertion,
+                audience: self.audience.clone(),
+                trusted_issuers: [self.issuer.clone()],
+            })
+            .send()
+            .await
+            .and_then(Response::error_for_status)
+            .map_err(|e| {
+                if e.is_connect() || e.is_status() {
+                    // If we are unable to reach the FxA server or if FxA responds with an HTTP
+                    // status other than 200, report a 503 to the client
+                    TokenserverError::resource_unavailable()
+                } else {
+                    // If any other error occurs during the request, report a 401 to the client
+                    TokenserverError::invalid_credentials("Unauthorized")
+                }
+            })?;
 
-        web::block(move || {
-            let response = verifier
-                .request_client
-                .post(&verifier.fxa_verifier_url)
-                .json(&VerifyRequest {
-                    assertion,
-                    audience: verifier.audience.clone(),
-                    trusted_issuers: [verifier.issuer.clone()],
+        // If FxA responds with an invalid response body, report a 503 to the client
+        let response_body = response
+            .json::<VerifyResponse>()
+            .await
+            .map_err(|_| TokenserverError::resource_unavailable())?;
+
+        match response_body {
+            VerifyResponse::Failure {
+                reason: Some(reason),
+            } if reason.contains("expired") || reason.contains("issued later than") => {
+                Err(TokenserverError {
+                    status: "invalid-timestamp",
+                    location: ErrorLocation::Body,
+                    ..Default::default()
                 })
-                .send()
-                .map_err(|e| {
-                    if e.is_connect() {
-                        // If we are unable to reach the FxA server, report a 503 to the client
-                        TokenserverError::resource_unavailable()
-                    } else {
-                        // If any other error occurs during the request, report a 401 to the client
-                        TokenserverError::invalid_credentials("Unauthorized")
-                    }
-                })?;
-
-            // If FxA responds with an HTTP status other than 200, report a 503 to the client
-            if response.status() != StatusCode::OK {
-                return Err(TokenserverError::resource_unavailable());
             }
-
-            // If FxA responds with an invalid response body, report a 503 to the client
-            let response_body = response
-                .json::<VerifyResponse>()
-                .map_err(|_| TokenserverError::resource_unavailable())?;
-
-            match response_body {
-                VerifyResponse::Failure {
-                    reason: Some(reason),
-                } if reason.contains("expired") || reason.contains("issued later than") => {
-                    Err(TokenserverError {
-                        status: "invalid-timestamp",
-                        location: ErrorLocation::Body,
-                        ..Default::default()
-                    })
-                }
-                VerifyResponse::Failure { .. } => {
-                    Err(TokenserverError::invalid_credentials("Unauthorized"))
-                }
-                VerifyResponse::Okay { issuer, .. } if issuer != verifier.issuer => {
-                    Err(TokenserverError::invalid_credentials("Unauthorized"))
-                }
-                VerifyResponse::Okay {
-                    idp_claims: Some(claims),
-                    ..
-                } if !claims.token_verified() => {
-                    Err(TokenserverError::invalid_credentials("Unauthorized"))
-                }
-                VerifyResponse::Okay {
-                    email,
-                    idp_claims: Some(claims),
-                    ..
-                } => Ok(VerifyOutput {
-                    device_id: claims.device_id.clone(),
-                    email,
-                    generation: claims.generation()?,
-                    keys_changed_at: claims.keys_changed_at()?,
-                }),
-                VerifyResponse::Okay { email, .. } => Ok(VerifyOutput {
-                    device_id: None,
-                    email,
-                    generation: None,
-                    keys_changed_at: None,
-                }),
+            VerifyResponse::Failure { .. } => {
+                Err(TokenserverError::invalid_credentials("Unauthorized"))
             }
-        })
-        .await
-        .map_err(Into::into)
+            VerifyResponse::Okay { issuer, .. } if issuer != self.issuer => {
+                Err(TokenserverError::invalid_credentials("Unauthorized"))
+            }
+            VerifyResponse::Okay {
+                idp_claims: Some(claims),
+                ..
+            } if !claims.token_verified() => {
+                Err(TokenserverError::invalid_credentials("Unauthorized"))
+            }
+            VerifyResponse::Okay {
+                email,
+                idp_claims: Some(claims),
+                ..
+            } => Ok(VerifyOutput {
+                device_id: claims.device_id.clone(),
+                email,
+                generation: claims.generation()?,
+                keys_changed_at: claims.keys_changed_at()?,
+            }),
+            VerifyResponse::Okay { email, .. } => Ok(VerifyOutput {
+                device_id: None,
+                email,
+                generation: None,
+                keys_changed_at: None,
+            }),
+        }
     }
 }
 
@@ -163,18 +154,27 @@ enum VerifyResponse {
 struct IdpClaims {
     #[serde(rename = "fxa-deviceId")]
     pub device_id: Option<String>,
+    /// The nested `Option`s are necessary to distinguish between a `null` value and a missing key
+    /// altogether: `Some(None)` translates to a `null` value and `None` translates to a missing
+    /// key.
     #[serde(
         default,
         rename = "fxa-generation",
         deserialize_with = "strict_deserialize"
     )]
     generation: Option<Option<i64>>,
+    /// The nested `Option`s are necessary to distinguish between a `null` value and a missing key
+    /// altogether: `Some(None)` translates to a `null` value and `None` translates to a missing
+    /// key.
     #[serde(
         default,
         rename = "fxa-keysChangedAt",
         deserialize_with = "strict_deserialize"
     )]
     keys_changed_at: Option<Option<i64>>,
+    /// The nested `Option`s are necessary to distinguish between a `null` value and a missing key
+    /// altogether: `Some(None)` translates to a `null` value and `None` translates to a missing
+    /// key.
     #[serde(
         default,
         rename = "fxa-tokenVerified",
@@ -218,6 +218,10 @@ impl IdpClaims {
 }
 
 // Approach inspired by: https://github.com/serde-rs/serde/issues/984#issuecomment-314143738
+/// This function is used to deserialize JSON fields that may or may not be present. If the field
+/// is present, its value is enclosed in `Some`. This results in types of the form
+/// `Option<Option<T>>`. If the outer `Option` is `None`, the field wasn't present in the JSON, and
+/// if the inner `Option` is `None`, the field was present with a `null` value.
 fn strict_deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     T: Deserialize<'de>,
@@ -231,10 +235,11 @@ mod tests {
     use super::*;
 
     use mockito::{self, Mock};
+    use serde_json::json;
 
     #[actix_rt::test]
     async fn test_browserid_verifier_success() {
-        let body = r#"{
+        let body = json!({
             "status": "okay",
             "email": "test@example.com",
             "audience": "https://test.com",
@@ -244,10 +249,10 @@ mod tests {
                 "fxa-generation": 1234,
                 "fxa-keysChangedAt": 5678
             }
-        }"#;
+        });
         let mock = mockito::mock("POST", "/v2")
             .with_header("content-type", "application/json")
-            .with_body(body)
+            .with_body(body.to_string())
             .create();
         let verifier = RemoteVerifier::try_from(&Settings {
             fxa_browserid_audience: "https://test.com".to_owned(),
@@ -359,19 +364,16 @@ mod tests {
         const ISSUER: &str = "accounts.firefox.com";
 
         fn mock(issuer: &'static str) -> Mock {
-            let body = format!(
-                r#"{{
+            let body = json!({
                 "status": "okay",
                 "email": "test@example.com",
                 "audience": "https://testmytoken.com",
-                "issuer": "{}"
-            }}"#,
-                issuer
-            );
+                "issuer": issuer
+            });
 
             mockito::mock("POST", "/v2")
                 .with_header("content-type", "application/json")
-                .with_body(body)
+                .with_body(body.to_string())
                 .create()
         }
 
@@ -434,15 +436,15 @@ mod tests {
         let expected_error = TokenserverError::resource_unavailable();
 
         {
-            let body = r#"{{
+            let body = json!({
                 "status": "okay",
                 "email": "test@example.com",
                 "audience": "https://testmytoken.com",
-                "issuer": 42
-            }}"#;
+                "issuer": 42,
+            });
             let mock = mockito::mock("POST", "/v2")
                 .with_header("content-type", "application/json")
-                .with_body(body)
+                .with_body(body.to_string())
                 .create();
             let error = verifier.verify(assertion.clone()).await.unwrap_err();
 
@@ -451,15 +453,15 @@ mod tests {
         }
 
         {
-            let body = r#"{{
+            let body = json!({
                 "status": "okay",
                 "email": "test@example.com",
                 "audience": "https://testmytoken.com",
-                "issuer": null
-            }}"#;
+                "issuer": None::<()>,
+            });
             let mock = mockito::mock("POST", "/v2")
                 .with_header("content-type", "application/json")
-                .with_body(body)
+                .with_body(body.to_string())
                 .create();
             let error = verifier.verify(assertion.clone()).await.unwrap_err();
 
@@ -468,14 +470,14 @@ mod tests {
         }
 
         {
-            let body = r#"{{
+            let body = json!({
                 "status": "okay",
                 "email": "test@example.com",
-                "audience": "https://testmytoken.com"
-            }}"#;
+                "audience": "https://testmytoken.com",
+            });
             let mock = mockito::mock("POST", "/v2")
                 .with_header("content-type", "application/json")
-                .with_body(body)
+                .with_body(body.to_string())
                 .create();
             let error = verifier.verify(assertion).await.unwrap_err();
 
