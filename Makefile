@@ -36,7 +36,7 @@ docker_stop_spanner:
 	docker-compose -f docker-compose.spanner.yaml down
 
 run:
-	RUST_LOG=debug RUST_BACKTRACE=full cargo run --features grpcio/openssl -- --config config/local.toml
+	RUST_LOG=debug RUST_BACKTRACE=full cargo run -- --config config/local.toml
 
 run_spanner:
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run

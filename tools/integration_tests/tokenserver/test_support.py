@@ -73,7 +73,7 @@ class TestCase:
 
     def _build_oauth_headers(self, generation=None, user='test',
                              keys_changed_at=None, client_state=None,
-                             status=200):
+                             status=200, **additional_headers):
         claims = {
             'user': user,
             'generation': generation,
@@ -90,13 +90,15 @@ class TestCase:
         client_state = binascii.unhexlify(client_state)
         client_state = b64encode(client_state).strip(b'=').decode('utf-8')
         headers['X-KeyID'] = '%s-%s' % (keys_changed_at, client_state)
+        headers.update(additional_headers)
 
         return headers
 
     def _build_browserid_headers(self, generation=None, user='test',
                                  keys_changed_at=None, client_state=None,
                                  issuer=BROWSERID_ISSUER, device_id=None,
-                                 token_verified=None, status=200):
+                                 token_verified=None, status=200,
+                                 **additional_headers):
         claims = {
             'status': 'okay',
             'email': '%s@%s' % (user, self.FXA_EMAIL_DOMAIN),

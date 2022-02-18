@@ -37,5 +37,5 @@ services:
           TOKENSERVER_HOST: http://localhost:8000
         entrypoint: >
           /bin/sh -c "
-            python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+            sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
           "

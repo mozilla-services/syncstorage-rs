@@ -69,19 +69,18 @@ impl TokenserverRequest {
     /// of the FxA server may not have been sending all the expected fields, and
     /// that some clients do not report the `generation` timestamp.
     fn validate(&self) -> Result<(), TokenserverError> {
-        /// Returns true only if both arguments are Some and opta > optb.
-        fn gt(opta: Option<i64>, optb: Option<i64>) -> bool {
-            opta.is_some() && optb.is_some() && opta > optb
-        }
+        let auth_keys_changed_at = self.auth_data.keys_changed_at;
+        let auth_generation = self.auth_data.generation;
+        let user_keys_changed_at = self.user.keys_changed_at;
+        let user_generation = Some(self.user.generation);
 
-        /// Returns true only if both arguments are Some and opta < optb.
-        fn lt(opta: Option<i64>, optb: Option<i64>) -> bool {
-            opta.is_some() && optb.is_some() && opta < optb
-        }
-
-        /// Returns true only if both arguments are Some and opta <= optb.
-        fn le(opta: Option<i64>, optb: Option<i64>) -> bool {
-            opta.is_some() && optb.is_some() && opta <= optb
+        /// `$left` and `$right` must both be `Option`s, and `$op` must be a binary infix
+        /// operator. If `$left` and `$right` are both `Some`, this macro returns
+        /// `$left $op $right`; otherwise, it returns `false`.
+        macro_rules! opt_cmp {
+            ($left:ident $op:tt $right:ident) => {
+                $left.zip($right).map(|(l, r)| l $op r).unwrap_or(false)
+            }
         }
 
         // If the caller reports a generation number, then a change
@@ -90,8 +89,8 @@ impl TokenserverRequest {
         // have `keys_changed_at` support may have already seen and
         // written the new value of `generation`. The best we can do
         // here is enforce that `keys_changed_at` <= `generation`.
-        if gt(self.auth_data.keys_changed_at, self.user.keys_changed_at)
-            && lt(self.auth_data.generation, self.auth_data.keys_changed_at)
+        if opt_cmp!(auth_keys_changed_at > user_keys_changed_at)
+            && opt_cmp!(auth_generation < auth_keys_changed_at)
         {
             return Err(TokenserverError::invalid_keys_changed_at());
         }
@@ -109,7 +108,7 @@ impl TokenserverRequest {
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in generation (if the client reports a generation).
         if self.auth_data.client_state != self.user.client_state
-            && le(self.auth_data.generation, Some(self.user.generation))
+            && opt_cmp!(auth_generation <= user_generation)
         {
             let error_message =
                 "Unacceptable client-state value new value with no generation change";
@@ -119,7 +118,7 @@ impl TokenserverRequest {
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in keys_changed_at
         if self.auth_data.client_state != self.user.client_state
-            && le(self.auth_data.keys_changed_at, self.user.keys_changed_at)
+            && opt_cmp!(auth_keys_changed_at <= user_keys_changed_at)
         {
             let error_message =
                 "Unacceptable client-state value new value with no keys_changed_at change";
@@ -128,13 +127,13 @@ impl TokenserverRequest {
 
         // The generation on the request cannot be earlier than the generation stored on the user
         // record.
-        if gt(Some(self.user.generation), self.auth_data.generation) {
+        if opt_cmp!(user_generation > auth_generation) {
             return Err(TokenserverError::invalid_generation());
         }
 
         // The keys_changed_at on the request cannot be earlier than the keys_changed_at stored on
         // the user record.
-        if gt(self.user.keys_changed_at, self.auth_data.keys_changed_at) {
+        if opt_cmp!(user_keys_changed_at > auth_keys_changed_at) {
             return Err(TokenserverError::invalid_keys_changed_at());
         }
 
@@ -174,11 +173,8 @@ impl FromRequest for TokenserverRequest {
             // metrics. Only requests using BrowserID will have a device ID, so use "none" as
             // a placeholder for OAuth requests.
             let hashed_device_id = {
-                let device_id = auth_data
-                    .device_id
-                    .clone()
-                    .unwrap_or_else(|| "none".to_owned());
-                hash_device_id(&hashed_fxa_uid, &device_id, fxa_metrics_hash_secret)
+                let device_id = auth_data.device_id.as_deref().unwrap_or("none");
+                hash_device_id(&hashed_fxa_uid, device_id, fxa_metrics_hash_secret)
             };
 
             let db = <Box<dyn Db>>::extract(&req).await?;

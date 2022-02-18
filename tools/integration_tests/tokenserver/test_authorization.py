@@ -46,9 +46,12 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_invalid_client_state_in_key_id(self):
         if self.AUTH_METHOD == "oauth":
+            additional_headers = {
+                'X-KeyID': "1234-state!"
+            }
             headers = self._build_auth_headers(keys_changed_at=1234,
-                                               client_state='aaaa')
-            headers['X-KeyID'] = headers['X-KeyID'].replace('qqo', 'state!')
+                                               client_state='aaaa',
+                                               **additional_headers)
             res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
 
             expected_error_response = {
@@ -64,10 +67,11 @@ class TestAuthorization(TestCase, unittest.TestCase):
             self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_x_client_state(self):
+        additional_headers = {'X-Client-State': 'state!'}
         headers = self._build_auth_headers(generation=1234,
                                            keys_changed_at=1234,
-                                           client_state='aaaa')
-        headers['X-Client-State'] = 'state!'
+                                           client_state='aaaa',
+                                           **additional_headers)
 
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=400)
 
@@ -484,10 +488,11 @@ class TestAuthorization(TestCase, unittest.TestCase):
     def test_x_client_state_must_have_same_client_state_as_key_id(self):
         if self.AUTH_METHOD == "oauth":
             self._add_user(client_state='aaaa')
+            additional_headers = {'X-Client-State': 'bbbb'}
             headers = self._build_auth_headers(generation=1234,
                                                keys_changed_at=1234,
-                                               client_state='aaaa')
-            headers['X-Client-State'] = 'bbbb'
+                                               client_state='aaaa',
+                                               **additional_headers)
             # If present, the X-Client-State header must have the same client
             # state as the X-KeyID header
             res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
