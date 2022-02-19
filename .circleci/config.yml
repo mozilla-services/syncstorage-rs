@@ -202,13 +202,13 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-        name: Login to Dockerhub
-        command: |
-          if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
-            echo "Skipping Login to DockerHub, credentials unavailable"
-          else
-            echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
-          fi
+          name: Login to Dockerhub
+          command: |
+            if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
+              echo "Skipping Login to DockerHub, credentials unavailable"
+            else
+              echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
+            fi
       - checkout
       - setup-rust
       - setup-python
