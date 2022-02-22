@@ -12,103 +12,126 @@ use serde::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TokenserverError {
-    pub status: &'static str,
-    pub location: ErrorLocation,
-    pub name: String,
-    pub description: &'static str,
-    pub http_status: StatusCode,
+    status: &'static str,
+    location: ErrorLocation,
+    name: String,
+    description: &'static str,
+    http_status: StatusCode,
 }
 
 impl Default for TokenserverError {
     fn default() -> Self {
-        Self {
+        TokenserverError {
             status: "error",
-            location: ErrorLocation::default(),
+            location: ErrorLocation::Header,
             name: "".to_owned(),
-            description: "Unauthorized",
+            description: "",
             http_status: StatusCode::UNAUTHORIZED,
         }
     }
 }
 
-impl TokenserverError {
+#[derive(Default)]
+pub struct TokenserverErrorBuilder(TokenserverError);
+
+impl TokenserverErrorBuilder {
+    pub fn build(self) -> TokenserverError {
+        self.0
+    }
+
     pub fn invalid_generation() -> Self {
-        Self {
-            status: "invalid-generation",
-            location: ErrorLocation::Body,
-            ..Self::default()
-        }
+        Self::default()
+            .description("Unauthorized")
+            .status("invalid-generation")
+            .in_body()
     }
 
     pub fn invalid_keys_changed_at() -> Self {
-        Self {
-            status: "invalid-keysChangedAt",
-            location: ErrorLocation::Body,
-            ..Self::default()
-        }
+        Self::default()
+            .description("Unauthorized")
+            .status("invalid-keysChangedAt")
+            .in_body()
     }
 
     pub fn invalid_key_id(description: &'static str) -> Self {
-        Self {
-            status: "invalid-key-id",
-            description,
-            ..Self::default()
-        }
+        Self::default()
+            .description("Unauthorized")
+            .status("invalid-key-id")
+            .description(description)
+    }
+
+    pub fn invalid_client_state() -> Self {
+        Self::default()
+            .description("Unauthorized")
+            .status("invalid-client-state")
+            .name("X-Client-State".to_owned())
     }
 
     pub fn invalid_credentials(description: &'static str) -> Self {
-        Self {
-            status: "invalid-credentials",
-            location: ErrorLocation::Body,
-            description,
-            ..Self::default()
-        }
-    }
-
-    pub fn invalid_client_state(description: &'static str) -> Self {
-        Self {
-            status: "invalid-client-state",
-            description,
-            name: "X-Client-State".to_owned(),
-            ..Self::default()
-        }
-    }
-
-    pub fn internal_error() -> Self {
-        Self {
-            status: "internal-error",
-            location: ErrorLocation::Internal,
-            description: "Server error",
-            http_status: StatusCode::INTERNAL_SERVER_ERROR,
-            ..Self::default()
-        }
-    }
-
-    pub fn resource_unavailable() -> Self {
-        Self {
-            location: ErrorLocation::Body,
-            description: "Resource is not available",
-            http_status: StatusCode::SERVICE_UNAVAILABLE,
-            ..Default::default()
-        }
+        Self::default()
+            .status("invalid-credentials")
+            .description(description)
+            .in_body()
     }
 
     pub fn unsupported(description: &'static str, name: String) -> Self {
-        Self {
-            status: "error",
-            location: ErrorLocation::Url,
-            description,
-            name,
-            http_status: StatusCode::NOT_FOUND,
-        }
+        Self::default()
+            .in_url()
+            .description(description)
+            .name(name)
+            .status_code(StatusCode::NOT_FOUND)
     }
 
-    pub fn unauthorized(description: &'static str) -> Self {
-        Self {
-            location: ErrorLocation::Body,
-            description,
-            ..Self::default()
-        }
+    pub fn resource_unavailable() -> Self {
+        Self::default()
+            .in_body()
+            .description("Resource is not available")
+            .status_code(StatusCode::SERVICE_UNAVAILABLE)
+    }
+
+    pub fn status(mut self, status: &'static str) -> Self {
+        self.0.status = status;
+        self
+    }
+
+    pub fn in_body(mut self) -> Self {
+        self.0.location = ErrorLocation::Body;
+        self
+    }
+
+    pub fn in_header(mut self) -> Self {
+        self.0.location = ErrorLocation::Header;
+        self
+    }
+
+    pub fn in_url(mut self) -> Self {
+        self.0.location = ErrorLocation::Url;
+        self
+    }
+
+    pub fn internal() -> Self {
+        let mut error = Self::default();
+        error.0.location = ErrorLocation::Internal;
+
+        error
+            .status("internal-error")
+            .description("Server error")
+            .status_code(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+
+    pub fn description(mut self, description: &'static str) -> Self {
+        self.0.description = description;
+        self
+    }
+
+    pub fn name(mut self, name: String) -> Self {
+        self.0.name = name;
+        self
+    }
+
+    pub fn status_code(mut self, status: StatusCode) -> Self {
+        self.0.http_status = status;
+        self
     }
 }
 
@@ -118,24 +141,18 @@ impl From<BlockingError<TokenserverError>> for TokenserverError {
             BlockingError::Error(e) => e,
             BlockingError::Canceled => {
                 error!("Tokenserver threadpool operation canceled");
-                TokenserverError::internal_error()
+                TokenserverErrorBuilder::internal().build()
             }
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ErrorLocation {
+enum ErrorLocation {
     Header,
     Url,
     Body,
     Internal,
-}
-
-impl Default for ErrorLocation {
-    fn default() -> Self {
-        Self::Header
-    }
 }
 
 impl fmt::Display for ErrorLocation {

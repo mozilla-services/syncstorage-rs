@@ -14,7 +14,7 @@ use super::{
         models::Db,
         params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
     },
-    error::TokenserverError,
+    error::{TokenserverError, TokenserverErrorBuilder as ErrorBuilder},
     extractors::TokenserverRequest,
     NodeType,
 };
@@ -71,7 +71,7 @@ fn get_token_plaintext(
         let client_state = hex::decode(req.auth_data.client_state.clone()).map_err(|_| {
             error!("⚠️ Failed to decode client state hex");
 
-            TokenserverError::internal_error()
+            ErrorBuilder::internal().build()
         })?;
         let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
 

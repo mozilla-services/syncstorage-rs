@@ -9,7 +9,10 @@ use serde_json;
 use tokio::time;
 
 use super::VerifyToken;
-use crate::tokenserver::{error::TokenserverError, settings::Settings};
+use crate::tokenserver::{
+    error::{TokenserverError, TokenserverErrorBuilder as ErrorBuilder},
+    settings::Settings,
+};
 
 use core::time::Duration;
 use std::convert::TryFrom;
@@ -91,14 +94,14 @@ impl VerifyToken for RemoteVerifier {
                     verify_output_python_string.extract::<String>().map(Some)
                 }
             })
-            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
+            .map_err(|_| ErrorBuilder::invalid_credentials("Unauthorized").build())?;
 
             match maybe_verify_output_string {
                 Some(verify_output_string) => {
                     serde_json::from_str::<VerifyOutput>(&verify_output_string)
-                        .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))
+                        .map_err(|_| ErrorBuilder::invalid_credentials("Unauthorized").build())
                 }
-                None => Err(TokenserverError::invalid_credentials("Unauthorized")),
+                None => Err(ErrorBuilder::invalid_credentials("Unauthorized").build()),
             }
         });
 
@@ -107,7 +110,7 @@ impl VerifyToken for RemoteVerifier {
         // than the specified number of seconds.
         time::timeout(Duration::new(self.timeout, 0), fut)
             .await
-            .map_err(|_| TokenserverError::resource_unavailable())?
+            .map_err(|_| ErrorBuilder::resource_unavailable().build())?
             .map_err(Into::into)
     }
 }

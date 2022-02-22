@@ -4,7 +4,7 @@ use serde::{de::Deserializer, Deserialize, Serialize};
 
 use super::VerifyToken;
 use crate::tokenserver::{
-    error::{ErrorLocation, TokenserverError},
+    error::{TokenserverError, TokenserverErrorBuilder as ErrorBuilder},
     settings::Settings,
 };
 
@@ -69,10 +69,10 @@ impl VerifyToken for RemoteVerifier {
                 if e.is_connect() {
                     // If we are unable to reach the FxA server or if FxA responds with an HTTP
                     // status other than 200, report a 503 to the client
-                    TokenserverError::resource_unavailable()
+                    ErrorBuilder::resource_unavailable().build()
                 } else {
                     // If any other error occurs during the request, report a 401 to the client
-                    TokenserverError::invalid_credentials("Unauthorized")
+                    ErrorBuilder::invalid_credentials("Unauthorized").build()
                 }
             })?;
 
@@ -84,29 +84,29 @@ impl VerifyToken for RemoteVerifier {
         let response_body = response
             .json::<VerifyResponse>()
             .await
-            .map_err(|_| TokenserverError::resource_unavailable())?;
+            .map_err(|_| ErrorBuilder::resource_unavailable().build())?;
 
         match response_body {
             VerifyResponse::Failure {
                 reason: Some(reason),
             } if reason.contains("expired") || reason.contains("issued later than") => {
-                Err(TokenserverError {
-                    status: "invalid-timestamp",
-                    location: ErrorLocation::Body,
-                    ..Default::default()
-                })
+                Err(ErrorBuilder::default()
+                    .description("Unauthorized")
+                    .status("invalid-timestamp")
+                    .in_body()
+                    .build())
             }
             VerifyResponse::Failure { .. } => {
-                Err(TokenserverError::invalid_credentials("Unauthorized"))
+                Err(ErrorBuilder::invalid_credentials("Unauthorized").build())
             }
             VerifyResponse::Okay { issuer, .. } if issuer != self.issuer => {
-                Err(TokenserverError::invalid_credentials("Unauthorized"))
+                Err(ErrorBuilder::invalid_credentials("Unauthorized").build())
             }
             VerifyResponse::Okay {
                 idp_claims: Some(claims),
                 ..
             } if !claims.token_verified() => {
-                Err(TokenserverError::invalid_credentials("Unauthorized"))
+                Err(ErrorBuilder::invalid_credentials("Unauthorized").build())
             }
             VerifyResponse::Okay {
                 email,
@@ -192,7 +192,7 @@ impl IdpClaims {
             // If the fxa-generation claim is present, return its value. If it's missing, return None.
             Some(Some(_)) | None => Ok(self.generation.flatten()),
             // If the fxa-generation claim is null, return an error.
-            Some(None) => Err(TokenserverError::invalid_generation()),
+            Some(None) => Err(ErrorBuilder::invalid_generation().build()),
         }
     }
 
@@ -201,12 +201,9 @@ impl IdpClaims {
             // If the fxa-keysChangedAt claim is present, return its value. If it's missing, return None.
             Some(Some(_)) | None => Ok(self.keys_changed_at.flatten()),
             // If the fxa-keysChangedAt claim is null, return an error.
-            Some(None) => Err(TokenserverError {
-                description: "invalid keysChangedAt",
-                status: "invalid-credentials",
-                location: ErrorLocation::Body,
-                ..Default::default()
-            }),
+            Some(None) => Err(ErrorBuilder::invalid_credentials("invalid keysChangedAt")
+                .in_body()
+                .build()),
         }
     }
 
@@ -300,7 +297,7 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError::resource_unavailable();
+            let expected_error = ErrorBuilder::resource_unavailable().build();
             assert_eq!(expected_error, error);
         }
 
@@ -314,7 +311,7 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError::resource_unavailable();
+            let expected_error = ErrorBuilder::resource_unavailable().build();
             assert_eq!(expected_error, error);
         }
 
@@ -328,7 +325,7 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError::resource_unavailable();
+            let expected_error = ErrorBuilder::resource_unavailable().build();
             assert_eq!(expected_error, error);
         }
 
@@ -342,7 +339,7 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError::resource_unavailable();
+            let expected_error = ErrorBuilder::resource_unavailable().build();
             assert_eq!(expected_error, error);
         }
 
@@ -356,7 +353,7 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+            let expected_error = ErrorBuilder::invalid_credentials("Unauthorized").build();
             assert_eq!(expected_error, error);
         }
     }
@@ -380,7 +377,7 @@ mod tests {
                 .create()
         }
 
-        let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+        let expected_error = ErrorBuilder::invalid_credentials("Unauthorized").build();
         let verifier = RemoteVerifier::try_from(&Settings {
             fxa_browserid_audience: AUDIENCE.to_owned(),
             fxa_browserid_issuer: ISSUER.to_owned(),
@@ -436,7 +433,7 @@ mod tests {
             assert_eq!(expected_error, error);
         }
 
-        let expected_error = TokenserverError::resource_unavailable();
+        let expected_error = ErrorBuilder::resource_unavailable().build();
 
         {
             let body = json!({

@@ -9,7 +9,7 @@ use pyo3::{
     types::IntoPyDict,
 };
 
-use super::error::TokenserverError;
+use super::error::{TokenserverError, TokenserverErrorBuilder as ErrorBuilder};
 use crate::error::{ApiError, ApiErrorKind};
 
 /// The plaintext needed to build a token.
@@ -112,7 +112,7 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
     async fn verify(&self, _token: String) -> Result<T, TokenserverError> {
         self.valid
             .then(|| self.verify_output.clone())
-            .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))
+            .ok_or_else(|| ErrorBuilder::invalid_credentials("Unauthorized").build())
     }
 }
 
