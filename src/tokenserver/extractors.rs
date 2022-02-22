@@ -535,6 +535,7 @@ impl FromRequest for KeyId {
                     if x_client_state != client_state_hex {
                         return Err(ErrorBuilder::invalid_client_state()
                             .in_body()
+                            .name("".to_owned())
                             .build()
                             .into());
                     }
@@ -930,7 +931,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = ErrorBuilder::invalid_client_state().in_body().build();
+            let expected_error = ErrorBuilder::invalid_client_state().in_body().name("".to_owned()).build();
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
