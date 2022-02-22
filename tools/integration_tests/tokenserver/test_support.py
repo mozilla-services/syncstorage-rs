@@ -128,10 +128,14 @@ class TestCase:
             'status': status,
         }
 
-        return {
+        headers = {
             'Authorization': 'BrowserID %s' % json.dumps(body),
             'X-Client-State': client_state
         }
+
+        headers.update(additional_headers)
+
+        return headers
 
     def _add_node(self, capacity=100, available=100, node=NODE_URL, id=None,
                   current_load=0, backoff=0, downed=0):
