@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use reqwest::{Client as ReqwestClient, Response};
+use reqwest::{Client as ReqwestClient, StatusCode};
 use serde::{de::Deserializer, Deserialize, Serialize};
 
 use super::VerifyToken;
@@ -65,9 +65,8 @@ impl VerifyToken for RemoteVerifier {
             })
             .send()
             .await
-            .and_then(Response::error_for_status)
             .map_err(|e| {
-                if e.is_connect() || e.is_status() {
+                if e.is_connect() {
                     // If we are unable to reach the FxA server or if FxA responds with an HTTP
                     // status other than 200, report a 503 to the client
                     TokenserverError::resource_unavailable()
@@ -76,6 +75,10 @@ impl VerifyToken for RemoteVerifier {
                     TokenserverError::invalid_credentials("Unauthorized")
                 }
             })?;
+
+        if response.status() != StatusCode::OK {
+            return Err(TokenserverError::resource_unavailable());
+        }
 
         // If FxA responds with an invalid response body, report a 503 to the client
         let response_body = response

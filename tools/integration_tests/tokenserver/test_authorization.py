@@ -90,7 +90,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
     def test_keys_changed_at_less_than_equal_to_generation(self):
         self._add_user(generation=1232, keys_changed_at=1234)
         # If keys_changed_at changes, that change must be less than or equal
-        # the new generation
+        # to the new generation
         headers = self._build_auth_headers(generation=1235,
                                            keys_changed_at=1236,
                                            client_state='aaaa')
