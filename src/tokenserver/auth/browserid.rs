@@ -77,7 +77,7 @@ impl VerifyToken for RemoteVerifier {
             })?;
 
         if response.status() != StatusCode::OK {
-            return Err(TokenserverError::resource_unavailable());
+            return Err(ErrorBuilder::resource_unavailable().build());
         }
 
         // If FxA responds with an invalid response body, report a 503 to the client
