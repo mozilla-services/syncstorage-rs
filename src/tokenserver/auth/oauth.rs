@@ -91,14 +91,24 @@ impl VerifyToken for RemoteVerifier {
                     verify_output_python_string.extract::<String>().map(Some)
                 }
             })
-            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
+            .map_err(|e| TokenserverError {
+                context: format!("pyo3 error in OAuth verifier: {}", e),
+                ..TokenserverError::invalid_credentials("Unauthorized")
+            })?;
 
             match maybe_verify_output_string {
                 Some(verify_output_string) => {
-                    serde_json::from_str::<VerifyOutput>(&verify_output_string)
-                        .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))
+                    serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
+                        TokenserverError {
+                            context: format!("Invalid OAuth verify output: {}", e),
+                            ..TokenserverError::invalid_credentials("Unauthorized")
+                        }
+                    })
                 }
-                None => Err(TokenserverError::invalid_credentials("Unauthorized")),
+                None => Err(TokenserverError {
+                    context: "Invalid OAuth token".to_owned(),
+                    ..TokenserverError::invalid_credentials("Unauthorized")
+                }),
             }
         });
 
@@ -107,7 +117,10 @@ impl VerifyToken for RemoteVerifier {
         // than the specified number of seconds.
         time::timeout(Duration::from_secs(self.timeout), fut)
             .await
-            .map_err(|_| TokenserverError::resource_unavailable())?
+            .map_err(|_| TokenserverError {
+                context: "OAuth verification timeout".to_owned(),
+                ..TokenserverError::resource_unavailable()
+            })?
             .map_err(Into::into)
     }
 }

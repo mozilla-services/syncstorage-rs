@@ -9,14 +9,19 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Error, PartialEq)]
+#[error("{context}")]
 pub struct TokenserverError {
     pub status: &'static str,
     pub location: ErrorLocation,
     pub name: String,
     pub description: &'static str,
     pub http_status: StatusCode,
+    /// For internal use only. Used to report any additional context behind an error to
+    /// distinguish between similar errors in Sentry.
+    pub context: String,
 }
 
 impl Default for TokenserverError {
@@ -27,6 +32,7 @@ impl Default for TokenserverError {
             name: "".to_owned(),
             description: "Unauthorized",
             http_status: StatusCode::UNAUTHORIZED,
+            context: "Unauthorized".to_owned(),
         }
     }
 }
@@ -36,6 +42,7 @@ impl TokenserverError {
         Self {
             status: "invalid-generation",
             location: ErrorLocation::Body,
+            context: "Invalid generation".to_owned(),
             ..Self::default()
         }
     }
@@ -44,6 +51,7 @@ impl TokenserverError {
         Self {
             status: "invalid-keysChangedAt",
             location: ErrorLocation::Body,
+            context: "Invalid keys_changed_at".to_owned(),
             ..Self::default()
         }
     }
@@ -52,6 +60,7 @@ impl TokenserverError {
         Self {
             status: "invalid-key-id",
             description,
+            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -61,6 +70,7 @@ impl TokenserverError {
             status: "invalid-credentials",
             location: ErrorLocation::Body,
             description,
+            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -70,6 +80,7 @@ impl TokenserverError {
             status: "invalid-client-state",
             description,
             name: "X-Client-State".to_owned(),
+            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -80,6 +91,7 @@ impl TokenserverError {
             location: ErrorLocation::Internal,
             description: "Server error",
             http_status: StatusCode::INTERNAL_SERVER_ERROR,
+            context: "Internal error".to_owned(),
             ..Self::default()
         }
     }
@@ -89,6 +101,7 @@ impl TokenserverError {
             location: ErrorLocation::Body,
             description: "Resource is not available",
             http_status: StatusCode::SERVICE_UNAVAILABLE,
+            context: "Resource is not available".to_owned(),
             ..Default::default()
         }
     }
@@ -100,6 +113,7 @@ impl TokenserverError {
             description,
             name,
             http_status: StatusCode::NOT_FOUND,
+            context: description.to_owned(),
         }
     }
 
@@ -107,6 +121,7 @@ impl TokenserverError {
         Self {
             location: ErrorLocation::Body,
             description,
+            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -116,10 +131,10 @@ impl From<BlockingError<TokenserverError>> for TokenserverError {
     fn from(inner: BlockingError<TokenserverError>) -> Self {
         match inner {
             BlockingError::Error(e) => e,
-            BlockingError::Canceled => {
-                error!("Tokenserver threadpool operation canceled");
-                TokenserverError::internal_error()
-            }
+            BlockingError::Canceled => TokenserverError {
+                context: "Threadpool operation canceled".to_owned(),
+                ..TokenserverError::internal_error()
+            },
         }
     }
 }
@@ -146,16 +161,6 @@ impl fmt::Display for ErrorLocation {
             Self::Body => write!(f, "body"),
             Self::Internal => write!(f, "internal"),
         }
-    }
-}
-
-impl fmt::Display for TokenserverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            serde_json::to_string(&self).map_err(|_| fmt::Error)?
-        )
     }
 }
 
