@@ -23,9 +23,8 @@ use super::db::{models::Db, params, pool::DbPool, results};
 use super::error::{ErrorLocation, TokenserverError};
 use super::support::TokenData;
 use super::{LogItemsMutator, NodeType, ServerState, TokenserverMetrics};
-use crate::server::metrics::Metrics;
+use crate::server::metrics;
 use crate::settings::Secrets;
-use crate::web::tags::Tags;
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -426,9 +425,6 @@ impl FromRequest for TokenserverMetrics {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let exts = req.extensions();
-        let def_tags = Tags::from(req.head());
-        let tags = exts.get::<Tags>().unwrap_or(&def_tags);
         let state = match get_server_state(req) {
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
@@ -436,13 +432,10 @@ impl FromRequest for TokenserverMetrics {
             Err(e) => return future::err(e),
         };
 
-        future::ok({
-            TokenserverMetrics(Metrics {
-                client: Some(*state.metrics.clone()),
-                tags: Some(tags.clone()),
-                timer: None,
-            })
-        })
+        future::ok(TokenserverMetrics(metrics::metrics_from_request(
+            req,
+            Some(state.metrics.clone()),
+        )))
     }
 }
 
