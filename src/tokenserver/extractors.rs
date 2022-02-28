@@ -315,7 +315,7 @@ impl FromRequest for TokenData {
                 .map_err(|_| TokenserverError::unauthorized("Unauthorized"))?;
 
             // The request must use Bearer auth
-            if let Some((auth_type, _)) = authorization_header.split_once(" ") {
+            if let Some((auth_type, _)) = authorization_header.split_once(' ') {
                 if auth_type.to_ascii_lowercase() != "bearer" {
                     return Err(TokenserverError::unauthorized("Unsupported").into());
                 }
@@ -381,7 +381,7 @@ impl FromRequest for KeyId {
                 .map_err(|_| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
 
             let (keys_changed_at_string, encoded_client_state) = x_key_id
-                .split_once("-")
+                .split_once('-')
                 .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))?;
 
             let client_state = {

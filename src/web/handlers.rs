@@ -225,7 +225,7 @@ where
                 .into_iter()
                 .map(|v| serde_json::to_string(&v).unwrap_or_else(|_| "".to_string()))
                 .filter(|v| !v.is_empty())
-                .map(|v| v.replace("\n", "\\u000a") + "\n")
+                .map(|v| v.replace('\n', "\\u000a") + "\n")
                 .collect();
 
             Ok(resp
