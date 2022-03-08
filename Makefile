@@ -13,6 +13,10 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+clean:
+	cargo clean
+	rm -r venv
+
 clippy:
 	# Matches what's run in circleci
 	cargo clippy --all --all-targets --all-features -- -D warnings
@@ -35,8 +39,12 @@ docker_start_spanner_rebuild:
 docker_stop_spanner:
 	docker-compose -f docker-compose.spanner.yaml down
 
-run:
-	RUST_LOG=debug RUST_BACKTRACE=full cargo run --features tokenserver_test_mode -- --config config/local.toml
+python:
+	python3 -m venv venv
+	venv/bin/python -m pip install -r requirements.txt
+
+run: python
+	PATH=./venv/bin:$(PATH) RUST_LOG=debug RUST_BACKTRACE=full cargo run --features tokenserver_test_mode -- --config config/local.toml
 
 run_spanner:
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
