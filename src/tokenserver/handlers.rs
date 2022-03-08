@@ -50,7 +50,13 @@ pub async fn get_tokenserver_result(
         node_type: req.node_type,
     };
 
-    Ok(HttpResponse::build(StatusCode::OK).json(result))
+    let timestamp = {
+        let start = SystemTime::now();
+        start.duration_since(UNIX_EPOCH).unwrap().as_secs()
+    };
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header("X-Timestamp", timestamp.to_string())
+        .json(result))
 }
 
 fn get_token_plaintext(
