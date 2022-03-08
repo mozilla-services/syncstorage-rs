@@ -55,7 +55,9 @@ pub async fn get_tokenserver_result(
         start.duration_since(UNIX_EPOCH).unwrap().as_secs()
     };
     Ok(HttpResponse::build(StatusCode::OK)
+        .header("X-Content-Type-Options", "nosniff")
         .header("X-Timestamp", timestamp.to_string())
+        .force_close()
         .json(result))
 }
 

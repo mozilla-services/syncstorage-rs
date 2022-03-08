@@ -210,3 +210,7 @@ class TestE2e(TestCase, unittest.TestCase):
         # number of seconds since the UNIX epoch
         self.assertIn('X-Timestamp', res.headers)
         self.assertIsNotNone(int(res.headers['X-Timestamp']))
+        # Tokenserver does not support keepalive
+        self.assertEqual(res.headers['Connection'], 'close')
+        # The client should not try to sniff the MIME type
+        self.assertEqual(res.headers['X-Content-Type-Options'], 'nosniff')
