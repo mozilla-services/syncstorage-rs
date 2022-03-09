@@ -13,13 +13,13 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
-clean:
-	cargo clean
-	rm -r venv
-
 clippy:
 	# Matches what's run in circleci
 	cargo clippy --all --all-targets --all-features -- -D warnings
+
+clean:
+	cargo clean
+	rm -r venv
 
 docker_start_mysql:
 	docker-compose -f docker-compose.mysql.yaml up -d
