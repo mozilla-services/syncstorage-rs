@@ -132,7 +132,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             0,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert!(bsos.items.is_empty());
@@ -147,7 +147,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
             0,
             Sorting::Index,
             -1,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), size as usize);
@@ -254,7 +254,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 30,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -271,7 +271,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 20,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 2);
@@ -287,7 +287,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64 - 10,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 1);
@@ -302,7 +302,7 @@ async fn get_bsos_newer() -> Result<()> {
             timestamp as u64,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 0);
@@ -338,7 +338,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -355,7 +355,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Oldest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -372,7 +372,7 @@ async fn get_bsos_sort() -> Result<()> {
             0,
             Sorting::Index,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -550,7 +550,7 @@ async fn delete_collection_tombstone() -> Result<()> {
         assert!(result.is_none());
     }
     // make sure coll BSOs were *not* deleted
-    let result = db.get_bso(gbso(uid, coll, &bid1.to_string())).await?;
+    let result = db.get_bso(gbso(uid, coll, bid1)).await?;
     assert!(result.is_some());
     Ok(())
 }
@@ -887,7 +887,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(ids.items, vec!["b0", "b1", "b2", "b3", "b4"]);
@@ -901,7 +901,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Newest,
             10,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 3);
@@ -918,7 +918,7 @@ async fn get_bsos() -> Result<()> {
             0,
             Sorting::Index,
             2,
-            &"0".to_owned(),
+            "0",
         ))
         .await?;
     assert_eq!(bsos.items.len(), 2);
