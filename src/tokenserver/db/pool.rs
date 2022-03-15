@@ -101,16 +101,13 @@ impl From<actix_web::error::BlockingError<DbError>> for DbError {
 impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         let mut met = self.metrics.clone();
-        let metrics = match Arc::get_mut(&mut met) {
-            Some(v) => v,
-            None => return Err(DbErrorKind::Internal("Could not get metrics".to_owned()).into()),
-        };
+        let metrics = Arc::make_mut(&mut met);
         metrics.start_timer("tokenserver.storage.get_pool", None);
 
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(Box::new(TokenserverDb::new(conn, &self.metrics)) as Box<dyn Db>)
+        Ok(Box::new(TokenserverDb::new(conn, &metrics)) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
