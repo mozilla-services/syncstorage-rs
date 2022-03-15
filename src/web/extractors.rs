@@ -128,7 +128,7 @@ fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> 
             .partial_cmp(&a.quality)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    for qitem in candidates.to_vec() {
+    for qitem in candidates.iter().cloned() {
         if qitem.item == STAR_STAR {
             return default.to_owned();
         }
