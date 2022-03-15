@@ -23,6 +23,7 @@ use settings::Settings;
 use crate::error::ApiError;
 use crate::server::{metrics::Metrics, user_agent};
 
+use std::sync::Arc;
 use std::{collections::HashMap, fmt};
 
 #[derive(Clone)]
@@ -34,7 +35,7 @@ pub struct ServerState {
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
     pub service_id: Option<i32>,
-    pub metrics: Box<StatsdClient>,
+    pub metrics: Arc<StatsdClient>,
 }
 
 impl ServerState {
@@ -57,31 +58,36 @@ impl ServerState {
             )
         };
         let use_test_transactions = false;
+        let ametrics = Arc::new(metrics);
 
-        TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
-            .map(|db_pool| {
-                let service_id = db_pool
-                    .get_sync()
-                    .and_then(|db| {
-                        db.get_service_id_sync(params::GetServiceId {
-                            service: "sync-1.5".to_owned(),
-                        })
+        TokenserverPool::new(
+            settings,
+            Arc::new(Metrics::from(ametrics.clone())),
+            use_test_transactions,
+        )
+        .map(|db_pool| {
+            let service_id = db_pool
+                .get_sync()
+                .and_then(|db| {
+                    db.get_service_id_sync(params::GetServiceId {
+                        service: "sync-1.5".to_owned(),
                     })
-                    .ok()
-                    .map(|result| result.id);
+                })
+                .ok()
+                .map(|result| result.id);
 
-                ServerState {
-                    fxa_email_domain: settings.fxa_email_domain.clone(),
-                    fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
-                    oauth_verifier,
-                    db_pool: Box::new(db_pool),
-                    node_capacity_release_rate: settings.node_capacity_release_rate,
-                    node_type: settings.node_type,
-                    metrics: Box::new(metrics),
-                    service_id,
-                }
-            })
-            .map_err(Into::into)
+            ServerState {
+                fxa_email_domain: settings.fxa_email_domain.clone(),
+                fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
+                oauth_verifier,
+                db_pool: Box::new(db_pool),
+                node_capacity_release_rate: settings.node_capacity_release_rate,
+                node_type: settings.node_type,
+                metrics: ametrics,
+                service_id,
+            }
+        })
+        .map_err(Into::into)
     }
 }
 

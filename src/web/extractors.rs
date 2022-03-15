@@ -1685,7 +1685,7 @@ mod tests {
         Error, HttpResponse,
     };
     use hawk::{Credentials, Key, RequestBuilder};
-    use hmac::{Hmac, Mac, NewMac};
+    use hmac::{Hmac, Mac};
     use rand::{thread_rng, Rng};
     use serde_json::{self, json};
     use sha2::Sha256;
@@ -1725,7 +1725,7 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,
-            metrics: Box::new(
+            metrics: Arc::new(
                 metrics::metrics_from_opts(
                     &settings.statsd_label,
                     settings.statsd_host.as_deref(),

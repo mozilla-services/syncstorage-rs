@@ -13,7 +13,7 @@ use actix_web::{
 };
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use futures::future::LocalBoxFuture;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
@@ -1045,7 +1045,7 @@ mod tests {
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
             service_id: None,
-            metrics: Box::new(
+            metrics: Arc::new(
                 metrics::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
                     settings.statsd_host.as_deref(),

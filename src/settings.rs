@@ -137,6 +137,8 @@ impl Default for Settings {
 impl Settings {
     /// Load the settings from the config file if supplied, then the environment.
     pub fn with_env_and_config_file(filename: &Option<String>) -> Result<Self, ConfigError> {
+        // TODO: Config 0.12+ uses "builder", which returns a type `Config`.
+        // it's not clear how to best convert that to a `Settings`
         let mut s = Config::default();
         // Set our defaults, this can be fixed up drastically later after:
         // https://github.com/mehcode/config-rs/issues/60

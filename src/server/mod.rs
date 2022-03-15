@@ -40,7 +40,7 @@ pub struct ServerState {
     pub limits_json: String,
 
     /// Metric reporting
-    pub metrics: Box<StatsdClient>,
+    pub metrics: Arc<StatsdClient>,
 
     pub port: u16,
 
@@ -224,14 +224,14 @@ macro_rules! build_app_without_syncstorage {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
-        let metrics = metrics::metrics_from_opts(
+        let metrics = Arc::new(metrics::metrics_from_opts(
             &settings.statsd_label,
             settings.statsd_host.as_deref(),
             settings.statsd_port,
-        )?;
+        )?);
         let host = settings.host.clone();
         let port = settings.port;
-        let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
+        let db_pool = pool_from_settings(&settings, &Metrics::from(metrics.clone())).await?;
         let limits = Arc::new(settings.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -262,7 +262,7 @@ impl Server {
                 db_pool: db_pool.clone(),
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
-                metrics: Box::new(metrics.clone()),
+                metrics: metrics.clone(),
                 port,
                 quota_enabled,
                 deadman: Arc::clone(&deadman),

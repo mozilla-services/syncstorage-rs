@@ -11,6 +11,7 @@ mod tests;
 pub mod transaction;
 pub mod util;
 
+use std::sync::Arc;
 use std::{fmt::Debug, time::Duration};
 
 use async_trait::async_trait;
@@ -282,7 +283,7 @@ pub async fn pool_from_settings(
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter(
     interval: Duration,
-    metrics: StatsdClient,
+    metrics: Arc<StatsdClient>,
     pool: Box<dyn DbPool>,
 ) -> Result<(), DbError> {
     let hostname = hostname::get()

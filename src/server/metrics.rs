@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use std::sync::Arc;
 use std::time::Instant;
 
 use actix_web::{
@@ -23,7 +24,7 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    client: Option<StatsdClient>,
+    client: Option<Arc<StatsdClient>>,
     tags: Option<Tags>,
     timer: Option<MetricTimer>,
 }
@@ -69,7 +70,7 @@ impl FromRequest for Metrics {
 
         future::ok(Metrics {
             client: match req.app_data::<Data<ServerState>>() {
-                Some(v) => Some(*v.metrics.clone()),
+                Some(v) => Some(v.metrics.clone()),
                 None => {
                     warn!("⚠️ metric error: No App State");
                     None
@@ -81,10 +82,10 @@ impl FromRequest for Metrics {
     }
 }
 
-impl From<&StatsdClient> for Metrics {
-    fn from(client: &StatsdClient) -> Self {
+impl From<Arc<StatsdClient>> for Metrics {
+    fn from(client: Arc<StatsdClient>) -> Self {
         Metrics {
-            client: Some(client.clone()),
+            client: Some(client),
             tags: None,
             timer: None,
         }
@@ -94,7 +95,7 @@ impl From<&StatsdClient> for Metrics {
 impl From<&ServerState> for Metrics {
     fn from(state: &ServerState) -> Self {
         Metrics {
-            client: Some(*state.metrics.clone()),
+            client: Some(state.metrics.clone()),
             tags: None,
             timer: None,
         }
@@ -108,7 +109,7 @@ impl Metrics {
 
     pub fn noop() -> Self {
         Self {
-            client: Some(Self::sink()),
+            client: Some(Arc::new(Self::sink())),
             timer: None,
             tags: None,
         }
@@ -166,7 +167,7 @@ impl Metrics {
     }
 }
 
-pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
+pub fn metrics_from_req(req: &HttpRequest) -> Result<Arc<StatsdClient>, Error> {
     Ok(req
         .app_data::<Data<ServerState>>()
         .ok_or_else(|| ErrorInternalServerError("Could not get state"))

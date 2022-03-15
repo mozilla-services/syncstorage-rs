@@ -25,9 +25,9 @@ backtrace = "0.3.61"
 base64 = "0.13"
 bb8 = "0.4.1"  # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
-cadence = "0.26"
+cadence = "0.28"
 chrono = "0.4"
-config = "0.11"
+config = "0.11"  # pin to 0.11 while looking at new Config conversion method.
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
@@ -38,18 +38,19 @@ diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
-google-cloud-rust-raw = "0.11.0"
+google-cloud-rust-raw = "0.13.0"
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.9" }
+grpcio = { version = "0.10" }
 lazy_static = "1.4.0"
-pyo3 = { version = "0.14", features = ["auto-initialize"] }
+pyo3 = { version = "0.16", features = ["auto-initialize"] }
 hawk = "3.2"
 hex = "0.4.3"
 hostname = "0.3.1"
-hkdf = "0.11"
-hmac = "0.11"
+hkdf = "0.12"
+crypto-mac = "0.11"
+hmac = "0.12"
 http = "0.2.5"
 log = { version = "0.4", features = ["max_level_debug", "release_max_level_info"] }
 mime = "0.3"
@@ -65,7 +66,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 scheduled-thread-pool = "0.2"
-sha2 = "0.9"
+sha2 = "0.10"
 slog = { version = "2.5", features = ["max_level_info", "release_max_level_info", "dynamic-keys"] }
 slog-async = "2.5"
 slog-envlogger = "2.2.0"
@@ -82,7 +83,7 @@ urlencoding = "2.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.14"
 validator_derive = "0.14"
-woothee = "0.11"
+woothee = "0.13"
 
 [dev-dependencies]
 jsonwebtoken = "7.2.0"

@@ -29,7 +29,7 @@ const SLEEP_ENV_VAR: &str = "PURGE_TTL_RETRY_SLEEP_MILLIS"; // Default value = 0
 use protobuf::well_known_types::Value;
 
 pub struct MetricTimer {
-    pub client: StatsdClient,
+    pub client: Arc<StatsdClient>,
     pub label: String,
     pub start: Instant,
 }
@@ -48,12 +48,12 @@ impl Drop for MetricTimer {
     }
 }
 
-pub fn start_timer(client: &StatsdClient, label: &str) -> MetricTimer {
+pub fn start_timer(client: Arc<StatsdClient>, label: &str) -> MetricTimer {
     trace!("⌚ Starting timer... {:?}", label);
     MetricTimer {
         start: Instant::now(),
         label: label.to_owned(),
-        client: client.clone(),
+        client: client,
     }
 }
 
@@ -315,12 +315,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let opt = CallOption::default().headers(meta.build());
     let session = client.create_session_opt(&req, opt)?;
 
-    let statsd = statsd_from_env()?;
+    let statsd = Arc::new(statsd_from_env()?);
 
     {
-        let _timer_total = start_timer(&statsd, "purge_ttl.total_duration");
+        let _timer_total = start_timer(statsd.clone(), "purge_ttl.total_duration");
         {
-            let _timer_batches = start_timer(&statsd, "purge_ttl.batches_duration");
+            let _timer_batches = start_timer(statsd.clone(), "purge_ttl.batches_duration");
             let mut success = false;
             for i in 0..retries {
                 match if incremental {
@@ -358,7 +358,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         {
-            let _timer_bso = start_timer(&statsd, "purge_ttl.bso_duration");
+            let _timer_bso = start_timer(statsd, "purge_ttl.bso_duration");
             let mut success = false;
             for i in 0..retries {
                 match if incremental {
