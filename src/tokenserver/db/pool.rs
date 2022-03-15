@@ -107,7 +107,7 @@ impl DbPool for TokenserverPool {
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(Box::new(TokenserverDb::new(conn, &metrics)) as Box<dyn Db>)
+        Ok(Box::new(TokenserverDb::new(conn, metrics)) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {

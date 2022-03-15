@@ -53,7 +53,7 @@ pub fn start_timer(client: Arc<StatsdClient>, label: &str) -> MetricTimer {
     MetricTimer {
         start: Instant::now(),
         label: label.to_owned(),
-        client: client,
+        client,
     }
 }
 
