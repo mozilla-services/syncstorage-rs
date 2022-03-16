@@ -24,9 +24,9 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    client: Option<Arc<StatsdClient>>,
-    tags: Option<Tags>,
-    timer: Option<MetricTimer>,
+    pub client: Option<Arc<StatsdClient>>,
+    pub tags: Option<Tags>,
+    pub timer: Option<MetricTimer>,
 }
 
 impl Drop for Metrics {
@@ -64,21 +64,27 @@ impl FromRequest for Metrics {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let exts = req.extensions();
-        let def_tags = Tags::from(req.head());
-        let tags = exts.get::<Tags>().unwrap_or(&def_tags);
+        future::ok(metrics_from_request(
+            req,
+            req.app_data::<Data<ServerState>>()
+                .map(|state| state.metrics.clone()),
+        ))
+    }
+}
 
-        future::ok(Metrics {
-            client: match req.app_data::<Data<ServerState>>() {
-                Some(v) => Some(v.metrics.clone()),
-                None => {
-                    warn!("⚠️ metric error: No App State");
-                    None
-                }
-            },
-            tags: Some(tags.clone()),
-            timer: None,
-        })
+pub fn metrics_from_request(req: &HttpRequest, client: Option<Arc<StatsdClient>>) -> Metrics {
+    let exts = req.extensions();
+    let def_tags = Tags::from(req.head());
+    let tags = exts.get::<Tags>().unwrap_or(&def_tags);
+
+    if client.is_none() {
+        warn!("⚠️ metric error: No App State");
+    }
+
+    Metrics {
+        client,
+        tags: Some(tags.clone()),
+        timer: None,
     }
 }
 
