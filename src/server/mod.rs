@@ -312,7 +312,6 @@ impl Server {
         });
 
         let server = server
-            .keep_alive(None)
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
