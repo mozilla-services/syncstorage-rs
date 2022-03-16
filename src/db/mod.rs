@@ -76,6 +76,7 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
+#[async_trait]
 pub trait Db<'a>: Debug + 'a {
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
 
@@ -107,10 +108,10 @@ pub trait Db<'a>: Debug + 'a {
         params: params::GetCollectionUsage,
     ) -> DbFuture<'_, results::GetCollectionUsage>;
 
-    fn get_storage_timestamp(
+    async fn get_storage_timestamp(
         &self,
         params: params::GetStorageTimestamp,
-    ) -> DbFuture<'_, results::GetStorageTimestamp>;
+    ) -> Result<results::GetStorageTimestamp, ApiError>;
 
     fn get_storage_usage(
         &self,

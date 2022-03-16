@@ -1,4 +1,5 @@
 use actix_web::web::block;
+use async_trait::async_trait;
 
 use futures::future::TryFutureExt;
 
@@ -1007,6 +1008,20 @@ macro_rules! sync_db_method {
     };
 }
 
+macro_rules! blocking_thread {
+    { $body:block } => {
+        block(move || $body).await.map_err(|e| {
+            match e {
+                actix_web::error::BlockingError::Error(e) => e,
+                actix_web::error::BlockingError::Canceled => {
+                    DbErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
+                }
+            }
+        })
+    };
+}
+
+#[async_trait]
 impl<'a> Db<'a> for MysqlDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
@@ -1054,11 +1069,19 @@ impl<'a> Db<'a> for MysqlDb {
         get_collection_usage_sync,
         GetCollectionUsage
     );
-    sync_db_method!(
-        get_storage_timestamp,
-        get_storage_timestamp_sync,
-        GetStorageTimestamp
-    );
+
+    async fn get_storage_timestamp(&self, user_id: HawkIdentifier) -> Result<SyncTimestamp> {
+        blocking_thread!({
+            let user_id = user_id.legacy_id as i64;
+            let modified = user_collections::table
+                .select(max(user_collections::modified))
+                .filter(user_collections::user_id.eq(user_id))
+                .first::<Option<i64>>(&self.conn)?
+                .unwrap_or_default();
+            SyncTimestamp::from_i64(modified)
+        })
+    }
+
     sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
     sync_db_method!(get_quota_usage, get_quota_usage_sync, GetQuotaUsage);
     sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);

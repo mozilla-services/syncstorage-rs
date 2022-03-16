@@ -54,6 +54,7 @@ macro_rules! mock_db_method {
     };
 }
 
+#[async_trait]
 impl<'a> Db<'a> for MockDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
@@ -81,7 +82,14 @@ impl<'a> Db<'a> for MockDb {
     mock_db_method!(get_collection_timestamp, GetCollectionTimestamp);
     mock_db_method!(get_collection_counts, GetCollectionCounts);
     mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_storage_timestamp, GetStorageTimestamp);
+
+    async fn get_storage_timestamp(
+        &self,
+        params: params::GetStorageTimestamp,
+    ) -> Result<results::GetStorageTimestamp, ApiError> {
+        Ok(results::GetStorageTimestamp::default())
+    }
+
     mock_db_method!(get_storage_usage, GetStorageUsage);
     mock_db_method!(get_quota_usage, GetQuotaUsage);
     mock_db_method!(delete_storage, DeleteStorage);
