@@ -3,6 +3,7 @@ use serde::Deserialize;
 use super::NodeType;
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub database_url: String,
 

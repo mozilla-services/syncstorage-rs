@@ -48,6 +48,7 @@ pub struct Deadman {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub debug: bool,
     pub port: u16,
@@ -117,7 +118,7 @@ impl Default for Settings {
             actix_keep_alive: None,
             limits: ServerLimits::default(),
             master_secret: Secrets::default(),
-            statsd_host: None,
+            statsd_host: Some("localhost".to_owned()),
             statsd_port: 8125,
             statsd_label: "syncstorage".to_string(),
             human_logs: false,
@@ -127,8 +128,26 @@ impl Default for Settings {
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
             cors_allowed_origin: None,
-            cors_allowed_methods: None,
-            cors_allowed_headers: None,
+            cors_allowed_headers: Some(vec![
+                "Authorization".to_owned(),
+                "Content-Type".to_owned(),
+                "UserAgent".to_owned(),
+                X_LAST_MODIFIED.to_owned(),
+                X_WEAVE_TIMESTAMP.to_owned(),
+                X_WEAVE_NEXT_OFFSET.to_owned(),
+                X_WEAVE_RECORDS.to_owned(),
+                X_WEAVE_BYTES.to_owned(),
+                X_WEAVE_TOTAL_RECORDS.to_owned(),
+                X_WEAVE_TOTAL_BYTES.to_owned(),
+                X_VERIFY_CODE.to_owned(),
+                "TEST_IDLES".to_owned(),
+            ]),
+            cors_allowed_methods: Some(vec![
+                "DELETE".to_owned(),
+                "GET".to_owned(),
+                "POST".to_owned(),
+                "PUT".to_owned(),
+            ]),
             cors_max_age: None,
         }
     }
@@ -139,90 +158,10 @@ impl Settings {
     pub fn with_env_and_config_file(filename: &Option<String>) -> Result<Self, ConfigError> {
         // TODO: Config 0.12+ uses "builder", which returns a type `Config`.
         // it's not clear how to best convert that to a `Settings`
-        let mut s = Config::default();
-        // Set our defaults, this can be fixed up drastically later after:
-        // https://github.com/mehcode/config-rs/issues/60
-        s.set_default("debug", false)?;
-        s.set_default("port", i64::from(DEFAULT_PORT))?;
-        s.set_default("host", "127.0.0.1")?;
-        s.set_default("human_logs", false)?;
-        #[cfg(test)]
-        s.set_default("database_pool_connection_timeout", Some(30))?;
-        // Max lifespan a connection should have.
-        s.set_default::<Option<String>>("database_connection_lifespan", None)?;
-        // Max time a connection should be idle before dropping.
-        s.set_default::<Option<String>>("database_connection_max_idle", None)?;
-        s.set_default("database_use_test_transactions", false)?;
-        s.set_default("master_secret", "")?;
-        // Each backend does their own default process, so specifying a "universal" value
-        // for database_pool_max_size doesn't quite work. Generally the max pool size is
-        // 10.
-        s.set_default("master_secret", "")?;
-        s.set_default("limits.max_post_bytes", i64::from(DEFAULT_MAX_POST_BYTES))?;
-        s.set_default(
-            "limits.max_post_records",
-            i64::from(DEFAULT_MAX_POST_RECORDS),
-        )?;
-        s.set_default(
-            "limits.max_record_payload_bytes",
-            i64::from(DEFAULT_MAX_RECORD_PAYLOAD_BYTES),
-        )?;
-        s.set_default(
-            "limits.max_request_bytes",
-            i64::from(DEFAULT_MAX_REQUEST_BYTES),
-        )?;
-        s.set_default("limits.max_total_bytes", i64::from(DEFAULT_MAX_TOTAL_BYTES))?;
-        s.set_default(
-            "limits.max_total_records",
-            i64::from(DEFAULT_MAX_TOTAL_RECORDS),
-        )?;
-        s.set_default("limits.max_quota_limit", i64::from(DEFAULT_MAX_QUOTA_LIMIT))?;
-
-        s.set_default("statsd_host", "localhost")?;
-        s.set_default("statsd_port", 8125)?;
-        s.set_default("statsd_label", "syncstorage")?;
-        s.set_default("enable_quota", false)?;
-        s.set_default("enforce_quota", false)?;
-        s.set_default("disable_syncstorage", false)?;
-
-        // Set Tokenserver defaults
-        s.set_default(
-            "tokenserver.database_url",
-            "mysql://root@127.0.0.1/tokenserver",
-        )?;
-        s.set_default("tokenserver.enabled", false)?;
-        s.set_default("tokenserver.fxa_email_domain", "test.com")?;
-        s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
-        s.set_default("tokenserver.test_mode_enabled", false)?;
-        s.set_default("tokenserver.node_type", "spanner")?;
-        s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
-
-        // Set Cors defaults
-        s.set_default(
-            "cors_allowed_headers",
-            Some(vec![
-                "Authorization",
-                "Content-Type",
-                "UserAgent",
-                X_LAST_MODIFIED,
-                X_WEAVE_TIMESTAMP,
-                X_WEAVE_NEXT_OFFSET,
-                X_WEAVE_RECORDS,
-                X_WEAVE_BYTES,
-                X_WEAVE_TOTAL_RECORDS,
-                X_WEAVE_TOTAL_BYTES,
-                X_VERIFY_CODE,
-                "TEST_IDLES",
-            ]),
-        )?;
-        s.set_default(
-            "cors_allowed_methods",
-            Some(vec!["DELETE", "GET", "POST", "PUT"]),
-        )?;
-
+        let mut s = Config::builder();
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
-            s.merge(File::with_name(config_filename))?;
+            s = s.add_source(File::with_name(config_filename));
         }
 
         // Merge the environment overrides
@@ -231,9 +170,9 @@ impl Settings {
         // Environment ever change their policy about case insensitivity.
         // This will accept environment variables specified as
         // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
-        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
+        s = s.add_source(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"));
 
-        Ok(match s.try_into::<Self>() {
+        Ok(match s.build()?.try_deserialize::<Self>() {
             Ok(mut s) => {
                 // Adjust the max values if required.
                 if s.uses_spanner() {
