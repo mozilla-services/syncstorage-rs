@@ -1,4 +1,5 @@
 use std::cell::RefMut;
+use std::convert::TryFrom;
 use std::future::Future;
 
 use actix_http::http::{HeaderValue, Method, StatusCode};
@@ -16,9 +17,8 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
 use crate::web::extractors::{
-    BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
+    BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
-use crate::web::middleware::SyncServerRequest;
 use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
 
@@ -241,7 +241,7 @@ impl FromRequest for DbTransactionPool {
                 }
             };
             let method = req.method().clone();
-            let user_id = match req.get_hawk_id() {
+            let user_id = match HawkIdentifier::try_from(&req) {
                 Ok(v) => v,
                 Err(e) => {
                     warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);

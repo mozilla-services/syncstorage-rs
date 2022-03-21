@@ -10,7 +10,8 @@ use std::{future::Future, sync::Arc};
 
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
-    Error, HttpRequest,
+    web::Data,
+    HttpRequest,
 };
 use syncstorage_db_common::util::SyncTimestamp;
 
@@ -19,48 +20,28 @@ use crate::server::{metrics::Metrics, ServerState};
 use crate::settings::Secrets;
 use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
-use actix_web::web::Data;
+use std::convert::TryFrom;
 
 /// The resource in question's Timestamp
 pub struct ResourceTimestamp(SyncTimestamp);
 
-pub trait SyncServerRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error>;
-}
+impl TryFrom<&HttpRequest> for HawkIdentifier {
+    type Error = actix_web::Error;
 
-impl SyncServerRequest for ServiceRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
-        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
+    fn try_from(req: &HttpRequest) -> Result<HawkIdentifier, Self::Error> {
+        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
             return Ok(HawkIdentifier::cmd_dummy());
         }
-        let method = self.method().clone();
+        let method = req.method().clone();
         // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
         // it must be cloned
-        let ci = &self.connection_info().clone();
-        let secrets = &self
+        let ci = req.connection_info().clone();
+        let secrets = req
             .app_data::<Data<Arc<Secrets>>>()
             .ok_or_else(|| -> ApiError {
                 ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
             })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
-    }
-}
-
-impl SyncServerRequest for HttpRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
-        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
-            return Ok(HawkIdentifier::cmd_dummy());
-        }
-        let method = self.method().clone();
-        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
-        // it must be cloned
-        let ci = &self.connection_info().clone();
-        let secrets = &self
-            .app_data::<Data<Arc<Secrets>>>()
-            .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
-            })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
+        HawkIdentifier::extrude(req, method.as_str(), req.uri(), &ci, secrets)
     }
 }
 
