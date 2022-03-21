@@ -206,3 +206,7 @@ class TestE2e(TestCase, unittest.TestCase):
         self.assertEqual(res.json['hashed_fxa_uid'],
                          self._fxa_metrics_hash(fxa_uid)[:32])
         self.assertEqual(res.json['node_type'], 'spanner')
+        # The response should have an X-Timestamp header that contains the
+        # number of seconds since the UNIX epoch
+        self.assertIn('X-Timestamp', res.headers)
+        self.assertIsNotNone(int(res.headers['X-Timestamp']))
