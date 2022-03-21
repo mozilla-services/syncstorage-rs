@@ -50,7 +50,17 @@ pub async fn get_tokenserver_result(
         node_type: req.node_type,
     };
 
-    Ok(HttpResponse::build(StatusCode::OK).json(result))
+    let timestamp = {
+        let start = SystemTime::now();
+        start.duration_since(UNIX_EPOCH).unwrap().as_secs()
+    };
+
+    // `X-Content-Type-Options: nosniff` was set automatically by the Pyramid cornice library
+    // on the Python Tokenserver. For the Rust Tokenserver, we set it in nginx instead of in the
+    // application code here.
+    Ok(HttpResponse::build(StatusCode::OK)
+        .header("X-Timestamp", timestamp.to_string())
+        .json(result))
 }
 
 fn get_token_plaintext(
