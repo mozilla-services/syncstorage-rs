@@ -20,7 +20,6 @@ use super::{params, results};
 use crate::db::error::{DbError, DbErrorKind};
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
-use crate::sync_db_method;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
@@ -596,6 +595,18 @@ impl TokenserverDb {
             })
             .map_err(Into::into)
     }
+}
+
+macro_rules! sync_db_method {
+    ($name:ident, $sync_name:ident, $type:ident) => {
+        sync_db_method!($name, $sync_name, $type, results::$type);
+    };
+    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
+            let db = self.clone();
+            Box::pin(block(move || db.$sync_name(params).map_err(Into::into)).map_err(Into::into))
+        }
+    };
 }
 
 impl Db for TokenserverDb {

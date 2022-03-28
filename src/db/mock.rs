@@ -1,133 +1,130 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
-use futures::future;
+use mockall::mock;
 
 use super::*;
 
-#[derive(Clone, Debug)]
-pub struct MockDbPool;
+mock! {
+    #[derive(Debug)]
+    pub Db {}
 
-impl MockDbPool {
-    pub fn new() -> Self {
-        MockDbPool
+    impl Clone for Db {
+        fn clone(&self) -> Self;
     }
+
+    #[async_trait(?Send)]
+    impl Db for Db {
+        async fn lock_for_read(&self, params: params::LockCollection) -> ApiResult<()>;
+        async fn lock_for_write(&self, params: params::LockCollection) -> ApiResult<()>;
+        async fn begin(&self, for_write: bool) -> ApiResult<()>;
+        async fn commit(&self) -> ApiResult<()>;
+        async fn rollback(&self) -> ApiResult<()>;
+
+        async fn get_collection_timestamps(
+            &self,
+            params: params::GetCollectionTimestamps,
+        ) -> ApiResult<results::GetCollectionTimestamps>;
+
+        async fn get_collection_timestamp(
+            &self,
+            params: params::GetCollectionTimestamp,
+        ) -> ApiResult<results::GetCollectionTimestamp>;
+
+        async fn get_collection_counts(
+            &self,
+            params: params::GetCollectionCounts,
+        ) -> ApiResult<results::GetCollectionCounts>;
+
+        async fn get_collection_usage(
+            &self,
+            params: params::GetCollectionUsage,
+        ) -> ApiResult<results::GetCollectionUsage>;
+
+        async fn get_storage_timestamp(
+            &self,
+            params: params::GetStorageTimestamp,
+        ) -> ApiResult<results::GetStorageTimestamp>;
+
+        async fn get_storage_usage(
+            &self,
+            params: params::GetStorageUsage,
+        ) -> ApiResult<results::GetStorageUsage>;
+
+        async fn get_quota_usage(
+            &self,
+            params: params::GetQuotaUsage,
+        ) -> ApiResult<results::GetQuotaUsage>;
+
+        async fn delete_storage(
+            &self,
+            params: params::DeleteStorage,
+        ) -> ApiResult<results::DeleteStorage>;
+
+        async fn delete_collection(
+            &self,
+            params: params::DeleteCollection,
+        ) -> ApiResult<results::DeleteCollection>;
+
+        async fn delete_bsos(&self, params: params::DeleteBsos) -> ApiResult<results::DeleteBsos>;
+        async fn get_bsos(&self, params: params::GetBsos) -> ApiResult<results::GetBsos>;
+        async fn get_bso_ids(&self, params: params::GetBsos) -> ApiResult<results::GetBsoIds>;
+        async fn post_bsos(&self, params: params::PostBsos) -> ApiResult<results::PostBsos>;
+        async fn delete_bso(&self, params: params::DeleteBso) -> ApiResult<results::DeleteBso>;
+        async fn get_bso(&self, params: params::GetBso) -> ApiResult<Option<results::GetBso>>;
+
+        async fn get_bso_timestamp(
+            &self,
+            params: params::GetBsoTimestamp,
+        ) -> ApiResult<results::GetBsoTimestamp>;
+
+        async fn put_bso(&self, params: params::PutBso) -> ApiResult<results::PutBso>;
+        async fn create_batch(&self, params: params::CreateBatch) -> ApiResult<results::CreateBatch>;
+
+        async fn validate_batch(
+            &self,
+            params: params::ValidateBatch,
+        ) -> ApiResult<results::ValidateBatch>;
+
+        async fn append_to_batch(
+            &self,
+            params: params::AppendToBatch,
+        ) -> ApiResult<results::AppendToBatch>;
+
+        async fn get_batch(&self, params: params::GetBatch) -> ApiResult<Option<results::GetBatch>>;
+        async fn commit_batch(&self, params: params::CommitBatch) -> ApiResult<results::CommitBatch>;
+        async fn check(&self) -> ApiResult<results::Check>;
+        fn get_connection_info(&self) -> results::ConnectionInfo;
+
+        async fn extract_resource(
+            &self,
+            user_id: HawkIdentifier,
+            collection: Option<String>,
+            bso: Option<String>,
+        ) -> ApiResult<SyncTimestamp>;
+
+        async fn get_collection_id(&self, name: String) -> ApiResult<i32>;
+
+        #[cfg(test)]
+        async fn create_collection(&self, name: String) -> ApiResult<i32>;
+
+        #[cfg(test)]
+        async fn update_collection(&self, params: params::UpdateCollection) -> ApiResult<SyncTimestamp>;
+
+        #[cfg(test)]
+        fn timestamp(&self) -> SyncTimestamp;
+
+        #[cfg(test)]
+        fn set_timestamp(&self, timestamp: SyncTimestamp);
+
+        #[cfg(test)]
+        async fn delete_batch(&self, params: params::DeleteBatch) -> ApiResult<()>;
+
+        #[cfg(test)]
+        async fn clear_coll_cache(&self) -> ApiResult<()>;
+
+        #[cfg(test)]
+        fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
+    }
+
 }
-
-#[async_trait]
-impl DbPool for MockDbPool {
-    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
-        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)
-    }
-
-    fn state(&self) -> results::PoolState {
-        results::PoolState::default()
-    }
-
-    fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
-        Ok(())
-    }
-
-    fn box_clone(&self) -> Box<dyn DbPool> {
-        Box::new(self.clone())
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MockDb;
-
-impl MockDb {
-    pub fn new() -> Self {
-        MockDb
-    }
-}
-
-macro_rules! mock_db_method {
-    ($name:ident, $type:ident) => {
-        mock_db_method!($name, $type, results::$type);
-    };
-    ($name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<'_, $result> {
-            let result: $result = Default::default();
-            Box::pin(future::ok(result))
-        }
-    };
-}
-
-impl<'a> Db<'a> for MockDb {
-    fn commit(&self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
-    }
-
-    fn rollback(&self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
-    }
-
-    fn begin(&self, _for_write: bool) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
-    }
-
-    fn box_clone(&self) -> Box<dyn Db<'a>> {
-        Box::new(self.clone())
-    }
-
-    fn check(&self) -> DbFuture<'_, results::Check> {
-        Box::pin(future::ok(true))
-    }
-
-    mock_db_method!(lock_for_read, LockCollection);
-    mock_db_method!(lock_for_write, LockCollection);
-    mock_db_method!(get_collection_timestamps, GetCollectionTimestamps);
-    mock_db_method!(get_collection_timestamp, GetCollectionTimestamp);
-    mock_db_method!(get_collection_counts, GetCollectionCounts);
-    mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_storage_timestamp, GetStorageTimestamp);
-    mock_db_method!(get_storage_usage, GetStorageUsage);
-    mock_db_method!(get_quota_usage, GetQuotaUsage);
-    mock_db_method!(delete_storage, DeleteStorage);
-    mock_db_method!(delete_collection, DeleteCollection);
-    mock_db_method!(delete_bsos, DeleteBsos);
-    mock_db_method!(get_bsos, GetBsos);
-    mock_db_method!(get_bso_ids, GetBsoIds);
-    mock_db_method!(post_bsos, PostBsos);
-    mock_db_method!(delete_bso, DeleteBso);
-    mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
-    mock_db_method!(get_bso_timestamp, GetBsoTimestamp);
-    mock_db_method!(put_bso, PutBso);
-    mock_db_method!(create_batch, CreateBatch);
-    mock_db_method!(validate_batch, ValidateBatch);
-    mock_db_method!(append_to_batch, AppendToBatch);
-    mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
-    mock_db_method!(commit_batch, CommitBatch);
-
-    fn get_connection_info(&self) -> results::ConnectionInfo {
-        results::ConnectionInfo::default()
-    }
-
-    mock_db_method!(get_collection_id, GetCollectionId);
-    #[cfg(test)]
-    mock_db_method!(create_collection, CreateCollection);
-    #[cfg(test)]
-    mock_db_method!(update_collection, UpdateCollection);
-
-    #[cfg(test)]
-    fn timestamp(&self) -> SyncTimestamp {
-        Default::default()
-    }
-
-    #[cfg(test)]
-    fn set_timestamp(&self, _: SyncTimestamp) {}
-
-    #[cfg(test)]
-    mock_db_method!(delete_batch, DeleteBatch);
-
-    #[cfg(test)]
-    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
-    }
-
-    #[cfg(test)]
-    fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
-}
-
-unsafe impl Send for MockDb {}

@@ -1691,10 +1691,7 @@ mod tests {
     use sha2::Sha256;
     use tokio::sync::RwLock;
 
-    use crate::db::{
-        mock::{MockDb, MockDbPool},
-        Db,
-    };
+    use crate::db::{mock::MockDb, Db, MockDbPool};
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
 
@@ -1714,7 +1711,7 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db<'static>> {
+    fn make_db() -> Box<dyn Db> {
         Box::new(MockDb::new())
     }
 

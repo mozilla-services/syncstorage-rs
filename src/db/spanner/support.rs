@@ -17,14 +17,17 @@ use protobuf::{
 };
 
 use crate::{
-    db::{
-        params, results, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339, util::SyncTimestamp,
-        DbError, DbErrorKind,
-    },
+    db::{results, util::SyncTimestamp, DbError, DbErrorKind},
+    error::ApiResult,
+};
+
+#[cfg(not(test))]
+use crate::{
+    db::{params, spanner::models::DEFAULT_BSO_TTL, util::to_rfc3339},
     web::extractors::HawkIdentifier,
 };
 
-use super::{models::Result, pool::Conn};
+use super::pool::Conn;
 
 pub trait ToSpannerValue {
     const TYPE_CODE: TypeCode;
@@ -170,7 +173,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a SQL read statement but return a non-blocking streaming result
-    pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
+    pub fn execute_async(self, conn: &Conn) -> ApiResult<StreamedResultSetAsync> {
         let stream = conn
             .client
             .execute_streaming_sql(&self.prepare_request(conn))?;
@@ -178,7 +181,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
-    pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
+    pub async fn execute_dml_async(self, conn: &Conn) -> ApiResult<i64> {
         let rs = conn
             .client
             .execute_sql_async(&self.prepare_request(conn))?
@@ -231,7 +234,7 @@ impl StreamedResultSetAsync {
         }
     }
 
-    pub async fn one(&mut self) -> Result<Vec<Value>> {
+    pub async fn one(&mut self) -> ApiResult<Vec<Value>> {
         if let Some(result) = self.one_or_none().await? {
             Ok(result)
         } else {
@@ -239,7 +242,7 @@ impl StreamedResultSetAsync {
         }
     }
 
-    pub async fn one_or_none(&mut self) -> Result<Option<Vec<Value>>> {
+    pub async fn one_or_none(&mut self) -> ApiResult<Option<Vec<Value>>> {
         let result = self.next_async().await;
         if result.is_none() {
             Ok(None)
@@ -253,7 +256,7 @@ impl StreamedResultSetAsync {
     /// Pull and process the next values from the Stream
     ///
     /// Returns false when the stream is finished
-    async fn consume_next(&mut self) -> Result<bool> {
+    async fn consume_next(&mut self) -> ApiResult<bool> {
         let (result, stream) = self
             .stream
             .take()
@@ -315,7 +318,7 @@ impl StreamedResultSetAsync {
 
     // We could implement Stream::poll_next instead of this, but
     // this is easier for now and we can refactor into the trait later
-    pub async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
+    pub async fn next_async(&mut self) -> Option<ApiResult<Vec<Value>>> {
         while self.rows.is_empty() {
             match self.consume_next().await {
                 Ok(true) => (),
@@ -330,7 +333,7 @@ impl StreamedResultSetAsync {
     }
 }
 
-fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> Result<Value> {
+fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> ApiResult<Value> {
     // We only support merging basic string types as that's all we currently use.
     // The python client also supports: float64, array, struct. The go client
     // only additionally supports array (claiming structs are only returned as
@@ -345,14 +348,11 @@ fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> Result<Value> {
     }
 }
 
-fn unsupported_merge(field_type: &Type) -> Result<Value> {
-    Err(DbError::internal(&format!(
-        "merge not supported, type: {:?}",
-        field_type
-    )))
+fn unsupported_merge(field_type: &Type) -> ApiResult<Value> {
+    Err(DbError::internal(&format!("merge not supported, type: {:?}", field_type)).into())
 }
 
-fn merge_string(mut lhs: Value, rhs: &Value) -> Result<Value> {
+fn merge_string(mut lhs: Value, rhs: &Value) -> ApiResult<Value> {
     if !lhs.has_string_value() || !rhs.has_string_value() {
         Err(DbError::internal("merge_string has no string value"))?
     }
@@ -361,7 +361,7 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> Result<Value> {
     Ok(merged.to_spanner_value())
 }
 
-pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
+pub fn bso_from_row(mut row: Vec<Value>) -> ApiResult<results::GetBso> {
     let modified_string = &row[3].get_string_value();
     let modified = SyncTimestamp::from_rfc3339(modified_string)?;
     Ok(results::GetBso {
@@ -382,12 +382,13 @@ pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
     })
 }
 
+#[cfg(not(test))]
 pub fn bso_to_insert_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
     bso: params::PostCollectionBso,
     now: SyncTimestamp,
-) -> Result<ListValue> {
+) -> ApiResult<ListValue> {
     let sortindex = bso
         .sortindex
         .map(|sortindex| sortindex.to_spanner_value())
@@ -409,12 +410,13 @@ pub fn bso_to_insert_row(
     Ok(row)
 }
 
+#[cfg(not(test))]
 pub fn bso_to_update_row(
     user_id: &HawkIdentifier,
     collection_id: i32,
     bso: params::PostCollectionBso,
     now: SyncTimestamp,
-) -> Result<(Vec<&'static str>, ListValue)> {
+) -> ApiResult<(Vec<&'static str>, ListValue)> {
     let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
     let mut values = vec![
         user_id.fxa_uid.clone().to_spanner_value(),

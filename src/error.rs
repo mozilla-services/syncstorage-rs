@@ -212,6 +212,7 @@ impl From<actix_web::error::BlockingError<ApiError>> for ApiError {
         }
     }
 }
+
 impl Error for ApiError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.kind.source()

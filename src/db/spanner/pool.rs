@@ -14,7 +14,6 @@ use crate::{
 pub use super::manager::Conn;
 use super::{
     manager::{SpannerSession, SpannerSessionManager},
-    models::Result,
     models::SpannerDb,
 };
 
@@ -24,7 +23,7 @@ embed_migrations!();
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-//pub fn run_embedded_migrations(settings: &Settings) -> Result<()> {
+//pub fn run_embedded_migrations(settings: &Settings) -> ApiResult<()> {
 //    let conn = MysqlConnection::establish(&settings.database_url)?;
 //    Ok(embedded_migrations::run(&conn)?)
 //}
@@ -42,12 +41,12 @@ pub struct SpannerDbPool {
 
 impl SpannerDbPool {
     /// Creates a new pool of Spanner db connections.
-    pub async fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub async fn new(settings: &Settings, metrics: &Metrics) -> ApiResult<Self> {
         //run_embedded_migrations(settings)?;
         Self::new_without_migrations(settings, metrics).await
     }
 
-    pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> ApiResult<Self> {
         let max_size = settings.database_pool_max_size.unwrap_or(10) as usize;
         let wait = settings
             .database_pool_connection_timeout
@@ -71,40 +70,33 @@ impl SpannerDbPool {
             },
         })
     }
+}
 
-    pub async fn get_async(&self) -> Result<SpannerDb> {
+#[async_trait]
+impl DbPool for SpannerDbPool {
+    async fn get(&self) -> ApiResult<Box<dyn Db>> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.spanner.get_pool", None);
+
         let conn = self.pool.get().await.map_err(|e| match e {
             deadpool::managed::PoolError::Backend(dbe) => dbe,
             deadpool::managed::PoolError::Timeout(timeout_type) => {
                 DbError::internal(&format!("deadpool Timeout: {:?}", timeout_type))
             }
         })?;
-        Ok(SpannerDb::new(
+        Ok(Box::new(SpannerDb::new(
             conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             self.quota,
-        ))
-    }
-}
-
-#[async_trait]
-impl DbPool for SpannerDbPool {
-    async fn get<'a>(&'a self) -> ApiResult<Box<dyn Db<'a>>> {
-        let mut metrics = self.metrics.clone();
-        metrics.start_timer("storage.spanner.get_pool", None);
-
-        self.get_async()
-            .await
-            .map(|db| Box::new(db) as Box<dyn Db<'a>>)
-            .map_err(Into::into)
+        )) as Box<dyn Db>)
     }
 
     fn state(&self) -> results::PoolState {
         self.pool.status().into()
     }
 
-    fn validate_batch_id(&self, id: String) -> Result<()> {
+    fn validate_batch_id(&self, id: String) -> ApiResult<()> {
         super::batch::validate_batch_id(&id)
     }
 

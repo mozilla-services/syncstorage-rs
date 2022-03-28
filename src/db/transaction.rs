@@ -50,14 +50,14 @@ impl DbTransactionPool {
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
     /// action has succeeded (ex. check HTTP response for internal error).
-    async fn transaction_internal<'a, A: 'a, R, F>(
-        &'a self,
+    async fn transaction_internal<A, R, F>(
+        &self,
         request: HttpRequest,
         action: A,
-    ) -> Result<(R, Box<dyn Db<'a>>), Error>
+    ) -> Result<(R, Box<dyn Db>), Error>
     where
-        A: FnOnce(Box<dyn Db<'a>>) -> F,
-        F: Future<Output = Result<R, Error>> + 'a,
+        A: FnOnce(Box<dyn Db>) -> F,
+        F: Future<Output = Result<R, Error>>,
     {
         // Get connection from pool
         let db = self.pool.get().await?;
@@ -96,14 +96,10 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A: 'a, R, F>(
-        &'a self,
-        request: HttpRequest,
-        action: A,
-    ) -> Result<R, Error>
+    pub async fn transaction<A, R, F>(&self, request: HttpRequest, action: A) -> Result<R, Error>
     where
-        A: FnOnce(Box<dyn Db<'a>>) -> F,
-        F: Future<Output = Result<R, Error>> + 'a,
+        A: FnOnce(Box<dyn Db>) -> F,
+        F: Future<Output = Result<R, Error>>,
     {
         let (resp, db) = self.transaction_internal(request, action).await?;
 
@@ -114,17 +110,17 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A: 'a, F>(
-        &'a self,
+    pub async fn transaction_http<A, F>(
+        &self,
         request: HttpRequest,
         action: A,
     ) -> Result<HttpResponse, Error>
     where
-        A: FnOnce(Box<dyn Db<'a>>) -> F,
-        F: Future<Output = Result<HttpResponse, Error>> + 'a,
+        A: FnOnce(Box<dyn Db>) -> F,
+        F: Future<Output = Result<HttpResponse, Error>>,
     {
         let mreq = request.clone();
-        let check_precondition = move |db: Box<dyn Db<'a>>| {
+        let check_precondition = move |db: Box<dyn Db>| {
             async move {
                 // set the extra information for all requests so we capture default err handlers.
                 set_extra(&mut mreq.extensions_mut(), db.get_connection_info());

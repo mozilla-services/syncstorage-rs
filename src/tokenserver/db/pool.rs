@@ -10,7 +10,7 @@ use diesel_logger::LoggingConnection;
 use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
-use crate::db::{error::DbError, DbErrorKind};
+use crate::db::error::DbError;
 use crate::server::metrics::Metrics;
 use crate::tokenserver::settings::Settings;
 
@@ -82,17 +82,6 @@ impl TokenserverPool {
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
         Ok(TokenserverDb::new(conn, &self.metrics))
-    }
-}
-
-impl From<actix_web::error::BlockingError<DbError>> for DbError {
-    fn from(inner: actix_web::error::BlockingError<DbError>) -> Self {
-        match inner {
-            actix_web::error::BlockingError::Error(e) => e,
-            actix_web::error::BlockingError::Canceled => {
-                DbErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
-            }
-        }
     }
 }
 

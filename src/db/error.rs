@@ -3,6 +3,8 @@ use std::fmt;
 use actix_web::http::StatusCode;
 use thiserror::Error;
 
+use crate::error::{ApiError, ApiErrorKind};
+
 #[derive(Error, Debug)]
 pub struct DbError {
     kind: DbErrorKind,
@@ -105,11 +107,35 @@ impl From<DbErrorKind> for DbError {
 
 impl_fmt_display!(DbError, DbErrorKind);
 
+impl From<actix_web::error::BlockingError<DbError>> for DbError {
+    fn from(inner: actix_web::error::BlockingError<DbError>) -> Self {
+        match inner {
+            actix_web::error::BlockingError::Error(e) => e,
+            actix_web::error::BlockingError::Canceled => {
+                DbErrorKind::Internal("Db threadpool operation canceled".to_owned()).into()
+            }
+        }
+    }
+}
+
+from_error!(DbErrorKind, ApiError, |inner: DbErrorKind| {
+    ApiErrorKind::Db(DbError::from(inner))
+});
 from_error!(diesel::result::Error, DbError, DbErrorKind::DieselQuery);
+from_error!(
+    diesel::result::Error,
+    ApiError,
+    |inner: diesel::result::Error| { ApiErrorKind::Db(DbError::from(inner)) }
+);
 from_error!(
     diesel::result::ConnectionError,
     DbError,
     DbErrorKind::DieselConnection
+);
+from_error!(
+    diesel::result::ConnectionError,
+    ApiError,
+    |inner: diesel::result::ConnectionError| { ApiErrorKind::Db(DbError::from(inner)) }
 );
 from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
     // Convert ABORTED (typically due to a transaction abort) into 503s
@@ -122,9 +148,22 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
         _ => DbErrorKind::SpannerGrpc(inner),
     }
 });
+from_error!(grpcio::Error, ApiError, |inner: grpcio::Error| {
+    ApiErrorKind::Db(DbError::from(inner))
+});
 from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
+from_error!(
+    diesel::r2d2::PoolError,
+    ApiError,
+    |inner: diesel::r2d2::PoolError| { ApiErrorKind::Db(DbError::from(inner)) }
+);
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
     DbErrorKind::Migration
+);
+from_error!(
+    diesel_migrations::RunMigrationsError,
+    ApiError,
+    |inner: diesel_migrations::RunMigrationsError| { ApiErrorKind::Db(DbError::from(inner)) }
 );

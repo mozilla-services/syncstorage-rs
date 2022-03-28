@@ -11,11 +11,11 @@ use diesel::{
 };
 use url::Url;
 
-use crate::db::mysql::{
-    models::{MysqlDb, Result},
-    pool::MysqlDbPool,
-    schema::collections,
+use crate::db::{
+    mysql::{models::MysqlDb, pool::MysqlDbPool, schema::collections},
+    Db,
 };
+use crate::error::ApiResult;
 use crate::server::metrics;
 use crate::settings::{test_settings, Settings};
 
@@ -28,7 +28,7 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
     }
 }
 
-pub fn db(settings: &Settings) -> Result<MysqlDb> {
+pub fn db(settings: &Settings) -> ApiResult<MysqlDb> {
     let _ = env_logger::try_init();
     // inherit SYNC_DATABASE_URL from the env
 
@@ -36,14 +36,14 @@ pub fn db(settings: &Settings) -> Result<MysqlDb> {
     pool.get_sync()
 }
 
-#[test]
-fn static_collection_id() -> Result<()> {
+#[actix_rt::test]
+async fn static_collection_id() {
     let settings = test_settings();
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql
-        return Ok(());
+        return;
     }
-    let db = db(&settings)?;
+    let db = db(&settings).expect("failed to instantiate test database");
 
     // ensure DB actually has predefined common collections
     let cols: Vec<(i32, _)> = vec![
@@ -72,7 +72,8 @@ fn static_collection_id() -> Result<()> {
         //.filter(collections::name.not_like("xxx%")) // from most integration tests
         .filter(collections::name.ne("xxx_col2")) // from server::test
         .filter(collections::name.ne("col2")) // from older intergration tests
-        .load(&db.inner.conn)?
+        .load(&db.inner.conn)
+        .expect("failed to load collections from database")
         .into_iter()
         .collect();
     assert_eq!(results.len(), cols.len(), "mismatched columns");
@@ -81,11 +82,16 @@ fn static_collection_id() -> Result<()> {
     }
 
     for (id, name) in &cols {
-        let result = db.get_collection_id(name)?;
+        let result = db
+            .get_collection_id(name.to_string())
+            .await
+            .expect("failed to get collection id");
         assert_eq!(result, *id);
     }
 
-    let cid = db.get_or_create_collection_id("col1")?;
+    let cid = db
+        .get_or_create_collection_id("col1".to_string())
+        .await
+        .expect("failed to get or create collection id");
     assert!(cid >= 100);
-    Ok(())
 }

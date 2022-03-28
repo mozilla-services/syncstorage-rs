@@ -1,11 +1,19 @@
+use async_trait::async_trait;
 use diesel::{
     backend::Backend,
+    helper_types::Limit,
     insertable::CanInsertInSingleQuery,
     mysql::Mysql,
     query_builder::{AstPass, InsertStatement, QueryFragment, QueryId},
-    query_dsl::methods::LockingDsl,
-    result::QueryResult,
+    query_dsl::methods::{ExecuteDsl, LimitDsl, LoadQuery, LockingDsl},
+    result::{Error, QueryResult},
     Expression, RunQueryDsl, Table,
+};
+
+use super::models::{Conn, MysqlDb};
+use crate::{
+    db::{self, error::DbErrorKind},
+    error::{ApiErrorKind, ApiResult},
 };
 
 /// Emit MySQL <= 5.7's `LOCK IN SHARE MODE`
@@ -87,4 +95,69 @@ impl<T, U, Op, Ret, X> QueryId for OnDuplicateKeyUpdate<T, U, Op, Ret, X> {
     type QueryId = ();
 
     const HAS_STATIC_QUERY_ID: bool = false;
+}
+
+#[async_trait(?Send)]
+pub trait RunAsyncQueryDsl: RunQueryDsl<Conn> + Send + 'static {
+    async fn execute(self, db: MysqlDb) -> ApiResult<usize>
+    where
+        Self: ExecuteDsl<Conn>,
+    {
+        db::blocking_thread(move || RunQueryDsl::execute(self, &db.conn)).await
+    }
+
+    async fn load<U>(self, db: MysqlDb) -> ApiResult<Vec<U>>
+    where
+        U: Send + 'static,
+        Self: LoadQuery<Conn, U>,
+    {
+        db::blocking_thread(move || RunQueryDsl::load(self, &db.conn)).await
+    }
+
+    async fn get_result<U>(self, db: MysqlDb) -> ApiResult<U>
+    where
+        U: Send + 'static,
+        Self: LoadQuery<Conn, U>,
+    {
+        db::blocking_thread(move || RunQueryDsl::get_result(self, &db.conn)).await
+    }
+
+    async fn get_results<U>(self, db: MysqlDb) -> ApiResult<Vec<U>>
+    where
+        U: Send + 'static,
+        Self: LoadQuery<Conn, U>,
+    {
+        db::blocking_thread(move || RunQueryDsl::get_results(self, &db.conn)).await
+    }
+
+    async fn first<U>(self, db: MysqlDb) -> ApiResult<U>
+    where
+        U: Send + 'static,
+        Self: LimitDsl,
+        Limit<Self>: LoadQuery<Conn, U> + Send + 'static,
+    {
+        db::blocking_thread(move || RunQueryDsl::first(self, &db.conn)).await
+    }
+}
+
+impl<T: RunQueryDsl<Conn> + Send + 'static> RunAsyncQueryDsl for T {}
+
+pub trait OptionalExtension<T> {
+    fn optional(self) -> ApiResult<Option<T>>;
+}
+
+impl<T> OptionalExtension<T> for ApiResult<T> {
+    fn optional(self) -> ApiResult<Option<T>> {
+        match self {
+            Ok(result) => Ok(Some(result)),
+            Err(err) => match err.kind() {
+                ApiErrorKind::Db(db_error)
+                    if matches!(db_error.kind(), DbErrorKind::DieselQuery(Error::NotFound)) =>
+                {
+                    Ok(None)
+                }
+                _ => Err(err),
+            },
+        }
+    }
 }

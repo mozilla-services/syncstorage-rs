@@ -32,7 +32,7 @@ pub async fn db_pool(settings: Option<Settings>) -> Result<Box<dyn DbPool>> {
     Ok(pool)
 }
 
-pub async fn test_db(pool: &dyn DbPool) -> ApiResult<Box<dyn Db<'_>>> {
+pub async fn test_db(pool: &dyn DbPool) -> ApiResult<Box<dyn Db>> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

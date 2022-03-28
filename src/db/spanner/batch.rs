@@ -10,19 +10,20 @@ use protobuf::{
 };
 use uuid::Uuid;
 
-use super::models::{Result, SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS};
+use super::models::{SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, ToSpannerValue};
 use crate::{
-    db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
+    db::{params, results, util::to_rfc3339, Db, DbError, DbErrorKind, BATCH_LIFETIME},
+    error::ApiResult,
     web::{extractors::HawkIdentifier, tags::Tags},
 };
 
-pub async fn create_async(
+pub async fn create(
     db: &SpannerDb,
     params: params::CreateBatch,
-) -> Result<results::CreateBatch> {
+) -> ApiResult<results::CreateBatch> {
     let batch_id = Uuid::new_v4().to_simple().to_string();
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(params.collection.clone()).await?;
     let timestamp = db.timestamp()?.as_i64();
 
     // Ensure a parent record exists in user_collections before writing to batches
@@ -64,16 +65,16 @@ pub async fn create_async(
     Ok(new_batch)
 }
 
-pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
-    let exists = get_async(db, params.into()).await?;
+pub async fn validate(db: &SpannerDb, params: params::ValidateBatch) -> ApiResult<bool> {
+    let exists = get(db, params.into()).await?;
     Ok(exists.is_some())
 }
 
 // Append a collection to a pending batch (`create_batch` creates a new batch)
-pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
+pub async fn append(db: &SpannerDb, params: params::AppendToBatch) -> ApiResult<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(params.collection.clone()).await?;
 
     let current_size = db
         .check_quota(&params.user_id, &params.collection, collection_id)
@@ -84,7 +85,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     }
 
     // confirm that this batch exists or has not yet been committed.
-    let exists = validate_async(
+    let exists = validate(
         db,
         params::ValidateBatch {
             user_id: params.user_id.clone(),
@@ -111,11 +112,8 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     Ok(())
 }
 
-pub async fn get_async(
-    db: &SpannerDb,
-    params: params::GetBatch,
-) -> Result<Option<results::GetBatch>> {
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+pub async fn get(db: &SpannerDb, params: params::GetBatch) -> ApiResult<Option<results::GetBatch>> {
+    let collection_id = db.get_collection_id(params.collection.clone()).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
         "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -141,8 +139,8 @@ pub async fn get_async(
     Ok(batch)
 }
 
-pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> ApiResult<()> {
+    let collection_id = db.get_collection_id(params.collection.clone()).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
         "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -165,18 +163,18 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result
     Ok(())
 }
 
-pub async fn commit_async(
+pub async fn commit(
     db: &SpannerDb,
     params: params::CommitBatch,
-) -> Result<results::CommitBatch> {
+) -> ApiResult<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(params.collection.clone()).await?;
 
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .update_collection_async(&params.user_id, collection_id, &params.collection)
+        .update_collection(&params.user_id, collection_id, &params.collection)
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
@@ -247,7 +245,7 @@ pub async fn do_append_async(
     batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
     collection: &str,
-) -> Result<()> {
+) -> ApiResult<()> {
     // Pass an array of struct objects as @values (for UNNEST), e.g.:
     // [("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso1", NULL, "payload1", NULL),
     //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
@@ -406,7 +404,7 @@ pub async fn do_append_async(
         if let Some(size) = batch.size {
             if size + running_size >= db.quota.size {
                 if db.quota.enforced {
-                    return Err(db.quota_error(collection));
+                    return Err(db.quota_error(collection).into());
                 } else {
                     warn!("Quota at limit for user's collection ({} bytes)", size + running_size; "collection"=>collection);
                 }
@@ -529,7 +527,7 @@ async fn pretouch_collection_async(
     db: &SpannerDb,
     user_id: &HawkIdentifier,
     collection_id: i32,
-) -> Result<()> {
+) -> ApiResult<()> {
     let (mut sqlparams, mut sqlparam_types) = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),
@@ -570,8 +568,8 @@ async fn pretouch_collection_async(
     Ok(())
 }
 
-pub fn validate_batch_id(id: &str) -> Result<()> {
+pub fn validate_batch_id(id: &str) -> ApiResult<()> {
     Uuid::from_str(id)
         .map(|_| ())
-        .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))
+        .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)).into())
 }

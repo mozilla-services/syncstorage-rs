@@ -13,10 +13,13 @@ pub mod util;
 
 use std::{fmt::Debug, time::Duration};
 
+use actix_web::web;
 use async_trait::async_trait;
 use cadence::{Gauged, StatsdClient};
-use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use diesel::result::QueryResult;
+use dyn_clone::DynClone;
 use lazy_static::lazy_static;
+use mockall::automock;
 use serde::Deserialize;
 use url::Url;
 
@@ -57,15 +60,14 @@ pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 /// Rough guesstimate of the maximum reasonable life span of a batch
 pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 
-type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
-
+#[automock]
 #[async_trait]
 pub trait DbPool: Sync + Send + Debug {
-    async fn get(&self) -> ApiResult<Box<dyn Db<'_>>>;
+    async fn get(&self) -> ApiResult<Box<dyn Db>>;
 
     fn state(&self) -> results::PoolState;
 
-    fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
+    fn validate_batch_id(&self, params: params::ValidateBatchId) -> ApiResult<()>;
 
     fn box_clone(&self) -> Box<dyn DbPool>;
 }
@@ -76,157 +78,161 @@ impl Clone for Box<dyn DbPool> {
     }
 }
 
-pub trait Db<'a>: Debug + 'a {
-    fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
+#[async_trait(?Send)]
+pub trait Db: Debug + DynClone {
+    async fn lock_for_read(&self, params: params::LockCollection) -> ApiResult<()>;
 
-    fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<'_, ()>;
+    async fn lock_for_write(&self, params: params::LockCollection) -> ApiResult<()>;
 
-    fn begin(&self, for_write: bool) -> DbFuture<'_, ()>;
+    async fn begin(&self, for_write: bool) -> ApiResult<()>;
 
-    fn commit(&self) -> DbFuture<'_, ()>;
+    async fn commit(&self) -> ApiResult<()>;
 
-    fn rollback(&self) -> DbFuture<'_, ()>;
+    async fn rollback(&self) -> ApiResult<()>;
 
-    fn get_collection_timestamps(
+    async fn get_collection_timestamps(
         &self,
         params: params::GetCollectionTimestamps,
-    ) -> DbFuture<'_, results::GetCollectionTimestamps>;
+    ) -> ApiResult<results::GetCollectionTimestamps>;
 
-    fn get_collection_timestamp(
+    async fn get_collection_timestamp(
         &self,
         params: params::GetCollectionTimestamp,
-    ) -> DbFuture<'_, results::GetCollectionTimestamp>;
+    ) -> ApiResult<results::GetCollectionTimestamp>;
 
-    fn get_collection_counts(
+    async fn get_collection_counts(
         &self,
         params: params::GetCollectionCounts,
-    ) -> DbFuture<'_, results::GetCollectionCounts>;
+    ) -> ApiResult<results::GetCollectionCounts>;
 
-    fn get_collection_usage(
+    async fn get_collection_usage(
         &self,
         params: params::GetCollectionUsage,
-    ) -> DbFuture<'_, results::GetCollectionUsage>;
+    ) -> ApiResult<results::GetCollectionUsage>;
 
-    fn get_storage_timestamp(
+    async fn get_storage_timestamp(
         &self,
         params: params::GetStorageTimestamp,
-    ) -> DbFuture<'_, results::GetStorageTimestamp>;
+    ) -> ApiResult<results::GetStorageTimestamp>;
 
-    fn get_storage_usage(
+    async fn get_storage_usage(
         &self,
         params: params::GetStorageUsage,
-    ) -> DbFuture<'_, results::GetStorageUsage>;
+    ) -> ApiResult<results::GetStorageUsage>;
 
-    fn get_quota_usage(
+    async fn get_quota_usage(
         &self,
         params: params::GetQuotaUsage,
-    ) -> DbFuture<'_, results::GetQuotaUsage>;
+    ) -> ApiResult<results::GetQuotaUsage>;
 
-    fn delete_storage(&self, params: params::DeleteStorage)
-        -> DbFuture<'_, results::DeleteStorage>;
+    async fn delete_storage(
+        &self,
+        params: params::DeleteStorage,
+    ) -> ApiResult<results::DeleteStorage>;
 
-    fn delete_collection(
+    async fn delete_collection(
         &self,
         params: params::DeleteCollection,
-    ) -> DbFuture<'_, results::DeleteCollection>;
+    ) -> ApiResult<results::DeleteCollection>;
 
-    fn delete_bsos(&self, params: params::DeleteBsos) -> DbFuture<'_, results::DeleteBsos>;
+    async fn delete_bsos(&self, params: params::DeleteBsos) -> ApiResult<results::DeleteBsos>;
 
-    fn get_bsos(&self, params: params::GetBsos) -> DbFuture<'_, results::GetBsos>;
+    async fn get_bsos(&self, params: params::GetBsos) -> ApiResult<results::GetBsos>;
 
-    fn get_bso_ids(&self, params: params::GetBsos) -> DbFuture<'_, results::GetBsoIds>;
+    async fn get_bso_ids(&self, params: params::GetBsos) -> ApiResult<results::GetBsoIds>;
 
-    fn post_bsos(&self, params: params::PostBsos) -> DbFuture<'_, results::PostBsos>;
+    async fn post_bsos(&self, params: params::PostBsos) -> ApiResult<results::PostBsos>;
 
-    fn delete_bso(&self, params: params::DeleteBso) -> DbFuture<'_, results::DeleteBso>;
+    async fn delete_bso(&self, params: params::DeleteBso) -> ApiResult<results::DeleteBso>;
 
-    fn get_bso(&self, params: params::GetBso) -> DbFuture<'_, Option<results::GetBso>>;
+    async fn get_bso(&self, params: params::GetBso) -> ApiResult<Option<results::GetBso>>;
 
-    fn get_bso_timestamp(
+    async fn get_bso_timestamp(
         &self,
         params: params::GetBsoTimestamp,
-    ) -> DbFuture<'_, results::GetBsoTimestamp>;
+    ) -> ApiResult<results::GetBsoTimestamp>;
 
-    fn put_bso(&self, params: params::PutBso) -> DbFuture<'_, results::PutBso>;
+    async fn put_bso(&self, params: params::PutBso) -> ApiResult<results::PutBso>;
 
-    fn create_batch(&self, params: params::CreateBatch) -> DbFuture<'_, results::CreateBatch>;
+    async fn create_batch(&self, params: params::CreateBatch) -> ApiResult<results::CreateBatch>;
 
-    fn validate_batch(&self, params: params::ValidateBatch)
-        -> DbFuture<'_, results::ValidateBatch>;
+    async fn validate_batch(
+        &self,
+        params: params::ValidateBatch,
+    ) -> ApiResult<results::ValidateBatch>;
 
-    fn append_to_batch(
+    async fn append_to_batch(
         &self,
         params: params::AppendToBatch,
-    ) -> DbFuture<'_, results::AppendToBatch>;
+    ) -> ApiResult<results::AppendToBatch>;
 
-    fn get_batch(&self, params: params::GetBatch) -> DbFuture<'_, Option<results::GetBatch>>;
+    async fn get_batch(&self, params: params::GetBatch) -> ApiResult<Option<results::GetBatch>>;
 
-    fn commit_batch(&self, params: params::CommitBatch) -> DbFuture<'_, results::CommitBatch>;
+    async fn commit_batch(&self, params: params::CommitBatch) -> ApiResult<results::CommitBatch>;
 
-    fn box_clone(&self) -> Box<dyn Db<'a>>;
+    async fn check(&self) -> ApiResult<results::Check>;
 
-    fn check(&self) -> DbFuture<'_, results::Check>;
+    #[cfg(test)]
+    async fn update_collection(&self, params: params::UpdateCollection)
+        -> ApiResult<SyncTimestamp>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
 
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.
-    fn extract_resource(
+    async fn extract_resource(
         &self,
         user_id: HawkIdentifier,
         collection: Option<String>,
         bso: Option<String>,
-    ) -> DbFuture<'_, SyncTimestamp> {
+    ) -> ApiResult<SyncTimestamp> {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::pin(self.get_storage_timestamp(user_id)),
+            None => return self.get_storage_timestamp(user_id).await,
         };
         // If there's no bso, return the collection
         let bso = match bso {
             Some(bso) => bso,
             None => {
-                return Box::pin(
-                    self.get_collection_timestamp(params::GetCollectionTimestamp {
+                return self
+                    .get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
                     })
+                    .await
                     .or_else(|e| {
                         if e.is_collection_not_found() {
-                            future::ok(SyncTimestamp::from_seconds(0f64))
+                            Ok(SyncTimestamp::from_seconds(0f64))
                         } else {
-                            future::err(e)
+                            Err(e)
                         }
-                    }),
-                )
+                    })
             }
         };
-        Box::pin(
-            self.get_bso_timestamp(params::GetBsoTimestamp {
-                user_id,
-                collection,
-                id: bso,
-            })
-            .or_else(|e| {
-                if e.is_collection_not_found() {
-                    future::ok(SyncTimestamp::from_seconds(0f64))
-                } else {
-                    future::err(e)
-                }
-            }),
-        )
+
+        self.get_bso_timestamp(params::GetBsoTimestamp {
+            user_id,
+            collection,
+            id: bso,
+        })
+        .await
+        .or_else(|e| {
+            if e.is_collection_not_found() {
+                Ok(SyncTimestamp::from_seconds(0f64))
+            } else {
+                Err(e)
+            }
+        })
     }
 
     /// Internal methods used by the db tests
 
-    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32>;
+    async fn get_collection_id(&self, name: String) -> ApiResult<i32>;
 
     #[cfg(test)]
-    fn create_collection(&self, name: String) -> DbFuture<'_, i32>;
-
-    #[cfg(test)]
-    fn update_collection(&self, params: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp>;
+    async fn create_collection(&self, name: String) -> ApiResult<i32>;
 
     #[cfg(test)]
     fn timestamp(&self) -> SyncTimestamp;
@@ -235,20 +241,16 @@ pub trait Db<'a>: Debug + 'a {
     fn set_timestamp(&self, timestamp: SyncTimestamp);
 
     #[cfg(test)]
-    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<'_, ()>;
+    async fn delete_batch(&self, params: params::DeleteBatch) -> ApiResult<()>;
 
     #[cfg(test)]
-    fn clear_coll_cache(&self) -> DbFuture<'_, ()>;
+    async fn clear_coll_cache(&self) -> ApiResult<()>;
 
     #[cfg(test)]
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
-impl<'a> Clone for Box<dyn Db<'a>> {
-    fn clone(&self) -> Box<dyn Db<'a>> {
-        self.box_clone()
-    }
-}
+dyn_clone::clone_trait_object!(Db);
 
 #[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
 #[serde(rename_all = "lowercase")]
@@ -269,13 +271,13 @@ impl Default for Sorting {
 pub async fn pool_from_settings(
     settings: &Settings,
     metrics: &Metrics,
-) -> Result<Box<dyn DbPool>, DbError> {
+) -> ApiResult<Box<dyn DbPool>> {
     let url =
         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
     Ok(match url.scheme() {
         "mysql" => Box::new(mysql::pool::MysqlDbPool::new(settings, metrics)?),
         "spanner" => Box::new(spanner::pool::SpannerDbPool::new(settings, metrics).await?),
-        _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
+        _ => return Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()).into()),
     })
 }
 
@@ -310,4 +312,14 @@ pub fn spawn_pool_periodic_reporter(
         }
     });
     Ok(())
+}
+
+async fn blocking_thread<F, I>(f: F) -> ApiResult<I>
+where
+    F: FnOnce() -> QueryResult<I> + Send + 'static,
+    I: Send + 'static,
+{
+    web::block(move || f().map_err(ApiError::from))
+        .await
+        .map_err(ApiError::from)
 }

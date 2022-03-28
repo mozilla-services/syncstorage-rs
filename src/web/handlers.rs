@@ -188,7 +188,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Box<dyn Db<'_> + '_>,
+    db: Box<dyn Db>,
     result: Result<Paginated<T>, ApiError>,
 ) -> Result<HttpResponse, Error>
 where
@@ -279,7 +279,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Box<dyn Db<'_> + '_>,
+    db: Box<dyn Db>,
 ) -> Result<HttpResponse, Error> {
     coll.metrics.clone().incr("request.post_collection_batch");
     trace!("Batch: Post collection batch");
