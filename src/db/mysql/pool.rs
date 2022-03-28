@@ -121,10 +121,6 @@ impl DbPool for MysqlDbPool {
     fn validate_batch_id(&self, id: String) -> ApiResult<()> {
         super::batch::validate_batch_id(&id)
     }
-
-    fn box_clone(&self) -> Box<dyn DbPool> {
-        Box::new(self.clone())
-    }
 }
 
 impl fmt::Debug for MysqlDbPool {

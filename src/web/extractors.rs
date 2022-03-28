@@ -1691,7 +1691,10 @@ mod tests {
     use sha2::Sha256;
     use tokio::sync::RwLock;
 
-    use crate::db::{mock::MockDb, Db, MockDbPool};
+    use crate::db::{
+        mock::{MockDb, MockDbPool},
+        Db,
+    };
     use crate::server::{metrics, ServerState};
     use crate::settings::{Deadman, Secrets, ServerLimits, Settings};
 
@@ -1718,7 +1721,7 @@ mod tests {
     fn make_state() -> ServerState {
         let settings = Settings::default();
         ServerState {
-            db_pool: Box::new(MockDbPool::new()),
+            db_pool: Box::new(MockDbPool),
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,

@@ -19,7 +19,6 @@ use cadence::{Gauged, StatsdClient};
 use diesel::result::QueryResult;
 use dyn_clone::DynClone;
 use lazy_static::lazy_static;
-use mockall::automock;
 use serde::Deserialize;
 use url::Url;
 
@@ -60,23 +59,16 @@ pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 /// Rough guesstimate of the maximum reasonable life span of a batch
 pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 
-#[automock]
 #[async_trait]
-pub trait DbPool: Sync + Send + Debug {
+pub trait DbPool: Sync + Send + Debug + DynClone {
     async fn get(&self) -> ApiResult<Box<dyn Db>>;
 
     fn state(&self) -> results::PoolState;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> ApiResult<()>;
-
-    fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
-impl Clone for Box<dyn DbPool> {
-    fn clone(&self) -> Box<dyn DbPool> {
-        self.box_clone()
-    }
-}
+dyn_clone::clone_trait_object!(DbPool);
 
 #[async_trait(?Send)]
 pub trait Db: Debug + DynClone {

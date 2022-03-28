@@ -5,6 +5,24 @@ use mockall::mock;
 
 use super::*;
 
+#[derive(Clone, Debug)]
+pub struct MockDbPool;
+
+#[async_trait]
+impl DbPool for MockDbPool {
+    async fn get(&self) -> ApiResult<Box<dyn Db>> {
+        Ok(Box::new(MockDb::new()) as Box<dyn Db>)
+    }
+
+    fn state(&self) -> results::PoolState {
+        results::PoolState::default()
+    }
+
+    fn validate_batch_id(&self, _: params::ValidateBatchId) -> ApiResult<()> {
+        Ok(())
+    }
+}
+
 mock! {
     #[derive(Debug)]
     pub Db {}
