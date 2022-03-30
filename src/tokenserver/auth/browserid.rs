@@ -8,8 +8,7 @@ use crate::tokenserver::{
     settings::Settings,
 };
 
-use core::time::Duration;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, time::Duration};
 
 /// The information extracted from a valid BrowserID assertion.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -39,8 +38,8 @@ impl TryFrom<&Settings> for RemoteVerifier {
             audience: settings.fxa_browserid_audience.clone(),
             issuer: settings.fxa_browserid_issuer.clone(),
             request_client: ReqwestClient::builder()
-                .timeout(Duration::new(settings.fxa_browserid_request_timeout, 0))
-                .connect_timeout(Duration::new(settings.fxa_browserid_connect_timeout, 0))
+                .timeout(Duration::from_secs(settings.fxa_browserid_request_timeout))
+                .connect_timeout(Duration::from_secs(settings.fxa_browserid_connect_timeout))
                 .build()
                 .map_err(|_| "failed to build BrowserID reqwest client")?,
             fxa_verifier_url: settings.fxa_browserid_server_url.clone(),

@@ -379,7 +379,7 @@ impl FromRequest for AuthData {
 
             match token {
                 Token::BrowserIdAssertion(assertion) => {
-                    let verify_output = state.browserid_verifier.clone().verify(assertion).await?;
+                    let verify_output = state.browserid_verifier.verify(assertion).await?;
 
                     // For requests using BrowserID, the client state is embedded in the
                     // X-Client-State header, and the generation and keys_changed_at are extracted
