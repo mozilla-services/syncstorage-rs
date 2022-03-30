@@ -77,6 +77,7 @@ macro_rules! build_app {
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
             .wrap($cors)
+            .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
             .service(
                 web::resource(&cfg_path("/info/collections"))
                     .route(web::get().to(handlers::get_collections)),

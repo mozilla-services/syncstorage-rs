@@ -70,6 +70,14 @@ impl Tags {
         }
     }
 
+    pub fn with_tag(key: &str, value: &str) -> Self {
+        let mut tags = Tags::default();
+
+        tags.tags.insert(key.to_owned(), value.to_owned());
+
+        tags
+    }
+
     pub fn add_extra(&mut self, key: &str, value: &str) {
         if !value.is_empty() {
             self.extra.insert(key.to_owned(), value.to_owned());
