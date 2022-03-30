@@ -40,6 +40,7 @@ impl TryFrom<&Settings> for RemoteVerifier {
             request_client: ReqwestClient::builder()
                 .timeout(Duration::from_secs(settings.fxa_browserid_request_timeout))
                 .connect_timeout(Duration::from_secs(settings.fxa_browserid_connect_timeout))
+                .use_rustls_tls()
                 .build()
                 .map_err(|_| "failed to build BrowserID reqwest client")?,
             fxa_verifier_url: settings.fxa_browserid_server_url.clone(),

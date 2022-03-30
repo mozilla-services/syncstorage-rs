@@ -105,7 +105,7 @@ impl VerifyToken for RemoteVerifier {
         // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
         // by timing out the future if the verification process blocks this thread for longer
         // than the specified number of seconds.
-        time::timeout(Duration::new(self.timeout, 0), fut)
+        time::timeout(Duration::from_secs(self.timeout), fut)
             .await
             .map_err(|_| TokenserverError::resource_unavailable())?
             .map_err(Into::into)
