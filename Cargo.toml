@@ -75,7 +75,7 @@ slog-envlogger = "2.2.0"
 slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
-slog-term = "2.6"
+slog-term = "2.9"
 thiserror = "1.0.26"
 time = "^0.3"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
