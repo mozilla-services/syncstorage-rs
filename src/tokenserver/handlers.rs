@@ -8,13 +8,17 @@ use actix_web::{http::StatusCode, Error, HttpResponse};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::db::models::Db;
-use super::db::params::{GetNodeId, PostUser, PutUser, ReplaceUsers};
-use super::error::TokenserverError;
-use super::extractors::TokenserverRequest;
-use super::support::Tokenlib;
-use super::NodeType;
-use crate::tokenserver::support::MakeTokenPlaintext;
+use super::{
+    auth::{MakeTokenPlaintext, Tokenlib},
+    db::{
+        models::Db,
+        params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
+    },
+    error::TokenserverError,
+    extractors::TokenserverRequest,
+    NodeType,
+};
+use crate::server::metrics::Metrics;
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -31,11 +35,15 @@ pub struct TokenserverResult {
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
+    mut metrics: Metrics,
 ) -> Result<HttpResponse, Error> {
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
         let token_plaintext = get_token_plaintext(&req, &updates)?;
+
+        metrics.start_timer("tokenserver.token_creation", None);
+        // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
 
@@ -43,7 +51,7 @@ pub async fn get_tokenserver_result(
         id: token,
         key: derived_secret,
         uid: updates.uid,
-        api_endpoint: format!("{:}/1.5/{:}", req.user.node, req.user.uid),
+        api_endpoint: format!("{:}/1.5/{:}", req.user.node, updates.uid),
         duration: req.duration,
         hashed_fxa_uid: req.hashed_fxa_uid,
         hashalg: "sha256",
@@ -70,7 +78,7 @@ fn get_token_plaintext(
     let fxa_kid = {
         // If decoding the hex bytes fails, it means we did something wrong when we stored the
         // client state in the database
-        let client_state = hex::decode(req.client_state.clone()).map_err(|_| {
+        let client_state = hex::decode(req.auth_data.client_state.clone()).map_err(|_| {
             error!("⚠️ Failed to decode client state hex");
 
             TokenserverError::internal_error()
@@ -91,7 +99,7 @@ fn get_token_plaintext(
     Ok(MakeTokenPlaintext {
         node: req.user.node.to_owned(),
         fxa_kid,
-        fxa_uid: req.fxa_uid.clone(),
+        fxa_uid: req.auth_data.fxa_uid.clone(),
         hashed_device_id: req.hashed_device_id.clone(),
         hashed_fxa_uid: req.hashed_fxa_uid.clone(),
         expires,
@@ -107,29 +115,23 @@ struct UserUpdates {
 async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUpdates, Error> {
     // If the keys_changed_at in the request is larger than that stored on the user record,
     // update to the value in the request.
-    let keys_changed_at = if let Some(user_keys_changed_at) = req.user.keys_changed_at {
-        cmp::max(req.keys_changed_at, user_keys_changed_at)
-    } else {
-        req.keys_changed_at
-    };
+    let keys_changed_at =
+        cmp::max(req.auth_data.keys_changed_at, req.user.keys_changed_at).unwrap_or(0);
 
-    let generation = if let Some(generation) = req.generation {
+    let generation = if let Some(generation) = req.auth_data.generation {
         // If there's a generation on the request, choose the larger of that and the generation
         // already stored on the user record.
         cmp::max(generation, req.user.generation)
-    } else if req.keys_changed_at > req.user.generation {
+    } else {
         // If there's not a generation on the request and the keys_changed_at on the request is
         // larger than the generation stored on the user record, set the user's generation to be
         // the keys_changed_at on the request.
-        req.keys_changed_at
-    } else {
-        // As a fallback, set the user's generation to be 0.
-        0
+        cmp::max(req.auth_data.keys_changed_at, Some(req.user.generation)).unwrap_or(0)
     };
 
     // If the client state changed, we need to mark the current user as "replaced" and create a
     // new user record. Otherwise, we can update the user in place.
-    if req.client_state != req.user.client_state {
+    if req.auth_data.client_state != req.user.client_state {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -138,9 +140,9 @@ async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUp
         // Create new user record with updated generation/keys_changed_at
         let post_user_params = PostUser {
             service_id: req.service_id,
-            email: req.email.clone(),
+            email: req.auth_data.email.clone(),
             generation,
-            client_state: req.client_state.clone(),
+            client_state: req.auth_data.client_state.clone(),
             node_id: db
                 .get_node_id(GetNodeId {
                     service_id: req.service_id,
@@ -156,7 +158,7 @@ async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUp
         // Make sure each old row is marked as replaced (they might not be, due to races in row
         // creation)
         db.replace_users(ReplaceUsers {
-            email: req.email.clone(),
+            email: req.auth_data.email.clone(),
             service_id: req.service_id,
             replaced_at: timestamp,
         })
@@ -168,7 +170,7 @@ async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUp
         })
     } else {
         let params = PutUser {
-            email: req.email.clone(),
+            email: req.auth_data.email.clone(),
             service_id: req.service_id,
             generation,
             keys_changed_at: Some(keys_changed_at),

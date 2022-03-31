@@ -3,28 +3,29 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
+use core::fmt::Debug;
 use std::sync::Arc;
 
 use actix_web::{
     dev::Payload,
     http::StatusCode,
-    web::{self, Data, Query},
+    web::{Data, Query},
     Error, FromRequest, HttpRequest,
 };
-use actix_web_httpauth::extractors::bearer::BearerAuth;
 use futures::future::{self, LocalBoxFuture, Ready};
+use hex;
 use hmac::{Hmac, Mac, NewMac};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 
-use super::db::{models::Db, params, pool::DbPool, results};
-use super::error::{ErrorLocation, TokenserverError};
-use super::support::TokenData;
-use super::{LogItemsMutator, NodeType, ServerState, TokenserverMetrics};
-use crate::server::metrics;
-use crate::settings::Secrets;
+use super::{
+    db::{models::Db, params, pool::DbPool, results},
+    error::{ErrorLocation, TokenserverError},
+    LogItemsMutator, NodeType, ServerState, TokenserverMetrics,
+};
+use crate::{server::metrics, settings::Secrets};
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -37,11 +38,7 @@ const SYNC_SERVICE_NAME: &str = "sync-1.5";
 #[derive(Debug, Default, PartialEq)]
 pub struct TokenserverRequest {
     pub user: results::GetOrCreateUser,
-    pub fxa_uid: String,
-    pub email: String,
-    pub generation: Option<i64>,
-    pub keys_changed_at: i64,
-    pub client_state: String,
+    pub auth_data: AuthData,
     pub shared_secret: String,
     pub hashed_fxa_uid: String,
     pub hashed_device_id: String,
@@ -72,62 +69,72 @@ impl TokenserverRequest {
     /// of the FxA server may not have been sending all the expected fields, and
     /// that some clients do not report the `generation` timestamp.
     fn validate(&self) -> Result<(), TokenserverError> {
+        let auth_keys_changed_at = self.auth_data.keys_changed_at;
+        let auth_generation = self.auth_data.generation;
+        let user_keys_changed_at = self.user.keys_changed_at;
+        let user_generation = Some(self.user.generation);
+
+        /// `$left` and `$right` must both be `Option`s, and `$op` must be a binary infix
+        /// operator. If `$left` and `$right` are both `Some`, this macro returns
+        /// `$left $op $right`; otherwise, it returns `false`.
+        macro_rules! opt_cmp {
+            ($left:ident $op:tt $right:ident) => {
+                $left.zip($right).map(|(l, r)| l $op r).unwrap_or(false)
+            }
+        }
+
         // If the caller reports a generation number, then a change
         // in keys should correspond to a change in generation number.
         // Unfortunately a previous version of the server that didn't
         // have `keys_changed_at` support may have already seen and
         // written the new value of `generation`. The best we can do
         // here is enforce that `keys_changed_at` <= `generation`.
-        if let (Some(generation), Some(user_keys_changed_at)) =
-            (self.generation, self.user.keys_changed_at)
+        if opt_cmp!(auth_keys_changed_at > user_keys_changed_at)
+            && opt_cmp!(auth_generation < auth_keys_changed_at)
         {
-            if self.keys_changed_at > user_keys_changed_at && generation < self.keys_changed_at {
-                return Err(TokenserverError::invalid_keys_changed_at());
-            }
+            return Err(TokenserverError::invalid_keys_changed_at());
         }
 
         // The client state on the request must not have been used in the past.
-        if self.user.old_client_states.contains(&self.client_state) {
+        if self
+            .user
+            .old_client_states
+            .contains(&self.auth_data.client_state)
+        {
             let error_message = "Unacceptable client-state value stale value";
             return Err(TokenserverError::invalid_client_state(error_message));
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in generation (if the client reports a generation).
-        if let Some(generation) = self.generation {
-            if self.client_state != self.user.client_state && generation <= self.user.generation {
-                let error_message =
-                    "Unacceptable client-state value new value with no generation change";
-                return Err(TokenserverError::invalid_client_state(error_message));
-            }
+        if self.auth_data.client_state != self.user.client_state
+            && opt_cmp!(auth_generation <= user_generation)
+        {
+            let error_message =
+                "Unacceptable client-state value new value with no generation change";
+            return Err(TokenserverError::invalid_client_state(error_message));
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
         // be accompanied by a valid change in keys_changed_at
-        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
-            if self.client_state != self.user.client_state
-                && self.keys_changed_at <= user_keys_changed_at
-            {
-                let error_message =
-                    "Unacceptable client-state value new value with no keys_changed_at change";
-                return Err(TokenserverError::invalid_client_state(error_message));
-            }
+        if self.auth_data.client_state != self.user.client_state
+            && opt_cmp!(auth_keys_changed_at <= user_keys_changed_at)
+        {
+            let error_message =
+                "Unacceptable client-state value new value with no keys_changed_at change";
+            return Err(TokenserverError::invalid_client_state(error_message));
         }
 
         // The generation on the request cannot be earlier than the generation stored on the user
         // record.
-        if let Some(generation) = self.generation {
-            if self.user.generation > generation {
-                return Err(TokenserverError::invalid_generation());
-            }
+        if opt_cmp!(user_generation > auth_generation) {
+            return Err(TokenserverError::invalid_generation());
         }
 
         // The keys_changed_at on the request cannot be earlier than the keys_changed_at stored on
         // the user record.
-        if let Some(user_keys_changed_at) = self.user.keys_changed_at {
-            if user_keys_changed_at > self.keys_changed_at {
-                return Err(TokenserverError::invalid_keys_changed_at());
-            }
+        if opt_cmp!(user_keys_changed_at > auth_keys_changed_at) {
+            return Err(TokenserverError::invalid_keys_changed_at());
         }
 
         Ok(())
@@ -144,25 +151,32 @@ impl FromRequest for TokenserverRequest {
 
         Box::pin(async move {
             let mut log_items_mutator = LogItemsMutator::from(&req);
-            let token_data = TokenData::extract(&req).await?;
+            let auth_data = AuthData::extract(&req).await?;
 
             // XXX: Tokenserver state will no longer be an Option once the Tokenserver
             // code is rolled out, so we will eventually be able to remove this unwrap().
             let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
             let shared_secret = get_secret(&req)?;
             let fxa_metrics_hash_secret = &state.fxa_metrics_hash_secret.as_bytes();
-            let key_id = KeyId::extract(&req).await?;
-            let fxa_uid = token_data.user;
+
+            // To preserve anonymity, compute a hash of the FxA UID to be used for reporting
+            // metrics
             let hashed_fxa_uid = {
-                let hashed_fxa_uid_full = fxa_metrics_hash(&fxa_uid, fxa_metrics_hash_secret);
+                let hashed_fxa_uid_full =
+                    fxa_metrics_hash(&auth_data.fxa_uid, fxa_metrics_hash_secret);
                 log_items_mutator.insert("uid".to_owned(), hashed_fxa_uid_full.clone());
                 hashed_fxa_uid_full[0..32].to_owned()
             };
             log_items_mutator.insert("metrics_uid".to_owned(), hashed_fxa_uid.clone());
+
+            // To preserve anonymity, compute a hash of the FxA device ID to be used for reporting
+            // metrics. Only requests using BrowserID will have a device ID, so use "none" as
+            // a placeholder for OAuth requests.
             let hashed_device_id = {
-                let device_id = "none".to_string();
-                hash_device_id(&hashed_fxa_uid, &device_id, fxa_metrics_hash_secret)
+                let device_id = auth_data.device_id.as_deref().unwrap_or("none");
+                hash_device_id(&hashed_fxa_uid, device_id, fxa_metrics_hash_secret)
             };
+
             let db = <Box<dyn Db>>::extract(&req).await?;
             let service_id = {
                 let path = req.match_info();
@@ -202,14 +216,13 @@ impl FromRequest for TokenserverRequest {
                     .into());
                 }
             };
-            let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
             let user = db
                 .get_or_create_user(params::GetOrCreateUser {
                     service_id,
-                    email: email.clone(),
-                    generation: token_data.generation.unwrap_or(0),
-                    client_state: key_id.client_state.clone(),
-                    keys_changed_at: Some(key_id.keys_changed_at),
+                    email: auth_data.email.clone(),
+                    generation: auth_data.generation.unwrap_or(0),
+                    client_state: auth_data.client_state.clone(),
+                    keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
                 })
                 .await?;
@@ -232,11 +245,7 @@ impl FromRequest for TokenserverRequest {
 
             let tokenserver_request = TokenserverRequest {
                 user,
-                fxa_uid,
-                email,
-                generation: token_data.generation,
-                keys_changed_at: key_id.keys_changed_at,
-                client_state: key_id.client_state,
+                auth_data,
                 shared_secret,
                 hashed_fxa_uid,
                 hashed_device_id,
@@ -297,7 +306,14 @@ impl FromRequest for Box<dyn DbPool> {
     }
 }
 
-impl FromRequest for TokenData {
+/// An authentication token as parsed from the `Authorization` header. Both BrowserID assertions
+/// and OAuth tokens are opaque to Tokenserver and must be verified via FxA.
+pub enum Token {
+    BrowserIdAssertion(String),
+    OAuthToken(String),
+}
+
+impl FromRequest for Token {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -314,39 +330,104 @@ impl FromRequest for TokenData {
                 .to_str()
                 .map_err(|_| TokenserverError::unauthorized("Unauthorized"))?;
 
-            // The request must use Bearer auth
-            if let Some((auth_type, _)) = authorization_header.split_once(' ') {
-                if auth_type.to_ascii_lowercase() != "bearer" {
-                    return Err(TokenserverError::unauthorized("Unsupported").into());
+            if let Some((auth_type, token)) = authorization_header.split_once(' ') {
+                let auth_type = auth_type.to_ascii_lowercase();
+
+                if auth_type == "bearer" {
+                    Ok(Token::OAuthToken(token.to_owned()))
+                } else if auth_type == "browserid" {
+                    Ok(Token::BrowserIdAssertion(token.to_owned()))
+                } else {
+                    // The request must use a Bearer token or BrowserID token
+                    Err(TokenserverError::unauthorized("Unsupported").into())
                 }
+            } else {
+                // Headers that are not of the format "[AUTH TYPE] [TOKEN]" are invalid
+                Err(TokenserverError::unauthorized("Unauthorized").into())
             }
-
-            let auth = BearerAuth::extract(&req)
-                .await
-                .map_err(|_| TokenserverError::invalid_credentials("Unsupported"))?;
-            // XXX: The Tokenserver state will no longer be an Option once the Tokenserver
-            // code is rolled out, so we will eventually be able to remove this unwrap().
-            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
-            let oauth_verifier = state.oauth_verifier.clone();
-
-            let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
-            metrics.start_timer("tokenserver.oauth_token_verification", None);
-
-            web::block(move || oauth_verifier.verify_token(auth.token()))
-                .await
-                .map_err(TokenserverError::from)
-                .map_err(Into::into)
         })
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-struct KeyId {
-    client_state: String,
-    keys_changed_at: i64,
+/// The data extracted from the authentication token.
+#[derive(Debug, Default, PartialEq)]
+pub struct AuthData {
+    pub client_state: String,
+    pub device_id: Option<String>,
+    pub email: String,
+    pub fxa_uid: String,
+    pub generation: Option<i64>,
+    pub keys_changed_at: Option<i64>,
 }
 
-impl FromRequest for KeyId {
+impl FromRequest for AuthData {
+    type Config = ();
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            // XXX: The Tokenserver state will no longer be an Option once the Tokenserver
+            // code is rolled out, so we will eventually be able to remove this unwrap().
+            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let token = Token::extract(&req).await?;
+
+            let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
+            metrics.start_timer("tokenserver.token_verification", None);
+
+            match token {
+                Token::BrowserIdAssertion(assertion) => {
+                    let verify_output = state.browserid_verifier.verify(assertion).await?;
+
+                    // For requests using BrowserID, the client state is embedded in the
+                    // X-Client-State header, and the generation and keys_changed_at are extracted
+                    // from the assertion as part of the verification process.
+                    let XClientStateHeader(client_state) =
+                        XClientStateHeader::extract(&req).await?;
+                    let (fxa_uid, _) = verify_output
+                        .email
+                        .split_once('@')
+                        .unwrap_or((&verify_output.email, ""));
+
+                    Ok(AuthData {
+                        client_state: client_state.unwrap_or_else(|| "".to_owned()),
+                        device_id: verify_output.device_id,
+                        email: verify_output.email.clone(),
+                        fxa_uid: fxa_uid.to_owned(),
+                        generation: verify_output.generation,
+                        keys_changed_at: verify_output.keys_changed_at,
+                    })
+                }
+                Token::OAuthToken(token) => {
+                    let verify_output = state.oauth_verifier.verify(token).await?;
+
+                    // For requests using OAuth, the keys_changed_at and client state are embedded
+                    // in the X-KeyID header.
+                    let key_id = KeyId::extract(&req).await?;
+                    let fxa_uid = verify_output.fxa_uid;
+                    let email = format!("{}@{}", fxa_uid, state.fxa_email_domain);
+
+                    Ok(AuthData {
+                        client_state: key_id.client_state,
+                        email,
+                        device_id: None,
+                        fxa_uid,
+                        generation: verify_output.generation,
+                        keys_changed_at: Some(key_id.keys_changed_at),
+                    })
+                }
+            }
+        })
+    }
+}
+
+/// The value extracted from the X-Client-State header if it was present. The value in this header
+/// consists of the raw client state bytes encoded as a hexadecimal string.
+struct XClientStateHeader(Option<String>);
+
+impl FromRequest for XClientStateHeader {
     type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -374,27 +455,61 @@ impl FromRequest for KeyId {
                 }
             }
 
+            Ok(Self(maybe_x_client_state.map(ToOwned::to_owned)))
+        })
+    }
+}
+
+// The key ID, as extracted from the X-KeyID header. The X-KeyID header is of the format
+// `[keys_changed_at]-[base64-encoded client state]` (e.g. `00000000000001234-qqo`)
+#[derive(Clone, Debug, PartialEq)]
+struct KeyId {
+    client_state: String,
+    keys_changed_at: i64,
+}
+
+impl FromRequest for KeyId {
+    type Config = ();
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let headers = req.headers();
+
+            // The X-KeyID header must be present for requests using OAuth
             let x_key_id = headers
                 .get("X-KeyID")
                 .ok_or_else(|| TokenserverError::invalid_key_id("Missing X-KeyID header"))?
                 .to_str()
                 .map_err(|_| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
 
+            // The X-KeyID header is of the format `[keys_changed_at]-[base64-encoded client state]` (e.g. `00000000000001234-qqo`)
             let (keys_changed_at_string, encoded_client_state) = x_key_id
                 .split_once('-')
                 .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))?;
 
             let client_state = {
-                let client_state_bytes =
-                    base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                        .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
+                // The client state in the X-KeyID header consists of the raw client state bytes
+                // encoded as URL-safe base64 with the padding removed. We convert it to hex
+                // because we store the client state as hex in the database.
+                let client_state_hex = {
+                    let bytes =
+                        base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
+                            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized"))?;
 
-                let client_state = hex::encode(client_state_bytes);
+                    hex::encode(bytes)
+                };
+                // The client state from the X-Client-State header is already properly encoded as
+                // hex
+                let XClientStateHeader(x_client_state) = XClientStateHeader::extract(&req).await?;
 
                 // If there's a client state value in the X-Client-State header, verify that it matches
                 // the value in X-KeyID.
-                if let Some(x_client_state) = maybe_x_client_state {
-                    if x_client_state != client_state {
+                if let Some(x_client_state) = x_client_state {
+                    if x_client_state != client_state_hex {
                         return Err(TokenserverError {
                             status: "invalid-client-state",
                             location: ErrorLocation::Body,
@@ -404,7 +519,7 @@ impl FromRequest for KeyId {
                     }
                 }
 
-                client_state
+                client_state_hex
             };
 
             let keys_changed_at = keys_changed_at_string
@@ -494,7 +609,9 @@ mod tests {
     use crate::server::metrics;
     use crate::settings::{Secrets, ServerLimits, Settings};
     use crate::tokenserver::{
-        db::mock::MockDbPool as MockTokenserverPool, MockOAuthVerifier, ServerState,
+        auth::{browserid, oauth, MockVerifier},
+        db::mock::MockDbPool as MockTokenserverPool,
+        ServerState,
     };
 
     use std::sync::Arc;
@@ -508,26 +625,26 @@ mod tests {
     #[actix_rt::test]
     async fn test_valid_tokenserver_request() {
         let fxa_uid = "test123";
-        let verifier = {
-            let token_data = TokenData {
-                user: fxa_uid.to_owned(),
-                client_id: "client id".to_owned(),
-                scope: vec!["scope".to_owned()],
+        let oauth_verifier = {
+            let verify_output = oauth::VerifyOutput {
+                fxa_uid: fxa_uid.to_owned(),
                 generation: Some(1234),
-                profile_changed_at: Some(1234),
             };
             let valid = true;
 
-            MockOAuthVerifier { valid, token_data }
+            MockVerifier {
+                valid,
+                verify_output,
+            }
         };
-        let state = make_state(verifier);
+        let state = make_state(oauth_verifier, MockVerifier::default());
 
         let req = TestRequest::default()
             .data(Some(state))
             .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
-            .header("x-keyid", "0000000001234-YWFh")
+            .header("x-keyid", "0000000001234-qqo")
             .param("application", "sync")
             .param("version", "1.5")
             .uri("/1.0/sync/1.5?duration=100")
@@ -540,11 +657,14 @@ mod tests {
             .unwrap();
         let expected_tokenserver_request = TokenserverRequest {
             user: results::GetOrCreateUser::default(),
-            fxa_uid: fxa_uid.to_owned(),
-            email: "test123@test.com".to_owned(),
-            generation: Some(1234),
-            keys_changed_at: 1234,
-            client_state: "616161".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: fxa_uid.to_owned(),
+                email: "test123@test.com".to_owned(),
+                generation: Some(1234),
+                keys_changed_at: Some(1234),
+                client_state: "aaaa".to_owned(),
+            },
             shared_secret: "Ted Koppel is a robot".to_owned(),
             hashed_fxa_uid: "4d00ecae64b98dd7dc7dea68d0dd615d".to_owned(),
             hashed_device_id: "3a41cccbdd666ebc4199f1f9d1249d44".to_owned(),
@@ -559,26 +679,26 @@ mod tests {
     #[actix_rt::test]
     async fn test_invalid_auth_token() {
         let fxa_uid = "test123";
-        let verifier = {
-            let token_data = TokenData {
-                user: fxa_uid.to_owned(),
-                client_id: "client id".to_owned(),
-                scope: vec!["scope".to_owned()],
+        let oauth_verifier = {
+            let verify_output = oauth::VerifyOutput {
+                fxa_uid: fxa_uid.to_owned(),
                 generation: Some(1234),
-                profile_changed_at: None,
             };
             let valid = false;
 
-            MockOAuthVerifier { valid, token_data }
+            MockVerifier {
+                valid,
+                verify_output,
+            }
         };
-        let state = make_state(verifier);
+        let state = make_state(oauth_verifier, MockVerifier::default());
 
         let request = TestRequest::default()
             .data(Some(state))
             .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
-            .header("x-keyid", "0000000001234-YWFh")
+            .header("x-keyid", "0000000001234-qqo")
             .param("application", "sync")
             .param("version", "1.5")
             .method(Method::GET)
@@ -600,25 +720,25 @@ mod tests {
     async fn test_application_and_version() {
         fn build_request() -> TestRequest {
             let fxa_uid = "test123";
-            let verifier = {
-                let token_data = TokenData {
-                    user: fxa_uid.to_owned(),
-                    client_id: "client id".to_owned(),
-                    scope: vec!["scope".to_owned()],
+            let oauth_verifier = {
+                let verify_output = oauth::VerifyOutput {
+                    fxa_uid: fxa_uid.to_owned(),
                     generation: Some(1234),
-                    profile_changed_at: None,
                 };
                 let valid = true;
 
-                MockOAuthVerifier { valid, token_data }
+                MockVerifier {
+                    valid,
+                    verify_output,
+                }
             };
 
             TestRequest::default()
-                .data(Some(make_state(verifier)))
+                .data(Some(make_state(oauth_verifier, MockVerifier::default())))
                 .data(Arc::clone(&SECRETS))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
-                .header("x-keyid", "0000000001234-YWFh")
+                .header("x-keyid", "0000000001234-qqo")
                 .method(Method::GET)
         }
 
@@ -697,23 +817,23 @@ mod tests {
     async fn test_key_id() {
         fn build_request() -> TestRequest {
             let fxa_uid = "test123";
-            let verifier = {
+            let oauth_verifier = {
                 let start = SystemTime::now();
                 let current_time = start.duration_since(UNIX_EPOCH).unwrap();
-                let token_data = TokenData {
-                    user: fxa_uid.to_owned(),
-                    client_id: "client id".to_owned(),
-                    scope: vec!["scope".to_owned()],
+                let verify_output = oauth::VerifyOutput {
+                    fxa_uid: fxa_uid.to_owned(),
                     generation: Some(current_time.as_secs() as i64),
-                    profile_changed_at: Some(current_time.as_secs() as i64),
                 };
                 let valid = true;
 
-                MockOAuthVerifier { valid, token_data }
+                MockVerifier {
+                    valid,
+                    verify_output,
+                }
             };
 
             TestRequest::default()
-                .data(Some(make_state(verifier)))
+                .data(Some(make_state(oauth_verifier, MockVerifier::default())))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
                 .param("application", "sync")
@@ -787,7 +907,7 @@ mod tests {
         // X-KeyID header with non-integral keys_changed_at
         {
             let request = build_request()
-                .header("x-keyid", "notanumber-YWFh")
+                .header("x-keyid", "notanumber-qqo")
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -800,8 +920,8 @@ mod tests {
         // X-KeyID header with client state that does not match that in the X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-YWFh")
-                .header("x-client-state", "626262")
+                .header("x-keyid", "0000000001234-qqo")
+                .header("x-client-state", "bbbb")
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -818,12 +938,12 @@ mod tests {
         // Valid X-KeyID header with matching X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-YWFh")
-                .header("x-client-state", "616161")
+                .header("x-keyid", "0000000001234-qqo")
+                .header("x-client-state", "aaaa")
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: 1234,
             };
 
@@ -833,11 +953,11 @@ mod tests {
         // Valid X-KeyID header with no X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-YWFh")
+                .header("x-keyid", "0000000001234-qqo")
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 keys_changed_at: 1234,
             };
 
@@ -853,7 +973,7 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
@@ -862,11 +982,14 @@ mod tests {
                 first_seen_at: 1234,
                 old_client_states: vec![],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1233),
-            keys_changed_at: 1234,
-            client_state: "616161".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1233),
+                keys_changed_at: Some(1234),
+                client_state: "aaaa".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -887,7 +1010,7 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
@@ -896,11 +1019,14 @@ mod tests {
                 replaced_at: None,
                 old_client_states: vec![],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1234),
-            keys_changed_at: 1233,
-            client_state: "616161".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1234),
+                keys_changed_at: Some(1233),
+                client_state: "aaaa".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -920,7 +1046,7 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
@@ -929,11 +1055,14 @@ mod tests {
                 replaced_at: None,
                 old_client_states: vec![],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1234),
-            keys_changed_at: 1235,
-            client_state: "616161".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1234),
+                keys_changed_at: Some(1235),
+                client_state: "aaaa".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -954,20 +1083,23 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
                 replaced_at: None,
-                old_client_states: vec!["626262".to_owned()],
+                old_client_states: vec!["bbbb".to_owned()],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1234),
-            keys_changed_at: 1234,
-            client_state: "626262".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1234),
+                keys_changed_at: Some(1234),
+                client_state: "bbbb".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -988,7 +1120,7 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
@@ -997,11 +1129,14 @@ mod tests {
                 replaced_at: None,
                 old_client_states: vec![],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1234),
-            keys_changed_at: 1234,
-            client_state: "626262".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1234),
+                keys_changed_at: Some(1234),
+                client_state: "bbbb".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -1022,7 +1157,7 @@ mod tests {
             user: results::GetOrCreateUser {
                 uid: 1,
                 email: "test@test.com".to_owned(),
-                client_state: "616161".to_owned(),
+                client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
                 keys_changed_at: Some(1234),
@@ -1031,11 +1166,14 @@ mod tests {
                 replaced_at: None,
                 old_client_states: vec![],
             },
-            fxa_uid: "test".to_owned(),
-            email: "test@test.com".to_owned(),
-            generation: Some(1235),
-            keys_changed_at: 1234,
-            client_state: "626262".to_owned(),
+            auth_data: AuthData {
+                device_id: None,
+                fxa_uid: "test".to_owned(),
+                email: "test@test.com".to_owned(),
+                generation: Some(1235),
+                keys_changed_at: Some(1234),
+                client_state: "bbbb".to_owned(),
+            },
             shared_secret: "secret".to_owned(),
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
@@ -1054,13 +1192,17 @@ mod tests {
         String::from_utf8(block_on(test::read_body(sresponse)).to_vec()).unwrap()
     }
 
-    fn make_state(verifier: MockOAuthVerifier) -> ServerState {
+    fn make_state(
+        oauth_verifier: MockVerifier<oauth::VerifyOutput>,
+        browserid_verifier: MockVerifier<browserid::VerifyOutput>,
+    ) -> ServerState {
         let settings = Settings::default();
 
         ServerState {
             fxa_email_domain: "test.com".to_owned(),
             fxa_metrics_hash_secret: "".to_owned(),
-            oauth_verifier: Box::new(verifier),
+            browserid_verifier: Box::new(browserid_verifier),
+            oauth_verifier: Box::new(oauth_verifier),
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),

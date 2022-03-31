@@ -189,9 +189,30 @@ impl Settings {
             "mysql://root@127.0.0.1/tokenserver",
         )?;
         s.set_default("tokenserver.enabled", false)?;
-        s.set_default("tokenserver.fxa_email_domain", "test.com")?;
+        s.set_default(
+            "tokenserver.fxa_browserid_audience",
+            "https://token.stage.mozaws.net",
+        )?;
+        s.set_default(
+            "tokenserver.fxa_browserid_issuer",
+            "api-accounts.stage.mozaws.net",
+        )?;
+        s.set_default(
+            "tokenserver.fxa_browserid_server_url",
+            "https://verifier.stage.mozaws.net/v2",
+        )?;
+        s.set_default("tokenserver.fxa_browserid_request_timeout", 10)?;
+        s.set_default("tokenserver.fxa_browserid_connect_timeout", 5)?;
+        s.set_default(
+            "tokenserver.fxa_email_domain",
+            "api-accounts.stage.mozaws.net",
+        )?;
         s.set_default("tokenserver.fxa_metrics_hash_secret", "secret")?;
-        s.set_default("tokenserver.test_mode_enabled", false)?;
+        s.set_default(
+            "tokenserver.fxa_oauth_server_url",
+            "https://oauth.stage.mozaws.net",
+        )?;
+        s.set_default("tokenserver.fxa_oauth_request_timeout", 10)?;
         s.set_default("tokenserver.node_type", "spanner")?;
         s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
 

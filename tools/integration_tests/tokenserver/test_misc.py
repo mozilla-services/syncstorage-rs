@@ -16,10 +16,9 @@ class TestMisc(TestCase, unittest.TestCase):
         super(TestMisc, self).tearDown()
 
     def test_unknown_app(self):
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/xXx/token', headers=headers, status=404)
         expected_error_response = {
             'errors': [
@@ -34,10 +33,9 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_unknown_version(self):
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.2', headers=headers, status=404)
         expected_error_response = {
             'errors': [
@@ -53,10 +51,9 @@ class TestMisc(TestCase, unittest.TestCase):
 
     def test_valid_app(self):
         self._add_user()
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertIn('https://example.com/1.5', res.json['api_endpoint'])
         self.assertIn('duration', res.json)
@@ -70,11 +67,9 @@ class TestMisc(TestCase, unittest.TestCase):
         uid = self._add_user(generation=1236, created_at=1233)
         # Users are sorted by (generation, created_at), so the fourth user
         # record is considered to be the current user
-        oauth_token = self._forge_oauth_token(generation=1236)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1236,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertEqual(res.json['uid'], uid)
 
@@ -87,11 +82,9 @@ class TestMisc(TestCase, unittest.TestCase):
         seen_uids = [uid1, uid2, uid3]
         # Because the current user (the one with uid3) has been replaced, a new
         # user record is created
-        oauth_token = self._forge_oauth_token(generation=1237)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1237-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1237,
+                                           keys_changed_at=1237,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertNotIn(res.json['uid'], seen_uids)
 
@@ -101,11 +94,9 @@ class TestMisc(TestCase, unittest.TestCase):
         uid2 = self._add_user(generation=1235, created_at=1235)
         uid3 = self._add_user(generation=1236, created_at=1240)
         # Make a request
-        oauth_token = self._forge_oauth_token(generation=1236)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1236-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1236,
+                                           keys_changed_at=1236,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # uid3 is associated with the current user
         self.assertEqual(res.json['uid'], uid3)
@@ -119,14 +110,12 @@ class TestMisc(TestCase, unittest.TestCase):
     def test_user_updates_with_new_client_state(self):
         # Start with a single user in the database
         uid = self._add_user(generation=1234, keys_changed_at=1234,
-                             client_state='616161')
+                             client_state='aaaa')
         # Send a request, updating the generation, keys_changed_at, and
         # client_state
-        oauth_token = self._forge_oauth_token(generation=1235)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1235-YmJi'
-        }
+        headers = self._build_auth_headers(generation=1235,
+                                           keys_changed_at=1235,
+                                           client_state='bbbb')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # A new user should have been created
         self.assertEqual(self._count_users(), 2)
@@ -136,12 +125,12 @@ class TestMisc(TestCase, unittest.TestCase):
         user = self._get_user(res.json['uid'])
         self.assertEqual(user['generation'], 1235)
         self.assertEqual(user['keys_changed_at'], 1235)
-        self.assertEqual(user['client_state'], '626262')
+        self.assertEqual(user['client_state'], 'bbbb')
         # The old user record should not have the updated values
         user = self._get_user(uid)
         self.assertEqual(user['generation'], 1234)
         self.assertEqual(user['keys_changed_at'], 1234)
-        self.assertEqual(user['client_state'], '616161')
+        self.assertEqual(user['client_state'], 'aaaa')
         # Get all the replaced users
         email = 'test@%s' % self.FXA_EMAIL_DOMAIN
         replaced_users = self._get_replaced_users(self.service_id,
@@ -153,18 +142,16 @@ class TestMisc(TestCase, unittest.TestCase):
         replaced_user = replaced_users[0]
         self.assertEqual(replaced_user['generation'], 1234)
         self.assertEqual(replaced_user['keys_changed_at'], 1234)
-        self.assertEqual(replaced_user['client_state'], '616161')
+        self.assertEqual(replaced_user['client_state'], 'aaaa')
 
     def test_user_updates_with_same_client_state(self):
         # Start with a single user in the database
         uid = self._add_user(generation=1234, keys_changed_at=1234)
         # Send a request, updating the generation and keys_changed_at but not
         # the client state
-        oauth_token = self._forge_oauth_token(generation=1235)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1235-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1235,
+                                           keys_changed_at=1235,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # A new user should not have been created
         self.assertEqual(self._count_users(), 1)
@@ -177,11 +164,9 @@ class TestMisc(TestCase, unittest.TestCase):
     def test_retired_users_can_make_requests(self):
         # Add a retired user to the database
         self._add_user(generation=MAX_GENERATION)
-        oauth_token = self._forge_oauth_token(generation=1234)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1235,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         # Retired users cannot make requests with a generation smaller than
         # the max generation
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
@@ -198,18 +183,17 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
         # Retired users can make requests with a generation number equal to
         # the max generation
-        oauth_token = self._forge_oauth_token(generation=MAX_GENERATION)
-        headers['Authorization'] = 'Bearer %s' % oauth_token
+        headers = self._build_auth_headers(generation=MAX_GENERATION,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers)
 
     def test_replaced_users_can_make_requests(self):
         # Add a replaced user to the database
         self._add_user(generation=1234, created_at=1234, replaced_at=1234)
-        oauth_token = self._forge_oauth_token(generation=1234)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         # Replaced users can make requests
         self.app.get('/1.0/sync/1.5', headers=headers)
 
@@ -217,14 +201,10 @@ class TestMisc(TestCase, unittest.TestCase):
         # Add a retired user to the database
         invalid_node_id = self.NODE_ID + 1
         self._add_user(generation=MAX_GENERATION, nodeid=invalid_node_id)
-        oauth_token = self._forge_oauth_token(generation=1234)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
         # Retired users without a node cannot make requests
-        oauth_token = self._forge_oauth_token(generation=MAX_GENERATION)
-        headers['Authorization'] = 'Bearer %s' % oauth_token
+        headers = self._build_auth_headers(generation=MAX_GENERATION,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers, status=500)
 
     def test_replaced_users_with_no_node_can_make_requests(self):
@@ -232,11 +212,9 @@ class TestMisc(TestCase, unittest.TestCase):
         invalid_node_id = self.NODE_ID + 1
         self._add_user(created_at=1234, replaced_at=1234,
                        nodeid=invalid_node_id)
-        oauth_token = self._forge_oauth_token(generation=1234)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         # Replaced users without a node can make requests
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         user = self._get_user(res.json['uid'])

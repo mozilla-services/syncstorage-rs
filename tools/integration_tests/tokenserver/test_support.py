@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 from base64 import urlsafe_b64encode as b64encode
+import binascii
 import json
 import os
 import math
@@ -12,8 +13,12 @@ from sqlalchemy import create_engine
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
 
+DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
+
 
 class TestCase:
+    AUTH_METHOD = os.environ.get('TOKENSERVER_AUTH_METHOD', 'oauth')
+    BROWSERID_ISSUER = os.environ['SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER']
     FXA_EMAIL_DOMAIN = 'api-accounts.stage.mozaws.net'
     FXA_METRICS_HASH_SECRET = 'secret0'
     NODE_ID = 800
@@ -24,7 +29,7 @@ class TestCase:
     def setUp(self):
         engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
         self.database = engine. \
-            execution_options(isolation_level="AUTOCOMMIT"). \
+            execution_options(isolation_level='AUTOCOMMIT'). \
             connect()
 
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
@@ -35,6 +40,12 @@ class TestCase:
             'REMOTE_ADDR': '127.0.0.1',
             'SCRIPT_NAME': host_url.path,
         })
+
+        if self.AUTH_METHOD == 'browserid':
+            self._build_auth_headers = self._build_browserid_headers
+        else:
+            self._build_auth_headers = self._build_oauth_headers
+
         # Start each test with a blank slate.
         cursor = self._execute_sql(('DELETE FROM users'), ())
         cursor.close()
@@ -60,20 +71,71 @@ class TestCase:
 
         self.database.close()
 
-    def _forge_oauth_token(self, generation=None, sub='test', scope='scope'):
+    def _build_oauth_headers(self, generation=None, user='test',
+                             keys_changed_at=None, client_state=None,
+                             status=200, **additional_headers):
         claims = {
-            'fxa-generation': generation,
-            'sub': sub,
-            'client_id': 'client ID',
-            'scope': scope,
-            'fxa-profileChangedAt': None
+            'user': user,
+            'generation': generation,
+            'client_id': 'fake client id',
+            'scope': [DEFAULT_OAUTH_SCOPE],
         }
-        header = b64encode(b'{}').strip(b'=').decode('utf-8')
-        claims = b64encode(json.dumps(claims).encode('utf-8')) \
-            .strip(b'=').decode('utf-8')
-        signature = b64encode(b'signature').strip(b'=').decode('utf-8')
+        body = {
+            'body': claims,
+            'status': status
+        }
 
-        return '%s.%s.%s' % (header, claims, signature)
+        headers = {}
+        headers['Authorization'] = 'Bearer %s' % json.dumps(body)
+        client_state = binascii.unhexlify(client_state)
+        client_state = b64encode(client_state).strip(b'=').decode('utf-8')
+        headers['X-KeyID'] = '%s-%s' % (keys_changed_at, client_state)
+        headers.update(additional_headers)
+
+        return headers
+
+    def _build_browserid_headers(self, generation=None, user='test',
+                                 keys_changed_at=None, client_state=None,
+                                 issuer=BROWSERID_ISSUER, device_id=None,
+                                 token_verified=None, status=200,
+                                 **additional_headers):
+        claims = {
+            'status': 'okay',
+            'email': '%s@%s' % (user, self.FXA_EMAIL_DOMAIN),
+            'issuer': issuer
+        }
+
+        if device_id or generation or keys_changed_at or \
+                token_verified is not None:
+            idp_claims = {}
+
+            if device_id:
+                idp_claims['fxa-deviceId'] = device_id
+
+            if generation:
+                idp_claims['fxa-generation'] = generation
+
+            if keys_changed_at:
+                idp_claims['fxa-keysChangedAt'] = keys_changed_at
+
+            if token_verified is not None:
+                idp_claims['fxa-tokenVerified'] = token_verified
+
+            claims['idpClaims'] = idp_claims
+
+        body = {
+            'body': claims,
+            'status': status,
+        }
+
+        headers = {
+            'Authorization': 'BrowserID %s' % json.dumps(body),
+            'X-Client-State': client_state
+        }
+
+        headers.update(additional_headers)
+
+        return headers
 
     def _add_node(self, capacity=100, available=100, node=NODE_URL, id=None,
                   current_load=0, backoff=0, downed=0):
@@ -126,7 +188,7 @@ class TestCase:
 
         return self._last_insert_id()
 
-    def _add_user(self, email=None, generation=1234, client_state='616161',
+    def _add_user(self, email=None, generation=1234, client_state='aaaa',
                   created_at=None, nodeid=NODE_ID, keys_changed_at=1234,
                   replaced_at=None):
         query = '''
