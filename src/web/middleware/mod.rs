@@ -14,7 +14,7 @@ use actix_web::{
 };
 
 use crate::db::util::SyncTimestamp;
-use crate::error::{ApiError, ApiErrorKind};
+use crate::error::{ApiError, ApiErrorKind, WeaveError};
 use crate::server::{metrics::Metrics, ServerState};
 use crate::settings::Secrets;
 use crate::tokenserver::auth::TokenserverOrigin;
@@ -111,5 +111,44 @@ pub fn emit_http_status_with_tokenserver_origin(
         }
 
         Ok(res)
+    }
+}
+
+pub fn emit_metric_for_4xx_error(
+    req: ServiceRequest,
+    srv: &mut impl Service<
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = actix_web::Error,
+    >,
+) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    let fut = srv.call(req);
+
+    async move {
+        let sresp = fut.await?;
+        let metrics = {
+            let statsd_client = sresp
+                .request()
+                .app_data::<Data<ServerState>>()
+                .map(|state| state.metrics.clone())
+                .ok_or_else(|| ApiError::from(ApiErrorKind::NoServerState))?;
+
+            Metrics::from(&*statsd_client)
+        };
+
+        if sresp.status().is_client_error() {
+            let mut tags = Tags::default();
+            let weave_error_code = sresp
+                .response()
+                .error()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| (WeaveError::UnknownError as i32).to_string());
+
+            tags.tags
+                .insert("weave_error_code".to_owned(), weave_error_code);
+            metrics.incr_with_tags(&format!("http_{}", sresp.status()), Some(tags))
+        }
+
+        Ok(sresp)
     }
 }

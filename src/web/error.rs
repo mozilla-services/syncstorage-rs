@@ -30,10 +30,6 @@ impl HawkError {
         &self.kind
     }
 
-    pub fn is_reportable(&self) -> bool {
-        matches!(&self.kind(), HawkErrorKind::TruncatedId)
-    }
-
     pub fn metric_label(&self) -> Option<String> {
         match self.kind() {
             HawkErrorKind::Base64(_) => Some("request.error.hawk.decode_error".to_owned()),

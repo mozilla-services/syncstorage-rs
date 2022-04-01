@@ -76,6 +76,7 @@ macro_rules! build_app {
             .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap(middleware::sentry::SentryWrapper::default())
             .wrap(middleware::rejectua::RejectUA::default())
+            .wrap_fn(middleware::emit_metric_for_4xx_error)
             .wrap($cors)
             .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
             .service(
