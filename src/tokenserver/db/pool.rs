@@ -7,6 +7,7 @@ use diesel::{
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
+use std::sync::Arc;
 use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
@@ -38,13 +39,13 @@ pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 pub struct TokenserverPool {
     /// Pool of db connections
     inner: Pool<ConnectionManager<MysqlConnection>>,
-    metrics: Metrics,
+    metrics: Arc<Metrics>,
 }
 
 impl TokenserverPool {
     pub fn new(
         settings: &Settings,
-        metrics: &Metrics,
+        metrics: Arc<Metrics>,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
         run_embedded_migrations(&settings.database_url)?;
@@ -66,7 +67,7 @@ impl TokenserverPool {
 
         Ok(Self {
             inner: builder.build(manager)?,
-            metrics: metrics.clone(),
+            metrics,
         })
     }
 
@@ -99,13 +100,14 @@ impl From<actix_web::error::BlockingError<DbError>> for DbError {
 #[async_trait]
 impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
-        let mut metrics = self.metrics.clone();
+        let mut met = self.metrics.clone();
+        let metrics = Arc::make_mut(&mut met);
         metrics.start_timer("tokenserver.storage.get_pool", None);
 
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(Box::new(TokenserverDb::new(conn, &self.metrics)) as Box<dyn Db>)
+        Ok(Box::new(TokenserverDb::new(conn, metrics)) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {

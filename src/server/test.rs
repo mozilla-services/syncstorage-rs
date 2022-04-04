@@ -9,7 +9,7 @@ use actix_web::{
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
@@ -62,14 +62,14 @@ fn get_test_settings() -> Settings {
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
-    let metrics = Metrics::sink();
+    let metrics = Arc::new(Metrics::sink());
     ServerState {
-        db_pool: pool_from_settings(settings, &Metrics::from(&metrics))
+        db_pool: pool_from_settings(settings, &Metrics::from(metrics.clone()))
             .await
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        metrics: Box::new(metrics),
+        metrics,
         port: settings.port,
         quota_enabled: settings.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman {

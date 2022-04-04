@@ -6,8 +6,8 @@ use actix_web::http::{header::ToStrError, StatusCode};
 use actix_web::Error as ActixError;
 use base64::DecodeError;
 
+use crypto_mac::{InvalidKeyLength, MacError};
 use hawk::Error as ParseError;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
 use serde::{
     ser::{SerializeSeq, Serializer},
     Serialize,

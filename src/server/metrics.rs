@@ -1,4 +1,5 @@
 use std::net::UdpSocket;
+use std::sync::Arc;
 use std::time::Instant;
 
 use actix_web::{
@@ -23,7 +24,7 @@ pub struct MetricTimer {
 
 #[derive(Debug, Clone)]
 pub struct Metrics {
-    pub client: Option<StatsdClient>,
+    pub client: Option<Arc<StatsdClient>>,
     pub tags: Option<Tags>,
     pub timer: Option<MetricTimer>,
 }
@@ -71,7 +72,7 @@ impl FromRequest for Metrics {
     }
 }
 
-pub fn metrics_from_request(req: &HttpRequest, client: Option<Box<StatsdClient>>) -> Metrics {
+pub fn metrics_from_request(req: &HttpRequest, client: Option<Arc<StatsdClient>>) -> Metrics {
     let exts = req.extensions();
     let def_tags = Tags::from(req.head());
     let tags = exts.get::<Tags>().unwrap_or(&def_tags);
@@ -81,16 +82,16 @@ pub fn metrics_from_request(req: &HttpRequest, client: Option<Box<StatsdClient>>
     }
 
     Metrics {
-        client: client.as_deref().cloned(),
+        client,
         tags: Some(tags.clone()),
         timer: None,
     }
 }
 
-impl From<&StatsdClient> for Metrics {
-    fn from(client: &StatsdClient) -> Self {
+impl From<Arc<StatsdClient>> for Metrics {
+    fn from(client: Arc<StatsdClient>) -> Self {
         Metrics {
-            client: Some(client.clone()),
+            client: Some(client),
             tags: None,
             timer: None,
         }
@@ -100,7 +101,7 @@ impl From<&StatsdClient> for Metrics {
 impl From<&ServerState> for Metrics {
     fn from(state: &ServerState) -> Self {
         Metrics {
-            client: Some(*state.metrics.clone()),
+            client: Some(state.metrics.clone()),
             tags: None,
             timer: None,
         }
@@ -114,7 +115,7 @@ impl Metrics {
 
     pub fn noop() -> Self {
         Self {
-            client: Some(Self::sink()),
+            client: Some(Arc::new(Self::sink())),
             timer: None,
             tags: None,
         }
@@ -176,7 +177,7 @@ impl Metrics {
     }
 }
 
-pub fn metrics_from_req(req: &HttpRequest) -> Result<Box<StatsdClient>, Error> {
+pub fn metrics_from_req(req: &HttpRequest) -> Result<Arc<StatsdClient>, Error> {
     Ok(req
         .app_data::<Data<ServerState>>()
         .ok_or_else(|| ErrorInternalServerError("Could not get state"))

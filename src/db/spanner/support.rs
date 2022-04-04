@@ -173,7 +173,8 @@ impl ExecuteSqlRequestBuilder {
     pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
         let stream = conn
             .client
-            .execute_streaming_sql(&self.prepare_request(conn))?;
+            .execute_streaming_sql(&self.prepare_request(conn))
+            .map_err(|e| DbError::internal(&e.to_string()))?;
         Ok(StreamedResultSetAsync::new(stream))
     }
 

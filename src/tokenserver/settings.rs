@@ -3,6 +3,7 @@ use serde::Deserialize;
 use super::NodeType;
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     /// The URL of the Tokenserver MySQL database.
     pub database_url: String,
