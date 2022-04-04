@@ -147,6 +147,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         fxa_uid: format!("xxx_test_uid_{}", *RAND_UID),
         fxa_kid: format!("xxx_test_kid_{}", *RAND_UID),
         device_id: "xxx_test".to_owned(),
+        tokenserver_origin: Default::default(),
     };
     let payload =
         serde_json::to_string(&payload).expect("Could not get payload in create_hawk_header");

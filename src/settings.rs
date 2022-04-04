@@ -156,12 +156,10 @@ impl Default for Settings {
 impl Settings {
     /// Load the settings from the config file if supplied, then the environment.
     pub fn with_env_and_config_file(filename: &Option<String>) -> Result<Self, ConfigError> {
-        // TODO: Config 0.12+ uses "builder", which returns a type `Config`.
-        // it's not clear how to best convert that to a `Settings`
-        let mut s = Config::builder();
+        let mut s = Config::default();
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
-            s = s.add_source(File::with_name(config_filename));
+            s.merge(File::with_name(config_filename))?;
         }
 
         // Merge the environment overrides
@@ -170,9 +168,9 @@ impl Settings {
         // Environment ever change their policy about case insensitivity.
         // This will accept environment variables specified as
         // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
-        s = s.add_source(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"));
+        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
-        Ok(match s.build()?.try_deserialize::<Self>() {
+        Ok(match s.try_into::<Self>() {
             Ok(mut s) => {
                 // Adjust the max values if required.
                 if s.uses_spanner() {

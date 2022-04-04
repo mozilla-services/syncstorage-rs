@@ -144,6 +144,10 @@ impl Metrics {
         self.count_with_tags(label, 1, tags)
     }
 
+    pub fn incr_with_tag(&self, label: &str, key: &str, value: &str) {
+        self.incr_with_tags(label, Some(Tags::with_tag(key, value)))
+    }
+
     pub fn count(&self, label: &str, count: i64) {
         self.count_with_tags(label, count, None)
     }

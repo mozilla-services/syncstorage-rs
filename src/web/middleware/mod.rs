@@ -6,14 +6,19 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
-use actix_web::{dev::ServiceRequest, Error, HttpRequest};
+use actix_web::{
+    dev::{Service, ServiceRequest, ServiceResponse},
+    Error, HttpRequest,
+};
 
 use crate::db::util::SyncTimestamp;
 use crate::error::{ApiError, ApiErrorKind};
+use crate::server::{metrics::Metrics, ServerState};
 use crate::settings::Secrets;
-use crate::web::{extractors::HawkIdentifier, DOCKER_FLOW_ENDPOINTS};
+use crate::tokenserver::auth::TokenserverOrigin;
+use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
 use actix_web::web::Data;
 
 /// The resource in question's Timestamp
@@ -56,5 +61,55 @@ impl SyncServerRequest for HttpRequest {
                 ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
             })?;
         HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
+    }
+}
+
+pub fn emit_http_status_with_tokenserver_origin(
+    req: ServiceRequest,
+    srv: &mut impl Service<
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = actix_web::Error,
+    >,
+) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    let fut = srv.call(req);
+
+    async move {
+        let res = fut.await?;
+        let req = res.request();
+        let metrics = {
+            let statsd_client = req
+                .app_data::<Data<ServerState>>()
+                .map(|state| state.metrics.clone())
+                .ok_or_else(|| ApiError::from(ApiErrorKind::NoServerState))?;
+
+            Metrics::from(statsd_client)
+        };
+        let tags = req
+            .extensions()
+            .get::<TokenserverOrigin>()
+            .copied()
+            .map(|origin| {
+                let mut tags = Tags::default();
+
+                tags.tags
+                    .insert("tokenserver_origin".to_string(), origin.to_string());
+
+                tags
+            });
+
+        if res.status().is_informational() {
+            metrics.incr_with_tags("http_1XX", tags);
+        } else if res.status().is_success() {
+            metrics.incr_with_tags("http_2XX", tags);
+        } else if res.status().is_redirection() {
+            metrics.incr_with_tags("http_3XX", tags);
+        } else if res.status().is_client_error() {
+            metrics.incr_with_tags("http_4XX", tags);
+        } else if res.status().is_server_error() {
+            metrics.incr_with_tags("http_5XX", tags);
+        }
+
+        Ok(res)
     }
 }

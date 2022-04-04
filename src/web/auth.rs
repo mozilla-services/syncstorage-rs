@@ -25,13 +25,11 @@ use super::{
 };
 use crate::error::{ApiErrorKind, ApiResult};
 use crate::settings::Secrets;
+use crate::tokenserver::auth::TokenserverOrigin;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
 /// of a Hawk `Authorization` header.
-///
-/// Not included here are the `fxa_uid` and `device_id` properties,
-/// which may also be present in the JSON payload.
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct HawkPayload {
     /// Expiry time for the payload, in seconds.
@@ -55,6 +53,10 @@ pub struct HawkPayload {
 
     #[serde(default, rename = "hashed_device_id")]
     pub device_id: String,
+
+    /// The Tokenserver that created this token.
+    #[serde(default)]
+    pub tokenserver_origin: TokenserverOrigin,
 }
 
 impl HawkPayload {
@@ -152,6 +154,7 @@ impl HawkPayload {
             fxa_uid: "xxx_test".to_owned(),
             fxa_kid: "xxx_test".to_owned(),
             device_id: "xxx_test".to_owned(),
+            tokenserver_origin: Default::default(),
         }
     }
 }
@@ -524,6 +527,7 @@ mod tests {
                     fxa_uid: "319b98f9961ff1dbdd07313cd6ba925a".to_owned(),
                     fxa_kid: "de697ad66d845b2873c9d7e13b8971af".to_owned(),
                     device_id: "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6".to_owned(),
+                    tokenserver_origin: Default::default(),
                 },
             }
         }

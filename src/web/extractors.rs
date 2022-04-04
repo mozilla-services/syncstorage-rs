@@ -33,6 +33,7 @@ use crate::db::{util::SyncTimestamp, DbPool, Sorting};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::settings::Secrets;
+use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
@@ -979,6 +980,7 @@ pub struct HawkIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
+    pub tokenserver_origin: TokenserverOrigin,
 }
 
 impl HawkIdentifier {
@@ -996,6 +998,7 @@ impl HawkIdentifier {
             legacy_id: 0,
             fxa_uid: "cmd".to_owned(),
             fxa_kid: "cmd".to_owned(),
+            tokenserver_origin: TokenserverOrigin::default(),
         }
     }
 
@@ -1058,7 +1061,14 @@ impl HawkIdentifier {
             .ok_or_else(|| -> ApiError { HawkErrorKind::MissingHeader.into() })?
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
-        let identifier = Self::generate(secrets, method, auth_header, ci, uri)?;
+        let identifier = Self::generate(
+            secrets,
+            method,
+            auth_header,
+            ci,
+            uri,
+            &mut msg.extensions_mut(),
+        )?;
         msg.extensions_mut().insert(identifier.clone());
         Ok(identifier)
     }
@@ -1069,6 +1079,7 @@ impl HawkIdentifier {
         header: &str,
         connection_info: &ConnectionInfo,
         uri: &Uri,
+        exts: &mut Extensions,
     ) -> Result<Self, Error> {
         let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
         let puid = Self::uid_from_path(uri)?;
@@ -1082,10 +1093,14 @@ impl HawkIdentifier {
             ))?;
         }
 
+        // Store the origin of the token so we can later use it as a tag when emitting metrics
+        exts.insert(payload.tokenserver_origin);
+
         let user_id = HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_uid: payload.fxa_uid,
             fxa_kid: payload.fxa_kid,
+            tokenserver_origin: payload.tokenserver_origin,
         };
         Ok(user_id)
     }
@@ -1664,6 +1679,30 @@ where
     }
     Ok(None)
 }
+
+pub trait EmitApiMetric {
+    fn emit_api_metric(&self, label: &str);
+}
+
+macro_rules! impl_emit_api_metric {
+    ($type:ty) => {
+        impl EmitApiMetric for $type {
+            fn emit_api_metric(&self, label: &str) {
+                self.metrics.incr_with_tag(
+                    label,
+                    "tokenserver_origin",
+                    &self.user_id.tokenserver_origin.to_string(),
+                );
+            }
+        }
+    };
+}
+
+impl_emit_api_metric!(MetaRequest);
+impl_emit_api_metric!(CollectionRequest);
+impl_emit_api_metric!(CollectionPostRequest);
+impl_emit_api_metric!(BsoRequest);
+impl_emit_api_metric!(BsoPutRequest);
 
 #[cfg(test)]
 mod tests {
