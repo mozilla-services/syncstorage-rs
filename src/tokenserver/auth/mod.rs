@@ -1,6 +1,8 @@
 pub mod browserid;
 pub mod oauth;
 
+use std::fmt;
+
 use actix_web::Error;
 use async_trait::async_trait;
 use dyn_clone::{self, DynClone};
@@ -8,12 +10,38 @@ use pyo3::{
     prelude::{IntoPy, PyErr, PyModule, PyObject, Python},
     types::IntoPyDict,
 };
+use serde::{Deserialize, Serialize};
 
 use super::error::TokenserverError;
 use crate::error::{ApiError, ApiErrorKind};
 
+/// Represents the origin of the token used by Sync clients to access their data.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenserverOrigin {
+    /// The Python Tokenserver.
+    Python,
+    /// The Rust Tokenserver.
+    Rust,
+}
+
+impl Default for TokenserverOrigin {
+    fn default() -> Self {
+        TokenserverOrigin::Python
+    }
+}
+
+impl fmt::Display for TokenserverOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenserverOrigin::Python => write!(f, "python"),
+            TokenserverOrigin::Rust => write!(f, "rust"),
+        }
+    }
+}
+
 /// The plaintext needed to build a token.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MakeTokenPlaintext {
     pub node: String,
     pub fxa_kid: String,
@@ -22,6 +50,7 @@ pub struct MakeTokenPlaintext {
     pub hashed_fxa_uid: String,
     pub expires: u64,
     pub uid: i64,
+    pub tokenserver_origin: TokenserverOrigin,
 }
 
 impl IntoPy<PyObject> for MakeTokenPlaintext {
@@ -32,6 +61,7 @@ impl IntoPy<PyObject> for MakeTokenPlaintext {
             ("fxa_uid", self.fxa_uid),
             ("hashed_device_id", self.hashed_device_id),
             ("hashed_fxa_uid", self.hashed_fxa_uid),
+            ("tokenserver_origin", self.tokenserver_origin.to_string()),
         ]
         .into_py_dict(py);
 
