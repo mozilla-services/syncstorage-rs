@@ -216,6 +216,9 @@ class TestE2e(TestCase, unittest.TestCase):
         payload = raw[:-32]
         signature = raw[-32:]
         payload_dict = json.loads(payload.decode('utf-8'))
+        # The `id` payload should include a field indicating the origin of the
+        # token
+        self.assertEqual(payload_dict['tokenserver_origin'], 'rust')
         signing_secret = self.TOKEN_SIGNING_SECRET
         expected_token = tokenlib.make_token(payload_dict,
                                              secret=signing_secret)

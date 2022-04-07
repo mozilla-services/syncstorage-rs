@@ -9,7 +9,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::{
-    auth::{MakeTokenPlaintext, Tokenlib},
+    auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin},
     db::{
         models::Db,
         params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
@@ -104,6 +104,7 @@ fn get_token_plaintext(
         hashed_fxa_uid: req.hashed_fxa_uid.clone(),
         expires,
         uid: updates.uid.to_owned(),
+        tokenserver_origin: TokenserverOrigin::Rust,
     })
 }
 
