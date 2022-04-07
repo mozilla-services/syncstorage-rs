@@ -90,7 +90,10 @@ impl VerifyToken for RemoteVerifier {
 
         if response.status() != StatusCode::OK {
             return Err(TokenserverError {
-                context: "FxA returned a status code other than 200".to_owned(),
+                context: format!(
+                    "FxA returned a status code other than 200 ({})",
+                    response.status().as_u16()
+                ),
                 ..TokenserverError::resource_unavailable()
             });
         }
@@ -331,7 +334,7 @@ mod tests {
             mock.assert();
 
             let expected_error = TokenserverError {
-                context: "FxA returned a status code other than 200".to_owned(),
+                context: "FxA returned a status code other than 200 (500)".to_owned(),
                 ..TokenserverError::resource_unavailable()
             };
             assert_eq!(expected_error, error);
