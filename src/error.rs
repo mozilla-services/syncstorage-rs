@@ -32,7 +32,7 @@ use std::error::Error;
 /// information and replacing it with one of these error codes.
 #[allow(dead_code)]
 #[derive(Serialize)]
-pub enum WeaveError {
+enum WeaveError {
     /// Unknown error
     UnknownError = 0,
     /// Illegal method/protocol

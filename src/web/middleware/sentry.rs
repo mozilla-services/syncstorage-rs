@@ -200,3 +200,59 @@ fn exception_from_error<E: StdError + ?Sized>(err: &E) -> sentry::protocol::Exce
         ..Default::default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use actix_web::test::TestRequest;
+    use cadence::{SpyMetricSink, StatsdClient};
+    use tokio::sync::RwLock;
+
+    use crate::{
+        db,
+        server::{self, metrics::Metrics, ServerState},
+        settings::{self, Deadman},
+    };
+
+    #[actix_rt::test]
+    async fn test_4xx_errors_emit_metric() {
+        let (rx, sink) = SpyMetricSink::new();
+        let metrics = StatsdClient::from_sink("syncstorage-test", sink);
+
+        crate::logging::init_logging(false).unwrap();
+        let settings = settings::test_settings();
+        let limits = Arc::new(settings.limits.clone());
+        let state = ServerState {
+            db_pool: db::pool_from_settings(&settings, &Metrics::from(&metrics))
+                .await
+                .expect("Could not get db_pool in get_test_state"),
+            limits,
+            limits_json: serde_json::to_string(&settings.limits).unwrap(),
+            metrics: Box::new(metrics),
+            port: settings.port,
+            quota_enabled: settings.enable_quota,
+            deadman: Arc::new(RwLock::new(Deadman {
+                max_size: settings.database_pool_max_size,
+                ..Default::default()
+            })),
+        };
+        let mut app = server::build_test_app(state).await;
+        TestRequest::get()
+            .uri("/1.5/42/info/collections")
+            .send_request(&mut app)
+            .await;
+
+        // Verify that a metric was emitted for a 401
+        assert_eq!(rx.len(), 1);
+        rx.recv().unwrap();
+
+        TestRequest::get()
+            .uri("/__error__")
+            .send_request(&mut app)
+            .await;
+
+        // Verify that a metric was not emitted for a 500
+        assert_eq!(rx.len(), 0);
+    }
+}
