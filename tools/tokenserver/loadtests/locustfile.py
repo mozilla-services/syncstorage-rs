@@ -1,11 +1,35 @@
+from base64 import urlsafe_b64encode as b64encode
 import binascii
 import json
+import time
 
-from base64 import urlsafe_b64encode as b64encode
+import browserid
+import browserid.jwt
+from browserid.tests.support import make_assertion
 from locust import HttpUser, task, between
 
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
-FAKE_DOMAIN = "fake-domain.com"
+# We use a custom mockmyid site to synthesize valid assertions.
+# It's hosted in a static S3 bucket so we don't swamp the live mockmyid server.
+MOCKMYID_DOMAIN = "mockmyid.s3-us-west-2.amazonaws.com"
+MOCKMYID_PRIVATE_KEY = browserid.jwt.DS128Key({
+    "algorithm": "DS",
+    "x": "385cb3509f086e110c5e24bdd395a84b335a09ae",
+    "y": "738ec929b559b604a232a9b55a5295afc368063bb9c20fac4e53a74970a4db795"
+         "6d48e4c7ed523405f629b4cc83062f13029c4d615bbacb8b97f5e56f0c7ac9bc1"
+         "d4e23809889fa061425c984061fca1826040c399715ce7ed385c4dd0d40225691"
+         "2451e03452d3c961614eb458f188e3e8d2782916c43dbe2e571251ce38262",
+    "p": "ff600483db6abfc5b45eab78594b3533d550d9f1bf2a992a7a8daa6dc34f8045a"
+         "d4e6e0c429d334eeeaaefd7e23d4810be00e4cc1492cba325ba81ff2d5a5b305a"
+         "8d17eb3bf4a06a349d392e00d329744a5179380344e82a18c47933438f891e22a"
+         "eef812d69c8f75e326cb70ea000c3f776dfdbd604638c2ef717fc26d02e17",
+    "q": "e21e04f911d1ed7991008ecaab3bf775984309c3",
+    "g": "c52a4a0ff3b7e61fdf1867ce84138369a6154f4afa92966e3c827e25cfa6cf508b"
+         "90e5de419e1337e07a2e9e2a3cd5dea704d175f8ebf6af397d69e110b96afb17c7"
+         "a03259329e4829b0d03bbc7896b15b4ade53e130858cc34d96269aa89041f40913"
+         "6c7242a38895c9d5bccad4f389af1d7a4bd1398bd072dffa896233397a",
+})
+ONE_YEAR = 60 * 60 * 24 * 365
 TOKENSERVER_PATH = '/1.0/sync/1.5'
 
 
@@ -26,7 +50,7 @@ class TokenserverTestUser(HttpUser):
         # Locust spawns a new instance of this class for each user. Using the
         # object ID as the FxA UID guarantees uniqueness.
         self.fxa_uid = id(self)
-        self.email = "loadtest-%s@%s" % (self.fxa_uid, FAKE_DOMAIN)
+        self.email = "loadtest-%s@%s" % (self.fxa_uid, MOCKMYID_DOMAIN)
 
     @task(3000)
     def test_oauth_success(self):
@@ -75,25 +99,32 @@ class TokenserverTestUser(HttpUser):
         self._do_token_exchange_via_browserid(assertion)
 
     @task(3)
-    def test_invalid_browserid(self):
-        assertion = self._make_browserid_assertion(status='failure')
+    def test_expired_browserid_assertion(self):
+        assertion = self._make_browserid_assertion(self.email,
+                                                   exp=int(time.time() - ONE_YEAR) * 1000)
 
         self._do_token_exchange_via_browserid(assertion, status=401)
 
     @task(3)
-    def test_expired_browserid_assertion(self):
-        assertion = self._make_browserid_assertion(self.email,
-                                                   status='failure',
-                                                   reason='expired')
+    def test_browserid_email_issuer_mismatch(self):
+        email = "loadtest-%s@%s" % (self.fxa_uid, "hotmail.com")
+        assertion = self._make_browserid_assertion(email)
 
-        self._do_token_exchange_via_browserid(assertion, 401)
+        self._do_token_exchange_via_browserid(assertion, status=401)
 
     @task(3)
-    def test_browserid_issuer_mismatch(self):
+    def test_browserid_invalid_audience(self):
         assertion = self._make_browserid_assertion(self.email,
-                                                   issuer='wrong.issuer')
+                                                   audience="http://123done.org")
 
-        self._do_token_exchange_via_browserid(assertion, 401)
+        self._do_token_exchange_via_browserid(assertion, status=401)
+
+    @task(3)
+    def test_browserid_invalid_issuer_priv_key(self):
+        assertion = self._make_browserid_assertion(self.email,
+                                                   issuer="api.accounts.firefox.com")
+
+        self._do_token_exchange_via_browserid(assertion, status=401)
 
     def _make_oauth_token(self, user=None, status=200, **fields):
         # For mock oauth tokens, we bundle the desired status code
@@ -131,27 +162,20 @@ class TokenserverTestUser(HttpUser):
 
         return '%s-%s' % (keys_changed_at, client_state)
 
-    def _make_browserid_assertion(self, email=None, status='okay',
-                                  reason='error', **fields):
-        body = {'status': status}
-        if email is not None:
-            body["email"] = email
-
-        if status == 'okay':
-            body['idpClaims'] = {
-                'fxa-generation': self.generation_counter,
-                'fxa-keysChangedAt': self.generation_counter,
-                'fxa-tokenVerified': fields.get('token_verified', True)
-            }
-            body['issuer'] = fields.get('issuer', FAKE_DOMAIN)
-        else:
-            body['reason'] = reason
-        body.update(fields)
-
-        return json.dumps({
-          "status": 200,
-          "body": body
-        })
+    def _make_browserid_assertion(self, email, **kwds):
+        if "audience" not in kwds:
+            kwds["audience"] = self.client.base_url
+        if "exp" not in kwds:
+            kwds["exp"] = int((time.time() + ONE_YEAR) * 1000)
+        if "issuer" not in kwds:
+            kwds["issuer"] = MOCKMYID_DOMAIN
+        if "issuer_keypair" not in kwds:
+            kwds["issuer_keypair"] = (None, MOCKMYID_PRIVATE_KEY)
+        kwds["idp_claims"] = {
+            'fxa-generation': self.generation_counter,
+            'fxa-keysChangedAt': self.generation_counter,
+        }
+        return make_assertion(email, **kwds)
 
     def _do_token_exchange_via_oauth(self, token, status=200):
         headers = {
