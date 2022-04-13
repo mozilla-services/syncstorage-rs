@@ -14,12 +14,6 @@ def mock_fxa_server(request):
 
         return Response(response=response, content_type='application/json',
                         status=body['status'])
-    elif request.path == '/v2':
-        body = json.loads(request.json['assertion'])
-        response = json.dumps(body['body'])
-
-        return Response(response=response, content_type='application/json',
-                        status=body['status'])
     elif request.path == '/v1/jwks':
         return {'keys': [{'fake': 'RSA key'}]}
     else:
