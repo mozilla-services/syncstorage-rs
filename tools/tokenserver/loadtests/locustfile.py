@@ -100,8 +100,10 @@ class TokenserverTestUser(HttpUser):
 
     @task(3)
     def test_expired_browserid_assertion(self):
-        assertion = self._make_browserid_assertion(self.email,
-                                                   exp=int(time.time() - ONE_YEAR) * 1000)
+        assertion = self._make_browserid_assertion(
+            self.email,
+            exp=int(time.time() - ONE_YEAR) * 1000
+        )
 
         self._do_token_exchange_via_browserid(assertion, status=401)
 
@@ -114,15 +116,19 @@ class TokenserverTestUser(HttpUser):
 
     @task(3)
     def test_browserid_invalid_audience(self):
-        assertion = self._make_browserid_assertion(self.email,
-                                                   audience="http://123done.org")
+        assertion = self._make_browserid_assertion(
+            self.email,
+            audience="http://123done.org"
+        )
 
         self._do_token_exchange_via_browserid(assertion, status=401)
 
     @task(3)
     def test_browserid_invalid_issuer_priv_key(self):
-        assertion = self._make_browserid_assertion(self.email,
-                                                   issuer="api.accounts.firefox.com")
+        assertion = self._make_browserid_assertion(
+            self.email,
+            issuer="api.accounts.firefox.com"
+        )
 
         self._do_token_exchange_via_browserid(assertion, status=401)
 
