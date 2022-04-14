@@ -1,4 +1,4 @@
-FROM rust:1.59-buster as builder
+FROM rust:1.60-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin

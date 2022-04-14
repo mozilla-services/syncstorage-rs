@@ -1002,7 +1002,7 @@ impl SpannerDb {
             .await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
-        Ok(self.timestamp()?)
+        self.timestamp()
     }
 
     pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> Result<()> {
