@@ -7,16 +7,24 @@ This directory contains everything needed to run the suite of load tests for Tok
 ```sh
 pip3 install -r requirements.txt
 ```
-2. Set up a mock FxA service, with which Tokenserver will verify OAuth tokens. This directory includes a `mock-oauth-cfn.yaml` file, which contains the AWS CloudFormation template needed to deploy the mock service. A service with this template has been preconfigured at [https://mock-oauth-stage.dev.lcip.org](), but you can deploy your own with the following command:
+2. Set up a mock OAuth verifier, with which Tokenserver will verify OAuth tokens. The subdirectory [mock-fxa-server/](./mock-fxa-server) includes code deployable as a GCP Cloud Function that acts as a mock FxA server, "verifying" OAuth tokens. You can deploy your own Cloud Function by running the following command in this directory:
 ```sh
-aws cloudformation deploy \
-    --template-file=mock-oauth-cfn.yml \
-    --stack-name my-mock-oauth-stack \
-    --capabilities CAPABILITY_IAM \
-    --parameter-overrides \
-        DomainName=my-mock-oauth.dev.lcip.org
+gcloud functions deploy mock_fxa_server --runtime=python39 --trigger-http --source=mock-fxa-server
 ```
-3. Configure Tokenserver to verify tokens through the mock FxA service. This is done by setting the `tokenserver.fxa_oauth_server_url` setting or `SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL` environment variable to the URL of the desired mock service.
+You can stand up a local copy of the Cloud Function by running the following in this directory:
+```sh
+functions-framework --target mock_fxa_server --debug
+```
+Note that you'll need to install `functions-framework` via `pip3 install functions-framework`. The load tests will use FxA stage to verify BrowserID assertions.
+3. Configure Tokenserver to verify OAuth tokens through the mock FxA service and BrowserID assertions through FxA stage. This is done by setting the following environment variables:
+```
+SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE=https://token.stage.mozaws.net
+SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER=api-accounts.stage.mozaws.net
+SYNC_TOKENSERVER__BROWSERID_VERIFIER_URL=https://verifier.stage.mozaws.net/v2
+
+# This variable should be set to point to the host and port of the moack OAuth verifier created in step 2
+SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL=http://localhost:6000
+```
 4. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
 ```sh
 locust
