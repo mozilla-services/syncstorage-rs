@@ -1,4 +1,3 @@
-use actix_web::web::block;
 use google_cloud_rust_raw::spanner::v1::{
     spanner::{CreateSessionRequest, GetSessionRequest, Session},
     spanner_grpc::SpannerClient,
@@ -7,7 +6,7 @@ use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, Metada
 use std::sync::Arc;
 use syncstorage_db_common::error::{DbError, DbErrorKind};
 
-use crate::db::spanner::now;
+use crate::db::{self, spanner::now};
 use crate::server::metrics::Metrics;
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
@@ -40,7 +39,7 @@ pub async fn create_spanner_session(
     emulator_host: Option<String>,
 ) -> Result<SpannerSession, DbError> {
     let using_spanner_emulator = emulator_host.is_some();
-    let chan = block(move || -> Result<grpcio::Channel, grpcio::Error> {
+    let chan = db::run_on_blocking_threadpool(move || -> Result<grpcio::Channel, DbError> {
         if let Some(spanner_emulator_address) = emulator_host {
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
@@ -60,13 +59,7 @@ pub async fn create_spanner_session(
                 .secure_connect(SPANNER_ADDRESS, creds))
         }
     })
-    .await
-    .map_err(|e| match e {
-        actix_web::error::BlockingError::Error(e) => e.into(),
-        actix_web::error::BlockingError::Canceled => {
-            DbError::internal("web::block Manager operation canceled")
-        }
-    })?;
+    .await?;
     let client = SpannerClient::new(chan);
 
     // Connect to the instance and create a Spanner session.

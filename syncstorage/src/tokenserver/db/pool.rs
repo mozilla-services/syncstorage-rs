@@ -1,4 +1,3 @@
-use actix_web::web::block;
 use async_trait::async_trait;
 use diesel::{
     mysql::MysqlConnection,
@@ -78,9 +77,8 @@ impl TokenserverPool {
     #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
-        let conn = block(move || pool.inner.get().map_err(DbError::from))
-            .await
-            .map_err(db::blocking_error_to_db_error)?;
+        let conn =
+            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
 
         Ok(TokenserverDb::new(conn, &self.metrics))
     }
@@ -93,9 +91,8 @@ impl DbPool for TokenserverPool {
         metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
-        let conn = block(move || pool.inner.get().map_err(DbError::from))
-            .await
-            .map_err(db::blocking_error_to_db_error)?;
+        let conn =
+            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
 
         Ok(Box::new(TokenserverDb::new(conn, &self.metrics)) as Box<dyn Db>)
     }

@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, web::block};
+use actix_web::http::StatusCode;
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
@@ -8,7 +8,6 @@ use diesel::{
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use futures::future::LocalBoxFuture;
-use futures::TryFutureExt;
 use syncstorage_db_common::error::DbError;
 
 use std::{
@@ -618,7 +617,7 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(block(move || db.check_sync()).map_err(db::blocking_error_to_db_error))
+        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
     }
 
     #[cfg(test)]

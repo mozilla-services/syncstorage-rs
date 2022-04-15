@@ -1,5 +1,6 @@
-use actix_web::{web, Error};
+use actix_web::Error;
 use async_trait::async_trait;
+use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyString},
@@ -7,7 +8,7 @@ use pyo3::{
 use serde::{Deserialize, Serialize};
 use serde_json;
 use tokenserver_common::error::TokenserverError;
-use tokio::time;
+use tokio::{task, time};
 
 use super::VerifyToken;
 use crate::tokenserver::settings::Settings;
@@ -73,7 +74,7 @@ impl VerifyToken for RemoteVerifier {
     async fn verify(&self, token: String) -> Result<VerifyOutput, TokenserverError> {
         let verifier = self.clone();
 
-        let fut = web::block(move || {
+        let fut = task::spawn_blocking(move || {
             let maybe_verify_output_string = Python::with_gil(|py| {
                 let client = verifier.inner.as_ref(py);
                 // `client.verify_token(token)`
@@ -111,6 +112,20 @@ impl VerifyToken for RemoteVerifier {
                     ..TokenserverError::invalid_credentials("Unauthorized")
                 }),
             }
+        })
+        .map_err(|err| {
+            let context = if err.is_cancelled() {
+                "Tokenserver threadpool operation cancelled"
+            } else if err.is_panic() {
+                "Tokenserver threadpool operation panicked"
+            } else {
+                "Tokenserver threadpool operation failed for unknown reason"
+            };
+
+            TokenserverError {
+                context: context.to_owned(),
+                ..TokenserverError::internal_error()
+            }
         });
 
         // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
@@ -122,6 +137,7 @@ impl VerifyToken for RemoteVerifier {
                 context: "OAuth verification timeout".to_owned(),
                 ..TokenserverError::resource_unavailable()
             })?
+            .map_err(|_| TokenserverError::resource_unavailable())?
             .map_err(Into::into)
     }
 }

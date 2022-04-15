@@ -7,15 +7,15 @@ pub mod spanner;
 mod tests;
 pub mod transaction;
 
-pub(crate) use mysql::models::blocking_error_to_db_error;
-
 use std::time::Duration;
 
 use cadence::{Gauged, StatsdClient};
+use futures::TryFutureExt;
 use syncstorage_db_common::{
     error::{DbError, DbErrorKind},
     results, DbPool, GetPoolState, PoolState,
 };
+use tokio::{self, task, time};
 use url::Url;
 
 use crate::server::metrics::Metrics;
@@ -37,7 +37,7 @@ pub async fn pool_from_settings(
 
 
 /// Emit DbPool metrics periodically
-pub fn spawn_pool_periodic_reporter<T: GetPoolState + 'static>(
+pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
     interval: Duration,
     metrics: StatsdClient,
     pool: T,
@@ -46,7 +46,7 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + 'static>(
         .expect("Couldn't get hostname")
         .into_string()
         .expect("Couldn't get hostname");
-    actix_rt::spawn(async move {
+    tokio::spawn(async move {
         loop {
             let PoolState {
                 connections,
@@ -63,9 +63,27 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + 'static>(
                 .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
                 .with_tag("hostname", &hostname)
                 .send();
-            actix_rt::time::delay_for(interval).await;
+            time::delay_for(interval).await;
         }
     });
 
     Ok(())
+}
+
+pub async fn run_on_blocking_threadpool<F, T>(f: F) -> Result<T, DbError>
+where
+    F: FnOnce() -> Result<T, DbError> + Send + 'static,
+    T: Send + 'static,
+{
+    task::spawn_blocking(f)
+        .map_err(|err| {
+            if err.is_cancelled() {
+                DbError::internal("Db threadpool operation cancelled")
+            } else if err.is_panic() {
+                DbError::internal("Db threadpool operation panicked")
+            } else {
+                DbError::internal("Db threadpool operation failed for unknown reason")
+            }
+        })
+        .await?
 }

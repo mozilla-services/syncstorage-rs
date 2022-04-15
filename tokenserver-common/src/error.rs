@@ -1,10 +1,6 @@
 use std::fmt;
 
-use actix_web::{
-    error::{BlockingError, ResponseError},
-    http::StatusCode,
-    HttpResponse,
-};
+use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
@@ -123,18 +119,6 @@ impl TokenserverError {
             description,
             context: description.to_owned(),
             ..Self::default()
-        }
-    }
-}
-
-impl From<BlockingError<TokenserverError>> for TokenserverError {
-    fn from(inner: BlockingError<TokenserverError>) -> Self {
-        match inner {
-            BlockingError::Error(e) => e,
-            BlockingError::Canceled => TokenserverError {
-                context: "Threadpool operation canceled".to_owned(),
-                ..TokenserverError::internal_error()
-            },
         }
     }
 }

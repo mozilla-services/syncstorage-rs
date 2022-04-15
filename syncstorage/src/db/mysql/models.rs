@@ -1,5 +1,3 @@
-use actix_web::web::block;
-
 use futures::future::TryFutureExt;
 
 use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc};
@@ -30,6 +28,7 @@ use super::{
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
 };
+use crate::db;
 use crate::server::metrics::Metrics;
 use crate::settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 use crate::web::tags::Tags;
@@ -73,7 +72,7 @@ struct MysqlDbSession {
 
 #[derive(Clone, Debug)]
 pub struct MysqlDb {
-    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
+    /// Synchronous Diesel calls are executed in tokio::task::spawn_blocking to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
@@ -978,7 +977,6 @@ impl MysqlDb {
         self.session.borrow().timestamp
     }
 }
-
 #[macro_export]
 macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident) => {
@@ -987,36 +985,22 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
             let db = self.clone();
-            Box::pin(
-                block(move || db.$sync_name(params)).map_err(|err| match err {
-                    actix_web::error::BlockingError::Error(e) => e,
-                    actix_web::error::BlockingError::Canceled => {
-                        DbError::internal("Db threadpool operation canceled")
-                    }
-                }),
-            )
+            Box::pin(db::run_on_blocking_threadpool(move || {
+                db.$sync_name(params)
+            }))
         }
     };
-}
-
-pub fn blocking_error_to_db_error(err: actix_web::error::BlockingError<DbError>) -> DbError {
-    match err {
-        actix_web::error::BlockingError::Error(e) => e,
-        actix_web::error::BlockingError::Canceled => {
-            DbError::internal("Db threadpool operation canceled")
-        }
-    }
 }
 
 impl<'a> Db<'a> for MysqlDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(block(move || db.commit_sync()).map_err(blocking_error_to_db_error))
+        Box::pin(db::run_on_blocking_threadpool(move || db.commit_sync()))
     }
 
     fn rollback(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(block(move || db.rollback_sync()).map_err(blocking_error_to_db_error))
+        Box::pin(db::run_on_blocking_threadpool(move || db.rollback_sync()))
     }
 
     fn begin(&self, for_write: bool) -> DbFuture<'_, ()> {
@@ -1030,7 +1014,7 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(block(move || db.check_sync()).map_err(blocking_error_to_db_error))
+        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1090,7 +1074,9 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(block(move || db.get_collection_id(&name)).map_err(blocking_error_to_db_error))
+        Box::pin(db::run_on_blocking_threadpool(move || {
+            db.get_collection_id(&name)
+        }))
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -1099,20 +1085,16 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(
-            block(move || db.get_or_create_collection_id(&name))
-                .map_err(blocking_error_to_db_error),
-        )
+        Box::pin(db::run_on_blocking_threadpool(move || {
+            db.get_or_create_collection_id(&name)
+        }))
     }
 
     fn update_collection(&self, param: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
-        Box::pin(
-            block(move || {
-                db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
-            })
-            .map_err(blocking_error_to_db_error),
-        )
+        Box::pin(db::run_on_blocking_threadpool(move || {
+            db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
+        }))
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -1127,13 +1109,10 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(
-            block(move || {
-                db.coll_cache.clear();
-                Ok(())
-            })
-            .map_err(blocking_error_to_db_error),
-        )
+        Box::pin(db::run_on_blocking_threadpool(move || {
+            db.coll_cache.clear();
+            Ok(())
+        }))
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
