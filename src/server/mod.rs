@@ -319,36 +319,3 @@ impl Server {
         Ok(server)
     }
 }
-
-#[cfg(test)]
-use crate::settings::{self, Secrets};
-#[cfg(test)]
-use actix_http;
-#[cfg(test)]
-use actix_web::{
-    self,
-    dev::{Body, Service, ServiceResponse},
-    Error,
-};
-#[cfg(test)]
-use lazy_static::lazy_static;
-
-#[cfg(test)]
-pub async fn build_test_app(
-    state: ServerState,
-) -> impl Service<Request = actix_http::Request, Response = ServiceResponse<Body>, Error = Error> {
-    lazy_static! {
-        static ref SECRETS: Arc<Secrets> =
-            Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/mod.rs"));
-    }
-
-    let limits = state.limits.clone();
-    actix_web::test::init_service(build_app!(
-        state,
-        None::<tokenserver::ServerState>,
-        Arc::clone(&SECRETS),
-        limits,
-        settings::test_settings().build_cors()
-    ))
-    .await
-}

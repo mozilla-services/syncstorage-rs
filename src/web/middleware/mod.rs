@@ -6,8 +6,7 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::future::Future;
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
@@ -64,6 +63,7 @@ impl SyncServerRequest for HttpRequest {
         HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
     }
 }
+
 pub fn emit_http_status_with_tokenserver_origin(
     req: ServiceRequest,
     srv: &mut impl Service<
