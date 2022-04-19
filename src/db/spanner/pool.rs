@@ -5,7 +5,7 @@ use bb8::ErrorSink;
 use tokio::sync::RwLock;
 
 use crate::{
-    db::{error::DbError, results, Db, DbPool, STD_COLLS},
+    db::{error::DbError, Db, DbPool, GetPoolState, PoolState, STD_COLLS},
     error::ApiResult,
     server::metrics::Metrics,
     settings::{Quota, Settings},
@@ -100,16 +100,18 @@ impl DbPool for SpannerDbPool {
             .map_err(Into::into)
     }
 
-    fn state(&self) -> results::PoolState {
-        self.pool.status().into()
-    }
-
     fn validate_batch_id(&self, id: String) -> Result<()> {
         super::batch::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for SpannerDbPool {
+    fn state(&self) -> PoolState {
+        self.pool.status().into()
     }
 }
 

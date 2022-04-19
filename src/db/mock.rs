@@ -20,16 +20,18 @@ impl DbPool for MockDbPool {
         Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)
     }
 
-    fn state(&self) -> results::PoolState {
-        results::PoolState::default()
-    }
-
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
         Ok(())
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for MockDbPool {
+    fn state(&self) -> PoolState {
+        PoolState::default()
     }
 }
 

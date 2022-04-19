@@ -639,7 +639,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, Error> {
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
     let db_state = if cfg!(test) {
-        use crate::db::results::PoolState;
+        use crate::db::PoolState;
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
 

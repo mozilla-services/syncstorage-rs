@@ -60,10 +60,8 @@ pub const BATCH_LIFETIME: i64 = 2 * 60 * 60 * 1000; // 2 hours, in milliseconds
 type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, ApiError>>;
 
 #[async_trait]
-pub trait DbPool: Sync + Send + Debug {
+pub trait DbPool: Sync + Send + Debug + GetPoolState {
     async fn get(&self) -> ApiResult<Box<dyn Db<'_>>>;
-
-    fn state(&self) -> results::PoolState;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), DbError>;
 
@@ -74,6 +72,23 @@ impl Clone for Box<dyn DbPool> {
     fn clone(&self) -> Box<dyn DbPool> {
         self.box_clone()
     }
+}
+
+pub trait GetPoolState {
+    fn state(&self) -> PoolState;
+}
+
+impl GetPoolState for Box<dyn DbPool> {
+    fn state(&self) -> PoolState {
+        (**self).state()
+    }
+}
+
+#[derive(Debug, Default)]
+/// A mockable r2d2::State
+pub struct PoolState {
+    pub connections: u32,
+    pub idle_connections: u32,
 }
 
 pub trait Db<'a>: Debug + 'a {
@@ -280,10 +295,10 @@ pub async fn pool_from_settings(
 }
 
 /// Emit DbPool metrics periodically
-pub fn spawn_pool_periodic_reporter(
+pub fn spawn_pool_periodic_reporter<T: GetPoolState + 'static>(
     interval: Duration,
     metrics: StatsdClient,
-    pool: Box<dyn DbPool>,
+    pool: T,
 ) -> Result<(), DbError> {
     let hostname = hostname::get()
         .expect("Couldn't get hostname")
@@ -291,7 +306,7 @@ pub fn spawn_pool_periodic_reporter(
         .expect("Couldn't get hostname");
     actix_rt::spawn(async move {
         loop {
-            let results::PoolState {
+            let PoolState {
                 connections,
                 idle_connections,
             } = pool.state();
