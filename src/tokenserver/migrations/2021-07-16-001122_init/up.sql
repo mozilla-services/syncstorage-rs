@@ -1,4 +1,4 @@
-CREATE TABLE `services` (
+CREATE TABLE IF NOT EXISTS `services` (
   `id` int NOT NULL AUTO_INCREMENT,
   `service` varchar(30) DEFAULT NULL,
   `pattern` varchar(128) DEFAULT NULL,
@@ -6,7 +6,7 @@ CREATE TABLE `services` (
   UNIQUE KEY `service` (`service`)
 );
 
-CREATE TABLE `nodes` (
+CREATE TABLE IF NOT EXISTS `nodes` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `service` int NOT NULL,
   `node` varchar(64) NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE `nodes` (
   CONSTRAINT `nodes_ibfk_1` FOREIGN KEY (`service`) REFERENCES `services` (`id`)
 );
 
-CREATE TABLE `users` (
+CREATE TABLE IF NOT EXISTS `users` (
   `uid` bigint NOT NULL AUTO_INCREMENT,
   `service` int NOT NULL,
   `email` varchar(255) NOT NULL,
