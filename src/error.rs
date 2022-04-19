@@ -136,12 +136,11 @@ impl ApiError {
 
     pub fn is_reportable(&self) -> bool {
         // Should we report this error to sentry?
-        match self.kind() {
-            ApiErrorKind::Db(dbe) => return dbe.is_reportable(),
-            ApiErrorKind::Hawk(hawke) => return hawke.is_reportable(),
-            _ => (),
-        };
-        self.kind().metric_label().is_none()
+        self.status.is_server_error()
+            && match self.kind() {
+                ApiErrorKind::Db(dbe) => dbe.is_reportable(),
+                _ => self.kind().metric_label().is_none(),
+            }
     }
 
     fn weave_error_code(&self) -> WeaveError {
