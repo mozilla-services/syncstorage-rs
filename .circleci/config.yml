@@ -152,12 +152,12 @@ commands:
     steps:
       - restore_cache:
           name: Restore sccache cache
-          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_JOB }}
   save-sccache-cache:
     steps:
       - save_cache:
           name: Save sccache cache
-          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_JOB }}-{{ epoch }}
           paths:
             - "~/.cache/sccache"
 jobs:
@@ -238,7 +238,7 @@ jobs:
           name: Save docker-compose config
           command: cp docker-compose*.yaml /home/circleci/cache
       - save_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
 
@@ -251,7 +251,7 @@ jobs:
     steps:
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -270,7 +270,7 @@ jobs:
     steps:
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
