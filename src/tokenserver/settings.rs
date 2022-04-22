@@ -70,7 +70,7 @@ impl Default for Settings {
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
-            run_migrations: false,
+            run_migrations: cfg!(test),
         }
     }
 }
