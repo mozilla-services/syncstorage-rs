@@ -10,7 +10,7 @@ services:
     sync-db-setup:
         image: app:build
         depends_on:
-          - sync-db
+            - sync-db
         restart: "no"
         entrypoint: "/app/scripts/prepare-spanner.sh"
         environment:
@@ -39,19 +39,20 @@ services:
         image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always
         ports:
-          - "8000:8000"
+            - "8000:8000"
         depends_on:
-          - sync-db-setup
+            - sync-db-setup
         environment:
-          SYNC_HOST: 0.0.0.0
-          SYNC_MASTER_SECRET: secret0
-          SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-          SYNC_SPANNER_EMULATOR_HOST: sync-db:9010
-          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
+            SYNC_HOST: 0.0.0.0
+            SYNC_MASTER_SECRET: secret0
+            SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SPANNER_EMULATOR_HOST: sync-db:9010
+            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
+            SYNC_TOKENSERVER__RUN_MIGRATIONS: true
 
 volumes:
     tokenserver_db_data:
 
-# Application runs off of port 8000.
-# you can test if it's available with
-# curl "http://localhost:8000/__heartbeat__"
+        # Application runs off of port 8000.
+        # you can test if it's available with
+        # curl "http://localhost:8000/__heartbeat__"
