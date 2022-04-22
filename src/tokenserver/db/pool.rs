@@ -48,7 +48,7 @@ impl TokenserverPool {
         metrics: &Metrics,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
-        #[cfg(test)]
+        #[cfg(debug_assertions)]
         run_embedded_migrations(&settings.database_url)?;
 
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
