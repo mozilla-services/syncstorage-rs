@@ -51,6 +51,3 @@ run_spanner:
 
 test:
 	SYNC_DATABASE_URL=$(SYNC_DATABASE_URL) SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) RUST_TEST_THREADS=1 cargo test
-
-tokenserver_migrate:
-	diesel --database-url $(SYNC_TOKENSERVER__DATABASE_URL) migration --migration-dir src/tokenserver/migrations run
