@@ -49,7 +49,7 @@ services:
           SYNC_MASTER_SECRET: secret0
           SYNC_DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
           SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
-          SYNC_TOKENSERVER__RUN_MIGRATIONS: true
+          SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
 
 volumes:
     sync_db_data:
