@@ -46,6 +46,8 @@ pub struct Settings {
     pub node_type: NodeType,
     /// The label to be used when reporting Metrics.
     pub statsd_label: String,
+    /// Whether or not to run the Tokenserver migrations upon startup.
+    pub run_migrations: bool,
 }
 
 impl Default for Settings {
@@ -68,6 +70,7 @@ impl Default for Settings {
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
+            run_migrations: cfg!(test),
         }
     }
 }

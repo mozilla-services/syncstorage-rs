@@ -3,14 +3,13 @@ use async_trait::async_trait;
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
-    Connection,
 };
-#[cfg(test)]
 use diesel_logger::LoggingConnection;
 use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
 use crate::db::{error::DbError, DbErrorKind};
+use crate::diesel::Connection;
 use crate::server::metrics::Metrics;
 use crate::tokenserver::settings::Settings;
 
@@ -26,10 +25,7 @@ embed_migrations!("src/tokenserver/migrations");
 pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = MysqlConnection::establish(database_url)?;
 
-    #[cfg(test)]
     embedded_migrations::run(&LoggingConnection::new(conn))?;
-    #[cfg(not(test))]
-    embedded_migrations::run(&conn)?;
 
     Ok(())
 }
@@ -47,7 +43,9 @@ impl TokenserverPool {
         metrics: &Metrics,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
-        run_embedded_migrations(&settings.database_url)?;
+        if settings.run_migrations {
+            run_embedded_migrations(&settings.database_url)?;
+        }
 
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder()

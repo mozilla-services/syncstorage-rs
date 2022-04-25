@@ -34,6 +34,7 @@ services:
           SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER: "api-accounts.stage.mozaws.net"
           SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
           SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+          SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
           TOKENSERVER_HOST: http://localhost:8000
         entrypoint: >
           /bin/sh -c "
