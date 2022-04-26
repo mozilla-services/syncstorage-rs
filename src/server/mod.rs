@@ -244,14 +244,22 @@ impl Server {
             ..Default::default()
         }));
         let tokenserver_state = if settings.tokenserver.enabled {
-            Some(tokenserver::ServerState::from_settings(
+            let state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
                 metrics::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
                     settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )?,
-            )?)
+            )?;
+
+            spawn_pool_periodic_reporter(
+                Duration::from_secs(10),
+                *state.metrics.clone(),
+                state.db_pool.clone(),
+            )?;
+
+            Some(state)
         } else {
             None
         };
@@ -304,6 +312,13 @@ impl Server {
                 settings.statsd_port,
             )?,
         )?;
+
+        spawn_pool_periodic_reporter(
+            Duration::from_secs(10),
+            *tokenserver_state.metrics.clone(),
+            tokenserver_state.db_pool.clone(),
+        )?;
+
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
                 Some(tokenserver_state.clone()),

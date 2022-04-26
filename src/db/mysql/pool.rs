@@ -20,11 +20,7 @@ use diesel_logger::LoggingConnection;
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db::{
-    error::DbError,
-    results::{self, PoolState},
-    Db, DbPool, STD_COLLS,
-};
+use crate::db::{error::DbError, Db, DbPool, GetPoolState, PoolState, STD_COLLS};
 use crate::error::{ApiError, ApiResult};
 use crate::server::metrics::Metrics;
 use crate::settings::{Quota, Settings};
@@ -114,16 +110,18 @@ impl DbPool for MysqlDbPool {
         Ok(Box::new(db) as Box<dyn Db<'a>>)
     }
 
-    fn state(&self) -> results::PoolState {
-        self.pool.state().into()
-    }
-
     fn validate_batch_id(&self, id: String) -> Result<()> {
         super::batch::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for MysqlDbPool {
+    fn state(&self) -> PoolState {
+        self.pool.state().into()
     }
 }
 

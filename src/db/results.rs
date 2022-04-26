@@ -81,13 +81,6 @@ pub struct PostBsos {
 }
 
 #[derive(Debug, Default)]
-/// A mockable r2d2::State
-pub struct PoolState {
-    pub connections: u32,
-    pub idle_connections: u32,
-}
-
-#[derive(Debug, Default)]
 pub struct ConnectionInfo {
     pub age: i64,
     pub spanner_age: i64,
