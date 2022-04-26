@@ -8,7 +8,7 @@ use diesel_logger::LoggingConnection;
 use std::time::Duration;
 
 use super::models::{Db, DbResult, TokenserverDb};
-use crate::db::{error::DbError, DbErrorKind};
+use crate::db::{error::DbError, DbErrorKind, GetPoolState, PoolState};
 use crate::diesel::Connection;
 use crate::server::metrics::Metrics;
 use crate::tokenserver::settings::Settings;
@@ -112,10 +112,22 @@ impl DbPool for TokenserverPool {
 }
 
 #[async_trait]
-pub trait DbPool: Sync + Send {
+pub trait DbPool: Sync + Send + GetPoolState {
     async fn get(&self) -> Result<Box<dyn Db>, DbError>;
 
     fn box_clone(&self) -> Box<dyn DbPool>;
+}
+
+impl GetPoolState for TokenserverPool {
+    fn state(&self) -> PoolState {
+        self.inner.state().into()
+    }
+}
+
+impl GetPoolState for Box<dyn DbPool> {
+    fn state(&self) -> PoolState {
+        (**self).state()
+    }
 }
 
 impl Clone for Box<dyn DbPool> {

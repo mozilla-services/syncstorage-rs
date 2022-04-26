@@ -7,7 +7,7 @@ use super::models::{Db, DbFuture};
 use super::params;
 use super::pool::DbPool;
 use super::results;
-use crate::db::error::DbError;
+use crate::db::{error::DbError, GetPoolState, PoolState};
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -26,6 +26,12 @@ impl DbPool for MockDbPool {
 
     fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for MockDbPool {
+    fn state(&self) -> PoolState {
+        PoolState::default()
     }
 }
 

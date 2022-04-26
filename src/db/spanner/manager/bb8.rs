@@ -8,7 +8,7 @@ use grpcio::{EnvBuilder, Environment};
 use crate::{
     db::{
         error::{DbError, DbErrorKind},
-        results::PoolState,
+        PoolState,
     },
     server::metrics::Metrics,
     settings::Settings,
