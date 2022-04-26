@@ -264,20 +264,34 @@ impl Settings {
                 }
 
                 if !s.uses_spanner() {
-                    if let Some(database_pool_max_size) = s.database_pool_max_size {
-                        // Db backends w/ blocking calls block via
-                        // actix-threadpool: grow its size to accommodate the
-                        // full number of connections
-                        let default = num_cpus::get() * 5;
-                        if (database_pool_max_size as usize) > default {
-                            env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
-                        }
-                    }
                     // No quotas for stand alone servers
                     s.limits.max_quota_limit = 0;
                     s.enable_quota = false;
                     s.enforce_quota = false;
                 }
+
+                // Db backends w/ blocking calls block via
+                // actix-threadpool: grow its size to accommodate the
+                // full number of connections. The default size is five times the
+                // number of CPUs
+                let default_actix_threadpool_size = num_cpus::get() * 5;
+                let tokenserver_pool_max_size = if s.tokenserver.enabled {
+                    // 10 is the default pool size set by r2d2
+                    s.tokenserver.database_pool_max_size.unwrap_or(10)
+                } else {
+                    0
+                };
+                let syncstorage_mysql_pool_max_size = if s.uses_spanner() {
+                    0
+                } else {
+                    // 10 is the default pool size set by r2d2
+                    s.database_pool_max_size.unwrap_or(10)
+                };
+                let actix_threadpool_size = (tokenserver_pool_max_size
+                    + syncstorage_mysql_pool_max_size)
+                    .max(default_actix_threadpool_size as u32);
+                env::set_var("ACTIX_THREADPOOL", actix_threadpool_size.to_string());
+
                 if s.limits.max_quota_limit == 0 {
                     s.enable_quota = false
                 }
