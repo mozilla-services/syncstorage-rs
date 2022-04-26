@@ -11,8 +11,8 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path . --locked --root /app --features grpcio/openssl && \
-    cargo install --path . --locked --root /app --features grpcio/openssl --bin purge_ttl
+    cargo install --path . --locked --root /app && \
+    cargo install --path . --locked --root /app --bin purge_ttl
 
 FROM debian:buster-slim
 WORKDIR /app
