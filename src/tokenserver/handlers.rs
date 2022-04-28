@@ -41,7 +41,7 @@ pub async fn get_tokenserver_result(
     let (token, derived_secret) = {
         let token_plaintext = get_token_plaintext(&req, &updates)?;
 
-        metrics.start_timer("tokenserver.token_creation", None);
+        metrics.start_timer("token_creation", None);
         // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };

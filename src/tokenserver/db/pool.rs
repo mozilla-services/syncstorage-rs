@@ -98,7 +98,7 @@ impl From<actix_web::error::BlockingError<DbError>> for DbError {
 impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         let mut metrics = self.metrics.clone();
-        metrics.start_timer("tokenserver.storage.get_pool", None);
+        metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
         let conn = block(move || pool.inner.get().map_err(DbError::from)).await?;

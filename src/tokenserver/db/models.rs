@@ -215,7 +215,7 @@ impl TokenserverDb {
         const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
 
         let mut metrics = self.metrics.clone();
-        metrics.start_timer("tokenserver.storage.get_best_node", None);
+        metrics.start_timer("storage.get_best_node", None);
 
         // We may have to retry the query if we need to release more capacity. This loop allows
         // a maximum of five retries before bailing out.
@@ -407,7 +407,7 @@ impl TokenserverDb {
     /// Creates a new user and assigns them to a node.
     fn allocate_user_sync(&self, params: params::AllocateUser) -> DbResult<results::AllocateUser> {
         let mut metrics = self.metrics.clone();
-        metrics.start_timer("tokenserver.storage.allocate_user", None);
+        metrics.start_timer("storage.allocate_user", None);
 
         // Get the least-loaded node
         let node = self.get_best_node_sync(params::GetBestNode {
