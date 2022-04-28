@@ -3,7 +3,8 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{
-    self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr, sync::Arc,
+    self, collections::HashMap, collections::HashSet, convert::TryFrom, num::ParseIntError,
+    str::FromStr, sync::Arc,
 };
 
 use actix_web::{
@@ -42,7 +43,7 @@ use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
-    X_WEAVE_RECORDS,
+    DOCKER_FLOW_ENDPOINTS, X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
 
@@ -1131,6 +1132,27 @@ impl From<HawkIdentifier> for UserIdentifier {
             fxa_uid: hawk_id.fxa_uid,
             fxa_kid: hawk_id.fxa_kid,
         }
+    }
+}
+
+impl TryFrom<&HttpRequest> for HawkIdentifier {
+    type Error = actix_web::Error;
+    // type Error = ActixError;
+
+    fn try_from(req: &HttpRequest) -> Result<HawkIdentifier, Error> {
+        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
+            return Ok(HawkIdentifier::cmd_dummy());
+        }
+        let method = req.method().clone();
+        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
+        // it must be cloned
+        let ci = req.connection_info().clone();
+        let secrets = req
+            .app_data::<Data<Arc<Secrets>>>()
+            .ok_or_else(|| -> ApiError {
+                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
+            })?;
+        HawkIdentifier::extrude(req, method.as_str(), req.uri(), &ci, secrets)
     }
 }
 

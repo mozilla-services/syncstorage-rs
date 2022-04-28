@@ -6,44 +6,17 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::{future::Future, sync::Arc};
+use std::future::Future;
 
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     web::Data,
-    HttpRequest,
 };
-use syncstorage_db_common::util::SyncTimestamp;
 
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics::Metrics, ServerState};
-use crate::settings::Secrets;
 use crate::tokenserver::auth::TokenserverOrigin;
-use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
-use std::convert::TryFrom;
-
-/// The resource in question's Timestamp
-pub struct ResourceTimestamp(SyncTimestamp);
-
-impl TryFrom<&HttpRequest> for HawkIdentifier {
-    type Error = actix_web::Error;
-
-    fn try_from(req: &HttpRequest) -> Result<HawkIdentifier, Self::Error> {
-        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
-            return Ok(HawkIdentifier::cmd_dummy());
-        }
-        let method = req.method().clone();
-        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
-        // it must be cloned
-        let ci = req.connection_info().clone();
-        let secrets = req
-            .app_data::<Data<Arc<Secrets>>>()
-            .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
-            })?;
-        HawkIdentifier::extrude(req, method.as_str(), req.uri(), &ci, secrets)
-    }
-}
+use crate::web::tags::Tags;
 
 pub fn emit_http_status_with_tokenserver_origin(
     req: ServiceRequest,
