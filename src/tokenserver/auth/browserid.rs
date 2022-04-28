@@ -122,6 +122,12 @@ impl VerifyToken for RemoteVerifier {
                     ..Default::default()
                 })
             }
+            VerifyResponse::Failure {
+                reason: Some(reason),
+            } => Err(TokenserverError {
+                context: format!("BrowserID verification error: {}", reason),
+                ..TokenserverError::invalid_credentials("Unauthorized")
+            }),
             VerifyResponse::Failure { .. } => Err(TokenserverError {
                 context: "Unknown BrowserID verification error".to_owned(),
                 ..TokenserverError::invalid_credentials("Unauthorized")

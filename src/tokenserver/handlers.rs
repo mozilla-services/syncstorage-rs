@@ -16,9 +16,8 @@ use super::{
     },
     error::TokenserverError,
     extractors::TokenserverRequest,
-    NodeType,
+    NodeType, TokenserverMetrics,
 };
-use crate::server::metrics::Metrics;
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -35,7 +34,7 @@ pub struct TokenserverResult {
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
-    mut metrics: Metrics,
+    TokenserverMetrics(mut metrics): TokenserverMetrics,
 ) -> Result<HttpResponse, Error> {
     let updates = update_user(&req, db).await?;
 
