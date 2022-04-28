@@ -1136,8 +1136,7 @@ impl From<HawkIdentifier> for UserIdentifier {
 }
 
 impl TryFrom<&HttpRequest> for HawkIdentifier {
-    type Error = actix_web::Error;
-    // type Error = ActixError;
+    type Error = Error;
 
     fn try_from(req: &HttpRequest) -> Result<HawkIdentifier, Error> {
         if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
