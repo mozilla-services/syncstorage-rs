@@ -411,7 +411,7 @@ impl FromRequest for AuthData {
             let token = Token::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
-            metrics.start_timer("tokenserver.token_verification", None);
+            metrics.start_timer("token_verification", None);
 
             match token {
                 Token::BrowserIdAssertion(assertion) => {

@@ -122,6 +122,12 @@ impl VerifyToken for RemoteVerifier {
                     ..Default::default()
                 })
             }
+            VerifyResponse::Failure {
+                reason: Some(reason),
+            } => Err(TokenserverError {
+                context: format!("BrowserID verification error: {}", reason),
+                ..TokenserverError::invalid_credentials("Unauthorized")
+            }),
             VerifyResponse::Failure { .. } => Err(TokenserverError {
                 context: "Unknown BrowserID verification error".to_owned(),
                 ..TokenserverError::invalid_credentials("Unauthorized")
@@ -391,11 +397,27 @@ mod tests {
             assert_eq!(expected_error, error);
         }
 
-        // {"status": "error"} in body with random reason
+        // {"status": "failure"} in body with random reason
         {
             let mock = mockito::mock("POST", "/v2")
                 .with_header("content-type", "application/json")
                 .with_body("{\"status\": \"failure\", \"reason\": \"something broke\"}")
+                .create();
+
+            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            mock.assert();
+
+            let expected_error = TokenserverError {
+                context: "BrowserID verification error: something broke".to_owned(),
+                ..TokenserverError::invalid_credentials("Unauthorized")
+            };
+            assert_eq!(expected_error, error);
+        }
+        // {"status": "failure"} in body with no reason
+        {
+            let mock = mockito::mock("POST", "/v2")
+                .with_header("content-type", "application/json")
+                .with_body("{\"status\": \"failure\"}")
                 .create();
 
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();

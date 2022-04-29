@@ -16,9 +16,8 @@ use super::{
     },
     error::TokenserverError,
     extractors::TokenserverRequest,
-    NodeType,
+    NodeType, TokenserverMetrics,
 };
-use crate::server::metrics::Metrics;
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -35,14 +34,14 @@ pub struct TokenserverResult {
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
-    mut metrics: Metrics,
+    TokenserverMetrics(mut metrics): TokenserverMetrics,
 ) -> Result<HttpResponse, Error> {
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
         let token_plaintext = get_token_plaintext(&req, &updates)?;
 
-        metrics.start_timer("tokenserver.token_creation", None);
+        metrics.start_timer("token_creation", None);
         // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
