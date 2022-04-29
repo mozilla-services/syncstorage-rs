@@ -1143,9 +1143,7 @@ impl TryFrom<&HttpRequest> for HawkIdentifier {
             return Ok(HawkIdentifier::cmd_dummy());
         }
         let method = req.method().clone();
-        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
-        // it must be cloned
-        let ci = req.connection_info().clone();
+        let ci = req.connection_info();
         let secrets = req
             .app_data::<Data<Arc<Secrets>>>()
             .ok_or_else(|| -> ApiError {
