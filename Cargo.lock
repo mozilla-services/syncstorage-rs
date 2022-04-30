@@ -3012,7 +3012,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "actix-cors",
  "actix-http",
