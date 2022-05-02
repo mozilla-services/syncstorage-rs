@@ -35,7 +35,6 @@ pub async fn pool_from_settings(
     })
 }
 
-
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
     interval: Duration,

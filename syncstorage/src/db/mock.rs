@@ -3,7 +3,8 @@
 use async_trait::async_trait;
 use futures::future;
 use syncstorage_db_common::{
-    error::DbError, params, results, util::SyncTimestamp, Db, DbFuture, DbPool, PoolState, GetPoolState
+    error::DbError, params, results, util::SyncTimestamp, Db, DbFuture, DbPool, GetPoolState,
+    PoolState,
 };
 
 #[derive(Clone, Debug)]
