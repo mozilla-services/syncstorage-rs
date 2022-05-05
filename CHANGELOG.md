@@ -1,3 +1,13 @@
+<a name="0.11.1"></a>
+## 0.11.1 (2022-05-05)
+
+
+#### Bug Fixes
+
+*   to_spanner_value -> into_spanner_value (#1301) ([b8858cea](https://github.com/mozilla-services/syncstorage-rs/commit/b8858cea0756ee5920680ccd99133687c340200f), closes [#1300](https://github.com/mozilla-services/syncstorage-rs/issues/1300))
+
+
+
 <a name="0.11.0"></a>
 ## 0.11.0 (2022-04-30)
 
