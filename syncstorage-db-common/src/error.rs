@@ -1,13 +1,15 @@
 use std::fmt;
 
+use backtrace::Backtrace;
 use http::StatusCode;
 use syncstorage_common::{from_error, impl_fmt_display};
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub struct DbError {
     kind: DbErrorKind,
     pub status: StatusCode,
+    pub backtrace: Backtrace,
 }
 
 #[derive(Debug, Error)]
@@ -111,7 +113,11 @@ impl From<DbErrorKind> for DbError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
-        Self { kind, status }
+        Self {
+            kind,
+            status,
+            backtrace: Backtrace::new(),
+        }
     }
 }
 

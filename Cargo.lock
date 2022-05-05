@@ -3078,6 +3078,7 @@ name = "syncstorage-db-common"
 version = "0.10.2"
 dependencies = [
  "async-trait",
+ "backtrace",
  "chrono",
  "deadpool",
  "diesel",

@@ -262,6 +262,15 @@ where
 
 impl_fmt_display!(ApiError, ApiErrorKind);
 
-from_error!(DbError, ApiError, ApiErrorKind::Db);
+impl From<DbError> for ApiError {
+    fn from(db_error: DbError) -> Self {
+        Self {
+            status: db_error.status,
+            backtrace: db_error.backtrace.clone(),
+            kind: ApiErrorKind::Db(db_error),
+        }
+    }
+}
+
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
