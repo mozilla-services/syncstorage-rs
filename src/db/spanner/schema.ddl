@@ -82,6 +82,6 @@ CREATE TABLE batch_bsos (
 -- no "modified" column because the modification timestamp gets set on
 -- batch commit.
 
--- *NOTE*: 
--- Newly created Spanner instances should pre-populate the `collections` table by 
+-- *NOTE*:
+-- Newly created Spanner instances should pre-populate the `collections` table by
 -- running the content of `insert_standard_collections.sql `

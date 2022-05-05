@@ -11,7 +11,7 @@ use protobuf::{
 use uuid::Uuid;
 
 use super::models::{Result, SpannerDb, DEFAULT_BSO_TTL, PRETOUCH_TS};
-use super::support::{as_type, null_value, struct_type_field, ToSpannerValue};
+use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
 use crate::{
     db::{params, results, util::to_rfc3339, DbError, DbErrorKind, BATCH_LIFETIME},
     web::{extractors::HawkIdentifier, tags::Tags},
@@ -359,29 +359,26 @@ pub async fn do_append_async(
         } else {
             let sortindex = bso
                 .sortindex
-                .as_ref()
-                .map(ToSpannerValue::to_spanner_value)
+                .map(IntoSpannerValue::into_spanner_value)
                 .unwrap_or_else(null_value);
             let payload = bso
                 .payload
-                .as_ref()
-                .map(ToSpannerValue::to_spanner_value)
+                .map(IntoSpannerValue::into_spanner_value)
                 .unwrap_or_else(null_value);
             let ttl = bso
                 .ttl
-                .as_ref()
-                .map(ToSpannerValue::to_spanner_value)
+                .map(IntoSpannerValue::into_spanner_value)
                 .unwrap_or_else(null_value);
 
             // convert to a protobuf structure for direct insertion to
             // avoid some mutation limits.
             let mut row = ListValue::new();
             row.set_values(RepeatedField::from_vec(vec![
-                user_id.fxa_uid.clone().to_spanner_value(),
-                user_id.fxa_kid.clone().to_spanner_value(),
-                collection_id.to_spanner_value(),
-                batch.id.clone().to_spanner_value(),
-                bso.id.to_spanner_value(),
+                user_id.fxa_uid.clone().into_spanner_value(),
+                user_id.fxa_kid.clone().into_spanner_value(),
+                collection_id.into_spanner_value(),
+                batch.id.clone().into_spanner_value(),
+                bso.id.into_spanner_value(),
                 sortindex,
                 payload,
                 ttl,
@@ -480,18 +477,18 @@ pub async fn do_append_async(
             };
             if let Some(sortindex) = val.sortindex {
                 fields.push("sortindex");
-                params.insert("sortindex".to_owned(), sortindex.to_spanner_value());
                 param_types.insert("sortindex".to_owned(), sortindex.spanner_type());
+                params.insert("sortindex".to_owned(), sortindex.into_spanner_value());
             }
             if let Some(payload) = val.payload {
                 fields.push("payload");
-                params.insert("payload".to_owned(), payload.to_spanner_value());
                 param_types.insert("payload".to_owned(), payload.spanner_type());
+                params.insert("payload".to_owned(), payload.into_spanner_value());
             };
             if let Some(ttl) = val.ttl {
                 fields.push("ttl");
-                params.insert("ttl".to_owned(), ttl.to_spanner_value());
                 param_types.insert("ttl".to_owned(), ttl.spanner_type());
+                params.insert("ttl".to_owned(), ttl.into_spanner_value());
             }
             if fields.is_empty() {
                 continue;
@@ -551,7 +548,7 @@ async fn pretouch_collection_async(
     if result.is_none() {
         sqlparams.insert(
             "modified".to_owned(),
-            PRETOUCH_TS.to_owned().to_spanner_value(),
+            PRETOUCH_TS.to_owned().into_spanner_value(),
         );
         sqlparam_types.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
         let sql = if db.quota.enabled {
