@@ -9,8 +9,8 @@ macro_rules! params {
             let mut _value_map = ::std::collections::HashMap::with_capacity(_cap);
             let mut _type_map = ::std::collections::HashMap::with_capacity(_cap);
             $(
-                _value_map.insert($key.to_owned(), ToSpannerValue::to_spanner_value(&$value));
-                _type_map.insert($key.to_owned(), ToSpannerValue::spanner_type(&$value));
+                _type_map.insert($key.to_owned(), IntoSpannerValue::spanner_type(&$value));
+                _value_map.insert($key.to_owned(), IntoSpannerValue::into_spanner_value($value));
             )*
             (_value_map, _type_map)
         }
@@ -19,7 +19,7 @@ macro_rules! params {
 
 #[test]
 fn test_params_macro() {
-    use crate::db::spanner::support::ToSpannerValue;
+    use crate::db::spanner::support::IntoSpannerValue;
     use google_cloud_rust_raw::spanner::v1::type_pb::{Type, TypeCode};
     use protobuf::{
         well_known_types::{ListValue, Value},

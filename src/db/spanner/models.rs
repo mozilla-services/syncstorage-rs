@@ -44,7 +44,7 @@ use super::{
     pool::{CollectionCache, Conn},
     support::{
         as_type, bso_from_row, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder,
-        StreamedResultSetAsync, ToSpannerValue,
+        IntoSpannerValue, StreamedResultSetAsync,
     },
 };
 
@@ -645,7 +645,7 @@ impl SpannerDb {
                     .into_iter()
                     .map(|id| id.to_string())
                     .collect::<Vec<String>>()
-                    .to_spanner_value(),
+                    .into_spanner_value(),
             );
             let mut rs = self
                 .sql(
@@ -909,11 +909,11 @@ impl SpannerDb {
             if self.quota.enabled {
                 sqlparams.insert(
                     "total_bytes".to_owned(),
-                    result[0].take_string_value().to_spanner_value(),
+                    result[0].take_string_value().into_spanner_value(),
                 );
                 sqlparams.insert(
                     "count".to_owned(),
-                    result[1].take_string_value().to_spanner_value(),
+                    result[1].take_string_value().into_spanner_value(),
                 );
                 sqltypes.insert(
                     "total_bytes".to_owned(),
@@ -1041,7 +1041,7 @@ impl SpannerDb {
         let (sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
             "fxa_kid" => params.user_id.fxa_kid.clone(),
-            "collection_id" => collection_id.clone(),
+            "collection_id" => collection_id,
             "pretouch_ts" => PRETOUCH_TS.to_owned(),
         };
         sqlparam_types.insert("pretouch_ts".to_owned(), as_type(TypeCode::TIMESTAMP));
@@ -1233,8 +1233,8 @@ impl SpannerDb {
 
         if !ids.is_empty() {
             query = format!("{} AND bso_id IN UNNEST(@ids)", query);
-            sqlparams.insert("ids".to_owned(), ids.to_spanner_value());
             sqlparam_types.insert("ids".to_owned(), ids.spanner_type());
+            sqlparams.insert("ids".to_owned(), ids.into_spanner_value());
         }
 
         // issue559: Dead code (timestamp always None)
@@ -1244,7 +1244,7 @@ impl SpannerDb {
                 Sorting::Newest => {
                     sqlparams.insert(
                         "older_eq".to_string(),
-                        timestamp.as_rfc3339()?.to_spanner_value(),
+                        timestamp.as_rfc3339()?.into_spanner_value(),
                     );
                     sqlparam_types.insert("older_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified <= @older_eq", query)
@@ -1252,7 +1252,7 @@ impl SpannerDb {
                 Sorting::Oldest => {
                     sqlparams.insert(
                         "newer_eq".to_string(),
-                        timestamp.as_rfc3339()?.to_spanner_value(),
+                        timestamp.as_rfc3339()?.into_spanner_value(),
                     );
                     sqlparam_types.insert("newer_eq".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{} AND modified >= @newer_eq", query)
@@ -1263,12 +1263,18 @@ impl SpannerDb {
         */
         if let Some(older) = older {
             query = format!("{} AND modified < @older", query);
-            sqlparams.insert("older".to_string(), older.as_rfc3339()?.to_spanner_value());
+            sqlparams.insert(
+                "older".to_string(),
+                older.as_rfc3339()?.into_spanner_value(),
+            );
             sqlparam_types.insert("older".to_string(), as_type(TypeCode::TIMESTAMP));
         }
         if let Some(newer) = newer {
             query = format!("{} AND modified > @newer", query);
-            sqlparams.insert("newer".to_string(), newer.as_rfc3339()?.to_spanner_value());
+            sqlparams.insert(
+                "newer".to_string(),
+                newer.as_rfc3339()?.into_spanner_value(),
+            );
             sqlparam_types.insert("newer".to_string(), as_type(TypeCode::TIMESTAMP));
         }
 
@@ -1734,8 +1740,8 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if let Some(sortindex) = bso.sortindex {
-                    sqlparams.insert("sortindex".to_string(), sortindex.to_spanner_value());
                     sqlparam_types.insert("sortindex".to_string(), sortindex.spanner_type());
+                    sqlparams.insert("sortindex".to_string(), sortindex.into_spanner_value());
 
                     format!("{}{}", comma(&q), "sortindex = @sortindex")
                 } else {
@@ -1748,7 +1754,10 @@ impl SpannerDb {
                 q,
                 if let Some(ttl) = bso.ttl {
                     let expiry = timestamp.as_i64() + (i64::from(ttl) * 1000);
-                    sqlparams.insert("expiry".to_string(), to_rfc3339(expiry)?.to_spanner_value());
+                    sqlparams.insert(
+                        "expiry".to_string(),
+                        to_rfc3339(expiry)?.into_spanner_value(),
+                    );
                     sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "expiry = @expiry")
                 } else {
@@ -1762,7 +1771,7 @@ impl SpannerDb {
                 if bso.payload.is_some() || bso.sortindex.is_some() {
                     sqlparams.insert(
                         "modified".to_string(),
-                        timestamp.as_rfc3339()?.to_spanner_value(),
+                        timestamp.as_rfc3339()?.into_spanner_value(),
                     );
                     sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
                     format!("{}{}", comma(&q), "modified = @modified")
@@ -1775,8 +1784,8 @@ impl SpannerDb {
                 "{}{}",
                 q,
                 if let Some(payload) = bso.payload {
-                    sqlparams.insert("payload".to_string(), payload.to_spanner_value());
                     sqlparam_types.insert("payload".to_string(), payload.spanner_type());
+                    sqlparams.insert("payload".to_string(), payload.into_spanner_value());
                     format!("{}{}", comma(&q), "payload = @payload")
                 } else {
                     "".to_string()
@@ -1820,14 +1829,14 @@ impl SpannerDb {
                 use super::support::null_value;
                 let sortindex = bso
                     .sortindex
-                    .map(|sortindex| sortindex.to_spanner_value())
+                    .map(|sortindex| sortindex.into_spanner_value())
                     .unwrap_or_else(null_value);
                 sqlparams.insert("sortindex".to_string(), sortindex);
                 sqlparam_types.insert("sortindex".to_string(), as_type(TypeCode::INT64));
             }
             let payload = bso.payload.unwrap_or_else(|| "".to_owned());
-            sqlparams.insert("payload".to_string(), payload.to_spanner_value());
             sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
+            sqlparams.insert("payload".to_string(), payload.into_spanner_value());
             let now_millis = timestamp.as_i64();
             let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
                 ttl.try_into()
@@ -1838,12 +1847,12 @@ impl SpannerDb {
                 "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
                 &expirystring, timestamp, ttl
             );
-            sqlparams.insert("expiry".to_string(), expirystring.to_spanner_value());
+            sqlparams.insert("expiry".to_string(), expirystring.into_spanner_value());
             sqlparam_types.insert("expiry".to_string(), as_type(TypeCode::TIMESTAMP));
 
             sqlparams.insert(
                 "modified".to_string(),
-                timestamp.as_rfc3339()?.to_spanner_value(),
+                timestamp.as_rfc3339()?.into_spanner_value(),
             );
             sqlparam_types.insert("modified".to_string(), as_type(TypeCode::TIMESTAMP));
             sql.to_owned()

@@ -26,10 +26,10 @@ use crate::{
 
 use super::{models::Result, pool::Conn};
 
-pub trait ToSpannerValue {
+pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;
 
-    fn to_spanner_value(&self) -> Value;
+    fn into_spanner_value(self) -> Value;
 
     fn spanner_type(&self) -> Type {
         let mut t = Type::new();
@@ -38,43 +38,43 @@ pub trait ToSpannerValue {
     }
 }
 
-impl ToSpannerValue for String {
+impl IntoSpannerValue for String {
     const TYPE_CODE: TypeCode = TypeCode::STRING;
 
-    fn to_spanner_value(&self) -> Value {
+    fn into_spanner_value(self) -> Value {
         let mut value = Value::new();
-        value.set_string_value(self.clone());
+        value.set_string_value(self);
         value
     }
 }
 
-impl ToSpannerValue for i32 {
+impl IntoSpannerValue for i32 {
     const TYPE_CODE: TypeCode = TypeCode::INT64;
 
-    fn to_spanner_value(&self) -> Value {
-        self.to_string().to_spanner_value()
+    fn into_spanner_value(self) -> Value {
+        self.to_string().into_spanner_value()
     }
 }
 
-impl ToSpannerValue for u32 {
+impl IntoSpannerValue for u32 {
     const TYPE_CODE: TypeCode = TypeCode::INT64;
 
-    fn to_spanner_value(&self) -> Value {
-        self.to_string().to_spanner_value()
+    fn into_spanner_value(self) -> Value {
+        self.to_string().into_spanner_value()
     }
 }
 
-impl<T> ToSpannerValue for Vec<T>
+impl<T> IntoSpannerValue for Vec<T>
 where
-    T: ToSpannerValue + Clone,
+    T: IntoSpannerValue,
     Vec<T>: SpannerArrayElementType,
 {
     const TYPE_CODE: TypeCode = TypeCode::ARRAY;
 
-    fn to_spanner_value(&self) -> Value {
+    fn into_spanner_value(self) -> Value {
         let mut list = ListValue::new();
         list.set_values(RepeatedField::from_vec(
-            self.iter().map(|v| v.clone().to_spanner_value()).collect(),
+            self.into_iter().map(|v| v.into_spanner_value()).collect(),
         ));
         let mut value = Value::new();
         value.set_list_value(list);
@@ -358,7 +358,7 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> Result<Value> {
     }
     let mut merged = lhs.take_string_value();
     merged.push_str(rhs.get_string_value());
-    Ok(merged.to_spanner_value())
+    Ok(merged.into_spanner_value())
 }
 
 pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
@@ -390,21 +390,21 @@ pub fn bso_to_insert_row(
 ) -> Result<ListValue> {
     let sortindex = bso
         .sortindex
-        .map(|sortindex| sortindex.to_spanner_value())
+        .map(|sortindex| sortindex.into_spanner_value())
         .unwrap_or_else(null_value);
     let ttl = bso.ttl.unwrap_or(DEFAULT_BSO_TTL);
     let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
 
     let mut row = ListValue::new();
     row.set_values(RepeatedField::from_vec(vec![
-        user_id.fxa_uid.clone().to_spanner_value(),
-        user_id.fxa_kid.clone().to_spanner_value(),
-        collection_id.to_spanner_value(),
-        bso.id.to_spanner_value(),
+        user_id.fxa_uid.clone().into_spanner_value(),
+        user_id.fxa_kid.clone().into_spanner_value(),
+        collection_id.into_spanner_value(),
+        bso.id.into_spanner_value(),
         sortindex,
-        bso.payload.unwrap_or_default().to_spanner_value(),
-        now.as_rfc3339()?.to_spanner_value(),
-        expiry.to_spanner_value(),
+        bso.payload.unwrap_or_default().into_spanner_value(),
+        now.as_rfc3339()?.into_spanner_value(),
+        expiry.into_spanner_value(),
     ]));
     Ok(row)
 }
@@ -417,29 +417,29 @@ pub fn bso_to_update_row(
 ) -> Result<(Vec<&'static str>, ListValue)> {
     let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
     let mut values = vec![
-        user_id.fxa_uid.clone().to_spanner_value(),
-        user_id.fxa_kid.clone().to_spanner_value(),
-        collection_id.to_spanner_value(),
-        bso.id.to_spanner_value(),
+        user_id.fxa_uid.clone().into_spanner_value(),
+        user_id.fxa_kid.clone().into_spanner_value(),
+        collection_id.into_spanner_value(),
+        bso.id.into_spanner_value(),
     ];
 
     let modified = bso.payload.is_some() || bso.sortindex.is_some();
     if let Some(sortindex) = bso.sortindex {
         columns.push("sortindex");
-        values.push(sortindex.to_spanner_value());
+        values.push(sortindex.into_spanner_value());
     }
     if let Some(payload) = bso.payload {
         columns.push("payload");
-        values.push(payload.to_spanner_value());
+        values.push(payload.into_spanner_value());
     }
     if modified {
         columns.push("modified");
-        values.push(now.as_rfc3339()?.to_spanner_value());
+        values.push(now.as_rfc3339()?.into_spanner_value());
     }
     if let Some(ttl) = bso.ttl {
         columns.push("expiry");
         let expiry = now.as_i64() + (i64::from(ttl) * 1000);
-        values.push(to_rfc3339(expiry)?.to_spanner_value());
+        values.push(to_rfc3339(expiry)?.into_spanner_value());
     }
 
     let mut row = ListValue::new();
