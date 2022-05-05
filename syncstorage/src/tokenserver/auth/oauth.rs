@@ -138,6 +138,5 @@ impl VerifyToken for RemoteVerifier {
                 ..TokenserverError::resource_unavailable()
             })?
             .map_err(|_| TokenserverError::resource_unavailable())?
-            .map_err(Into::into)
     }
 }

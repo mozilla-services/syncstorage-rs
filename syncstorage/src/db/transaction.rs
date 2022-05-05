@@ -135,8 +135,7 @@ impl DbTransactionPool {
                         self.collection.clone(),
                         self.bso_opt.clone(),
                     )
-                    .await
-                    .map_err(ApiError::from)?;
+                    .await?;
 
                 if let Some(precondition) = &self.precondition.opt {
                     let status = match precondition {
