@@ -3,8 +3,7 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 use std::{
-    self, collections::HashMap, collections::HashSet, convert::TryFrom, num::ParseIntError,
-    str::FromStr, sync::Arc,
+    self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr, sync::Arc,
 };
 
 use actix_web::{
@@ -1135,25 +1134,6 @@ impl From<HawkIdentifier> for UserIdentifier {
     }
 }
 
-impl TryFrom<&HttpRequest> for HawkIdentifier {
-    type Error = Error;
-
-    fn try_from(req: &HttpRequest) -> Result<HawkIdentifier, Error> {
-        // Dummy token if a Docker Flow request is detected.
-        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
-            return Ok(HawkIdentifier::cmd_dummy());
-        }
-        let method = req.method().clone();
-        let ci = req.connection_info();
-        let secrets = req
-            .app_data::<Data<Arc<Secrets>>>()
-            .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
-            })?;
-        HawkIdentifier::extrude(req, method.as_str(), req.uri(), &ci, secrets)
-    }
-}
-
 impl FromRequest for HawkIdentifier {
     type Config = ();
     type Error = Error;
@@ -1170,8 +1150,8 @@ impl FromRequest for HawkIdentifier {
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
         let connection_info = req.connection_info().clone();
         let method = req.method().clone();
-        // Tried collapsing this to a `.or_else` and hit problems with the retun resolving
-        // to an appropriate error state.
+        // Tried collapsing this to a `.or_else` and hit problems with the return resolving
+        // to an appropriate error state. Can't use `?` since the function does not return a result.
         let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
             Some(v) => v,
             None => {
@@ -1187,27 +1167,6 @@ impl FromRequest for HawkIdentifier {
             &connection_info,
             secrets,
         ))
-
-        // Box::pin(async move {
-        //     let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
-        //         Some(s) => s,
-        //         None => {
-        //             error!("⚠️ Could not load the app secrets");
-        //             return Err(ValidationErrorKind::FromDetails(
-        //                 "Internal error".to_owned(),
-        //                 RequestErrorLocation::Unknown,
-        //                 Some("secrets".to_owned()),
-        //                 None,
-        //             )
-        //             .into());
-        //         }
-        //     };
-        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-        // let connection_info = req.connection_info().clone();
-        // let method = req.method().as_str();
-        // let uri = req.uri();
-        // future::ready(Self::extrude(&req, method, uri, &connection_info, secrets))
-        // })
     }
 }
 

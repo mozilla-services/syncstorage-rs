@@ -1,5 +1,4 @@
 use std::cell::RefMut;
-use std::convert::TryFrom;
 use std::future::Future;
 
 use actix_http::http::{HeaderValue, Method, StatusCode};
@@ -241,7 +240,7 @@ impl FromRequest for DbTransactionPool {
                 }
             };
             let method = req.method().clone();
-            let user_id = HawkIdentifier::try_from(&req).map_err(|e| {
+            let user_id = HawkIdentifier::extract(&req).await.map_err(|e| {
                 warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
                 e
             })?;
