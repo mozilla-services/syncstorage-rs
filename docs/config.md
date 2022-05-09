@@ -10,13 +10,15 @@ In addition, durable sync configuration options can either be specified as envir
 
 For example the following are equivalent:
 ```bash
-$ SYNC_HOST=0.0.0.0 SYNC_MASTER_SECRET="SuperSikkr3t" SYNC_DATABASE_URL=mysql://scott:tiger@localhost/syncstorage cargo run
+$ SYNC_HOST=0.0.0.0 SYNC_MASTER_SECRET="SuperSikkr3t" SYNC_SYNCSTORAGE__DATABASE_URL=mysql://scott:tiger@localhost/syncstorage cargo run
 ```
 
 ```bash
 $ cat sync.ini
 HOST=0.0.0.0
 MASTER_SECRET=SuperSikkr3t
+
+[syncstorage]
 DATABASE_URL=mysql://scott:tiger@localhost/syncstorage
 $ cargo run -- --config sync.ini
 ```

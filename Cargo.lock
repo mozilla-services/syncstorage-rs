@@ -3000,12 +3000,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "syncstorage"
+name = "syncserver"
 version = "0.12.4"
 dependencies = [
  "actix-cors",
  "actix-http",
  "actix-rt",
+ "actix-service",
  "actix-web",
  "async-trait",
  "backtrace",
@@ -3014,7 +3015,6 @@ dependencies = [
  "bytes 1.1.0",
  "cadence",
  "chrono",
- "config 0.11.0",
  "deadpool",
  "diesel",
  "diesel_logger",
@@ -3027,7 +3027,6 @@ dependencies = [
  "grpcio",
  "hawk",
  "hex",
- "hkdf",
  "hmac",
  "hostname",
  "http",
@@ -3055,11 +3054,14 @@ dependencies = [
  "slog-scope",
  "slog-stdlog",
  "slog-term",
+ "syncserver-settings",
  "syncstorage-common",
  "syncstorage-db-common",
+ "syncstorage-settings",
  "thiserror",
  "time 0.3.9",
  "tokenserver-common",
+ "tokenserver-settings",
  "tokio",
  "url 2.2.2",
  "urlencoding",
@@ -3070,8 +3072,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "syncserver-settings"
+version = "0.11.1"
+dependencies = [
+ "config 0.11.0",
+ "num_cpus",
+ "serde 1.0.135",
+ "slog-scope",
+ "syncstorage-common",
+ "syncstorage-settings",
+ "tokenserver-settings",
+ "url 2.2.2",
+]
+
+[[package]]
 name = "syncstorage-common"
 version = "0.12.4"
+dependencies = [
+ "hkdf",
+ "sha2",
+]
 
 [[package]]
 name = "syncstorage-db-common"
@@ -3092,6 +3112,17 @@ dependencies = [
  "serde_json",
  "syncstorage-common",
  "thiserror",
+ "url 2.2.2",
+]
+
+[[package]]
+name = "syncstorage-settings"
+version = "0.11.1"
+dependencies = [
+ "rand 0.8.5",
+ "serde 1.0.135",
+ "syncstorage-common",
+ "time 0.3.9",
 ]
 
 [[package]]
@@ -3276,6 +3307,14 @@ dependencies = [
  "syncstorage-common",
  "syncstorage-db-common",
  "thiserror",
+]
+
+[[package]]
+name = "tokenserver-settings"
+version = "0.11.1"
+dependencies = [
+ "serde 1.0.135",
+ "tokenserver-common",
 ]
 
 [[package]]

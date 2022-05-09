@@ -40,21 +40,21 @@ services:
         image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always
         ports:
-          - "8000:8000"
+            - "8000:8000"
         depends_on:
-          - sync-db
-          - tokenserver-db
+            - sync-db
+            - tokenserver-db
         environment:
-          SYNC_HOST: 0.0.0.0
-          SYNC_MASTER_SECRET: secret0
-          SYNC_DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
-          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
-          SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+            SYNC_HOST: 0.0.0.0
+            SYNC_MASTER_SECRET: secret0
+            SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
+            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
+            SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
 
 volumes:
     sync_db_data:
     tokenserver_db_data:
 
-# Application runs off of port 8000.
-# you can test if it's available with
-# curl "http://localhost:8000/__heartbeat__"
+        # Application runs off of port 8000.
+        # you can test if it's available with
+        # curl "http://localhost:8000/__heartbeat__"

@@ -94,7 +94,7 @@ commands:
           name: quota test
           command: cargo test --all --verbose
           environment:
-              SYNC_ENFORCE_QUOTA: 1
+              SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
   run-e2e-mysql-tests:
     steps:
@@ -181,7 +181,7 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            SYNC_DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+            SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
             SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
             RUST_BACKTRACE: 1
             # XXX: begin_test_transaction doesn't play nice over threaded tests

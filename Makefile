@@ -2,7 +2,7 @@
 # Collection of helper scripts used for local dev.
 ##
 
-SYNC_DATABASE_URL = 'mysql://sample_user:sample_password@localhost/syncstorage_rs'
+SYNC_SYNCSTORAGE__DATABASE_URL = 'mysql://sample_user:sample_password@localhost/syncstorage_rs'
 SYNC_TOKENSERVER__DATABASE_URL = 'mysql://sample_user:sample_password@localhost/tokenserver_rs'
 
 # This key can live anywhere on your machine. Adjust path as needed.
@@ -50,4 +50,4 @@ run_spanner:
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
 
 test:
-	SYNC_DATABASE_URL=$(SYNC_DATABASE_URL) SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) RUST_TEST_THREADS=1 cargo test
+	SYNC_SYNCSTORAGE__DATABASE_URL=$(SYNC_SYNCSTORAGE__DATABASE_URL) SYNC_TOKENSERVER__DATABASE_URL=$(SYNC_TOKENSERVER__DATABASE_URL) RUST_TEST_THREADS=1 cargo test

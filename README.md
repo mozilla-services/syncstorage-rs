@@ -157,7 +157,7 @@ Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `
 
 To run an application server that points to the local Spanner emulator:
 ```sh
-SYNC_SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
+SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
 
 ### Running via Docker
@@ -220,7 +220,7 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 ### Unit tests
 
-`make test` - open the Makefile to adjust your `SYNC_DATABASE_URL` as needed.
+`make test` - open the Makefile to adjust your `SYNC_SYNCSTORAGE__DATABASE_URL` as needed.
 
 #### Debugging unit test state
 
@@ -229,7 +229,7 @@ default, we use the diesel test_transaction functionality to ensure test data
 is not committed to the database. Therefore, there is an environment variable
 which can be used to turn off test_transaction.
 
-        SYNC_DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
+        SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
 
 Note that you will almost certainly want to pass a single test name. When running
 the entire test suite, data from previous tests will cause future tests to fail.

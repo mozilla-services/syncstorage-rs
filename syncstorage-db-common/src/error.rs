@@ -47,7 +47,7 @@ pub enum DbErrorKind {
     #[error("Database integrity error: {}", _0)]
     Integrity(String),
 
-    #[error("Invalid SYNC_DATABASE_URL: {}", _0)]
+    #[error("Invalid database URL: {}", _0)]
     InvalidUrl(String),
 
     #[error("Unexpected error: {}", _0)]

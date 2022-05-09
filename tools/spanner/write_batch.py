@@ -178,7 +178,7 @@ def load(instance, db, coll_id, name):
 
 def from_env():
     try:
-        url = os.environ.get("SYNC_DATABASE_URL")
+        url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
         if not url:
             raise Exception("no url")
         purl = parse.urlparse(url)

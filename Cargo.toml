@@ -1,12 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-    "syncstorage-db-common",
+    "syncserver-settings",
     "syncstorage-common",
+    "syncstorage-db-common",
+    "syncstorage-settings",
     "tokenserver-common",
-    "syncstorage",
+    "tokenserver-settings",
+    "syncserver",
 ]
-default-members = ["syncstorage"]
+default-members = ["syncserver"]
 
 [profile.release]
 # Enables line numbers in Sentry reporting

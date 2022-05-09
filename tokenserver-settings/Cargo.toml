@@ -1,0 +1,8 @@
+[package]
+name = "tokenserver-settings"
+version = "0.11.1"
+edition = "2021"
+
+[dependencies]
+serde = "1.0"
+tokenserver-common = { path = "../tokenserver-common" }

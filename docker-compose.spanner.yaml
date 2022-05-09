@@ -14,7 +14,7 @@ services:
         restart: "no"
         entrypoint: "/app/scripts/prepare-spanner.sh"
         environment:
-            SYNC_SPANNER_EMULATOR_HOST: sync-db:9020
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
     tokenserver-db:
         image: mysql:5.7
         volumes:
@@ -45,8 +45,8 @@ services:
         environment:
             SYNC_HOST: 0.0.0.0
             SYNC_MASTER_SECRET: secret0
-            SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SPANNER_EMULATOR_HOST: sync-db:9010
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
             SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
             SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
 
