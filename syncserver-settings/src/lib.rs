@@ -49,7 +49,6 @@ impl Settings {
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
-            println!("merging with file {}", config_filename);
             s.merge(File::with_name(config_filename))?;
         }
 

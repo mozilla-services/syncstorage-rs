@@ -9,7 +9,7 @@ use diesel::{
     QueryDsl,
     RunQueryDsl,
 };
-use syncserver_settings::Settings as CommonSettings;
+use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
@@ -39,7 +39,7 @@ pub fn db(settings: &SyncstorageSettings) -> Result<MysqlDb> {
 
 #[test]
 fn static_collection_id() -> Result<()> {
-    let settings = CommonSettings::test_settings().syncstorage;
+    let settings = SyncserverSettings::test_settings().syncstorage;
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql
         return Ok(());

@@ -13,17 +13,16 @@ default-run = "syncserver"
 [dependencies]
 actix-http = "2"
 actix-web = "3"
-actix-rt = "1"                                            # Pin to 1.0, due to dependencies on Tokio
+actix-rt = "1"          # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
 actix-service = "1.0.6"
 async-trait = "0.1.40"
 backtrace = "0.3.61"
 base64 = "0.13"
-bb8 = "0.4.1"                                             # pin to 0.4 due to dependencies on Tokio
+bb8 = "0.4.1"           # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
 cadence = "0.26"
 chrono = "0.4"
-syncserver-settings = { path = "../syncserver-settings" }
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
@@ -79,6 +78,7 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
+syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-common = { path = "../syncstorage-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use syncserver_settings::Settings as CommonSettings;
+use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_db_common::{params, util::SyncTimestamp, Db, Sorting, UserIdentifier};
 use syncstorage_settings::Settings as SyncstorageSettings;
 
@@ -22,7 +22,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<Box<dyn Db
         .eq("true");
 
     // inherit SYNC_SYNCSTORAGE__DATABASE_URL from the env
-    let mut settings = settings.unwrap_or_else(|| CommonSettings::test_settings().syncstorage);
+    let mut settings = settings.unwrap_or_else(|| SyncserverSettings::test_settings().syncstorage);
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = metrics::Metrics::noop();

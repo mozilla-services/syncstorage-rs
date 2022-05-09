@@ -1,3 +1,7 @@
+# Application runs off of port 8000.
+# you can test if it's available with
+# curl "http://localhost:8000/__heartbeat__"
+
 version: '3'
 services:
     sync-db:
@@ -54,7 +58,3 @@ services:
 volumes:
     sync_db_data:
     tokenserver_db_data:
-
-        # Application runs off of port 8000.
-        # you can test if it's available with
-        # curl "http://localhost:8000/__heartbeat__"
