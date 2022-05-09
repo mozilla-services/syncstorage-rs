@@ -40,7 +40,7 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 syncstorage/src/tokenserver
+            flake8 syncserver/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
   rust-clippy:
@@ -108,7 +108,7 @@ commands:
                --exit-code-from e2e-tests
                --abort-on-container-exit
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+              SYNCSERVER_RS_IMAGE: app:build
 
   run-tokenserver-scripts-tests:
     steps:
@@ -118,7 +118,7 @@ commands:
                pip3 install -r tools/tokenserver/requirements.txt &&
                python3 tools/tokenserver/run_tests.py
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+              SYNCSERVER_RS_IMAGE: app:build
 
   run-e2e-spanner-tests:
     steps:
@@ -132,7 +132,7 @@ commands:
                --exit-code-from e2e-tests
                --abort-on-container-exit
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+              SYNCSERVER_RS_IMAGE: app:build
 
   setup-sccache:
     steps:

@@ -11,8 +11,8 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncstorage --locked --root /app && \
-    cargo install --path ./syncstorage --locked --root /app --bin purge_ttl
+    cargo install --path ./syncserver --locked --root /app && \
+    cargo install --path ./syncserver --locked --root /app --bin purge_ttl
 
 FROM debian:buster-slim
 WORKDIR /app
@@ -42,7 +42,7 @@ COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver/process_account_events.py /app/tools/tokenserver/process_account_events.py
 COPY --from=builder /app/tools/tokenserver/requirements.txt /app/tools/tokenserver/requirements.txt
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
-COPY --from=builder /app/syncstorage/src/db/spanner/schema.ddl /app/schema.ddl
+COPY --from=builder /app/syncserver/src/db/spanner/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 RUN pip3 install -r /app/tools/integration_tests/requirements.txt
@@ -50,4 +50,4 @@ RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
-ENTRYPOINT ["/app/bin/syncstorage", "--config=spanner_config.ini"]
+ENTRYPOINT ["/app/bin/syncserver", "--config=spanner_config.ini"]

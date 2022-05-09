@@ -2,23 +2,22 @@ version: '3'
 services:
   sync-db:
   tokenserver-db:
-  syncstorage-rs:
+  syncserver-rs:
     depends_on:
       - sync-db
       - tokenserver-db
-    # TODO: either syncstorage-rs should retry the db connection
+    # TODO: either syncserver-rs should retry the db connection
     # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us. Same (probably
-    # the latter solution) for server-syncstorage below
+    # inside its docker that would do this for us.
     entrypoint: >
       /bin/sh -c "
         sleep 15;
-        /app/bin/syncstorage;
+        /app/bin/syncserver;
       "
   e2e-tests:
     depends_on:
       - mock-fxa-server
-      - syncstorage-rs
+      - syncserver-rs
     image: app:build
     privileged: true
     user: root

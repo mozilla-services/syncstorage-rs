@@ -166,7 +166,7 @@ This requires access to the mozilla-rust-sdk which is now available at `/vendor/
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
 3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
-4. Comment out the `image` value under `syncstorage-rs` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
+4. Comment out the `image` value under `syncserver-rs` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
     ```yml
       build:
         context: .
