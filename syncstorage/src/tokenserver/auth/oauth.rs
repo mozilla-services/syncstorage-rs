@@ -27,18 +27,19 @@ pub struct VerifyOutput {
 
 /// The verifier used to verify OAuth tokens.
 #[derive(Clone)]
-pub struct RemoteVerifier {
+pub struct Verifier {
     // Note that we do not need to use an Arc here, since Py is already a reference-counted
     // pointer
     inner: Py<PyAny>,
     timeout: u64,
+    verifying_locally: bool,
 }
 
-impl RemoteVerifier {
+impl Verifier {
     const FILENAME: &'static str = "verify.py";
 }
 
-impl TryFrom<&Settings> for RemoteVerifier {
+impl TryFrom<&Settings> for Verifier {
     type Error = Error;
 
     fn try_from(settings: &Settings) -> Result<Self, Error> {
@@ -84,20 +85,23 @@ impl TryFrom<&Settings> for RemoteVerifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
+            verifying_locally: settings.fxa_oauth_jwk.is_some(),
         })
     }
 }
 
 #[async_trait]
-impl VerifyToken for RemoteVerifier {
+impl VerifyToken for Verifier {
     type Output = VerifyOutput;
 
     /// Verifies an OAuth token. Returns `VerifyOutput` for valid tokens and a `TokenserverError`
     /// for invalid tokens.
     async fn verify(&self, token: String) -> Result<VerifyOutput, TokenserverError> {
-        let verifier = self.clone();
-
-        let fut = task::spawn_blocking(move || {
+        // We don't want to move `self` into the body of the closure here because we'd need to
+        // clone it. Cloning it is only necessary if we need to verify the token remotely via FxA,
+        // since that would require passing `self` to a separate thread. Passing &Self to a closure
+        // gives us the flexibility to clone only when necessary.
+        let verify_inner = |verifier: &Self| {
             let maybe_verify_output_string = Python::with_gil(|py| {
                 let client = verifier.inner.as_ref(py);
                 // `client.verify_token(token)`
@@ -135,31 +139,41 @@ impl VerifyToken for RemoteVerifier {
                     ..TokenserverError::invalid_credentials("Unauthorized")
                 }),
             }
-        })
-        .map_err(|err| {
-            let context = if err.is_cancelled() {
-                "Tokenserver threadpool operation cancelled"
-            } else if err.is_panic() {
-                "Tokenserver threadpool operation panicked"
-            } else {
-                "Tokenserver threadpool operation failed for unknown reason"
-            };
+        };
 
-            TokenserverError {
-                context: context.to_owned(),
-                ..TokenserverError::internal_error()
-            }
-        });
+        if self.verifying_locally {
+            verify_inner(self)
+        } else {
+            let verifier = self.clone();
 
-        // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
-        // by timing out the future if the verification process blocks this thread for longer
-        // than the specified number of seconds.
-        time::timeout(Duration::from_secs(self.timeout), fut)
-            .await
-            .map_err(|_| TokenserverError {
-                context: "OAuth verification timeout".to_owned(),
-                ..TokenserverError::resource_unavailable()
-            })?
-            .map_err(|_| TokenserverError::resource_unavailable())?
+            // Verifying the request remotely means that the request to FxA will block this thread.
+            // To improve performance, we make the request on a thread in a threadpool
+            // specifically used for blocking operations.
+            let fut = task::spawn_blocking(move || verify_inner(&verifier)).map_err(|err| {
+                let context = if err.is_cancelled() {
+                    "Tokenserver threadpool operation cancelled"
+                } else if err.is_panic() {
+                    "Tokenserver threadpool operation panicked"
+                } else {
+                    "Tokenserver threadpool operation failed for unknown reason"
+                };
+
+                TokenserverError {
+                    context: context.to_owned(),
+                    ..TokenserverError::internal_error()
+                }
+            });
+
+            // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
+            // by timing out the future if the verification process blocks this thread for longer
+            // than the specified number of seconds.
+            time::timeout(Duration::from_secs(self.timeout), fut)
+                .await
+                .map_err(|_| TokenserverError {
+                    context: "OAuth verification timeout".to_owned(),
+                    ..TokenserverError::resource_unavailable()
+                })?
+                .map_err(|_| TokenserverError::resource_unavailable())?
+        }
     }
 }

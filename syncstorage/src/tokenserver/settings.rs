@@ -28,8 +28,8 @@ pub struct Settings {
     /// The timeout to be used when making requests to the FxA OAuth verification server.
     pub fxa_oauth_request_timeout: u64,
     /// The JWK to be used to verify OAuth tokens. Passing a JWK to the PyFxA Python library
-    /// prevents it from making an external API call to FxA (instead verifying the token locally),
-    /// yielding substantial performance benefits.
+    /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
+    /// performance benefits.
     pub fxa_oauth_jwk: Option<Jwk>,
     /// The issuer expected in the BrowserID verification response.
     pub fxa_browserid_issuer: String,

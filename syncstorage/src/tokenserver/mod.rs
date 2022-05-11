@@ -41,7 +41,7 @@ pub struct ServerState {
 impl ServerState {
     pub fn from_settings(settings: &Settings, metrics: StatsdClient) -> Result<Self, ApiError> {
         let oauth_verifier = Box::new(
-            oauth::RemoteVerifier::try_from(settings)
+            oauth::Verifier::try_from(settings)
                 .expect("failed to create Tokenserver OAuth verifier"),
         );
         let browserid_verifier = Box::new(
