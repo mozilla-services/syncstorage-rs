@@ -32,7 +32,7 @@ pub struct Verifier {
     // pointer
     inner: Py<PyAny>,
     timeout: u64,
-    verifying_locally: bool,
+    jwk_is_cached: bool,
 }
 
 impl Verifier {
@@ -85,7 +85,7 @@ impl TryFrom<&Settings> for Verifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
-            verifying_locally: settings.fxa_oauth_jwk.is_some(),
+            jwk_is_cached: settings.fxa_oauth_jwk.is_some(),
         })
     }
 }
@@ -141,13 +141,13 @@ impl VerifyToken for Verifier {
             }
         };
 
-        if self.verifying_locally {
+        if self.jwk_is_cached {
             verify_inner(self)
         } else {
             let verifier = self.clone();
 
-            // Verifying the request remotely means that the request to FxA will block this thread.
-            // To improve performance, we make the request on a thread in a threadpool
+            // If the JWK is not cached, PyFxA will make a request to FxA to retrieve it, blocking
+            // this thread. To improve performance, we make the request on a thread in a threadpool
             // specifically used for blocking operations.
             let fut = task::spawn_blocking(move || verify_inner(&verifier)).map_err(|err| {
                 let context = if err.is_cancelled() {
