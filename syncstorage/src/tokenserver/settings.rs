@@ -27,6 +27,8 @@ pub struct Settings {
     pub fxa_oauth_server_url: String,
     /// The timeout to be used when making requests to the FxA OAuth verification server.
     pub fxa_oauth_request_timeout: u64,
+    /// The JWK to be used to verify OAuth tokens.
+    pub fxa_oauth_jwk: Option<Jwk>,
     /// The issuer expected in the BrowserID verification response.
     pub fxa_browserid_issuer: String,
     /// The audience to be sent to the FxA BrowserID verification server.
@@ -50,6 +52,18 @@ pub struct Settings {
     pub run_migrations: bool,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct Jwk {
+    pub kty: String,
+    pub alg: String,
+    pub kid: String,
+    pub fxa_created_at: u64,
+    #[serde(rename = "use")]
+    pub use_of_key: String,
+    pub n: String,
+    pub e: String,
+}
+
 impl Default for Settings {
     fn default() -> Settings {
         Settings {
@@ -62,6 +76,7 @@ impl Default for Settings {
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: "https://oauth.stage.mozaws.net".to_owned(),
             fxa_oauth_request_timeout: 10,
+            fxa_oauth_jwk: None,
             fxa_browserid_audience: "https://token.stage.mozaws.net".to_owned(),
             fxa_browserid_issuer: "api-accounts.stage.mozaws.net".to_owned(),
             fxa_browserid_server_url: "https://verifier.stage.mozaws.net/v2".to_owned(),

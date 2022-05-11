@@ -4,6 +4,7 @@ use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyString},
+    IntoPy,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -44,7 +45,29 @@ impl TryFrom<&Settings> for RemoteVerifier {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
-            let kwargs = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
+            let kwargs = {
+                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
+                let jwks = settings
+                    .fxa_oauth_jwk
+                    .as_ref()
+                    .map(|jwk| {
+                        let dict = [
+                            ("kty", &jwk.kty),
+                            ("alg", &jwk.alg),
+                            ("kid", &jwk.kid),
+                            ("use", &jwk.use_of_key),
+                            ("n", &jwk.n),
+                            ("e", &jwk.e),
+                        ]
+                        .into_py_dict(py);
+                        dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
+
+                        [dict]
+                    })
+                    .into_py(py);
+                dict.set_item("jwks", jwks).unwrap();
+                dict
+            };
             let object: Py<PyAny> = module
                 .getattr("FxaOAuthClient")?
                 .call((), Some(kwargs))
