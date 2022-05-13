@@ -43,7 +43,7 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 src/tokenserver/verify.py
+            flake8 syncstorage/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
   rust-clippy:
@@ -56,7 +56,7 @@ commands:
     steps:
       - run:
           name: cargo build
-          command: cargo build --features tokenserver_test_mode
+          command: cargo build
   setup-gcp-grpc:
     steps:
       - run:
@@ -152,12 +152,12 @@ commands:
     steps:
       - restore_cache:
           name: Restore sccache cache
-          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_JOB }}
   save-sccache-cache:
     steps:
       - save_cache:
           name: Save sccache cache
-          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_JOB }}-{{ epoch }}
           paths:
             - "~/.cache/sccache"
 jobs:
@@ -201,14 +201,14 @@ jobs:
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
-          = run:
-            name: Login to Dockerhub
-            command: |
-              if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
-                echo "Skipping Login to DockerHub, credentials unavailable"
-              else
-                echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
-              fi
+      - run:
+          name: Login to Dockerhub
+          command: |
+            if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
+              echo "Skipping Login to DockerHub, credentials unavailable"
+            else
+              echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
+            fi
       - checkout
       - setup-rust
       - setup-python
@@ -226,6 +226,7 @@ jobs:
       - run:
           name: Build Docker image
           command: docker build -t app:build .
+          no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
@@ -237,7 +238,7 @@ jobs:
           name: Save docker-compose config
           command: cp docker-compose*.yaml /home/circleci/cache
       - save_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}-{{ epoch }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
 
@@ -250,7 +251,7 @@ jobs:
     steps:
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -269,7 +270,7 @@ jobs:
     steps:
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_TAG }}
+          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar

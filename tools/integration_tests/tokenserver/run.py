@@ -4,13 +4,19 @@
 import unittest
 
 from tokenserver.test_authorization import TestAuthorization
+from tokenserver.test_browserid import TestBrowserId
 from tokenserver.test_e2e import TestE2e
 from tokenserver.test_misc import TestMisc
 from tokenserver.test_node_assignment import TestNodeAssignment
 
 
-def run_local_tests():
-    return run_tests([TestAuthorization, TestMisc, TestNodeAssignment])
+def run_local_tests(include_browserid_specific_tests=True):
+    test_classes = [TestAuthorization, TestMisc, TestNodeAssignment]
+
+    if include_browserid_specific_tests:
+        test_classes.append(TestBrowserId)
+
+    return run_tests(test_classes)
 
 
 def run_end_to_end_tests():

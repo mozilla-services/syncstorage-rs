@@ -1,4 +1,4 @@
-FROM rust:1.59-buster as builder
+FROM rust:1.60-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -11,8 +11,8 @@ RUN apt-get -q update && \
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --features tokenserver_test_mode --path . --locked --root /app && \
-    cargo install --features tokenserver_test_mode --path . --bin purge_ttl --locked --root /app
+    cargo install --path ./syncstorage --locked --root /app && \
+    cargo install --path ./syncstorage --locked --root /app --bin purge_ttl
 
 FROM debian:buster-slim
 WORKDIR /app
@@ -40,9 +40,10 @@ COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
-COPY --from=builder /app/src/db/spanner/schema.ddl /app/schema.ddl
+COPY --from=builder /app/syncstorage/src/db/spanner/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
+RUN pip3 install -r /app/tools/integration_tests/requirements.txt
 
 USER app:app
 
