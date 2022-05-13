@@ -363,10 +363,6 @@ impl Settings {
         // for finer grained specification.
         let mut cors = Cors::default();
 
-        if let Some(allowed_origin) = &self.cors_allowed_origin {
-            cors = cors.allowed_origin(allowed_origin);
-        }
-
         if let Some(allowed_methods) = &self.cors_allowed_methods {
             let mut methods = vec![];
             for method_string in allowed_methods {
