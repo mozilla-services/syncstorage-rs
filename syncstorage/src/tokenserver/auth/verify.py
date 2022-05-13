@@ -6,8 +6,8 @@ DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
 
 class FxaOAuthClient:
-    def __init__(self, server_url=None):
-        self._client = Client(server_url=server_url)
+    def __init__(self, server_url=None, jwks=None):
+        self._client = Client(server_url=server_url, jwks=jwks)
 
     def verify_token(self, token):
         try:
