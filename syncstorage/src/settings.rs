@@ -257,7 +257,7 @@ impl Settings {
             "cors_allowed_methods",
             Some(vec!["DELETE", "GET", "POST", "PUT"]),
         )?;
-        s.set_default("cors_allowed_hosts", Some("*"))?;
+        s.set_default("cors_allowed_origin", Some("*"))?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
