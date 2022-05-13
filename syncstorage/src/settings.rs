@@ -126,10 +126,28 @@ impl Default for Settings {
             spanner_emulator_host: None,
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
-            cors_allowed_origin: None,
-            cors_allowed_methods: None,
-            cors_allowed_headers: None,
-            cors_max_age: None,
+            cors_allowed_origin: Some("*".to_owned()),
+            cors_allowed_methods: Some(vec![
+                "DELETE".to_owned(),
+                "GET".to_owned(),
+                "POST".to_owned(),
+                "PUT".to_owned(),
+            ]),
+            cors_allowed_headers: Some(vec![
+                "Authorization".to_owned(),
+                "Content-Type".to_owned(),
+                "UserAgent".to_owned(),
+                X_LAST_MODIFIED.to_owned(),
+                X_WEAVE_TIMESTAMP.to_owned(),
+                X_WEAVE_NEXT_OFFSET.to_owned(),
+                X_WEAVE_RECORDS.to_owned(),
+                X_WEAVE_BYTES.to_owned(),
+                X_WEAVE_TOTAL_RECORDS.to_owned(),
+                X_WEAVE_TOTAL_BYTES.to_owned(),
+                X_VERIFY_CODE.to_owned(),
+                "TEST_IDLES".to_owned(),
+            ]),
+            cors_max_age: Some(1728000),
         }
     }
 }
@@ -239,6 +257,7 @@ impl Settings {
             "cors_allowed_methods",
             Some(vec!["DELETE", "GET", "POST", "PUT"]),
         )?;
+        s.set_default("cors_allowed_hosts", Some("*"))?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -362,6 +381,15 @@ impl Settings {
 
         if let Some(max_age) = &self.cors_max_age {
             cors = cors.max_age(*max_age);
+        }
+        // explicitly set the CORS allow origin, since Default does not
+        // appear to set the `allow-origins: *` header.
+        if let Some(origin) = &self.cors_allowed_origin {
+            if origin == "*" {
+                cors = cors.send_wildcard();
+            } else {
+                cors = cors.allowed_origin(origin);
+            }
         }
 
         cors
