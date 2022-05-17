@@ -2,6 +2,7 @@
 use std::{cmp::min, env};
 
 use actix_cors::Cors;
+use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use config::{Config, ConfigError, Environment, File};
 use http::method::Method;
 use serde::{de::Deserializer, Deserialize, Serialize};
@@ -134,9 +135,9 @@ impl Default for Settings {
                 "PUT".to_owned(),
             ]),
             cors_allowed_headers: Some(vec![
-                "Authorization".to_owned(),
-                "Content-Type".to_owned(),
-                "UserAgent".to_owned(),
+                AUTHORIZATION.to_string(),
+                CONTENT_TYPE.to_string(),
+                USER_AGENT.to_string(),
                 X_LAST_MODIFIED.to_owned(),
                 X_WEAVE_TIMESTAMP.to_owned(),
                 X_WEAVE_NEXT_OFFSET.to_owned(),
@@ -239,9 +240,9 @@ impl Settings {
         s.set_default(
             "cors_allowed_headers",
             Some(vec![
-                "Authorization",
-                "Content-Type",
-                "UserAgent",
+                AUTHORIZATION.to_string().as_str(),
+                CONTENT_TYPE.to_string().as_str(),
+                USER_AGENT.to_string().as_str(),
                 X_LAST_MODIFIED,
                 X_WEAVE_TIMESTAMP,
                 X_WEAVE_NEXT_OFFSET,
