@@ -1383,9 +1383,15 @@ impl SpannerDb {
 
         // hopefully these can be collected per machine as well. It may be that one machine
         // is seeing a burst of large BSOs that could be overflowing memory?
-        self.metrics.clone().count("storage.spanner.bso_size", asize as i64);
-        self.metrics.clone().count("storage.spanner.bso_count", cnt as i64);
-        self.metrics.clone().count("storage.spanner.bso_limit", limit);
+        self.metrics
+            .clone()
+            .count("storage.spanner.bso_size", asize as i64);
+        self.metrics
+            .clone()
+            .count("storage.spanner.bso_count", cnt as i64);
+        self.metrics
+            .clone()
+            .count("storage.spanner.bso_limit", limit);
 
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
