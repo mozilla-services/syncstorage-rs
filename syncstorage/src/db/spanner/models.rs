@@ -1371,10 +1371,21 @@ impl SpannerDb {
 
         let mut streaming = self.bsos_query_async(query, params).await?;
         let mut bsos = vec![];
+        let mut cnt = 0;
+        let mut asize = 0;
         while let Some(row) = streaming.next_async().await {
             let row = row?;
-            bsos.push(bso_from_row(row)?);
+            let bso = bso_from_row(row)?;
+            cnt += 1;
+            asize = (asize + bso.payload.len()) / cnt;
+            bsos.push(bso);
         }
+
+        // hopefully these can be collected per machine as well. It may be that one machine
+        // is seeing a burst of large BSOs that could be overflowing memory?
+        self.metrics.clone().count("storage.spanner.bso_size", asize as i64);
+        self.metrics.clone().count("storage.spanner.bso_count", cnt as i64);
+        self.metrics.clone().count("storage.spanner.bso_limit", limit);
 
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
