@@ -6,63 +6,17 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
-use std::{future::Future, sync::Arc};
+use std::future::Future;
 
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
-    Error, HttpRequest,
+    web::Data,
 };
-use syncstorage_db_common::util::SyncTimestamp;
 
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics::Metrics, ServerState};
-use crate::settings::Secrets;
 use crate::tokenserver::auth::TokenserverOrigin;
-use crate::web::{extractors::HawkIdentifier, tags::Tags, DOCKER_FLOW_ENDPOINTS};
-use actix_web::web::Data;
-
-/// The resource in question's Timestamp
-pub struct ResourceTimestamp(SyncTimestamp);
-
-pub trait SyncServerRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error>;
-}
-
-impl SyncServerRequest for ServiceRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
-        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
-            return Ok(HawkIdentifier::cmd_dummy());
-        }
-        let method = self.method().clone();
-        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
-        // it must be cloned
-        let ci = &self.connection_info().clone();
-        let secrets = &self
-            .app_data::<Data<Arc<Secrets>>>()
-            .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
-            })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
-    }
-}
-
-impl SyncServerRequest for HttpRequest {
-    fn get_hawk_id(&self) -> Result<HawkIdentifier, Error> {
-        if DOCKER_FLOW_ENDPOINTS.contains(&self.uri().path().to_lowercase().as_str()) {
-            return Ok(HawkIdentifier::cmd_dummy());
-        }
-        let method = self.method().clone();
-        // NOTE: `connection_info()` gets a mutable reference lock on `extensions()`, so
-        // it must be cloned
-        let ci = &self.connection_info().clone();
-        let secrets = &self
-            .app_data::<Data<Arc<Secrets>>>()
-            .ok_or_else(|| -> ApiError {
-                ApiErrorKind::Internal("No app_data Secrets".to_owned()).into()
-            })?;
-        HawkIdentifier::extrude(self, method.as_str(), self.uri(), ci, secrets)
-    }
-}
+use crate::web::tags::Tags;
 
 pub fn emit_http_status_with_tokenserver_origin(
     req: ServiceRequest,
