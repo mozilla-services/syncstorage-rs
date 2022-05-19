@@ -1358,6 +1358,14 @@ impl SpannerDb {
     }
 
     pub async fn get_bsos_async(&self, params: params::GetBsos) -> Result<results::GetBsos> {
+        // Check to see if we have enough system free memory to proceed.
+        let (p_avail, avail) = crate::db::mem_avail();
+        if p_avail < crate::settings::LOW_MEMORY_PERCENTAGE {
+            warn!("Only {} KB available!", avail);
+            self.metrics.clone().incr("storage.spanner.low_mem");
+            return Err(DbErrorKind::LowMemory.into());
+        }
+
         let query = "\
             SELECT bso_id, sortindex, payload, modified, expiry
               FROM bsos

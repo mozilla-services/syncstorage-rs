@@ -86,3 +86,19 @@ where
         })
         .await?
 }
+
+/// Return the percentage and KB of system memory currently available.
+pub fn mem_avail() -> (f64, u64) {
+    use sysinfo::SystemExt;
+
+    let mut sys = sysinfo::System::new();
+
+    sys.refresh_all();
+
+    let total = sys.total_memory();
+    let used = sys.used_memory();
+    let avail = total - used;
+    let p_avail = (used as f64 / total as f64) * 100.0;
+
+    (p_avail, avail)
+}

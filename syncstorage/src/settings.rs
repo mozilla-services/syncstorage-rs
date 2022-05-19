@@ -33,6 +33,9 @@ pub static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;
 static PREFIX: &str = "sync";
 
+// Minimum amount of memory to preserve on the system
+pub static LOW_MEMORY_PERCENTAGE: f64 = 10.0;
+
 #[derive(Clone, Debug, Default, Copy)]
 pub struct Quota {
     pub size: usize,
