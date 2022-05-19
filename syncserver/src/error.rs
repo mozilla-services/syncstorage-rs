@@ -21,7 +21,7 @@ use serde::{
     Serialize,
 };
 
-use syncserver_common::{from_error, impl_fmt_display, ReportableError};
+use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
 use syncserver_db_common::error::DbError;
 use thiserror::Error;
 
@@ -148,8 +148,8 @@ impl From<ApiError> for HttpResponse {
     }
 }
 
-impl From<cadence::MetricError> for ApiError {
-    fn from(inner: cadence::MetricError) -> Self {
+impl From<MetricError> for ApiError {
+    fn from(inner: MetricError) -> Self {
         ApiErrorKind::Internal(inner.to_string()).into()
     }
 }

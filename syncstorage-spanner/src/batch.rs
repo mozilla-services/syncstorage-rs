@@ -12,17 +12,17 @@ use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params, results,
     util::to_rfc3339,
-    UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    DbResult, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 use uuid::Uuid;
 
-use super::models::{Result, SpannerDb, PRETOUCH_TS};
+use super::models::{SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
 
 pub async fn create_async(
     db: &SpannerDb,
     params: params::CreateBatch,
-) -> Result<results::CreateBatch> {
+) -> DbResult<results::CreateBatch> {
     let batch_id = Uuid::new_v4().to_simple().to_string();
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let timestamp = db.timestamp()?.as_i64();
@@ -66,13 +66,13 @@ pub async fn create_async(
     Ok(new_batch)
 }
 
-pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> Result<bool> {
+pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> DbResult<bool> {
     let exists = get_async(db, params.into()).await?;
     Ok(exists.is_some())
 }
 
 // Append a collection to a pending batch (`create_batch` creates a new batch)
-pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Result<()> {
+pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbResult<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
     let collection_id = db.get_collection_id_async(&params.collection).await?;
@@ -98,7 +98,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
     if !exists {
         // NOTE: db tests expects this but it doesn't seem necessary w/ the
         // handler validating the batch before appends
-        Err(DbErrorKind::BatchNotFound)?
+        return Err(DbErrorKind::BatchNotFound.into());
     }
 
     do_append_async(
@@ -116,7 +116,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> Resu
 pub async fn get_async(
     db: &SpannerDb,
     params: params::GetBatch,
-) -> Result<Option<results::GetBatch>> {
+) -> DbResult<Option<results::GetBatch>> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
@@ -143,7 +143,7 @@ pub async fn get_async(
     Ok(batch)
 }
 
-pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result<()> {
+pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> DbResult<()> {
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
@@ -170,7 +170,7 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> Result
 pub async fn commit_async(
     db: &SpannerDb,
     params: params::CommitBatch,
-) -> Result<results::CommitBatch> {
+) -> DbResult<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
     let collection_id = db.get_collection_id_async(&params.collection).await?;
@@ -249,7 +249,7 @@ pub async fn do_append_async(
     batch: results::CreateBatch,
     bsos: Vec<params::PostCollectionBso>,
     collection: &str,
-) -> Result<()> {
+) -> DbResult<()> {
     // Pass an array of struct objects as @values (for UNNEST), e.g.:
     // [("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso1", NULL, "payload1", NULL),
     //  ("<fxa_uid>", "<fxa_kid>", 101, "ba1", "bso2", NULL, "payload2", NULL)]
@@ -528,7 +528,7 @@ async fn pretouch_collection_async(
     db: &SpannerDb,
     user_id: &UserIdentifier,
     collection_id: i32,
-) -> Result<()> {
+) -> DbResult<()> {
     let (mut sqlparams, mut sqlparam_types) = params! {
         "fxa_uid" => user_id.fxa_uid.clone(),
         "fxa_kid" => user_id.fxa_kid.clone(),
@@ -569,7 +569,7 @@ async fn pretouch_collection_async(
     Ok(())
 }
 
-pub fn validate_batch_id(id: &str) -> Result<()> {
+pub fn validate_batch_id(id: &str) -> DbResult<()> {
     Uuid::from_str(id)
         .map(|_| ())
         .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))

@@ -10,7 +10,7 @@ use crate::{
         error::{DbError, DbErrorKind},
         PoolState,
     },
-    server::metrics::Metrics,
+    server::Metrics,
     settings::Settings,
 };
 

@@ -4,8 +4,11 @@ members = [
     "syncserver-settings",
     "syncserver-common",
     "syncserver-db-common",
+    "syncstorage-mysql",
     "syncstorage-settings",
+    "syncstorage-spanner",
     "tokenserver-common",
+    "tokenserver-mysql",
     "tokenserver-settings",
     "syncserver",
 ]

@@ -13,12 +13,11 @@ use syncserver_db_common::{params, Db, DbPool, UserIdentifier};
 
 use crate::db::results::ConnectionInfo;
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::metrics::Metrics;
-use crate::server::ServerState;
+use crate::server::tags::Taggable;
+use crate::server::{MetricsWrapper, ServerState};
 use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
-use crate::web::tags::Taggable;
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
@@ -233,9 +232,10 @@ impl FromRequest for DbTransactionPool {
                 Err(e) => {
                     // Semi-example to show how to use metrics inside of middleware.
                     // `Result::unwrap` is safe to use here, since Metrics::extract can never fail
-                    Metrics::extract(&req)
+                    MetricsWrapper::extract(&req)
                         .await
                         .unwrap()
+                        .0
                         .incr("sync.error.collectionParam");
                     warn!("⚠️ CollectionParam err: {:?}", e);
                     return Err(e);

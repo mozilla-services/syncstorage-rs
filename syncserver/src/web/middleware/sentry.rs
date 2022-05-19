@@ -13,12 +13,11 @@ use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
 use serde_json::value::Value;
-use syncserver_common::ReportableError;
+use syncserver_common::{Metrics, ReportableError};
 use tokenserver_common::error::TokenserverError;
 
 use crate::error::ApiError;
-use crate::server::{metrics::Metrics, user_agent};
-use crate::web::tags::Taggable;
+use crate::server::{tags::Taggable, user_agent, MetricsWrapper};
 
 pub struct SentryWrapper;
 
@@ -124,7 +123,7 @@ where
                     }
                 }
                 Some(e) => {
-                    let metrics = Metrics::extract(sresp.request()).await.unwrap();
+                    let metrics = MetricsWrapper::extract(sresp.request()).await.unwrap().0;
 
                     if let Some(apie) = e.as_error::<ApiError>() {
                         process_error(apie, metrics, tags, extras);

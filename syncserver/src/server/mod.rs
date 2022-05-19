@@ -4,13 +4,16 @@ use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
-    dev,
+    dev::{self, Payload},
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
-    web, App, HttpRequest, HttpResponse, HttpServer,
+    web::{self, Data},
+    App, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
+use futures::future::{self, Ready};
+use syncserver_common::Metrics;
 use syncserver_db_common::DbPool;
 use syncserver_settings::Settings;
 use syncstorage_settings::{Deadman, ServerLimits};
@@ -18,7 +21,7 @@ use tokio::sync::RwLock;
 
 use crate::db::{pool_from_settings, spawn_pool_periodic_reporter};
 use crate::error::ApiError;
-use crate::server::metrics::Metrics;
+use crate::server::tags::Taggable;
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
@@ -29,7 +32,7 @@ pub const SYNC_DOCS_URL: &str =
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
-pub mod metrics;
+pub mod tags;
 #[cfg(test)]
 mod test;
 pub mod user_agent;
@@ -240,7 +243,7 @@ macro_rules! build_app_without_syncstorage {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
-        let metrics = metrics::metrics_from_opts(
+        let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
             settings.statsd_host.as_deref(),
             settings.statsd_port,
@@ -258,7 +261,7 @@ impl Server {
         let tokenserver_state = if settings.tokenserver.enabled {
             let state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
-                metrics::metrics_from_opts(
+                syncserver_common::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
                     settings.statsd_host.as_deref(),
                     settings.statsd_port,
@@ -318,7 +321,7 @@ impl Server {
         let secrets = Arc::new(settings.master_secret.clone());
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
-            metrics::metrics_from_opts(
+            syncserver_common::metrics_from_opts(
                 &settings.tokenserver.statsd_label,
                 settings.statsd_host.as_deref(),
                 settings.statsd_port,
@@ -376,4 +379,35 @@ pub fn build_cors(settings: &Settings) -> Cors {
     }
 
     cors
+}
+
+pub struct MetricsWrapper(pub Metrics);
+
+impl FromRequest for MetricsWrapper {
+    type Config = ();
+    type Error = ();
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let client = {
+            let syncstorage_metrics = req
+                .app_data::<Data<ServerState>>()
+                .map(|state| state.metrics.clone());
+            let tokenserver_metrics = req
+                .app_data::<Data<tokenserver::ServerState>>()
+                .map(|state| state.metrics.clone());
+
+            syncstorage_metrics.or(tokenserver_metrics)
+        };
+
+        if client.is_none() {
+            warn!("⚠️ metric error: No App State");
+        }
+
+        future::ok(MetricsWrapper(Metrics {
+            client: client.as_deref().cloned(),
+            tags: req.get_tags(),
+            timer: None,
+        }))
+    }
 }

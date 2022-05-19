@@ -11,17 +11,17 @@ use diesel::{
 };
 use syncserver_db_common::{
     error::{DbError, DbErrorKind},
-    params, results, UserIdentifier, BATCH_LIFETIME,
+    params, results, DbResult, UserIdentifier, BATCH_LIFETIME,
 };
 
 use super::{
-    models::{MysqlDb, Result},
+    models::MysqlDb,
     schema::{batch_upload_items, batch_uploads},
 };
 
 const MAXTTL: i32 = 2_100_000_000;
 
-pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::CreateBatch> {
+pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     // Careful, there's some weirdness here!
@@ -59,7 +59,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> Result<results::Crea
     })
 }
 
-pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
+pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
@@ -79,7 +79,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> Result<bool> {
     Ok(exists.is_some())
 }
 
-pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
+pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
     let exists = validate(
         db,
         params::ValidateBatch {
@@ -90,7 +90,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     )?;
 
     if !exists {
-        Err(DbErrorKind::BatchNotFound)?
+        return Err(DbErrorKind::BatchNotFound.into());
     }
 
     let batch_id = decode_id(&params.batch.id)?;
@@ -99,7 +99,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> Result<()> {
     Ok(())
 }
 
-pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::GetBatch>> {
+pub fn get(db: &MysqlDb, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
     let is_valid = validate(
         db,
         params::ValidateBatch {
@@ -116,7 +116,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> Result<Option<results::Get
     Ok(batch)
 }
 
-pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
+pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
     let batch_id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -133,7 +133,7 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> Result<()> {
 }
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
-pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::CommitBatch> {
+pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -169,7 +169,7 @@ pub fn do_append(
     user_id: UserIdentifier,
     _collection_id: i32,
     bsos: Vec<params::PostCollectionBso>,
-) -> Result<()> {
+) -> DbResult<()> {
     fn exist_idx(user_id: u64, batch_id: i64, bso_id: &str) -> String {
         // Construct something that matches the key for batch_upload_items
         format!(
@@ -253,7 +253,7 @@ pub fn do_append(
     Ok(())
 }
 
-pub fn validate_batch_id(id: &str) -> Result<()> {
+pub fn validate_batch_id(id: &str) -> DbResult<()> {
     decode_id(id).map(|_| ())
 }
 
@@ -261,7 +261,7 @@ fn encode_id(id: i64) -> String {
     base64::encode(&id.to_string())
 }
 
-fn decode_id(id: &str) -> Result<i64> {
+fn decode_id(id: &str) -> DbResult<i64> {
     let bytes = base64::decode(id).unwrap_or_else(|_| id.as_bytes().to_vec());
     let decoded = std::str::from_utf8(&bytes).unwrap_or(id);
     decoded
@@ -272,7 +272,7 @@ fn decode_id(id: &str) -> Result<i64> {
 #[macro_export]
 macro_rules! batch_db_method {
     ($name:ident, $batch_name:ident, $type:ident) => {
-        pub fn $name(&self, params: params::$type) -> Result<results::$type> {
+        pub fn $name(&self, params: params::$type) -> DbResult<results::$type> {
             batch::$batch_name(self, params)
         }
     };

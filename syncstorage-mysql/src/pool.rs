@@ -14,14 +14,15 @@ use diesel::{
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
-use syncserver_db_common::{error::DbError, Db, DbPool, GetPoolState, PoolState, STD_COLLS};
+use syncserver_common::Metrics;
+#[cfg(test)]
+use syncserver_db_common::test::TestTransactionCustomizer;
+use syncserver_db_common::{
+    error::DbError, util, Db, DbPool, DbResult, GetPoolState, PoolState, STD_COLLS,
+};
 use syncstorage_settings::{Quota, Settings};
 
-use super::models::{MysqlDb, Result};
-#[cfg(test)]
-use super::test::TestTransactionCustomizer;
-use crate::db;
-use crate::server::metrics::Metrics;
+use super::models::MysqlDb;
 
 embed_migrations!();
 
@@ -29,7 +30,7 @@ embed_migrations!();
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(database_url: &str) -> Result<()> {
+pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = MysqlConnection::establish(database_url)?;
     #[cfg(test)]
     // XXX: this doesn't show the DDL statements
@@ -56,12 +57,12 @@ impl MysqlDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
-    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub fn new(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
         run_embedded_migrations(&settings.database_url)?;
         Self::new_without_migrations(settings, metrics)
     }
 
-    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
@@ -89,7 +90,7 @@ impl MysqlDbPool {
         })
     }
 
-    pub fn get_sync(&self) -> Result<MysqlDb> {
+    pub fn get_sync(&self) -> DbResult<MysqlDb> {
         Ok(MysqlDb::new(
             self.pool.get()?,
             Arc::clone(&self.coll_cache),
@@ -101,14 +102,14 @@ impl MysqlDbPool {
 
 #[async_trait]
 impl DbPool for MysqlDbPool {
-    async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a>>> {
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a>>> {
         let pool = self.clone();
-        let db = db::run_on_blocking_threadpool(move || pool.get_sync()).await?;
+        let db = util::run_on_blocking_threadpool(move || pool.get_sync()).await?;
 
         Ok(Box::new(db) as Box<dyn Db<'a>>)
     }
 
-    fn validate_batch_id(&self, id: String) -> Result<()> {
+    fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id)
     }
 
@@ -138,7 +139,7 @@ pub struct CollectionCache {
 }
 
 impl CollectionCache {
-    pub fn put(&self, id: i32, name: String) -> Result<()> {
+    pub fn put(&self, id: i32, name: String) -> DbResult<()> {
         // XXX: should this emit a metric?
         // XXX: should probably either lock both simultaneously during
         // writes or use an RwLock alternative
@@ -153,7 +154,7 @@ impl CollectionCache {
         Ok(())
     }
 
-    pub fn get_id(&self, name: &str) -> Result<Option<i32>> {
+    pub fn get_id(&self, name: &str) -> DbResult<Option<i32>> {
         Ok(self
             .by_name
             .read()
@@ -162,7 +163,7 @@ impl CollectionCache {
             .cloned())
     }
 
-    pub fn get_name(&self, id: i32) -> Result<Option<String>> {
+    pub fn get_name(&self, id: i32) -> DbResult<Option<String>> {
         Ok(self
             .by_id
             .read()

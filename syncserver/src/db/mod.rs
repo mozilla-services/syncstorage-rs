@@ -1,8 +1,6 @@
 //! Generic db abstration.
 
 pub mod mock;
-pub mod mysql;
-pub mod spanner;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
@@ -11,15 +9,16 @@ use std::time::Duration;
 
 use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
+use syncserver_common::Metrics;
 use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     results, DbPool, GetPoolState, PoolState,
 };
+use syncstorage_mysql::pool::MysqlDbPool;
 use syncstorage_settings::Settings;
+use syncstorage_spanner::pool::SpannerDbPool;
 use tokio::{self, time};
 use url::Url;
-
-use crate::server::metrics::Metrics;
 
 /// Create/initialize a pool of managed Db connections
 pub async fn pool_from_settings(
@@ -29,8 +28,8 @@ pub async fn pool_from_settings(
     let url =
         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
     Ok(match url.scheme() {
-        "mysql" => Box::new(mysql::pool::MysqlDbPool::new(settings, metrics)?),
-        "spanner" => Box::new(spanner::pool::SpannerDbPool::new(settings, metrics).await?),
+        "mysql" => Box::new(MysqlDbPool::new(settings, metrics)?),
+        "spanner" => Box::new(SpannerDbPool::new(settings, metrics).await?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }

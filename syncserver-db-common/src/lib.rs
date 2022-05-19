@@ -1,6 +1,7 @@
 pub mod error;
 pub mod params;
 pub mod results;
+pub mod test;
 pub mod util;
 
 use std::fmt::Debug;
@@ -46,7 +47,8 @@ pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 /// Non-standard collections will be allocated IDs beginning with this value
 pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 
-pub type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, DbError>>;
+pub type DbResult<T> = Result<T, DbError>;
+pub type DbFuture<'a, T> = LocalBoxFuture<'a, DbResult<T>>;
 
 #[async_trait]
 pub trait DbPool: Sync + Send + Debug + GetPoolState {

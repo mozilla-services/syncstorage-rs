@@ -2,18 +2,12 @@ use std::collections::HashMap;
 use std::net::UdpSocket;
 use std::time::Instant;
 
-use actix_web::{dev::Payload, web::Data, FromRequest, HttpRequest};
 use cadence::{
     BufferedUdpMetricSink, Counted, Metric, NopMetricSink, QueuingMetricSink, StatsdClient, Timed,
 };
-use futures::future;
-use futures::future::Ready;
 use slog::{Key, Record, KV};
 
-use crate::error::ApiError;
-use crate::server::ServerState;
-use crate::tokenserver;
-use crate::web::tags::Taggable;
+pub use cadence::MetricError;
 
 #[derive(Debug, Clone)]
 pub struct MetricTimer {
@@ -54,55 +48,6 @@ impl Drop for Metrics {
                     }
                 }
             }
-        }
-    }
-}
-
-impl FromRequest for Metrics {
-    type Config = ();
-    type Error = ();
-    type Future = Ready<Result<Self, Self::Error>>;
-
-    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
-        let client = {
-            let syncstorage_metrics = req
-                .app_data::<Data<ServerState>>()
-                .map(|state| state.metrics.clone());
-            let tokenserver_metrics = req
-                .app_data::<Data<tokenserver::ServerState>>()
-                .map(|state| state.metrics.clone());
-
-            syncstorage_metrics.or(tokenserver_metrics)
-        };
-
-        if client.is_none() {
-            warn!("⚠️ metric error: No App State");
-        }
-
-        future::ok(Metrics {
-            client: client.as_deref().cloned(),
-            tags: req.get_tags(),
-            timer: None,
-        })
-    }
-}
-
-impl From<&StatsdClient> for Metrics {
-    fn from(client: &StatsdClient) -> Self {
-        Metrics {
-            client: Some(client.clone()),
-            tags: HashMap::default(),
-            timer: None,
-        }
-    }
-}
-
-impl From<&ServerState> for Metrics {
-    fn from(state: &ServerState) -> Self {
-        Metrics {
-            client: Some(*state.metrics.clone()),
-            tags: HashMap::default(),
-            timer: None,
         }
     }
 }
@@ -183,7 +128,7 @@ pub fn metrics_from_opts(
     label: &str,
     host: Option<&str>,
     port: u16,
-) -> Result<StatsdClient, ApiError> {
+) -> Result<StatsdClient, MetricError> {
     let builder = if let Some(statsd_host) = host {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
@@ -200,6 +145,16 @@ pub fn metrics_from_opts(
             warn!("⚠️ Metric send error:  {:?}", err);
         })
         .build())
+}
+
+impl From<&StatsdClient> for Metrics {
+    fn from(client: &StatsdClient) -> Self {
+        Metrics {
+            client: Some(client.clone()),
+            tags: HashMap::default(),
+            timer: None,
+        }
+    }
 }
 
 /// A newtype used solely to allow us to implement KV on HashMap.

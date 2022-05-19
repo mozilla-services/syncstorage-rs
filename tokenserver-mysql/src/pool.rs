@@ -4,20 +4,18 @@ use async_trait::async_trait;
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, Pool},
+    Connection,
 };
 use diesel_logger::LoggingConnection;
-use syncserver_db_common::{error::DbError, GetPoolState, PoolState};
+use syncserver_common::Metrics;
+#[cfg(test)]
+use syncserver_db_common::test::TestTransactionCustomizer;
+use syncserver_db_common::{error::DbError, util, DbResult, GetPoolState, PoolState};
 use tokenserver_settings::Settings;
 
-use super::models::{Db, DbResult, TokenserverDb};
-use crate::db;
-use crate::diesel::Connection;
-use crate::server::metrics::Metrics;
+use super::models::{Db, TokenserverDb};
 
-#[cfg(test)]
-use crate::db::mysql::TestTransactionCustomizer;
-
-embed_migrations!("src/tokenserver/migrations");
+embed_migrations!("../migrations");
 
 /// Run the diesel embedded migrations
 ///
@@ -89,7 +87,8 @@ impl TokenserverPool {
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
         let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+            util::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from))
+                .await?;
 
         Ok(TokenserverDb::new(
             conn,
@@ -108,7 +107,8 @@ impl DbPool for TokenserverPool {
 
         let pool = self.clone();
         let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+            util::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from))
+                .await?;
 
         Ok(Box::new(TokenserverDb::new(
             conn,

@@ -1,4 +1,3 @@
-use actix_web::http::StatusCode;
 use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
@@ -8,25 +7,22 @@ use diesel::{
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use futures::future::LocalBoxFuture;
-use syncserver_db_common::error::DbError;
+use http::StatusCode;
+use syncserver_common::Metrics;
+use syncserver_db_common::{error::DbError, sync_db_method, util, DbResult};
 
 use std::{
-    result,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use super::{params, results};
-use crate::db;
-use crate::server::metrics::Metrics;
-use crate::sync_db_method;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
 
 pub type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, DbError>>;
-pub type DbResult<T> = result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
@@ -682,7 +678,7 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(util::run_on_blocking_threadpool(move || db.check_sync()))
     }
 
     #[cfg(test)]
@@ -784,7 +780,7 @@ mod tests {
 
     use syncserver_settings::Settings;
 
-    use crate::tokenserver::db::pool::{DbPool, TokenserverPool};
+    use crate::pool::{DbPool, TokenserverPool};
 
     #[tokio::test]
     async fn test_update_generation() -> DbResult<()> {

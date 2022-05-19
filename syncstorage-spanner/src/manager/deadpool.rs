@@ -3,10 +3,9 @@ use std::{fmt, sync::Arc};
 use async_trait::async_trait;
 use deadpool::managed::{Manager, RecycleError, RecycleResult};
 use grpcio::{EnvBuilder, Environment};
+use syncserver_common::Metrics;
 use syncserver_db_common::error::{DbError, DbErrorKind};
 use syncstorage_settings::Settings;
-
-use crate::server::metrics::Metrics;
 
 use super::session::{create_spanner_session, recycle_spanner_session, SpannerSession};
 

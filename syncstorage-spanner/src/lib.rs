@@ -1,6 +1,11 @@
 use std::time::SystemTime;
 
 #[macro_use]
+extern crate diesel_migrations;
+#[macro_use]
+extern crate slog_scope;
+
+#[macro_use]
 mod macros;
 
 mod batch;

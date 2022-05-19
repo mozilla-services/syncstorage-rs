@@ -1,44 +1,29 @@
-use std::{collections::HashMap, result::Result as StdResult};
+use std::collections::HashMap;
 
 use diesel::{
     // expression_methods::TextExpressionMethods, // See note below about `not_like` becoming swedish
-    mysql::MysqlConnection,
-    r2d2::{CustomizeConnection, Error as PoolError},
-    Connection,
     ExpressionMethods,
     QueryDsl,
     RunQueryDsl,
 };
+use syncserver_common::Metrics;
+use syncserver_db_common::DbResult;
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
-use crate::db::mysql::{
-    models::{MysqlDb, Result},
-    pool::MysqlDbPool,
-    schema::collections,
-};
-use crate::server::metrics;
+use crate::{models::MysqlDb, pool::MysqlDbPool, schema::collections};
 
-#[derive(Debug)]
-pub struct TestTransactionCustomizer;
-
-impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomizer {
-    fn on_acquire(&self, conn: &mut MysqlConnection) -> StdResult<(), PoolError> {
-        conn.begin_test_transaction().map_err(PoolError::QueryError)
-    }
-}
-
-pub fn db(settings: &SyncstorageSettings) -> Result<MysqlDb> {
+pub fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
     let _ = env_logger::try_init();
     // inherit SYNC_SYNCSTORAGE__DATABASE_URL from the env
 
-    let pool = MysqlDbPool::new(settings, &metrics::Metrics::noop())?;
+    let pool = MysqlDbPool::new(settings, &Metrics::noop())?;
     pool.get_sync()
 }
 
 #[test]
-fn static_collection_id() -> Result<()> {
+fn static_collection_id() -> DbResult<()> {
     let settings = SyncserverSettings::test_settings().syncstorage;
     if Url::parse(&settings.database_url).unwrap().scheme() != "mysql" {
         // Skip this test if we're not using mysql

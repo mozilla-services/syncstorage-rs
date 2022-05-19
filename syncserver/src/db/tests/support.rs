@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
+use syncserver_common::Metrics;
 use syncserver_db_common::{params, util::SyncTimestamp, Db, Sorting, UserIdentifier};
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 
 use crate::db::DbPool;
 use crate::error::ApiResult;
-use crate::{db::pool_from_settings, error::ApiError, server::metrics};
+use crate::{db::pool_from_settings, error::ApiError};
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
@@ -25,7 +26,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<Box<dyn Db
     let mut settings = settings.unwrap_or_else(|| SyncserverSettings::test_settings().syncstorage);
     settings.database_use_test_transactions = use_test_transactions;
 
-    let metrics = metrics::Metrics::noop();
+    let metrics = Metrics::noop();
     let pool = pool_from_settings(&settings, &metrics).await?;
     Ok(pool)
 }

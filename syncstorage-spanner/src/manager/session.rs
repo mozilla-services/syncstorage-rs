@@ -1,13 +1,15 @@
+use std::sync::Arc;
+
 use google_cloud_rust_raw::spanner::v1::{
     spanner::{CreateSessionRequest, GetSessionRequest, Session},
     spanner_grpc::SpannerClient,
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
-use std::sync::Arc;
-use syncserver_db_common::error::{DbError, DbErrorKind};
-
-use crate::db::{self, spanner::now};
-use crate::server::metrics::Metrics;
+use syncserver_common::Metrics;
+use syncserver_db_common::{
+    error::{DbError, DbErrorKind},
+    util,
+};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
@@ -21,11 +23,11 @@ pub struct SpannerSession {
     pub session: Session,
     /// The underlying client (Connection/Channel) for interacting with spanner
     pub client: SpannerClient,
-    pub(in crate::db::spanner) use_test_transactions: bool,
+    pub(crate) use_test_transactions: bool,
     /// A second based UTC for SpannerSession creation.
     /// Session has a similar `create_time` value that is managed by protobuf,
     /// but some clock skew issues are possible.
-    pub(in crate::db::spanner) create_time: i64,
+    pub(crate) create_time: i64,
     /// Whether we are using the Spanner emulator
     pub using_spanner_emulator: bool,
 }
@@ -39,7 +41,7 @@ pub async fn create_spanner_session(
     emulator_host: Option<String>,
 ) -> Result<SpannerSession, DbError> {
     let using_spanner_emulator = emulator_host.is_some();
-    let chan = db::run_on_blocking_threadpool(move || -> Result<grpcio::Channel, DbError> {
+    let chan = util::run_on_blocking_threadpool(move || -> Result<grpcio::Channel, DbError> {
         if let Some(spanner_emulator_address) = emulator_host {
             Ok(ChannelBuilder::new(env)
                 .max_send_message_len(100 << 20)
@@ -69,7 +71,7 @@ pub async fn create_spanner_session(
         session,
         client,
         use_test_transactions,
-        create_time: now(),
+        create_time: crate::now(),
         using_spanner_emulator,
     })
 }
@@ -82,7 +84,7 @@ pub async fn recycle_spanner_session(
     max_lifetime: Option<u32>,
     max_idle: Option<u32>,
 ) -> Result<(), DbError> {
-    let now = now();
+    let now = crate::now();
     let mut req = GetSessionRequest::new();
     req.set_name(conn.session.get_name().to_owned());
     /*

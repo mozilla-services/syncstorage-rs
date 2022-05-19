@@ -10,7 +10,9 @@ use diesel::{
     sql_types::BigInt,
     FromSqlRow,
 };
+use futures::future::TryFutureExt;
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
+use tokio::task;
 
 use super::error::{DbError, DbErrorKind};
 
@@ -175,4 +177,37 @@ pub fn to_rfc3339(val: i64) -> Result<String, DbError> {
     Ok(Utc
         .timestamp(secs, nsecs)
         .to_rfc3339_opts(SecondsFormat::Nanos, true))
+}
+
+pub async fn run_on_blocking_threadpool<F, T>(f: F) -> Result<T, DbError>
+where
+    F: FnOnce() -> Result<T, DbError> + Send + 'static,
+    T: Send + 'static,
+{
+    task::spawn_blocking(f)
+        .map_err(|err| {
+            if err.is_cancelled() {
+                DbError::internal("Db threadpool operation cancelled")
+            } else if err.is_panic() {
+                DbError::internal("Db threadpool operation panicked")
+            } else {
+                DbError::internal("Db threadpool operation failed for unknown reason")
+            }
+        })
+        .await?
+}
+
+#[macro_export]
+macro_rules! sync_db_method {
+    ($name:ident, $sync_name:ident, $type:ident) => {
+        sync_db_method!($name, $sync_name, $type, results::$type);
+    };
+    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
+            let db = self.clone();
+            Box::pin(util::run_on_blocking_threadpool(move || {
+                db.$sync_name(params)
+            }))
+        }
+    };
 }

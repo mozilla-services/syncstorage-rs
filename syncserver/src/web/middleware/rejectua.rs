@@ -11,7 +11,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::metrics::Metrics;
+use crate::server::MetricsWrapper;
 
 lazy_static! {
     // e.g. "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))"
@@ -78,7 +78,10 @@ where
             Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
                 trace!("Rejecting User-Agent: {:?}", header);
                 let (req, payload) = sreq.into_parts();
-                Metrics::extract(&req).await?.incr("error.rejectua");
+                MetricsWrapper::extract(&req)
+                    .await?
+                    .0
+                    .incr("error.rejectua");
                 let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
                     ApiError::from(ApiErrorKind::Internal(
                         "failed to reconstruct ServiceRequest from its parts".to_owned(),

@@ -1,5 +1,12 @@
+#[macro_use]
+extern crate slog_scope;
+
 use hkdf::Hkdf;
 use sha2::Sha256;
+
+mod metrics;
+
+pub use metrics::{metrics_from_opts, MetricError, Metrics};
 
 // header statics must be lower case, numbers and symbols per the RFC spec. This reduces chance of error.
 pub static X_LAST_MODIFIED: &str = "x-last-modified";

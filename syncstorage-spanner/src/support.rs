@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
     mem,
-    result::Result as StdResult,
 };
 
 use futures::stream::{StreamExt, StreamFuture};
@@ -20,10 +19,10 @@ use syncserver_db_common::{
     params, results,
     util::to_rfc3339,
     util::SyncTimestamp,
-    UserIdentifier, DEFAULT_BSO_TTL,
+    DbResult, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-use super::{models::Result, pool::Conn};
+use super::pool::Conn;
 
 pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;
@@ -169,7 +168,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a SQL read statement but return a non-blocking streaming result
-    pub fn execute_async(self, conn: &Conn) -> Result<StreamedResultSetAsync> {
+    pub fn execute_async(self, conn: &Conn) -> DbResult<StreamedResultSetAsync> {
         let stream = conn
             .client
             .execute_streaming_sql(&self.prepare_request(conn))?;
@@ -177,7 +176,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
-    pub async fn execute_dml_async(self, conn: &Conn) -> Result<i64> {
+    pub async fn execute_dml_async(self, conn: &Conn) -> DbResult<i64> {
         let rs = conn
             .client
             .execute_sql_async(&self.prepare_request(conn))?
@@ -230,20 +229,20 @@ impl StreamedResultSetAsync {
         }
     }
 
-    pub async fn one(&mut self) -> Result<Vec<Value>> {
+    pub async fn one(&mut self) -> DbResult<Vec<Value>> {
         if let Some(result) = self.one_or_none().await? {
             Ok(result)
         } else {
-            Err(DbError::internal("No rows matched the given query."))?
+            Err(DbError::internal("No rows matched the given query."))
         }
     }
 
-    pub async fn one_or_none(&mut self) -> Result<Option<Vec<Value>>> {
+    pub async fn one_or_none(&mut self) -> DbResult<Option<Vec<Value>>> {
         let result = self.next_async().await;
         if result.is_none() {
             Ok(None)
         } else if self.next_async().await.is_some() {
-            Err(DbError::internal("Expected one result; got more."))?
+            Err(DbError::internal("Expected one result; got more."))
         } else {
             result.transpose()
         }
@@ -252,7 +251,7 @@ impl StreamedResultSetAsync {
     /// Pull and process the next values from the Stream
     ///
     /// Returns false when the stream is finished
-    async fn consume_next(&mut self) -> Result<bool> {
+    async fn consume_next(&mut self) -> DbResult<bool> {
         let (result, stream) = self
             .stream
             .take()
@@ -286,9 +285,9 @@ impl StreamedResultSetAsync {
             let fields = self.fields();
             let current_row_i = self.current_row.len();
             if fields.len() <= current_row_i {
-                Err(DbErrorKind::Integrity(
-                    "Invalid PartialResultSet fields".to_owned(),
-                ))?;
+                return Err(
+                    DbErrorKind::Integrity("Invalid PartialResultSet fields".to_owned()).into(),
+                );
             }
             let field = &fields[current_row_i];
             values[0] = merge_by_type(pending_chunk, &values[0], field.get_field_type())?;
@@ -314,7 +313,7 @@ impl StreamedResultSetAsync {
 
     // We could implement Stream::poll_next instead of this, but
     // this is easier for now and we can refactor into the trait later
-    pub async fn next_async(&mut self) -> Option<Result<Vec<Value>>> {
+    pub async fn next_async(&mut self) -> Option<DbResult<Vec<Value>>> {
         while self.rows.is_empty() {
             match self.consume_next().await {
                 Ok(true) => (),
@@ -329,7 +328,7 @@ impl StreamedResultSetAsync {
     }
 }
 
-fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> Result<Value> {
+fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> DbResult<Value> {
     // We only support merging basic string types as that's all we currently use.
     // The python client also supports: float64, array, struct. The go client
     // only additionally supports array (claiming structs are only returned as
@@ -344,23 +343,23 @@ fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> Result<Value> {
     }
 }
 
-fn unsupported_merge(field_type: &Type) -> Result<Value> {
+fn unsupported_merge(field_type: &Type) -> DbResult<Value> {
     Err(DbError::internal(&format!(
         "merge not supported, type: {:?}",
         field_type
     )))
 }
 
-fn merge_string(mut lhs: Value, rhs: &Value) -> Result<Value> {
+fn merge_string(mut lhs: Value, rhs: &Value) -> DbResult<Value> {
     if !lhs.has_string_value() || !rhs.has_string_value() {
-        Err(DbError::internal("merge_string has no string value"))?
+        return Err(DbError::internal("merge_string has no string value"));
     }
     let mut merged = lhs.take_string_value();
     merged.push_str(rhs.get_string_value());
     Ok(merged.into_spanner_value())
 }
 
-pub fn bso_from_row(mut row: Vec<Value>) -> Result<results::GetBso> {
+pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
     let modified_string = &row[3].get_string_value();
     let modified = SyncTimestamp::from_rfc3339(modified_string)?;
     Ok(results::GetBso {
@@ -386,7 +385,7 @@ pub fn bso_to_insert_row(
     collection_id: i32,
     bso: params::PostCollectionBso,
     now: SyncTimestamp,
-) -> Result<ListValue> {
+) -> DbResult<ListValue> {
     let sortindex = bso
         .sortindex
         .map(|sortindex| sortindex.into_spanner_value())
@@ -413,7 +412,7 @@ pub fn bso_to_update_row(
     collection_id: i32,
     bso: params::PostCollectionBso,
     now: SyncTimestamp,
-) -> Result<(Vec<&'static str>, ListValue)> {
+) -> DbResult<(Vec<&'static str>, ListValue)> {
     let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
     let mut values = vec![
         user_id.fxa_uid.clone().into_spanner_value(),
@@ -454,10 +453,10 @@ pub struct MapAndThenIterator<I, F> {
 
 impl<A, B, E, I, F> Iterator for MapAndThenIterator<I, F>
 where
-    F: FnMut(A) -> StdResult<B, E>,
-    I: Iterator<Item = StdResult<A, E>>,
+    F: FnMut(A) -> Result<B, E>,
+    I: Iterator<Item = Result<A, E>>,
 {
-    type Item = StdResult<B, E>;
+    type Item = Result<B, E>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(|result| result.and_then(&mut self.f))
@@ -466,13 +465,13 @@ where
 
 pub trait MapAndThenTrait {
     /// Return an iterator adaptor that applies the provided closure to every
-    /// Result::Ok value. Result::Err values are unchanged.
+    /// DbResult::Ok value. DbResult::Err values are unchanged.
     ///
     /// The closure can be used for control flow based on result values
     fn map_and_then<F, A, B, E>(self, func: F) -> MapAndThenIterator<Self, F>
     where
-        Self: Sized + Iterator<Item = StdResult<A, E>>,
-        F: FnMut(A) -> StdResult<B, E>,
+        Self: Sized + Iterator<Item = Result<A, E>>,
+        F: FnMut(A) -> Result<B, E>,
     {
         MapAndThenIterator {
             iter: self,
@@ -481,4 +480,4 @@ pub trait MapAndThenTrait {
     }
 }
 
-impl<I, T, E> MapAndThenTrait for I where I: Sized + Iterator<Item = StdResult<T, E>> {}
+impl<I, T, E> MapAndThenTrait for I where I: Sized + Iterator<Item = Result<T, E>> {}

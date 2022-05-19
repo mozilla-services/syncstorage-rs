@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use actix_web::HttpMessage;
 
@@ -78,14 +78,3 @@ struct Tags(HashMap<String, String>);
 // "Extras" are pieces of metadata with high cardinality to be included in Sentry errors.
 #[derive(Default)]
 struct Extras(HashMap<String, String>);
-
-impl From<Tags> for BTreeMap<String, String> {
-    fn from(tags: Tags) -> BTreeMap<String, String> {
-        let mut result = BTreeMap::new();
-
-        for (k, v) in tags.0 {
-            result.insert(k.clone(), v.clone());
-        }
-        result
-    }
-}
