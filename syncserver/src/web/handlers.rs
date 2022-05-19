@@ -5,7 +5,7 @@ use std::convert::Into;
 use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpRequest, HttpResponse};
 use serde::Serialize;
 use serde_json::{json, Map, Value};
-use syncstorage_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
+use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncstorage_db_common::{
     error::{DbError, DbErrorKind},
     params,

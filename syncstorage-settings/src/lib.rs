@@ -4,7 +4,7 @@ use std::cmp::min;
 
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
-use syncstorage_common::{self, MAX_SPANNER_LOAD_SIZE};
+use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 
 static KILOBYTE: u32 = 1024;
 static MEGABYTE: u32 = KILOBYTE * KILOBYTE;

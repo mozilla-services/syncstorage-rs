@@ -22,7 +22,7 @@ use protobuf::{
     well_known_types::{ListValue, Value},
     Message, RepeatedField,
 };
-use syncstorage_common::MAX_SPANNER_LOAD_SIZE;
+use syncserver_common::MAX_SPANNER_LOAD_SIZE;
 use syncstorage_db_common::{
     error::{DbError, DbErrorKind},
     params, results,

@@ -13,8 +13,8 @@ use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use syncserver_common;
 use syncserver_settings::Secrets;
-use syncstorage_common;
 use time::Duration;
 
 use actix_web::dev::ConnectionInfo;
@@ -84,7 +84,7 @@ impl HawkPayload {
 
         let payload = HawkPayload::extract_and_validate(id, secrets, expiry)?;
 
-        let token_secret = syncstorage_common::hkdf_expand_32(
+        let token_secret = syncserver_common::hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(payload.salt.as_bytes()),
             &secrets.master_secret,

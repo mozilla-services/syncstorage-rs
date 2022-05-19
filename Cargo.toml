@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "syncserver-settings",
-    "syncstorage-common",
+    "syncserver-common",
     "syncstorage-db-common",
     "syncstorage-settings",
     "tokenserver-common",

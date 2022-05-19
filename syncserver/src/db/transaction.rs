@@ -9,7 +9,7 @@ use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
-use syncstorage_common::X_LAST_MODIFIED;
+use syncserver_common::X_LAST_MODIFIED;
 use syncstorage_db_common::{params, Db, DbPool, UserIdentifier};
 
 use crate::db::results::ConnectionInfo;

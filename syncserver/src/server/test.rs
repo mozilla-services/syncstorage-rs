@@ -15,8 +15,8 @@ use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
 use serde_json::json;
 use sha2::Sha256;
+use syncserver_common::{self, X_LAST_MODIFIED};
 use syncserver_settings::{Secrets, Settings};
-use syncstorage_common::{self, X_LAST_MODIFIED};
 use syncstorage_db_common::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
@@ -159,7 +159,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     id.extend(payload.as_bytes());
     id.extend_from_slice(&signature);
     let id = base64::encode_config(&id, base64::URL_SAFE);
-    let token_secret = syncstorage_common::hkdf_expand_32(
+    let token_secret = syncserver_common::hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
         &SECRETS.master_secret,

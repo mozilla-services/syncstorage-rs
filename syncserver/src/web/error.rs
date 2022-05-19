@@ -13,7 +13,7 @@ use serde::{
     Serialize,
 };
 use serde_json::{Error as JsonError, Value};
-use syncstorage_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display};
 
 use super::extractors::RequestErrorLocation;
 use crate::error::{ApiError, WeaveError};

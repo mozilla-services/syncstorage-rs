@@ -27,7 +27,7 @@ use serde::{
     Deserialize, Serialize,
 };
 use serde_json::Value;
-use syncstorage_common::X_WEAVE_RECORDS;
+use syncserver_common::X_WEAVE_RECORDS;
 use syncstorage_db_common::{
     params::{self, PostCollectionBso},
     util::SyncTimestamp,
@@ -1757,8 +1757,8 @@ mod tests {
     use rand::{thread_rng, Rng};
     use serde_json::{self, json};
     use sha2::Sha256;
+    use syncserver_common;
     use syncserver_settings::Settings as GlobalSettings;
-    use syncstorage_common;
     use syncstorage_db_common::Db;
     use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
     use tokio::sync::RwLock;
@@ -1827,7 +1827,7 @@ mod tests {
         let mut id = payload.as_bytes().to_vec();
         id.extend(payload_hash.to_vec());
         let id = base64::encode_config(&id, base64::URL_SAFE);
-        let token_secret = syncstorage_common::hkdf_expand_32(
+        let token_secret = syncserver_common::hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(salt.as_bytes()),
             &SECRETS.master_secret,

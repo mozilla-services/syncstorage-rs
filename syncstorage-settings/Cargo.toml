@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 rand = "0.8"
 serde = "1.0"
-syncstorage-common = { path = "../syncstorage-common" }
+syncserver-common = { path = "../syncserver-common" }
 time = "^0.3"

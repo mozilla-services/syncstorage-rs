@@ -10,7 +10,7 @@ use actix_web::{
 use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
-use syncstorage_common::ReportableError;
+use syncserver_common::ReportableError;
 use tokenserver_common::error::TokenserverError;
 
 use crate::error::ApiError;

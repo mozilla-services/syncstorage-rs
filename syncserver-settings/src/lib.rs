@@ -5,7 +5,7 @@ use std::env::{self, VarError};
 
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Deserializer};
-use syncstorage_common::{
+use syncserver_common::{
     X_LAST_MODIFIED, X_VERIFY_CODE, X_WEAVE_BYTES, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS,
     X_WEAVE_TIMESTAMP, X_WEAVE_TOTAL_BYTES, X_WEAVE_TOTAL_RECORDS,
 };
@@ -226,7 +226,7 @@ impl Secrets {
     /// and derive the signing secret from it.
     pub fn new(master_secret: &str) -> Result<Self, String> {
         let master_secret = master_secret.as_bytes().to_vec();
-        let signing_secret = syncstorage_common::hkdf_expand_32(
+        let signing_secret = syncserver_common::hkdf_expand_32(
             b"services.mozilla.com/tokenlib/v1/signing",
             None,
             &master_secret,

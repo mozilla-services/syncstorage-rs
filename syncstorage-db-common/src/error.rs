@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncstorage_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display};
 use thiserror::Error;
 
 #[derive(Debug)]
