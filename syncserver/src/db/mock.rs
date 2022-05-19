@@ -2,7 +2,7 @@
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
 use futures::future;
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::DbError, params, results, util::SyncTimestamp, Db, DbFuture, DbPool, GetPoolState,
     PoolState,
 };

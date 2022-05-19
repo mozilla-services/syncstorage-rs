@@ -15,7 +15,7 @@ use diesel::{
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params, results,
     util::SyncTimestamp,

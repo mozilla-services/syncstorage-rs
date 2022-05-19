@@ -6,7 +6,7 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
 };
 use diesel_logger::LoggingConnection;
-use syncstorage_db_common::{error::DbError, GetPoolState, PoolState};
+use syncserver_db_common::{error::DbError, GetPoolState, PoolState};
 use tokenserver_settings::Settings;
 
 use super::models::{Db, DbResult, TokenserverDb};

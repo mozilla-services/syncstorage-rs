@@ -11,8 +11,8 @@ use actix_web::{
     web, App, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
+use syncserver_db_common::DbPool;
 use syncserver_settings::Settings;
-use syncstorage_db_common::DbPool;
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
 

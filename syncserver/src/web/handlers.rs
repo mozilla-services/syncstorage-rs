@@ -6,7 +6,7 @@ use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpReque
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params,
     results::{CreateBatch, Paginated},
@@ -641,7 +641,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
-        use syncstorage_db_common::PoolState;
+        use syncserver_db_common::PoolState;
 
         let test_pool = PoolState {
             connections: u32::from_str(

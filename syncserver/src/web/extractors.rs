@@ -28,7 +28,7 @@ use serde::{
 };
 use serde_json::Value;
 use syncserver_common::X_WEAVE_RECORDS;
-use syncstorage_db_common::{
+use syncserver_db_common::{
     params::{self, PostCollectionBso},
     util::SyncTimestamp,
     DbPool, Sorting, UserIdentifier,
@@ -1758,8 +1758,8 @@ mod tests {
     use serde_json::{self, json};
     use sha2::Sha256;
     use syncserver_common;
+    use syncserver_db_common::Db;
     use syncserver_settings::Settings as GlobalSettings;
-    use syncstorage_db_common::Db;
     use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
     use tokio::sync::RwLock;
 

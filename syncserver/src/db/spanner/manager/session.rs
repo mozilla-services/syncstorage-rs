@@ -4,7 +4,7 @@ use google_cloud_rust_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
 use std::sync::Arc;
-use syncstorage_db_common::error::{DbError, DbErrorKind};
+use syncserver_db_common::error::{DbError, DbErrorKind};
 
 use crate::db::{self, spanner::now};
 use crate::server::metrics::Metrics;

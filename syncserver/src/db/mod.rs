@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     results, DbPool, GetPoolState, PoolState,
 };

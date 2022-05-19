@@ -79,7 +79,7 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 syncserver-settings = { path = "../syncserver-settings" }
-syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"

@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use futures::future;
-use syncstorage_db_common::{error::DbError, GetPoolState, PoolState};
+use syncserver_db_common::{error::DbError, GetPoolState, PoolState};
 
 use super::models::{Db, DbFuture};
 use super::params;

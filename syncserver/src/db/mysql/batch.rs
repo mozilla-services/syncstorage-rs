@@ -9,7 +9,7 @@ use diesel::{
     sql_types::{BigInt, Integer},
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params, results, UserIdentifier, BATCH_LIFETIME,
 };

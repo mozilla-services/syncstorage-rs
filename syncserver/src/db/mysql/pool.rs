@@ -14,7 +14,7 @@ use diesel::{
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
-use syncstorage_db_common::{error::DbError, Db, DbPool, GetPoolState, PoolState, STD_COLLS};
+use syncserver_db_common::{error::DbError, Db, DbPool, GetPoolState, PoolState, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
 use super::models::{MysqlDb, Result};

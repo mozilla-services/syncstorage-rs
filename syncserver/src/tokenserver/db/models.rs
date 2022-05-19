@@ -8,7 +8,7 @@ use diesel::{
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use futures::future::LocalBoxFuture;
-use syncstorage_db_common::error::DbError;
+use syncserver_db_common::error::DbError;
 
 use std::{
     result,

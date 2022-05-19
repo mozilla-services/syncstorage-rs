@@ -15,7 +15,7 @@ use protobuf::{
     well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
 };
-use syncstorage_db_common::{
+use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params, results,
     util::to_rfc3339,

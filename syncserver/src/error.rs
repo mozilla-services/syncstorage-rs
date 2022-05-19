@@ -22,7 +22,7 @@ use serde::{
 };
 
 use syncserver_common::{from_error, impl_fmt_display, ReportableError};
-use syncstorage_db_common::error::DbError;
+use syncserver_db_common::error::DbError;
 use thiserror::Error;
 
 use crate::web::error::{HawkError, ValidationError};
