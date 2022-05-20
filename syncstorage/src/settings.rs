@@ -383,7 +383,7 @@ impl Settings {
         // appear to set the `allow-origins: *` header.
         if let Some(origin) = &self.cors_allowed_origin {
             if origin == "*" {
-                cors = cors.send_wildcard();
+                cors = cors.allow_any_origin();
             } else {
                 cors = cors.allowed_origin(origin);
             }
