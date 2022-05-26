@@ -10,7 +10,7 @@ commands:
     steps:
       - run:
           name: Setup Rust
-          command: |
+          command: 
             # rustup install stable
             # rustup default stable
             # rustup update
