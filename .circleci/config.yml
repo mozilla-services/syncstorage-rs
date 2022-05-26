@@ -57,7 +57,7 @@ commands:
       - run:
           name: cargo build
           command: cargo build
-          timeout: 20m
+          no_output_timeout: 20m
   setup-gcp-grpc:
     steps:
       - run:
