@@ -11,9 +11,9 @@ commands:
       - run:
           name: Setup Rust
           command: |
-            rustup install stable
-            rustup default stable
-            rustup update
+            # rustup install stable
+            # rustup default stable
+            # rustup update
             rustc --version
   setup-rust-check:
     steps:
