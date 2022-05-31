@@ -18,7 +18,6 @@ use super::{
     extractors::TokenserverRequest,
     NodeType, TokenserverMetrics,
 };
-use crate::error::ApiError;
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -36,7 +35,7 @@ pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
     TokenserverMetrics(mut metrics): TokenserverMetrics,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, TokenserverError> {
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
@@ -113,7 +112,10 @@ struct UserUpdates {
     uid: i64,
 }
 
-async fn update_user(req: &TokenserverRequest, db: Box<dyn Db>) -> Result<UserUpdates, ApiError> {
+async fn update_user(
+    req: &TokenserverRequest,
+    db: Box<dyn Db>,
+) -> Result<UserUpdates, TokenserverError> {
     // If the keys_changed_at in the request is larger than that stored on the user record,
     // update to the value in the request.
     let keys_changed_at =

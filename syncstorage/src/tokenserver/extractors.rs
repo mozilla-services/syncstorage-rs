@@ -104,7 +104,7 @@ impl TokenserverRequest {
             .old_client_states
             .contains(&self.auth_data.client_state)
         {
-            let error_message = "Unacceptable client-state value stale value";
+            let error_message = "Unacceptable client-state value stale value".to_owned();
             return Err(TokenserverError::invalid_client_state(error_message));
         }
 
@@ -114,7 +114,7 @@ impl TokenserverRequest {
             && opt_cmp!(auth_generation <= user_generation)
         {
             let error_message =
-                "Unacceptable client-state value new value with no generation change";
+                "Unacceptable client-state value new value with no generation change".to_owned();
             return Err(TokenserverError::invalid_client_state(error_message));
         }
 
@@ -124,7 +124,8 @@ impl TokenserverRequest {
             && opt_cmp!(auth_keys_changed_at <= user_keys_changed_at)
         {
             let error_message =
-                "Unacceptable client-state value new value with no keys_changed_at change";
+                "Unacceptable client-state value new value with no keys_changed_at change"
+                    .to_owned();
             return Err(TokenserverError::invalid_client_state(error_message));
         }
 
@@ -208,7 +209,7 @@ impl FromRequest for TokenserverRequest {
                         )
                     } else {
                         return Err(TokenserverError::unsupported(
-                            "Unsupported application version",
+                            "Unsupported application version".to_owned(),
                             version.to_owned(),
                         )
                         .into());
@@ -220,7 +221,7 @@ impl FromRequest for TokenserverRequest {
                     // new Tokenservers as close as possible, we defer to the error message from
                     // the old Tokenserver.
                     return Err(TokenserverError::unsupported(
-                        "Unsupported application",
+                        "Unsupported application".to_owned(),
                         "application".to_owned(),
                     )
                     .into());
@@ -340,14 +341,14 @@ impl FromRequest for Token {
                 .headers()
                 .get("Authorization")
                 .ok_or_else(|| TokenserverError {
-                    description: "Unauthorized",
+                    description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
                     context: "No Authorization header".to_owned(),
                     ..Default::default()
                 })?
                 .to_str()
                 .map_err(|e| TokenserverError {
-                    description: "Unauthorized",
+                    description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
                     context: format!(
                         "Authorization header contains invalid ASCII characters: {}",
@@ -366,7 +367,7 @@ impl FromRequest for Token {
                 } else {
                     // The request must use a Bearer token or BrowserID token
                     Err(TokenserverError {
-                        description: "Unsupported",
+                        description: "Unsupported".to_owned(),
                         location: ErrorLocation::Body,
                         context: "Invalid authorization scheme".to_owned(),
                         ..Default::default()
@@ -376,7 +377,7 @@ impl FromRequest for Token {
             } else {
                 // Headers that are not of the format "[AUTH TYPE] [TOKEN]" are invalid
                 Err(TokenserverError {
-                    description: "Unauthorized",
+                    description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
                     context: "Invalid Authorization header format".to_owned(),
                     ..Default::default()
@@ -485,10 +486,11 @@ impl FromRequest for XClientStateHeader {
                     return Err(TokenserverError {
                         status: "error",
                         location: ErrorLocation::Header,
-                        description: "Invalid client state value",
+                        description: "Invalid client state value".to_owned(),
                         name: "X-Client-State".to_owned(),
                         http_status: StatusCode::BAD_REQUEST,
                         context: "Invalid client state value".to_owned(),
+                        ..Default::default()
                     }
                     .into());
                 }
@@ -521,15 +523,19 @@ impl FromRequest for KeyId {
             // The X-KeyID header must be present for requests using OAuth
             let x_key_id = headers
                 .get("X-KeyID")
-                .ok_or_else(|| TokenserverError::invalid_key_id("Missing X-KeyID header"))?
+                .ok_or_else(|| {
+                    TokenserverError::invalid_key_id("Missing X-KeyID header".to_owned())
+                })?
                 .to_str()
-                .map_err(|_| TokenserverError::invalid_key_id("Invalid X-KeyID header"))?;
+                .map_err(|_| {
+                    TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned())
+                })?;
 
             // The X-KeyID header is of the format `[keys_changed_at]-[base64-encoded client state]` (e.g. `00000000000001234-qqo`)
             let (keys_changed_at_string, encoded_client_state) =
                 x_key_id.split_once('-').ok_or_else(|| TokenserverError {
                     context: "X-KeyID header has invalid format".to_owned(),
-                    ..TokenserverError::invalid_credentials("Unauthorized")
+                    ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                 })?;
 
             let client_state = {
@@ -544,7 +550,7 @@ impl FromRequest for KeyId {
                                     "Failed to decode client state base64 in X-KeyID: {}",
                                     e
                                 ),
-                                ..TokenserverError::invalid_credentials("Unauthorized")
+                                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                             })?;
 
                     hex::encode(bytes)
@@ -575,7 +581,7 @@ impl FromRequest for KeyId {
                     .parse::<i64>()
                     .map_err(|e| TokenserverError {
                         context: format!("Non-integral keys_changed_at in X-KeyID: {}", e),
-                        ..TokenserverError::invalid_credentials("Unauthorized")
+                        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                     })?;
 
             Ok(KeyId {
@@ -766,7 +772,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-        let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+        let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
         let body = extract_body_as_str(ServiceResponse::new(request, response));
         assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
     }
@@ -811,8 +817,10 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error =
-                TokenserverError::unsupported("Unsupported application version", "1.0".to_owned());
+            let expected_error = TokenserverError::unsupported(
+                "Unsupported application version".to_owned(),
+                "1.0".to_owned(),
+            );
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -831,8 +839,10 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error =
-                TokenserverError::unsupported("Unsupported application", "application".to_owned());
+            let expected_error = TokenserverError::unsupported(
+                "Unsupported application".to_owned(),
+                "application".to_owned(),
+            );
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -851,8 +861,10 @@ mod tests {
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error =
-                TokenserverError::unsupported("Unsupported application", "application".to_owned());
+            let expected_error = TokenserverError::unsupported(
+                "Unsupported application".to_owned(),
+                "application".to_owned(),
+            );
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -902,7 +914,8 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_key_id("Missing X-KeyID header");
+            let expected_error =
+                TokenserverError::invalid_key_id("Missing X-KeyID header".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -915,7 +928,8 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_key_id("Invalid X-KeyID header");
+            let expected_error =
+                TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -928,7 +942,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -941,7 +955,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -954,7 +968,8 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_key_id("Invalid X-KeyID header");
+            let expected_error =
+                TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -967,7 +982,7 @@ mod tests {
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized");
+            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -1182,7 +1197,7 @@ mod tests {
         };
 
         let error = tokenserver_request.validate().unwrap_err();
-        let error_message = "Unacceptable client-state value stale value";
+        let error_message = "Unacceptable client-state value stale value".to_owned();
         assert_eq!(error, TokenserverError::invalid_client_state(error_message));
     }
 
@@ -1219,7 +1234,8 @@ mod tests {
         };
 
         let error = tokenserver_request.validate().unwrap_err();
-        let error_message = "Unacceptable client-state value new value with no generation change";
+        let error_message =
+            "Unacceptable client-state value new value with no generation change".to_owned();
         assert_eq!(error, TokenserverError::invalid_client_state(error_message));
     }
 
@@ -1257,7 +1273,7 @@ mod tests {
 
         let error = tokenserver_request.validate().unwrap_err();
         let error_message =
-            "Unacceptable client-state value new value with no keys_changed_at change";
+            "Unacceptable client-state value new value with no keys_changed_at change".to_owned();
         assert_eq!(error, TokenserverError::invalid_client_state(error_message));
     }
 
