@@ -241,11 +241,10 @@ impl Serialize for TokenserverError {
 impl From<DbError> for TokenserverError {
     fn from(db_error: DbError) -> Self {
         TokenserverError {
-            http_status: db_error.status,
             description: db_error.to_string(),
             context: db_error.to_string(),
             backtrace: db_error.backtrace,
-            ..Default::default()
+            ..TokenserverError::internal_error()
         }
     }
 }
