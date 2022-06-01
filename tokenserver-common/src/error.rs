@@ -244,6 +244,14 @@ impl From<DbError> for TokenserverError {
             description: db_error.to_string(),
             context: db_error.to_string(),
             backtrace: db_error.backtrace,
+            http_status: if db_error.status.is_server_error() {
+                // Use the status code from the DbError if it already suggests an internal error;
+                // it might be more specific than `StatusCode::INTERNAL_SERVER_ERROR`
+                db_error.status
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            // An unhandled DbError in the Tokenserver code is an internal error
             ..TokenserverError::internal_error()
         }
     }
