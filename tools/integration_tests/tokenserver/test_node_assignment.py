@@ -136,9 +136,9 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         expected_error_response = {
             'errors': [
                 {
-                    'description': 'Unsupported application',
-                    'location': 'url',
-                    'name': 'application'
+                    'description': 'unable to get a node',
+                    'location': 'header',
+                    'name': ''
                 }
             ],
             'status': 'error'
