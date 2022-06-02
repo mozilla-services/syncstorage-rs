@@ -249,7 +249,7 @@ impl From<DbError> for TokenserverError {
                 // it might be more specific than `StatusCode::INTERNAL_SERVER_ERROR`
                 db_error.status
             } else {
-                StatusCode::INTERNAL_SERVER_ERROR
+                StatusCode::SERVICE_UNAVAILABLE
             },
             // An unhandled DbError in the Tokenserver code is an internal error
             ..TokenserverError::internal_error()
