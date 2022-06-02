@@ -10,7 +10,7 @@ use actix_web::{
     dev::Payload,
     http::StatusCode,
     web::{Data, Query},
-    Error, FromRequest, HttpRequest,
+    FromRequest, HttpRequest,
 };
 use futures::future::{self, LocalBoxFuture, Ready};
 use hex;
@@ -25,7 +25,7 @@ use super::{
     db::{models::Db, params, pool::DbPool, results},
     LogItemsMutator, NodeType, ServerState, TokenserverMetrics,
 };
-use crate::{error::ApiError, server::metrics, settings::Secrets};
+use crate::{server::metrics, settings::Secrets};
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -153,7 +153,7 @@ impl TokenserverRequest {
 
 impl FromRequest for TokenserverRequest {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -203,16 +203,14 @@ impl FromRequest for TokenserverRequest {
                             db.get_service_id(params::GetServiceId {
                                 service: SYNC_SERVICE_NAME.to_owned(),
                             })
-                            .await
-                            .map_err(ApiError::from)?
+                            .await?
                             .id,
                         )
                     } else {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version".to_owned(),
                             version.to_owned(),
-                        )
-                        .into());
+                        ));
                     }
                 } else {
                     // NOTE: It would probably be better to include the name of the unsupported
@@ -223,8 +221,7 @@ impl FromRequest for TokenserverRequest {
                     return Err(TokenserverError::unsupported(
                         "Unsupported application".to_owned(),
                         "application".to_owned(),
-                    )
-                    .into());
+                    ));
                 }
             };
             let user = db
@@ -236,12 +233,20 @@ impl FromRequest for TokenserverRequest {
                     keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
                 })
-                .await
-                .map_err(ApiError::from)?;
+                .await?;
             log_items_mutator.insert("first_seen_at".to_owned(), user.first_seen_at.to_string());
 
             let duration = {
-                let params = Query::<QueryParams>::extract(&req).await?;
+                let params =
+                    Query::<QueryParams>::extract(&req)
+                        .await
+                        .map_err(|_| TokenserverError {
+                            description: "invalid query params".to_owned(),
+                            context: "invalid query params".to_owned(),
+                            http_status: StatusCode::BAD_REQUEST,
+                            location: ErrorLocation::Url,
+                            ..Default::default()
+                        })?;
 
                 // An error in the "duration" query parameter should never cause a request to fail.
                 // Instead, we should simply resort to using the default token duration.
@@ -280,7 +285,7 @@ struct QueryParams {
 
 impl FromRequest for Box<dyn Db> {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -291,12 +296,9 @@ impl FromRequest for Box<dyn Db> {
                 .await?
                 .get()
                 .await
-                .map_err(|e| {
-                    TokenserverError {
-                        context: format!("Couldn't acquire a database connection: {}", e),
-                        ..TokenserverError::internal_error()
-                    }
-                    .into()
+                .map_err(|e| TokenserverError {
+                    context: format!("Couldn't acquire a database connection: {}", e),
+                    ..TokenserverError::internal_error()
                 })
         })
     }
@@ -304,7 +306,7 @@ impl FromRequest for Box<dyn Db> {
 
 impl FromRequest for Box<dyn DbPool> {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -329,7 +331,7 @@ pub enum Token {
 
 impl FromRequest for Token {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -371,8 +373,7 @@ impl FromRequest for Token {
                         location: ErrorLocation::Body,
                         context: "Invalid authorization scheme".to_owned(),
                         ..Default::default()
-                    }
-                    .into())
+                    })
                 }
             } else {
                 // Headers that are not of the format "[AUTH TYPE] [TOKEN]" are invalid
@@ -381,8 +382,7 @@ impl FromRequest for Token {
                     location: ErrorLocation::Body,
                     context: "Invalid Authorization header format".to_owned(),
                     ..Default::default()
-                }
-                .into())
+                })
             }
         })
     }
@@ -401,7 +401,7 @@ pub struct AuthData {
 
 impl FromRequest for AuthData {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -468,7 +468,7 @@ struct XClientStateHeader(Option<String>);
 
 impl FromRequest for XClientStateHeader {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -491,8 +491,7 @@ impl FromRequest for XClientStateHeader {
                         http_status: StatusCode::BAD_REQUEST,
                         context: "Invalid client state value".to_owned(),
                         ..Default::default()
-                    }
-                    .into());
+                    });
                 }
             }
 
@@ -511,7 +510,7 @@ struct KeyId {
 
 impl FromRequest for KeyId {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -568,8 +567,7 @@ impl FromRequest for KeyId {
                             location: ErrorLocation::Body,
                             context: "Client state mismatch in X-Client-State header".to_owned(),
                             ..TokenserverError::default()
-                        }
-                        .into());
+                        });
                     }
                 }
 
@@ -594,7 +592,7 @@ impl FromRequest for KeyId {
 
 impl FromRequest for TokenserverMetrics {
     type Config = ();
-    type Error = Error;
+    type Error = TokenserverError;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -612,28 +610,25 @@ impl FromRequest for TokenserverMetrics {
     }
 }
 
-fn get_server_state(req: &HttpRequest) -> Result<&Data<Option<ServerState>>, Error> {
-    req.app_data::<Data<Option<ServerState>>>().ok_or_else(|| {
-        Error::from(TokenserverError {
+fn get_server_state(req: &HttpRequest) -> Result<&Data<Option<ServerState>>, TokenserverError> {
+    req.app_data::<Data<Option<ServerState>>>()
+        .ok_or_else(|| TokenserverError {
             context: "Failed to load the application state".to_owned(),
             ..TokenserverError::internal_error()
         })
-    })
 }
 
-fn get_secret(req: &HttpRequest) -> Result<String, Error> {
-    let secrets = req.app_data::<Data<Arc<Secrets>>>().ok_or_else(|| {
-        Error::from(TokenserverError {
+fn get_secret(req: &HttpRequest) -> Result<String, TokenserverError> {
+    let secrets = req
+        .app_data::<Data<Arc<Secrets>>>()
+        .ok_or_else(|| TokenserverError {
             context: "Failed to load the application secrets".to_owned(),
             ..TokenserverError::internal_error()
-        })
-    })?;
+        })?;
 
-    String::from_utf8(secrets.master_secret.clone()).map_err(|e| {
-        Error::from(TokenserverError {
-            context: format!("Failed to read the master secret: {}", e),
-            ..TokenserverError::internal_error()
-        })
+    String::from_utf8(secrets.master_secret.clone()).map_err(|e| TokenserverError {
+        context: format!("Failed to read the master secret: {}", e),
+        ..TokenserverError::internal_error()
     })
 }
 

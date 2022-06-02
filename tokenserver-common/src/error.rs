@@ -256,3 +256,9 @@ impl From<DbError> for TokenserverError {
         }
     }
 }
+
+impl From<TokenserverError> for HttpResponse {
+    fn from(inner: TokenserverError) -> Self {
+        ResponseError::error_response(&inner)
+    }
+}
