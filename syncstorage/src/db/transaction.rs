@@ -16,9 +16,8 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::server::metrics::Metrics;
 use crate::server::ServerState;
 use crate::web::extractors::{
-    BsoParam, CollectionParam, PreConditionHeader, PreConditionHeaderOpt,
+    BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
-use crate::web::middleware::SyncServerRequest;
 use crate::web::tags::Tags;
 use crate::web::X_LAST_MODIFIED;
 
@@ -241,13 +240,10 @@ impl FromRequest for DbTransactionPool {
                 }
             };
             let method = req.method().clone();
-            let user_id = match req.get_hawk_id() {
-                Ok(v) => v,
-                Err(e) => {
-                    warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
-                    return Err(e);
-                }
-            };
+            let user_id = HawkIdentifier::extract(&req).await.map_err(|e| {
+                warn!("⚠️ Bad Hawk Id: {:?}", e; "user_agent"=> useragent);
+                e
+            })?;
             let bso = BsoParam::extrude(req.head(), &mut req.extensions_mut()).ok();
             let bso_opt = bso.map(|b| b.bso);
 
