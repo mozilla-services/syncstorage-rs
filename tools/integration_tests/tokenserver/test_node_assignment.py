@@ -136,11 +136,11 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         expected_error_response = {
             'errors': [
                 {
-                    'description': 'unable to get a node',
-                    'location': 'header',
+                    'description': 'Unexpected error: unable to get a node',
+                    'location': 'internal',
                     'name': ''
                 }
             ],
-            'status': 'error'
+            'status': 'internal-error'
         }
         self.assertEqual(res.json, expected_error_response)
