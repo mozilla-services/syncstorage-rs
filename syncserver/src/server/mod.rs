@@ -40,7 +40,7 @@ pub mod user_agent;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db_pool: Box<dyn DbPool>,
+    pub db_pool: Box<dyn DbPool<Error = Box<dyn std::error::Error>>>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,

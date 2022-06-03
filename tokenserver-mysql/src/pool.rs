@@ -10,10 +10,14 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 #[cfg(test)]
 use syncserver_db_common::test::TestTransactionCustomizer;
-use syncserver_db_common::{error::DbError, util, DbResult, GetPoolState, PoolState};
+use syncserver_db_common::{util, GetPoolState, PoolState};
+use syncstorage_mysql::error::DbError;
 use tokenserver_settings::Settings;
 
-use super::models::{Db, TokenserverDb};
+use super::{
+    models::{Db, TokenserverDb},
+    DbResult,
+};
 
 embed_migrations!("../migrations");
 
@@ -86,9 +90,11 @@ impl TokenserverPool {
     #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
-        let conn =
-            util::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from))
-                .await?;
+        let conn = util::run_on_blocking_threadpool(
+            move || pool.inner.get().map_err(DbError::from),
+            DbError::internal,
+        )
+        .await?;
 
         Ok(TokenserverDb::new(
             conn,
@@ -106,9 +112,11 @@ impl DbPool for TokenserverPool {
         metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
-        let conn =
-            util::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from))
-                .await?;
+        let conn = util::run_on_blocking_threadpool(
+            move || pool.inner.get().map_err(DbError::from),
+            DbError::internal,
+        )
+        .await?;
 
         Ok(Box::new(TokenserverDb::new(
             conn,

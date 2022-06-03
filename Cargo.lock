@@ -3129,6 +3129,7 @@ name = "syncstorage-mysql"
 version = "0.10.2"
 dependencies = [
  "async-trait",
+ "backtrace",
  "base64 0.13.0",
  "bytes 1.1.0",
  "cadence",
@@ -3434,6 +3435,7 @@ dependencies = [
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
+ "syncstorage-mysql",
  "thiserror",
  "time 0.3.9",
  "tokenserver-common",

@@ -22,7 +22,7 @@ use syncserver_db_common::{
 };
 use syncstorage_settings::{Quota, Settings};
 
-use super::models::MysqlDb;
+use super::{error::DbError, models::MysqlDb, DbResult};
 
 embed_migrations!();
 
@@ -102,18 +102,21 @@ impl MysqlDbPool {
 
 #[async_trait]
 impl DbPool for MysqlDbPool {
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a>>> {
-        let pool = self.clone();
-        let db = util::run_on_blocking_threadpool(move || pool.get_sync()).await?;
+    type Error = DbError;
 
-        Ok(Box::new(db) as Box<dyn Db<'a>>)
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a, Error = Self::Error>>> {
+        let pool = self.clone();
+        let db = util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal)
+            .await?;
+
+        Ok(Box::new(db) as Box<dyn Db<'a, Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool> {
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

@@ -15,14 +15,14 @@ use protobuf::{
     RepeatedField,
 };
 use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
-    params, results,
-    util::to_rfc3339,
-    util::SyncTimestamp,
-    DbResult, UserIdentifier, DEFAULT_BSO_TTL,
+    params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-use super::pool::Conn;
+use super::{
+    error::{DbError, DbErrorKind},
+    pool::Conn,
+    DbResult,
+};
 
 pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;

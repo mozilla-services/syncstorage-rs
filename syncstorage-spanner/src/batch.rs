@@ -12,12 +12,13 @@ use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     params, results,
     util::to_rfc3339,
-    DbResult, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 use uuid::Uuid;
 
 use super::models::{SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
+use super::DbResult;
 
 pub async fn create_async(
     db: &SpannerDb,
@@ -569,7 +570,7 @@ async fn pretouch_collection_async(
     Ok(())
 }
 
-pub fn validate_batch_id(id: &str) -> DbResult<()> {
+pub fn validate_batch_id(id: &str) -> Result<(), DbError> {
     Uuid::from_str(id)
         .map(|_| ())
         .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))

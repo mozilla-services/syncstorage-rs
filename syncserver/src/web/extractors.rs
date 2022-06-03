@@ -939,7 +939,8 @@ pub struct QuotaInfo {
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    pub db_pool: Box<dyn DbPool>,
+    // TODO: add type aliases to make this better
+    pub db_pool: Box<dyn DbPool<Error = Box<dyn std::error::Error>>>,
     pub quota: QuotaInfo,
 }
 
@@ -1780,7 +1781,7 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db<'static>> {
+    fn make_db() -> Box<dyn Db<'static, Error = Box<dyn std::error::Error>>> {
         Box::new(MockDb::new())
     }
 

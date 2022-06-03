@@ -9,12 +9,15 @@ extern crate slog_scope;
 mod macros;
 
 mod batch;
+pub mod error;
 pub mod manager;
 pub mod models;
 pub mod pool;
 mod support;
 
 pub use self::pool::SpannerDbPool;
+
+pub type DbResult<T> = Result<T, error::DbError>;
 
 pub fn now() -> i64 {
     SystemTime::now()

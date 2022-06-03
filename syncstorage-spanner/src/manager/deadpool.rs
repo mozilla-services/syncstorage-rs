@@ -4,10 +4,10 @@ use async_trait::async_trait;
 use deadpool::managed::{Manager, RecycleError, RecycleResult};
 use grpcio::{EnvBuilder, Environment};
 use syncserver_common::Metrics;
-use syncserver_db_common::error::{DbError, DbErrorKind};
 use syncstorage_settings::Settings;
 
 use super::session::{create_spanner_session, recycle_spanner_session, SpannerSession};
+use crate::error::DbError;
 
 pub type Conn = deadpool::managed::Object<SpannerSession, DbError>;
 
@@ -35,7 +35,7 @@ impl SpannerSessionManager {
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
         let database_name = settings
             .spanner_database_name()
-            .ok_or_else(|| DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?
+            .ok_or_else(|| DbError::invalid_url(settings.database_url.to_owned()))?
             .to_owned();
         let env = Arc::new(EnvBuilder::new().build());
 

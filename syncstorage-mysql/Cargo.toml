@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.40"
+backtrace = "0.3.61"
 base64 = "0.13"
 bytes = "1.0"
 cadence = "0.26"

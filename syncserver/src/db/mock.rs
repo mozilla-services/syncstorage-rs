@@ -3,9 +3,12 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{
-    error::DbError, params, results, util::SyncTimestamp, Db, DbFuture, DbPool, GetPoolState,
-    PoolState,
+    params, results, util::SyncTimestamp, Db, DbFuture, DbPool, GetPoolState, PoolState,
 };
+
+type DbFuture<'a, T> = syncstorage_db_common::DbFuture<'a, T, DbError>;
+
+struct DbError;
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -18,15 +21,17 @@ impl MockDbPool {
 
 #[async_trait]
 impl DbPool for MockDbPool {
-    async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a>>, DbError> {
-        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a>>)
+    type Error = DbError;
+
+    async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a, Error = DbError>>, DbError> {
+        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a, Error = DbError>>)
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
         Ok(())
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool> {
+    fn box_clone(&self) -> Box<dyn DbPool<Error = DbError>> {
         Box::new(self.clone())
     }
 }
@@ -59,6 +64,8 @@ macro_rules! mock_db_method {
 }
 
 impl<'a> Db<'a> for MockDb {
+    type Error = DbError;
+
     fn commit(&self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
@@ -71,7 +78,7 @@ impl<'a> Db<'a> for MockDb {
         Box::pin(future::ok(()))
     }
 
-    fn box_clone(&self) -> Box<dyn Db<'a>> {
+    fn box_clone(&self) -> Box<dyn Db<'a, Error = DbError>> {
         Box::new(self.clone())
     }
 

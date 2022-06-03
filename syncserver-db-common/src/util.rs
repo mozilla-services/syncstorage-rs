@@ -57,7 +57,7 @@ impl SyncTimestamp {
     /// Create a `SyncTimestamp` from an i64
     pub fn from_i64(val: i64) -> Result<Self, DbError> {
         if val < 0 {
-            return Err(DbErrorKind::Integrity("Invalid modified i64 (< 0)".to_owned()).into());
+            return Err(DbErrorKind::Internal("Invalid modified i64 (< 0)".to_owned()).into());
         }
         Ok(SyncTimestamp::from_milliseconds(val as u64))
     }
@@ -82,7 +82,8 @@ impl SyncTimestamp {
     /// string such as 1996-12-19T16:39:57-08:00
     pub fn from_rfc3339(val: &str) -> Result<Self, DbError> {
         let dt = DateTime::parse_from_rfc3339(val)
-            .map_err(|e| DbErrorKind::Integrity(format!("Invalid TIMESTAMP {}", e)))?;
+            // TODO: maybe convert these Internal errors to Integrity in Spanner code
+            .map_err(|e| DbErrorKind::Internal(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }
 
@@ -90,7 +91,7 @@ impl SyncTimestamp {
     fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, DbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
-            return Err(DbErrorKind::Integrity("Invalid DateTime (< 0)".to_owned()).into());
+            return Err(DbErrorKind::Internal("Invalid DateTime (< 0)".to_owned()).into());
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
@@ -179,19 +180,21 @@ pub fn to_rfc3339(val: i64) -> Result<String, DbError> {
         .to_rfc3339_opts(SecondsFormat::Nanos, true))
 }
 
-pub async fn run_on_blocking_threadpool<F, T>(f: F) -> Result<T, DbError>
+pub async fn run_on_blocking_threadpool<F, T, E, M>(f: F, e: M) -> Result<T, E>
 where
-    F: FnOnce() -> Result<T, DbError> + Send + 'static,
+    F: FnOnce() -> Result<T, E> + Send + 'static,
     T: Send + 'static,
+    M: FnOnce(&'static str) -> E,
+    E: Send + 'static,
 {
     task::spawn_blocking(f)
         .map_err(|err| {
             if err.is_cancelled() {
-                DbError::internal("Db threadpool operation cancelled")
+                e("Db threadpool operation cancelled")
             } else if err.is_panic() {
-                DbError::internal("Db threadpool operation panicked")
+                e("Db threadpool operation panicked")
             } else {
-                DbError::internal("Db threadpool operation failed for unknown reason")
+                e("Db threadpool operation failed for unknown reason")
             }
         })
         .await?
@@ -203,11 +206,12 @@ macro_rules! sync_db_method {
         sync_db_method!($name, $sync_name, $type, results::$type);
     };
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result, Self::Error> {
             let db = self.clone();
-            Box::pin(util::run_on_blocking_threadpool(move || {
-                db.$sync_name(params)
-            }))
+            Box::pin(util::run_on_blocking_threadpool(
+                move || db.$sync_name(params),
+                Self::Error::internal,
+            ))
         }
     };
 }

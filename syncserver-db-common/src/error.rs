@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_common::impl_fmt_display;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -14,24 +14,6 @@ pub struct DbError {
 
 #[derive(Debug, Error)]
 pub enum DbErrorKind {
-    #[error("A database error occurred: {}", _0)]
-    DieselQuery(#[from] diesel::result::Error),
-
-    #[error("An error occurred while establishing a db connection: {}", _0)]
-    DieselConnection(#[from] diesel::result::ConnectionError),
-
-    #[error("A database error occurred: {}", _0)]
-    SpannerGrpc(#[from] grpcio::Error),
-
-    #[error("Spanner data load too large: {}", _0)]
-    SpannerTooLarge(String),
-
-    #[error("A database pool error occurred: {}", _0)]
-    Pool(diesel::r2d2::PoolError),
-
-    #[error("Error migrating the database: {}", _0)]
-    Migration(diesel_migrations::RunMigrationsError),
-
     #[error("Specified collection does not exist")]
     CollectionNotFound,
 
@@ -44,9 +26,6 @@ pub enum DbErrorKind {
     #[error("An attempt at a conflicting write")]
     Conflict,
 
-    #[error("Database integrity error: {}", _0)]
-    Integrity(String),
-
     #[error("Invalid database URL: {}", _0)]
     InvalidUrl(String),
 
@@ -55,9 +34,6 @@ pub enum DbErrorKind {
 
     #[error("User over quota")]
     Quota,
-
-    #[error("Connection expired")]
-    Expired,
 }
 
 impl DbError {
@@ -102,7 +78,7 @@ impl From<DbErrorKind> for DbError {
         let status = match kind {
             DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
             // Matching the Python code here (a 400 vs 404)
-            DbErrorKind::BatchNotFound | DbErrorKind::SpannerTooLarge(_) => StatusCode::BAD_REQUEST,
+            DbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
             // NOTE: the protocol specification states that we should return a
             // "409 Conflict" response here, but clients currently do not
             // handle these respones very well:
@@ -122,27 +98,3 @@ impl From<DbErrorKind> for DbError {
 }
 
 impl_fmt_display!(DbError, DbErrorKind);
-
-from_error!(diesel::result::Error, DbError, DbErrorKind::DieselQuery);
-from_error!(
-    diesel::result::ConnectionError,
-    DbError,
-    DbErrorKind::DieselConnection
-);
-from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
-    // Convert ABORTED (typically due to a transaction abort) into 503s
-    match inner {
-        grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
-            if status.code() == grpcio::RpcStatusCode::ABORTED =>
-        {
-            DbErrorKind::Conflict
-        }
-        _ => DbErrorKind::SpannerGrpc(inner),
-    }
-});
-from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
-from_error!(
-    diesel_migrations::RunMigrationsError,
-    DbError,
-    DbErrorKind::Migration
-);

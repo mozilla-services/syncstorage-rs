@@ -3,16 +3,16 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use bb8::ErrorSink;
 use syncserver_common::Metrics;
-use syncserver_db_common::{
-    error::DbError, Db, DbPool, DbResult, GetPoolState, PoolState, STD_COLLS,
-};
+use syncserver_db_common::{Db, DbPool, GetPoolState, PoolState, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
 pub use super::manager::Conn;
 use super::{
+    error::DbError,
     manager::{SpannerSession, SpannerSessionManager},
     models::SpannerDb,
+    DbResult,
 };
 
 embed_migrations!();
@@ -87,21 +87,23 @@ impl SpannerDbPool {
 
 #[async_trait]
 impl DbPool for SpannerDbPool {
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a>>> {
+    type Error = DbError;
+
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a, Error = Self::Error>>> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.get_pool", None);
 
         self.get_async()
             .await
-            .map(|db| Box::new(db) as Box<dyn Db<'a>>)
+            .map(|db| Box::new(db) as Box<dyn Db<'a, Error = Self::Error>>)
             .map_err(Into::into)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        super::batch::validate_batch_id(&id)
+        super::batch::validate_batch_id(&id).map_err(Into::into)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool> {
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

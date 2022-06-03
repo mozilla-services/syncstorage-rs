@@ -6,23 +6,22 @@ use diesel::{
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
-use futures::future::LocalBoxFuture;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use syncserver_db_common::{error::DbError, sync_db_method, util, DbResult};
+use syncserver_db_common::{sync_db_method, util};
+use syncstorage_mysql::error::DbError;
 
 use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::{params, results};
+use super::{params, results, DbFuture, DbResult};
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
 
-pub type DbFuture<'a, T> = LocalBoxFuture<'a, Result<T, DbError>>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
@@ -660,6 +659,21 @@ impl TokenserverDb {
     }
 }
 
+macro_rules! sync_db_method {
+    ($name:ident, $sync_name:ident, $type:ident) => {
+        sync_db_method!($name, $sync_name, $type, results::$type);
+    };
+    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
+            let db = self.clone();
+            Box::pin(util::run_on_blocking_threadpool(
+                move || db.$sync_name(params),
+                DbError::internal,
+            ))
+        }
+    };
+}
+
 impl Db for TokenserverDb {
     sync_db_method!(replace_user, replace_user_sync, ReplaceUser);
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
@@ -678,7 +692,10 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.check_sync(),
+            DbError::internal,
+        ))
     }
 
     #[cfg(test)]

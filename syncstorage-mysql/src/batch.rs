@@ -9,14 +9,13 @@ use diesel::{
     sql_types::{BigInt, Integer},
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
-    params, results, DbResult, UserIdentifier, BATCH_LIFETIME,
-};
+use syncserver_db_common::{params, results, UserIdentifier, BATCH_LIFETIME};
 
 use super::{
+    error::DbError,
     models::MysqlDb,
     schema::{batch_upload_items, batch_uploads},
+    DbResult,
 };
 
 const MAXTTL: i32 = 2_100_000_000;
@@ -47,7 +46,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
         .map_err(|e| -> DbError {
             match e {
                 // The user tried to create two batches with the same timestamp
-                DieselError::DatabaseError(UniqueViolation, _) => DbErrorKind::Conflict.into(),
+                DieselError::DatabaseError(UniqueViolation, _) => DbError::conflict(),
                 _ => e.into(),
             }
         })?;
@@ -90,7 +89,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
     )?;
 
     if !exists {
-        return Err(DbErrorKind::BatchNotFound.into());
+        return Err(DbError::batch_not_found());
     }
 
     let batch_id = decode_id(&params.batch.id)?;

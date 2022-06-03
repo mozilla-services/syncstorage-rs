@@ -44,8 +44,9 @@ slog = { version = "2.5", features = [
   "dynamic-keys",
 ] }
 slog-scope = "4.3"
-syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-mysql = { path = "../syncstorage-mysql" }
 time = "^0.3"
 thiserror = "1.0.26"
 tokenserver-common = { path = "../tokenserver-common" }

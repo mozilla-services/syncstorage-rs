@@ -17,18 +17,26 @@ use diesel::{
 use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
-    params, results, sync_db_method,
+    // error::{DbError, DbErrorKind},
+    params,
+    results,
+    sync_db_method,
     util::{self, SyncTimestamp},
-    Db, DbFuture, DbResult, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
+    Db,
+    DbFuture,
+    Sorting,
+    UserIdentifier,
+    DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
     batch,
     diesel_ext::LockInShareModeDsl,
+    error::DbError,
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
+    DbResult,
 };
 
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
@@ -216,7 +224,7 @@ impl MysqlDb {
             let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
             if modified >= self.timestamp() {
-                return Err(DbErrorKind::Conflict.into());
+                return Err(DbError::conflict());
             }
             self.session
                 .borrow_mut()
@@ -311,7 +319,7 @@ impl MysqlDb {
             .filter(user_collections::collection_id.eq(&collection_id))
             .execute(&self.conn)?;
         if count == 0 {
-            return Err(DbErrorKind::CollectionNotFound.into());
+            return Err(DbError::collection_not_found());
         } else {
             self.erect_tombstone(user_id as i32)?;
         }
@@ -354,7 +362,7 @@ impl MysqlDb {
         .bind::<Text, _>(name)
         .get_result::<IdResult>(&self.conn)
         .optional()?
-        .ok_or(DbErrorKind::CollectionNotFound)?
+        .ok_or_else(DbError::collection_not_found)?
         .id;
         if !self.session.borrow().in_write_transaction {
             self.coll_cache.put(id, name.to_owned())?;
@@ -374,7 +382,7 @@ impl MysqlDb {
             .bind::<Integer, _>(&id)
             .get_result::<NameResult>(&self.conn)
             .optional()?
-            .ok_or(DbErrorKind::CollectionNotFound)?
+            .ok_or_else(DbError::collection_not_found)?
             .name
         };
         Ok(name)
@@ -403,7 +411,7 @@ impl MysqlDb {
                 tags.insert("collection".to_owned(), bso.collection.clone());
                 self.metrics.incr_with_tags("storage.quota.at_limit", tags);
                 if self.quota.enforced {
-                    return Err(DbErrorKind::Quota.into());
+                    return Err(DbError::quota());
                 } else {
                     warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
                 }
@@ -653,7 +661,7 @@ impl MysqlDb {
             .filter(bso::expiry.gt(&self.timestamp().as_i64()))
             .execute(&self.conn)?;
         if affected_rows == 0 {
-            return Err(DbErrorKind::BsoNotFound.into());
+            return Err(DbError::bso_not_found());
         }
         self.update_collection(user_id as u32, collection_id)
     }
@@ -709,7 +717,7 @@ impl MysqlDb {
             .filter(user_collections::user_id.eq(user_id))
             .first::<Option<i64>>(&self.conn)?
             .unwrap_or_default();
-        SyncTimestamp::from_i64(modified)
+        SyncTimestamp::from_i64(modified).map_err(Into::into)
     }
 
     pub fn get_collection_timestamp_sync(
@@ -732,7 +740,7 @@ impl MysqlDb {
             .filter(user_collections::collection_id.eq(collection_id))
             .first(&self.conn)
             .optional()?
-            .ok_or_else(|| DbErrorKind::CollectionNotFound.into())
+            .ok_or_else(DbError::collection_not_found)
     }
 
     pub fn get_bso_timestamp_sync(
@@ -749,7 +757,7 @@ impl MysqlDb {
             .first::<i64>(&self.conn)
             .optional()?
             .unwrap_or_default();
-        SyncTimestamp::from_i64(modified)
+        SyncTimestamp::from_i64(modified).map_err(Into::into)
     }
 
     pub fn get_collection_timestamps_sync(
@@ -769,7 +777,11 @@ impl MysqlDb {
         .bind::<Integer, _>(TOMBSTONE)
         .load::<UserCollectionsResult>(&self.conn)?
         .into_iter()
-        .map(|cr| SyncTimestamp::from_i64(cr.last_modified).map(|ts| (cr.collection, ts)))
+        .map(|cr| {
+            SyncTimestamp::from_i64(cr.last_modified)
+                .map(|ts| (cr.collection, ts))
+                .map_err(Into::into)
+        })
         .collect::<DbResult<HashMap<_, _>>>()?;
         self.map_collection_names(modifieds)
     }
@@ -780,6 +792,7 @@ impl MysqlDb {
         Ok(result as u64 > 0)
     }
 
+    // TODO: convert the helper functions to use DbErrorKindCommon instead
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> DbResult<HashMap<String, T>> {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
@@ -977,28 +990,39 @@ impl MysqlDb {
 }
 
 impl<'a> Db<'a> for MysqlDb {
-    fn commit(&self) -> DbFuture<'_, ()> {
+    type Error = DbError;
+
+    fn commit(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || db.commit_sync()))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.commit_sync(),
+            Self::Error::internal,
+        ))
     }
 
-    fn rollback(&self) -> DbFuture<'_, ()> {
+    fn rollback(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || db.rollback_sync()))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.rollback_sync(),
+            Self::Error::internal,
+        ))
     }
 
-    fn begin(&self, for_write: bool) -> DbFuture<'_, ()> {
+    fn begin(&self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
-    fn box_clone(&self) -> Box<dyn Db<'a>> {
+    fn box_clone(&self) -> Box<dyn Db<'a, Error = Self::Error>> {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<'_, results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.check_sync(),
+            Self::Error::internal,
+        ))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1056,29 +1080,35 @@ impl<'a> Db<'a> for MysqlDb {
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
-    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
+    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || {
-            db.get_collection_id(&name)
-        }))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.get_collection_id(&name),
+            Self::Error::internal,
+        ))
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
         results::ConnectionInfo::default()
     }
 
-    fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
+    fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || {
-            db.get_or_create_collection_id(&name)
-        }))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.get_or_create_collection_id(&name),
+            Self::Error::internal,
+        ))
     }
 
-    fn update_collection(&self, param: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp> {
+    fn update_collection(
+        &self,
+        param: params::UpdateCollection,
+    ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || {
-            db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
-        }))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || db.update_collection(param.user_id.legacy_id as u32, param.collection_id),
+            Self::Error::internal,
+        ))
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -1091,12 +1121,15 @@ impl<'a> Db<'a> for MysqlDb {
 
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 
-    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+    fn clear_coll_cache(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(move || {
-            db.coll_cache.clear();
-            Ok(())
-        }))
+        Box::pin(util::run_on_blocking_threadpool(
+            move || {
+                db.coll_cache.clear();
+                Ok(())
+            },
+            Self::Error::internal,
+        ))
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
