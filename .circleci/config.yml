@@ -11,9 +11,6 @@ commands:
       - run:
           name: Setup Rust
           command: 
-            # rustup install stable
-            # rustup default stable
-            # rustup update
             rustc --version
   setup-rust-check:
     steps:
@@ -164,7 +161,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -180,7 +177,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
