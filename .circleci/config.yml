@@ -9,7 +9,7 @@ commands:
   setup-rust:
     steps:
       - run:
-          name: Setup Rust
+          name: Display Rust Version
           command: 
             rustc --version
   setup-rust-check:
@@ -54,7 +54,6 @@ commands:
       - run:
           name: cargo build
           command: cargo build
-          no_output_timeout: 20m
   setup-gcp-grpc:
     steps:
       - run:
