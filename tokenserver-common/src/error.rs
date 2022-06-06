@@ -246,7 +246,7 @@ impl From<DbError> for TokenserverError {
             backtrace: db_error.backtrace,
             http_status: if db_error.status.is_server_error() {
                 // Use the status code from the DbError if it already suggests an internal error;
-                // it might be more specific than `StatusCode::INTERNAL_SERVER_ERROR`
+                // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
                 db_error.status
             } else {
                 StatusCode::SERVICE_UNAVAILABLE
