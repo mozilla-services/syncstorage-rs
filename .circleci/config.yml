@@ -166,7 +166,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - checkout
-      - setup-rust
+      - display-rust
       - setup-rust-check
       - setup-gcp-grpc
       - rust-check
@@ -207,7 +207,7 @@ jobs:
               echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
             fi
       - checkout
-      - setup-rust
+      - display-rust
       - setup-python
       - setup-gcp-grpc
       - setup-mysql
