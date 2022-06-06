@@ -22,11 +22,12 @@ use serde::{
 };
 
 use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
-use syncserver_db_common::error::DbError;
+use syncserver_db_common::error::{DbError, DbErrorIntrospect};
 use syncstorage_mysql::error::DbError as MysqlError;
 use syncstorage_spanner::error::DbError as SpannerError;
 use thiserror::Error;
 
+use crate::db::DbError;
 use crate::web::error::{HawkError, ValidationError};
 use std::error::Error;
 
@@ -71,7 +72,7 @@ pub enum ApiErrorKind {
     // #[derive(thiserror::Error,...)] to the target error to ensure that various
     // traits are defined.
     #[error("{}", _0)]
-    Mysql(MysqlError),
+    Db(DbError),
 
     #[error("HAWK authentication error: {}", _0)]
     Hawk(HawkError),
@@ -83,9 +84,6 @@ pub enum ApiErrorKind {
     Internal(String),
 
     #[error("{}", _0)]
-    Spanner(SpannerError),
-
-    #[error("{}", _0)]
     Validation(ValidationError),
 }
 
@@ -93,8 +91,7 @@ impl ApiErrorKind {
     pub fn metric_label(&self) -> Option<String> {
         match self {
             ApiErrorKind::Hawk(err) => err.metric_label(),
-            ApiErrorKind::Mysql(err) => err.metric_label(),
-            ApiErrorKind::Spanner(err) => err.metric_label(),
+            ApiErrorKind::Db(err) => err.metric_label(),
             ApiErrorKind::Validation(err) => err.metric_label(),
             _ => None,
         }
@@ -102,12 +99,11 @@ impl ApiErrorKind {
 }
 
 impl ApiError {
-    pub fn is_reportable(&self) -> bool {
+    pub fn is_sentry_event(&self) -> bool {
         // Should we report this error to sentry?
         self.status.is_server_error()
             && match &self.kind {
-                ApiErrorKind::Mysql(dbe) => dbe.is_reportable(),
-                ApiErrorKind::Spanner(dbe) => dbe.is_reportable(),
+                ApiErrorKind::Db(dbe) => dbe.is_sentry_event(),
                 _ => self.kind.metric_label().is_none(),
             }
     }
@@ -136,35 +132,19 @@ impl ApiError {
     }
 
     pub fn is_collection_not_found(&self) -> bool {
-        match &self.kind {
-            ApiErrorKind::Mysql(dbe) => dbe.is_collection_not_found(),
-            ApiErrorKind::Spanner(dbe) => dbe.is_collection_not_found(),
-            _ => false,
-        }
+        matches!(&self.kind, ApiErrorKind::Db(dbe) if dbe.is_collection_not_found())
     }
 
     pub fn is_conflict(&self) -> bool {
-        match &self.kind {
-            ApiErrorKind::Mysql(dbe) => dbe.is_conflict(),
-            ApiErrorKind::Spanner(dbe) => dbe.is_conflict(),
-            _ => false,
-        }
+        matches!(&self.kind, ApiErrorKind::Db(dbe) if dbe.is_conflict())
     }
 
     pub fn is_quota(&self) -> bool {
-        match &self.kind {
-            ApiErrorKind::Mysql(dbe) => dbe.is_quota(),
-            ApiErrorKind::Spanner(dbe) => dbe.is_quota(),
-            _ => false,
-        }
+        matches!(&self.kind, ApiErrorKind::Db(dbe) if dbe.is_quota())
     }
 
     pub fn is_bso_not_found(&self) -> bool {
-        match &self.kind {
-            ApiErrorKind::Mysql(dbe) => dbe.is_bso_not_found(),
-            ApiErrorKind::Spanner(dbe) => dbe.is_bso_not_found(),
-            _ => false,
-        }
+        matches!(&self.kind, ApiErrorKind::Db(dbe) if dbe.is_bso_not_found())
     }
 }
 
@@ -281,18 +261,8 @@ where
 
 impl_fmt_display!(ApiError, ApiErrorKind);
 
-impl From<MysqlError> for ApiError {
-    fn from(db_error: MysqlError) -> Self {
-        Self {
-            status: db_error.status,
-            backtrace: db_error.backtrace.clone(),
-            kind: ApiErrorKind::Db(db_error),
-        }
-    }
-}
-
-impl From<SpannerError> for ApiError {
-    fn from(db_error: SpannerError) -> Self {
+impl From<DbError> for ApiError {
+    fn from(db_error: DbError) -> Self {
         Self {
             status: db_error.status,
             backtrace: db_error.backtrace.clone(),

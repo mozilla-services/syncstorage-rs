@@ -7,7 +7,6 @@ use diesel::{
     RunQueryDsl,
 };
 use syncserver_common::Metrics;
-use syncserver_db_common::DbResult;
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;

@@ -26,7 +26,6 @@ use syncstorage_settings::ServerLimits;
 
 use super::*;
 use crate::build_app;
-use crate::db::pool_from_settings;
 use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody};
 
@@ -67,8 +66,7 @@ fn get_test_settings() -> Settings {
 async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
     ServerState {
-        db_pool: pool_from_settings(&settings.syncstorage, &Metrics::from(&metrics))
-            .await
+        db_pool: DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))
             .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),

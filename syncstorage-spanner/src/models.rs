@@ -24,8 +24,8 @@ use protobuf::{
 };
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncserver_db_common::{
-    params, results, util::SyncTimestamp, Db, DbFuture, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
-    FIRST_CUSTOM_COLLECTION_ID,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, DbFuture, Sorting,
+    UserIdentifier, DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
 

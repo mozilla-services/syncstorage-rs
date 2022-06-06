@@ -14,12 +14,11 @@ use actix_web::{
 use cadence::StatsdClient;
 use futures::future::{self, Ready};
 use syncserver_common::Metrics;
-use syncserver_db_common::DbPool;
 use syncserver_settings::Settings;
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
 
-use crate::db::{pool_from_settings, spawn_pool_periodic_reporter};
+use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
 use crate::error::ApiError;
 use crate::server::tags::Taggable;
 use crate::tokenserver;
@@ -40,7 +39,7 @@ pub mod user_agent;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db_pool: Box<dyn DbPool<Error = Box<dyn std::error::Error>>>,
+    pub db_pool: DbPool,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
@@ -251,7 +250,7 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
-        let db_pool = pool_from_settings(&settings.syncstorage, &Metrics::from(&metrics)).await?;
+        let db_pool = DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))?;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");

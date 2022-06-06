@@ -17,9 +17,7 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 #[cfg(test)]
 use syncserver_db_common::test::TestTransactionCustomizer;
-use syncserver_db_common::{
-    error::DbError, util, Db, DbPool, DbResult, GetPoolState, PoolState, STD_COLLS,
-};
+use syncserver_db_common::{util, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
 use super::{error::DbError, models::MysqlDb, DbResult};
@@ -102,28 +100,16 @@ impl MysqlDbPool {
 
 #[async_trait]
 impl DbPool for MysqlDbPool {
+    type Db = MysqlDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a, Error = Self::Error>>> {
+    async fn get<'a>(&'a self) -> DbResult<Self::Db> {
         let pool = self.clone();
-        let db = util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal)
-            .await?;
-
-        Ok(Box::new(db) as Box<dyn Db<'a, Error = Self::Error>>)
+        util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal).await
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id)
-    }
-
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
-        Box::new(self.clone())
-    }
-}
-
-impl GetPoolState for MysqlDbPool {
-    fn state(&self) -> PoolState {
-        self.pool.state().into()
     }
 }
 

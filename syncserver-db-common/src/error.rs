@@ -40,35 +40,47 @@ impl DbError {
     pub fn internal(msg: &str) -> Self {
         DbErrorKind::Internal(msg.to_owned()).into()
     }
+}
 
-    pub fn is_sentry_event(&self) -> bool {
+pub trait DbErrorIntrospect {
+    fn is_sentry_event(&self) -> bool;
+    fn metric_label(&self) -> Option<String>;
+    fn is_collection_not_found(&self) -> bool;
+    fn is_conflict(&self) -> bool;
+    fn is_quota(&self) -> bool;
+    fn is_bso_not_found(&self) -> bool;
+    fn is_batch_not_found(&self) -> bool;
+}
+
+impl DbErrorIntrospect for DbError {
+    fn is_sentry_event(&self) -> bool {
         !matches!(&self.kind, DbErrorKind::Conflict)
     }
 
-    pub fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<String> {
         match &self.kind {
             DbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }
 
-    pub fn is_collection_not_found(&self) -> bool {
+    fn is_collection_not_found(&self) -> bool {
         matches!(self.kind, DbErrorKind::CollectionNotFound)
     }
 
-    pub fn is_conflict(&self) -> bool {
+    fn is_conflict(&self) -> bool {
         matches!(self.kind, DbErrorKind::Conflict)
     }
 
-    pub fn is_quota(&self) -> bool {
+    fn is_quota(&self) -> bool {
         matches!(self.kind, DbErrorKind::Quota)
     }
 
-    pub fn is_bso_not_found(&self) -> bool {
+    fn is_bso_not_found(&self) -> bool {
         matches!(self.kind, DbErrorKind::BsoNotFound)
     }
 
-    pub fn is_batch_not_found(&self) -> bool {
+    fn is_batch_not_found(&self) -> bool {
         matches!(self.kind, DbErrorKind::BatchNotFound)
     }
 }

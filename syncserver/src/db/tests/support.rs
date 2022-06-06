@@ -1,18 +1,19 @@
 use std::str::FromStr;
 
 use syncserver_common::Metrics;
-use syncserver_db_common::{params, util::SyncTimestamp, Db, Sorting, UserIdentifier};
+use syncserver_db_common::{
+    params, util::SyncTimestamp, Db as DbTrait, DbPool as DbPoolTrait, Sorting, UserIdentifier,
+};
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 
-use crate::db::DbPool;
-use crate::error::ApiResult;
-use crate::{db::pool_from_settings, error::ApiError};
+use crate::db::{Db, DbPool};
+use crate::error::{ApiError, ApiResult};
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
 #[cfg(test)]
-pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<Box<dyn DbPool>> {
+pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool> {
     let _ = env_logger::try_init();
     // The default for SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS is
     // false, but we want the mysql default to be true, so let's check
@@ -27,11 +28,11 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<Box<dyn Db
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = Metrics::noop();
-    let pool = pool_from_settings(&settings, &metrics).await?;
+    let pool = DbPool::new(&settings, &metrics)?;
     Ok(pool)
 }
 
-pub async fn test_db<E>(pool: &dyn DbPool<Error = E>) -> ApiResult<Box<dyn Db<'_, Error = E>>> {
+pub async fn test_db(pool: DbPool) -> ApiResult<Db> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

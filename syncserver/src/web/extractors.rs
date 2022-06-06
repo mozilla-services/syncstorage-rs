@@ -31,11 +31,14 @@ use syncserver_common::{Metrics, X_WEAVE_RECORDS};
 use syncserver_db_common::{
     params::{self, PostCollectionBso},
     util::SyncTimestamp,
-    DbPool, Sorting, UserIdentifier,
+    // TODO: figure out something better than _Trait
+    DbPool as DbPoolTrait,
+    Sorting,
+    UserIdentifier,
 };
 use validator::{Validate, ValidationError};
 
-use crate::db::transaction::DbTransactionPool;
+use crate::db::{transaction::DbTransactionPool, DbPool};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::label;
 use crate::server::{
@@ -939,8 +942,7 @@ pub struct QuotaInfo {
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    // TODO: add type aliases to make this better
-    pub db_pool: Box<dyn DbPool<Error = Box<dyn std::error::Error>>>,
+    pub db_pool: DbPool,
     pub quota: QuotaInfo,
 }
 
@@ -1757,7 +1759,6 @@ mod tests {
     use serde_json::{self, json};
     use sha2::Sha256;
     use syncserver_common;
-    use syncserver_db_common::Db;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
     use tokio::sync::RwLock;
@@ -1781,15 +1782,15 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db<'static, Error = Box<dyn std::error::Error>>> {
-        Box::new(MockDb::new())
+    fn make_db() -> MockDb {
+        MockDb::new()
     }
 
     fn make_state() -> ServerState {
         let syncserver_settings = GlobalSettings::default();
         let syncstorage_settings = SyncstorageSettings::default();
         ServerState {
-            db_pool: Box::new(MockDbPool::new()),
+            db_pool: MockDbPool::new(),
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,

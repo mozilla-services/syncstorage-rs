@@ -9,30 +9,38 @@ use std::time::Duration;
 
 use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
-use syncserver_common::Metrics;
-use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
-    results, DbPool, GetPoolState, PoolState,
-};
+use syncserver_db_common::{results, GetPoolState, PoolState};
+#[cfg(feature = "mysql")]
 use syncstorage_mysql::pool::MysqlDbPool;
-use syncstorage_settings::Settings;
+#[cfg(feature = "spanner")]
 use syncstorage_spanner::pool::SpannerDbPool;
 use tokio::{self, time};
-use url::Url;
+
+// TODO: can probably clean this up by creating a submodule and applying preprocessor command to that
+// TODO: pub use * that submodule to include it here
+#[cfg(feature = "mysql")]
+pub type DbPool = MysqlDbPool;
+#[cfg(feature = "mysql")]
+pub use syncstorage_mysql::error::DbError;
+#[cfg(feature = "mysql")]
+pub use syncstorage_mysql::error::DbErrorKind;
+#[cfg(feature = "mysql")]
+pub type Db = syncstorage_mysql::models::MysqlDb;
 
 /// Create/initialize a pool of managed Db connections
-pub async fn pool_from_settings(
-    settings: &Settings,
-    metrics: &Metrics,
-) -> Result<Box<dyn DbPool>, DbError> {
-    let url =
-        Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
-    Ok(match url.scheme() {
-        "mysql" => Box::new(MysqlDbPool::new(settings, metrics)?),
-        "spanner" => Box::new(SpannerDbPool::new(settings, metrics).await?),
-        _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
-    })
-}
+// TODO: remove this
+// pub async fn pool_from_settings(
+//     settings: &Settings,
+//     metrics: &Metrics,
+// ) -> Result<Box<dyn DbPool>, DbError> {
+//     let url =
+//         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
+//     Ok(match url.scheme() {
+//         "mysql" => Box::new(MysqlDbPool::new(settings, metrics)?),
+//         "spanner" => Box::new(SpannerDbPool::new(settings, metrics).await?),
+//         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
+//     })
+// }
 
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(

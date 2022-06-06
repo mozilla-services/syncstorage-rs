@@ -3,12 +3,42 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{
-    params, results, util::SyncTimestamp, Db, DbFuture, DbPool, GetPoolState, PoolState,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, DbPool,
 };
 
-type DbFuture<'a, T> = syncstorage_db_common::DbFuture<'a, T, DbError>;
+type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 
-struct DbError;
+pub struct DbError;
+
+impl DbErrorIntrospect for DbError {
+    fn is_batch_not_found(&self) -> bool {
+        false
+    }
+
+    fn is_bso_not_found(&self) -> bool {
+        false
+    }
+
+    fn is_collection_not_found(&self) -> bool {
+        false
+    }
+
+    fn is_conflict(&self) -> bool {
+        false
+    }
+
+    fn is_quota(&self) -> bool {
+        false
+    }
+
+    fn is_sentry_event(&self) -> bool {
+        false
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        None
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -21,24 +51,15 @@ impl MockDbPool {
 
 #[async_trait]
 impl DbPool for MockDbPool {
+    type Db = MockDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a, Error = DbError>>, DbError> {
-        Ok(Box::new(MockDb::new()) as Box<dyn Db<'a, Error = DbError>>)
+    async fn get<'a>(&'a self) -> Result<Self::Db, Self::Error> {
+        Ok(MockDb::new())
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
         Ok(())
-    }
-
-    fn box_clone(&self) -> Box<dyn DbPool<Error = DbError>> {
-        Box::new(self.clone())
-    }
-}
-
-impl GetPoolState for MockDbPool {
-    fn state(&self) -> PoolState {
-        PoolState::default()
     }
 }
 

@@ -2,8 +2,10 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncstorage_common::{from_error, impl_fmt_display};
-use syncstorage_db_common::error::{DbError as DbErrorCommon, DbErrorKind as DbErrorKindCommon};
+use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_db_common::error::{
+    DbError as DbErrorCommon, DbErrorIntrospect, DbErrorKind as DbErrorKindCommon,
+};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -14,6 +16,7 @@ pub struct DbError {
 }
 
 impl DbError {
+    // TODO:
     // pub fn batch_not_found() -> Self {
     //     DbErrorKind::Common(DbErrorKindCommon::BatchNotFound.into()).into()
     // }
@@ -36,10 +39,6 @@ impl DbError {
 
     pub fn invalid_url(msg: String) -> Self {
         DbErrorKind::Common(DbErrorKindCommon::InvalidUrl(msg).into()).into()
-    }
-
-    pub fn is_collection_not_found(&self) -> bool {
-        matches!(&self.kind, DbErrorKind::Common(e) if e.is_collection_not_found())
     }
 
     pub fn quota() -> Self {
@@ -78,6 +77,40 @@ impl From<DbErrorKind> for DbError {
             kind,
             status,
             backtrace: Backtrace::new(),
+        }
+    }
+}
+
+impl DbErrorIntrospect for DbError {
+    fn is_batch_not_found(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_batch_not_found())
+    }
+
+    fn is_bso_not_found(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_bso_not_found())
+    }
+
+    fn is_collection_not_found(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_collection_not_found())
+    }
+
+    fn is_conflict(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_conflict())
+    }
+
+    fn is_quota(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_quota())
+    }
+
+    fn is_sentry_event(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Common(e) if e.is_sentry_event())
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        if let DbErrorKind::Common(e) = &self.kind {
+            e.metric_label()
+        } else {
+            None
         }
     }
 }

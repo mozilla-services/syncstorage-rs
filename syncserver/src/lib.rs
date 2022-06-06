@@ -13,3 +13,6 @@ pub mod logging;
 pub mod server;
 pub mod tokenserver;
 pub mod web;
+
+// TODO: which dependencies can be optional?
+// TODO: compile_error!

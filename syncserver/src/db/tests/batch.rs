@@ -1,5 +1,7 @@
 use log::debug;
-use syncserver_db_common::{params, results, util::SyncTimestamp, BATCH_LIFETIME};
+use syncserver_db_common::{
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, BATCH_LIFETIME,
+};
 use syncserver_settings::Settings;
 
 use super::support::{db_pool, gbso, hid, pbso, postbso, test_db, Result};
@@ -45,7 +47,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 #[tokio::test]
 async fn create_delete() -> Result<()> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -68,7 +70,7 @@ async fn create_delete() -> Result<()> {
 #[tokio::test]
 async fn expiry() -> Result<()> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -92,7 +94,7 @@ async fn expiry() -> Result<()> {
 #[tokio::test]
 async fn update() -> Result<()> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -116,7 +118,7 @@ async fn update() -> Result<()> {
 #[tokio::test]
 async fn append_commit() -> Result<()> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -169,7 +171,7 @@ async fn quota_test_create_batch() -> Result<()> {
     settings.limits.max_quota_limit = limit;
 
     let pool = db_pool(Some(settings.clone())).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -211,7 +213,7 @@ async fn quota_test_append_batch() -> Result<()> {
     settings.limits.max_quota_limit = limit;
 
     let pool = db_pool(Some(settings.clone())).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -247,7 +249,7 @@ async fn quota_test_append_batch() -> Result<()> {
 async fn test_append_async_w_null() -> Result<()> {
     let settings = Settings::test_settings().syncstorage;
     let pool = db_pool(Some(settings)).await?;
-    let db = test_db(pool.as_ref()).await?;
+    let db = test_db(pool).await?;
     // Remember: TTL is seconds to live, not an expiry date
     let ttl_0 = 86_400;
     let ttl_1 = 86_400;

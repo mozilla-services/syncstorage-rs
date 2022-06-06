@@ -7,15 +7,15 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
+    error::DbErrorIntrospect,
     params,
     results::{CreateBatch, Paginated},
-    Db,
+    Db as DbTrait, DbPool as DbPoolTrait, GetPoolState,
 };
 use time;
 
 use crate::{
-    db::transaction::DbTransactionPool,
+    db::{transaction::DbTransactionPool, Db, DbError},
     error::{ApiError, ApiErrorKind},
     server::ServerState,
     web::extractors::{
@@ -189,7 +189,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Box<dyn Db<'_, Error = Box<dyn std::error::Error>> + '_>,
+    db: Db,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -280,15 +280,17 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Box<dyn Db<'_, Error = Box<dyn std::error::Error>> + '_>,
+    db: Db,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
     // Bail early if we have nonsensical arguments
     // TODO: issue932 may make these multi-level transforms easier
-    let breq = coll.batch.clone().ok_or_else(|| -> ApiError {
-        ApiErrorKind::Db(DbErrorKind::BatchNotFound.into()).into()
-    })?;
+    let breq = coll
+        .batch
+        .clone()
+        // TODO: figure out something better than these helper methods
+        .ok_or_else(|| -> ApiError { ApiErrorKind::Db(DbError::batch_not_found()).into() })?;
 
     let new_batch = if let Some(id) = breq.id.clone() {
         trace!("Batch: Validating {}", &id);
@@ -319,8 +321,7 @@ pub async fn post_collection_batch(
                 },
             }
         } else {
-            let err: DbError = DbErrorKind::BatchNotFound.into();
-            return Err(ApiError::from(err));
+            return Err(ApiError::from(DbError::batch_not_found()));
         }
     } else {
         trace!("Batch: Creating new batch");
@@ -405,8 +406,7 @@ pub async fn post_collection_batch(
         })
         .await?
     } else {
-        let err: DbError = DbErrorKind::BatchNotFound.into();
-        return Err(ApiError::from(err));
+        return Err(ApiError::from(DbError::batch_not_found()));
     };
 
     // Then, write the BSOs contained in the commit request into the BSO table.

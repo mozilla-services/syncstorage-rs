@@ -10,5 +10,5 @@ pub mod results;
 
 use syncstorage_mysql::error::DbError;
 
-pub(crate) type DbFuture<'a, T> = syncstorage_db_common::DbFuture<'a, T, DbError>;
+pub(crate) type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 pub(crate) type DbResult<T> = Result<T, DbError>;

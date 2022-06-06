@@ -7,10 +7,14 @@ pub mod util;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use futures::future::LocalBoxFuture;
+use futures::{
+    future::{self, LocalBoxFuture},
+    TryFutureExt,
+};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
+use error::DbErrorIntrospect;
 use util::SyncTimestamp;
 
 lazy_static! {
@@ -50,28 +54,24 @@ pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
 
 #[async_trait]
 pub trait DbPool: Sync + Send + Debug + GetPoolState {
+    type Db;
     type Error;
 
-    async fn get(&self) -> Result<Box<dyn Db<'_, Error = Self::Error>>, Self::Error>;
+    async fn get(&self) -> Result<Self::Db, Self::Error>;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), Self::Error>;
-
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>>;
-}
-
-impl<E> Clone for Box<dyn DbPool<Error = E>> {
-    fn clone(&self) -> Box<dyn DbPool<Error = E>> {
-        self.box_clone()
-    }
 }
 
 pub trait GetPoolState {
     fn state(&self) -> PoolState;
 }
 
-impl<E> GetPoolState for Box<dyn DbPool<Error = E>> {
+impl<T> GetPoolState for T
+where
+    T: DbPool,
+{
     fn state(&self) -> PoolState {
-        (**self).state()
+        self.state()
     }
 }
 
@@ -100,7 +100,7 @@ impl From<deadpool::Status> for PoolState {
 }
 
 pub trait Db<'a>: Debug + 'a {
-    type Error;
+    type Error: DbErrorIntrospect + 'static;
 
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
 
@@ -215,55 +215,54 @@ pub trait Db<'a>: Debug + 'a {
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
 
-    // TODO:
     /// Retrieve the timestamp for an item/collection
     ///
     /// Modeled on the Python `get_resource_timestamp` function.
-    // fn extract_resource(
-    //     &self,
-    //     user_id: UserIdentifier,
-    //     collection: Option<String>,
-    //     bso: Option<String>,
-    // ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-    //     // If there's no collection, we return the overall storage timestamp
-    //     let collection = match collection {
-    //         Some(collection) => collection,
-    //         None => return Box::pin(self.get_storage_timestamp(user_id)),
-    //     };
-    //     // If there's no bso, return the collection
-    //     let bso = match bso {
-    //         Some(bso) => bso,
-    //         None => {
-    //             return Box::pin(
-    //                 self.get_collection_timestamp(params::GetCollectionTimestamp {
-    //                     user_id,
-    //                     collection,
-    //                 })
-    //                 .or_else(|e| {
-    //                     if e.is_collection_not_found() {
-    //                         future::ok(SyncTimestamp::from_seconds(0f64))
-    //                     } else {
-    //                         future::err(e)
-    //                     }
-    //                 }),
-    //             )
-    //         }
-    //     };
-    //     Box::pin(
-    //         self.get_bso_timestamp(params::GetBsoTimestamp {
-    //             user_id,
-    //             collection,
-    //             id: bso,
-    //         })
-    //         .or_else(|e| {
-    //             if e.is_collection_not_found() {
-    //                 future::ok(SyncTimestamp::from_seconds(0f64))
-    //             } else {
-    //                 future::err(e)
-    //             }
-    //         }),
-    //     )
-    // }
+    fn extract_resource(
+        &self,
+        user_id: UserIdentifier,
+        collection: Option<String>,
+        bso: Option<String>,
+    ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
+        // If there's no collection, we return the overall storage timestamp
+        let collection = match collection {
+            Some(collection) => collection,
+            None => return Box::pin(self.get_storage_timestamp(user_id)),
+        };
+        // If there's no bso, return the collection
+        let bso = match bso {
+            Some(bso) => bso,
+            None => {
+                return Box::pin(
+                    self.get_collection_timestamp(params::GetCollectionTimestamp {
+                        user_id,
+                        collection,
+                    })
+                    .or_else(|e| {
+                        if e.is_collection_not_found() {
+                            future::ok(SyncTimestamp::from_seconds(0f64))
+                        } else {
+                            future::err(e)
+                        }
+                    }),
+                )
+            }
+        };
+        Box::pin(
+            self.get_bso_timestamp(params::GetBsoTimestamp {
+                user_id,
+                collection,
+                id: bso,
+            })
+            .or_else(|e| {
+                if e.is_collection_not_found() {
+                    future::ok(SyncTimestamp::from_seconds(0f64))
+                } else {
+                    future::err(e)
+                }
+            }),
+        )
+    }
 
     /// Internal methods used by the db tests
 
@@ -287,7 +286,7 @@ pub trait Db<'a>: Debug + 'a {
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
-impl<'a, E: 'a> Clone for Box<dyn Db<'a, Error = E>> {
+impl<'a, E: 'static + DbErrorIntrospect> Clone for Box<dyn Db<'a, Error = E>> {
     fn clone(&self) -> Box<dyn Db<'a, Error = E>> {
         self.box_clone()
     }

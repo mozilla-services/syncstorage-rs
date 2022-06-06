@@ -3,7 +3,7 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use bb8::ErrorSink;
 use syncserver_common::Metrics;
-use syncserver_db_common::{Db, DbPool, GetPoolState, PoolState, STD_COLLS};
+use syncserver_db_common::{DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
@@ -87,30 +87,18 @@ impl SpannerDbPool {
 
 #[async_trait]
 impl DbPool for SpannerDbPool {
+    type Db = SpannerDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<'a, Error = Self::Error>>> {
+    async fn get<'a>(&'a self) -> DbResult<Self::Db> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.get_pool", None);
 
-        self.get_async()
-            .await
-            .map(|db| Box::new(db) as Box<dyn Db<'a, Error = Self::Error>>)
-            .map_err(Into::into)
+        self.get_async().await.map_err(Into::into)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id).map_err(Into::into)
-    }
-
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
-        Box::new(self.clone())
-    }
-}
-
-impl GetPoolState for SpannerDbPool {
-    fn state(&self) -> PoolState {
-        self.pool.status().into()
     }
 }
 
