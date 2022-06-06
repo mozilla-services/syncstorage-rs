@@ -11,8 +11,8 @@ commands:
       - run:
           name: Setup Rust
           command: |
-            rustup install stable
-            rustup default stable
+            rustup install 1.60.0
+            rustup default 1.60.0
             rustup update
             rustc --version
   setup-rust-check:
@@ -43,7 +43,7 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 src/tokenserver
+            flake8 syncstorage/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
   rust-clippy:
@@ -163,7 +163,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -179,7 +179,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS

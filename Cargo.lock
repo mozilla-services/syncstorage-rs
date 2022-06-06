@@ -278,17 +278,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-web-httpauth"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c3b11a07a3df3f7970fd8bd38cc66998b5549f507c54cc64c6e843bc82d6358"
-dependencies = [
- "actix-web",
- "base64 0.13.0",
- "futures-util",
-]
-
-[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3018,7 +3007,6 @@ dependencies = [
  "actix-http",
  "actix-rt",
  "actix-web",
- "actix-web-httpauth",
  "async-trait",
  "backtrace",
  "base64 0.13.0",
@@ -3067,8 +3055,11 @@ dependencies = [
  "slog-scope",
  "slog-stdlog",
  "slog-term",
+ "syncstorage-common",
+ "syncstorage-db-common",
  "thiserror",
  "time 0.3.9",
+ "tokenserver-common",
  "tokio",
  "url 2.2.2",
  "urlencoding",
@@ -3076,6 +3067,31 @@ dependencies = [
  "validator",
  "validator_derive",
  "woothee",
+]
+
+[[package]]
+name = "syncstorage-common"
+version = "0.10.2"
+
+[[package]]
+name = "syncstorage-db-common"
+version = "0.10.2"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "chrono",
+ "deadpool",
+ "diesel",
+ "diesel_migrations",
+ "futures 0.3.19",
+ "grpcio",
+ "hostname",
+ "http",
+ "lazy_static",
+ "serde 1.0.135",
+ "serde_json",
+ "syncstorage-common",
+ "thiserror",
 ]
 
 [[package]]
@@ -3248,6 +3264,16 @@ name = "tinyvec_macros"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
+
+[[package]]
+name = "tokenserver-common"
+version = "0.10.2"
+dependencies = [
+ "actix-web",
+ "serde 1.0.135",
+ "serde_json",
+ "thiserror",
+]
 
 [[package]]
 name = "tokio"
