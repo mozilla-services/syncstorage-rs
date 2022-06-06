@@ -26,6 +26,7 @@ use syncstorage_settings::ServerLimits;
 
 use super::*;
 use crate::build_app;
+use crate::db::DbPool;
 use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody};
 
@@ -63,7 +64,7 @@ fn get_test_settings() -> Settings {
     settings
 }
 
-async fn get_test_state(settings: &Settings) -> ServerState {
+async fn get_test_state(settings: &Settings) -> ServerState<DbPool> {
     let metrics = Metrics::sink();
     ServerState {
         db_pool: DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))

@@ -19,6 +19,7 @@ chrono = "0.4"
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
+env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 google-cloud-rust-raw = "0.11.0"
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
@@ -63,3 +64,7 @@ thiserror = "1.0.26"
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
+
+
+[[bin]]
+name = "purge_ttl"

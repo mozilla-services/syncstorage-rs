@@ -983,7 +983,7 @@ impl MysqlDb {
     }
 }
 
-impl<'a> Db<'a> for MysqlDb {
+impl Db for MysqlDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
@@ -1005,10 +1005,6 @@ impl<'a> Db<'a> for MysqlDb {
     fn begin(&self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
-    }
-
-    fn box_clone(&self) -> Box<dyn Db<'a, Error = Self::Error>> {
-        Box::new(self.clone())
     }
 
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {

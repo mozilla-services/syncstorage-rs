@@ -16,6 +16,7 @@ use serde_json::value::Value;
 use syncserver_common::{Metrics, ReportableError};
 use tokenserver_common::error::TokenserverError;
 
+use crate::db::DbPool;
 use crate::error::ApiError;
 use crate::server::{tags::Taggable, user_agent, MetricsWrapper};
 

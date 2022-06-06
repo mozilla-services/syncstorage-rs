@@ -53,7 +53,7 @@ impl DbTransactionPool {
     ) -> Result<(R, Db), ApiError>
     where
         A: FnOnce(Db) -> F,
-        F: Future<Output = Result<R, ApiError>> + 'a,
+        F: Future<Output = Result<R, ApiError>>,
     {
         // Get connection from pool
         let db = self.pool.get().await?;
@@ -220,7 +220,7 @@ impl FromRequest for DbTransactionPool {
                 .unwrap_or("NONE");
 
             let col_result = CollectionParam::extrude(req.uri(), &mut req.extensions_mut());
-            let state = match req.app_data::<Data<ServerState>>() {
+            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
                 Some(v) => v,
                 None => {
                     let apie: ApiError = ApiErrorKind::NoServerState.into();

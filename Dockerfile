@@ -19,7 +19,7 @@ RUN \
     cargo --version && \
     rustc --version && \
     cargo install --path ./syncserver --locked --root /app && \
-    cargo install --path ./syncserver --locked --root /app --bin purge_ttl
+    cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl
 
 FROM debian:buster-slim
 WORKDIR /app

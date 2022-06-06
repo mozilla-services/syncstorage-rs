@@ -39,12 +39,12 @@ pub struct SpannerDbPool {
 
 impl SpannerDbPool {
     /// Creates a new pool of Spanner db connections.
-    pub async fn new(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
+    pub fn new(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
         //run_embedded_migrations(settings)?;
-        Self::new_without_migrations(settings, metrics).await
+        Self::new_without_migrations(settings, metrics)
     }
 
-    pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
+    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
         let max_size = settings.database_pool_max_size as usize;
         let wait = settings
             .database_pool_connection_timeout
@@ -86,11 +86,11 @@ impl SpannerDbPool {
 }
 
 #[async_trait]
-impl DbPool for SpannerDbPool {
+impl<'a> DbPool for SpannerDbPool {
     type Db = SpannerDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Self::Db> {
+    async fn get(&self) -> DbResult<Self::Db> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.get_pool", None);
 

@@ -54,7 +54,7 @@ pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
 
 #[async_trait]
 pub trait DbPool: Sync + Send + Debug + GetPoolState {
-    type Db;
+    type Db: Clone + Db;
     type Error;
 
     async fn get(&self) -> Result<Self::Db, Self::Error>;
@@ -66,7 +66,7 @@ pub trait GetPoolState {
     fn state(&self) -> PoolState;
 }
 
-impl<T> GetPoolState for T
+impl<'a, T> GetPoolState for T
 where
     T: DbPool,
 {
@@ -99,7 +99,7 @@ impl From<deadpool::Status> for PoolState {
     }
 }
 
-pub trait Db<'a>: Debug + 'a {
+pub trait Db: Debug {
     type Error: DbErrorIntrospect + 'static;
 
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
@@ -209,8 +209,6 @@ pub trait Db<'a>: Debug + 'a {
         params: params::CommitBatch,
     ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
 
-    fn box_clone(&self) -> Box<dyn Db<'a, Error = Self::Error>>;
-
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
@@ -292,7 +290,7 @@ impl<'a, E: 'static + DbErrorIntrospect> Clone for Box<dyn Db<'a, Error = E>> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Copy)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,

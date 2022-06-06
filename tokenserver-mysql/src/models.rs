@@ -9,7 +9,6 @@ use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::Metrics;
 use syncserver_db_common::{sync_db_method, util};
-use syncstorage_mysql::error::DbError;
 
 use std::{
     sync::Arc,
@@ -17,6 +16,7 @@ use std::{
 };
 
 use super::{params, results, DbFuture, DbResult};
+use crate::DbError;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.

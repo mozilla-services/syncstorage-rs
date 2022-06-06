@@ -242,7 +242,7 @@ impl FromRequest for BsoBodies {
         let newlines: bool = content_type == "application/newlines";
 
         // Grab the max sizes
-        let state = match req.app_data::<Data<ServerState>>() {
+        let state = match req.app_data::<Data<ServerState<DbPool>>>() {
             Some(s) => s,
             None => {
                 error!("⚠️ Could not load the app state");
@@ -412,8 +412,7 @@ impl FromRequest for BsoBody {
                 )
                 .into());
             }
-
-            let state = match req.app_data::<Data<ServerState>>() {
+            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
                 Some(s) => s,
                 None => {
                     error!("⚠️ Could not load the app state");
@@ -761,7 +760,7 @@ impl FromRequest for CollectionPostRequest {
         let req = req.clone();
         let mut payload = payload.take();
         Box::pin(async move {
-            let state = match req.app_data::<Data<ServerState>>() {
+            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
                 Some(s) => s,
                 None => {
                     error!("⚠️ Could not load the app state");
@@ -956,7 +955,7 @@ impl FromRequest for HeartbeatRequest {
 
         async move {
             let headers = req.headers().clone();
-            let state = match req.app_data::<Data<ServerState>>() {
+            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
                 Some(s) => s,
                 None => {
                     error!("⚠️ Could not load the app state");
@@ -1366,7 +1365,7 @@ impl FromRequest for BatchRequestOpt {
                 })
                 .await?
                 .into_inner();
-            let state = match req.app_data::<Data<ServerState>>() {
+            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
                 Some(s) => s,
                 None => {
                     error!("⚠️ Could not load the app state");
@@ -1786,7 +1785,7 @@ mod tests {
         MockDb::new()
     }
 
-    fn make_state() -> ServerState {
+    fn make_state() -> ServerState<MockDbPool> {
         let syncserver_settings = GlobalSettings::default();
         let syncstorage_settings = SyncstorageSettings::default();
         ServerState {

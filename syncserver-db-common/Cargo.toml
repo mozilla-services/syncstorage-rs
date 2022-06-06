@@ -13,10 +13,6 @@ chrono = "0.4"
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-# Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
-# syncstorage to either fail to either compile, or start. In those cases, try
-# `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.9" }
 http = "0.2.6"
 futures = { version = "0.3", features = ["compat"] }
 lazy_static = "1.4.0"

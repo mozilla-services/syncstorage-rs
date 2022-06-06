@@ -50,11 +50,11 @@ impl MockDbPool {
 }
 
 #[async_trait]
-impl DbPool for MockDbPool {
+impl<'a> DbPool for MockDbPool {
     type Db = MockDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> Result<Self::Db, Self::Error> {
+    async fn get(&self) -> Result<Self::Db, Self::Error> {
         Ok(MockDb::new())
     }
 
@@ -84,7 +84,7 @@ macro_rules! mock_db_method {
     };
 }
 
-impl<'a> Db<'a> for MockDb {
+impl Db for MockDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, ()> {
@@ -97,10 +97,6 @@ impl<'a> Db<'a> for MockDb {
 
     fn begin(&self, _for_write: bool) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
-    }
-
-    fn box_clone(&self) -> Box<dyn Db<'a, Error = DbError>> {
-        Box::new(self.clone())
     }
 
     fn check(&self) -> DbFuture<'_, results::Check> {

@@ -27,20 +27,14 @@ pub use syncstorage_mysql::error::DbErrorKind;
 #[cfg(feature = "mysql")]
 pub type Db = syncstorage_mysql::models::MysqlDb;
 
-/// Create/initialize a pool of managed Db connections
-// TODO: remove this
-// pub async fn pool_from_settings(
-//     settings: &Settings,
-//     metrics: &Metrics,
-// ) -> Result<Box<dyn DbPool>, DbError> {
-//     let url =
-//         Url::parse(&settings.database_url).map_err(|e| DbErrorKind::InvalidUrl(e.to_string()))?;
-//     Ok(match url.scheme() {
-//         "mysql" => Box::new(MysqlDbPool::new(settings, metrics)?),
-//         "spanner" => Box::new(SpannerDbPool::new(settings, metrics).await?),
-//         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
-//     })
-// }
+#[cfg(feature = "spanner")]
+pub type DbPool = SpannerDbPool;
+#[cfg(feature = "spanner")]
+pub use syncstorage_spanner::error::DbError;
+#[cfg(feature = "spanner")]
+pub use syncstorage_spanner::error::DbErrorKind;
+#[cfg(feature = "spanner")]
+pub type Db = syncstorage_spanner::models::SpannerDb;
 
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(

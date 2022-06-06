@@ -15,7 +15,7 @@ use syncserver_db_common::{
 use time;
 
 use crate::{
-    db::{transaction::DbTransactionPool, Db, DbError},
+    db::{transaction::DbTransactionPool, Db, DbError, DbPool},
     error::{ApiError, ApiErrorKind},
     server::ServerState,
     web::extractors::{
@@ -521,7 +521,7 @@ pub async fn put_bso(
         .await
 }
 
-pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
+pub fn get_configuration(state: Data<ServerState<DbPool>>) -> HttpResponse {
     // With no DbConnection (via a `transaction_http` call) needed here, we
     // miss out on a couple things it does:
     // 1. Ensuring an X-Last-Modified (always 0.00) is returned
@@ -575,7 +575,7 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
 pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let mut resp: HashMap<String, Value> = HashMap::new();
 
-    let state = match req.app_data::<Data<ServerState>>() {
+    let state = match req.app_data::<Data<ServerState<DbPool>>>() {
         Some(s) => s,
         None => {
             error!("⚠️ Could not load the app state");

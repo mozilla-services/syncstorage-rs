@@ -431,7 +431,7 @@ impl SpannerDb {
         self.session.borrow().in_write_transaction
     }
 
-    pub fn commit(&self) -> DbResult<()> {
+    pub fn commit_sync(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -485,7 +485,7 @@ impl SpannerDb {
         }
     }
 
-    pub fn rollback(&self) -> DbResult<()> {
+    pub fn rollback_sync(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -846,7 +846,7 @@ impl SpannerDb {
         // This will also write the tombstone if there are no records and we're explicitly
         // specifying a TOMBSTONE collection_id.
         // This function should be called after any write operation.
-        let timestamp = self.timestamp()?;
+        let timestamp = self.checked_timestamp()?;
         let (mut sqlparams, mut sqltypes) = params! {
             "fxa_uid" => user.fxa_uid.clone(),
             "fxa_kid" => user.fxa_kid.clone(),
@@ -968,7 +968,7 @@ impl SpannerDb {
             "fxa_uid" => user_id.fxa_uid.clone(),
             "fxa_kid" => user_id.fxa_kid.clone(),
             "collection_id" => TOMBSTONE,
-            "modified" => self.timestamp()?.as_rfc3339()?
+            "modified" => self.checked_timestamp()?.as_rfc3339()?
         };
         param_types.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
         self.sql(
@@ -985,7 +985,7 @@ impl SpannerDb {
             .await?;
         // Return timestamp, because sometimes there's a delay between writing and
         // reading the database.
-        self.timestamp()
+        self.checked_timestamp()
     }
 
     pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> DbResult<()> {
@@ -1007,7 +1007,7 @@ impl SpannerDb {
         Ok(())
     }
 
-    pub fn timestamp(&self) -> DbResult<SyncTimestamp> {
+    pub fn checked_timestamp(&self) -> DbResult<SyncTimestamp> {
         self.session
             .borrow()
             .timestamp
@@ -1066,7 +1066,7 @@ impl SpannerDb {
         // Mutations don't run in the same order as ExecuteSql calls, they are
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
-        let timestamp = self.timestamp()?;
+        let timestamp = self.checked_timestamp()?;
         if !cfg!(test) && self.session.borrow().updated_collection {
             // No need to touch it again (except during tests where we
             // currently reuse Dbs for multiple requests)
@@ -1684,7 +1684,7 @@ impl SpannerDb {
         // prewarm the collections table by ensuring that the row is added if not present.
         self.update_collection_async(&bso.user_id, collection_id, &bso.collection)
             .await?;
-        let timestamp = self.timestamp()?;
+        let timestamp = self.checked_timestamp()?;
 
         let result = self
             .sql(
@@ -1848,7 +1848,7 @@ impl SpannerDb {
             .get_or_create_collection_id_async(&input.collection)
             .await?;
         let mut result = results::PostBsos {
-            modified: self.timestamp()?,
+            modified: self.checked_timestamp()?,
             success: Default::default(),
             failed: input.failed,
         };
@@ -1872,7 +1872,7 @@ impl SpannerDb {
     }
 }
 
-impl<'a> Db<'a> for SpannerDb {
+impl Db for SpannerDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
@@ -1926,10 +1926,6 @@ impl<'a> Db<'a> for SpannerDb {
     ) -> DbFuture<'_, results::DeleteCollection, Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.delete_collection_async(param).map_err(Into::into).await })
-    }
-
-    fn box_clone(&self) -> Box<dyn Db<'a, Error = Self::Error>> {
-        Box::new(self.clone())
     }
 
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {
@@ -2144,7 +2140,7 @@ impl<'a> Db<'a> for SpannerDb {
     }
 
     fn timestamp(&self) -> SyncTimestamp {
-        self.timestamp()
+        self.checked_timestamp()
             .expect("set_timestamp() not called yet for SpannerDb")
     }
 

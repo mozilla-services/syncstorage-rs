@@ -14,6 +14,7 @@ use actix_web::{
 use cadence::StatsdClient;
 use futures::future::{self, Ready};
 use syncserver_common::Metrics;
+use syncserver_db_common::DbPool as DbPoolTrait;
 use syncserver_settings::Settings;
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
@@ -38,8 +39,11 @@ pub mod user_agent;
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
-pub struct ServerState {
-    pub db_pool: DbPool,
+pub struct ServerState<E>
+where
+    E: DbPoolTrait,
+{
+    pub db_pool: E,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,

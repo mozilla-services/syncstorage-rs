@@ -103,7 +103,7 @@ impl DbPool for MysqlDbPool {
     type Db = MysqlDb;
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Self::Db> {
+    async fn get(&self) -> DbResult<Self::Db> {
         let pool = self.clone();
         util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal).await
     }

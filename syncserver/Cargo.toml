@@ -27,18 +27,10 @@ chrono = "0.4"
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
-diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_logger = "0.1.1"
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 dyn-clone = "1.0.4"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
-google-cloud-rust-raw = "0.11.0"
-# Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
-# syncserver to either fail to either compile, or start. In those cases, try
-# `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.9" }
 lazy_static = "1.4.0"
 hawk = "3.2"
 hex = "0.4.3"
@@ -51,8 +43,6 @@ log = { version = "0.4", features = [
 ] }
 mime = "0.3"
 num_cpus = "1"
-# must match what's used by googleapis-raw
-protobuf = "2.20.0"
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
 regex = "1.4"
@@ -102,10 +92,7 @@ woothee = "0.11"
 mockito = "0.30.0"
 
 [features]
-default = ['mysql']
+default = ['spanner']
 mysql = ['syncstorage-mysql']
 no_auth = []
 spanner = ['syncstorage-spanner']
-
-[[bin]]
-name = "purge_ttl"
