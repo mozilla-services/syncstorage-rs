@@ -6,7 +6,7 @@
 #
 version: 2.1
 commands:
-  setup-rust:
+  display-rust:
     steps:
       - run:
           name: Display Rust Version
