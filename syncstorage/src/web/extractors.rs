@@ -42,7 +42,7 @@ use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
-    X_WEAVE_RECORDS,
+    DOCKER_FLOW_ENDPOINTS, X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
 
@@ -1137,32 +1137,36 @@ impl From<HawkIdentifier> for UserIdentifier {
 impl FromRequest for HawkIdentifier {
     type Config = ();
     type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+    type Future = Ready<Result<Self, Self::Error>>;
 
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        // Dummy token if a Docker Flow request is detected.
+        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
+            return future::ready(Ok(HawkIdentifier::cmd_dummy()));
+        }
         let req = req.clone();
+        let uri = req.uri();
+        // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
+        let connection_info = req.connection_info().clone();
+        let method = req.method().clone();
+        // Tried collapsing this to a `.or_else` and hit problems with the return resolving
+        // to an appropriate error state. Can't use `?` since the function does not return a result.
+        let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
+            Some(v) => v,
+            None => {
+                let err: ApiError = ApiErrorKind::Internal("No app_data Secrets".to_owned()).into();
+                return future::ready(Err(err.into()));
+            }
+        };
 
-        Box::pin(async move {
-            let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
-                Some(s) => s,
-                None => {
-                    error!("⚠️ Could not load the app secrets");
-                    return Err(ValidationErrorKind::FromDetails(
-                        "Internal error".to_owned(),
-                        RequestErrorLocation::Unknown,
-                        Some("secrets".to_owned()),
-                        None,
-                    )
-                    .into());
-                }
-            };
-            // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
-            let connection_info = req.connection_info().clone();
-            let method = req.method().as_str();
-            let uri = req.uri();
-            Self::extrude(&req, method, uri, &connection_info, secrets)
-        })
+        future::ready(Self::extrude(
+            &req,
+            method.as_str(),
+            uri,
+            &connection_info,
+            secrets,
+        ))
     }
 }
 
