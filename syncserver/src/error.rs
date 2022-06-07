@@ -21,13 +21,15 @@ use serde::{
     Serialize,
 };
 
-use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
-use syncserver_db_common::error::{DbError, DbErrorIntrospect};
-use syncstorage_mysql::error::DbError as MysqlError;
-use syncstorage_spanner::error::DbError as SpannerError;
+use syncserver_common::{from_error, impl_fmt_display, ReportableError};
+use syncserver_db_common::error::DbErrorIntrospect;
+
+#[cfg(feature = "mysql")]
+use syncstorage_mysql::error::DbError;
+#[cfg(feature = "spanner")]
+use syncstorage_spanner::error::DbError;
 use thiserror::Error;
 
-use crate::db::DbError;
 use crate::web::error::{HawkError, ValidationError};
 use std::error::Error;
 

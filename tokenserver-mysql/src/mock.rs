@@ -3,13 +3,12 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_mysql::error::DbError;
 
+use super::error::{DbError, DbFuture};
 use super::models::Db;
 use super::params;
 use super::pool::DbPool;
 use super::results;
-use super::DbFuture;
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;

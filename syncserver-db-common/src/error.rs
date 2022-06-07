@@ -2,18 +2,19 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::impl_fmt_display;
+use syncserver_common::{from_error, impl_fmt_display};
 use thiserror::Error;
 
+// TODO: pull all these errors into a general SyncserverError
 #[derive(Debug)]
-pub struct DbError {
-    kind: DbErrorKind,
+pub struct CommonDbError {
+    kind: CommonDbErrorKind,
     pub status: StatusCode,
     pub backtrace: Backtrace,
 }
 
 #[derive(Debug, Error)]
-pub enum DbErrorKind {
+pub enum CommonDbErrorKind {
     #[error("Specified collection does not exist")]
     CollectionNotFound,
 
@@ -36,9 +37,9 @@ pub enum DbErrorKind {
     Quota,
 }
 
-impl DbError {
+impl CommonDbError {
     pub fn internal(msg: &str) -> Self {
-        DbErrorKind::Internal(msg.to_owned()).into()
+        CommonDbErrorKind::Internal(msg.to_owned()).into()
     }
 }
 
@@ -52,52 +53,54 @@ pub trait DbErrorIntrospect {
     fn is_batch_not_found(&self) -> bool;
 }
 
-impl DbErrorIntrospect for DbError {
+impl DbErrorIntrospect for CommonDbError {
     fn is_sentry_event(&self) -> bool {
-        !matches!(&self.kind, DbErrorKind::Conflict)
+        !matches!(&self.kind, CommonDbErrorKind::Conflict)
     }
 
     fn metric_label(&self) -> Option<String> {
         match &self.kind {
-            DbErrorKind::Conflict => Some("storage.conflict".to_owned()),
+            CommonDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }
 
     fn is_collection_not_found(&self) -> bool {
-        matches!(self.kind, DbErrorKind::CollectionNotFound)
+        matches!(self.kind, CommonDbErrorKind::CollectionNotFound)
     }
 
     fn is_conflict(&self) -> bool {
-        matches!(self.kind, DbErrorKind::Conflict)
+        matches!(self.kind, CommonDbErrorKind::Conflict)
     }
 
     fn is_quota(&self) -> bool {
-        matches!(self.kind, DbErrorKind::Quota)
+        matches!(self.kind, CommonDbErrorKind::Quota)
     }
 
     fn is_bso_not_found(&self) -> bool {
-        matches!(self.kind, DbErrorKind::BsoNotFound)
+        matches!(self.kind, CommonDbErrorKind::BsoNotFound)
     }
 
     fn is_batch_not_found(&self) -> bool {
-        matches!(self.kind, DbErrorKind::BatchNotFound)
+        matches!(self.kind, CommonDbErrorKind::BatchNotFound)
     }
 }
 
-impl From<DbErrorKind> for DbError {
-    fn from(kind: DbErrorKind) -> Self {
+impl From<CommonDbErrorKind> for CommonDbError {
+    fn from(kind: CommonDbErrorKind) -> Self {
         let status = match kind {
-            DbErrorKind::CollectionNotFound | DbErrorKind::BsoNotFound => StatusCode::NOT_FOUND,
+            CommonDbErrorKind::CollectionNotFound | CommonDbErrorKind::BsoNotFound => {
+                StatusCode::NOT_FOUND
+            }
             // Matching the Python code here (a 400 vs 404)
-            DbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
+            CommonDbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
             // NOTE: the protocol specification states that we should return a
             // "409 Conflict" response here, but clients currently do not
             // handle these respones very well:
             //  * desktop bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959034
             //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
-            DbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
-            DbErrorKind::Quota => StatusCode::FORBIDDEN,
+            CommonDbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
+            CommonDbErrorKind::Quota => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -109,4 +112,55 @@ impl From<DbErrorKind> for DbError {
     }
 }
 
-impl_fmt_display!(DbError, DbErrorKind);
+impl_fmt_display!(CommonDbError, CommonDbErrorKind);
+
+#[derive(Debug)]
+pub struct MysqlError {
+    kind: MysqlErrorKind,
+    pub status: StatusCode,
+    pub backtrace: Backtrace,
+}
+
+#[derive(Debug, Error)]
+enum MysqlErrorKind {
+    #[error("A database error occurred: {}", _0)]
+    DieselQuery(#[from] diesel::result::Error),
+
+    #[error("An error occurred while establishing a db connection: {}", _0)]
+    DieselConnection(#[from] diesel::result::ConnectionError),
+
+    #[error("A database pool error occurred: {}", _0)]
+    Pool(diesel::r2d2::PoolError),
+
+    #[error("Error migrating the database: {}", _0)]
+    Migration(diesel_migrations::RunMigrationsError),
+}
+
+impl From<MysqlErrorKind> for MysqlError {
+    fn from(kind: MysqlErrorKind) -> Self {
+        Self {
+            kind,
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            backtrace: Backtrace::new(),
+        }
+    }
+}
+
+impl_fmt_display!(MysqlError, MysqlErrorKind);
+
+from_error!(
+    diesel::result::Error,
+    MysqlError,
+    MysqlErrorKind::DieselQuery
+);
+from_error!(
+    diesel::result::ConnectionError,
+    MysqlError,
+    MysqlErrorKind::DieselConnection
+);
+from_error!(diesel::r2d2::PoolError, MysqlError, MysqlErrorKind::Pool);
+from_error!(
+    diesel_migrations::RunMigrationsError,
+    MysqlError,
+    MysqlErrorKind::Migration
+);

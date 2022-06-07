@@ -14,7 +14,7 @@ use futures::future::TryFutureExt;
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::task;
 
-use super::error::{DbError, DbErrorKind};
+use super::error::{CommonDbError, CommonDbErrorKind};
 
 /// Get the time since the UNIX epoch in milliseconds
 fn ms_since_epoch() -> i64 {
@@ -55,15 +55,17 @@ impl SyncTimestamp {
     }
 
     /// Create a `SyncTimestamp` from an i64
-    pub fn from_i64(val: i64) -> Result<Self, DbError> {
+    pub fn from_i64(val: i64) -> Result<Self, CommonDbError> {
         if val < 0 {
-            return Err(DbErrorKind::Internal("Invalid modified i64 (< 0)".to_owned()).into());
+            return Err(
+                CommonDbErrorKind::Internal("Invalid modified i64 (< 0)".to_owned()).into(),
+            );
         }
         Ok(SyncTimestamp::from_milliseconds(val as u64))
     }
 
     /// Exposed separately for db tests
-    pub fn _from_i64(val: i64) -> Result<Self, DbError> {
+    pub fn _from_i64(val: i64) -> Result<Self, CommonDbError> {
         SyncTimestamp::from_i64(val)
     }
 
@@ -80,18 +82,18 @@ impl SyncTimestamp {
 
     /// Create a `SyncTimestamp` from an RFC 3339 and ISO 8601 date and time
     /// string such as 1996-12-19T16:39:57-08:00
-    pub fn from_rfc3339(val: &str) -> Result<Self, DbError> {
+    pub fn from_rfc3339(val: &str) -> Result<Self, CommonDbError> {
         let dt = DateTime::parse_from_rfc3339(val)
             // TODO: maybe convert these Internal errors to Integrity in Spanner code
-            .map_err(|e| DbErrorKind::Internal(format!("Invalid TIMESTAMP {}", e)))?;
+            .map_err(|e| CommonDbErrorKind::Internal(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }
 
     /// Create a `SyncTimestamp` from a chrono DateTime
-    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, DbError> {
+    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, CommonDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
-            return Err(DbErrorKind::Internal("Invalid DateTime (< 0)".to_owned()).into());
+            return Err(CommonDbErrorKind::Internal("Invalid DateTime (< 0)".to_owned()).into());
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
@@ -108,7 +110,7 @@ impl SyncTimestamp {
 
     /// Return the timestamp as an RFC 3339 and ISO 8601 date and time string such as
     /// 1996-12-19T16:39:57-08:00
-    pub fn as_rfc3339(self) -> Result<String, DbError> {
+    pub fn as_rfc3339(self) -> Result<String, CommonDbError> {
         to_rfc3339(self.as_i64())
     }
 }
@@ -170,10 +172,10 @@ where
 
 /// Render a timestamp (as an i64 milliseconds since epoch) as an RFC 3339 and ISO 8601
 /// date and time string such as 1996-12-19T16:39:57-08:00
-pub fn to_rfc3339(val: i64) -> Result<String, DbError> {
+pub fn to_rfc3339(val: i64) -> Result<String, CommonDbError> {
     let secs = val / 1000;
     let nsecs = ((val % 1000) * 1_000_000).try_into().map_err(|e| {
-        DbError::internal(&format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
+        CommonDbError::internal(&format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
     })?;
     Ok(Utc
         .timestamp(secs, nsecs)
@@ -190,11 +192,11 @@ where
     task::spawn_blocking(f)
         .map_err(|err| {
             if err.is_cancelled() {
-                e("Db threadpool operation cancelled")
+                e("CommonDb threadpool operation cancelled")
             } else if err.is_panic() {
-                e("Db threadpool operation panicked")
+                e("CommonDb threadpool operation panicked")
             } else {
-                e("Db threadpool operation failed for unknown reason")
+                e("CommonDb threadpool operation failed for unknown reason")
             }
         })
         .await?

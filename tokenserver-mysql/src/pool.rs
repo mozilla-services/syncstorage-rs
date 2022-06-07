@@ -11,12 +11,11 @@ use syncserver_common::Metrics;
 #[cfg(test)]
 use syncserver_db_common::test::TestTransactionCustomizer;
 use syncserver_db_common::{util, GetPoolState, PoolState};
-use syncstorage_mysql::error::DbError;
 use tokenserver_settings::Settings;
 
 use super::{
+    error::{DbError, DbResult},
     models::{Db, TokenserverDb},
-    DbResult,
 };
 
 embed_migrations!("../migrations");

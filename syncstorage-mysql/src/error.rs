@@ -4,7 +4,7 @@ use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
 use syncserver_db_common::error::{
-    DbError as DbErrorCommon, DbErrorIntrospect, DbErrorKind as DbErrorKindCommon,
+    CommonDbError, CommonDbErrorKind, DbErrorIntrospect, MysqlError,
 };
 use thiserror::Error;
 
@@ -18,53 +18,47 @@ pub struct DbError {
 // TODO: these helpers shouldn't be duplicated across error types -- how can we share them?
 impl DbError {
     pub fn batch_not_found() -> Self {
-        DbErrorKind::Common(DbErrorKindCommon::BatchNotFound.into()).into()
+        DbErrorKind::Common(CommonDbErrorKind::BatchNotFound.into()).into()
     }
 
     pub fn bso_not_found() -> Self {
-        DbErrorKind::Common(DbErrorKindCommon::BsoNotFound.into()).into()
+        DbErrorKind::Common(CommonDbErrorKind::BsoNotFound.into()).into()
     }
 
     pub fn collection_not_found() -> Self {
-        DbErrorKind::Common(DbErrorKindCommon::CollectionNotFound.into()).into()
+        DbErrorKind::Common(CommonDbErrorKind::CollectionNotFound.into()).into()
     }
 
     pub fn conflict() -> Self {
-        DbErrorKind::Common(DbErrorKindCommon::Conflict.into()).into()
+        DbErrorKind::Common(CommonDbErrorKind::Conflict.into()).into()
     }
 
     pub fn internal(msg: &str) -> Self {
-        DbErrorKind::Common(DbErrorCommon::internal(msg)).into()
+        DbErrorKind::Common(CommonDbError::internal(msg)).into()
     }
 
     pub fn quota() -> Self {
-        DbErrorKind::Common(DbErrorKindCommon::Quota.into()).into()
+        DbErrorKind::Common(CommonDbErrorKind::Quota.into()).into()
     }
 }
 
 #[derive(Debug, Error)]
 pub enum DbErrorKind {
     #[error("{}", _0)]
-    Common(DbErrorCommon),
+    Common(CommonDbError),
 
-    #[error("A database error occurred: {}", _0)]
-    DieselQuery(#[from] diesel::result::Error),
-
-    #[error("An error occurred while establishing a db connection: {}", _0)]
-    DieselConnection(#[from] diesel::result::ConnectionError),
-
-    #[error("A database pool error occurred: {}", _0)]
-    Pool(diesel::r2d2::PoolError),
-
-    #[error("Error migrating the database: {}", _0)]
-    Migration(diesel_migrations::RunMigrationsError),
+    #[error("{}", _0)]
+    Mysql(MysqlError),
 }
 
 impl From<DbErrorKind> for DbError {
     fn from(kind: DbErrorKind) -> Self {
         Self {
+            status: match &kind {
+                DbErrorKind::Common(dbe) => dbe.status,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            },
             kind,
-            status: StatusCode::INTERNAL_SERVER_ERROR,
             backtrace: Backtrace::new(),
         }
     }
@@ -106,16 +100,28 @@ impl DbErrorIntrospect for DbError {
 
 impl_fmt_display!(DbError, DbErrorKind);
 
-from_error!(diesel::result::Error, DbError, DbErrorKind::DieselQuery);
+from_error!(CommonDbError, DbError, DbErrorKind::Common);
+from_error!(
+    diesel::result::Error,
+    DbError,
+    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(MysqlError::from(error)))
+);
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    DbErrorKind::DieselConnection
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(MysqlError::from(
+        error
+    )))
 );
-from_error!(diesel::r2d2::PoolError, DbError, DbErrorKind::Pool);
+from_error!(
+    diesel::r2d2::PoolError,
+    DbError,
+    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(MysqlError::from(error)))
+);
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
-    DbErrorKind::Migration
+    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Mysql(
+        MysqlError::from(error)
+    ))
 );
-from_error!(DbErrorCommon, DbError, DbErrorKind::Common);

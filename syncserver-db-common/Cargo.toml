@@ -12,6 +12,7 @@ chrono = "0.4"
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
+diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 http = "0.2.6"
 futures = { version = "0.3", features = ["compat"] }
 lazy_static = "1.4.0"

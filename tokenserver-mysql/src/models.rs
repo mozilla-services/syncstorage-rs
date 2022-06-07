@@ -15,8 +15,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use super::{params, results, DbFuture, DbResult};
-use crate::DbError;
+use super::{
+    error::{DbError, DbErrorKind, DbFuture, DbResult},
+    params, results,
+};
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
@@ -247,8 +249,8 @@ impl TokenserverDb {
                 .bind::<Integer, _>(spanner_node_id)
                 .get_result::<results::GetBestNode>(&self.inner.conn)
                 .map_err(|e| {
-                    let mut db_error =
-                        DbError::internal(&format!("unable to get Spanner node: {}", e));
+                    let mut db_error: DbError =
+                        DbErrorKind::Internal(format!("unable to get Spanner node: {}", e)).into();
                     db_error.status = StatusCode::SERVICE_UNAVAILABLE;
                     db_error
                 })
@@ -456,7 +458,9 @@ impl TokenserverDb {
                 // The most up-to-date user doesn't have a node and is retired. This is an internal
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
-                (_, None) => Err(DbError::internal("Tokenserver user retired")),
+                (_, None) => {
+                    Err(DbErrorKind::Internal("Tokenserver user retired".to_owned()).into())
+                }
             }
         }
     }
