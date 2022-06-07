@@ -16,8 +16,6 @@ use syncstorage_mysql::pool::MysqlDbPool;
 use syncstorage_spanner::pool::SpannerDbPool;
 use tokio::{self, time};
 
-// TODO: can probably clean this up by creating a submodule and applying preprocessor command to that
-// TODO: pub use * that submodule to include it here
 #[cfg(feature = "mysql")]
 pub type DbPool = MysqlDbPool;
 #[cfg(feature = "mysql")]

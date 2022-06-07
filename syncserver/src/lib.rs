@@ -14,8 +14,6 @@ pub mod server;
 pub mod tokenserver;
 pub mod web;
 
-// TODO: which dependencies can be optional?
-
 #[cfg(all(feature = "mysql", feature = "spanner"))]
 compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
 

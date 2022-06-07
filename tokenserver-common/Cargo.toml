@@ -10,4 +10,5 @@ serde = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-mysql = { path = "../syncstorage-mysql" }
 thiserror = "1.0.26"

@@ -3,45 +3,19 @@ name = "syncstorage-mysql"
 version = "0.10.2"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 async-trait = "0.1.40"
 backtrace = "0.3.61"
 base64 = "0.13"
-bytes = "1.0"
-cadence = "0.26"
-chrono = "0.4"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 futures = { version = "0.3", features = ["compat"] }
-lazy_static = "1.4.0"
-hmac = "0.11"
 http = "0.2.5"
-log = { version = "0.4", features = [
-  "max_level_debug",
-  "release_max_level_info",
-] }
-num_cpus = "1"
-# pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-scheduled-thread-pool = "0.2"
-sha2 = "0.9"
-slog = { version = "2.5", features = [
-  "max_level_info",
-  "release_max_level_info",
-  "dynamic-keys",
-] }
 slog-scope = "4.3"
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-time = "^0.3"
 thiserror = "1.0.26"
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 
 [dev-dependencies]

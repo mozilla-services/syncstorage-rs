@@ -16,10 +16,9 @@ pub struct DbError {
 }
 
 impl DbError {
-    // TODO:
-    // pub fn batch_not_found() -> Self {
-    //     DbErrorKind::Common(DbErrorKindCommon::BatchNotFound.into()).into()
-    // }
+    pub fn batch_not_found() -> Self {
+        DbErrorKind::Common(DbErrorKindCommon::BatchNotFound.into()).into()
+    }
 
     pub fn bso_not_found() -> Self {
         DbErrorKind::Common(DbErrorKindCommon::BsoNotFound.into()).into()

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use bb8::ErrorSink;
+// use bb8::ErrorSink;
 use syncserver_common::Metrics;
 use syncserver_db_common::{DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
@@ -14,8 +14,6 @@ use super::{
     models::SpannerDb,
     DbResult,
 };
-
-embed_migrations!();
 
 /// Run the diesel embedded migrations
 ///
@@ -176,18 +174,18 @@ impl Default for CollectionCache {
     }
 }
 
-/// Logs internal bb8 errors
-#[derive(Debug, Clone, Copy)]
-pub struct LoggingErrorSink;
+///// Logs internal bb8 errors
+// #[derive(Debug, Clone, Copy)]
+// pub struct LoggingErrorSink;
 
-impl<E: std::error::Error> ErrorSink<E> for LoggingErrorSink {
-    fn sink(&self, e: E) {
-        error!("bb8 Error: {}", e);
-        let event = sentry::event_from_error(&e);
-        sentry::capture_event(event);
-    }
+// impl<E: std::error::Error> ErrorSink<E> for LoggingErrorSink {
+//     fn sink(&self, e: E) {
+//         error!("bb8 Error: {}", e);
+//         let event = sentry::event_from_error(&e);
+//         sentry::capture_event(event);
+//     }
 
-    fn boxed_clone(&self) -> Box<dyn ErrorSink<E>> {
-        Box::new(*self)
-    }
-}
+//     fn boxed_clone(&self) -> Box<dyn ErrorSink<E>> {
+//         Box::new(*self)
+//     }
+// }

@@ -13,20 +13,13 @@ default-run = "syncserver"
 [dependencies]
 actix-http = "2"
 actix-web = "3"
-actix-rt = "1"          # Pin to 1.0, due to dependencies on Tokio
+actix-rt = "1" # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
-actix-service = "1.0.6"
 async-trait = "0.1.40"
 backtrace = "0.3.61"
 base64 = "0.13"
-bb8 = "0.4.1"           # pin to 0.4 due to dependencies on Tokio
-bytes = "1.0"
 cadence = "0.26"
 chrono = "0.4"
-# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
-# Fix for #803 (deadpool#92) points to our fork for now
-#deadpool = "0.5"  # pin to 0.5
-deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 docopt = "1.1.0"
 dyn-clone = "1.0.4"
 env_logger = "0.9"
@@ -36,13 +29,11 @@ hawk = "3.2"
 hex = "0.4.3"
 hostname = "0.3.1"
 hmac = "0.11"
-http = "0.2.5"
 log = { version = "0.4", features = [
   "max_level_debug",
   "release_max_level_info",
 ] }
 mime = "0.3"
-num_cpus = "1"
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
 regex = "1.4"
@@ -55,7 +46,6 @@ sentry-backtrace = "0.19"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-scheduled-thread-pool = "0.2"
 sha2 = "0.9"
 slog = { version = "2.5", features = [
   "max_level_info",
@@ -81,9 +71,7 @@ tokenserver-mysql = { path = "../tokenserver-mysql" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
-url = "2.1"
 urlencoding = "2.1"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.14"
 validator_derive = "0.14"
 woothee = "0.11"

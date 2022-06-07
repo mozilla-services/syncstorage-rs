@@ -17,7 +17,10 @@ use tokenserver_mysql::{
 };
 use tokenserver_settings::Settings;
 
-use crate::{error::ApiError, server::user_agent};
+use crate::{
+    error::{ApiError, ApiErrorKind},
+    server::user_agent,
+};
 use auth::{browserid, oauth, VerifyToken};
 
 use std::{collections::HashMap, convert::TryFrom, fmt};
@@ -74,7 +77,9 @@ impl ServerState {
                     token_duration: settings.token_duration,
                 }
             })
-            .map_err(Into::into)
+            .map_err(|_| {
+                ApiErrorKind::Internal("Failed to create Tokenserver pool".to_owned()).into()
+            })
     }
 }
 

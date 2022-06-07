@@ -3,22 +3,14 @@ name = "syncstorage-spanner"
 version = "0.10.2"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 async-trait = "0.1.40"
 backtrace = "0.3.61"
-base64 = "0.13"
-bb8 = "0.4.1"          # pin to 0.4 due to dependencies on Tokio
-bytes = "1.0"
 cadence = "0.26"
-chrono = "0.4"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
-diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 google-cloud-rust-raw = "0.11.0"
@@ -26,45 +18,22 @@ google-cloud-rust-raw = "0.11.0"
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.9" }
-lazy_static = "1.4.0"
-hostname = "0.3.1"
-hmac = "0.11"
 http = "0.2.5"
 log = { version = "0.4", features = [
   "max_level_debug",
   "release_max_level_info",
 ] }
-mime = "0.3"
-num_cpus = "1"
 # must match what's used by googleapis-raw
 protobuf = "2.20.0"
-rand = "0.8"
-regex = "1.4"
-# pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = [
-  "with_curl_transport",
-] } # pin to 0.19 until on-prem sentry server is updated
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-scheduled-thread-pool = "0.2"
-sha2 = "0.9"
-slog = { version = "2.5", features = [
-  "max_level_info",
-  "release_max_level_info",
-  "dynamic-keys",
-] }
 slog-scope = "4.3"
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-time = "^0.3"
 thiserror = "1.0.26"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
-
 
 [[bin]]
 name = "purge_ttl"

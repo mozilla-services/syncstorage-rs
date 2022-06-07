@@ -31,10 +31,7 @@ use syncserver_common::{Metrics, X_WEAVE_RECORDS};
 use syncserver_db_common::{
     params::{self, PostCollectionBso},
     util::SyncTimestamp,
-    // TODO: figure out something better than _Trait
-    DbPool as DbPoolTrait,
-    Sorting,
-    UserIdentifier,
+    DbPool as DbPoolTrait, Sorting, UserIdentifier,
 };
 use validator::{Validate, ValidationError};
 

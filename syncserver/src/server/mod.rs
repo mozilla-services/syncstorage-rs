@@ -39,11 +39,11 @@ pub mod user_agent;
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
-pub struct ServerState<E>
+pub struct ServerState<T>
 where
-    E: DbPoolTrait,
+    T: DbPoolTrait,
 {
-    pub db_pool: E,
+    pub db_pool: T,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,

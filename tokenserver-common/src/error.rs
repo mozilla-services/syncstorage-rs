@@ -7,7 +7,7 @@ use serde::{
     Serialize,
 };
 use syncserver_common::ReportableError;
-use syncserver_db_common::error::DbError;
+use syncstorage_mysql::error::DbError;
 
 #[derive(Clone, Debug)]
 pub struct TokenserverError {
