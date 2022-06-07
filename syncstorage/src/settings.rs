@@ -2,6 +2,7 @@
 use std::{cmp::min, env};
 
 use actix_cors::Cors;
+use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use config::{Config, ConfigError, Environment, File};
 use http::method::Method;
 use serde::{de::Deserializer, Deserialize, Serialize};
@@ -126,10 +127,28 @@ impl Default for Settings {
             spanner_emulator_host: None,
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
-            cors_allowed_origin: None,
-            cors_allowed_methods: None,
-            cors_allowed_headers: None,
-            cors_max_age: None,
+            cors_allowed_origin: Some("*".to_owned()),
+            cors_allowed_methods: Some(vec![
+                "DELETE".to_owned(),
+                "GET".to_owned(),
+                "POST".to_owned(),
+                "PUT".to_owned(),
+            ]),
+            cors_allowed_headers: Some(vec![
+                AUTHORIZATION.to_string(),
+                CONTENT_TYPE.to_string(),
+                USER_AGENT.to_string(),
+                X_LAST_MODIFIED.to_owned(),
+                X_WEAVE_TIMESTAMP.to_owned(),
+                X_WEAVE_NEXT_OFFSET.to_owned(),
+                X_WEAVE_RECORDS.to_owned(),
+                X_WEAVE_BYTES.to_owned(),
+                X_WEAVE_TOTAL_RECORDS.to_owned(),
+                X_WEAVE_TOTAL_BYTES.to_owned(),
+                X_VERIFY_CODE.to_owned(),
+                "TEST_IDLES".to_owned(),
+            ]),
+            cors_max_age: Some(1728000),
         }
     }
 }
@@ -221,9 +240,9 @@ impl Settings {
         s.set_default(
             "cors_allowed_headers",
             Some(vec![
-                "Authorization",
-                "Content-Type",
-                "UserAgent",
+                AUTHORIZATION.to_string().as_str(),
+                CONTENT_TYPE.to_string().as_str(),
+                USER_AGENT.to_string().as_str(),
                 X_LAST_MODIFIED,
                 X_WEAVE_TIMESTAMP,
                 X_WEAVE_NEXT_OFFSET,
@@ -239,6 +258,7 @@ impl Settings {
             "cors_allowed_methods",
             Some(vec!["DELETE", "GET", "POST", "PUT"]),
         )?;
+        s.set_default("cors_allowed_origin", Some("*"))?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -344,10 +364,6 @@ impl Settings {
         // for finer grained specification.
         let mut cors = Cors::default();
 
-        if let Some(allowed_origin) = &self.cors_allowed_origin {
-            cors = cors.allowed_origin(allowed_origin);
-        }
-
         if let Some(allowed_methods) = &self.cors_allowed_methods {
             let mut methods = vec![];
             for method_string in allowed_methods {
@@ -362,6 +378,15 @@ impl Settings {
 
         if let Some(max_age) = &self.cors_max_age {
             cors = cors.max_age(*max_age);
+        }
+        // explicitly set the CORS allow origin, since Default does not
+        // appear to set the `allow-origins: *` header.
+        if let Some(origin) = &self.cors_allowed_origin {
+            if origin == "*" {
+                cors = cors.allow_any_origin();
+            } else {
+                cors = cors.allowed_origin(origin);
+            }
         }
 
         cors
