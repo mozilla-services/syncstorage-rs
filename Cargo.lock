@@ -3071,11 +3071,11 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-common"
-version = "0.10.2"
+version = "0.11.1"
 
 [[package]]
 name = "syncstorage-db-common"
-version = "0.10.2"
+version = "0.11.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3267,7 +3267,7 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokenserver-common"
-version = "0.10.2"
+version = "0.11.1"
 dependencies = [
  "actix-web",
  "serde 1.0.135",
