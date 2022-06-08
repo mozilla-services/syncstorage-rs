@@ -3,7 +3,7 @@ use std::fmt;
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
-use syncserver_db_common::error::{CommonDbError, CommonDbErrorKind, DbErrorIntrospect};
+use syncserver_db_common::error::{CommonDbError, DbErrorIntrospect};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -15,36 +15,44 @@ pub struct DbError {
 
 impl DbError {
     pub fn batch_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::BatchNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::batch_not_found()).into()
     }
 
     pub fn bso_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::BsoNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::bso_not_found()).into()
     }
 
     pub fn collection_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::CollectionNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::collection_not_found()).into()
     }
 
     pub fn conflict() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::Conflict.into()).into()
+        DbErrorKind::Common(CommonDbError::conflict()).into()
     }
 
-    pub fn internal(msg: &str) -> Self {
+    pub fn expired() -> Self {
+        DbErrorKind::Expired.into()
+    }
+
+    pub fn integrity(msg: String) -> Self {
+        DbErrorKind::Integrity(msg).into()
+    }
+
+    pub fn internal(msg: String) -> Self {
         DbErrorKind::Common(CommonDbError::internal(msg)).into()
     }
 
-    pub fn invalid_url(msg: String) -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::InvalidUrl(msg).into()).into()
+    pub fn quota() -> Self {
+        DbErrorKind::Common(CommonDbError::quota()).into()
     }
 
-    pub fn quota() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::Quota.into()).into()
+    pub fn too_large(msg: String) -> Self {
+        DbErrorKind::TooLarge(msg).into()
     }
 }
 
 #[derive(Debug, Error)]
-pub enum DbErrorKind {
+enum DbErrorKind {
     #[error("{}", _0)]
     Common(CommonDbError),
 
@@ -120,12 +128,9 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
         grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
             if status.code() == grpcio::RpcStatusCode::ABORTED =>
         {
-            DbErrorKind::Common(CommonDbErrorKind::Conflict.into())
+            DbErrorKind::Common(CommonDbError::conflict())
         }
         _ => DbErrorKind::Grpc(inner),
     }
 });
 from_error!(CommonDbError, DbError, DbErrorKind::Common);
-from_error!(CommonDbErrorKind, DbError, |kind: CommonDbErrorKind| {
-    DbError::from(DbErrorKind::Common(kind.into()))
-});

@@ -71,7 +71,7 @@ impl SpannerDbPool {
         let conn = self.pool.get().await.map_err(|e| match e {
             deadpool::managed::PoolError::Backend(dbe) => dbe,
             deadpool::managed::PoolError::Timeout(timeout_type) => {
-                DbError::internal(&format!("deadpool Timeout: {:?}", timeout_type))
+                DbError::internal(format!("deadpool Timeout: {:?}", timeout_type))
             }
         })?;
         Ok(SpannerDb::new(

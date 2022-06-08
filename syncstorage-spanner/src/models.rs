@@ -31,7 +31,7 @@ use syncstorage_settings::Quota;
 
 use super::{
     batch,
-    error::{DbError, DbErrorKind},
+    error::DbError,
     pool::{CollectionCache, Conn},
     support::{
         as_type, bso_from_row, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder,
@@ -144,7 +144,7 @@ impl SpannerDb {
         let id = result[0]
             .get_string_value()
             .parse::<i32>()
-            .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            .map_err(|e| DbError::integrity(e.to_string()))?;
         if !self.in_write_transaction() {
             self.coll_cache.put(id, name.to_owned()).await;
         }
@@ -156,7 +156,9 @@ impl SpannerDb {
         // transaction successfully commits, then no other writer modified the
         // data that was read in the transaction after it was read."
         if !cfg!(test) && !self.in_write_transaction() {
-            return Err(DbError::internal("Can't escalate read-lock to write-lock"));
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
         }
         let result = self
             .sql(
@@ -169,7 +171,7 @@ impl SpannerDb {
         let max = result[0]
             .get_string_value()
             .parse::<i32>()
-            .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+            .map_err(|e| DbError::integrity(e.to_string()))?;
         let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
         let (sqlparams, sqlparam_types) = params! {
             "name" => name.to_string(),
@@ -244,7 +246,9 @@ impl SpannerDb {
             .coll_locks
             .get(&(params.user_id.clone(), collection_id))
         {
-            return Err(DbError::internal("Can't escalate read-lock to write-lock"));
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
         }
         let (sqlparams, mut sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid.clone(),
@@ -371,7 +375,7 @@ impl SpannerDb {
             sqlr.seqno = session
                 .execute_sql_count
                 .try_into()
-                .map_err(|_| DbError::internal("seqno overflow"))?;
+                .map_err(|_| DbError::internal("seqno overflow".to_owned()))?;
             session.execute_sql_count += 1;
         }
         Ok(sqlr)
@@ -454,7 +458,7 @@ impl SpannerDb {
             spanner.client.commit(&req)?;
             Ok(())
         } else {
-            Err(DbError::internal("No transaction to commit"))
+            Err(DbError::internal("No transaction to commit".to_owned()))
         }
     }
 
@@ -481,7 +485,7 @@ impl SpannerDb {
             spanner.client.commit_async(&req)?.await?;
             Ok(())
         } else {
-            Err(DbError::internal("No transaction to commit"))
+            Err(DbError::internal("No transaction to commit".to_owned()))
         }
     }
 
@@ -499,7 +503,7 @@ impl SpannerDb {
             spanner.client.rollback(&req)?;
             Ok(())
         } else {
-            Err(DbError::internal("No transaction to rollback"))
+            Err(DbError::internal("No transaction to rollback".to_owned()))
         }
     }
 
@@ -517,7 +521,7 @@ impl SpannerDb {
             spanner.client.rollback_async(&req)?.await?;
             Ok(())
         } else {
-            Err(DbError::internal("No transaction to rollback"))
+            Err(DbError::internal("No transaction to rollback".to_owned()))
         }
     }
 
@@ -590,7 +594,7 @@ impl SpannerDb {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             let modified = SyncTimestamp::from_rfc3339(row[1].get_string_value())?;
             results.insert(collection_id, modified);
         }
@@ -608,7 +612,7 @@ impl SpannerDb {
                 names
                     .remove(&id)
                     .map(|name| (name, value))
-                    .ok_or_else(|| DbError::internal("load_collection_names get"))
+                    .ok_or_else(|| DbError::internal("load_collection_names get".to_owned()))
             })
             .collect()
     }
@@ -645,7 +649,7 @@ impl SpannerDb {
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                    .map_err(|e| DbError::integrity(e.to_string()))?;
                 let name = row[1].take_string_value();
                 names.insert(id, name.clone());
                 if !self.in_write_transaction() {
@@ -683,11 +687,11 @@ impl SpannerDb {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             let count = row[1]
                 .get_string_value()
                 .parse::<i64>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             counts.insert(collection_id, count);
         }
         self.map_collection_names(counts).await
@@ -719,11 +723,11 @@ impl SpannerDb {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             let usage = row[1]
                 .get_string_value()
                 .parse::<i64>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             usages.insert(collection_id, usage);
         }
         self.map_collection_names(usages).await
@@ -786,7 +790,7 @@ impl SpannerDb {
             let usage = result[0]
                 .get_string_value()
                 .parse::<i64>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             Ok(usage as u64)
         } else {
             Ok(0)
@@ -822,14 +826,14 @@ impl SpannerDb {
                 result[0]
                     .get_string_value()
                     .parse::<usize>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?
+                    .map_err(|e| DbError::integrity(e.to_string()))?
             } else {
                 0
             };
             let count = result[1]
                 .get_string_value()
                 .parse::<i32>()
-                .map_err(|e| DbErrorKind::Integrity(e.to_string()))?;
+                .map_err(|e| DbError::integrity(e.to_string()))?;
             Ok(results::GetQuotaUsage { total_bytes, count })
         } else {
             Ok(results::GetQuotaUsage::default())
@@ -1011,7 +1015,7 @@ impl SpannerDb {
         self.session
             .borrow()
             .timestamp
-            .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP() not read yet"))
+            .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP() not read yet".to_owned()))
     }
 
     pub async fn delete_collection_async(
@@ -1582,9 +1586,10 @@ impl SpannerDb {
                 "⚠️Attempted to load too much data into Spanner: {:?} bytes",
                 load_size
             );
-            return Err(
-                DbErrorKind::TooLarge(format!("Committed data too large: {}", load_size)).into(),
-            );
+            return Err(DbError::too_large(format!(
+                "Committed data too large: {}",
+                load_size
+            )));
         }
 
         if !inserts.is_empty() {

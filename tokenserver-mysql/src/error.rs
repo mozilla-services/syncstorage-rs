@@ -18,13 +18,13 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn internal(msg: &'static str) -> Self {
-        DbErrorKind::Internal(msg.to_owned()).into()
+    pub(crate) fn internal(msg: String) -> Self {
+        DbErrorKind::Internal(msg).into()
     }
 }
 
 #[derive(Debug, Error)]
-pub enum DbErrorKind {
+enum DbErrorKind {
     #[error("{}", _0)]
     Mysql(MysqlError),
 

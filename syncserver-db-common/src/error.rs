@@ -5,7 +5,8 @@ use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
 use thiserror::Error;
 
-// TODO: pull all these errors into a general SyncserverError
+/// Errors common to all supported database backends. These errors can be thought of as being
+/// related more to the syncstorage application logic as opposed to a particular database backend.
 #[derive(Debug)]
 pub struct CommonDbError {
     kind: CommonDbErrorKind,
@@ -14,7 +15,7 @@ pub struct CommonDbError {
 }
 
 #[derive(Debug, Error)]
-pub enum CommonDbErrorKind {
+enum CommonDbErrorKind {
     #[error("Specified collection does not exist")]
     CollectionNotFound,
 
@@ -27,9 +28,6 @@ pub enum CommonDbErrorKind {
     #[error("An attempt at a conflicting write")]
     Conflict,
 
-    #[error("Invalid database URL: {}", _0)]
-    InvalidUrl(String),
-
     #[error("Unexpected error: {}", _0)]
     Internal(String),
 
@@ -38,8 +36,28 @@ pub enum CommonDbErrorKind {
 }
 
 impl CommonDbError {
-    pub fn internal(msg: &str) -> Self {
-        CommonDbErrorKind::Internal(msg.to_owned()).into()
+    pub fn batch_not_found() -> Self {
+        CommonDbErrorKind::BatchNotFound.into()
+    }
+
+    pub fn bso_not_found() -> Self {
+        CommonDbErrorKind::BsoNotFound.into()
+    }
+
+    pub fn collection_not_found() -> Self {
+        CommonDbErrorKind::CollectionNotFound.into()
+    }
+
+    pub fn conflict() -> Self {
+        CommonDbErrorKind::Conflict.into()
+    }
+
+    pub fn internal(msg: String) -> Self {
+        CommonDbErrorKind::Internal(msg).into()
+    }
+
+    pub fn quota() -> Self {
+        CommonDbErrorKind::Quota.into()
     }
 }
 
@@ -114,6 +132,8 @@ impl From<CommonDbErrorKind> for CommonDbError {
 
 impl_fmt_display!(CommonDbError, CommonDbErrorKind);
 
+/// Error specific to the MySQL syncstorage backend. These errors are not related to
+/// the syncstorage application logic; rather, they are lower-level errors arising from diesel.
 #[derive(Debug)]
 pub struct MysqlError {
     kind: MysqlErrorKind,

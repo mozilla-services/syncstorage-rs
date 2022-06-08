@@ -3,9 +3,7 @@ use std::fmt;
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
-use syncserver_db_common::error::{
-    CommonDbError, CommonDbErrorKind, DbErrorIntrospect, MysqlError,
-};
+use syncserver_db_common::error::{CommonDbError, DbErrorIntrospect, MysqlError};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -15,35 +13,34 @@ pub struct DbError {
     pub backtrace: Backtrace,
 }
 
-// TODO: these helpers shouldn't be duplicated across error types -- how can we share them?
 impl DbError {
     pub fn batch_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::BatchNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::batch_not_found()).into()
     }
 
     pub fn bso_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::BsoNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::bso_not_found()).into()
     }
 
     pub fn collection_not_found() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::CollectionNotFound.into()).into()
+        DbErrorKind::Common(CommonDbError::collection_not_found()).into()
     }
 
     pub fn conflict() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::Conflict.into()).into()
+        DbErrorKind::Common(CommonDbError::conflict()).into()
     }
 
-    pub fn internal(msg: &str) -> Self {
+    pub fn internal(msg: String) -> Self {
         DbErrorKind::Common(CommonDbError::internal(msg)).into()
     }
 
     pub fn quota() -> Self {
-        DbErrorKind::Common(CommonDbErrorKind::Quota.into()).into()
+        DbErrorKind::Common(CommonDbError::quota()).into()
     }
 }
 
 #[derive(Debug, Error)]
-pub enum DbErrorKind {
+enum DbErrorKind {
     #[error("{}", _0)]
     Common(CommonDbError),
 
@@ -53,13 +50,17 @@ pub enum DbErrorKind {
 
 impl From<DbErrorKind> for DbError {
     fn from(kind: DbErrorKind) -> Self {
-        Self {
-            status: match &kind {
-                DbErrorKind::Common(dbe) => dbe.status,
-                _ => StatusCode::INTERNAL_SERVER_ERROR,
+        match &kind {
+            DbErrorKind::Common(dbe) => Self {
+                status: dbe.status,
+                backtrace: dbe.backtrace.clone(),
+                kind,
             },
-            kind,
-            backtrace: Backtrace::new(),
+            _ => Self {
+                kind,
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                backtrace: Backtrace::new(),
+            },
         }
     }
 }

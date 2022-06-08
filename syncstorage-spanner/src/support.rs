@@ -18,11 +18,7 @@ use syncserver_db_common::{
     params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-use super::{
-    error::{DbError, DbErrorKind},
-    pool::Conn,
-    DbResult,
-};
+use super::{error::DbError, pool::Conn, DbResult};
 
 pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;
@@ -233,7 +229,9 @@ impl StreamedResultSetAsync {
         if let Some(result) = self.one_or_none().await? {
             Ok(result)
         } else {
-            Err(DbError::internal("No rows matched the given query."))
+            Err(DbError::internal(
+                "No rows matched the given query.".to_owned(),
+            ))
         }
     }
 
@@ -242,7 +240,9 @@ impl StreamedResultSetAsync {
         if result.is_none() {
             Ok(None)
         } else if self.next_async().await.is_some() {
-            Err(DbError::internal("Expected one result; got more."))
+            Err(DbError::internal(
+                "Expected one result; got more.".to_owned(),
+            ))
         } else {
             result.transpose()
         }
@@ -285,9 +285,9 @@ impl StreamedResultSetAsync {
             let fields = self.fields();
             let current_row_i = self.current_row.len();
             if fields.len() <= current_row_i {
-                return Err(
-                    DbErrorKind::Integrity("Invalid PartialResultSet fields".to_owned()).into(),
-                );
+                return Err(DbError::integrity(
+                    "Invalid PartialResultSet fields".to_owned(),
+                ));
             }
             let field = &fields[current_row_i];
             values[0] = merge_by_type(pending_chunk, &values[0], field.get_field_type())?;
@@ -344,7 +344,7 @@ fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> DbResult<Value> 
 }
 
 fn unsupported_merge(field_type: &Type) -> DbResult<Value> {
-    Err(DbError::internal(&format!(
+    Err(DbError::internal(format!(
         "merge not supported, type: {:?}",
         field_type
     )))
@@ -352,7 +352,9 @@ fn unsupported_merge(field_type: &Type) -> DbResult<Value> {
 
 fn merge_string(mut lhs: Value, rhs: &Value) -> DbResult<Value> {
     if !lhs.has_string_value() || !rhs.has_string_value() {
-        return Err(DbError::internal("merge_string has no string value"));
+        return Err(DbError::internal(
+            "merge_string has no string value".to_owned(),
+        ));
     }
     let mut merged = lhs.take_string_value();
     merged.push_str(rhs.get_string_value());
@@ -371,7 +373,7 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
                 row[1]
                     .get_string_value()
                     .parse::<i32>()
-                    .map_err(|e| DbErrorKind::Integrity(e.to_string()))?,
+                    .map_err(|e| DbError::integrity(e.to_string()))?,
             )
         },
         payload: row[2].take_string_value(),

@@ -21,16 +21,12 @@ pub type DbPool = MysqlDbPool;
 #[cfg(feature = "mysql")]
 pub use syncstorage_mysql::error::DbError;
 #[cfg(feature = "mysql")]
-pub use syncstorage_mysql::error::DbErrorKind;
-#[cfg(feature = "mysql")]
 pub type Db = syncstorage_mysql::models::MysqlDb;
 
 #[cfg(feature = "spanner")]
 pub type DbPool = SpannerDbPool;
 #[cfg(feature = "spanner")]
 pub use syncstorage_spanner::error::DbError;
-#[cfg(feature = "spanner")]
-pub use syncstorage_spanner::error::DbErrorKind;
 #[cfg(feature = "spanner")]
 pub type Db = syncstorage_spanner::models::SpannerDb;
 
@@ -75,6 +71,6 @@ where
 {
     web::block(f).await.map_err(|e| match e {
         BlockingError::Error(e) => e,
-        BlockingError::Canceled => DbError::internal("Db threadpool operation canceled"),
+        BlockingError::Canceled => DbError::internal("Db threadpool operation canceled".to_owned()),
     })
 }

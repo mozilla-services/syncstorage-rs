@@ -134,11 +134,11 @@ impl CollectionCache {
         // writes or use an RwLock alternative
         self.by_name
             .write()
-            .map_err(|_| DbError::internal("by_name write"))?
+            .map_err(|_| DbError::internal("by_name write".to_owned()))?
             .insert(name.clone(), id);
         self.by_id
             .write()
-            .map_err(|_| DbError::internal("by_id write"))?
+            .map_err(|_| DbError::internal("by_id write".to_owned()))?
             .insert(id, name);
         Ok(())
     }
@@ -147,7 +147,7 @@ impl CollectionCache {
         Ok(self
             .by_name
             .read()
-            .map_err(|_| DbError::internal("by_name read"))?
+            .map_err(|_| DbError::internal("by_name read".to_owned()))?
             .get(name)
             .cloned())
     }
@@ -156,7 +156,7 @@ impl CollectionCache {
         Ok(self
             .by_id
             .read()
-            .map_err(|_| DbError::internal("by_id read"))?
+            .map_err(|_| DbError::internal("by_id read".to_owned()))?
             .get(&id)
             .cloned())
     }

@@ -14,7 +14,7 @@ use futures::future::TryFutureExt;
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::task;
 
-use super::error::{CommonDbError, CommonDbErrorKind};
+use super::error::CommonDbError;
 
 /// Get the time since the UNIX epoch in milliseconds
 fn ms_since_epoch() -> i64 {
@@ -57,9 +57,9 @@ impl SyncTimestamp {
     /// Create a `SyncTimestamp` from an i64
     pub fn from_i64(val: i64) -> Result<Self, CommonDbError> {
         if val < 0 {
-            return Err(
-                CommonDbErrorKind::Internal("Invalid modified i64 (< 0)".to_owned()).into(),
-            );
+            return Err(CommonDbError::internal(
+                "Invalid modified i64 (< 0)".to_owned(),
+            ));
         }
         Ok(SyncTimestamp::from_milliseconds(val as u64))
     }
@@ -85,7 +85,7 @@ impl SyncTimestamp {
     pub fn from_rfc3339(val: &str) -> Result<Self, CommonDbError> {
         let dt = DateTime::parse_from_rfc3339(val)
             // TODO: maybe convert these Internal errors to Integrity in Spanner code
-            .map_err(|e| CommonDbErrorKind::Internal(format!("Invalid TIMESTAMP {}", e)))?;
+            .map_err(|e| CommonDbError::internal(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }
 
@@ -93,7 +93,7 @@ impl SyncTimestamp {
     fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, CommonDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
-            return Err(CommonDbErrorKind::Internal("Invalid DateTime (< 0)".to_owned()).into());
+            return Err(CommonDbError::internal("Invalid DateTime (< 0)".to_owned()));
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
@@ -175,7 +175,7 @@ where
 pub fn to_rfc3339(val: i64) -> Result<String, CommonDbError> {
     let secs = val / 1000;
     let nsecs = ((val % 1000) * 1_000_000).try_into().map_err(|e| {
-        CommonDbError::internal(&format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
+        CommonDbError::internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
     })?;
     Ok(Utc
         .timestamp(secs, nsecs)
@@ -186,17 +186,17 @@ pub async fn run_on_blocking_threadpool<F, T, E, M>(f: F, e: M) -> Result<T, E>
 where
     F: FnOnce() -> Result<T, E> + Send + 'static,
     T: Send + 'static,
-    M: FnOnce(&'static str) -> E,
+    M: FnOnce(String) -> E,
     E: Send + 'static,
 {
     task::spawn_blocking(f)
         .map_err(|err| {
             if err.is_cancelled() {
-                e("CommonDb threadpool operation cancelled")
+                e("CommonDb threadpool operation cancelled".to_owned())
             } else if err.is_panic() {
-                e("CommonDb threadpool operation panicked")
+                e("CommonDb threadpool operation panicked".to_owned())
             } else {
-                e("CommonDb threadpool operation failed for unknown reason")
+                e("CommonDb threadpool operation failed for unknown reason".to_owned())
             }
         })
         .await?

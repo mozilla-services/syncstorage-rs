@@ -321,7 +321,7 @@ pub async fn post_collection_batch(
                 },
             }
         } else {
-            return Err(ApiError::from(DbError::batch_not_found()));
+            return Err(ApiErrorKind::Db(DbError::batch_not_found()).into());
         }
     } else {
         trace!("Batch: Creating new batch");
@@ -406,7 +406,7 @@ pub async fn post_collection_batch(
         })
         .await?
     } else {
-        return Err(ApiError::from(DbError::batch_not_found()));
+        return Err(ApiErrorKind::Db(DbError::batch_not_found()).into());
     };
 
     // Then, write the BSOs contained in the commit request into the BSO table.

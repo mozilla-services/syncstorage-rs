@@ -202,7 +202,9 @@ impl MysqlDb {
             .coll_locks
             .get(&(user_id as u32, collection_id))
         {
-            return Err(DbError::internal("Can't escalate read-lock to write-lock"));
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_owned(),
+            ));
         }
 
         // Lock the db
@@ -786,16 +788,14 @@ impl MysqlDb {
         Ok(result as u64 > 0)
     }
 
-    // TODO: convert the helper functions to use DbErrorKindCommon instead
     fn map_collection_names<T>(&self, by_id: HashMap<i32, T>) -> DbResult<HashMap<String, T>> {
         let mut names = self.load_collection_names(by_id.keys())?;
         by_id
             .into_iter()
             .map(|(id, value)| {
-                names
-                    .remove(&id)
-                    .map(|name| (name, value))
-                    .ok_or_else(|| DbError::internal("load_collection_names unknown collection id"))
+                names.remove(&id).map(|name| (name, value)).ok_or_else(|| {
+                    DbError::internal("load_collection_names unknown collection id".to_owned())
+                })
             })
             .collect()
     }

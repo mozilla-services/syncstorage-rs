@@ -8,7 +8,7 @@ use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, Metada
 use syncserver_common::Metrics;
 use syncserver_db_common::util;
 
-use crate::error::{DbError, DbErrorKind};
+use crate::error::DbError;
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 
@@ -130,7 +130,7 @@ pub async fn recycle_spanner_session(
                 if age > max_life as i64 {
                     metrics.incr("db.connection.max_life");
                     dbg!("### aging out", this_session.get_name());
-                    return Err(DbErrorKind::Expired.into());
+                    return Err(DbError::expired());
                 }
             }
             // check how long that this has been idle...
@@ -147,7 +147,7 @@ pub async fn recycle_spanner_session(
                 if idle > max_idle as i64 {
                     metrics.incr("db.connection.max_idle");
                     dbg!("### idling out", this_session.get_name());
-                    return Err(DbErrorKind::Expired.into());
+                    return Err(DbError::expired());
                 }
                 // and update the connection's reference session info
                 conn.session = this_session;

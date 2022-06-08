@@ -16,7 +16,7 @@ use std::{
 };
 
 use super::{
-    error::{DbError, DbErrorKind, DbFuture, DbResult},
+    error::{DbError, DbFuture, DbResult},
     params, results,
 };
 
@@ -249,8 +249,8 @@ impl TokenserverDb {
                 .bind::<Integer, _>(spanner_node_id)
                 .get_result::<results::GetBestNode>(&self.inner.conn)
                 .map_err(|e| {
-                    let mut db_error: DbError =
-                        DbErrorKind::Internal(format!("unable to get Spanner node: {}", e)).into();
+                    let mut db_error =
+                        DbError::internal(format!("unable to get Spanner node: {}", e));
                     db_error.status = StatusCode::SERVICE_UNAVAILABLE;
                     db_error
                 })
@@ -284,7 +284,7 @@ impl TokenserverDb {
                 }
             }
 
-            let mut db_error = DbError::internal("unable to get a node");
+            let mut db_error = DbError::internal("unable to get a node".to_owned());
             db_error.status = StatusCode::SERVICE_UNAVAILABLE;
             Err(db_error)
         }
@@ -458,9 +458,7 @@ impl TokenserverDb {
                 // The most up-to-date user doesn't have a node and is retired. This is an internal
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
-                (_, None) => {
-                    Err(DbErrorKind::Internal("Tokenserver user retired".to_owned()).into())
-                }
+                (_, None) => Err(DbError::internal("Tokenserver user retired".to_owned())),
             }
         }
     }

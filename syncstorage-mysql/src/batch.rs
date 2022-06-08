@@ -265,7 +265,7 @@ fn decode_id(id: &str) -> DbResult<i64> {
     let decoded = std::str::from_utf8(&bytes).unwrap_or(id);
     decoded
         .parse::<i64>()
-        .map_err(|e| DbError::internal(&format!("Invalid batch_id: {}", e)))
+        .map_err(|e| DbError::internal(format!("Invalid batch_id: {}", e)))
 }
 
 #[macro_export]

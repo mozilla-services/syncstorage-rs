@@ -9,12 +9,11 @@ use protobuf::{
     RepeatedField,
 };
 use syncserver_db_common::{
-    error::{CommonDbError, CommonDbErrorKind},
-    params, results,
-    util::to_rfc3339,
-    UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    params, results, util::to_rfc3339, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 use uuid::Uuid;
+
+use crate::error::DbError;
 
 use super::models::{SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
@@ -99,7 +98,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbRe
     if !exists {
         // NOTE: db tests expects this but it doesn't seem necessary w/ the
         // handler validating the batch before appends
-        return Err(CommonDbErrorKind::BatchNotFound.into());
+        return Err(DbError::batch_not_found());
     }
 
     do_append_async(
@@ -570,8 +569,8 @@ async fn pretouch_collection_async(
     Ok(())
 }
 
-pub fn validate_batch_id(id: &str) -> Result<(), CommonDbError> {
+pub fn validate_batch_id(id: &str) -> DbResult<()> {
     Uuid::from_str(id)
         .map(|_| ())
-        .map_err(|e| CommonDbError::internal(&format!("Invalid batch_id: {}", e)))
+        .map_err(|e| DbError::internal(format!("Invalid batch_id: {}", e)))
 }
