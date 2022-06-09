@@ -1967,6 +1967,72 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_get_spanner_node() -> DbResult<()> {
+        let pool = db_pool().await?;
+        let db = pool.get().await?;
+
+        // Add a service
+        let service_id = db
+            .post_service(params::PostService {
+                service: "sync-1.5".to_owned(),
+                pattern: "{node}/1.5/{uid}".to_owned(),
+            })
+            .await?
+            .id;
+
+        // Add a node with capacity and available set to 0
+        let spanner_node_id = db
+            .post_node(params::PostNode {
+                service_id,
+                node: "https://spanner_node".to_owned(),
+                current_load: 1000,
+                capacity: 0,
+                available: 0,
+                ..Default::default()
+            })
+            .await?
+            .id;
+
+        // Add another node with available capacity
+        db.post_node(params::PostNode {
+            service_id,
+            node: "https://another_node".to_owned(),
+            current_load: 0,
+            capacity: 1000,
+            available: 1000,
+            ..Default::default()
+        })
+        .await?;
+
+        // Ensure the Spanner node is selected if the Spanner node ID is provided as a parameter
+        assert_eq!(
+            db.get_best_node(params::GetBestNode {
+                service_id,
+                capacity_release_rate: None,
+                spanner_node_id: Some(spanner_node_id as i32)
+            })
+            .await?
+            .id,
+            spanner_node_id
+        );
+
+        // Ensure the node with available capacity is selected if the Spanner node ID is not
+        // provided as a parameter
+        assert_eq!(
+            db.get_best_node(params::GetBestNode {
+                service_id,
+                capacity_release_rate: None,
+                spanner_node_id: None
+            })
+            .await?
+            .id,
+            spanner_node_id
+        );
+
+        Ok(())
+    }
+
     async fn db_pool() -> DbResult<TokenserverPool> {
         let _ = env_logger::try_init();
 
