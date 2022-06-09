@@ -234,6 +234,7 @@ impl FromRequest for TokenserverRequest {
                     client_state: auth_data.client_state.clone(),
                     keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
+                    spanner_node_id: state.spanner_node_id,
                 })
                 .await
                 .map_err(ApiError::from)?;
@@ -1288,6 +1289,7 @@ mod tests {
                 )
                 .unwrap(),
             ),
+            spanner_node_id: None,
         }
     }
 }

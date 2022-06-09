@@ -52,6 +52,8 @@ pub struct Settings {
     pub statsd_label: String,
     /// Whether or not to run the Tokenserver migrations upon startup.
     pub run_migrations: bool,
+    /// The database ID of the Spanner node.
+    pub spanner_node_id: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -88,6 +90,7 @@ impl Default for Settings {
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
             run_migrations: cfg!(test),
+            spanner_node_id: None,
         }
     }
 }

@@ -192,6 +192,7 @@ impl TokenserverDb {
 
     /// Gets the least-loaded node that has available slots.
     fn get_best_node_sync(&self, params: params::GetBestNode) -> DbResult<results::GetBestNode> {
+        const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
         const GET_BEST_NODE_QUERY: &str = r#"
               SELECT id, node
                 FROM nodes
@@ -211,43 +212,60 @@ impl TokenserverDb {
                AND capacity > current_load
                AND downed = 0
         "#;
-        const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
+        const SPANNER_QUERY: &str = r#"
+              SELECT id, node
+                FROM nodes
+               WHERE id = ?
+               LIMIT 1
+        "#;
 
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_best_node", None);
 
-        // We may have to retry the query if we need to release more capacity. This loop allows
-        // a maximum of five retries before bailing out.
-        for _ in 0..5 {
-            let maybe_result = diesel::sql_query(GET_BEST_NODE_QUERY)
-                .bind::<Integer, _>(params.service_id)
+        if let Some(spanner_node_id) = params.spanner_node_id {
+            diesel::sql_query(SPANNER_QUERY)
+                .bind::<Integer, _>(spanner_node_id)
                 .get_result::<results::GetBestNode>(&self.inner.conn)
-                .optional()?;
+                .map_err(|e| {
+                    let mut db_error =
+                        DbError::internal(&format!("unable to get Spanner node: {}", e));
+                    db_error.status = StatusCode::SERVICE_UNAVAILABLE;
+                    db_error
+                })
+        } else {
+            // We may have to retry the query if we need to release more capacity. This loop allows
+            // a maximum of five retries before bailing out.
+            for _ in 0..5 {
+                let maybe_result = diesel::sql_query(GET_BEST_NODE_QUERY)
+                    .bind::<Integer, _>(params.service_id)
+                    .get_result::<results::GetBestNode>(&self.inner.conn)
+                    .optional()?;
 
-            if let Some(result) = maybe_result {
-                return Ok(result);
+                if let Some(result) = maybe_result {
+                    return Ok(result);
+                }
+
+                // There were no available nodes. Try to release additional capacity from any nodes
+                // that are not fully occupied.
+                let affected_rows = diesel::sql_query(RELEASE_CAPACITY_QUERY)
+                    .bind::<Float, _>(
+                        params
+                            .capacity_release_rate
+                            .unwrap_or(DEFAULT_CAPACITY_RELEASE_RATE),
+                    )
+                    .bind::<Integer, _>(params.service_id)
+                    .execute(&self.inner.conn)?;
+
+                // If no nodes were affected by the last query, give up.
+                if affected_rows == 0 {
+                    break;
+                }
             }
 
-            // There were no available nodes. Try to release additional capacity from any nodes
-            // that are not fully occupied.
-            let affected_rows = diesel::sql_query(RELEASE_CAPACITY_QUERY)
-                .bind::<Float, _>(
-                    params
-                        .capacity_release_rate
-                        .unwrap_or(DEFAULT_CAPACITY_RELEASE_RATE),
-                )
-                .bind::<Integer, _>(params.service_id)
-                .execute(&self.inner.conn)?;
-
-            // If no nodes were affected by the last query, give up.
-            if affected_rows == 0 {
-                break;
-            }
+            let mut db_error = DbError::internal("unable to get a node");
+            db_error.status = StatusCode::SERVICE_UNAVAILABLE;
+            Err(db_error)
         }
-
-        let mut db_error = DbError::internal("unable to get a node");
-        db_error.status = StatusCode::SERVICE_UNAVAILABLE;
-        Err(db_error)
     }
 
     fn add_user_to_node_sync(
@@ -367,6 +385,7 @@ impl TokenserverDb {
                             client_state: raw_user.client_state.clone(),
                             keys_changed_at: raw_user.keys_changed_at,
                             capacity_release_rate: params.capacity_release_rate,
+                            spanner_node_id: params.spanner_node_id,
                         })?
                     };
 
@@ -414,6 +433,7 @@ impl TokenserverDb {
         let node = self.get_best_node_sync(params::GetBestNode {
             service_id: params.service_id,
             capacity_release_rate: params.capacity_release_rate,
+            spanner_node_id: params.spanner_node_id,
         })?;
 
         // Decrement `available` and increment `current_load` on the node assigned to the user.
@@ -1200,6 +1220,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         })?;
         assert_eq!(user.node, "https://node1");
 
@@ -1253,6 +1274,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         })?;
 
         let user2 = db.allocate_user_sync(params::AllocateUser {
@@ -1262,6 +1284,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         })?;
 
         // Because users are always assigned to the least-loaded node, the users should have been
@@ -1305,6 +1328,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
@@ -1346,6 +1370,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
@@ -1386,6 +1411,7 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
+            ..Default::default()
         })?;
         let user1 = db
             .get_user(params::GetUser {
@@ -1409,6 +1435,7 @@ mod tests {
                 client_state: "bbbb".to_owned(),
                 keys_changed_at: Some(1235),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1459,6 +1486,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1470,6 +1498,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1529,6 +1558,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1540,6 +1570,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1551,6 +1582,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1562,6 +1594,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1594,6 +1627,7 @@ mod tests {
                     client_state: user.client_state.clone(),
                     keys_changed_at: user.keys_changed_at,
                     capacity_release_rate: None,
+                    ..Default::default()
                 })
                 .await?;
 
@@ -1623,6 +1657,7 @@ mod tests {
                     client_state: user.client_state.clone(),
                     keys_changed_at: user.keys_changed_at,
                     capacity_release_rate: None,
+                    ..Default::default()
                 })
                 .await?;
 
@@ -1681,6 +1716,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1698,6 +1734,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1717,6 +1754,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1734,6 +1772,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1752,6 +1791,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1769,6 +1809,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1787,6 +1828,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await;
 
@@ -1834,6 +1876,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1853,6 +1896,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1896,6 +1940,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
@@ -1912,6 +1957,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
+                ..Default::default()
             })
             .await?;
 
