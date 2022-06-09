@@ -2019,7 +2019,7 @@ mod tests {
 
         // Ensure the node with available capacity is selected if the Spanner node ID is not
         // provided as a parameter
-        assert_eq!(
+        assert_ne!(
             db.get_best_node(params::GetBestNode {
                 service_id,
                 capacity_release_rate: None,
