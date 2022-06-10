@@ -16,10 +16,10 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::web::{DOCKER_FLOW_ENDPOINTS, X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
 pub struct WeaveTimestampMiddleware<S> {
-    service: Rc<RefCell<S>>,
+    service: S,
 }
 
-impl<S: 'static, B> Service for WeaveTimestampMiddleware<S>
+impl<S, B> Service for WeaveTimestampMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -40,9 +40,9 @@ where
         }
 
         let ts = SyncTimestamp::default().as_seconds();
-        let mut svc = self.service.clone();
+        let mut fut = self.service.call(sreq);
         Box::pin(async move {
-            let mut resp = svc.call(sreq).await?;
+            let mut resp = fut.await?;
             set_weave_timestamp(resp.headers_mut(), ts)?;
             Ok(resp)
         })
@@ -109,9 +109,7 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(future::ok(WeaveTimestampMiddleware {
-            service: Rc::new(RefCell::new(service)),
-        }))
+        Box::pin(future::ok(WeaveTimestampMiddleware { service }))
     }
 }
 
