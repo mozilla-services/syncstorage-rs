@@ -1,23 +1,43 @@
-use std::fmt;
+use std::{cmp::PartialEq, fmt};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use backtrace::Backtrace;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use thiserror::Error;
+use syncstorage_db_common::error::DbError;
 
-#[derive(Clone, Debug, Error, PartialEq)]
-#[error("{context}")]
+#[derive(Clone, Debug)]
 pub struct TokenserverError {
     pub status: &'static str,
     pub location: ErrorLocation,
     pub name: String,
-    pub description: &'static str,
+    pub description: String,
     pub http_status: StatusCode,
     /// For internal use only. Used to report any additional context behind an error to
     /// distinguish between similar errors in Sentry.
     pub context: String,
+    pub backtrace: Backtrace,
+}
+
+// We implement `PartialEq` manually here because `Backtrace` doesn't implement `PartialEq`, so we
+// can't derive it
+impl PartialEq for TokenserverError {
+    fn eq(&self, other: &Self) -> bool {
+        self.status == other.status
+            && self.location == other.location
+            && self.name == other.name
+            && self.description == other.description
+            && self.http_status == other.http_status
+            && self.context == other.context
+    }
+}
+
+impl fmt::Display for TokenserverError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.context)
+    }
 }
 
 impl Default for TokenserverError {
@@ -26,9 +46,10 @@ impl Default for TokenserverError {
             status: "error",
             location: ErrorLocation::default(),
             name: "".to_owned(),
-            description: "Unauthorized",
+            description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
+            backtrace: Backtrace::new(),
         }
     }
 }
@@ -52,31 +73,31 @@ impl TokenserverError {
         }
     }
 
-    pub fn invalid_key_id(description: &'static str) -> Self {
+    pub fn invalid_key_id(description: String) -> Self {
         Self {
             status: "invalid-key-id",
+            context: description.clone(),
             description,
-            context: description.to_owned(),
             ..Self::default()
         }
     }
 
-    pub fn invalid_credentials(description: &'static str) -> Self {
+    pub fn invalid_credentials(description: String) -> Self {
         Self {
             status: "invalid-credentials",
             location: ErrorLocation::Body,
+            context: description.clone(),
             description,
-            context: description.to_owned(),
             ..Self::default()
         }
     }
 
-    pub fn invalid_client_state(description: &'static str) -> Self {
+    pub fn invalid_client_state(description: String) -> Self {
         Self {
             status: "invalid-client-state",
+            context: description.clone(),
             description,
             name: "X-Client-State".to_owned(),
-            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -85,7 +106,7 @@ impl TokenserverError {
         Self {
             status: "internal-error",
             location: ErrorLocation::Internal,
-            description: "Server error",
+            description: "Server error".to_owned(),
             http_status: StatusCode::INTERNAL_SERVER_ERROR,
             context: "Internal error".to_owned(),
             ..Self::default()
@@ -95,29 +116,30 @@ impl TokenserverError {
     pub fn resource_unavailable() -> Self {
         Self {
             location: ErrorLocation::Body,
-            description: "Resource is not available",
+            description: "Resource is not available".to_owned(),
             http_status: StatusCode::SERVICE_UNAVAILABLE,
             context: "Resource is not available".to_owned(),
             ..Default::default()
         }
     }
 
-    pub fn unsupported(description: &'static str, name: String) -> Self {
+    pub fn unsupported(description: String, name: String) -> Self {
         Self {
             status: "error",
             location: ErrorLocation::Url,
+            context: description.clone(),
             description,
             name,
             http_status: StatusCode::NOT_FOUND,
-            context: description.to_owned(),
+            ..Self::default()
         }
     }
 
-    pub fn unauthorized(description: &'static str) -> Self {
+    pub fn unauthorized(description: String) -> Self {
         Self {
             location: ErrorLocation::Body,
+            context: description.clone(),
             description,
-            context: description.to_owned(),
             ..Self::default()
         }
     }
@@ -166,7 +188,7 @@ struct ErrorResponse {
 struct ErrorInstance {
     location: ErrorLocation,
     name: String,
-    description: &'static str,
+    description: String,
 }
 
 impl From<&TokenserverError> for ErrorResponse {
@@ -176,7 +198,7 @@ impl From<&TokenserverError> for ErrorResponse {
             errors: [ErrorInstance {
                 location: error.location,
                 name: error.name.clone(),
-                description: error.description,
+                description: error.description.clone(),
             }],
         }
     }
@@ -213,5 +235,30 @@ impl Serialize for TokenserverError {
         S: Serializer,
     {
         ErrorResponse::from(self).serialize(serializer)
+    }
+}
+
+impl From<DbError> for TokenserverError {
+    fn from(db_error: DbError) -> Self {
+        TokenserverError {
+            description: db_error.to_string(),
+            context: db_error.to_string(),
+            backtrace: db_error.backtrace,
+            http_status: if db_error.status.is_server_error() {
+                // Use the status code from the DbError if it already suggests an internal error;
+                // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
+                db_error.status
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            },
+            // An unhandled DbError in the Tokenserver code is an internal error
+            ..TokenserverError::internal_error()
+        }
+    }
+}
+
+impl From<TokenserverError> for HttpResponse {
+    fn from(inner: TokenserverError) -> Self {
+        ResponseError::error_response(&inner)
     }
 }

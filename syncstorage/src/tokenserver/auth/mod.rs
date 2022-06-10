@@ -3,7 +3,6 @@ pub mod oauth;
 
 use std::fmt;
 
-use actix_web::Error;
 use async_trait::async_trait;
 use dyn_clone::{self, DynClone};
 use pyo3::{
@@ -12,8 +11,6 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 use tokenserver_common::error::TokenserverError;
-
-use crate::error::{ApiError, ApiErrorKind};
 
 /// Represents the origin of the token used by Sync clients to access their data.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -82,7 +79,7 @@ impl Tokenlib {
     pub fn get_token_and_derived_secret(
         plaintext: MakeTokenPlaintext,
         shared_secret: &str,
-    ) -> Result<(String, String), Error> {
+    ) -> Result<(String, String), TokenserverError> {
         Python::with_gil(|py| {
             // `import tokenlib`
             let module = PyModule::import(py, "tokenlib").map_err(|e| {
@@ -112,7 +109,7 @@ impl Tokenlib {
             // `return (token, derived_secret)`
             Ok((token, derived_secret))
         })
-        .map_err(pyerr_to_actix_error)
+        .map_err(pyerr_to_tokenserver_error)
     }
 }
 
@@ -142,11 +139,13 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
     async fn verify(&self, _token: String) -> Result<T, TokenserverError> {
         self.valid
             .then(|| self.verify_output.clone())
-            .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized"))
+            .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized".to_owned()))
     }
 }
 
-fn pyerr_to_actix_error(e: PyErr) -> Error {
-    let api_error: ApiError = ApiErrorKind::Internal(e.to_string()).into();
-    api_error.into()
+fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
+    TokenserverError {
+        context: e.to_string(),
+        ..TokenserverError::internal_error()
+    }
 }
