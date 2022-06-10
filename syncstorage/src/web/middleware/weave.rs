@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::fmt::Display;
+use std::rc::Rc;
 use std::task::{Context, Poll};
 
 use actix_web::{
@@ -14,10 +16,10 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::web::{DOCKER_FLOW_ENDPOINTS, X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 
 pub struct WeaveTimestampMiddleware<S> {
-    service: S,
+    service: Rc<RefCell<S>>,
 }
 
-impl<S, B> Service for WeaveTimestampMiddleware<S>
+impl<S: 'static, B> Service for WeaveTimestampMiddleware<S>
 where
     S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
     S::Future: 'static,
@@ -38,13 +40,12 @@ where
         }
 
         let ts = SyncTimestamp::default().as_seconds();
-        Box::pin(self.service.call(sreq).and_then(move |mut resp| {
-            future::ready(
-                set_weave_timestamp(resp.headers_mut(), ts)
-                    .map_err(Into::into)
-                    .map(|_| resp),
-            )
-        }))
+        let mut svc = self.service.clone();
+        Box::pin(async move {
+            let mut resp = svc.call(sreq).await?;
+            set_weave_timestamp(resp.headers_mut(), ts)?;
+            Ok(resp)
+        })
     }
 }
 
@@ -108,7 +109,9 @@ where
     type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(future::ok(WeaveTimestampMiddleware { service }))
+        Box::pin(future::ok(WeaveTimestampMiddleware {
+            service: Rc::new(RefCell::new(service)),
+        }))
     }
 }
 
