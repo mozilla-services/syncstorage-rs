@@ -365,7 +365,7 @@ pub async fn post_collection_batch(
         if !coll.bsos.valid.is_empty() {
             // Append the data to the requested batch.
             let result = {
-                dbg!("Batch: Appending to {}", &new_batch.id);
+                trace!("Batch: Appending to {}", &new_batch.id);
                 db.append_to_batch(params::AppendToBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
