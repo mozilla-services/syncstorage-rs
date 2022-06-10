@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 actix-web = "3"
+backtrace = "0.3.61"
 serde = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
 thiserror = "1.0.26"

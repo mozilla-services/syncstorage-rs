@@ -3270,8 +3270,10 @@ name = "tokenserver-common"
 version = "0.10.2"
 dependencies = [
  "actix-web",
+ "backtrace",
  "serde 1.0.135",
  "serde_json",
+ "syncstorage-db-common",
  "thiserror",
 ]
 

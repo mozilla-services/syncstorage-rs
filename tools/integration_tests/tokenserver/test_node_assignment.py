@@ -131,4 +131,16 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
                                            client_state='aaaa')
         # All of these nodes are completely full, and no capacity can be
         # released
-        self.app.get('/1.0/sync/1.5', headers=headers, status=503)
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=503)
+        # The response has the expected body
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Unexpected error: unable to get a node',
+                    'location': 'internal',
+                    'name': ''
+                }
+            ],
+            'status': 'internal-error'
+        }
+        self.assertEqual(res.json, expected_error_response)
