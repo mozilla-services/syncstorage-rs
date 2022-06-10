@@ -633,6 +633,12 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
 
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
+    if matches!(deadman.expiry, Some(expiry) if expiry <= time::Instant::now()) {
+        // We're set to report a failed health check after a certain time (to
+        // evict this instance and start a fresh one)
+        return Ok(HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR).json(resp));
+    }
+
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;

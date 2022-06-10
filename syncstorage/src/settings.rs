@@ -5,6 +5,7 @@ use actix_cors::Cors;
 use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use config::{Config, ConfigError, Environment, File};
 use http::method::Method;
+use rand::{thread_rng, Rng};
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
@@ -42,10 +43,38 @@ pub struct Quota {
 }
 
 #[derive(Copy, Clone, Default, Debug)]
+/// Deadman configures how the `/__lbheartbeat__` health check endpoint fails
+/// for special conditions.
+///
+/// We'll fail the check (usually temporarily) due to the db pool maxing out
+/// connections, which notifies the orchestration system that it should back
+/// off traffic to this instance until the check succeeds.
+///
+/// Optionally we can permanently fail the check after a set time period,
+/// indicating that this instance should be evicted and replaced.
 pub struct Deadman {
     pub max_size: Option<u32>,
     pub previous_count: usize,
     pub clock_start: Option<time::Instant>,
+    pub expiry: Option<time::Instant>,
+}
+
+impl From<&Settings> for Deadman {
+    fn from(settings: &Settings) -> Self {
+        let expiry = settings.lbheartbeat_ttl.map(|lbheartbeat_ttl| {
+            // jitter's a range of percentage of ttl added to ttl. E.g. a 60s
+            // ttl w/ a 10% jitter results in a random final ttl between 60-66s
+            let ttl = lbheartbeat_ttl as f32;
+            let max_jitter = ttl * (settings.lbheartbeat_ttl_jitter as f32 * 0.01);
+            let ttl = thread_rng().gen_range(ttl..ttl + max_jitter);
+            time::Instant::now() + time::Duration::seconds(ttl as i64)
+        });
+        Deadman {
+            max_size: settings.database_pool_max_size,
+            expiry,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -99,6 +128,13 @@ pub struct Settings {
     pub cors_max_age: Option<usize>,
     pub cors_allowed_methods: Option<Vec<String>>,
     pub cors_allowed_headers: Option<Vec<String>>,
+
+    /// Fail the `/__lbheartbeat__` healthcheck after running for this duration
+    /// of time (in seconds) + jitter
+    pub lbheartbeat_ttl: Option<u32>,
+    /// Percentage of `lbheartbeat_ttl` time to "jitter" (adds additional,
+    /// randomized time)
+    pub lbheartbeat_ttl_jitter: u32,
 }
 
 impl Default for Settings {
@@ -149,6 +185,8 @@ impl Default for Settings {
                 "TEST_IDLES".to_owned(),
             ]),
             cors_max_age: Some(1728000),
+            lbheartbeat_ttl: None,
+            lbheartbeat_ttl_jitter: 25,
         }
     }
 }
@@ -259,6 +297,7 @@ impl Settings {
             Some(vec!["DELETE", "GET", "POST", "PUT"]),
         )?;
         s.set_default("cors_allowed_origin", Some("*"))?;
+        s.set_default("lbheartbeat_ttl_jitter", 25)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
