@@ -1235,7 +1235,7 @@ checksum = "c0f0936883f3207fa424f69fc218956a5778de6fb847ea3c491f1dc47a39fb26"
 dependencies = [
  "futures 0.3.19",
  "grpcio",
- "protobuf",
+ "protobuf 2.27.1",
 ]
 
 [[package]]
@@ -1249,7 +1249,7 @@ dependencies = [
  "libc",
  "log",
  "parking_lot",
- "protobuf",
+ "protobuf 2.27.1",
 ]
 
 [[package]]
@@ -2154,9 +2154,29 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.25.2"
+version = "2.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47c327e191621a2158159df97cdbc2e7074bb4e940275e35abf38eb3d2595754"
+checksum = "cf7e6d18738ecd0902d30d1ad232c9125985a3422929b16c65517b38adc14f96"
+
+[[package]]
+name = "protobuf"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d644aefa452a3188ce8fd92e71944ad082feca2016eb41d4b9c55ceba9e5f38"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f737edf903b494f760e5cdf2e16d904f5dd36206a14afa84654688f422c950eb"
+dependencies = [
+ "thiserror",
+]
 
 [[package]]
 name = "pyo3"
@@ -3036,7 +3056,7 @@ dependencies = [
  "mime",
  "mockito",
  "num_cpus",
- "protobuf",
+ "protobuf 3.0.3",
  "pyo3",
  "rand 0.8.5",
  "regex",
