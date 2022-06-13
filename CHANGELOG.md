@@ -1,3 +1,106 @@
+<a name="0.11.1"></a>
+## 0.11.1 (2022-05-05)
+
+
+#### Bug Fixes
+
+*   to_spanner_value -> into_spanner_value (#1301) ([b8858cea](https://github.com/mozilla-services/syncstorage-rs/commit/b8858cea0756ee5920680ccd99133687c340200f), closes [#1300](https://github.com/mozilla-services/syncstorage-rs/issues/1300))
+
+
+
+<a name="0.11.0"></a>
+## 0.11.0 (2022-04-30)
+
+
+#### Bug Fixes
+
+*   fix metrics and BrowserID error context (#1294) ([a086a118](https://github.com/mozilla-services/syncstorage-rs/commit/a086a118445233c31ddd136feac74c207d707dd3))
+*   fix Tokenserver migrations (#1282) ([4c64c1ce](https://github.com/mozilla-services/syncstorage-rs/commit/4c64c1ce7077dcbc67752448a1591fea0291c781))
+*   add missing Tokenserver headers (#1243) ([38de8332](https://github.com/mozilla-services/syncstorage-rs/commit/38de8332a57f54607e69303433067336e85a83af), closes [#1242](https://github.com/mozilla-services/syncstorage-rs/issues/1242))
+*   fix Tokenserver metrics (#1218) ([d2dc0063](https://github.com/mozilla-services/syncstorage-rs/commit/d2dc0063ed336c339f5668a2154def1ada96af75), closes [#1214](https://github.com/mozilla-services/syncstorage-rs/issues/1214))
+*   move I/O calls to blocking threadpool (#1190) ([cbeebf46](https://github.com/mozilla-services/syncstorage-rs/commit/cbeebf465ae5f87719de0335fefe232741acd1a3), closes [#1188](https://github.com/mozilla-services/syncstorage-rs/issues/1188))
+*   resolve intermittent Tokenserver test failure (#1171) ([0c05e999](https://github.com/mozilla-services/syncstorage-rs/commit/0c05e999d1ceab8942d313d741a0a6eee4d5a117), closes [#1170](https://github.com/mozilla-services/syncstorage-rs/issues/1170))
+*   Revert "update sentry version and remove ignore rustsec-2020-0041 in … (#1137) ([48947bbf](https://github.com/mozilla-services/syncstorage-rs/commit/48947bbf8a6ed6a47c0f7725451869451bdf1cb2))
+*   removed send from async_trait for DbPool (#1139) ([8c603de6](https://github.com/mozilla-services/syncstorage-rs/commit/8c603de683f292b88f92bd6621110cf212424d1b))
+*   Fix build for Rust 1.53.0 (#1106) ([0b37bbe0](https://github.com/mozilla-services/syncstorage-rs/commit/0b37bbe076a0d02808ae5387ab6d334f7dfdaf2a), closes [#1105](https://github.com/mozilla-services/syncstorage-rs/issues/1105))
+*   Convert integral values to String before converting to Value (#1056) ([21da763b](https://github.com/mozilla-services/syncstorage-rs/commit/21da763b144e2a146b859d7b7ff579aa067bb150), closes [#1055](https://github.com/mozilla-services/syncstorage-rs/issues/1055))
+*   use ValidationErrorKind metric_label in ApiError  (#1038) ([4dc77afd](https://github.com/mozilla-services/syncstorage-rs/commit/4dc77afd5115cffc04168f3615126222ff180f4f))
+
+#### Chore
+
+*   disable grpcio openssl (#1288) ([8ff7a40d](https://github.com/mozilla-services/syncstorage-rs/commit/8ff7a40de715da18e24cb047b0064ea437eac390))
+*   prefer CIRCLE_SHA1 vs CIRCLE_TAG in circle's cache key (#1285) ([37d2251c](https://github.com/mozilla-services/syncstorage-rs/commit/37d2251c82d7ec73053ee39500466ba9c5edf19b), closes [#1284](https://github.com/mozilla-services/syncstorage-rs/issues/1284))
+*   update for Rust 1.60.0 (#1280) ([c4bca395](https://github.com/mozilla-services/syncstorage-rs/commit/c4bca395f1dc61184186df98b63ab419b44361bf))
+*   add Python build to Makefile (#1244) ([291a40ea](https://github.com/mozilla-services/syncstorage-rs/commit/291a40eaa49b583349ba07ee155a214b22d76e01), closes [#1226](https://github.com/mozilla-services/syncstorage-rs/issues/1226))
+*   update regex (#1252) ([fc34353a](https://github.com/mozilla-services/syncstorage-rs/commit/fc34353a0aba96c4e1bb2d8fe9b6d8d8335058b9))
+*   update to Rust 1.59 (#1227) ([0e9b0f6e](https://github.com/mozilla-services/syncstorage-rs/commit/0e9b0f6e6c61b78a2ef2b1c3a32b9a73850b391b))
+*   update to Rust 1.58 and switch to GCP Rust crate (#1201) ([a7c5f809](https://github.com/mozilla-services/syncstorage-rs/commit/a7c5f809d03d62cc27c77d919dbe85e2d63bde64))
+*   label the circleci e2e tests (#1185) ([bf3ef8b3](https://github.com/mozilla-services/syncstorage-rs/commit/bf3ef8b31aefdc9c9544aa8eccd1e82ed6562198))
+*   update 12/2/21 (#1181) ([04cf2344](https://github.com/mozilla-services/syncstorage-rs/commit/04cf2344d56c2697dcf45d0caacd3cfd5a8b2bb6))
+*   update actix-http version due to RUSTSEC-2021-0081 (#1140) ([0106131e](https://github.com/mozilla-services/syncstorage-rs/commit/0106131e87a7bbe8a27099783f7eccbc8112c47d))
+*   switch failure crate with thiserror (#1122) ([5369f1ae](https://github.com/mozilla-services/syncstorage-rs/commit/5369f1aef4a8dfa0fc22dfedeb5aa10af8bf3186))
+*   Update code for Rust 1.54.0 (#1123) ([7ab37291](https://github.com/mozilla-services/syncstorage-rs/commit/7ab37291450dc6ba6a40bf6fc7503732a4a3f617))
+*   enable flake8 in circleci config for tools/integration_tests (#1121) ([dee69dd3](https://github.com/mozilla-services/syncstorage-rs/commit/dee69dd33da8ba1022023d18c8414675427ca12f))
+*   Updates for May 2021 (#1078) ([f25e4e0f](https://github.com/mozilla-services/syncstorage-rs/commit/f25e4e0fae478cd82604b126782889a31fc0cac1))
+*   tag 0.10.1 (#1042) ([ecada4b3](https://github.com/mozilla-services/syncstorage-rs/commit/ecada4b3b07f2a22902d3b0117e65202ab3a22f9))
+
+#### Test
+
+*   Add BrowserId support to Tokenserver load tests (#1219) ([b6d87b72](https://github.com/mozilla-services/syncstorage-rs/commit/b6d87b7214a2d7cf54563aa0d357539c6e3b863b), closes [#1213](https://github.com/mozilla-services/syncstorage-rs/issues/1213))
+*   add Tokenserver load tests (#1184) ([46d4a9ea](https://github.com/mozilla-services/syncstorage-rs/commit/46d4a9ea431a120fbf1626e4193f9f9b2b98d928), closes [#1107](https://github.com/mozilla-services/syncstorage-rs/issues/1107))
+*   add Tokenserver integration tests to CI (#1180) ([aa18c1a0](https://github.com/mozilla-services/syncstorage-rs/commit/aa18c1a01db2167319303cc6af0353e1e383861e), closes [#1174](https://github.com/mozilla-services/syncstorage-rs/issues/1174))
+*   Add Tokenserver integration tests (#1152) ([7209ccf5](https://github.com/mozilla-services/syncstorage-rs/commit/7209ccf551fc35228221dc8739cc3419ef9afbcb), closes [#1048](https://github.com/mozilla-services/syncstorage-rs/issues/1048))
+
+#### Doc
+
+*   add Tokenserver README (#1162) ([b5fa8c8a](https://github.com/mozilla-services/syncstorage-rs/commit/b5fa8c8a8926166af3146ea484b2f813b7dc4d13), closes [#1082](https://github.com/mozilla-services/syncstorage-rs/issues/1082))
+*   add comments about Tokenserver state being an Option (#1161) ([c1dc552b](https://github.com/mozilla-services/syncstorage-rs/commit/c1dc552b1cbd190d127444dd728d1071e238f6a5), closes [#1102](https://github.com/mozilla-services/syncstorage-rs/issues/1102))
+*   Add Apache 2.0 license to prepare-spanner.sh (#1120) ([f0c16ba5](https://github.com/mozilla-services/syncstorage-rs/commit/f0c16ba5c8a36dcd8d0fa9ff8a2bec2b36aa9c96))
+*   Update spanner configuration documentation (#1047) ([57405c1e](https://github.com/mozilla-services/syncstorage-rs/commit/57405c1edd5a845c05e653b22f98642b524466a2), closes [#1045](https://github.com/mozilla-services/syncstorage-rs/issues/1045))
+
+#### Refactor
+
+*   cache FxA OAuth client (#1212) ([04b24378](https://github.com/mozilla-services/syncstorage-rs/commit/04b2437816b2b653f0143fa333d1e61230466cb3), closes [#1209](https://github.com/mozilla-services/syncstorage-rs/issues/1209))
+*   Remove Tokenserver support for per-node secrets (#1211) ([eac6b558](https://github.com/mozilla-services/syncstorage-rs/commit/eac6b55889b1a42abb495baa45148ebdee55e185), closes [#1208](https://github.com/mozilla-services/syncstorage-rs/issues/1208))
+*   remove static service IDs (#1199) ([ae659702](https://github.com/mozilla-services/syncstorage-rs/commit/ae6597022c7efcc0597c353f49da88289815074a), closes [#1144](https://github.com/mozilla-services/syncstorage-rs/issues/1144), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+*   Tokenserver: Add mature MySQL adapter (#1119) ([503d1aa8](https://github.com/mozilla-services/syncstorage-rs/commit/503d1aa81bb99d2647565464360df57e00f028a0), closes [#1054](https://github.com/mozilla-services/syncstorage-rs/issues/1054))
+*   Use PyFxA to verify Tokenserver tokens (#1103) ([34401777](https://github.com/mozilla-services/syncstorage-rs/commit/34401777027bd756f57ac35a7937ad8dbc972121), closes [#1102](https://github.com/mozilla-services/syncstorage-rs/issues/1102))
+*   Clean up Tokenserver code (#1087) ([e9247699](https://github.com/mozilla-services/syncstorage-rs/commit/e9247699180c4d27431a4b5916bbab587a3f159e), closes [#968](https://github.com/mozilla-services/syncstorage-rs/issues/968))
+*   Tokenserver: Rewrite inlined Python code in Rust (#1053) ([34fe5859](https://github.com/mozilla-services/syncstorage-rs/commit/34fe5859e6d6e2a67b745bbbc6480b99ce6ba343), closes [#1049](https://github.com/mozilla-services/syncstorage-rs/issues/1049))
+*   Add ToSpannerValue trait (#1046) ([2ce45705](https://github.com/mozilla-services/syncstorage-rs/commit/2ce45705f7bfa4ae0b968c41ccbef9f70c1352ac), closes [#260](https://github.com/mozilla-services/syncstorage-rs/issues/260))
+*   Emit metric for spanner DbPool::get time taken (#1044) ([57bd30ad](https://github.com/mozilla-services/syncstorage-rs/commit/57bd30ad39d43acdfa3cbe2abb00917f89860b69))
+*   Use generic tuple extractor in web extractors (#1043) ([71c62be1](https://github.com/mozilla-services/syncstorage-rs/commit/71c62be1ac74b0642b150c16cd79eff0123261f4), closes [#698](https://github.com/mozilla-services/syncstorage-rs/issues/698))
+
+#### Breaking Changes
+
+*   remove static service IDs (#1199) ([ae659702](https://github.com/mozilla-services/syncstorage-rs/commit/ae6597022c7efcc0597c353f49da88289815074a), closes [#1144](https://github.com/mozilla-services/syncstorage-rs/issues/1144), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+#### Features
+
+*   spawn Tokenserver pool reporter (#1283) ([ee8e1794](https://github.com/mozilla-services/syncstorage-rs/commit/ee8e17947912a7798db3a85d06abae9dbbad7d05))
+*   don't run Tokenserver migrations on startup (#1286) ([1a197a6c](https://github.com/mozilla-services/syncstorage-rs/commit/1a197a6c6e359b6915a7b357c56a7061c80bb8d4))
+*   emit 4XX errors as metrics instead of Sentry events (#1274) ([cacd8285](https://github.com/mozilla-services/syncstorage-rs/commit/cacd8285048fe7fed91a2958222e34f057e420c3))
+*   add context to `TokenserverError`s (#1224) ([92e7d262](https://github.com/mozilla-services/syncstorage-rs/commit/92e7d262076a04191df5d85b2167d25a0f62dd61), closes [#1223](https://github.com/mozilla-services/syncstorage-rs/issues/1223))
+*   Pass Tokenserver origin field through token payload (#1264) ([a4c340e1](https://github.com/mozilla-services/syncstorage-rs/commit/a4c340e194804b9531558de9263aeb67351b16f2), closes [#1245](https://github.com/mozilla-services/syncstorage-rs/issues/1245))
+*   add BrowserID support for Tokenserver (#1216) ([38d6a27b](https://github.com/mozilla-services/syncstorage-rs/commit/38d6a27b02e9ded7ef279a33f3a562e08e72f6a8), closes [#1215](https://github.com/mozilla-services/syncstorage-rs/issues/1215))
+*   add Tokenserver metrics (#1200) ([aa93312a](https://github.com/mozilla-services/syncstorage-rs/commit/aa93312a1c1e7c1e102ad38a1ff935518e437cb4), closes [#1108](https://github.com/mozilla-services/syncstorage-rs/issues/1108))
+*   add missing Tokenserver response fields (#1176) ([a3d4f094](https://github.com/mozilla-services/syncstorage-rs/commit/a3d4f094cd11159c95d2068468200c33a4e2f294), closes [#1173](https://github.com/mozilla-services/syncstorage-rs/issues/1173))
+*   Tokenserver: add per-node secrets (#1169) ([bed59e2c](https://github.com/mozilla-services/syncstorage-rs/commit/bed59e2cb7d6d69b48c35f223ab6cbaf756109ea), closes [#1104](https://github.com/mozilla-services/syncstorage-rs/issues/1104))
+*   make Tokenserver DbPool#get async (#1175) ([3d4c180d](https://github.com/mozilla-services/syncstorage-rs/commit/3d4c180d34b38455cf6c5022ce28661e83e5addf), closes [#1172](https://github.com/mozilla-services/syncstorage-rs/issues/1172))
+*   add Tokenserver admin scripts (#1168) ([0ac30958](https://github.com/mozilla-services/syncstorage-rs/commit/0ac30958de5cfca0f3d44dfb479b615cae7ede27), closes [#1086](https://github.com/mozilla-services/syncstorage-rs/issues/1086))
+*   Add client state validation (#1160) ([0996cb15](https://github.com/mozilla-services/syncstorage-rs/commit/0996cb154fd7d334f2dd6fc6603557774fd1374b), closes [#1091](https://github.com/mozilla-services/syncstorage-rs/issues/1091))
+*   Tokenserver: Add node assignment logic (#1158) ([db739def](https://github.com/mozilla-services/syncstorage-rs/commit/db739defbe180bddc4f61c3c796ff8b328c84a64), closes [#1051](https://github.com/mozilla-services/syncstorage-rs/issues/1051))
+*   Tokenserver: Add validations and user updating for generation, keys_changed_at, and client_state (#1145) ([337ab8f4](https://github.com/mozilla-services/syncstorage-rs/commit/337ab8f406a23b44f3b173ecf06ba2caeca571dc), closes [#866](https://github.com/mozilla-services/syncstorage-rs/issues/866))
+*   Add ability to disable syncstorage endpoints (#1159) ([5f2fa8a3](https://github.com/mozilla-services/syncstorage-rs/commit/5f2fa8a35d9c2dba09fd302d69d002b525918b04), closes [#1083](https://github.com/mozilla-services/syncstorage-rs/issues/1083))
+*   Tokenserver: Add support for client-specified token duration (#1151) ([17f89ac5](https://github.com/mozilla-services/syncstorage-rs/commit/17f89ac5f0b1754265828697075261075a3e8f25), closes [#1050](https://github.com/mozilla-services/syncstorage-rs/issues/1050))
+*   Add test mode to Tokenserver (#1143) ([cbdc12e5](https://github.com/mozilla-services/syncstorage-rs/commit/cbdc12e5306b40e426fbfc303913e3aff4330e08), closes [#1142](https://github.com/mozilla-services/syncstorage-rs/issues/1142))
+*   Tokenserver: Implement extractors for generation, keys_changed_at, client_state (#1141) ([f29064d3](https://github.com/mozilla-services/syncstorage-rs/commit/f29064d3be79181ec3fa7c2399bbf0c2a272101c), closes [#1133](https://github.com/mozilla-services/syncstorage-rs/issues/1133))
+*   generation, keys_changed_at, and client_state: Add database methods (#1136) ([44e832b8](https://github.com/mozilla-services/syncstorage-rs/commit/44e832b8dbcf3ad31f74e02a66d03372f0dee540), closes [#1132](https://github.com/mozilla-services/syncstorage-rs/issues/1132))
+*   Integrate Spanner emulator with CI (#1079) ([e6ec1acd](https://github.com/mozilla-services/syncstorage-rs/commit/e6ec1acd8742fab3c456e0dc948ea4c8cc21864d), closes [#566](https://github.com/mozilla-services/syncstorage-rs/issues/566))
+*   Support SYNC_SPANNER_EMULATOR_HOST (#1061) ([322603a7](https://github.com/mozilla-services/syncstorage-rs/commit/322603a7fec6c0ccefedc4298ab79040f9ccfdc6), closes [#915](https://github.com/mozilla-services/syncstorage-rs/issues/915))
+
+
+
 <a name="0.10.2"></a>
 ## 0.10.2 (2021-04-28)
 

@@ -19,11 +19,9 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self._add_node(available=1, node='https://node2')
         self._add_node(available=5, node='https://node3')
         # Send a request from an unseen user
-        oauth_token = self._forge_oauth_token(generation=1234)
-        headers = {
-            'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # Ensure a single user was created
         self.assertEqual(self._count_users(), 1)
@@ -31,7 +29,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         user1 = self._get_user(res.json['uid'])
         self.assertEqual(user1['generation'], 1234)
         self.assertEqual(user1['keys_changed_at'], 1234)
-        self.assertEqual(user1['client_state'], '616161')
+        self.assertEqual(user1['client_state'], 'aaaa')
         self.assertEqual(user1['nodeid'], self.NODE_ID)
         self.assertEqual(user1['service'], self.service_id)
         # Ensure the 'available' and 'current_load' counts on the node
@@ -59,10 +57,9 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
                        node='https://node4')
         self._add_node(available=97, current_load=3, capacity=100,
                        node='https://node5')
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # The user should have been allocated to the least-loaded node
         # (computed as current_load / capacity) that has backoff and downed
@@ -90,10 +87,9 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
                                   node='https://node4', backoff=1)
         node_id5 = self._add_node(available=0, current_load=60, capacity=61,
                                   node='https://node5', downed=1)
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         # Since every node has no available spots, capacity is added to each
         # node according to the equation
@@ -130,10 +126,21 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
                        node='https://node2')
         self._add_node(available=0, current_load=80, capacity=80,
                        node='https://node3')
-        headers = {
-            'Authorization': 'Bearer %s' % self._forge_oauth_token(),
-            'X-KeyID': '1234-YWFh'
-        }
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
         # All of these nodes are completely full, and no capacity can be
         # released
-        self.app.get('/1.0/sync/1.5', headers=headers, status=503)
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=503)
+        # The response has the expected body
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Unexpected error: unable to get a node',
+                    'location': 'internal',
+                    'name': ''
+                }
+            ],
+            'status': 'internal-error'
+        }
+        self.assertEqual(res.json, expected_error_response)

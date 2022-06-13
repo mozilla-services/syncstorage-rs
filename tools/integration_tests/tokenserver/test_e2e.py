@@ -14,7 +14,6 @@ import unittest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
-from fxa.tools.bearer import get_bearer_token
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
 from fxa.tests.utils import TestEmailAccount
@@ -24,6 +23,7 @@ from tokenserver.test_support import TestCase
 
 # This is the client ID used for Firefox Desktop. The FxA team confirmed that
 # this is the proper client ID to be using for these integration tests.
+BROWSERID_AUDIENCE = "https://token.stage.mozaws.net"
 CLIENT_ID = '5882386c6d801776'
 DEFAULT_TOKEN_DURATION = 300
 FXA_ACCOUNT_STAGE_HOST = 'https://api-accounts.stage.mozaws.net'
@@ -63,6 +63,8 @@ class TestE2e(TestCase, unittest.TestCase):
                 cls.session.verify_email_code(m['headers']['x-verify-code'])
         # Create an OAuth token to be used for the end-to-end tests
         cls.oauth_token = cls.oauth_client.authorize_token(cls.session, SCOPE)
+        cls.browserid_assertion = \
+            cls.session.get_identity_assertion(BROWSERID_AUDIENCE)
 
     @classmethod
     def tearDownClass(cls):
@@ -75,15 +77,13 @@ class TestE2e(TestCase, unittest.TestCase):
 
         return ''.join(random.choice(PASSWORD_CHARACTERS) for i in r)
 
-    def _get_token_with_bad_scope(self):
+    def _get_oauth_token_with_bad_scope(self):
         bad_scope = 'bad_scope'
+        return self.oauth_client.authorize_token(self.session, bad_scope)
 
-        return get_bearer_token(TestE2e.acct.email,
-                                TestE2e.fxa_password,
-                                scopes=[bad_scope],
-                                account_server_url=FXA_ACCOUNT_STAGE_HOST,
-                                oauth_server_url=FXA_OAUTH_STAGE_HOST,
-                                client_id=CLIENT_ID)
+    def _get_browserid_assertion_with_bad_audience(self):
+        bad_audience = 'badaudience.com'
+        return self.session.get_identity_assertion(bad_audience)
 
     def _get_bad_token(self):
         key = rsa.generate_private_key(backend=default_backend(),
@@ -103,15 +103,17 @@ class TestE2e(TestCase, unittest.TestCase):
 
         return jwt.encode(claims, private_key, algorithm='RS256')
 
+    def _extract_keys_changed_at_from_assertion(self, assertion):
+        token = assertion.split('~')[-2]
+        claims = jwt.decode(token, options={"verify_signature": False})
+
+        return claims['fxa-keysChangedAt']
+
     @classmethod
     def _change_password(cls):
         new_password = cls._generate_password()
         cls.session.change_password(cls.fxa_password, new_password)
         cls.fxa_password = new_password
-        # Refresh the session
-        cls.session = cls.client.login(cls.acct.email, cls.fxa_password)
-        # Refresh the OAuth token
-        cls.oauth_token = cls.oauth_client.authorize_token(cls.session, SCOPE)
 
     # Adapted from the original Tokenserver:
     # https://github.com/mozilla-services/tokenserver/blob/master/tokenserver/util.py#L24
@@ -121,11 +123,11 @@ class TestE2e(TestCase, unittest.TestCase):
         hasher.update(value.encode('utf-8'))
         return hasher.hexdigest()
 
-    def test_unauthorized_error_status(self):
+    def test_unauthorized_oauth_error_status(self):
         # Totally busted auth -> generic error.
         headers = {
             'Authorization': 'Unsupported-Auth-Scheme IHACKYOU',
-            'X-KeyID': '1234-YWFh'
+            'X-KeyID': '1234-qqo'
         }
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
         expected_error_response = {
@@ -142,7 +144,7 @@ class TestE2e(TestCase, unittest.TestCase):
         token = self._get_bad_token()
         headers = {
             'Authorization': 'Bearer %s' % token,
-            'X-KeyID': '1234-YWFh'
+            'X-KeyID': '1234-qqo'
         }
         # Bad token -> 'invalid-credentials'
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
@@ -158,19 +160,47 @@ class TestE2e(TestCase, unittest.TestCase):
         }
         self.assertEqual(res.json, expected_error_response)
         # Untrusted scopes -> 'invalid-credentials'
-        token = self._get_token_with_bad_scope()
+        token = self._get_oauth_token_with_bad_scope()
         headers = {
             'Authorization': 'Bearer %s' % token,
-            'X-KeyID': '1234-YWFh'
+            'X-KeyID': '1234-qqo'
         }
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
         self.assertEqual(res.json, expected_error_response)
 
-    def test_valid_request(self):
+    def test_unauthorized_browserid_error_status(self):
+        assertion = self._get_bad_token()
+        headers = {
+            'Authorization': 'BrowserID %s' % assertion,
+            'X-Client-State': 'aaaa',
+        }
+        # Bad assertion -> 'invalid-credentials'
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Unauthorized',
+                    'location': 'body',
+                    'name': ''
+                }
+            ],
+            'status': 'invalid-credentials'
+        }
+        self.assertEqual(res.json, expected_error_response)
+        # Bad audience -> 'invalid-credentials'
+        assertion = self._get_browserid_assertion_with_bad_audience()
+        headers = {
+            'Authorization': 'BrowserID %s' % assertion,
+            'X-Client-State': 'aaaa',
+        }
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        self.assertEqual(res.json, expected_error_response)
+
+    def test_valid_oauth_request(self):
         oauth_token = self.oauth_token
         headers = {
             'Authorization': 'Bearer %s' % oauth_token,
-            'X-KeyID': '1234-YWFh'
+            'X-KeyID': '1234-qqo'
         }
         # Send a valid request, allocating a new user
         res = self.app.get('/1.0/sync/1.5', headers=headers)
@@ -186,6 +216,9 @@ class TestE2e(TestCase, unittest.TestCase):
         payload = raw[:-32]
         signature = raw[-32:]
         payload_dict = json.loads(payload.decode('utf-8'))
+        # The `id` payload should include a field indicating the origin of the
+        # token
+        self.assertEqual(payload_dict['tokenserver_origin'], 'rust')
         signing_secret = self.TOKEN_SIGNING_SECRET
         expected_token = tokenlib.make_token(payload_dict,
                                              secret=signing_secret)
@@ -210,3 +243,65 @@ class TestE2e(TestCase, unittest.TestCase):
         # number of seconds since the UNIX epoch
         self.assertIn('X-Timestamp', res.headers)
         self.assertIsNotNone(int(res.headers['X-Timestamp']))
+        token = self.unsafelyParseToken(res.json['id'])
+        self.assertIn('hashed_device_id', token)
+        self.assertEqual(token["uid"], res.json["uid"])
+        self.assertEqual(token["fxa_uid"], fxa_uid)
+        self.assertEqual(token["fxa_kid"], "0000000001234-qqo")
+        self.assertNotEqual(token["hashed_fxa_uid"], token["fxa_uid"])
+        self.assertEqual(token["hashed_fxa_uid"], res.json["hashed_fxa_uid"])
+        self.assertIn("hashed_device_id", token)
+
+    def test_valid_browserid_request(self):
+        assertion = self.browserid_assertion
+        headers = {
+            'Authorization': 'BrowserID %s' % assertion,
+            'X-Client-State': 'aaaa'
+        }
+        # Send a valid request, allocating a new user
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+        fxa_uid = self.session.uid
+        # Retrieve the user from the database
+        user = self._get_user(res.json['uid'])
+        # First, let's verify that the token we received is valid. To do this,
+        # we can unpack the hawk header ID into the payload and its signature
+        # and then construct a tokenlib token to compute the signature
+        # ourselves. To obtain a matching signature, we use the same secret as
+        # is used by Tokenserver.
+        raw = urlsafe_b64decode(res.json['id'])
+        payload = raw[:-32]
+        signature = raw[-32:]
+        payload_dict = json.loads(payload.decode('utf-8'))
+
+        signing_secret = self.TOKEN_SIGNING_SECRET
+        expected_token = tokenlib.make_token(payload_dict,
+                                             secret=signing_secret)
+        expected_signature = urlsafe_b64decode(expected_token)[-32:]
+        # Using the #compare_digest method here is not strictly necessary, as
+        # this is not a security-sensitive situation, but it's good practice
+        self.assertTrue(hmac.compare_digest(expected_signature, signature))
+        # Check that the given key is a secret derived from the hawk ID
+        expected_secret = tokenlib.get_derived_secret(
+            res.json['id'], secret=signing_secret)
+        self.assertEqual(res.json['key'], expected_secret)
+        # Check to make sure the remainder of the fields are valid
+        self.assertEqual(res.json['uid'], user['uid'])
+        self.assertEqual(res.json['api_endpoint'],
+                         '%s/1.5/%s' % (self.NODE_URL, user['uid']))
+        self.assertEqual(res.json['duration'], DEFAULT_TOKEN_DURATION)
+        self.assertEqual(res.json['hashalg'], 'sha256')
+        self.assertEqual(res.json['hashed_fxa_uid'],
+                         self._fxa_metrics_hash(fxa_uid)[:32])
+        self.assertEqual(res.json['node_type'], 'spanner')
+
+        token = self.unsafelyParseToken(res.json['id'])
+        self.assertIn('hashed_device_id', token)
+        self.assertEqual(token["uid"], res.json["uid"])
+        self.assertEqual(token["fxa_uid"], fxa_uid)
+        assertion = self.browserid_assertion
+        keys_changed_at = \
+            self._extract_keys_changed_at_from_assertion(assertion)
+        self.assertEqual(token["fxa_kid"], "%s-qqo" % str(keys_changed_at))
+        self.assertNotEqual(token["hashed_fxa_uid"], token["fxa_uid"])
+        self.assertEqual(token["hashed_fxa_uid"], res.json["hashed_fxa_uid"])
+        self.assertIn("hashed_device_id", token)
