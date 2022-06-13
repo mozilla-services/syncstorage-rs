@@ -40,11 +40,13 @@ COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver/process_account_events.py /app/tools/tokenserver/process_account_events.py
+COPY --from=builder /app/tools/tokenserver/requirements.txt /app/tools/tokenserver/requirements.txt
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder /app/syncstorage/src/db/spanner/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 RUN pip3 install -r /app/tools/integration_tests/requirements.txt
+RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
