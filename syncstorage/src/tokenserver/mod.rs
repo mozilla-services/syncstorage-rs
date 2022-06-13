@@ -36,6 +36,7 @@ pub struct ServerState {
     pub node_type: NodeType,
     pub service_id: Option<i32>,
     pub metrics: Box<StatsdClient>,
+    pub spanner_node_id: Option<i32>,
 }
 
 impl ServerState {
@@ -72,6 +73,7 @@ impl ServerState {
                     node_type: settings.node_type,
                     metrics: Box::new(metrics),
                     service_id,
+                    spanner_node_id: settings.spanner_node_id,
                 }
             })
             .map_err(Into::into)
