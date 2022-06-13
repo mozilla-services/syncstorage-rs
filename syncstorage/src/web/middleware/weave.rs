@@ -1,6 +1,5 @@
-use std::cell::RefCell;
 use std::fmt::Display;
-use std::rc::Rc;
+
 use std::task::{Context, Poll};
 
 use actix_web::{
@@ -9,7 +8,7 @@ use actix_web::{
     Error,
 };
 
-use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, LocalBoxFuture};
 use syncstorage_db_common::util::SyncTimestamp;
 
 use crate::error::{ApiError, ApiErrorKind};
@@ -40,7 +39,7 @@ where
         }
 
         let ts = SyncTimestamp::default().as_seconds();
-        let mut fut = self.service.call(sreq);
+        let fut = self.service.call(sreq);
         Box::pin(async move {
             let mut resp = fut.await?;
             set_weave_timestamp(resp.headers_mut(), ts)?;
