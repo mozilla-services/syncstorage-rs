@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
-    types::{IntoPyDict, PyString},
+    types::{IntoPyDict, PyDict, PyString},
     IntoPy,
 };
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ pub struct Verifier {
     // pointer
     inner: Py<PyAny>,
     timeout: u64,
-    jwk_is_cached: bool,
+    jwks_are_cached: bool,
 }
 
 impl Verifier {
@@ -48,8 +48,8 @@ impl TryFrom<&Settings> for Verifier {
             let kwargs = {
                 let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
                 let jwks = settings
-                    .fxa_oauth_jwk
-                    .as_ref()
+                    .fxa_oauth_jwks
+                    .iter()
                     .map(|jwk| {
                         let dict = [
                             ("kty", &jwk.kty),
@@ -62,8 +62,9 @@ impl TryFrom<&Settings> for Verifier {
                         .into_py_dict(py);
                         dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
 
-                        [dict]
+                        dict
                     })
+                    .collect::<Vec<&PyDict>>()
                     .into_py(py);
                 dict.set_item("jwks", jwks).unwrap();
                 dict
@@ -84,7 +85,7 @@ impl TryFrom<&Settings> for Verifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
-            jwk_is_cached: settings.fxa_oauth_jwk.is_some(),
+            jwks_are_cached: !settings.fxa_oauth_jwks.is_empty(),
         })
     }
 }
@@ -140,7 +141,7 @@ impl VerifyToken for Verifier {
             }
         };
 
-        if self.jwk_is_cached {
+        if self.jwks_are_cached {
             verify_inner(self)
         } else {
             let verifier = self.clone();

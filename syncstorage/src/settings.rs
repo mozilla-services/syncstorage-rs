@@ -232,6 +232,10 @@ impl Settings {
             "https://oauth.stage.mozaws.net",
         )?;
         s.set_default("tokenserver.fxa_oauth_request_timeout", 10)?;
+        s.set_default(
+            "tokenserver.fxa_oauth_jwks",
+            Vec::<std::collections::HashMap<String, String>>::new(),
+        )?;
         s.set_default("tokenserver.node_type", "spanner")?;
         s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
         s.set_default("tokenserver.run_migrations", cfg!(test))?;
