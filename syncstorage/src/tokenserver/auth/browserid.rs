@@ -81,7 +81,7 @@ impl VerifyToken for RemoteVerifier {
                             "Unknown error occurred during BrowserID request to FxA: {}",
                             e
                         ),
-                        ..TokenserverError::invalid_credentials("Unauthorized")
+                        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                     }
                 }
             })?;
@@ -124,22 +124,22 @@ impl VerifyToken for RemoteVerifier {
                 reason: Some(reason),
             } => Err(TokenserverError {
                 context: format!("BrowserID verification error: {}", reason),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Failure { .. } => Err(TokenserverError {
                 context: "Unknown BrowserID verification error".to_owned(),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay { issuer, .. } if issuer != self.issuer => Err(TokenserverError {
                 context: "BrowserID issuer mismatch".to_owned(),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay {
                 idp_claims: Some(claims),
                 ..
             } if !claims.token_verified() => Err(TokenserverError {
                 context: "BrowserID assertion not verified".to_owned(),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay {
                 email,
@@ -238,7 +238,7 @@ impl IdpClaims {
             Some(Some(_)) | None => Ok(self.keys_changed_at.flatten()),
             // If the fxa-keysChangedAt claim is null, return an error.
             Some(None) => Err(TokenserverError {
-                description: "invalid keysChangedAt",
+                description: "invalid keysChangedAt".to_owned(),
                 status: "invalid-credentials",
                 location: ErrorLocation::Body,
                 context: "null fxa-keysChangedAt claim in BrowserID assertion".to_owned(),
@@ -407,7 +407,7 @@ mod tests {
 
             let expected_error = TokenserverError {
                 context: "BrowserID verification error: something broke".to_owned(),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             };
             assert_eq!(expected_error, error);
         }
@@ -423,7 +423,7 @@ mod tests {
 
             let expected_error = TokenserverError {
                 context: "Unknown BrowserID verification error".to_owned(),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             };
             assert_eq!(expected_error, error);
         }
@@ -450,7 +450,7 @@ mod tests {
 
         let expected_error = TokenserverError {
             context: "BrowserID issuer mismatch".to_owned(),
-            ..TokenserverError::invalid_credentials("Unauthorized")
+            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
         };
         let verifier = RemoteVerifier::try_from(&Settings {
             fxa_browserid_audience: AUDIENCE.to_owned(),

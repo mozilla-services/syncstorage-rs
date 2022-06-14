@@ -1,4 +1,3 @@
-use actix_web::Error;
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use pyo3::{
@@ -40,9 +39,9 @@ impl Verifier {
 }
 
 impl TryFrom<&Settings> for Verifier {
-    type Error = Error;
+    type Error = TokenserverError;
 
-    fn try_from(settings: &Settings) -> Result<Self, Error> {
+    fn try_from(settings: &Settings) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
@@ -80,7 +79,7 @@ impl TryFrom<&Settings> for Verifier {
 
             Ok(object)
         })
-        .map_err(super::pyerr_to_actix_error)?;
+        .map_err(super::pyerr_to_tokenserver_error)?;
 
         Ok(Self {
             inner,
@@ -122,7 +121,7 @@ impl VerifyToken for Verifier {
             })
             .map_err(|e| TokenserverError {
                 context: format!("pyo3 error in OAuth verifier: {}", e),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             })?;
 
             match maybe_verify_output_string {
@@ -130,13 +129,13 @@ impl VerifyToken for Verifier {
                     serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
                         TokenserverError {
                             context: format!("Invalid OAuth verify output: {}", e),
-                            ..TokenserverError::invalid_credentials("Unauthorized")
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                         }
                     })
                 }
                 None => Err(TokenserverError {
                     context: "Invalid OAuth token".to_owned(),
-                    ..TokenserverError::invalid_credentials("Unauthorized")
+                    ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                 }),
             }
         };
