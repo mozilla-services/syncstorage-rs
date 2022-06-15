@@ -30,7 +30,10 @@ pub struct Settings {
     /// The JWK to be used to verify OAuth tokens. Passing a JWK to the PyFxA Python library
     /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
     /// performance benefits.
-    pub fxa_oauth_jwks: Vec<Jwk>,
+    pub fxa_oauth_primary_jwk: Option<Jwk>,
+    /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
+    /// seamless key rotations on FxA.
+    pub fxa_oauth_secondary_jwk: Option<Jwk>,
     /// The issuer expected in the BrowserID verification response.
     pub fxa_browserid_issuer: String,
     /// The audience to be sent to the FxA BrowserID verification server.
@@ -80,7 +83,8 @@ impl Default for Settings {
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: "https://oauth.stage.mozaws.net".to_owned(),
             fxa_oauth_request_timeout: 10,
-            fxa_oauth_jwks: vec![],
+            fxa_oauth_primary_jwk: None,
+            fxa_oauth_secondary_jwk: None,
             fxa_browserid_audience: "https://token.stage.mozaws.net".to_owned(),
             fxa_browserid_issuer: "api-accounts.stage.mozaws.net".to_owned(),
             fxa_browserid_server_url: "https://verifier.stage.mozaws.net/v2".to_owned(),
