@@ -7,7 +7,7 @@ use actix_web::{
     web::Data,
     Error, HttpMessage,
 };
-use futures::future::{self, LocalBoxFuture, TryFutureExt};
+use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
 use std::task::Poll;
 
@@ -85,7 +85,10 @@ where
             .app_data::<Data<ServerState>>()
             .map(|state| Metrics::from(state.get_ref()));
 
-        Box::pin(self.service.call(sreq).and_then(move |mut sresp| {
+        let fut = self.service.call(sreq);
+
+        Box::pin(async move {
+            let mut sresp = fut.await?;
             // handed an actix_error::error::Error;
             // Fetch out the tags (in case any have been added.) NOTE: request extensions
             // are NOT automatically passed to responses. You need to check both.
@@ -142,14 +145,14 @@ where
                         }
                         if !apie.is_reportable() {
                             trace!("Sentry: Not reporting error: {:?}", apie);
-                            return future::ok(sresp);
+                            return Ok(sresp);
                         }
                         report(&tags, event_from_error(apie));
                     }
                 }
             }
-            future::ok(sresp)
-        }))
+            Ok(sresp)
+        })
     }
 }
 
