@@ -270,6 +270,17 @@ impl Settings {
             "https://oauth.stage.mozaws.net",
         )?;
         s.set_default("tokenserver.fxa_oauth_request_timeout", 10)?;
+
+        // The type parameter for None::<bool> below would more appropriately be `Jwk`, but due
+        // to constraints imposed by version 0.11 of the config crate, it is not possible to
+        // implement `ValueKind: From<Jwk>`. The next best thing would be to use `ValueKind`,
+        // but `ValueKind` is private in this version of config. We use `bool` as a placeholder,
+        // since `ValueKind: From<bool>` is implemented, and None::<T> for all T is simply
+        // converted to ValueKind::Nil (see below link).
+        // https://github.com/mehcode/config-rs/blob/0.11.0/src/value.rs#L35
+        s.set_default("tokenserver.fxa_oauth_primary_jwk", None::<bool>)?;
+        s.set_default("tokenserver.fxa_oauth_secondary_jwk", None::<bool>)?;
+
         s.set_default("tokenserver.node_type", "spanner")?;
         s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
         s.set_default("tokenserver.run_migrations", cfg!(test))?;
