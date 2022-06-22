@@ -3,7 +3,6 @@ use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyString},
-    IntoPy,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -11,7 +10,7 @@ use tokenserver_common::error::TokenserverError;
 use tokio::{task, time};
 
 use super::VerifyToken;
-use crate::tokenserver::settings::Settings;
+use crate::tokenserver::settings::{Jwk, Settings};
 
 use core::time::Duration;
 use std::convert::TryFrom;
@@ -47,24 +46,31 @@ impl TryFrom<&Settings> for Verifier {
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
             let kwargs = {
                 let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
-                let jwks = settings
-                    .fxa_oauth_jwk
-                    .as_ref()
-                    .map(|jwk| {
-                        let dict = [
-                            ("kty", &jwk.kty),
-                            ("alg", &jwk.alg),
-                            ("kid", &jwk.kid),
-                            ("use", &jwk.use_of_key),
-                            ("n", &jwk.n),
-                            ("e", &jwk.e),
-                        ]
-                        .into_py_dict(py);
-                        dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
+                let parse_jwk = |jwk: &Jwk| {
+                    let dict = [
+                        ("kty", &jwk.kty),
+                        ("alg", &jwk.alg),
+                        ("kid", &jwk.kid),
+                        ("use", &jwk.use_of_key),
+                        ("n", &jwk.n),
+                        ("e", &jwk.e),
+                    ]
+                    .into_py_dict(py);
+                    dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
 
-                        [dict]
-                    })
-                    .into_py(py);
+                    dict
+                };
+
+                let jwks = match (
+                    &settings.fxa_oauth_primary_jwk,
+                    &settings.fxa_oauth_secondary_jwk,
+                ) {
+                    (Some(primary_jwk), Some(secondary_jwk)) => {
+                        Some(vec![parse_jwk(primary_jwk), parse_jwk(secondary_jwk)])
+                    }
+                    (Some(jwk), None) | (None, Some(jwk)) => Some(vec![parse_jwk(jwk)]),
+                    (None, None) => None,
+                };
                 dict.set_item("jwks", jwks).unwrap();
                 dict
             };
@@ -84,7 +90,8 @@ impl TryFrom<&Settings> for Verifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
-            jwk_is_cached: settings.fxa_oauth_jwk.is_some(),
+            jwk_is_cached: settings.fxa_oauth_primary_jwk.is_some()
+                || settings.fxa_oauth_secondary_jwk.is_some(),
         })
     }
 }
