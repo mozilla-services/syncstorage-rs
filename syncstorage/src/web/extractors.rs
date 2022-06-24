@@ -419,49 +419,47 @@ impl FromRequest for BsoBody {
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
-        let fut = <Json<BsoBody>>::from_request(req, payload)
-            .map_err(|e| {
-                warn!("⚠️ Could not parse BSO Body: {:?}", e);
-                let err: ApiError = ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::Body,
-                    Some("bso".to_owned()),
-                    label!("request.validate.bad_bso_body"),
-                )
-                .into();
-                err.into()
-            })
-            .and_then(move |bso: Json<BsoBody>| {
-                // Check the max payload size manually with our desired limit
-                if bso
-                    .payload
-                    .as_ref()
-                    .map(std::string::String::len)
-                    .unwrap_or_default()
-                    > max_payload_size
-                {
+        let req_c = req.clone();
+        Box::pin(async move {
+            let bso = <Json<BsoBody>>::from_request(&req_c, &mut Payload::None)
+                .map_err(|e| {
+                    warn!("⚠️ Could not parse BSO Body: {:?}", e);
                     let err: ApiError = ValidationErrorKind::FromDetails(
-                        "payload too large".to_owned(),
+                        e.to_string(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                        label!("request.validate.payload_too_large"),
+                        label!("request.validate.bad_bso_body"),
                     )
                     .into();
-                    return future::err(err.into());
-                }
-                if let Err(e) = bso.validate() {
-                    let err: ApiError = ValidationErrorKind::FromValidationErrors(
-                        e,
-                        RequestErrorLocation::Body,
-                        None,
-                    )
-                    .into();
-                    return future::err(err.into());
-                }
-                future::ok(bso.into_inner())
-            });
-
-        Box::pin(fut)
+                    err
+                })
+                .await?;
+            // .and_then(move |bso: Json<BsoBody>| {
+            // Check the max payload size manually with our desired limit
+            if bso
+                .payload
+                .as_ref()
+                .map(std::string::String::len)
+                .unwrap_or_default()
+                > max_payload_size
+            {
+                let err: ApiError = ValidationErrorKind::FromDetails(
+                    "payload too large".to_owned(),
+                    RequestErrorLocation::Body,
+                    Some("bso".to_owned()),
+                    label!("request.validate.payload_too_large"),
+                )
+                .into();
+                return Err(err.into());
+            }
+            if let Err(e) = bso.validate() {
+                let err: ApiError =
+                    ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Body, None)
+                        .into();
+                return Err(err.into());
+            }
+            Ok(bso.into_inner())
+        })
     }
 }
 
