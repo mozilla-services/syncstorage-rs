@@ -108,7 +108,7 @@ commands:
                --exit-code-from e2e-tests
                --abort-on-container-exit
           environment:
-              SYNCSERVER_RS_IMAGE: app:build
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   run-tokenserver-scripts-tests:
     steps:
@@ -118,7 +118,7 @@ commands:
                pip3 install -r tools/tokenserver/requirements.txt &&
                python3 tools/tokenserver/run_tests.py
           environment:
-              SYNCSERVER_RS_IMAGE: app:build
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   run-e2e-spanner-tests:
     steps:
@@ -132,7 +132,7 @@ commands:
                --exit-code-from e2e-tests
                --abort-on-container-exit
           environment:
-              SYNCSERVER_RS_IMAGE: app:build
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   setup-sccache:
     steps:

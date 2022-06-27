@@ -35,8 +35,12 @@ services:
         environment:
             MOCK_FXA_SERVER_HOST: 0.0.0.0
             MOCK_FXA_SERVER_PORT: 6000
-    syncserver-rs:
-        image: ${SYNCSERVER_RS_IMAGE:-syncserver-rs:latest}
+    syncserver:
+        # NOTE: The naming in the rest of this repository has been updated to reflect the fact
+        # that Syncstorage and Tokenserver are now part of one repository/server called
+        # "Syncserver" (updated from "syncstorage-rs"). We keep the legacy naming below for
+        # backwards compatibility with previous Docker images.
+        image: ${SYNCSTORAGE_RS_IMAGE:-syncstorage-rs:latest}
         restart: always
         ports:
             - "8000:8000"
