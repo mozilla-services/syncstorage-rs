@@ -19,7 +19,7 @@ use syncserver_settings::Settings;
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
 
-use crate::db::{pool_from_settings, spawn_pool_periodic_reporter, DbPool};
+use crate::db::{spawn_pool_periodic_reporter, DbError, DbPool};
 use crate::error::ApiError;
 use crate::server::tags::Taggable;
 use crate::tokenserver;
@@ -39,11 +39,8 @@ pub mod user_agent;
 
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
-pub struct ServerState<T>
-where
-    T: DbPoolTrait,
-{
-    pub db_pool: T,
+pub struct ServerState {
+    pub db_pool: Box<dyn DbPoolTrait<Error = DbError>>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
@@ -286,7 +283,7 @@ impl Server {
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
-                db_pool: db_pool.clone(),
+                db_pool: Box::new(db_pool.clone()),
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
                 metrics: Box::new(metrics.clone()),

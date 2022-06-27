@@ -15,7 +15,6 @@ use actix_web::{
 };
 use syncserver_common::Metrics;
 
-use crate::db::DbPool;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
 use crate::tokenserver::auth::TokenserverOrigin;
@@ -35,7 +34,7 @@ pub fn emit_http_status_with_tokenserver_origin(
         let req = res.request();
         let metrics = {
             let statsd_client = req
-                .app_data::<Data<ServerState<DbPool>>>()
+                .app_data::<Data<ServerState>>()
                 .map(|state| state.metrics.clone())
                 .ok_or_else(|| ApiError::from(ApiErrorKind::NoServerState))?;
 

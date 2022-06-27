@@ -1129,6 +1129,10 @@ impl Db for MysqlDb {
             enforced,
         }
     }
+
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+        Box::new(self.clone())
+    }
 }
 
 #[derive(Debug, QueryableByName)]

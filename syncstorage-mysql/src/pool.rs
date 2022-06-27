@@ -17,7 +17,7 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 #[cfg(test)]
 use syncserver_db_common::test::TestTransactionCustomizer;
-use syncserver_db_common::{util, DbPool, STD_COLLS};
+use syncserver_db_common::{util, Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
 use super::{error::DbError, models::MysqlDb, DbResult};
@@ -100,16 +100,21 @@ impl MysqlDbPool {
 
 #[async_trait]
 impl DbPool for MysqlDbPool {
-    type Db = MysqlDb;
     type Error = DbError;
 
-    async fn get(&self) -> DbResult<Self::Db> {
+    async fn get(&self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
         let pool = self.clone();
-        util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal).await
+        util::run_on_blocking_threadpool(move || pool.get_sync(), Self::Error::internal)
+            .await
+            .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id)
+    }
+
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
+        Box::new(self.clone())
     }
 }
 

@@ -84,7 +84,6 @@ impl SyncTimestamp {
     /// string such as 1996-12-19T16:39:57-08:00
     pub fn from_rfc3339(val: &str) -> Result<Self, CommonDbError> {
         let dt = DateTime::parse_from_rfc3339(val)
-            // TODO: maybe convert these Internal errors to Integrity in Spanner code
             .map_err(|e| CommonDbError::internal(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }

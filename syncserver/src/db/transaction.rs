@@ -11,7 +11,7 @@ use futures::FutureExt;
 use syncserver_common::X_LAST_MODIFIED;
 use syncserver_db_common::{params, Db as DbTrait, DbPool as DbPoolTrait, UserIdentifier};
 
-use crate::db::{results::ConnectionInfo, Db, DbPool};
+use crate::db::{results::ConnectionInfo, DbError};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::tags::Taggable;
 use crate::server::{MetricsWrapper, ServerState};
@@ -21,7 +21,7 @@ use crate::web::extractors::{
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
-    pool: DbPool,
+    pool: Box<dyn DbPoolTrait<Error = DbError>>,
     is_read: bool,
     user_id: UserIdentifier,
     collection: Option<String>,
@@ -41,6 +41,7 @@ fn set_extra(req: &HttpRequest, connection_info: ConnectionInfo) {
     );
 }
 
+// could re-export versions of traits with Error filled in?
 impl DbTransactionPool {
     /// Perform an action inside of a DB transaction. If the action fails, the
     /// transaction is rolled back. If the action succeeds, the transaction is
@@ -50,9 +51,9 @@ impl DbTransactionPool {
         &'a self,
         request: HttpRequest,
         action: A,
-    ) -> Result<(R, Db), ApiError>
+    ) -> Result<(R, Box<dyn DbTrait<Error = DbError>>), ApiError>
     where
-        A: FnOnce(Db) -> F,
+        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
         F: Future<Output = Result<R, ApiError>>,
     {
         // Get connection from pool
@@ -87,7 +88,7 @@ impl DbTransactionPool {
         }
     }
 
-    pub fn get_pool(&self) -> Result<DbPool, Error> {
+    pub fn get_pool(&self) -> Result<Box<dyn DbPoolTrait<Error = DbError>>, Error> {
         Ok(self.pool.clone())
     }
 
@@ -98,7 +99,7 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<R, ApiError>
     where
-        A: FnOnce(Db) -> F,
+        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
         F: Future<Output = Result<R, ApiError>> + 'a,
     {
         let (resp, db) = self.transaction_internal(request, action).await?;
@@ -116,11 +117,12 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<HttpResponse, ApiError>
     where
-        A: FnOnce(Db) -> F,
+        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
         F: Future<Output = Result<HttpResponse, ApiError>> + 'a,
     {
         let mreq = request.clone();
-        let check_precondition = move |db: Db| {
+        // TODO: come up with better name than DbTrait
+        let check_precondition = move |db: Box<dyn DbTrait<Error = DbError>>| {
             async move {
                 // set the extra information for all requests so we capture default err handlers.
                 set_extra(&mreq, db.get_connection_info());
@@ -220,7 +222,7 @@ impl FromRequest for DbTransactionPool {
                 .unwrap_or("NONE");
 
             let col_result = CollectionParam::extrude(req.uri(), &mut req.extensions_mut());
-            let state = match req.app_data::<Data<ServerState<DbPool>>>() {
+            let state = match req.app_data::<Data<ServerState>>() {
                 Some(v) => v,
                 None => {
                     let apie: ApiError = ApiErrorKind::NoServerState.into();

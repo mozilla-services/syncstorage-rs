@@ -1,6 +1,6 @@
 use log::debug;
 use syncserver_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, BATCH_LIFETIME,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, BATCH_LIFETIME,
 };
 use syncserver_settings::Settings;
 

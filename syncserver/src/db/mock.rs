@@ -2,43 +2,11 @@
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
 use futures::future;
-use syncserver_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, DbPool,
-};
+use syncserver_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
+
+use crate::db::DbError;
 
 type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
-
-pub struct DbError;
-
-impl DbErrorIntrospect for DbError {
-    fn is_batch_not_found(&self) -> bool {
-        false
-    }
-
-    fn is_bso_not_found(&self) -> bool {
-        false
-    }
-
-    fn is_collection_not_found(&self) -> bool {
-        false
-    }
-
-    fn is_conflict(&self) -> bool {
-        false
-    }
-
-    fn is_quota(&self) -> bool {
-        false
-    }
-
-    fn is_sentry_event(&self) -> bool {
-        false
-    }
-
-    fn metric_label(&self) -> Option<String> {
-        None
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -51,15 +19,18 @@ impl MockDbPool {
 
 #[async_trait]
 impl<'a> DbPool for MockDbPool {
-    type Db = MockDb;
     type Error = DbError;
 
-    async fn get(&self) -> Result<Self::Db, Self::Error> {
-        Ok(MockDb::new())
+    async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error> {
+        Ok(Box::new(MockDb::new()))
     }
 
     fn validate_batch_id(&self, _: params::ValidateBatchId) -> Result<(), DbError> {
         Ok(())
+    }
+
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
+        Box::new(self.clone())
     }
 }
 
@@ -149,6 +120,10 @@ impl Db for MockDb {
     }
 
     fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
+
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+        Box::new(self.clone())
+    }
 }
 
 unsafe impl Send for MockDb {}

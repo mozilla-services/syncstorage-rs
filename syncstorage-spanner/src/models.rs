@@ -274,8 +274,8 @@ impl SpannerDb {
             .await?;
 
         let timestamp = if let Some(result) = result {
-            let modified = SyncTimestamp::from_rfc3339(result[1].get_string_value())?;
-            let now = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
+            let modified = sync_timestamp_from_rfc3339(result[1].get_string_value())?;
+            let now = sync_timestamp_from_rfc3339(result[0].get_string_value())?;
             // Forbid the write if it would not properly incr the modified
             // timestamp
             if modified >= now {
@@ -292,7 +292,7 @@ impl SpannerDb {
                 .execute_async(&self.conn)?
                 .one()
                 .await?;
-            SyncTimestamp::from_rfc3339(result[0].get_string_value())?
+            sync_timestamp_from_rfc3339(result[0].get_string_value())?
         };
         self.set_timestamp(timestamp);
 
@@ -561,7 +561,7 @@ impl SpannerDb {
             .one_or_none()
             .await?
             .ok_or_else(DbError::collection_not_found)?;
-        let modified = SyncTimestamp::from_rfc3339(result[0].get_string_value())?;
+        let modified = sync_timestamp_from_rfc3339(result[0].get_string_value())?;
         Ok(modified)
     }
 
@@ -595,7 +595,7 @@ impl SpannerDb {
                 .get_string_value()
                 .parse::<i32>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
-            let modified = SyncTimestamp::from_rfc3339(row[1].get_string_value())?;
+            let modified = sync_timestamp_from_rfc3339(row[1].get_string_value())?;
             results.insert(collection_id, modified);
         }
         self.map_collection_names(results).await
@@ -757,9 +757,9 @@ impl SpannerDb {
             .one()
             .await?;
         if row[0].has_null_value() {
-            SyncTimestamp::from_i64(0)
+            SyncTimestamp::from_i64(0).map_err(|e| DbError::internal(e.to_string()))
         } else {
-            SyncTimestamp::from_rfc3339(row[0].get_string_value())
+            sync_timestamp_from_rfc3339(row[0].get_string_value())
         }
         .map_err(Into::into)
     }
@@ -1416,7 +1416,7 @@ impl SpannerDb {
         while let Some(row) = stream.next_async().await {
             let mut row = row?;
             ids.push(row[0].take_string_value());
-            modifieds.push(SyncTimestamp::from_rfc3339(row[1].get_string_value())?.as_i64());
+            modifieds.push(sync_timestamp_from_rfc3339(row[1].get_string_value())?.as_i64());
         }
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -1493,9 +1493,9 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if let Some(result) = result {
-            SyncTimestamp::from_rfc3339(result[0].get_string_value())
+            sync_timestamp_from_rfc3339(result[0].get_string_value())
         } else {
-            SyncTimestamp::from_i64(0)
+            SyncTimestamp::from_i64(0).map_err(|e| DbError::internal(e.to_string()))
         }
         .map_err(Into::into)
     }
@@ -2176,4 +2176,12 @@ impl Db for SpannerDb {
             enforced,
         };
     }
+
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+        Box::new(self.clone())
+    }
+}
+
+fn sync_timestamp_from_rfc3339(val: &str) -> Result<SyncTimestamp, DbError> {
+    SyncTimestamp::from_rfc3339(val).map_err(|e| DbError::integrity(e.to_string()))
 }

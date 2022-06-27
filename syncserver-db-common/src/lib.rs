@@ -54,12 +54,19 @@ pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
 
 #[async_trait]
 pub trait DbPool: Sync + Send + Debug + GetPoolState {
-    type Db: Clone + Db;
     type Error;
 
-    async fn get(&self) -> Result<Self::Db, Self::Error>;
+    async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error>;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), Self::Error>;
+
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>>;
+}
+
+impl<E> Clone for Box<dyn DbPool<Error = E>> {
+    fn clone(&self) -> Box<dyn DbPool<Error = E>> {
+        self.box_clone()
+    }
 }
 
 pub trait GetPoolState {
@@ -209,6 +216,8 @@ pub trait Db: Debug {
         params: params::CommitBatch,
     ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
 
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>>;
+
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
@@ -284,8 +293,11 @@ pub trait Db: Debug {
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
-impl<'a, E: 'static + DbErrorIntrospect> Clone for Box<dyn Db<'a, Error = E>> {
-    fn clone(&self) -> Box<dyn Db<'a, Error = E>> {
+impl<E> Clone for Box<dyn Db<Error = E>>
+where
+    E: DbErrorIntrospect + 'static,
+{
+    fn clone(&self) -> Box<dyn Db<Error = E>> {
         self.box_clone()
     }
 }

@@ -363,7 +363,8 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> DbResult<Value> {
 
 pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
     let modified_string = &row[3].get_string_value();
-    let modified = SyncTimestamp::from_rfc3339(modified_string)?;
+    let modified = SyncTimestamp::from_rfc3339(modified_string)
+        .map_err(|e| DbError::integrity(e.to_string()))?;
     Ok(results::GetBso {
         id: row[0].take_string_value(),
         sortindex: if row[1].has_null_value() {
@@ -378,7 +379,9 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
         },
         payload: row[2].take_string_value(),
         modified,
-        expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())?.as_i64(),
+        expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())
+            .map_err(|e| DbError::integrity(e.to_string()))?
+            .as_i64(),
     })
 }
 

@@ -64,11 +64,13 @@ fn get_test_settings() -> Settings {
     settings
 }
 
-async fn get_test_state(settings: &Settings) -> ServerState<DbPool> {
+async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
     ServerState {
-        db_pool: DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))
-            .expect("Could not get db_pool in get_test_state"),
+        db_pool: Box::new(
+            DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))
+                .expect("Could not get db_pool in get_test_state"),
+        ),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         metrics: Box::new(metrics),

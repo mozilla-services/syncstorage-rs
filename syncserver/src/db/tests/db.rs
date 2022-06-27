@@ -4,8 +4,7 @@ use std::collections::HashMap;
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use syncserver_db_common::{
-    error::DbErrorIntrospect, params, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL,
+    error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
 };
 use syncserver_settings::Settings;
 

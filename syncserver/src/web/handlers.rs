@@ -10,12 +10,12 @@ use syncserver_db_common::{
     error::DbErrorIntrospect,
     params,
     results::{CreateBatch, Paginated},
-    Db as DbTrait, DbPool as DbPoolTrait, GetPoolState,
+    Db as DbTrait,
 };
 use time;
 
 use crate::{
-    db::{transaction::DbTransactionPool, Db, DbError, DbPool},
+    db::{transaction::DbTransactionPool, DbError},
     error::{ApiError, ApiErrorKind},
     server::ServerState,
     web::extractors::{
@@ -189,7 +189,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Db,
+    db: Box<dyn DbTrait<Error = DbError>>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -280,7 +280,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Db,
+    db: Box<dyn DbTrait<Error = DbError>>,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
@@ -289,7 +289,6 @@ pub async fn post_collection_batch(
     let breq = coll
         .batch
         .clone()
-        // TODO: figure out something better than these helper methods
         .ok_or_else(|| -> ApiError { ApiErrorKind::Db(DbError::batch_not_found()).into() })?;
 
     let new_batch = if let Some(id) = breq.id.clone() {
@@ -521,7 +520,7 @@ pub async fn put_bso(
         .await
 }
 
-pub fn get_configuration(state: Data<ServerState<DbPool>>) -> HttpResponse {
+pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
     // With no DbConnection (via a `transaction_http` call) needed here, we
     // miss out on a couple things it does:
     // 1. Ensuring an X-Last-Modified (always 0.00) is returned
@@ -575,7 +574,7 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
 pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let mut resp: HashMap<String, Value> = HashMap::new();
 
-    let state = match req.app_data::<Data<ServerState<DbPool>>>() {
+    let state = match req.app_data::<Data<ServerState>>() {
         Some(s) => s,
         None => {
             error!("⚠️ Could not load the app state");
