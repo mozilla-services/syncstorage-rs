@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
 
-use crate::db::DbError;
+use crate::db::{BoxDb, BoxDbPool, DbError};
 
 type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 
@@ -21,7 +21,7 @@ impl MockDbPool {
 impl<'a> DbPool for MockDbPool {
     type Error = DbError;
 
-    async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error> {
+    async fn get(&self) -> Result<BoxDb, Self::Error> {
         Ok(Box::new(MockDb::new()))
     }
 
@@ -29,7 +29,7 @@ impl<'a> DbPool for MockDbPool {
         Ok(())
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
+    fn box_clone(&self) -> BoxDbPool {
         Box::new(self.clone())
     }
 }
@@ -121,7 +121,7 @@ impl Db for MockDb {
 
     fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
 
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+    fn box_clone(&self) -> BoxDb {
         Box::new(self.clone())
     }
 }

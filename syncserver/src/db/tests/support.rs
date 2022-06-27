@@ -2,12 +2,12 @@ use std::str::FromStr;
 
 use syncserver_common::Metrics;
 use syncserver_db_common::{
-    params, util::SyncTimestamp, Db as DbTrait, DbPool as DbPoolTrait, Sorting, UserIdentifier,
+    params, util::SyncTimestamp, DbPool as DbPoolTrait, Sorting, UserIdentifier,
 };
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 
-use crate::db::{DbError, DbPool};
+use crate::db::{BoxDb, DbPool};
 use crate::error::{ApiError, ApiResult};
 
 pub type Result<T> = std::result::Result<T, ApiError>;
@@ -32,7 +32,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool> {
     Ok(pool)
 }
 
-pub async fn test_db(pool: DbPool) -> ApiResult<Box<dyn DbTrait<Error = DbError>>> {
+pub async fn test_db(pool: DbPool) -> ApiResult<BoxDb> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

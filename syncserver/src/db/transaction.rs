@@ -9,9 +9,9 @@ use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use syncserver_common::X_LAST_MODIFIED;
-use syncserver_db_common::{params, Db as DbTrait, DbPool as DbPoolTrait, UserIdentifier};
+use syncserver_db_common::{params, UserIdentifier};
 
-use crate::db::{results::ConnectionInfo, DbError};
+use crate::db::{results::ConnectionInfo, BoxDb, BoxDbPool};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::tags::Taggable;
 use crate::server::{MetricsWrapper, ServerState};
@@ -21,7 +21,7 @@ use crate::web::extractors::{
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
-    pool: Box<dyn DbPoolTrait<Error = DbError>>,
+    pool: BoxDbPool,
     is_read: bool,
     user_id: UserIdentifier,
     collection: Option<String>,
@@ -51,9 +51,9 @@ impl DbTransactionPool {
         &'a self,
         request: HttpRequest,
         action: A,
-    ) -> Result<(R, Box<dyn DbTrait<Error = DbError>>), ApiError>
+    ) -> Result<(R, BoxDb), ApiError>
     where
-        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
+        A: FnOnce(BoxDb) -> F,
         F: Future<Output = Result<R, ApiError>>,
     {
         // Get connection from pool
@@ -88,7 +88,7 @@ impl DbTransactionPool {
         }
     }
 
-    pub fn get_pool(&self) -> Result<Box<dyn DbPoolTrait<Error = DbError>>, Error> {
+    pub fn get_pool(&self) -> Result<BoxDbPool, Error> {
         Ok(self.pool.clone())
     }
 
@@ -99,7 +99,7 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<R, ApiError>
     where
-        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
+        A: FnOnce(BoxDb) -> F,
         F: Future<Output = Result<R, ApiError>> + 'a,
     {
         let (resp, db) = self.transaction_internal(request, action).await?;
@@ -117,12 +117,11 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<HttpResponse, ApiError>
     where
-        A: FnOnce(Box<dyn DbTrait<Error = DbError>>) -> F,
+        A: FnOnce(BoxDb) -> F,
         F: Future<Output = Result<HttpResponse, ApiError>> + 'a,
     {
         let mreq = request.clone();
-        // TODO: come up with better name than DbTrait
-        let check_precondition = move |db: Box<dyn DbTrait<Error = DbError>>| {
+        let check_precondition = move |db: BoxDb| {
             async move {
                 // set the extra information for all requests so we capture default err handlers.
                 set_extra(&mreq, db.get_connection_info());

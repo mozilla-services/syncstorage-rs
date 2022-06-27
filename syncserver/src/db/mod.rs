@@ -9,7 +9,9 @@ use std::time::Duration;
 
 use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
-use syncserver_db_common::{results, GetPoolState, PoolState};
+use syncserver_db_common::{
+    results, Db as DbTrait, DbPool as DbPoolTrait, GetPoolState, PoolState,
+};
 #[cfg(feature = "mysql")]
 use syncstorage_mysql::pool::MysqlDbPool;
 #[cfg(feature = "spanner")]
@@ -29,6 +31,9 @@ pub type DbPool = SpannerDbPool;
 pub use syncstorage_spanner::error::DbError;
 #[cfg(feature = "spanner")]
 pub type Db = syncstorage_spanner::models::SpannerDb;
+
+pub type BoxDb = Box<dyn DbTrait<Error = DbError>>;
+pub type BoxDbPool = Box<dyn DbPoolTrait<Error = DbError>>;
 
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(

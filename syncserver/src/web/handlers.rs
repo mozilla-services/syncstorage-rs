@@ -10,12 +10,11 @@ use syncserver_db_common::{
     error::DbErrorIntrospect,
     params,
     results::{CreateBatch, Paginated},
-    Db as DbTrait,
 };
 use time;
 
 use crate::{
-    db::{transaction::DbTransactionPool, DbError},
+    db::{transaction::DbTransactionPool, BoxDb, DbError},
     error::{ApiError, ApiErrorKind},
     server::ServerState,
     web::extractors::{
@@ -189,7 +188,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Box<dyn DbTrait<Error = DbError>>,
+    db: BoxDb,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -280,7 +279,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Box<dyn DbTrait<Error = DbError>>,
+    db: BoxDb,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
