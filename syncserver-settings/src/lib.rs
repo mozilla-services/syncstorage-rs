@@ -260,3 +260,25 @@ impl<'d> Deserialize<'d> for Secrets {
             .map_err(|e| serde::de::Error::custom(format!("error: {:?}", e)))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use std::env;
+
+    use super::*;
+
+    #[test]
+    fn test_environment_variable_prefix() {
+        // Setting an environment variable with the correct prefix correctly sets the setting
+        // (note that the default value for the settings.tokenserver.enabled setting is false)
+        env::set_var("SYNC_TOKENSERVER__ENABLED", "true");
+        let settings = Settings::with_env_and_config_file(None).unwrap();
+        assert!(settings.tokenserver.enabled);
+
+        // Setting an environment variable with the incorrect prefix does not set the setting
+        env::remove_var("SYNC_TOKENSERVER__ENABLED");
+        env::set_var("SYNC__TOKENSERVER__ENABLED", "true");
+        let settings = Settings::with_env_and_config_file(None).unwrap();
+        assert!(!settings.tokenserver.enabled);
+    }
+}

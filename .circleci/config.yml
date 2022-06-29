@@ -48,7 +48,7 @@ commands:
       - run:
           name: Rust Clippy
           command: |
-            cargo clippy --all --all-targets --all-features -- -D warnings
+            cargo clippy --workspace --all-targets --all-features -- -D warnings
   cargo-build:
     steps:
       - run:
@@ -89,10 +89,10 @@ commands:
     steps:
       - run:
           name: cargo test
-          command: cargo test --all --verbose
+          command: cargo test --workspace --verbose
       - run:
           name: quota test
-          command: cargo test --all --verbose
+          command: cargo test --workspace --verbose
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 

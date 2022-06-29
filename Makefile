@@ -15,7 +15,7 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 
 clippy:
 	# Matches what's run in circleci
-	cargo clippy --all --all-targets --all-features -- -D warnings
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 clean:
 	cargo clean
