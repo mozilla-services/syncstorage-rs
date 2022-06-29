@@ -365,7 +365,7 @@ pub async fn post_collection_batch(
         if !coll.bsos.valid.is_empty() {
             // Append the data to the requested batch.
             let result = {
-                dbg!("Batch: Appending to {}", &new_batch.id);
+                trace!("Batch: Appending to {}", &new_batch.id);
                 db.append_to_batch(params::AppendToBatch {
                     user_id: coll.user_id.clone(),
                     collection: coll.collection.clone(),
@@ -633,6 +633,12 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
 
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
+    if matches!(deadman.expiry, Some(expiry) if expiry <= time::Instant::now()) {
+        // We're set to report a failed health check after a certain time (to
+        // evict this instance and start a fresh one)
+        return Ok(HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR).json(resp));
+    }
+
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;

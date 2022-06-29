@@ -74,10 +74,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         metrics: Box::new(metrics),
         port: settings.port,
         quota_enabled: settings.enable_quota,
-        deadman: Arc::new(RwLock::new(Deadman {
-            max_size: settings.database_pool_max_size,
-            ..Default::default()
-        })),
+        deadman: Arc::new(RwLock::new(Deadman::from(settings))),
     }
 }
 
@@ -725,7 +722,7 @@ async fn overquota() {
 }
 
 #[actix_rt::test]
-async fn lbheartbeat_check() {
+async fn lbheartbeat_max_pool_size_check() {
     use actix_web::web::Buf;
 
     let mut settings = get_test_settings();
@@ -757,7 +754,7 @@ async fn lbheartbeat_check() {
     assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
 
     // check duration for exhausted connections
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    actix_rt::time::delay_for(Duration::from_secs(1)).await;
     let req =
         create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
     let sresp = app.call(req).await.unwrap();
@@ -779,4 +776,23 @@ async fn lbheartbeat_check() {
     let status = sresp.status();
     // dbg!(status, test::read_body(sresp).await);
     assert!(status == StatusCode::OK);
+}
+
+#[actix_rt::test]
+async fn lbheartbeat_ttl_check() {
+    let mut settings = get_test_settings();
+    settings.lbheartbeat_ttl = Some(2);
+    settings.lbheartbeat_ttl_jitter = 60;
+
+    let mut app = init_app!(settings).await;
+
+    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let sresp = app.call(lb_req).await.unwrap();
+    assert!(sresp.status().is_success());
+
+    actix_rt::time::delay_for(Duration::from_secs(3)).await;
+
+    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let sresp = app.call(lb_req).await.unwrap();
+    assert_eq!(sresp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

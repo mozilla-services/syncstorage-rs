@@ -2,8 +2,10 @@
 use std::{cmp::min, env};
 
 use actix_cors::Cors;
+use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use config::{Config, ConfigError, Environment, File};
 use http::method::Method;
+use rand::{thread_rng, Rng};
 use serde::{de::Deserializer, Deserialize, Serialize};
 use url::Url;
 
@@ -41,10 +43,38 @@ pub struct Quota {
 }
 
 #[derive(Copy, Clone, Default, Debug)]
+/// Deadman configures how the `/__lbheartbeat__` health check endpoint fails
+/// for special conditions.
+///
+/// We'll fail the check (usually temporarily) due to the db pool maxing out
+/// connections, which notifies the orchestration system that it should back
+/// off traffic to this instance until the check succeeds.
+///
+/// Optionally we can permanently fail the check after a set time period,
+/// indicating that this instance should be evicted and replaced.
 pub struct Deadman {
     pub max_size: Option<u32>,
     pub previous_count: usize,
     pub clock_start: Option<time::Instant>,
+    pub expiry: Option<time::Instant>,
+}
+
+impl From<&Settings> for Deadman {
+    fn from(settings: &Settings) -> Self {
+        let expiry = settings.lbheartbeat_ttl.map(|lbheartbeat_ttl| {
+            // jitter's a range of percentage of ttl added to ttl. E.g. a 60s
+            // ttl w/ a 10% jitter results in a random final ttl between 60-66s
+            let ttl = lbheartbeat_ttl as f32;
+            let max_jitter = ttl * (settings.lbheartbeat_ttl_jitter as f32 * 0.01);
+            let ttl = thread_rng().gen_range(ttl..ttl + max_jitter);
+            time::Instant::now() + time::Duration::seconds(ttl as i64)
+        });
+        Deadman {
+            max_size: settings.database_pool_max_size,
+            expiry,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -98,6 +128,13 @@ pub struct Settings {
     pub cors_max_age: Option<usize>,
     pub cors_allowed_methods: Option<Vec<String>>,
     pub cors_allowed_headers: Option<Vec<String>>,
+
+    /// Fail the `/__lbheartbeat__` healthcheck after running for this duration
+    /// of time (in seconds) + jitter
+    pub lbheartbeat_ttl: Option<u32>,
+    /// Percentage of `lbheartbeat_ttl` time to "jitter" (adds additional,
+    /// randomized time)
+    pub lbheartbeat_ttl_jitter: u32,
 }
 
 impl Default for Settings {
@@ -126,10 +163,30 @@ impl Default for Settings {
             spanner_emulator_host: None,
             disable_syncstorage: false,
             tokenserver: TokenserverSettings::default(),
-            cors_allowed_origin: None,
-            cors_allowed_methods: None,
-            cors_allowed_headers: None,
-            cors_max_age: None,
+            cors_allowed_origin: Some("*".to_owned()),
+            cors_allowed_methods: Some(vec![
+                "DELETE".to_owned(),
+                "GET".to_owned(),
+                "POST".to_owned(),
+                "PUT".to_owned(),
+            ]),
+            cors_allowed_headers: Some(vec![
+                AUTHORIZATION.to_string(),
+                CONTENT_TYPE.to_string(),
+                USER_AGENT.to_string(),
+                X_LAST_MODIFIED.to_owned(),
+                X_WEAVE_TIMESTAMP.to_owned(),
+                X_WEAVE_NEXT_OFFSET.to_owned(),
+                X_WEAVE_RECORDS.to_owned(),
+                X_WEAVE_BYTES.to_owned(),
+                X_WEAVE_TOTAL_RECORDS.to_owned(),
+                X_WEAVE_TOTAL_BYTES.to_owned(),
+                X_VERIFY_CODE.to_owned(),
+                "TEST_IDLES".to_owned(),
+            ]),
+            cors_max_age: Some(1728000),
+            lbheartbeat_ttl: None,
+            lbheartbeat_ttl_jitter: 25,
         }
     }
 }
@@ -213,6 +270,17 @@ impl Settings {
             "https://oauth.stage.mozaws.net",
         )?;
         s.set_default("tokenserver.fxa_oauth_request_timeout", 10)?;
+
+        // The type parameter for None::<bool> below would more appropriately be `Jwk`, but due
+        // to constraints imposed by version 0.11 of the config crate, it is not possible to
+        // implement `ValueKind: From<Jwk>`. The next best thing would be to use `ValueKind`,
+        // but `ValueKind` is private in this version of config. We use `bool` as a placeholder,
+        // since `ValueKind: From<bool>` is implemented, and None::<T> for all T is simply
+        // converted to ValueKind::Nil (see below link).
+        // https://github.com/mehcode/config-rs/blob/0.11.0/src/value.rs#L35
+        s.set_default("tokenserver.fxa_oauth_primary_jwk", None::<bool>)?;
+        s.set_default("tokenserver.fxa_oauth_secondary_jwk", None::<bool>)?;
+
         s.set_default("tokenserver.node_type", "spanner")?;
         s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
         s.set_default("tokenserver.run_migrations", cfg!(test))?;
@@ -221,9 +289,9 @@ impl Settings {
         s.set_default(
             "cors_allowed_headers",
             Some(vec![
-                "Authorization",
-                "Content-Type",
-                "UserAgent",
+                AUTHORIZATION.to_string().as_str(),
+                CONTENT_TYPE.to_string().as_str(),
+                USER_AGENT.to_string().as_str(),
                 X_LAST_MODIFIED,
                 X_WEAVE_TIMESTAMP,
                 X_WEAVE_NEXT_OFFSET,
@@ -239,6 +307,8 @@ impl Settings {
             "cors_allowed_methods",
             Some(vec!["DELETE", "GET", "POST", "PUT"]),
         )?;
+        s.set_default("cors_allowed_origin", Some("*"))?;
+        s.set_default("lbheartbeat_ttl_jitter", 25)?;
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
@@ -344,10 +414,6 @@ impl Settings {
         // for finer grained specification.
         let mut cors = Cors::default();
 
-        if let Some(allowed_origin) = &self.cors_allowed_origin {
-            cors = cors.allowed_origin(allowed_origin);
-        }
-
         if let Some(allowed_methods) = &self.cors_allowed_methods {
             let mut methods = vec![];
             for method_string in allowed_methods {
@@ -362,6 +428,15 @@ impl Settings {
 
         if let Some(max_age) = &self.cors_max_age {
             cors = cors.max_age(*max_age);
+        }
+        // explicitly set the CORS allow origin, since Default does not
+        // appear to set the `allow-origins: *` header.
+        if let Some(origin) = &self.cors_allowed_origin {
+            if origin == "*" {
+                cors = cors.allow_any_origin();
+            } else {
+                cors = cors.allowed_origin(origin);
+            }
         }
 
         cors

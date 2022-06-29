@@ -1,10 +1,8 @@
-use actix_web::Error;
 use async_trait::async_trait;
 use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyString},
-    IntoPy,
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -12,7 +10,7 @@ use tokenserver_common::error::TokenserverError;
 use tokio::{task, time};
 
 use super::VerifyToken;
-use crate::tokenserver::settings::Settings;
+use crate::tokenserver::settings::{Jwk, Settings};
 
 use core::time::Duration;
 use std::convert::TryFrom;
@@ -40,32 +38,39 @@ impl Verifier {
 }
 
 impl TryFrom<&Settings> for Verifier {
-    type Error = Error;
+    type Error = TokenserverError;
 
-    fn try_from(settings: &Settings) -> Result<Self, Error> {
+    fn try_from(settings: &Settings) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
             let kwargs = {
                 let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
-                let jwks = settings
-                    .fxa_oauth_jwk
-                    .as_ref()
-                    .map(|jwk| {
-                        let dict = [
-                            ("kty", &jwk.kty),
-                            ("alg", &jwk.alg),
-                            ("kid", &jwk.kid),
-                            ("use", &jwk.use_of_key),
-                            ("n", &jwk.n),
-                            ("e", &jwk.e),
-                        ]
-                        .into_py_dict(py);
-                        dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
+                let parse_jwk = |jwk: &Jwk| {
+                    let dict = [
+                        ("kty", &jwk.kty),
+                        ("alg", &jwk.alg),
+                        ("kid", &jwk.kid),
+                        ("use", &jwk.use_of_key),
+                        ("n", &jwk.n),
+                        ("e", &jwk.e),
+                    ]
+                    .into_py_dict(py);
+                    dict.set_item("fxa-createdAt", jwk.fxa_created_at).unwrap();
 
-                        [dict]
-                    })
-                    .into_py(py);
+                    dict
+                };
+
+                let jwks = match (
+                    &settings.fxa_oauth_primary_jwk,
+                    &settings.fxa_oauth_secondary_jwk,
+                ) {
+                    (Some(primary_jwk), Some(secondary_jwk)) => {
+                        Some(vec![parse_jwk(primary_jwk), parse_jwk(secondary_jwk)])
+                    }
+                    (Some(jwk), None) | (None, Some(jwk)) => Some(vec![parse_jwk(jwk)]),
+                    (None, None) => None,
+                };
                 dict.set_item("jwks", jwks).unwrap();
                 dict
             };
@@ -80,12 +85,13 @@ impl TryFrom<&Settings> for Verifier {
 
             Ok(object)
         })
-        .map_err(super::pyerr_to_actix_error)?;
+        .map_err(super::pyerr_to_tokenserver_error)?;
 
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
-            jwk_is_cached: settings.fxa_oauth_jwk.is_some(),
+            jwk_is_cached: settings.fxa_oauth_primary_jwk.is_some()
+                || settings.fxa_oauth_secondary_jwk.is_some(),
         })
     }
 }
@@ -122,7 +128,7 @@ impl VerifyToken for Verifier {
             })
             .map_err(|e| TokenserverError {
                 context: format!("pyo3 error in OAuth verifier: {}", e),
-                ..TokenserverError::invalid_credentials("Unauthorized")
+                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             })?;
 
             match maybe_verify_output_string {
@@ -130,13 +136,13 @@ impl VerifyToken for Verifier {
                     serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
                         TokenserverError {
                             context: format!("Invalid OAuth verify output: {}", e),
-                            ..TokenserverError::invalid_credentials("Unauthorized")
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                         }
                     })
                 }
                 None => Err(TokenserverError {
                     context: "Invalid OAuth token".to_owned(),
-                    ..TokenserverError::invalid_credentials("Unauthorized")
+                    ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                 }),
             }
         };
