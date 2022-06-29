@@ -757,7 +757,7 @@ impl SpannerDb {
             .one()
             .await?;
         if row[0].has_null_value() {
-            SyncTimestamp::from_i64(0).map_err(|e| DbError::internal(e.to_string()))
+            SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
         } else {
             sync_timestamp_from_rfc3339(row[0].get_string_value())
         }
@@ -1495,7 +1495,7 @@ impl SpannerDb {
         if let Some(result) = result {
             sync_timestamp_from_rfc3339(result[0].get_string_value())
         } else {
-            SyncTimestamp::from_i64(0).map_err(|e| DbError::internal(e.to_string()))
+            SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
         }
         .map_err(Into::into)
     }

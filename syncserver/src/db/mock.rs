@@ -70,6 +70,10 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
+    fn box_clone(&self) -> BoxDb {
+        Box::new(self.clone())
+    }
+
     fn check(&self) -> DbFuture<'_, results::Check> {
         Box::pin(future::ok(true))
     }
@@ -120,10 +124,6 @@ impl Db for MockDb {
     }
 
     fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
-
-    fn box_clone(&self) -> BoxDb {
-        Box::new(self.clone())
-    }
 }
 
 unsafe impl Send for MockDb {}

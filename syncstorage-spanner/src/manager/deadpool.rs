@@ -35,7 +35,9 @@ impl SpannerSessionManager {
     pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
         let database_name = settings
             .spanner_database_name()
-            .unwrap_or_else(|| panic!("invalid database url: {}", settings.database_url))
+            .ok_or_else(|| {
+                DbError::internal(format!("invalid database url: {}", settings.database_url))
+            })?
             .to_owned();
         let env = Arc::new(EnvBuilder::new().build());
 

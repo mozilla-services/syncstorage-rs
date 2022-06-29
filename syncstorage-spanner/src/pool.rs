@@ -1,7 +1,6 @@
 use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-// use bb8::ErrorSink;
 use syncserver_common::Metrics;
 use syncserver_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
@@ -14,15 +13,6 @@ use super::{
     models::SpannerDb,
     DbResult,
 };
-
-/// Run the diesel embedded migrations
-///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-//pub fn run_embedded_migrations(settings: &Settings) -> DbResult<()> {
-//    let conn = MysqlConnection::establish(&settings.database_url)?;
-//    Ok(embedded_migrations::run(&conn)?)
-//}
 
 #[derive(Clone)]
 pub struct SpannerDbPool {
@@ -38,7 +28,6 @@ pub struct SpannerDbPool {
 impl SpannerDbPool {
     /// Creates a new pool of Spanner db connections.
     pub fn new(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
-        //run_embedded_migrations(settings)?;
         Self::new_without_migrations(settings, metrics)
     }
 
@@ -179,19 +168,3 @@ impl Default for CollectionCache {
         }
     }
 }
-
-///// Logs internal bb8 errors
-// #[derive(Debug, Clone, Copy)]
-// pub struct LoggingErrorSink;
-
-// impl<E: std::error::Error> ErrorSink<E> for LoggingErrorSink {
-//     fn sink(&self, e: E) {
-//         error!("bb8 Error: {}", e);
-//         let event = sentry::event_from_error(&e);
-//         sentry::capture_event(event);
-//     }
-
-//     fn boxed_clone(&self) -> Box<dyn ErrorSink<E>> {
-//         Box::new(*self)
-//     }
-// }

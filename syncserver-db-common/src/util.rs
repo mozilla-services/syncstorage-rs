@@ -189,15 +189,7 @@ where
     E: Send + 'static,
 {
     task::spawn_blocking(f)
-        .map_err(|err| {
-            if err.is_cancelled() {
-                e("CommonDb threadpool operation cancelled".to_owned())
-            } else if err.is_panic() {
-                e("CommonDb threadpool operation panicked".to_owned())
-            } else {
-                e("CommonDb threadpool operation failed for unknown reason".to_owned())
-            }
-        })
+        .map_err(|err| e(format!("database threadpool operation error: {}", err)))
         .await?
 }
 

@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "syncserver-settings",
     "syncserver-common",
     "syncserver-db-common",
+    "syncserver-settings",
     "syncstorage-mysql",
     "syncstorage-settings",
     "syncstorage-spanner",
