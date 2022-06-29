@@ -234,16 +234,13 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let db_pool = pool_from_settings(&settings, &Metrics::from(&metrics)).await?;
+        let deadman = Arc::new(RwLock::new(Deadman::from(&settings)));
         let limits = Arc::new(settings.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
         let secrets = Arc::new(settings.master_secret);
         let quota_enabled = settings.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
-        let deadman = Arc::new(RwLock::new(Deadman {
-            max_size: settings.database_pool_max_size,
-            ..Default::default()
-        }));
         let tokenserver_state = if settings.tokenserver.enabled {
             let state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,

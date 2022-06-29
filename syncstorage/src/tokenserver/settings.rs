@@ -30,7 +30,10 @@ pub struct Settings {
     /// The JWK to be used to verify OAuth tokens. Passing a JWK to the PyFxA Python library
     /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
     /// performance benefits.
-    pub fxa_oauth_jwk: Option<Jwk>,
+    pub fxa_oauth_primary_jwk: Option<Jwk>,
+    /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
+    /// seamless key rotations on FxA.
+    pub fxa_oauth_secondary_jwk: Option<Jwk>,
     /// The issuer expected in the BrowserID verification response.
     pub fxa_browserid_issuer: String,
     /// The audience to be sent to the FxA BrowserID verification server.
@@ -52,6 +55,8 @@ pub struct Settings {
     pub statsd_label: String,
     /// Whether or not to run the Tokenserver migrations upon startup.
     pub run_migrations: bool,
+    /// The database ID of the Spanner node.
+    pub spanner_node_id: Option<i32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -78,7 +83,8 @@ impl Default for Settings {
             fxa_metrics_hash_secret: "secret".to_owned(),
             fxa_oauth_server_url: "https://oauth.stage.mozaws.net".to_owned(),
             fxa_oauth_request_timeout: 10,
-            fxa_oauth_jwk: None,
+            fxa_oauth_primary_jwk: None,
+            fxa_oauth_secondary_jwk: None,
             fxa_browserid_audience: "https://token.stage.mozaws.net".to_owned(),
             fxa_browserid_issuer: "api-accounts.stage.mozaws.net".to_owned(),
             fxa_browserid_server_url: "https://verifier.stage.mozaws.net/v2".to_owned(),
@@ -88,6 +94,7 @@ impl Default for Settings {
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),
             run_migrations: cfg!(test),
+            spanner_node_id: None,
         }
     }
 }

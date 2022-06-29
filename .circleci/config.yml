@@ -6,14 +6,11 @@
 #
 version: 2.1
 commands:
-  setup-rust:
+  display-rust:
     steps:
       - run:
-          name: Setup Rust
-          command: |
-            rustup install stable
-            rustup default stable
-            rustup update
+          name: Display Rust Version
+          command: 
             rustc --version
   setup-rust-check:
     steps:
@@ -86,7 +83,7 @@ commands:
             "$CIRCLE_TAG" \
             "$CIRCLE_PROJECT_USERNAME" \
             "$CIRCLE_PROJECT_REPONAME" \
-            "$CIRCLE_BUILD_URL" > version.json
+            "$CIRCLE_BUILD_URL" > syncstorage/version.json
 
   run-tests:
     steps:
@@ -163,13 +160,13 @@ commands:
 jobs:
   checks:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
     steps:
       - checkout
-      - setup-rust
+      - display-rust
       - setup-rust-check
       - setup-gcp-grpc
       - rust-check
@@ -179,7 +176,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: circleci/rust:latest
+      - image: cimg/rust:1.60.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -210,7 +207,7 @@ jobs:
               echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
             fi
       - checkout
-      - setup-rust
+      - display-rust
       - setup-python
       - setup-gcp-grpc
       - setup-mysql
