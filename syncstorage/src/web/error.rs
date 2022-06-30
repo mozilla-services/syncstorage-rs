@@ -196,6 +196,19 @@ impl From<ValidationErrorKind> for ValidationError {
             {
                 StatusCode::NOT_FOUND
             }
+            // Break potential chain of retries from iOS clients using bad offset strings.
+            ValidationErrorKind::FromDetails(
+                ref _description,
+                ref location,
+                Some(ref name),
+                Some(ref label),
+            ) if *location == RequestErrorLocation::QueryString
+                && ["offset"].contains(&name.as_ref())
+                && label.contains("invalid_offset_colon") =>
+            {
+                StatusCode::PRECONDITION_FAILED
+            }
+
             _ => StatusCode::BAD_REQUEST,
         };
 

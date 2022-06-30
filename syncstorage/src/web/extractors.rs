@@ -2,9 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{
-    self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr, sync::Arc,
-};
+use std::{self, collections::HashMap, collections::HashSet, str::FromStr, sync::Arc};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -1187,13 +1185,35 @@ impl From<Offset> for params::Offset {
 }
 
 impl FromStr for Offset {
-    type Err = ParseIntError;
+    type Err = ApiError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // issue559: Disable ':' support for now: simply parse as i64 as
         // previously (it was u64 previously but i64's close enough)
+        //
+        // We were seeing a number of errors where iOS clients would return
+        // offsets that contained ':' (e.g. '123456790:123') This is a valid
+        // form that the original python server used, but is not implemented
+        // with this version. Returning a 412 was suggested in order to
+        // break any loop that might exist on the client.
+        if s.contains(':') {
+            return Err(ValidationErrorKind::FromDetails(
+                "Unreadable Offset: contains ':'".to_owned(),
+                RequestErrorLocation::QueryString,
+                Some("offset".to_owned()),
+                label!("request.error.invalid_offset_colon"),
+            )
+            .into());
+        }
         let result = Offset {
             timestamp: None,
-            offset: s.parse::<u64>()?,
+            offset: s.parse::<u64>().map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    format!("Unreadable Offset: {:?}", e),
+                    RequestErrorLocation::QueryString,
+                    Some("offset".to_owned()),
+                    label!("request.error.invalid_offset"),
+                )
+            })?,
         };
         /*
         let result = match s.chars().position(|c| c == ':') {
@@ -2408,5 +2428,21 @@ mod tests {
 
         let offset_str = sample_offset.to_string();
         assert!(test_offset == Offset::from_str(&offset_str).unwrap())
+    }
+
+    #[actix_rt::test]
+    async fn test_invalid_offset() {
+        use actix_web::{http::StatusCode, ResponseError};
+
+        let result = Offset::from_str("123456:123");
+
+        assert!(result.is_err());
+        let resp = result.err().unwrap().error_response();
+        assert!(resp.status() == StatusCode::PRECONDITION_FAILED);
+
+        let result = Offset::from_str("123456*123");
+        assert!(result.is_err());
+        let resp = result.err().unwrap().error_response();
+        assert!(resp.status() == StatusCode::BAD_REQUEST);
     }
 }
