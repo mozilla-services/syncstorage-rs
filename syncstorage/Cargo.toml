@@ -22,7 +22,7 @@ bb8 = "0.4.1"          # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
 cadence = "0.26"
 chrono = "0.4"
-config = "0.11"
+config = "0.13"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
