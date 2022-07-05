@@ -82,7 +82,7 @@ slog-term = "2.6"
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-common = { path = "../syncstorage-common" }
 time = "^0.3"
-thiserror = "1.0.26"
+thiserror = "1.0.31"
 tokenserver-common = { path = "../tokenserver-common" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
