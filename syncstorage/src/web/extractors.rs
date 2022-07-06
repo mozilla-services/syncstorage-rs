@@ -419,9 +419,12 @@ impl FromRequest for BsoBody {
 
         let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
-        let req_c = req.clone();
+        // We declare fut here to avoid moving a mutable ref of payload into the async block.
+        // See examples in actix documentation for this style of implementation.
+        let fut = <Json<BsoBody>>::from_request(req, payload);
+
         Box::pin(async move {
-            let bso = <Json<BsoBody>>::from_request(&req_c, &mut Payload::None)
+            let bso = fut
                 .map_err(|e| {
                     warn!("⚠️ Could not parse BSO Body: {:?}", e);
                     let err: ApiError = ValidationErrorKind::FromDetails(
