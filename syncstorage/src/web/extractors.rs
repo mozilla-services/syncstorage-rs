@@ -446,20 +446,25 @@ impl FromRequest for BsoBody {
                 .unwrap_or_default()
                 > max_payload_size
             {
-                let err: ApiError = ValidationErrorKind::FromDetails(
+                return Err(ValidationErrorKind::FromDetails(
                     "payload too large".to_owned(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
                     label!("request.validate.payload_too_large"),
                 )
-                .into();
-                return Err(err.into());
+                .into());
             }
             if let Err(e) = bso.validate() {
-                let err: ApiError =
-                    ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Body, None)
-                        .into();
-                return Err(err.into());
+                return Err(ValidationErrorKind::FromValidationErrors(
+                    e,
+                    RequestErrorLocation::Body,
+                    None,
+                )
+                .into());
+                // let err: ApiError =
+                //     ValidationErrorKind::FromValidationErrors(e, RequestErrorLocation::Body, None)
+                //         .into();
+                // return Err(err.into());
             }
             Ok(bso.into_inner())
         })
