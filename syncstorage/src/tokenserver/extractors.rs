@@ -25,7 +25,7 @@ use super::{
     db::{models::Db, params, pool::DbPool, results},
     LogItemsMutator, NodeType, ServerState, TokenserverMetrics,
 };
-use crate::{server::metrics, settings::Secrets};
+use crate::{server::metrics, settings::Secrets, web::tags::Tags};
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -415,10 +415,13 @@ impl FromRequest for AuthData {
             let token = Token::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
-            metrics.start_timer("token_verification", None);
 
             match token {
                 Token::BrowserIdAssertion(assertion) => {
+                    let mut tags = Tags::default();
+                    tags.tags
+                        .insert("token_type".to_owned(), "BrowserID".to_owned());
+                    metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.browserid_verifier.verify(assertion).await?;
 
                     // For requests using BrowserID, the client state is embedded in the
@@ -441,6 +444,10 @@ impl FromRequest for AuthData {
                     })
                 }
                 Token::OAuthToken(token) => {
+                    let mut tags = Tags::default();
+                    tags.tags
+                        .insert("token_type".to_owned(), "OAuth".to_owned());
+                    metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.oauth_verifier.verify(token).await?;
 
                     // For requests using OAuth, the keys_changed_at and client state are embedded
