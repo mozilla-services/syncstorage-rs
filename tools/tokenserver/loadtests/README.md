@@ -47,7 +47,7 @@ This directory contains everything needed to run the suite of load tests for Tok
 6. Configure Tokenserver to verify BrowserID assertions through FxA stage. This is done by setting the following environment variables:
     ```sh
     # The exact value of this environment variable is not important as long as it matches the `BROWSERID_AUDIENCE` environment variable set on the machine running the load tests, as described below
-    SYNC_TOKENSERVER__BROWSERID_VERIFIER_URL=https://verifier.stage.mozaws.net/v2
+    SYNC_TOKENSERVER__FXA_BROWSERID_SERVER_URL=https://verifier.stage.mozaws.net/v2
 
     SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE=https://token.stage.mozaws.net
     SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER=mockmyid.s3-us-west-2.amazonaws.com
