@@ -61,9 +61,9 @@ This directory contains everything needed to run the suite of load tests for Tok
     locust
     ```
 9. Navigate your browser to http://localhost:8090, where you'll find the locust GUI. Enter the following information:
-    * Number of users: The peak number of simultaneous connections to Tokenserver
-    * Spawn rate: The rate at which new connections are created
-    * Host: The URL of the server to be load tested. Note that this URL must include the protocol (e.g. "http://").
+    * Number of users: The peak number of Tokenserver users to be used during the load tests
+    * Spawn rate: The rate at which new users are spawned
+    * Host: The URL of the server to be load tested. Note that this URL must include the protocol (e.g. "http://")
 
 10. Click the "Start swarming" button to begin the load tests.
 
