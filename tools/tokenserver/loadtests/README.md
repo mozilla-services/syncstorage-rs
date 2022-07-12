@@ -7,25 +7,53 @@ This directory contains everything needed to run the suite of load tests for Tok
 ```sh
 pip3 install -r requirements.txt
 ```
-2. Set up a mock OAuth verifier, with which Tokenserver will verify OAuth tokens. The subdirectory [mock-fxa-server/](./mock-fxa-server) includes code deployable as a GCP Cloud Function that acts as a mock FxA server, "verifying" OAuth tokens. You can deploy your own Cloud Function by running the following command in this directory:
+1. Generate a private RSA key to be used by the load tests to sign tokens:
 ```sh
-gcloud functions deploy mock_fxa_server --runtime=python39 --trigger-http --source=mock-fxa-server
+openssl genrsa -out test.pem 2048
 ```
-You can stand up a local copy of the Cloud Function by running the following in this directory:
+1. Derive the public key from the pem file generated in the previous step:
 ```sh
-functions-framework --target mock_fxa_server --debug
+openssl rsa -in test.pem -pubout > test.pub
 ```
-Note that you'll need to install `functions-framework` via `pip3 install functions-framework`. The load tests will use FxA stage to verify BrowserID assertions.
-3. Configure Tokenserver to verify OAuth tokens through the mock FxA service and BrowserID assertions through FxA stage. This is done by setting the following environment variables:
-```
-SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE=https://token.stage.mozaws.net
-SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER=api-accounts.stage.mozaws.net
-SYNC_TOKENSERVER__BROWSERID_VERIFIER_URL=https://verifier.stage.mozaws.net/v2
+1. Using the `authlib` Python library, derive the public JWK from the public key obtained in the previous step:
+```python
+from authlib.jose import jwk
 
-# This variable should be set to point to the host and port of the moack OAuth verifier created in step 2
-SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL=http://localhost:6000
+public_key = open("test.pub", "rb").read()
+jwk.dumps(public_key, kty="RSA")
 ```
-4. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
+This will give you a key of the form
+```json
+{
+    "n": ...,
+    "e": ...,
+    "kty": "RSA"
+}
+```
+1. Set the following environment variables/settings on Tokenserver:
+```sh
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_N # Should be set to the "n" component of the JWK
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_E # Should be set to the "e" component of the JWK (this value should almost always be "AQAB")
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_KTY=RSA
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_USE=sig
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_ALG=RS256
+
+# These two environment variables don't affect the load tests, but they need to be set:
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_KID=""
+SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_FXA_CREATED_AT=0
+```
+1. Configure Tokenserver to verify BrowserID assertions through FxA stage. This is done by setting the following environment variables:
+```sh
+# The exact value of this environment variable is not important as long as it matches the `BROWSERID_AUDIENCE` environment variable set on the machine running the load tests, as described below
+SYNC_TOKENSERVER__BROWSERID_VERIFIER_URL=https://verifier.stage.mozaws.net/v2
+SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE=https://token.stage.mozaws.net
+SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER=mockmyid.s3-us-west-2.amazonaws.com
+```
+Note that, because we have cached the JWK used to verify OAuth tokens, no verification requests will be made to FxA, so the value of `SYNC_TOKENSERVER__FXA_OAUTH_VERIFIER_URL` does not matter; however, Tokenserver expects it to be set, so setting it to something like `http://localhost` will suffice.
+1. Set the following environment variables on the machine that will be running the load tests:
+* `OAUTH_PEM_FILE` should be set to the location of the private RSA key generated in a previous step
+* `BROWSERID_AUDIENCE` should be set to match the `SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE` environment variable on Tokenserver
+1. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
 ```sh
 locust
 ```
