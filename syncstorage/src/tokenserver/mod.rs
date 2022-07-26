@@ -51,9 +51,8 @@ impl ServerState {
 
         TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
             .map(|mut db_pool| {
-                // NOTE: The only situation in which this query will fail is if there is no
-                // "sync-1.5" service record in the database, but for our purposes, this record
-                // should always exist
+                // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
+                // unlikely for this query to fail outside of random network failures
                 db_pool.service_id = db_pool
                     .get_sync()
                     .and_then(|db| {
