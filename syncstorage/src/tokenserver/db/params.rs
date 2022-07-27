@@ -35,7 +35,6 @@ pub struct GetOrCreateUser {
     pub client_state: String,
     pub keys_changed_at: Option<i64>,
     pub capacity_release_rate: Option<f32>,
-    pub spanner_node_id: Option<i32>,
 }
 
 pub type AllocateUser = GetOrCreateUser;
@@ -85,7 +84,6 @@ pub struct GetNodeId {
 pub struct GetBestNode {
     pub service_id: i32,
     pub capacity_release_rate: Option<f32>,
-    pub spanner_node_id: Option<i32>,
 }
 
 #[derive(Default)]

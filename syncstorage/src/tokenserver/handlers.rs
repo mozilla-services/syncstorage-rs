@@ -172,14 +172,16 @@ async fn update_user(
             uid,
         })
     } else {
-        let params = PutUser {
-            email: req.auth_data.email.clone(),
-            service_id: req.service_id,
-            generation,
-            keys_changed_at: Some(keys_changed_at),
-        };
+        if generation != req.user.generation || Some(keys_changed_at) != req.user.keys_changed_at {
+            let params = PutUser {
+                email: req.auth_data.email.clone(),
+                service_id: req.service_id,
+                generation,
+                keys_changed_at: Some(keys_changed_at),
+            };
 
-        db.put_user(params).await?;
+            db.put_user(params).await?;
+        }
 
         Ok(UserUpdates {
             keys_changed_at,

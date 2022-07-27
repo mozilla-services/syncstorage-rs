@@ -35,7 +35,7 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/bin /app/bin
-COPY --from=builder /app/version.json /app
+COPY --from=builder /app/syncstorage/version.json /app
 COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests

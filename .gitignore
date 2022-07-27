@@ -32,6 +32,7 @@ service-account.json
 .sentryclirc
 
 config/local.toml
+tools/tokenserver/loadtests/*.pem
+tools/tokenserver/loadtests/*.pub
 venv
-mozilla-rust-sdk
 .vscode/settings.json
