@@ -199,13 +199,11 @@ impl FromRequest for TokenserverRequest {
 
                 if application == "sync" {
                     if version == "1.5" {
-                        state.service_id.unwrap_or(
-                            db.get_service_id(params::GetServiceId {
-                                service: SYNC_SERVICE_NAME.to_owned(),
-                            })
-                            .await?
-                            .id,
-                        )
+                        db.get_service_id(params::GetServiceId {
+                            service: SYNC_SERVICE_NAME.to_owned(),
+                        })
+                        .await?
+                        .id
                     } else {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version".to_owned(),
@@ -232,7 +230,6 @@ impl FromRequest for TokenserverRequest {
                     client_state: auth_data.client_state.clone(),
                     keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
-                    spanner_node_id: state.spanner_node_id,
                 })
                 .await?;
             log_items_mutator.insert("first_seen_at".to_owned(), user.first_seen_at.to_string());
@@ -1298,7 +1295,6 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            service_id: None,
             metrics: Box::new(
                 metrics::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
@@ -1307,7 +1303,6 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            spanner_node_id: None,
         }
     }
 }
