@@ -1,14 +1,27 @@
 from base64 import urlsafe_b64encode as b64encode
 import binascii
-import json
+import jwt
+import os
 import time
 
 import browserid
 import browserid.jwt
 from browserid.tests.support import make_assertion
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from locust import HttpUser, task, between
 
+BROWSERID_AUDIENCE = os.environ['BROWSERID_AUDIENCE']
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
+
+# To create an invalid token, we sign the JWT with a private key that doesn't
+# correspond with the public key set on Tokenserver. To accomplish this, we
+# just generate a new private key with every run of the load tests.
+INVALID_OAUTH_PRIVATE_KEY = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048,
+)
+
 # We use a custom mockmyid site to synthesize valid assertions.
 # It's hosted in a static S3 bucket so we don't swamp the live mockmyid server.
 MOCKMYID_DOMAIN = "mockmyid.s3-us-west-2.amazonaws.com"
@@ -31,6 +44,13 @@ MOCKMYID_PRIVATE_KEY = browserid.jwt.DS128Key({
 })
 ONE_YEAR = 60 * 60 * 24 * 365
 TOKENSERVER_PATH = '/1.0/sync/1.5'
+
+# This is a private key used to "forge" valid tokens. The associated public
+# key must be set using the SYNC_TOKENSERVER__FXA_PRIMARY_JWK_* environment
+# variables on Tokenserver.
+VALID_OAUTH_PRIVATE_KEY = private_key = serialization.load_pem_private_key(
+    open(os.environ['OAUTH_PEM_FILE'], "rb").read(), password=None,
+)
 
 
 class TokenserverTestUser(HttpUser):
@@ -60,15 +80,18 @@ class TokenserverTestUser(HttpUser):
 
     @task(100)
     def test_invalid_oauth(self):
-        token = self._make_oauth_token(status=400)
+        token = self._make_oauth_token(
+            self.email,
+            key=INVALID_OAUTH_PRIVATE_KEY
+        )
 
         self._do_token_exchange_via_oauth(token, status=401)
 
     @task(100)
     def test_invalid_oauth_scope(self):
         token = self._make_oauth_token(
-            user=str(self.fxa_uid),
-            scope=["unrelated", "scopes"],
+            self.email,
+            scope="unrelated scopes",
         )
 
         self._do_token_exchange_via_oauth(token, status=401)
@@ -132,31 +155,27 @@ class TokenserverTestUser(HttpUser):
 
         self._do_token_exchange_via_browserid(assertion, status=401)
 
-    def _make_oauth_token(self, user=None, status=200, **fields):
+    def _make_oauth_token(self, email, key=VALID_OAUTH_PRIVATE_KEY, **fields):
         # For mock oauth tokens, we bundle the desired status code
         # and response body into a JSON blob for the mock verifier
         # to echo back to us.
         body = {}
-        if status < 400:
-            if user is None:
-                raise ValueError("Must specify user for valid oauth token")
-            if "scope" not in fields:
-                fields["scope"] = [DEFAULT_OAUTH_SCOPE]
-            if "client_id" not in fields:
-                fields["client_id"] = "x"
-        if user is not None:
-            parts = user.split("@", 1)
-            if len(parts) == 1:
-                body["user"] = user
-            else:
-                body["user"] = parts[0]
-                body["issuer"] = parts[1]
+        if "scope" not in fields:
+            fields["scope"] = DEFAULT_OAUTH_SCOPE
+        if "client_id" not in fields:
+            fields["client_id"] = "x"
+        sub, issuer = email.split("@", 1)
+        body["sub"] = sub
+        body["issuer"] = issuer
         body['fxa-generation'] = self.generation_counter
         body.update(fields)
-        return json.dumps({
-          "status": status,
-          "body": body
-        })
+
+        return jwt.encode(
+            body,
+            key,
+            algorithm="RS256",
+            headers={'typ': 'application/at+jwt'}
+        )
 
     def _make_x_key_id_header(self):
         # In practice, the generation number and keys_changed_at may not be
@@ -170,7 +189,7 @@ class TokenserverTestUser(HttpUser):
 
     def _make_browserid_assertion(self, email, **kwds):
         if "audience" not in kwds:
-            kwds["audience"] = self.client.base_url
+            kwds["audience"] = BROWSERID_AUDIENCE
         if "exp" not in kwds:
             kwds["exp"] = int((time.time() + ONE_YEAR) * 1000)
         if "issuer" not in kwds:

@@ -25,7 +25,7 @@ use super::{
     db::{models::Db, params, pool::DbPool, results},
     LogItemsMutator, NodeType, ServerState, TokenserverMetrics,
 };
-use crate::{server::metrics, settings::Secrets};
+use crate::{server::metrics, settings::Secrets, web::tags::Tags};
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -199,13 +199,11 @@ impl FromRequest for TokenserverRequest {
 
                 if application == "sync" {
                     if version == "1.5" {
-                        state.service_id.unwrap_or(
-                            db.get_service_id(params::GetServiceId {
-                                service: SYNC_SERVICE_NAME.to_owned(),
-                            })
-                            .await?
-                            .id,
-                        )
+                        db.get_service_id(params::GetServiceId {
+                            service: SYNC_SERVICE_NAME.to_owned(),
+                        })
+                        .await?
+                        .id
                     } else {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version".to_owned(),
@@ -232,7 +230,6 @@ impl FromRequest for TokenserverRequest {
                     client_state: auth_data.client_state.clone(),
                     keys_changed_at: auth_data.keys_changed_at,
                     capacity_release_rate: state.node_capacity_release_rate,
-                    spanner_node_id: state.spanner_node_id,
                 })
                 .await?;
             log_items_mutator.insert("first_seen_at".to_owned(), user.first_seen_at.to_string());
@@ -415,10 +412,13 @@ impl FromRequest for AuthData {
             let token = Token::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
-            metrics.start_timer("token_verification", None);
 
             match token {
                 Token::BrowserIdAssertion(assertion) => {
+                    let mut tags = Tags::default();
+                    tags.tags
+                        .insert("token_type".to_owned(), "BrowserID".to_owned());
+                    metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.browserid_verifier.verify(assertion).await?;
 
                     // For requests using BrowserID, the client state is embedded in the
@@ -441,6 +441,10 @@ impl FromRequest for AuthData {
                     })
                 }
                 Token::OAuthToken(token) => {
+                    let mut tags = Tags::default();
+                    tags.tags
+                        .insert("token_type".to_owned(), "OAuth".to_owned());
+                    metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.oauth_verifier.verify(token).await?;
 
                     // For requests using OAuth, the keys_changed_at and client state are embedded
@@ -1291,7 +1295,6 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            service_id: None,
             metrics: Box::new(
                 metrics::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
@@ -1300,7 +1303,6 @@ mod tests {
                 )
                 .unwrap(),
             ),
-            spanner_node_id: None,
         }
     }
 }
