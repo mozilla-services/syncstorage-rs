@@ -79,7 +79,7 @@ impl FromStr for Offset {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // issue559: Disable ':' support for now: simply parse as i64 as
         // previously (it was u64 previously but i64's close enough)
-        // *
+        //*
         let result = Offset {
             timestamp: None,
             offset: s.parse::<u64>()?,
@@ -102,7 +102,7 @@ impl FromStr for Offset {
                 }
             }
         };
-        */
+        // */
         Ok(result)
     }
 }

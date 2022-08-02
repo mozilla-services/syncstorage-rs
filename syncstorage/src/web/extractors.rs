@@ -1285,6 +1285,7 @@ impl FromRequest for BsoQueryParams {
         Box::pin(async move {
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
                 .map_err(|e| {
+                    dbg!(&e);
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::QueryString,
@@ -2433,16 +2434,42 @@ mod tests {
     #[actix_rt::test]
     async fn test_invalid_offset() {
         use actix_web::{http::StatusCode, ResponseError};
+        // Get the body to test.
+        use actix_web::body::{Body, ResponseBody};
+
+        trait BodyTest {
+            fn as_str(&self) -> &str;
+        }
+
+        impl BodyTest for ResponseBody<Body> {
+            fn as_str(&self) -> &str {
+                match self {
+                    ResponseBody::Body(ref b) => match b {
+                        Body::Bytes(ref by) => std::str::from_utf8(by).unwrap(),
+                        _ => panic!(),
+                    },
+                    ResponseBody::Other(ref b) => match b {
+                        Body::Bytes(ref by) => std::str::from_utf8(by).unwrap(),
+                        _ => panic!(),
+                    },
+                }
+            }
+        }
 
         let result = Offset::from_str("123456:123");
-
-        assert!(result.is_err());
+        assert!(&result.is_err());
         let resp = result.err().unwrap().error_response();
         assert!(resp.status() == StatusCode::PRECONDITION_FAILED);
+        let rbody = resp.into_body();
+        let body = rbody.body().as_str();
+        assert_eq!(body, "0");
 
         let result = Offset::from_str("123456*123");
         assert!(result.is_err());
         let resp = result.err().unwrap().error_response();
         assert!(resp.status() == StatusCode::BAD_REQUEST);
+        let rbody = resp.into_body();
+        let body = rbody.body().as_str();
+        assert_eq!(body, "0");
     }
 }

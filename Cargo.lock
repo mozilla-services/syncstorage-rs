@@ -3096,6 +3096,7 @@ dependencies = [
  "dyn-clone",
  "env_logger",
  "futures 0.3.21",
+ "futures-core",
  "google-cloud-rust-raw",
  "grpcio",
  "hawk",
