@@ -35,6 +35,9 @@ pub struct TokenserverPool {
     /// Pool of db connections
     inner: Pool<ConnectionManager<MysqlConnection>>,
     metrics: Metrics,
+    // This field is public so the service ID can be set after the pool is created
+    pub service_id: Option<i32>,
+    spanner_node_id: Option<i32>,
 }
 
 impl TokenserverPool {
@@ -65,13 +68,20 @@ impl TokenserverPool {
         Ok(Self {
             inner: builder.build(manager)?,
             metrics: metrics.clone(),
+            spanner_node_id: settings.spanner_node_id,
+            service_id: None,
         })
     }
 
     pub fn get_sync(&self) -> Result<TokenserverDb, DbError> {
         let conn = self.inner.get().map_err(DbError::from)?;
 
-        Ok(TokenserverDb::new(conn, &self.metrics))
+        Ok(TokenserverDb::new(
+            conn,
+            &self.metrics,
+            self.service_id,
+            self.spanner_node_id,
+        ))
     }
 
     #[cfg(test)]
@@ -80,7 +90,12 @@ impl TokenserverPool {
         let conn =
             db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(TokenserverDb::new(conn, &self.metrics))
+        Ok(TokenserverDb::new(
+            conn,
+            &self.metrics,
+            self.service_id,
+            self.spanner_node_id,
+        ))
     }
 }
 
@@ -94,7 +109,12 @@ impl DbPool for TokenserverPool {
         let conn =
             db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
 
-        Ok(Box::new(TokenserverDb::new(conn, &self.metrics)) as Box<dyn Db>)
+        Ok(Box::new(TokenserverDb::new(
+            conn,
+            &self.metrics,
+            self.service_id,
+            self.spanner_node_id,
+        )) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
