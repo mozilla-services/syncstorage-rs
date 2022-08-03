@@ -386,7 +386,7 @@ impl Settings {
                 };
 
                 env::set_var(
-                    "ACITX_THREADPOOL",
+                    "ACTIX_THREADPOOL",
                     ((total_db_pool_size + fxa_threads) as usize)
                         .max(num_cpus::get() * 5)
                         .to_string(),
