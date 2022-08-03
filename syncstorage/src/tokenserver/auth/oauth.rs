@@ -154,7 +154,8 @@ impl VerifyToken for Verifier {
 
             // If the JWK is not cached, PyFxA will make a request to FxA to retrieve it, blocking
             // this thread. To improve performance, we make the request on a thread in a threadpool
-            // specifically used for blocking operations.
+            // specifically used for blocking operations. The JWK should _always_ be cached in
+            // production to maximize performance.
             let fut = web::block(move || verify_inner(&verifier)); //.map_err(|err| {
 
             // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here

@@ -364,9 +364,30 @@ impl Settings {
 
                     mysql_db_pool_max_size + tokenserver_pool_max_size
                 };
+
+                let fxa_threads = if s.tokenserver.enabled
+                    && s.tokenserver.fxa_oauth_primary_jwk.is_none()
+                    && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
+                {
+                    s.tokenserver
+                        .additional_blocking_threads_for_fxa_requests
+                        .ok_or_else(|| {
+                            println!(
+                                "If the Tokenserver OAuth JWK is not cached, additional blocking \
+                                 threads must be used to handle the requests to FxA."
+                            );
+
+                            let setting_name =
+                                "tokenserver.additional_blocking_threads_for_fxa_requests";
+                            ConfigError::NotFound(String::from(setting_name))
+                        })?
+                } else {
+                    0
+                };
+
                 env::set_var(
                     "ACITX_THREADPOOL",
-                    (total_db_pool_size as usize)
+                    ((total_db_pool_size + fxa_threads) as usize)
                         .max(num_cpus::get() * 5)
                         .to_string(),
                 );
