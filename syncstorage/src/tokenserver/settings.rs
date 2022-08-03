@@ -7,7 +7,7 @@ pub struct Settings {
     /// The URL of the Tokenserver MySQL database.
     pub database_url: String,
     /// The max size of the database connection pool.
-    pub database_pool_max_size: Option<u32>,
+    pub database_pool_max_size: u32,
     // NOTE: Not supported by deadpool!
     /// The minimum number of database connections to be maintained at any given time.
     pub database_pool_min_idle: Option<u32>,
@@ -75,7 +75,7 @@ impl Default for Settings {
     fn default() -> Settings {
         Settings {
             database_url: "mysql://root@127.0.0.1/tokenserver_rs".to_owned(),
-            database_pool_max_size: None,
+            database_pool_max_size: 10,
             database_pool_min_idle: None,
             database_pool_connection_timeout: Some(30),
             enabled: false,

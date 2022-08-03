@@ -47,7 +47,7 @@ impl SpannerDbPool {
     }
 
     pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
-        let max_size = settings.database_pool_max_size.unwrap_or(10) as usize;
+        let max_size = settings.database_pool_max_size as usize;
         let wait = settings
             .database_pool_connection_timeout
             .map(|seconds| Duration::from_secs(seconds as u64));
