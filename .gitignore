@@ -30,6 +30,7 @@ target
 .#*
 service-account.json
 .sentryclirc
+.envrc
 
 config/local.toml
 tools/tokenserver/loadtests/*.pem

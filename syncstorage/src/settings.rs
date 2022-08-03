@@ -350,7 +350,7 @@ impl Settings {
                 // actix-threadpool: grow its size to accommodate the
                 // full number of connections
                 let total_db_pool_size = {
-                    let mysql_db_pool_max_size = if s.uses_spanner() {
+                    let syncstorage_pool_max_size = if s.uses_spanner() || s.disable_syncstorage {
                         0
                     } else {
                         s.database_pool_max_size
@@ -362,7 +362,7 @@ impl Settings {
                         0
                     };
 
-                    mysql_db_pool_max_size + tokenserver_pool_max_size
+                    syncstorage_pool_max_size + tokenserver_pool_max_size
                 };
 
                 let fxa_threads = if s.tokenserver.enabled
