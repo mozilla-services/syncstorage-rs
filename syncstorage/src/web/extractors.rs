@@ -374,94 +374,95 @@ impl FromRequest for BsoBody {
     type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
-        // Only try and parse the body if its a valid content-type
-        let ctype = match ContentType::parse(req) {
-            Ok(v) => v,
-            Err(e) => {
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+        // req.clone() allows move into async block since it is borrowed
+        // payload.take() grabs request body payload, replacing the one passed in
+        // with an empty payload so we strictly read the request body payload once
+        // and dispense with it
+        let req = req.clone();
+        let mut payload = payload.take();
+
+        Box::pin(async move {
+            // Only try and parse the body if its a valid content-type
+            let ctype = match ContentType::parse(&req) {
+                Ok(v) => v,
+                Err(e) => {
+                    return Err(ValidationErrorKind::FromDetails(
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
                         label!("request.error.invalid_content_type"),
                     )
-                    .into(),
-                ))
-            }
-        };
-        let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
-        if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
-            return Box::pin(future::err(
-                ValidationErrorKind::FromDetails(
+                    .into())
+                }
+            };
+
+            let content_type = format!("{}/{}", ctype.type_(), ctype.subtype());
+            if !ACCEPTED_CONTENT_TYPES.contains(&content_type.as_ref()) {
+                return Err(ValidationErrorKind::FromDetails(
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
                     label!("request.error.invalid_content_type"),
                 )
-                .into(),
-            ));
-        }
-        let state = match req.app_data::<Data<ServerState>>() {
-            Some(s) => s,
-            None => {
-                error!("⚠️ Could not load the app state");
-                return Box::pin(future::err(
-                    ValidationErrorKind::FromDetails(
+                .into());
+            }
+
+            let state = match req.app_data::<Data<ServerState>>() {
+                Some(s) => s,
+                None => {
+                    error!("⚠️ Could not load the app state");
+                    return Err(ValidationErrorKind::FromDetails(
                         "Internal error".to_owned(),
                         RequestErrorLocation::Unknown,
                         Some("app_data".to_owned()),
                         None,
                     )
-                    .into(),
-                ));
-            }
-        };
+                    .into());
+                }
+            };
 
-        let max_payload_size = state.limits.max_record_payload_bytes as usize;
+            let max_payload_size = state.limits.max_record_payload_bytes as usize;
 
-        let fut = <Json<BsoBody>>::from_request(req, payload)
-            .map_err(|e| {
-                warn!("⚠️ Could not parse BSO Body: {:?}", e);
-                let err: ApiError = ValidationErrorKind::FromDetails(
-                    e.to_string(),
-                    RequestErrorLocation::Body,
-                    Some("bso".to_owned()),
-                    label!("request.validate.bad_bso_body"),
-                )
-                .into();
-                err.into()
-            })
-            .and_then(move |bso: Json<BsoBody>| {
-                // Check the max payload size manually with our desired limit
-                if bso
-                    .payload
-                    .as_ref()
-                    .map(std::string::String::len)
-                    .unwrap_or_default()
-                    > max_payload_size
-                {
+            let bso = <Json<BsoBody>>::from_request(&req, &mut payload)
+                .await
+                .map_err(|e| {
+                    warn!("⚠️ Could not parse BSO Body: {:?}", e);
                     let err: ApiError = ValidationErrorKind::FromDetails(
-                        "payload too large".to_owned(),
+                        e.to_string(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                        label!("request.validate.payload_too_large"),
+                        label!("request.validate.bad_bso_body"),
                     )
                     .into();
-                    return future::err(err.into());
-                }
-                if let Err(e) = bso.validate() {
-                    let err: ApiError = ValidationErrorKind::FromValidationErrors(
-                        e,
-                        RequestErrorLocation::Body,
-                        None,
-                    )
-                    .into();
-                    return future::err(err.into());
-                }
-                future::ok(bso.into_inner())
-            });
+                    err
+                })?;
 
-        Box::pin(fut)
+            // Check the max payload size manually with our desired limit
+            if bso
+                .payload
+                .as_ref()
+                .map(std::string::String::len)
+                .unwrap_or_default()
+                > max_payload_size
+            {
+                return Err(ValidationErrorKind::FromDetails(
+                    "payload too large".to_owned(),
+                    RequestErrorLocation::Body,
+                    Some("bso".to_owned()),
+                    label!("request.validate.payload_too_large"),
+                )
+                .into());
+            }
+            if let Err(e) = bso.validate() {
+                return Err(ValidationErrorKind::FromValidationErrors(
+                    e,
+                    RequestErrorLocation::Body,
+                    None,
+                )
+                .into());
+            }
+            Ok(bso.into_inner())
+        })
     }
 }
 
