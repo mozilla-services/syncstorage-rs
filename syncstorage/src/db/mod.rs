@@ -9,13 +9,13 @@ pub mod transaction;
 
 use std::time::Duration;
 
+use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
-use futures::TryFutureExt;
 use syncstorage_db_common::{
     error::{DbError, DbErrorKind},
     results, DbPool, GetPoolState, PoolState,
 };
-use tokio::{self, task, time};
+use tokio::{self, time};
 use url::Url;
 
 use crate::server::metrics::Metrics;
@@ -74,15 +74,8 @@ where
     F: FnOnce() -> Result<T, DbError> + Send + 'static,
     T: Send + 'static,
 {
-    task::spawn_blocking(f)
-        .map_err(|err| {
-            if err.is_cancelled() {
-                DbError::internal("Db threadpool operation cancelled")
-            } else if err.is_panic() {
-                DbError::internal("Db threadpool operation panicked")
-            } else {
-                DbError::internal("Db threadpool operation failed for unknown reason")
-            }
-        })
-        .await?
+    web::block(f).await.map_err(|e| match e {
+        BlockingError::Error(e) => e,
+        BlockingError::Canceled => DbError::internal("Db threadpool operation canceled"),
+    })
 }

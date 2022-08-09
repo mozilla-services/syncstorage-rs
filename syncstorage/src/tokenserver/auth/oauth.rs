@@ -1,5 +1,5 @@
+use actix_web::{error::BlockingError, web};
 use async_trait::async_trait;
-use futures::TryFutureExt;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyString},
@@ -7,7 +7,7 @@ use pyo3::{
 use serde::{Deserialize, Serialize};
 use serde_json;
 use tokenserver_common::error::TokenserverError;
-use tokio::{task, time};
+use tokio::time;
 
 use super::VerifyToken;
 use crate::tokenserver::settings::{Jwk, Settings};
@@ -154,21 +154,9 @@ impl VerifyToken for Verifier {
 
             // If the JWK is not cached, PyFxA will make a request to FxA to retrieve it, blocking
             // this thread. To improve performance, we make the request on a thread in a threadpool
-            // specifically used for blocking operations.
-            let fut = task::spawn_blocking(move || verify_inner(&verifier)).map_err(|err| {
-                let context = if err.is_cancelled() {
-                    "Tokenserver threadpool operation cancelled"
-                } else if err.is_panic() {
-                    "Tokenserver threadpool operation panicked"
-                } else {
-                    "Tokenserver threadpool operation failed for unknown reason"
-                };
-
-                TokenserverError {
-                    context: context.to_owned(),
-                    ..TokenserverError::internal_error()
-                }
-            });
+            // specifically used for blocking operations. The JWK should _always_ be cached in
+            // production to maximize performance.
+            let fut = web::block(move || verify_inner(&verifier)); //.map_err(|err| {
 
             // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
             // by timing out the future if the verification process blocks this thread for longer
@@ -179,7 +167,13 @@ impl VerifyToken for Verifier {
                     context: "OAuth verification timeout".to_owned(),
                     ..TokenserverError::resource_unavailable()
                 })?
-                .map_err(|_| TokenserverError::resource_unavailable())?
+                .map_err(|e| match e {
+                    BlockingError::Error(_) => TokenserverError::resource_unavailable(),
+                    BlockingError::Canceled => TokenserverError {
+                        context: "Tokenserver threadpool operation failed".to_owned(),
+                        ..TokenserverError::internal_error()
+                    },
+                })
         }
     }
 }
