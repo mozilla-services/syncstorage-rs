@@ -349,10 +349,7 @@ impl Settings {
                     s.enable_quota = true
                 }
 
-                if matches!(
-                    env::var("ACTIX_THREADPOOL").unwrap_err(),
-                    Err(VarError::NotPresent)
-                ) {
+                if matches!(env::var("ACTIX_THREADPOOL"), Err(VarError::NotPresent)) {
                     // Db backends w/ blocking calls block via
                     // actix-threadpool: grow its size to accommodate the
                     // full number of connections
