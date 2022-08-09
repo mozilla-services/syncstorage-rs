@@ -1,5 +1,8 @@
 //! Application settings objects and initialization
-use std::{cmp::min, env};
+use std::{
+    cmp::min,
+    env::{self, VarError},
+};
 
 use actix_cors::Cors;
 use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
@@ -346,51 +349,58 @@ impl Settings {
                     s.enable_quota = true
                 }
 
-                // Db backends w/ blocking calls block via
-                // actix-threadpool: grow its size to accommodate the
-                // full number of connections
-                let total_db_pool_size = {
-                    let syncstorage_pool_max_size = if s.uses_spanner() || s.disable_syncstorage {
-                        0
-                    } else {
-                        s.database_pool_max_size
+                if matches!(
+                    env::var("ACTIX_THREADPOOL").unwrap_err(),
+                    Err(VarError::NotPresent)
+                ) {
+                    // Db backends w/ blocking calls block via
+                    // actix-threadpool: grow its size to accommodate the
+                    // full number of connections
+                    let total_db_pool_size = {
+                        let syncstorage_pool_max_size = if s.uses_spanner() || s.disable_syncstorage
+                        {
+                            0
+                        } else {
+                            s.database_pool_max_size
+                        };
+
+                        let tokenserver_pool_max_size = if s.tokenserver.enabled {
+                            s.tokenserver.database_pool_max_size
+                        } else {
+                            0
+                        };
+
+                        syncstorage_pool_max_size + tokenserver_pool_max_size
                     };
 
-                    let tokenserver_pool_max_size = if s.tokenserver.enabled {
-                        s.tokenserver.database_pool_max_size
+                    let fxa_threads = if s.tokenserver.enabled
+                        && s.tokenserver.fxa_oauth_primary_jwk.is_none()
+                        && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
+                    {
+                        s.tokenserver
+                            .additional_blocking_threads_for_fxa_requests
+                            .ok_or_else(|| {
+                                println!(
+                                    "If the Tokenserver OAuth JWK is not cached, additional blocking \
+                                     threads must be used to handle the requests to FxA."
+                                );
+
+                                let setting_name =
+                                    "tokenserver.additional_blocking_threads_for_fxa_requests";
+                                ConfigError::NotFound(String::from(setting_name))
+                            })?
                     } else {
                         0
                     };
 
-                    syncstorage_pool_max_size + tokenserver_pool_max_size
-                };
+                    env::set_var(
+                        "ACTIX_THREADPOOL",
+                        ((total_db_pool_size + fxa_threads) as usize)
+                            .max(num_cpus::get() * 5)
+                            .to_string(),
+                    );
+                }
 
-                let fxa_threads = if s.tokenserver.enabled
-                    && s.tokenserver.fxa_oauth_primary_jwk.is_none()
-                    && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
-                {
-                    s.tokenserver
-                        .additional_blocking_threads_for_fxa_requests
-                        .ok_or_else(|| {
-                            println!(
-                                "If the Tokenserver OAuth JWK is not cached, additional blocking \
-                                 threads must be used to handle the requests to FxA."
-                            );
-
-                            let setting_name =
-                                "tokenserver.additional_blocking_threads_for_fxa_requests";
-                            ConfigError::NotFound(String::from(setting_name))
-                        })?
-                } else {
-                    0
-                };
-
-                env::set_var(
-                    "ACTIX_THREADPOOL",
-                    ((total_db_pool_size + fxa_threads) as usize)
-                        .max(num_cpus::get() * 5)
-                        .to_string(),
-                );
                 s
             }
             Err(e) => match e {
