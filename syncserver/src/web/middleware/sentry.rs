@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 use std::error::Error as StdError;
-use std::task::{Context, Poll};
-use std::{cell::RefCell, rc::Rc};
+use std::future::Future;
 
 use actix_http::HttpMessage;
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
-    Error, FromRequest,
+    FromRequest,
 };
-use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
 use serde_json::value::Value;
@@ -19,45 +17,6 @@ use tokenserver_common::error::TokenserverError;
 use crate::error::ApiError;
 use crate::server::{metrics::Metrics, user_agent};
 use crate::web::tags::Taggable;
-
-pub struct SentryWrapper;
-
-impl SentryWrapper {
-    pub fn new() -> Self {
-        SentryWrapper::default()
-    }
-}
-
-impl Default for SentryWrapper {
-    fn default() -> Self {
-        Self
-    }
-}
-
-impl<S, B> Transform<S> for SentryWrapper
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = SentryWrapperMiddleware<S>;
-    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(future::ok(SentryWrapperMiddleware {
-            service: Rc::new(RefCell::new(service)),
-        }))
-    }
-}
-
-#[derive(Debug)]
-pub struct SentryWrapperMiddleware<S> {
-    service: Rc<RefCell<S>>,
-}
 
 pub fn report(
     tags: HashMap<String, String>,
@@ -72,70 +31,61 @@ pub fn report(
     sentry::capture_event(event);
 }
 
-impl<S, B> Service for SentryWrapperMiddleware<S>
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+pub fn report_error(
+    request: ServiceRequest,
+    service: &mut impl Service<
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = actix_web::Error,
+    >,
+) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    add_initial_tags(&request, request.head().method.to_string());
+    add_initial_extras(&request, request.head().uri.to_string());
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
+    let fut = service.call(request);
 
-    fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        add_initial_tags(&sreq, sreq.head().method.to_string());
-        add_initial_extras(&sreq, sreq.head().uri.to_string());
+    Box::pin(async move {
+        let mut sresp = fut.await?;
+        let tags = sresp.request().get_tags();
+        let extras = sresp.request().get_extras();
 
-        let fut = self.service.call(sreq);
-
-        Box::pin(async move {
-            let mut sresp = fut.await?;
-            let tags = sresp.request().get_tags();
-            let extras = sresp.request().get_extras();
-
-            match sresp.response().error() {
-                None => {
-                    // Middleware errors are eaten by current versions of Actix. Errors are now added
-                    // to the extensions. Need to check both for any errors and report them.
-                    if let Some(events) = sresp
-                        .request()
-                        .extensions_mut()
-                        .remove::<Vec<Event<'static>>>()
-                    {
-                        for event in events {
-                            trace!("Sentry: found an error stored in request: {:?}", &event);
-                            report(tags.clone(), extras.clone(), event);
-                        }
-                    }
-                    if let Some(events) = sresp
-                        .response_mut()
-                        .extensions_mut()
-                        .remove::<Vec<Event<'static>>>()
-                    {
-                        for event in events {
-                            trace!("Sentry: Found an error stored in response: {:?}", &event);
-                            report(tags.clone(), extras.clone(), event);
-                        }
+        match sresp.response().error() {
+            None => {
+                // Middleware errors are eaten by current versions of Actix. Errors are now added
+                // to the extensions. Need to check both for any errors and report them.
+                if let Some(events) = sresp
+                    .request()
+                    .extensions_mut()
+                    .remove::<Vec<Event<'static>>>()
+                {
+                    for event in events {
+                        trace!("Sentry: found an error stored in request: {:?}", &event);
+                        report(tags.clone(), extras.clone(), event);
                     }
                 }
-                Some(e) => {
-                    let metrics = Metrics::extract(sresp.request()).await.unwrap();
-
-                    if let Some(apie) = e.as_error::<ApiError>() {
-                        process_error(apie, metrics, tags, extras);
-                    } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
-                        process_error(tokenserver_error, metrics, tags, extras);
+                if let Some(events) = sresp
+                    .response_mut()
+                    .extensions_mut()
+                    .remove::<Vec<Event<'static>>>()
+                {
+                    for event in events {
+                        trace!("Sentry: Found an error stored in response: {:?}", &event);
+                        report(tags.clone(), extras.clone(), event);
                     }
                 }
             }
-            Ok(sresp)
-        })
-    }
+            Some(e) => {
+                let metrics = Metrics::extract(sresp.request()).await.unwrap();
+
+                if let Some(apie) = e.as_error::<ApiError>() {
+                    process_error(apie, metrics, tags, extras);
+                } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
+                    process_error(tokenserver_error, metrics, tags, extras);
+                }
+            }
+        }
+        Ok(sresp)
+    })
 }
 
 fn process_error<E>(
