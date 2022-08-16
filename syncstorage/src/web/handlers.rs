@@ -671,32 +671,30 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let active = db_state.connections - db_state.idle_connections;
     let mut status_code = StatusCode::OK;
 
-    if let Some(max_size) = deadman.max_size {
-        if active >= max_size && db_state.idle_connections == 0 {
-            if deadman.clock_start.is_none() {
-                deadman.clock_start = Some(time::Instant::now());
-            }
-            status_code = StatusCode::INTERNAL_SERVER_ERROR;
-        } else if deadman.clock_start.is_some() {
-            deadman.clock_start = None
+    if active >= deadman.max_size && db_state.idle_connections == 0 {
+        if deadman.clock_start.is_none() {
+            deadman.clock_start = Some(time::Instant::now());
         }
-        deadman.previous_count = db_state.idle_connections as usize;
-        {
-            *deadarc.write().await = deadman;
-        }
-        resp.insert("active_connections".to_string(), Value::from(active));
-        resp.insert(
-            "idle_connections".to_string(),
-            Value::from(db_state.idle_connections),
-        );
-        if let Some(clock) = deadman.clock_start {
-            let duration: time::Duration = time::Instant::now() - clock;
-            resp.insert(
-                "duration_ms".to_string(),
-                Value::from(duration.whole_milliseconds()),
-            );
-        };
+        status_code = StatusCode::INTERNAL_SERVER_ERROR;
+    } else if deadman.clock_start.is_some() {
+        deadman.clock_start = None
     }
+    deadman.previous_count = db_state.idle_connections as usize;
+    {
+        *deadarc.write().await = deadman;
+    }
+    resp.insert("active_connections".to_string(), Value::from(active));
+    resp.insert(
+        "idle_connections".to_string(),
+        Value::from(db_state.idle_connections),
+    );
+    if let Some(clock) = deadman.clock_start {
+        let duration: time::Duration = time::Instant::now() - clock;
+        resp.insert(
+            "duration_ms".to_string(),
+            Value::from(duration.whole_milliseconds()),
+        );
+    };
 
     Ok(HttpResponseBuilder::new(status_code).json(json!(resp)))
 }

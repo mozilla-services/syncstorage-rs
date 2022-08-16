@@ -1,5 +1,8 @@
 //! Application settings objects and initialization
-use std::{cmp::min, env};
+use std::{
+    cmp::min,
+    env::{self, VarError},
+};
 
 use actix_cors::Cors;
 use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
@@ -53,7 +56,7 @@ pub struct Quota {
 /// Optionally we can permanently fail the check after a set time period,
 /// indicating that this instance should be evicted and replaced.
 pub struct Deadman {
-    pub max_size: Option<u32>,
+    pub max_size: u32,
     pub previous_count: usize,
     pub clock_start: Option<time::Instant>,
     pub expiry: Option<time::Instant>,
@@ -83,7 +86,7 @@ pub struct Settings {
     pub port: u16,
     pub host: String,
     pub database_url: String,
-    pub database_pool_max_size: Option<u32>,
+    pub database_pool_max_size: u32,
     // NOTE: Not supported by deadpool!
     pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
@@ -144,7 +147,7 @@ impl Default for Settings {
             port: DEFAULT_PORT,
             host: "127.0.0.1".to_string(),
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
-            database_pool_max_size: None,
+            database_pool_max_size: 10,
             database_pool_min_idle: None,
             database_pool_connection_lifespan: None,
             database_pool_connection_max_idle: None,
@@ -203,6 +206,7 @@ impl Settings {
         s.set_default("human_logs", false)?;
         #[cfg(test)]
         s.set_default("database_pool_connection_timeout", Some(30))?;
+        s.set_default("database_pool_max_size", 10)?;
         // Max lifespan a connection should have.
         s.set_default::<Option<String>>("database_connection_lifespan", None)?;
         // Max time a connection should be idle before dropping.
@@ -245,6 +249,7 @@ impl Settings {
             "tokenserver.database_url",
             "mysql://root@127.0.0.1/tokenserver",
         )?;
+        s.set_default("tokenserver.database_pool_max_size", 10)?;
         s.set_default("tokenserver.enabled", false)?;
         s.set_default(
             "tokenserver.fxa_browserid_audience",
@@ -331,18 +336,7 @@ impl Settings {
                     ms.limits.max_total_bytes =
                         min(ms.limits.max_total_bytes, MAX_SPANNER_LOAD_SIZE as u32);
                     return Ok(ms);
-                }
-
-                if !s.uses_spanner() {
-                    if let Some(database_pool_max_size) = s.database_pool_max_size {
-                        // Db backends w/ blocking calls block via
-                        // actix-threadpool: grow its size to accommodate the
-                        // full number of connections
-                        let default = num_cpus::get() * 5;
-                        if (database_pool_max_size as usize) > default {
-                            env::set_var("ACTIX_THREADPOOL", database_pool_max_size.to_string());
-                        }
-                    }
+                } else {
                     // No quotas for stand alone servers
                     s.limits.max_quota_limit = 0;
                     s.enable_quota = false;
@@ -354,6 +348,56 @@ impl Settings {
                 if s.enforce_quota {
                     s.enable_quota = true
                 }
+
+                if matches!(env::var("ACTIX_THREADPOOL"), Err(VarError::NotPresent)) {
+                    // Db backends w/ blocking calls block via
+                    // actix-threadpool: grow its size to accommodate the
+                    // full number of connections
+                    let total_db_pool_size = {
+                        let syncstorage_pool_max_size = if s.uses_spanner() || s.disable_syncstorage
+                        {
+                            0
+                        } else {
+                            s.database_pool_max_size
+                        };
+
+                        let tokenserver_pool_max_size = if s.tokenserver.enabled {
+                            s.tokenserver.database_pool_max_size
+                        } else {
+                            0
+                        };
+
+                        syncstorage_pool_max_size + tokenserver_pool_max_size
+                    };
+
+                    let fxa_threads = if s.tokenserver.enabled
+                        && s.tokenserver.fxa_oauth_primary_jwk.is_none()
+                        && s.tokenserver.fxa_oauth_secondary_jwk.is_none()
+                    {
+                        s.tokenserver
+                            .additional_blocking_threads_for_fxa_requests
+                            .ok_or_else(|| {
+                                println!(
+                                    "If the Tokenserver OAuth JWK is not cached, additional blocking \
+                                     threads must be used to handle the requests to FxA."
+                                );
+
+                                let setting_name =
+                                    "tokenserver.additional_blocking_threads_for_fxa_requests";
+                                ConfigError::NotFound(String::from(setting_name))
+                            })?
+                    } else {
+                        0
+                    };
+
+                    env::set_var(
+                        "ACTIX_THREADPOOL",
+                        ((total_db_pool_size + fxa_threads) as usize)
+                            .max(num_cpus::get() * 5)
+                            .to_string(),
+                    );
+                }
+
                 s
             }
             Err(e) => match e {
@@ -545,7 +589,7 @@ pub fn test_settings() -> Settings {
         .expect("Could not get Settings in get_test_settings");
     settings.debug = true;
     settings.port = 8000;
-    settings.database_pool_max_size = Some(1);
+    settings.database_pool_max_size = 1;
     settings.database_use_test_transactions = true;
     settings.database_pool_connection_max_idle = Some(300);
     settings.database_pool_connection_lifespan = Some(300);

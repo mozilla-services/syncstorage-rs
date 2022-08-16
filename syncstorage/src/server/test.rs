@@ -59,7 +59,7 @@ fn get_test_settings() -> Settings {
     .expect("Could not get pool_size in get_test_settings");
     settings.port = port;
     settings.host = host;
-    settings.database_pool_max_size = Some(pool_size + 1);
+    settings.database_pool_max_size = pool_size + 1;
     settings
 }
 
@@ -726,7 +726,7 @@ async fn lbheartbeat_max_pool_size_check() {
     use actix_web::web::Buf;
 
     let mut settings = get_test_settings();
-    settings.database_pool_max_size = Some(10);
+    settings.database_pool_max_size = 10;
 
     let mut app = init_app!(settings).await;
 
