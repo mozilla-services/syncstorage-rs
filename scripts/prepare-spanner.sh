@@ -32,7 +32,7 @@ DDL_STATEMENTS=$(
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
   | jq -R -s -c 'split(";")'
-) 
+)
 
 curl -sS --request POST \
   "$SYNC_SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances" \
