@@ -1,5 +1,6 @@
 from base64 import urlsafe_b64encode as b64encode
 import binascii
+import hashlib
 import jwt
 import os
 import time
@@ -77,6 +78,11 @@ class TokenserverTestUser(HttpUser):
         token = self._make_oauth_token(self.email)
 
         self._do_token_exchange_via_oauth(token)
+
+    @task(200)
+    def change_user_id(self):
+        self.fxa_uid = hashlib.sha256(self.fxa_uid.encode('utf-8')).hexdigest()
+        self.email = "loadtest-%s@%s" % (self.fxa_uid, MOCKMYID_DOMAIN)
 
     @task(100)
     def test_invalid_oauth(self):
