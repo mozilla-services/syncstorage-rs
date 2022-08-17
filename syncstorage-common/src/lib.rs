@@ -19,3 +19,7 @@ macro_rules! impl_fmt_display {
         }
     };
 }
+
+pub trait ErrorBacktrace {
+    fn error_backtrace(&self) -> String;
+}

@@ -21,7 +21,7 @@ use serde::{
     Serialize,
 };
 
-use syncstorage_common::{from_error, impl_fmt_display};
+use syncstorage_common::{from_error, impl_fmt_display, ErrorBacktrace};
 use syncstorage_db_common::error::DbError;
 use thiserror::Error;
 
@@ -274,3 +274,9 @@ impl From<DbError> for ApiError {
 
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
+
+impl ErrorBacktrace for ApiError {
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
+    }
+}

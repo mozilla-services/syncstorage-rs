@@ -1,4 +1,4 @@
-use std::{cmp::PartialEq, fmt};
+use std::{cmp::PartialEq, error::Error, fmt};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use backtrace::Backtrace;
@@ -6,6 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use syncstorage_common::ErrorBacktrace;
 use syncstorage_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
@@ -20,6 +21,8 @@ pub struct TokenserverError {
     pub context: String,
     pub backtrace: Backtrace,
 }
+
+impl Error for TokenserverError {}
 
 // We implement `PartialEq` manually here because `Backtrace` doesn't implement `PartialEq`, so we
 // can't derive it
@@ -260,5 +263,11 @@ impl From<DbError> for TokenserverError {
 impl From<TokenserverError> for HttpResponse {
     fn from(inner: TokenserverError) -> Self {
         ResponseError::error_response(&inner)
+    }
+}
+
+impl ErrorBacktrace for TokenserverError {
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
     }
 }
