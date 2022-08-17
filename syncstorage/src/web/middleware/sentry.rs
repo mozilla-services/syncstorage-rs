@@ -167,7 +167,7 @@ where
     }
 }
 
-/// Custom `sentry::event_from_error` for `ApiError`
+/// Custom `sentry::event_from_error` for `ReportableError`
 ///
 /// `sentry::event_from_error` can't access `std::Error` backtraces as its
 /// `backtrace()` method is currently Rust nightly only. This function works
