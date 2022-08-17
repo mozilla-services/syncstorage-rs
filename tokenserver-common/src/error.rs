@@ -279,7 +279,7 @@ impl ReportableError for TokenserverError {
         format!("{:#?}", self.backtrace)
     }
 
-    fn is_reportable(&self) -> bool {
+    fn is_sentry_event(&self) -> bool {
         self.http_status.is_server_error() && self.metric_label().is_none()
     }
 

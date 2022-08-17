@@ -160,7 +160,7 @@ where
         }
     }
 
-    if err.is_reportable() {
+    if err.is_sentry_event() {
         report(tags, event_from_error(err));
     } else {
         trace!("Sentry: Not reporting error: {:?}", err);
@@ -171,7 +171,7 @@ where
 ///
 /// `sentry::event_from_error` can't access `std::Error` backtraces as its
 /// `backtrace()` method is currently Rust nightly only. This function works
-/// against `HandlerError` instead to access its backtrace.
+/// against `ReportableError` instead to access its backtrace.
 pub fn event_from_error<E>(err: &E) -> Event<'static>
 where
     E: ReportableError + StdError + 'static,
@@ -197,12 +197,12 @@ where
     }
 }
 
-/// Custom `exception_from_error` support function for `ApiError`
+/// Custom `exception_from_error` support function for `ReportableError`
 ///
 /// Based moreso on sentry_failure's `exception_from_single_fail`.
 fn exception_from_error_with_backtrace<E>(err: &E) -> sentry::protocol::Exception
 where
-    E: ReportableError + StdError + ?Sized,
+    E: ReportableError + StdError,
 {
     let mut exception = exception_from_error(err);
     exception.stacktrace = parse_stacktrace(&err.error_backtrace());

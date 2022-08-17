@@ -267,11 +267,11 @@ impl ReportableError for ApiError {
         format!("{:#?}", self.backtrace)
     }
 
-    fn is_reportable(&self) -> bool {
+    fn is_sentry_event(&self) -> bool {
         // Should we report this error to sentry?
         self.status.is_server_error()
             && match &self.kind {
-                ApiErrorKind::Db(dbe) => dbe.is_reportable(),
+                ApiErrorKind::Db(dbe) => dbe.is_sentry_event(),
                 _ => self.kind.metric_label().is_none(),
             }
     }
