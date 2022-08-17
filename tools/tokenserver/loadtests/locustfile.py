@@ -10,7 +10,7 @@ import browserid.jwt
 from browserid.tests.support import make_assertion
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from locust import HttpUser, task, between
+from locust import HttpUser, task, constant_throughput
 
 BROWSERID_AUDIENCE = os.environ['BROWSERID_AUDIENCE']
 DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
@@ -60,7 +60,7 @@ class TokenserverTestUser(HttpUser):
     # `wait_time` class variable and the `@task` decorators, each user will
     # make sporadic requests to the server under test.
 
-    wait_time = between(1, 5)
+    wait_time = constant_throughput(1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -70,7 +70,7 @@ class TokenserverTestUser(HttpUser):
             self.generation_counter.to_bytes(16, 'big')).decode('utf8')
         # Locust spawns a new instance of this class for each user. Using the
         # object ID as the FxA UID guarantees uniqueness.
-        self.fxa_uid = id(self)
+        self.fxa_uid = str(id(self))
         self.email = "loadtest-%s@%s" % (self.fxa_uid, MOCKMYID_DOMAIN)
 
     @task(3000)
