@@ -162,7 +162,10 @@ pub async fn get_collection(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    let low_mem = request.app_data::<Data<ServerState>>().map(|s| s.limits.low_memory_percentage).unwrap_or(None);
+    let low_mem = request
+        .app_data::<Data<ServerState>>()
+        .map(|s| s.limits.low_memory_percentage)
+        .unwrap_or(None);
     db_pool
         .transaction_http(request, |db| async move {
             coll.emit_api_metric("request.get_collection");
