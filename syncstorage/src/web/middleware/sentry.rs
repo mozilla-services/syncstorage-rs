@@ -144,17 +144,23 @@ where
                                 metrics.incr(&label);
                             }
                         }
-                        if !apie.is_reportable() {
+
+                        if apie.is_reportable() {
+                            report(&tags, event_from_error(apie));
+                        } else {
                             trace!("Sentry: Not reporting error: {:?}", apie);
-                            return Ok(sresp);
                         }
-                        report(&tags, event_from_error(apie));
                     } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
-                        if tokenserver_error.http_status.is_server_error() {
+                        if let Some(metrics) = metrics {
+                            if let Some(label) = tokenserver_error.metric_label() {
+                                metrics.incr(&label);
+                            }
+                        }
+
+                        if tokenserver_error.is_reportable() {
                             report(&tags, event_from_error(tokenserver_error));
                         } else {
                             trace!("Sentry: Not reporting error: {:?}", tokenserver_error);
-                            return Ok(sresp);
                         }
                     }
                 }

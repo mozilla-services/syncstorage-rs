@@ -20,6 +20,13 @@ pub struct TokenserverError {
     /// distinguish between similar errors in Sentry.
     pub context: String,
     pub backtrace: Backtrace,
+    pub token_type: TokenType,
+}
+
+#[derive(Clone, Debug)]
+pub enum TokenType {
+    BrowserId,
+    Oauth,
 }
 
 impl Error for TokenserverError {}
@@ -53,6 +60,7 @@ impl Default for TokenserverError {
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
             backtrace: Backtrace::new(),
+            token_type: TokenType::Oauth,
         }
     }
 }
@@ -144,6 +152,21 @@ impl TokenserverError {
             context: description.clone(),
             description,
             ..Self::default()
+        }
+    }
+
+    pub fn is_reportable(&self) -> bool {
+        self.http_status.is_server_error() && self.metric_label().is_none()
+    }
+
+    pub fn metric_label(&self) -> Option<String> {
+        if self.http_status.is_client_error() {
+            match self.token_type {
+                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
+                TokenType::Oauth => Some("request.error.oauth".to_owned()),
+            }
+        } else {
+            None
         }
     }
 }
