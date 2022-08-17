@@ -10,7 +10,7 @@ use actix_web::{
 use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
-use syncstorage_common::ErrorBacktrace;
+use syncstorage_common::ReportableError;
 use tokenserver_common::error::TokenserverError;
 
 use crate::error::ApiError;
@@ -139,34 +139,31 @@ where
                 }
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
-                        if let Some(metrics) = metrics {
-                            if let Some(label) = apie.metric_label() {
-                                metrics.incr(&label);
-                            }
-                        }
-
-                        if apie.is_reportable() {
-                            report(&tags, event_from_error(apie));
-                        } else {
-                            trace!("Sentry: Not reporting error: {:?}", apie);
-                        }
+                        process_error(apie, metrics.as_ref(), &tags);
                     } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
-                        if let Some(metrics) = metrics {
-                            if let Some(label) = tokenserver_error.metric_label() {
-                                metrics.incr(&label);
-                            }
-                        }
-
-                        if tokenserver_error.is_reportable() {
-                            report(&tags, event_from_error(tokenserver_error));
-                        } else {
-                            trace!("Sentry: Not reporting error: {:?}", tokenserver_error);
-                        }
+                        process_error(tokenserver_error, metrics.as_ref(), &tags);
                     }
                 }
             }
             Ok(sresp)
         })
+    }
+}
+
+fn process_error<E>(err: &E, metrics: Option<&Metrics>, tags: &Tags)
+where
+    E: ReportableError + StdError + 'static,
+{
+    if let Some(metrics) = metrics {
+        if let Some(label) = err.metric_label() {
+            metrics.incr(&label);
+        }
+    }
+
+    if err.is_reportable() {
+        report(tags, event_from_error(err));
+    } else {
+        trace!("Sentry: Not reporting error: {:?}", err);
     }
 }
 
@@ -177,7 +174,7 @@ where
 /// against `HandlerError` instead to access its backtrace.
 pub fn event_from_error<E>(err: &E) -> Event<'static>
 where
-    E: ErrorBacktrace + StdError + 'static,
+    E: ReportableError + StdError + 'static,
 {
     let mut exceptions = vec![exception_from_error_with_backtrace(err)];
 
@@ -205,7 +202,7 @@ where
 /// Based moreso on sentry_failure's `exception_from_single_fail`.
 fn exception_from_error_with_backtrace<E>(err: &E) -> sentry::protocol::Exception
 where
-    E: ErrorBacktrace + StdError + ?Sized,
+    E: ReportableError + StdError + ?Sized,
 {
     let mut exception = exception_from_error(err);
     exception.stacktrace = parse_stacktrace(&err.error_backtrace());

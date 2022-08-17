@@ -6,7 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncstorage_common::ErrorBacktrace;
+use syncstorage_common::ReportableError;
 use syncstorage_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
@@ -154,21 +154,6 @@ impl TokenserverError {
             ..Self::default()
         }
     }
-
-    pub fn is_reportable(&self) -> bool {
-        self.http_status.is_server_error() && self.metric_label().is_none()
-    }
-
-    pub fn metric_label(&self) -> Option<String> {
-        if self.http_status.is_client_error() {
-            match self.token_type {
-                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
-                TokenType::Oauth => Some("request.error.oauth".to_owned()),
-            }
-        } else {
-            None
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -289,8 +274,23 @@ impl From<TokenserverError> for HttpResponse {
     }
 }
 
-impl ErrorBacktrace for TokenserverError {
+impl ReportableError for TokenserverError {
     fn error_backtrace(&self) -> String {
         format!("{:#?}", self.backtrace)
+    }
+
+    fn is_reportable(&self) -> bool {
+        self.http_status.is_server_error() && self.metric_label().is_none()
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        if self.http_status.is_client_error() {
+            match self.token_type {
+                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
+                TokenType::Oauth => Some("request.error.oauth".to_owned()),
+            }
+        } else {
+            None
+        }
     }
 }
