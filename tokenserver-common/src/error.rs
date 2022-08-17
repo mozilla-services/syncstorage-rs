@@ -145,7 +145,7 @@ impl TokenserverError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorLocation {
     Header,
     Url,

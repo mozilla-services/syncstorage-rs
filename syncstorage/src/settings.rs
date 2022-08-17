@@ -35,7 +35,7 @@ pub static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;
 static PREFIX: &str = "sync";
 
-// Minimum amount of memory to preserve on the system
+// Minimum amount of memory to preserve on the system (in KB)
 pub static LOW_MEMORY_PERCENTAGE: f64 = 10.0;
 
 #[derive(Clone, Debug, Default, Copy)]
@@ -473,6 +473,8 @@ pub struct ServerLimits {
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
     pub max_quota_limit: u32,
+
+    pub low_memory_percentage: Option<f64>,
 }
 
 impl Default for ServerLimits {
@@ -486,6 +488,7 @@ impl Default for ServerLimits {
             max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             max_total_records: DEFAULT_MAX_TOTAL_RECORDS,
             max_quota_limit: DEFAULT_MAX_QUOTA_LIMIT,
+            low_memory_percentage: None,
         }
     }
 }

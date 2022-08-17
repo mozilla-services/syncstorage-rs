@@ -10,7 +10,7 @@ commands:
     steps:
       - run:
           name: Display Rust Version
-          command: 
+          command:
             rustc --version
   setup-rust-check:
     steps:
@@ -48,7 +48,8 @@ commands:
       - run:
           name: Rust Clippy
           command: |
-            cargo clippy --all --all-targets --all-features -- -D warnings
+            # include the explicit clippy else `AsChangeset` gets improperly flagged.
+            cargo clippy --all --all-targets --all-features -- --allow clippy::extra_unused_lifetimes -D warnings
   cargo-build:
     steps:
       - run:
@@ -69,7 +70,7 @@ commands:
       - run:
           name: Create Tokenserver database
           command: |
-            mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'   
+            mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
             mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
 
   write-version:

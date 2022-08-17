@@ -120,6 +120,7 @@ collection_data! {
         offset: Option<Offset>,
         ids: Vec<String>,
         full: bool,
+        low_mem: Option<f64>,
     },
     PostBsos {
         bsos: Vec<PostCollectionBso>,

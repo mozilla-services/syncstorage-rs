@@ -162,6 +162,7 @@ pub async fn get_collection(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    let low_mem = request.app_data::<Data<ServerState>>().map(|s| s.limits.low_memory_percentage).unwrap_or(None);
     db_pool
         .transaction_http(request, |db| async move {
             coll.emit_api_metric("request.get_collection");
@@ -175,6 +176,7 @@ pub async fn get_collection(
                 ids: coll.query.ids.clone(),
                 full: coll.query.full,
                 collection: coll.collection.clone(),
+                low_mem,
             };
             let response = if coll.query.full {
                 let result = db.get_bsos(params).await;
