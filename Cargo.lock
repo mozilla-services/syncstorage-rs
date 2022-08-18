@@ -2876,7 +2876,7 @@ dependencies = [
  "slog",
  "term",
  "thread_local",
- "time 0.3.9",
+ "time 0.3.13",
 ]
 
 [[package]]
@@ -3058,7 +3058,7 @@ dependencies = [
  "syncstorage-common",
  "syncstorage-db-common",
  "thiserror",
- "time 0.3.9",
+ "time 0.3.13",
  "tokenserver-common",
  "tokio",
  "url 2.2.2",
@@ -3211,9 +3211,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.9"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2702e08a7a860f005826c6815dcac101b19b5eb330c27fe4a5928fec1d20ddd"
+checksum = "db76ff9fa4b1458b3c7f077f3ff9887394058460d21e634355b273aaf11eea45"
 dependencies = [
  "itoa 1.0.1",
  "libc",
