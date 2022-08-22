@@ -220,3 +220,13 @@ pub async fn heartbeat(db: Box<dyn Db>) -> Result<HttpResponse, Error> {
         }
     }
 }
+
+/// Generates an error to test the Sentry integration
+pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
+    error!("Test Error");
+    Err(TokenserverError {
+        context: "Test error for Sentry".to_owned(),
+        description: "Test error for Sentry".to_owned(),
+        ..TokenserverError::internal_error()
+    })
+}

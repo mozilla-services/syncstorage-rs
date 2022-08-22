@@ -1,5 +1,5 @@
 use std::error::Error as StdError;
-use std::task::Context;
+use std::task::{Context, Poll};
 use std::{cell::RefCell, rc::Rc};
 
 use actix_web::{
@@ -9,12 +9,13 @@ use actix_web::{
 };
 use futures::future::{self, LocalBoxFuture};
 use sentry::protocol::Event;
-use std::task::Poll;
+use sentry_backtrace::parse_stacktrace;
+use syncstorage_common::ReportableError;
+use tokenserver_common::error::TokenserverError;
 
 use crate::error::ApiError;
 use crate::server::{metrics::Metrics, ServerState};
 use crate::web::tags::Tags;
-use sentry_backtrace::parse_stacktrace;
 
 pub struct SentryWrapper;
 
@@ -138,16 +139,9 @@ where
                 }
                 Some(e) => {
                     if let Some(apie) = e.as_error::<ApiError>() {
-                        if let Some(metrics) = metrics {
-                            if let Some(label) = apie.metric_label() {
-                                metrics.incr(&label);
-                            }
-                        }
-                        if !apie.is_reportable() {
-                            trace!("Sentry: Not reporting error: {:?}", apie);
-                            return Ok(sresp);
-                        }
-                        report(&tags, event_from_error(apie));
+                        process_error(apie, metrics.as_ref(), &tags);
+                    } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
+                        process_error(tokenserver_error, metrics.as_ref(), &tags);
                     }
                 }
             }
@@ -156,17 +150,37 @@ where
     }
 }
 
-/// Custom `sentry::event_from_error` for `ApiError`
+fn process_error<E>(err: &E, metrics: Option<&Metrics>, tags: &Tags)
+where
+    E: ReportableError + StdError + 'static,
+{
+    if let Some(metrics) = metrics {
+        if let Some(label) = err.metric_label() {
+            metrics.incr(&label);
+        }
+    }
+
+    if err.is_sentry_event() {
+        report(tags, event_from_error(err));
+    } else {
+        trace!("Sentry: Not reporting error: {:?}", err);
+    }
+}
+
+/// Custom `sentry::event_from_error` for `ReportableError`
 ///
 /// `sentry::event_from_error` can't access `std::Error` backtraces as its
 /// `backtrace()` method is currently Rust nightly only. This function works
-/// against `HandlerError` instead to access its backtrace.
-pub fn event_from_error(err: &ApiError) -> Event<'static> {
+/// against `ReportableError` instead to access its backtrace.
+pub fn event_from_error<E>(err: &E) -> Event<'static>
+where
+    E: ReportableError + StdError + 'static,
+{
     let mut exceptions = vec![exception_from_error_with_backtrace(err)];
 
     let mut source = err.source();
     while let Some(err) = source {
-        let exception = if let Some(err) = err.downcast_ref() {
+        let exception = if let Some(err) = err.downcast_ref::<E>() {
             exception_from_error_with_backtrace(err)
         } else {
             exception_from_error(err)
@@ -183,14 +197,15 @@ pub fn event_from_error(err: &ApiError) -> Event<'static> {
     }
 }
 
-/// Custom `exception_from_error` support function for `ApiError`
+/// Custom `exception_from_error` support function for `ReportableError`
 ///
 /// Based moreso on sentry_failure's `exception_from_single_fail`.
-fn exception_from_error_with_backtrace(err: &ApiError) -> sentry::protocol::Exception {
+fn exception_from_error_with_backtrace<E>(err: &E) -> sentry::protocol::Exception
+where
+    E: ReportableError + StdError,
+{
     let mut exception = exception_from_error(err);
-    // format the stack trace with alternate debug to get addresses
-    let bt = format!("{:#?}", err.backtrace);
-    exception.stacktrace = parse_stacktrace(&bt);
+    exception.stacktrace = parse_stacktrace(&err.error_backtrace());
     exception
 }
 

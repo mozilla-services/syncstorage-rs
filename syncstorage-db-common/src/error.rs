@@ -68,7 +68,7 @@ impl DbError {
         DbErrorKind::Internal(msg.to_owned()).into()
     }
 
-    pub fn is_reportable(&self) -> bool {
+    pub fn is_sentry_event(&self) -> bool {
         !matches!(&self.kind, DbErrorKind::Conflict)
     }
 
