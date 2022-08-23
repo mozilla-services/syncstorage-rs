@@ -306,7 +306,7 @@ impl TokenserverDb {
         "#;
         const SPANNER_QUERY: &str = r#"
             UPDATE nodes
-               SET current_load = current_load + 1,
+               SET current_load = current_load + 1
              WHERE service = ?
                AND node = ?
         "#;
