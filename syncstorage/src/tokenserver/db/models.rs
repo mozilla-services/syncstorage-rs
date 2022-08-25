@@ -297,6 +297,9 @@ impl TokenserverDb {
         &self,
         params: params::AddUserToNode,
     ) -> DbResult<results::AddUserToNode> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.add_user_to_node", None);
+
         const QUERY: &str = r#"
             UPDATE nodes
                SET current_load = current_load + 1,
@@ -304,8 +307,20 @@ impl TokenserverDb {
              WHERE service = ?
                AND node = ?
         "#;
+        const SPANNER_QUERY: &str = r#"
+            UPDATE nodes
+               SET current_load = current_load + 1
+             WHERE service = ?
+               AND node = ?
+        "#;
 
-        diesel::sql_query(QUERY)
+        let query = if self.spanner_node_id.is_some() {
+            SPANNER_QUERY
+        } else {
+            QUERY
+        };
+
+        diesel::sql_query(query)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(&params.node)
             .execute(&self.inner.conn)

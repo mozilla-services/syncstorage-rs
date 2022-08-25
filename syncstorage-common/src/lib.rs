@@ -19,3 +19,9 @@ macro_rules! impl_fmt_display {
         }
     };
 }
+
+pub trait ReportableError {
+    fn error_backtrace(&self) -> String;
+    fn is_sentry_event(&self) -> bool;
+    fn metric_label(&self) -> Option<String>;
+}

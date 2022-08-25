@@ -3361,6 +3361,7 @@ dependencies = [
  "backtrace",
  "serde 1.0.141",
  "serde_json",
+ "syncstorage-common",
  "syncstorage-db-common",
  "thiserror",
 ]
