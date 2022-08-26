@@ -297,6 +297,9 @@ impl TokenserverDb {
         &self,
         params: params::AddUserToNode,
     ) -> DbResult<results::AddUserToNode> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.add_user_to_node", None);
+
         const QUERY: &str = r#"
             UPDATE nodes
                SET current_load = current_load + 1,
@@ -306,7 +309,7 @@ impl TokenserverDb {
         "#;
         const SPANNER_QUERY: &str = r#"
             UPDATE nodes
-               SET current_load = current_load + 1,
+               SET current_load = current_load + 1
              WHERE service = ?
                AND node = ?
         "#;

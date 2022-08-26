@@ -42,6 +42,7 @@ use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
+    tags::Tags,
     DOCKER_FLOW_ENDPOINTS, X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -1161,13 +1162,20 @@ impl FromRequest for HawkIdentifier {
             }
         };
 
-        future::ready(Self::extrude(
-            &req,
-            method.as_str(),
-            uri,
-            &connection_info,
-            secrets,
-        ))
+        let result = Self::extrude(&req, method.as_str(), uri, &connection_info, secrets);
+
+        if let Ok(ref hawk_id) = result {
+            // Store the origin of the token as an extra to be included when emitting a Sentry error
+            let mut exts = req.extensions_mut();
+            let mut tags = Tags::default();
+            tags.add_extra(
+                "tokenserver_origin",
+                &hawk_id.tokenserver_origin.to_string(),
+            );
+            tags.commit(&mut exts);
+        }
+
+        future::ready(result)
     }
 }
 
