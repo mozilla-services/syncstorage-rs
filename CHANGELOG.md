@@ -1,3 +1,27 @@
+<a name="0.12.1"></a>
+## 0.12.1 (2022-08-25)
+
+
+#### Performance
+
+*   remove unnecessary database calls for Tokenserver (#1360) ([5ed9a10c](https://github.com/mozilla-services/syncstorage-rs/commit/5ed9a10c2e854889a12de4f92deff106ec49d7d4))
+
+#### Bug Fixes
+
+*   fix Tokenserver Spanner node query (#1383) ([edef90ca](https://github.com/mozilla-services/syncstorage-rs/commit/edef90ca4795a6bbdd1b1dcaae684671097cc335))
+*   fix Tokenserver node assignment query (#1382) ([9e977c71](https://github.com/mozilla-services/syncstorage-rs/commit/9e977c710ede17b3a8922b1c4a877a9dc8e93fdf))
+*   fix JWT library for Tokenserver load tests (#1373) ([ebf425fe](https://github.com/mozilla-services/syncstorage-rs/commit/ebf425fe268e714c03b2e64347d71d05cc938a8b), closes [#1372](https://github.com/mozilla-services/syncstorage-rs/issues/1372))
+*   rework Tokenserver load tests for local OAuth verification (#1357) ([8c59bb4f](https://github.com/mozilla-services/syncstorage-rs/commit/8c59bb4f80643d69a07c8656777a84ed9343e8e1))
+
+#### Features
+
+*   improve Tokenserver errors and metrics (#1385) ([90f10173](https://github.com/mozilla-services/syncstorage-rs/commit/90f101734187e159eff686dff8f89992d12b5315))
+*   add `__error__` endpoint to Tokenserver (#1375) ([75231c8f](https://github.com/mozilla-services/syncstorage-rs/commit/75231c8feb996c7aa8746aeb88c9c3d428245e25), closes [#1364](https://github.com/mozilla-services/syncstorage-rs/issues/1364))
+*   use Actix to spawn blocking threads (#1370) ([1b1261f2](https://github.com/mozilla-services/syncstorage-rs/commit/1b1261f23eb734b52c29862c32b3441ad70e2d5f))
+*   tag Tokenserver's `token_verification` metric with the token type (#1359) ([dc00a8ea](https://github.com/mozilla-services/syncstorage-rs/commit/dc00a8ea20b3328c452880cea451789e7ab1f027), closes [#1358](https://github.com/mozilla-services/syncstorage-rs/issues/1358))
+
+
+
 <a name="0.12.0"></a>
 ## 0.12.0 (2022-06-23)
 
