@@ -168,7 +168,7 @@ impl VerifyToken for Verifier {
                     ..TokenserverError::resource_unavailable()
                 })?
                 .map_err(|e| match e {
-                    BlockingError::Error(_) => TokenserverError::resource_unavailable(),
+                    BlockingError::Error(inner) => inner,
                     BlockingError::Canceled => TokenserverError {
                         context: "Tokenserver threadpool operation failed".to_owned(),
                         ..TokenserverError::internal_error()
