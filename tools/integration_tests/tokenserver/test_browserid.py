@@ -481,16 +481,16 @@ class TestBrowserId(TestCase, unittest.TestCase):
                              client_state='aaaa')
         # Send a request with keys_changed_at
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=1234,
-                                           client_state='aaaa')
+                                                keys_changed_at=1234,
+                                                client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers)
         user = self._get_user(uid)
         # Confirm that keys_changed_at was set
         self.assertEqual(user['keys_changed_at'], 1234)
         # Send a request with no keys_changed_at
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=None,
-                                           client_state='aaaa')
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
         # Once a keys_changed_at has been set, the server expects to receive
         # it from that point onwards
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
@@ -512,8 +512,8 @@ class TestBrowserId(TestCase, unittest.TestCase):
                              client_state='aaaa')
         # Send a request with no keys_changed_at
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=None,
-                                           client_state='aaaa')
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers)
         # The request should succeed and the keys_changed_at should be
         # unchanged
@@ -526,14 +526,14 @@ class TestBrowserId(TestCase, unittest.TestCase):
                              client_state=None)
         # Send a request with no client state
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=None,
-                                           client_state=None)
+                                                keys_changed_at=None,
+                                                client_state=None)
         # The request should succeed
         self.app.get('/1.0/sync/1.5', headers=headers)
         # Send a request that updates the client state
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=None,
-                                           client_state='aaaa')
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
         # The request should succeed
         self.app.get('/1.0/sync/1.5', headers=headers)
         user = self._get_user(uid)
@@ -541,8 +541,8 @@ class TestBrowserId(TestCase, unittest.TestCase):
         self.assertEqual(user['client_state'], 'aaaa')
         # Send another request with no client state
         headers = self._build_browserid_headers(generation=None,
-                                           keys_changed_at=None,
-                                           client_state=None)
+                                                keys_changed_at=None,
+                                                client_state=None)
         # The request should fail, since we are trying to revert to using no
         # client state after setting one
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
