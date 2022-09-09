@@ -1,5 +1,4 @@
 use std::{
-    cmp,
     collections::HashMap,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -84,7 +83,12 @@ fn get_token_plaintext(
             })?;
         let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
 
-        format!("{:013}-{:}", updates.keys_changed_at, client_state_b64)
+        format!(
+            "{:013}-{:}",
+            // We fall back to using the user's generation here, which matches FxA's behavior
+            updates.keys_changed_at.unwrap_or(updates.generation),
+            client_state_b64
+        )
     };
 
     let expires = {
@@ -108,7 +112,8 @@ fn get_token_plaintext(
 }
 
 struct UserUpdates {
-    keys_changed_at: i64,
+    keys_changed_at: Option<i64>,
+    generation: i64,
     uid: i64,
 }
 
@@ -116,20 +121,51 @@ async fn update_user(
     req: &TokenserverRequest,
     db: Box<dyn Db>,
 ) -> Result<UserUpdates, TokenserverError> {
-    // If the keys_changed_at in the request is larger than that stored on the user record,
-    // update to the value in the request.
-    let keys_changed_at =
-        cmp::max(req.auth_data.keys_changed_at, req.user.keys_changed_at).unwrap_or(0);
+    let keys_changed_at = match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
+        // If the keys_changed_at in the request is larger than that stored on the user record,
+        // update to the value in the request.
+        (Some(request_keys_changed_at), Some(user_keys_changed_at))
+            if request_keys_changed_at >= user_keys_changed_at =>
+        {
+            Some(request_keys_changed_at)
+        }
+        // If there is a keys_changed_at in the request and it's smaller than that stored on the
+        // user record, we've already returned an error at this point.
+        (Some(_request_keys_changed_at), Some(_user_keys_changed_at)) => unreachable!(),
+        // If there is a keys_changed_at on the request but not one on the user record, this is the
+        // first time the client reported it, so we assign the new value.
+        (Some(request_keys_changed_at), None) => Some(request_keys_changed_at),
+        // At this point, we've already validated that, if there is a keys_changed_at already
+        // stored on the user record, there must be one in the request. If that isn't the case,
+        // we've already returned an error.
+        (None, Some(user_keys_changed_at)) if user_keys_changed_at != 0 => unreachable!(),
+        // If there's no keys_changed_at in the request and the keys_changed_at on the user record
+        // is 0, keep the value as 0.
+        (None, Some(_user_keys_changed_at)) => Some(0),
+        // If there is no keys_changed_at on the user record or in the request, we want to leave
+        // the value unset.
+        (None, None) => None,
+    };
 
-    let generation = if let Some(generation) = req.auth_data.generation {
-        // If there's a generation on the request, choose the larger of that and the generation
-        // already stored on the user record.
-        cmp::max(generation, req.user.generation)
-    } else {
-        // If there's not a generation on the request and the keys_changed_at on the request is
-        // larger than the generation stored on the user record, set the user's generation to be
-        // the keys_changed_at on the request.
-        cmp::max(req.auth_data.keys_changed_at, Some(req.user.generation)).unwrap_or(0)
+    let generation = match req.auth_data.generation {
+        // If there's a generation in the request and it's greater than or equal to that stored on
+        // the user record, update to the value in the request.
+        Some(request_generation) if request_generation >= req.user.generation => request_generation,
+        // If there's a generation in the request and it's smaller than that stored on the user
+        // record, we've already returned an error.
+        Some(_request_generation) => unreachable!(),
+        None => match req.auth_data.keys_changed_at {
+            // If there's not a generation on the request and the keys_changed_at on the request is
+            // larger than the generation stored on the user record, set the user's generation to be
+            // the keys_changed_at on the request.
+            Some(request_keys_changed_at) if request_keys_changed_at > req.user.generation => {
+                request_keys_changed_at
+            }
+            // If there's not a generation on the request and the keys_changed_at on the request is
+            // less than or equal to the generation stored on the user record, just use the user's
+            // current generation.
+            _ => req.user.generation,
+        },
     };
 
     // If the client state changed, we need to mark the current user as "replaced" and create a
@@ -153,7 +189,7 @@ async fn update_user(
                 })
                 .await?
                 .id,
-            keys_changed_at: Some(keys_changed_at),
+            keys_changed_at,
             created_at: timestamp,
         };
         let uid = db.post_user(post_user_params).await?.id;
@@ -169,15 +205,16 @@ async fn update_user(
 
         Ok(UserUpdates {
             keys_changed_at,
+            generation,
             uid,
         })
     } else {
-        if generation != req.user.generation || Some(keys_changed_at) != req.user.keys_changed_at {
+        if generation != req.user.generation || keys_changed_at != req.user.keys_changed_at {
             let params = PutUser {
                 email: req.auth_data.email.clone(),
                 service_id: req.service_id,
                 generation,
-                keys_changed_at: Some(keys_changed_at),
+                keys_changed_at,
             };
 
             db.put_user(params).await?;
@@ -185,6 +222,7 @@ async fn update_user(
 
         Ok(UserUpdates {
             keys_changed_at,
+            generation,
             uid: req.user.uid,
         })
     }

@@ -130,8 +130,10 @@ class TestCase:
 
         headers = {
             'Authorization': 'BrowserID %s' % json.dumps(body),
-            'X-Client-State': client_state
         }
+
+        if client_state:
+            headers['X-Client-State'] = client_state
 
         headers.update(additional_headers)
 
