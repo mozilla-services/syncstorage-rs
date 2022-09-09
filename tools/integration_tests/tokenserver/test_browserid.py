@@ -535,8 +535,10 @@ class TestBrowserId(TestCase, unittest.TestCase):
                                                 keys_changed_at=None,
                                                 client_state='aaaa')
         # The request should succeed
-        self.app.get('/1.0/sync/1.5', headers=headers)
-        user = self._get_user(uid)
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(res.json['uid'])
+        # A new user should have been created
+        self.assertNotEqual(uid, res.json['uid'])
         # The client state should have been updated
         self.assertEqual(user['client_state'], 'aaaa')
         # Send another request with no client state

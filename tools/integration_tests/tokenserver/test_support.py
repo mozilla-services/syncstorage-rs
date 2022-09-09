@@ -17,7 +17,6 @@ DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
 
 class TestCase:
-    AUTH_METHOD = os.environ.get('TOKENSERVER_AUTH_METHOD', 'oauth')
     BROWSERID_ISSUER = os.environ['SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER']
     FXA_EMAIL_DOMAIN = 'api-accounts.stage.mozaws.net'
     FXA_METRICS_HASH_SECRET = 'secret0'
@@ -25,6 +24,15 @@ class TestCase:
     NODE_URL = 'https://example.com'
     TOKEN_SIGNING_SECRET = 'secret0'
     TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
+
+    @classmethod
+    def setUpClass(cls):
+        cls.auth_method = os.environ['TOKENSERVER_AUTH_METHOD']
+
+        if cls.auth_method == 'browserid':
+            cls._build_auth_headers = cls._build_browserid_headers
+        else:
+            cls._build_auth_headers = cls._build_oauth_headers
 
     def setUp(self):
         engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
@@ -40,11 +48,6 @@ class TestCase:
             'REMOTE_ADDR': '127.0.0.1',
             'SCRIPT_NAME': host_url.path,
         })
-
-        if self.AUTH_METHOD == 'browserid':
-            self._build_auth_headers = self._build_browserid_headers
-        else:
-            self._build_auth_headers = self._build_oauth_headers
 
         # Start each test with a blank slate.
         cursor = self._execute_sql(('DELETE FROM users'), ())

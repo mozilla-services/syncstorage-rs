@@ -154,17 +154,29 @@ async fn update_user(
         // If there's a generation in the request and it's smaller than that stored on the user
         // record, we've already returned an error.
         Some(_request_generation) => unreachable!(),
-        None => match req.auth_data.keys_changed_at {
-            // If there's not a generation on the request and the keys_changed_at on the request is
-            // larger than the generation stored on the user record, set the user's generation to be
-            // the keys_changed_at on the request.
-            Some(request_keys_changed_at) if request_keys_changed_at > req.user.generation => {
+        None => match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
+            // If there's not a generation on the request but the keys_changed_at on the request
+            // is greater than the user's current generation AND the keys_changed_at on the request
+            // is greater than the user's current keys_changed_at, set the user's generation to
+            // the new keys_changed_at.
+            (Some(request_keys_changed_at), Some(user_keys_changed_at))
+                if request_keys_changed_at > user_keys_changed_at
+                    && request_keys_changed_at > req.user.generation =>
+            {
                 request_keys_changed_at
             }
-            // If there's not a generation on the request and the keys_changed_at on the request is
-            // less than or equal to the generation stored on the user record, just use the user's
-            // current generation.
-            _ => req.user.generation,
+            // If there's not a generation on the request but the keys_changed_at on the request
+            // is greater than the user's current generation AND there is a keys_changed_at on the
+            // request but not currently on the user record, set the user's generation to the new
+            // keys_changed_at.
+            (Some(request_keys_changed_at), None)
+                if request_keys_changed_at > req.user.generation =>
+            {
+                request_keys_changed_at
+            }
+            // If the request has a keys_changed_at but the above conditions don't hold OR if the
+            // request doesn't have a keys_changed_at, just keep the same generation.
+            (_, _) => req.user.generation,
         },
     };
 

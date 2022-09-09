@@ -97,6 +97,14 @@ impl TokenserverRequest {
             });
         }
 
+        // If the client previously reported a client state, every subsequent request must include
+        // one. Note that this is only relevant for BrowserID requests, since OAuth requests must
+        // always include a client state.
+        if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
+            let error_message = "Unacceptable client-state value empty string".to_owned();
+            return Err(TokenserverError::invalid_client_state(error_message));
+        }
+
         // The client state on the request must not have been used in the past.
         if self
             .user
@@ -104,14 +112,6 @@ impl TokenserverRequest {
             .contains(&self.auth_data.client_state)
         {
             let error_message = "Unacceptable client-state value stale value".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
-        }
-
-        // If the client previously reported a client state, every subsequent request must include
-        // one. Note that this is only relevant for BrowserID requests, since OAuth requests must
-        // always include a client state.
-        if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
-            let error_message = "Unacceptable client-state value empty string".to_owned();
             return Err(TokenserverError::invalid_client_state(error_message));
         }
 

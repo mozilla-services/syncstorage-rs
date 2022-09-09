@@ -45,7 +45,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_key_id(self):
-        if self.AUTH_METHOD == "oauth":
+        if self.auth_method == "oauth":
             additional_headers = {
                 'X-KeyID': "1234-state!"
             }
@@ -283,7 +283,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
                              client_state='aaaa')
         # Send a request without a generation that doesn't update
         # keys_changed_at
-        headers = self._build_auth_headers(generation=0,
+        headers = self._build_auth_headers(generation=None,
                                            keys_changed_at=1234,
                                            client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers)
@@ -294,9 +294,30 @@ class TestAuthorization(TestCase, unittest.TestCase):
         headers = self._build_auth_headers(generation=None,
                                            keys_changed_at=1235,
                                            client_state='aaaa')
+        self.app.get('/1.0/sync/1.5', headers=headers)
         user = self._get_user(uid)
         # This should have set the user's generation
         self.assertEqual(user['generation'], 1235)
+        # Add a user who has never sent us a generation or a keys_changed_at
+        uid = self._add_user(generation=0, keys_changed_at=None,
+                             client_state='aaaa')
+        # Send a request without a generation that doesn't update
+        # keys_changed_at
+        headers = self._build_auth_headers(generation=None,
+                                           keys_changed_at=None,
+                                           client_state='aaaa')
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(uid)
+        # This should not have set the user's generation
+        self.assertEqual(user['generation'], 0)
+        # Send a request without a generation that updates keys_changed_at
+        headers = self._build_auth_headers(generation=None,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(uid)
+        # This should have set the user's generation
+        self.assertEqual(user['generation'], 1234)
 
     def test_fxa_kid_change(self):
         self._add_user(generation=1234, keys_changed_at=None,
@@ -507,7 +528,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user['keys_changed_at'], 1234)
 
     def test_x_client_state_must_have_same_client_state_as_key_id(self):
-        if self.AUTH_METHOD == "oauth":
+        if self.auth_method == "oauth":
             self._add_user(client_state='aaaa')
             additional_headers = {'X-Client-State': 'bbbb'}
             headers = self._build_auth_headers(generation=1234,
