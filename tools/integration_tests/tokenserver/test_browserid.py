@@ -523,7 +523,7 @@ class TestBrowserId(TestCase, unittest.TestCase):
     def test_reverting_to_no_client_state(self):
         # Add a user that has no client_state
         uid = self._add_user(generation=0, keys_changed_at=None,
-                             client_state=None)
+                             client_state="")
         # Send a request with no client state
         headers = self._build_browserid_headers(generation=None,
                                                 keys_changed_at=None,
