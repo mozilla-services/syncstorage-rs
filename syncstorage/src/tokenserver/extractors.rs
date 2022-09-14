@@ -440,6 +440,15 @@ impl FromRequest for AuthData {
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
 
+            // The Python Tokenserver treats zero values and null values both as being
+            // null, so for consistency, we need to convert a `Some(0)` value to `None`
+            fn convert_zero_to_none(generation_or_keys_changed_at: Option<i64>) -> Option<i64> {
+                match generation_or_keys_changed_at {
+                    Some(0) => None,
+                    _ => generation_or_keys_changed_at,
+                }
+            }
+
             match token {
                 Token::BrowserIdAssertion(assertion) => {
                     let mut tags = Tags::default();
@@ -463,8 +472,8 @@ impl FromRequest for AuthData {
                         device_id: verify_output.device_id,
                         email: verify_output.email.clone(),
                         fxa_uid: fxa_uid.to_owned(),
-                        generation: verify_output.generation,
-                        keys_changed_at: verify_output.keys_changed_at,
+                        generation: convert_zero_to_none(verify_output.generation),
+                        keys_changed_at: convert_zero_to_none(verify_output.keys_changed_at),
                     })
                 }
                 Token::OAuthToken(token) => {
@@ -485,8 +494,8 @@ impl FromRequest for AuthData {
                         email,
                         device_id: None,
                         fxa_uid,
-                        generation: verify_output.generation,
-                        keys_changed_at: Some(key_id.keys_changed_at),
+                        generation: convert_zero_to_none(verify_output.generation),
+                        keys_changed_at: convert_zero_to_none(Some(key_id.keys_changed_at)),
                     })
                 }
             }

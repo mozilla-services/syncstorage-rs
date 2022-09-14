@@ -108,8 +108,8 @@ class TestCase:
             'issuer': issuer
         }
 
-        if device_id or generation or keys_changed_at or \
-                token_verified is not None:
+        if device_id or generation is not None or \
+                keys_changed_at is not None or token_verified is not None:
             idp_claims = {}
 
             if device_id:

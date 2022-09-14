@@ -557,3 +557,31 @@ class TestAuthorization(TestCase, unittest.TestCase):
             self.assertEqual(res.json, expected_error_response)
             headers['X-Client-State'] = 'aaaa'
             res = self.app.get('/1.0/sync/1.5', headers=headers)
+
+    def test_zero_generation_treated_as_null(self):
+        # Add a user that has a generation set
+        uid = self._add_user(generation=1234, keys_changed_at=1234,
+                             client_state='aaaa')
+        headers = self._build_auth_headers(generation=0,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
+        # Send a request with a generation of 0
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        # Ensure that the request succeeded and that the user's generation
+        # was not updated
+        user = self._get_user(uid)
+        self.assertEqual(user['generation'], 1234)
+
+    def test_zero_keys_changed_at_treated_as_null(self):
+        # Add a user that has a keys_changed_at set
+        uid = self._add_user(generation=1234, keys_changed_at=1234,
+                             client_state='aaaa')
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=0,
+                                           client_state='aaaa')
+        # Send a request with a keys_changed_at of 0
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        # Ensure that the request succeeded and that the user's
+        # keys_changed_at was not updated
+        user = self._get_user(uid)
+        self.assertEqual(user['keys_changed_at'], 1234)
