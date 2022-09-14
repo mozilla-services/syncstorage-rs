@@ -83,6 +83,10 @@ class TestCase:
             'client_id': 'fake client id',
             'scope': [DEFAULT_OAUTH_SCOPE],
         }
+
+        if generation is not None:
+            claims['generation'] = generation
+
         body = {
             'body': claims,
             'status': status

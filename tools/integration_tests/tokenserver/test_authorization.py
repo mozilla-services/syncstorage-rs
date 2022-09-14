@@ -573,8 +573,8 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user['generation'], 1234)
 
     def test_zero_keys_changed_at_treated_as_null(self):
-        # Add a user that has a keys_changed_at set
-        uid = self._add_user(generation=1234, keys_changed_at=1234,
+        # Add a user that has no keys_changed_at set
+        uid = self._add_user(generation=1234, keys_changed_at=None,
                              client_state='aaaa')
         headers = self._build_auth_headers(generation=1234,
                                            keys_changed_at=0,
@@ -584,4 +584,4 @@ class TestAuthorization(TestCase, unittest.TestCase):
         # Ensure that the request succeeded and that the user's
         # keys_changed_at was not updated
         user = self._get_user(uid)
-        self.assertEqual(user['keys_changed_at'], 1234)
+        self.assertEqual(user['keys_changed_at'], None)
