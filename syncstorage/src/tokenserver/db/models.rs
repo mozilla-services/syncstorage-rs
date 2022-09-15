@@ -164,7 +164,7 @@ impl TokenserverDb {
              WHERE service = ?
                AND email = ?
                AND generation <= ?
-               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, 0)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
                AND replaced_at IS NULL
         "#;
 

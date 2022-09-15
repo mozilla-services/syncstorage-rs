@@ -25,7 +25,7 @@ from tokenserver.test_support import TestCase
 # this is the proper client ID to be using for these integration tests.
 BROWSERID_AUDIENCE = "https://token.stage.mozaws.net"
 CLIENT_ID = '5882386c6d801776'
-DEFAULT_TOKEN_DURATION = 300
+DEFAULT_TOKEN_DURATION = 3600
 FXA_ACCOUNT_STAGE_HOST = 'https://api-accounts.stage.mozaws.net'
 FXA_OAUTH_STAGE_HOST = 'https://oauth.stage.mozaws.net'
 PASSWORD_CHARACTERS = string.ascii_letters + string.punctuation + string.digits
