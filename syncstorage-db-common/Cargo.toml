@@ -16,7 +16,7 @@ diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.9" }
+grpcio = { version = "0.10" }
 hostname = "0.3.1"
 http = "0.2.6"
 futures = { version = "0.3", features = ["compat"] }

@@ -25,7 +25,7 @@ pub struct GetRawUser {
 
 pub type GetUsers = Vec<GetRawUser>;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct AllocateUser {
     pub uid: i64,
     pub node: String,
@@ -35,7 +35,7 @@ pub struct AllocateUser {
 /// Represents the relevant information from the most recently-created user record in the database
 /// for a given email and service ID, along with any previously-seen client states seen for the
 /// user.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct GetOrCreateUser {
     pub uid: i64,
     pub email: String,
@@ -83,7 +83,7 @@ pub struct GetServiceId {
 }
 
 #[cfg(test)]
-#[derive(Debug, Default, PartialEq, QueryableByName)]
+#[derive(Debug, Default, Eq, PartialEq, QueryableByName)]
 pub struct GetUser {
     #[sql_type = "Integer"]
     #[column_name = "service"]

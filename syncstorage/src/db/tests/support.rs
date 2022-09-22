@@ -112,6 +112,7 @@ pub fn gbsos(
         limit: Some(limit as u32),
         offset: Some(params::Offset::from_str(offset).unwrap_or_default()),
         full: true,
+        low_mem: None,
     }
 }
 

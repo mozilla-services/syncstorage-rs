@@ -50,6 +50,9 @@ pub enum DbErrorKind {
     #[error("Invalid SYNC_DATABASE_URL: {}", _0)]
     InvalidUrl(String),
 
+    #[error("Low available memory")]
+    LowMemory,
+
     #[error("Unexpected error: {}", _0)]
     Internal(String),
 
@@ -108,7 +111,7 @@ impl From<DbErrorKind> for DbError {
             // handle these respones very well:
             //  * desktop bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959034
             //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
-            DbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
+            DbErrorKind::Conflict | DbErrorKind::LowMemory => StatusCode::SERVICE_UNAVAILABLE,
             DbErrorKind::Quota => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
