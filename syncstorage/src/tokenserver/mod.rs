@@ -83,7 +83,7 @@ impl ServerState {
 
 pub struct TokenserverMetrics(Metrics);
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum NodeType {
     #[serde(rename = "mysql")]
     MySql,

@@ -16,7 +16,7 @@ use core::time::Duration;
 use std::convert::TryFrom;
 
 /// The information extracted from a valid OAuth token.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct VerifyOutput {
     #[serde(rename = "user")]
     pub fxa_uid: String,

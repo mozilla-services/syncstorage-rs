@@ -410,7 +410,7 @@ async fn post_collection() {
     let bytes =
         test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/bookmarks", res_body).await;
     let result: PostBsos =
-        serde_json::from_slice(&bytes.to_vec()).expect("Could not get result in post_collection");
+        serde_json::from_slice(&bytes).expect("Could not get result in post_collection");
     assert!(result.modified >= start);
     assert_eq!(result.success.len(), 1);
     assert_eq!(result.failed.len(), 0);
@@ -461,7 +461,7 @@ async fn bsos_can_have_a_collection_field() {
          {"id": "2", "collection": "foo", "payload": "SomePayload"},
     ]);
     let bytes = test_endpoint_with_body(http::Method::POST, "/1.5/42/storage/meta", bsos).await;
-    let result: PostBsos = serde_json::from_slice(&bytes.to_vec())
+    let result: PostBsos = serde_json::from_slice(&bytes)
         .expect("Could not get result in bsos_can_have_a_collection_field");
     assert_eq!(result.success.len(), 2);
     assert_eq!(result.failed.len(), 0);

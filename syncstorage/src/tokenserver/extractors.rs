@@ -34,7 +34,7 @@ lazy_static! {
 const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 /// Information from the request needed to process a Tokenserver request.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct TokenserverRequest {
     pub user: results::GetOrCreateUser,
     pub auth_data: AuthData,
@@ -414,7 +414,7 @@ impl FromRequest for Token {
 }
 
 /// The data extracted from the authentication token.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct AuthData {
     pub client_state: String,
     pub device_id: Option<String>,

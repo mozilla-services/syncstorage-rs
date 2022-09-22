@@ -22,7 +22,7 @@ fn ms_since_epoch() -> i64 {
 /// Sync Timestamp
 ///
 /// Internally represents a Sync timestamp as a u64 representing milliseconds since the epoch.
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Deserialize, Serialize, FromSqlRow)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Deserialize, Serialize, FromSqlRow)]
 pub struct SyncTimestamp(
     #[serde(deserialize_with = "deserialize_ts", serialize_with = "serialize_ts")] u64,
 );
