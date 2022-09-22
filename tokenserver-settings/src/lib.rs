@@ -104,7 +104,7 @@ impl Default for Settings {
             statsd_label: "syncstorage.tokenserver".to_owned(),
             run_migrations: cfg!(test),
             spanner_node_id: None,
-            additional_blocking_threads_for_fxa_requests: None,
+            additional_blocking_threads_for_fxa_requests: Some(1),
             token_duration: 3600,
         }
     }
