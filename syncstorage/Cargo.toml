@@ -53,7 +53,7 @@ log = { version = "0.4", features = [
 mime = "0.3"
 num_cpus = "1"
 # must match what's used by googleapis-raw
-protobuf = "2.20.0"
+protobuf = "3.1.0"
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
 regex = "1.4"
