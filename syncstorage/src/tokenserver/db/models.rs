@@ -40,6 +40,8 @@ pub struct TokenserverDb {
     /// below.
     pub(super) inner: Arc<DbInner>,
     metrics: Metrics,
+    service_id: Option<i32>,
+    spanner_node_id: Option<i32>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -62,7 +64,12 @@ impl TokenserverDb {
     // get IDs from records created during other requests.
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
 
-    pub fn new(conn: Conn, metrics: &Metrics) -> Self {
+    pub fn new(
+        conn: Conn,
+        metrics: &Metrics,
+        service_id: Option<i32>,
+        spanner_node_id: Option<i32>,
+    ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
             conn,
@@ -73,6 +80,8 @@ impl TokenserverDb {
         Self {
             inner: Arc::new(inner),
             metrics: metrics.clone(),
+            service_id,
+            spanner_node_id,
         }
     }
 
@@ -84,11 +93,18 @@ impl TokenserverDb {
                AND node = ?
         "#;
 
-        diesel::sql_query(QUERY)
-            .bind::<Integer, _>(params.service_id)
-            .bind::<Text, _>(&params.node)
-            .get_result(&self.inner.conn)
-            .map_err(Into::into)
+        if let Some(id) = self.spanner_node_id {
+            Ok(results::GetNodeId { id: id as i64 })
+        } else {
+            let mut metrics = self.metrics.clone();
+            metrics.start_timer("storage.get_node_id", None);
+
+            diesel::sql_query(QUERY)
+                .bind::<Integer, _>(params.service_id)
+                .bind::<Text, _>(&params.node)
+                .get_result(&self.inner.conn)
+                .map_err(Into::into)
+        }
     }
 
     /// Mark users matching the given email and service ID as replaced.
@@ -101,6 +117,9 @@ impl TokenserverDb {
                AND replaced_at IS NULL
                AND created_at < ?
         "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.replace_users", None);
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.replaced_at)
@@ -145,9 +164,12 @@ impl TokenserverDb {
              WHERE service = ?
                AND email = ?
                AND generation <= ?
-               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, 0)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
                AND replaced_at IS NULL
         "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.put_user", None);
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.generation)
@@ -167,6 +189,9 @@ impl TokenserverDb {
             INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NULL);
         "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.post_user", None);
 
         diesel::sql_query(QUERY)
             .bind::<Integer, _>(user.service_id)
@@ -222,7 +247,7 @@ impl TokenserverDb {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_best_node", None);
 
-        if let Some(spanner_node_id) = params.spanner_node_id {
+        if let Some(spanner_node_id) = self.spanner_node_id {
             diesel::sql_query(SPANNER_QUERY)
                 .bind::<Integer, _>(spanner_node_id)
                 .get_result::<results::GetBestNode>(&self.inner.conn)
@@ -272,6 +297,9 @@ impl TokenserverDb {
         &self,
         params: params::AddUserToNode,
     ) -> DbResult<results::AddUserToNode> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.add_user_to_node", None);
+
         const QUERY: &str = r#"
             UPDATE nodes
                SET current_load = current_load + 1,
@@ -279,8 +307,20 @@ impl TokenserverDb {
              WHERE service = ?
                AND node = ?
         "#;
+        const SPANNER_QUERY: &str = r#"
+            UPDATE nodes
+               SET current_load = current_load + 1
+             WHERE service = ?
+               AND node = ?
+        "#;
 
-        diesel::sql_query(QUERY)
+        let query = if self.spanner_node_id.is_some() {
+            SPANNER_QUERY
+        } else {
+            QUERY
+        };
+
+        diesel::sql_query(query)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(&params.node)
             .execute(&self.inner.conn)
@@ -289,6 +329,9 @@ impl TokenserverDb {
     }
 
     fn get_users_sync(&self, params: params::GetUsers) -> DbResult<results::GetUsers> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.get_users", None);
+
         const QUERY: &str = r#"
                      SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at,
                             replaced_at
@@ -385,7 +428,6 @@ impl TokenserverDb {
                             client_state: raw_user.client_state.clone(),
                             keys_changed_at: raw_user.keys_changed_at,
                             capacity_release_rate: params.capacity_release_rate,
-                            spanner_node_id: params.spanner_node_id,
                         })?
                     };
 
@@ -433,7 +475,6 @@ impl TokenserverDb {
         let node = self.get_best_node_sync(params::GetBestNode {
             service_id: params.service_id,
             capacity_release_rate: params.capacity_release_rate,
-            spanner_node_id: params.spanner_node_id,
         })?;
 
         // Decrement `available` and increment `current_load` on the node assigned to the user.
@@ -475,10 +516,14 @@ impl TokenserverDb {
              WHERE service = ?
         "#;
 
-        diesel::sql_query(QUERY)
-            .bind::<Text, _>(params.service)
-            .get_result::<results::GetServiceId>(&self.inner.conn)
-            .map_err(Into::into)
+        if let Some(id) = self.service_id {
+            Ok(results::GetServiceId { id })
+        } else {
+            diesel::sql_query(QUERY)
+                .bind::<Text, _>(params.service)
+                .get_result::<results::GetServiceId>(&self.inner.conn)
+                .map_err(Into::into)
+        }
     }
 
     #[cfg(test)]
@@ -1220,7 +1265,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         })?;
         assert_eq!(user.node, "https://node1");
 
@@ -1274,7 +1318,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         })?;
 
         let user2 = db.allocate_user_sync(params::AllocateUser {
@@ -1284,7 +1327,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         })?;
 
         // Because users are always assigned to the least-loaded node, the users should have been
@@ -1328,7 +1370,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
@@ -1370,7 +1411,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         });
         let error = result.unwrap_err();
         assert_eq!(error.to_string(), "Unexpected error: unable to get a node");
@@ -1411,7 +1451,6 @@ mod tests {
             client_state: "aaaa".to_owned(),
             keys_changed_at: Some(1234),
             capacity_release_rate: None,
-            ..Default::default()
         })?;
         let user1 = db
             .get_user(params::GetUser {
@@ -1435,7 +1474,6 @@ mod tests {
                 client_state: "bbbb".to_owned(),
                 keys_changed_at: Some(1235),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1486,7 +1524,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1498,7 +1535,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1558,7 +1594,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1570,7 +1605,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1582,7 +1616,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1594,7 +1627,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1627,7 +1659,6 @@ mod tests {
                     client_state: user.client_state.clone(),
                     keys_changed_at: user.keys_changed_at,
                     capacity_release_rate: None,
-                    ..Default::default()
                 })
                 .await?;
 
@@ -1657,7 +1688,6 @@ mod tests {
                     client_state: user.client_state.clone(),
                     keys_changed_at: user.keys_changed_at,
                     capacity_release_rate: None,
-                    ..Default::default()
                 })
                 .await?;
 
@@ -1716,7 +1746,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1734,7 +1763,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1754,7 +1782,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1772,7 +1799,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1791,7 +1817,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1809,7 +1834,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1828,7 +1852,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await;
 
@@ -1876,7 +1899,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1896,7 +1918,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1940,7 +1961,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1957,7 +1977,6 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 keys_changed_at: Some(1234),
                 capacity_release_rate: None,
-                ..Default::default()
             })
             .await?;
 
@@ -1970,7 +1989,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_spanner_node() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -2005,25 +2024,25 @@ mod tests {
         })
         .await?;
 
-        // Ensure the Spanner node is selected if the Spanner node ID is provided as a parameter
-        assert_eq!(
+        // Ensure the node with available capacity is selected if the Spanner node ID is not
+        // cached
+        assert_ne!(
             db.get_best_node(params::GetBestNode {
                 service_id,
                 capacity_release_rate: None,
-                spanner_node_id: Some(spanner_node_id as i32)
             })
             .await?
             .id,
             spanner_node_id
         );
 
-        // Ensure the node with available capacity is selected if the Spanner node ID is not
-        // provided as a parameter
-        assert_ne!(
+        // Ensure the Spanner node is selected if the Spanner node ID is cached
+        db.spanner_node_id = Some(spanner_node_id as i32);
+
+        assert_eq!(
             db.get_best_node(params::GetBestNode {
                 service_id,
                 capacity_release_rate: None,
-                spanner_node_id: None
             })
             .await?
             .id,

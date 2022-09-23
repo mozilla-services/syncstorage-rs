@@ -161,7 +161,7 @@ SYNC_SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
 
 ### Running via Docker
-This requires access to the mozilla-rust-sdk which is now available at `/vendor/mozilla-rust-adk`.
+This requires access to the mozilla-rust-sdk which is now available at `/vendor/mozilla-rust-sdk`.
 
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.

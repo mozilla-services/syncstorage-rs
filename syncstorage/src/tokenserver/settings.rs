@@ -7,7 +7,7 @@ pub struct Settings {
     /// The URL of the Tokenserver MySQL database.
     pub database_url: String,
     /// The max size of the database connection pool.
-    pub database_pool_max_size: Option<u32>,
+    pub database_pool_max_size: u32,
     // NOTE: Not supported by deadpool!
     /// The minimum number of database connections to be maintained at any given time.
     pub database_pool_min_idle: Option<u32>,
@@ -57,6 +57,14 @@ pub struct Settings {
     pub run_migrations: bool,
     /// The database ID of the Spanner node.
     pub spanner_node_id: Option<i32>,
+    /// The number of additional blocking threads to add to the blocking threadpool to handle
+    /// OAuth verification requests to FxA. This value is added to the `ACTIX_THREADPOOL` env var.
+    /// Note that this setting only applies if the OAuth public JWK is not cached, since OAuth
+    /// verifications do not require requests to FXA if the JWK is set on Tokenserver. The server
+    /// will return an error at startup if the JWK is not cached and this setting is `None`.
+    pub additional_blocking_threads_for_fxa_requests: Option<u32>,
+    /// The amount of time in seconds before a token provided by Tokenserver expires.
+    pub token_duration: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -75,7 +83,7 @@ impl Default for Settings {
     fn default() -> Settings {
         Settings {
             database_url: "mysql://root@127.0.0.1/tokenserver_rs".to_owned(),
-            database_pool_max_size: None,
+            database_pool_max_size: 10,
             database_pool_min_idle: None,
             database_pool_connection_timeout: Some(30),
             enabled: false,
@@ -95,6 +103,8 @@ impl Default for Settings {
             statsd_label: "syncstorage.tokenserver".to_owned(),
             run_migrations: cfg!(test),
             spanner_node_id: None,
+            additional_blocking_threads_for_fxa_requests: None,
+            token_duration: 3600,
         }
     }
 }

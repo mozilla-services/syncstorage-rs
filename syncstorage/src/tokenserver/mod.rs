@@ -34,9 +34,8 @@ pub struct ServerState {
     pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
-    pub service_id: Option<i32>,
     pub metrics: Box<StatsdClient>,
-    pub spanner_node_id: Option<i32>,
+    pub token_duration: u64,
 }
 
 impl ServerState {
@@ -52,8 +51,11 @@ impl ServerState {
         let use_test_transactions = false;
 
         TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
-            .map(|db_pool| {
-                let service_id = db_pool
+            .map(|mut db_pool| {
+                // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
+                // unlikely for this query to fail outside of network failures or other random
+                // errors
+                db_pool.service_id = db_pool
                     .get_sync()
                     .and_then(|db| {
                         db.get_service_id_sync(params::GetServiceId {
@@ -72,8 +74,7 @@ impl ServerState {
                     node_capacity_release_rate: settings.node_capacity_release_rate,
                     node_type: settings.node_type,
                     metrics: Box::new(metrics),
-                    service_id,
-                    spanner_node_id: settings.spanner_node_id,
+                    token_duration: settings.token_duration,
                 }
             })
             .map_err(Into::into)

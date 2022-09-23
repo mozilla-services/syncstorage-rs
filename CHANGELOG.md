@@ -1,3 +1,68 @@
+<a name="0.12.2"></a>
+## 0.12.2 (2022-09-19)
+
+
+#### Bug Fixes
+
+*   fix Tokenserver generation and keys_changed_at handling (#1397) ([914e375b](https://github.com/mozilla-services/syncstorage-rs/commit/914e375b2bfa970fde01530d82e73b1af9ed3fd4))
+*   don't convert all oauth token verification errors to resource_unavailable (#1389) ([ebdd609e](https://github.com/mozilla-services/syncstorage-rs/commit/ebdd609ed2ab217ed423c5b0ed9341bfbf5f73e1))
+
+
+
+<a name="0.12.1"></a>
+## 0.12.1 (2022-08-25)
+
+
+#### Performance
+
+*   remove unnecessary database calls for Tokenserver (#1360) ([5ed9a10c](https://github.com/mozilla-services/syncstorage-rs/commit/5ed9a10c2e854889a12de4f92deff106ec49d7d4))
+
+#### Bug Fixes
+
+*   fix Tokenserver Spanner node query (#1383) ([edef90ca](https://github.com/mozilla-services/syncstorage-rs/commit/edef90ca4795a6bbdd1b1dcaae684671097cc335))
+*   fix Tokenserver node assignment query (#1382) ([9e977c71](https://github.com/mozilla-services/syncstorage-rs/commit/9e977c710ede17b3a8922b1c4a877a9dc8e93fdf))
+*   fix JWT library for Tokenserver load tests (#1373) ([ebf425fe](https://github.com/mozilla-services/syncstorage-rs/commit/ebf425fe268e714c03b2e64347d71d05cc938a8b), closes [#1372](https://github.com/mozilla-services/syncstorage-rs/issues/1372))
+*   rework Tokenserver load tests for local OAuth verification (#1357) ([8c59bb4f](https://github.com/mozilla-services/syncstorage-rs/commit/8c59bb4f80643d69a07c8656777a84ed9343e8e1))
+
+#### Features
+
+*   improve Tokenserver errors and metrics (#1385) ([90f10173](https://github.com/mozilla-services/syncstorage-rs/commit/90f101734187e159eff686dff8f89992d12b5315))
+*   add `__error__` endpoint to Tokenserver (#1375) ([75231c8f](https://github.com/mozilla-services/syncstorage-rs/commit/75231c8feb996c7aa8746aeb88c9c3d428245e25), closes [#1364](https://github.com/mozilla-services/syncstorage-rs/issues/1364))
+*   use Actix to spawn blocking threads (#1370) ([1b1261f2](https://github.com/mozilla-services/syncstorage-rs/commit/1b1261f23eb734b52c29862c32b3441ad70e2d5f))
+*   tag Tokenserver's `token_verification` metric with the token type (#1359) ([dc00a8ea](https://github.com/mozilla-services/syncstorage-rs/commit/dc00a8ea20b3328c452880cea451789e7ab1f027), closes [#1358](https://github.com/mozilla-services/syncstorage-rs/issues/1358))
+
+
+
+<a name="0.12.0"></a>
+## 0.12.0 (2022-06-23)
+
+
+#### Chore
+
+*   add process_account_events.py to Docker image (#1325) ([75e5f273](https://github.com/mozilla-services/syncstorage-rs/commit/75e5f273abbf938730dc09af89500f1b4986fe04))
+*   pin Rust 1.60.0 (#1326) ([fdc97bce](https://github.com/mozilla-services/syncstorage-rs/commit/fdc97bce4636007df3200859c4d467b29539ffd8))
+
+#### Bug Fixes
+
+*   fix Spanner node query (#1332) ([3e81ef14](https://github.com/mozilla-services/syncstorage-rs/commit/3e81ef14566a91ea4f89a1699090367f9450cabd), closes [#1331](https://github.com/mozilla-services/syncstorage-rs/issues/1331))
+*   convert `DbError`s to `TokenserverError`s (#1327) ([9bea3280](https://github.com/mozilla-services/syncstorage-rs/commit/9bea32803cfd8f98dd7715d493cdf45ff0d54cf8), closes [#1316](https://github.com/mozilla-services/syncstorage-rs/issues/1316))
+*   Set default CORS values, including all origins (#1308) ([221705b7](https://github.com/mozilla-services/syncstorage-rs/commit/221705b7ea74c6dddffd1c5289c53b3ad2cc7522))
+*   write to the new version.json location (#1344) ([2821b80e](https://github.com/mozilla-services/syncstorage-rs/commit/2821b80e1bbbf3aecae74062f904739cfb6d23b2), closes [#1343](https://github.com/mozilla-services/syncstorage-rs/issues/1343))
+
+#### Features
+
+*   fail the health check after SYNC_LBHEARTBEAT_TTL elapses (#1337) ([a72912b8](https://github.com/mozilla-services/syncstorage-rs/commit/a72912b8757ddafd9207fec2b28d1a44975970e4), closes [#1330](https://github.com/mozilla-services/syncstorage-rs/issues/1330))
+*   support multiple FxA JWKs to ease key rotation (#1339) ([eba35662](https://github.com/mozilla-services/syncstorage-rs/commit/eba3566225855119572fa840d98cb932cd603799))
+*   support setting JWK for Tokenserver OAuth verification (#1307) ([d62db9f0](https://github.com/mozilla-services/syncstorage-rs/commit/d62db9f08e3e081b0b6584904d31f92ce6db273c))
+
+#### Refactor
+
+*   convert actix web middleware to async await (#1338) ([f76b5fc6](https://github.com/mozilla-services/syncstorage-rs/commit/f76b5fc675ebbec994618513d989c200c72ac666))
+*   replaced dbg! with trace macro (#1314) ([03c059cd](https://github.com/mozilla-services/syncstorage-rs/commit/03c059cd9ed67f4bdbc6db9a09929cfa5551ea22))
+*   add common crates (#1281) ([a52900f6](https://github.com/mozilla-services/syncstorage-rs/commit/a52900f6a944300371221f5beaa1f02151ce6a10), closes [#1275](https://github.com/mozilla-services/syncstorage-rs/issues/1275))
+
+
+
 <a name="0.11.1"></a>
 ## 0.11.1 (2022-05-05)
 
