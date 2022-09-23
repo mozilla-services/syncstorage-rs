@@ -1,3 +1,13 @@
+<a name="0.12.3"></a>
+## 0.12.3 (2022-09-23)
+
+
+#### Features
+
+*   Add `X-Content-Type-Options: nosniff` to Tokenserver responses (#1403) ([613f71ed](https://github.com/mozilla-services/syncstorage-rs/commit/613f71ed99aa875a234cbe92e1d93b6ba3413e73))
+
+
+
 <a name="0.12.2"></a>
 ## 0.12.2 (2022-09-19)
 
