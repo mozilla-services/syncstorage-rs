@@ -819,7 +819,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f91cf5a8c2f2097e2a32627123508635d47ce10563d999ec1a95addf08b502ba"
 dependencies = [
  "serde 1.0.135",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2660,7 +2660,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "url 2.2.2",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -3063,7 +3063,7 @@ dependencies = [
  "tokio",
  "url 2.2.2",
  "urlencoding",
- "uuid",
+ "uuid 1.1.2",
  "validator",
  "validator_derive",
  "woothee",
@@ -3537,6 +3537,16 @@ name = "uuid"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.4",
+ "serde 1.0.135",
+]
+
+[[package]]
+name = "uuid"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
 dependencies = [
  "getrandom 0.2.4",
  "serde 1.0.135",
