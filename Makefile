@@ -10,9 +10,13 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
-clippy:
+clippy_mysql:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cargo clippy --workspace --all-targets -- -D warnings
+
+clippy_spanner:
+	# Matches what's run in circleci
+	cargo clippy --workspace --all-targets --no-default-features --features=spanner -- -D warnings
 
 clean:
 	cargo clean
@@ -40,11 +44,25 @@ python:
 	python3 -m venv venv
 	venv/bin/python -m pip install -r requirements.txt
 
-run: python
-	PATH="./venv/bin:$(PATH)" RUST_LOG=debug RUST_BACKTRACE=full cargo run -- --config config/local.toml
+run_mysql: python
+	PATH="./venv/bin:$(PATH)" \
+		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
+		# below env var
+		PYTHONPATH=/Users/edonowitz/Dev/syncstorage-rs/venv/lib/python3.9/site-packages \
+		RUST_LOG=debug \
+		RUST_BACKTRACE=full \
+		cargo run -- --config config/local.toml
 
-run_spanner:
-	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) make run
+run_spanner: python
+	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
+		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
+		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
+		# below env var
+		PYTHONPATH=/Users/edonowitz/Dev/syncstorage-rs/venv/lib/python3.9/site-packages \
+	    PATH="./venv/bin:$(PATH)" \
+		RUST_LOG=debug \
+		RUST_BACKTRACE=full \
+		cargo run --no-default-features --features=spanner -- --config config/local.toml
 
 test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \

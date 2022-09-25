@@ -241,6 +241,7 @@ macro_rules! build_app_without_syncstorage {
 
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
+        println!("{}", settings.syncstorage.database_url);
         let settings_copy = settings.clone();
         let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
