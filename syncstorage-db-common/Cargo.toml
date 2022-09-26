@@ -1,25 +1,19 @@
 [package]
-name = "syncstorage-mysql"
+name = "syncstorage-db-common"
 version = "0.12.3"
 edition = "2021"
 
 [dependencies]
 async-trait = "0.1.40"
 backtrace = "0.3.61"
-base64 = "0.13"
+chrono = "0.4"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 futures = { version = "0.3", features = ["compat"] }
-http = "0.2.5"
-slog-scope = "4.3"
+http = "0.2.6"
+lazy_static = "1.4.0"
+serde = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
-syncstorage-db-common = { path = "../syncstorage-db-common" }
-syncstorage-settings = { path = "../syncstorage-settings" }
 thiserror = "1.0.26"
-url = "2.1"
-
-[dev-dependencies]
-syncserver-settings = { path = "../syncserver-settings" }
-diesel_logger = "0.1.1"
-env_logger = "0.9"

@@ -7,11 +7,9 @@ pub mod transaction;
 
 use std::time::Duration;
 
-use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
-use syncserver_db_common::{
-    results, Db as DbTrait, DbPool as DbPoolTrait, GetPoolState, PoolState,
-};
+use syncserver_db_common::{GetPoolState, PoolState};
+use syncstorage_db_common::{results, Db as DbTrait, DbPool as DbPoolTrait};
 #[cfg(feature = "mysql")]
 use syncstorage_mysql::pool::MysqlDbPool;
 #[cfg(feature = "spanner")]
@@ -67,15 +65,4 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
     });
 
     Ok(())
-}
-
-pub async fn run_on_blocking_threadpool<F, T>(f: F) -> Result<T, DbError>
-where
-    F: FnOnce() -> Result<T, DbError> + Send + 'static,
-    T: Send + 'static,
-{
-    web::block(f).await.map_err(|e| match e {
-        BlockingError::Error(e) => e,
-        BlockingError::Canceled => DbError::internal("Db threadpool operation canceled".to_owned()),
-    })
 }

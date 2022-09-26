@@ -3,10 +3,10 @@ use std::collections::HashMap;
 
 use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
-use syncserver_db_common::{
+use syncserver_settings::Settings;
+use syncstorage_db_common::{
     error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
 };
-use syncserver_settings::Settings;
 
 use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db, Result};
 

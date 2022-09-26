@@ -16,12 +16,13 @@ use diesel::{
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
-use syncserver_db_common::{
+use syncstorage_db_common::{
     error::DbErrorIntrospect,
-    params, results, sync_db_method,
-    util::{self, SyncTimestamp},
-    Db, DbFuture, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
+    params, results,
+    util::SyncTimestamp,
+    Db, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
 };
+use syncserver_db_common::{sync_db_method, util, DbFuture};
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
@@ -71,8 +72,8 @@ struct MysqlDbSession {
 
 #[derive(Clone, Debug)]
 pub struct MysqlDb {
-    /// Synchronous Diesel calls are executed in tokio::task::spawn_blocking to satisfy
-    /// the Db trait's asynchronous interface.
+    /// Synchronous Diesel calls are executed in web::block to satisfy the Db trait's asynchronous
+    /// interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
     /// the thread pool but does not provide Send as the underlying db

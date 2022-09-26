@@ -14,7 +14,7 @@ use protobuf::{
     well_known_types::{ListValue, NullValue, Struct, Value},
     RepeatedField,
 };
-use syncserver_db_common::{
+use syncstorage_db_common::{
     params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
 };
 

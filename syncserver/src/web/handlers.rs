@@ -6,7 +6,7 @@ use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpReque
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
-use syncserver_db_common::{
+use syncstorage_db_common::{
     error::DbErrorIntrospect,
     params,
     results::{CreateBatch, Paginated},

@@ -3,7 +3,7 @@ use std::fmt;
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
-use syncserver_db_common::error::{CommonDbError, DbErrorIntrospect};
+use syncstorage_db_common::error::{CommonDbError, DbErrorIntrospect};
 use thiserror::Error;
 
 #[derive(Debug)]

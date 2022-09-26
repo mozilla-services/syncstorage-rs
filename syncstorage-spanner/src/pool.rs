@@ -2,7 +2,8 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use syncserver_common::Metrics;
-use syncserver_db_common::{Db, DbPool, STD_COLLS};
+use syncserver_db_common::{GetPoolState, PoolState};
+use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
@@ -92,6 +93,12 @@ impl<'a> DbPool for SpannerDbPool {
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
         Box::new(self.clone())
+    }
+}
+
+impl<'a> GetPoolState for SpannerDbPool {
+    fn state(&self) -> PoolState {
+        self.pool.status().into()
     }
 }
 

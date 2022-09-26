@@ -1,8 +1,8 @@
 use log::debug;
-use syncserver_db_common::{
+use syncserver_settings::Settings;
+use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, BATCH_LIFETIME,
 };
-use syncserver_settings::Settings;
 
 use super::support::{db_pool, gbso, hid, pbso, postbso, test_db, Result};
 

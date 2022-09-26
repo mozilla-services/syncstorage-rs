@@ -2,7 +2,8 @@
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
 use futures::future;
-use syncserver_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
+use syncserver_db_common::{GetPoolState, PoolState};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
 
 use crate::db::{BoxDb, BoxDbPool, DbError};
 
@@ -31,6 +32,12 @@ impl<'a> DbPool for MockDbPool {
 
     fn box_clone(&self) -> BoxDbPool {
         Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for MockDbPool {
+    fn state(&self) -> PoolState {
+        PoolState::default()
     }
 }
 

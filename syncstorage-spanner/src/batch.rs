@@ -8,7 +8,7 @@ use protobuf::{
     well_known_types::{ListValue, Value},
     RepeatedField,
 };
-use syncserver_db_common::{
+use syncstorage_db_common::{
     params, results, util::to_rfc3339, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 use uuid::Uuid;

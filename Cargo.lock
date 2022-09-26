@@ -3033,6 +3033,7 @@ dependencies = [
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
+ "syncstorage-db-common",
  "syncstorage-mysql",
  "syncstorage-settings",
  "syncstorage-spanner",
@@ -3066,20 +3067,15 @@ dependencies = [
 name = "syncserver-db-common"
 version = "0.12.5"
 dependencies = [
- "async-trait",
+ "actix-web",
  "backtrace",
- "chrono",
  "deadpool",
  "diesel",
  "diesel_migrations",
  "futures 0.3.19",
  "http",
- "lazy_static",
- "serde 1.0.135",
- "serde_json",
  "syncserver-common",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
@@ -3094,6 +3090,25 @@ dependencies = [
  "syncstorage-settings",
  "tokenserver-settings",
  "url 2.2.2",
+]
+
+[[package]]
+name = "syncstorage-db-common"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "futures 0.3.19",
+ "http",
+ "lazy_static",
+ "serde 1.0.135",
+ "serde_json",
+ "syncserver-common",
+ "syncserver-db-common",
+ "thiserror",
 ]
 
 [[package]]
@@ -3113,6 +3128,7 @@ dependencies = [
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
+ "syncstorage-db-common",
  "syncstorage-settings",
  "thiserror",
  "url 2.2.2",
@@ -3146,6 +3162,7 @@ dependencies = [
  "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
+ "syncstorage-db-common",
  "syncstorage-settings",
  "thiserror",
  "tokio",
@@ -3333,7 +3350,6 @@ dependencies = [
  "serde 1.0.135",
  "serde_json",
  "syncserver-common",
- "syncserver-db-common",
  "thiserror",
 ]
 

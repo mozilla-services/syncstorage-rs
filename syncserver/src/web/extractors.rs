@@ -28,7 +28,7 @@ use serde::{
 };
 use serde_json::Value;
 use syncserver_common::{Metrics, X_WEAVE_RECORDS};
-use syncserver_db_common::{
+use syncstorage_db_common::{
     params::{self, PostCollectionBso},
     util::SyncTimestamp,
     Sorting, UserIdentifier,

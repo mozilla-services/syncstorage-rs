@@ -26,8 +26,9 @@ log = { version = "0.4", features = [
 # must match what's used by googleapis-raw
 protobuf = "2.20.0"
 slog-scope = "4.3"
-syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 thiserror = "1.0.26"
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)

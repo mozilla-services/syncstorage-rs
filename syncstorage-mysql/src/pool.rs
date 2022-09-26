@@ -17,7 +17,8 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 #[cfg(test)]
 use syncserver_db_common::test::TestTransactionCustomizer;
-use syncserver_db_common::{util, Db, DbPool, STD_COLLS};
+use syncserver_db_common::{util, GetPoolState, PoolState};
+use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
 use super::{error::DbError, models::MysqlDb, DbResult};
@@ -123,6 +124,12 @@ impl fmt::Debug for MysqlDbPool {
         fmt.debug_struct("MysqlDbPool")
             .field("coll_cache", &self.coll_cache)
             .finish()
+    }
+}
+
+impl<'a> GetPoolState for MysqlDbPool {
+    fn state(&self) -> PoolState {
+        self.pool.state().into()
     }
 }
 

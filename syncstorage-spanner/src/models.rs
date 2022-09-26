@@ -23,8 +23,9 @@ use protobuf::{
     Message, RepeatedField,
 };
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
-use syncserver_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, DbFuture, Sorting,
+use syncserver_db_common::DbFuture;
+use syncstorage_db_common::{
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
     UserIdentifier, DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
@@ -1672,7 +1673,7 @@ impl SpannerDb {
     // NOTE: Currently this put_bso_async_test impl. is only used during db tests,
     // see above for the non-tests version
     pub async fn put_bso_async_test(&self, bso: params::PutBso) -> DbResult<results::PutBso> {
-        use syncserver_db_common::util::to_rfc3339;
+        use syncstorage_db_common::util::to_rfc3339;
         let collection_id = self
             .get_or_create_collection_id_async(&bso.collection)
             .await?;
