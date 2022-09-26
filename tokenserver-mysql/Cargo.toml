@@ -1,6 +1,6 @@
 [package]
 name = "tokenserver-mysql"
-version = "0.10.2"
+version = "0.12.3"
 edition = "2021"
 
 [dependencies]
