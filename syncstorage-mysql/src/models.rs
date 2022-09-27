@@ -13,16 +13,16 @@ use diesel::{
     sql_types::{BigInt, Integer, Nullable, Text},
     Connection, ExpressionMethods, GroupByDsl, OptionalExtension, QueryDsl, RunQueryDsl,
 };
-#[cfg(test)]
+#[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
+use syncserver_db_common::{sync_db_method, DbFuture};
 use syncstorage_db_common::{
     error::DbErrorIntrospect,
     params, results,
     util::SyncTimestamp,
-    Db, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
+    DbTrait, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
 };
-use syncserver_db_common::{sync_db_method, util, DbFuture};
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
@@ -37,21 +37,21 @@ use super::{
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 // this is the max number of records we will return.
-pub static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
+static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
 
-pub const TOMBSTONE: i32 = 0;
+const TOMBSTONE: i32 = 0;
 /// SQL Variable remapping
 /// These names are the legacy values mapped to the new names.
-pub const COLLECTION_ID: &str = "collection";
-pub const USER_ID: &str = "userid";
-pub const MODIFIED: &str = "modified";
-pub const EXPIRY: &str = "ttl";
-pub const LAST_MODIFIED: &str = "last_modified";
-pub const COUNT: &str = "count";
-pub const TOTAL_BYTES: &str = "total_bytes";
+const COLLECTION_ID: &str = "collection";
+const USER_ID: &str = "userid";
+const MODIFIED: &str = "modified";
+const EXPIRY: &str = "ttl";
+const LAST_MODIFIED: &str = "last_modified";
+const COUNT: &str = "count";
+const TOTAL_BYTES: &str = "total_bytes";
 
 #[derive(Debug)]
-pub enum CollectionLock {
+enum CollectionLock {
     Read,
     Write,
 }
@@ -94,9 +94,9 @@ pub struct MysqlDb {
 unsafe impl Send for MysqlDb {}
 
 pub struct MysqlDbInner {
-    #[cfg(not(test))]
+    #[cfg(not(debug_assertions))]
     pub(super) conn: Conn,
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
 
     session: RefCell<MysqlDbSession>,
@@ -117,16 +117,16 @@ impl Deref for MysqlDb {
 }
 
 impl MysqlDb {
-    pub fn new(
+    pub(super) fn new(
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
         quota: &Quota,
     ) -> Self {
         let inner = MysqlDbInner {
-            #[cfg(not(test))]
+            #[cfg(not(debug_assertions))]
             conn,
-            #[cfg(test)]
+            #[cfg(debug_assertions)]
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
         };
@@ -984,12 +984,12 @@ impl MysqlDb {
     }
 }
 
-impl Db for MysqlDb {
+impl DbTrait for MysqlDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.commit_sync(),
             Self::Error::internal,
         ))
@@ -997,7 +997,7 @@ impl Db for MysqlDb {
 
     fn rollback(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.rollback_sync(),
             Self::Error::internal,
         ))
@@ -1010,7 +1010,7 @@ impl Db for MysqlDb {
 
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.check_sync(),
             Self::Error::internal,
         ))
@@ -1073,7 +1073,7 @@ impl Db for MysqlDb {
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.get_collection_id(&name),
             Self::Error::internal,
         ))
@@ -1085,7 +1085,7 @@ impl Db for MysqlDb {
 
     fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.get_or_create_collection_id(&name),
             Self::Error::internal,
         ))
@@ -1096,7 +1096,7 @@ impl Db for MysqlDb {
         param: params::UpdateCollection,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.update_collection(param.user_id.legacy_id as u32, param.collection_id),
             Self::Error::internal,
         ))
@@ -1114,7 +1114,7 @@ impl Db for MysqlDb {
 
     fn clear_coll_cache(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || {
                 db.coll_cache.clear();
                 Ok(())
@@ -1131,7 +1131,7 @@ impl Db for MysqlDb {
         }
     }
 
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn DbTrait<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

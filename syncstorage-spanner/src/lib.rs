@@ -7,17 +7,19 @@ extern crate slog_scope;
 mod macros;
 
 mod batch;
-pub mod error;
-pub mod manager;
-pub mod models;
-pub mod pool;
+mod error;
+mod manager;
+mod models;
+mod pool;
 mod support;
 
-pub use self::pool::SpannerDbPool;
+pub use error::DbError;
+pub use models::SpannerDb;
+pub use pool::SpannerDbPool;
 
-pub type DbResult<T> = Result<T, error::DbError>;
+type DbResult<T> = Result<T, error::DbError>;
 
-pub fn now() -> i64 {
+fn now() -> i64 {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()

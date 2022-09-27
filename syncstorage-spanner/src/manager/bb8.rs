@@ -19,7 +19,7 @@ use super::session::{create_spanner_session, recycle_spanner_session, SpannerSes
 #[allow(dead_code)]
 pub type Conn<'a> = PooledConnection<'a, SpannerSessionManager<SpannerSession>>;
 
-pub struct SpannerSessionManager {
+pub(super) struct SpannerSessionManager {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,

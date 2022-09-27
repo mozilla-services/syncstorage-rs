@@ -8,7 +8,6 @@ use diesel::{
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use syncserver_db_common::{sync_db_method, util};
 
 use std::{
     sync::Arc,
@@ -35,7 +34,7 @@ pub struct TokenserverDb {
     /// the thread pool but does not provide Send as the underlying db
     /// conn. structs are !Sync (Arc requires both for Send). See the Send impl
     /// below.
-    pub(super) inner: Arc<DbInner>,
+    inner: Arc<DbInner>,
     metrics: Metrics,
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
@@ -46,7 +45,7 @@ pub struct TokenserverDb {
 /// queued to the thread pool via Futures, naturally serialized.
 unsafe impl Send for TokenserverDb {}
 
-pub struct DbInner {
+struct DbInner {
     #[cfg(not(test))]
     pub(super) conn: Conn,
     #[cfg(test)]
@@ -668,7 +667,7 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
             let db = self.clone();
-            Box::pin(util::run_on_blocking_threadpool(
+            Box::pin(syncserver_db_common::run_on_blocking_threadpool(
                 move || db.$sync_name(params),
                 DbError::internal,
             ))
@@ -676,7 +675,7 @@ macro_rules! sync_db_method {
     };
 }
 
-impl Db for TokenserverDb {
+impl DbTrait for TokenserverDb {
     sync_db_method!(replace_user, replace_user_sync, ReplaceUser);
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
     sync_db_method!(post_user, post_user_sync, PostUser);
@@ -694,7 +693,7 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(util::run_on_blocking_threadpool(
+        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
             move || db.check_sync(),
             DbError::internal,
         ))
@@ -730,7 +729,7 @@ impl Db for TokenserverDb {
     sync_db_method!(post_service, post_service_sync, PostService);
 }
 
-pub trait Db {
+pub trait DbTrait {
     fn replace_user(&self, params: params::ReplaceUser) -> DbFuture<'_, results::ReplaceUser>;
 
     fn replace_users(&self, params: params::ReplaceUsers) -> DbFuture<'_, results::ReplaceUsers>;
@@ -799,7 +798,7 @@ mod tests {
 
     use syncserver_settings::Settings;
 
-    use crate::pool::{DbPool, TokenserverPool};
+    use crate::pool::{DbPoolTrait, TokenserverPool};
 
     #[tokio::test]
     async fn test_update_generation() -> DbResult<()> {

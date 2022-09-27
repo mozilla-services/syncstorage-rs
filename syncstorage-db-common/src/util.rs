@@ -12,7 +12,7 @@ use diesel::{
 };
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::error::CommonDbError;
+use super::error::SyncstorageDbError;
 
 /// Get the time since the UNIX epoch in milliseconds
 fn ms_since_epoch() -> i64 {
@@ -53,9 +53,9 @@ impl SyncTimestamp {
     }
 
     /// Create a `SyncTimestamp` from an i64
-    pub fn from_i64(val: i64) -> Result<Self, CommonDbError> {
+    pub fn from_i64(val: i64) -> Result<Self, SyncstorageDbError> {
         if val < 0 {
-            return Err(CommonDbError::internal(
+            return Err(SyncstorageDbError::internal(
                 "Invalid modified i64 (< 0)".to_owned(),
             ));
         }
@@ -63,7 +63,7 @@ impl SyncTimestamp {
     }
 
     /// Exposed separately for db tests
-    pub fn _from_i64(val: i64) -> Result<Self, CommonDbError> {
+    pub fn _from_i64(val: i64) -> Result<Self, SyncstorageDbError> {
         SyncTimestamp::from_i64(val)
     }
 
@@ -80,17 +80,19 @@ impl SyncTimestamp {
 
     /// Create a `SyncTimestamp` from an RFC 3339 and ISO 8601 date and time
     /// string such as 1996-12-19T16:39:57-08:00
-    pub fn from_rfc3339(val: &str) -> Result<Self, CommonDbError> {
+    pub fn from_rfc3339(val: &str) -> Result<Self, SyncstorageDbError> {
         let dt = DateTime::parse_from_rfc3339(val)
-            .map_err(|e| CommonDbError::internal(format!("Invalid TIMESTAMP {}", e)))?;
+            .map_err(|e| SyncstorageDbError::internal(format!("Invalid TIMESTAMP {}", e)))?;
         Self::from_datetime(dt)
     }
 
     /// Create a `SyncTimestamp` from a chrono DateTime
-    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, CommonDbError> {
+    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, SyncstorageDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
-            return Err(CommonDbError::internal("Invalid DateTime (< 0)".to_owned()));
+            return Err(SyncstorageDbError::internal(
+                "Invalid DateTime (< 0)".to_owned(),
+            ));
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
     }
@@ -107,7 +109,7 @@ impl SyncTimestamp {
 
     /// Return the timestamp as an RFC 3339 and ISO 8601 date and time string such as
     /// 1996-12-19T16:39:57-08:00
-    pub fn as_rfc3339(self) -> Result<String, CommonDbError> {
+    pub fn as_rfc3339(self) -> Result<String, SyncstorageDbError> {
         to_rfc3339(self.as_i64())
     }
 }
@@ -169,28 +171,12 @@ where
 
 /// Render a timestamp (as an i64 milliseconds since epoch) as an RFC 3339 and ISO 8601
 /// date and time string such as 1996-12-19T16:39:57-08:00
-pub fn to_rfc3339(val: i64) -> Result<String, CommonDbError> {
+pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
     let secs = val / 1000;
     let nsecs = ((val % 1000) * 1_000_000).try_into().map_err(|e| {
-        CommonDbError::internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
+        SyncstorageDbError::internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
     })?;
     Ok(Utc
         .timestamp(secs, nsecs)
         .to_rfc3339_opts(SecondsFormat::Nanos, true))
-}
-
-#[macro_export]
-macro_rules! sync_db_method {
-    ($name:ident, $sync_name:ident, $type:ident) => {
-        sync_db_method!($name, $sync_name, $type, results::$type);
-    };
-    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<'_, $result, Self::Error> {
-            let db = self.clone();
-            Box::pin(util::run_on_blocking_threadpool(
-                move || db.$sync_name(params),
-                Self::Error::internal,
-            ))
-        }
-    };
 }

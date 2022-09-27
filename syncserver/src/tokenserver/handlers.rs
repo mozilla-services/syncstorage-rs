@@ -6,10 +6,10 @@ use std::{
 use actix_web::{http::StatusCode, Error, HttpResponse};
 use serde::Serialize;
 use serde_json::Value;
-use tokenserver_common::{error::TokenserverError, NodeType};
-use tokenserver_mysql::{
-    models::Db,
+use tokenserver_common::{NodeType, TokenserverError};
+use tokenserver_db::{
     params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
+    DbTrait,
 };
 
 use super::{
@@ -121,7 +121,7 @@ struct UserUpdates {
 
 async fn update_user(
     req: &TokenserverRequest,
-    db: Box<dyn Db>,
+    db: Box<dyn DbTrait>,
 ) -> Result<UserUpdates, TokenserverError> {
     let keys_changed_at = match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
         // If the keys_changed_at in the request is larger than that stored on the user record,

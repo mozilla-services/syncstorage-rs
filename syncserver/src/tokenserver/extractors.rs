@@ -21,11 +21,8 @@ use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_settings::Secrets;
-use tokenserver_common::{
-    error::{ErrorLocation, TokenserverError},
-    NodeType,
-};
-use tokenserver_mysql::{models::Db, params, pool::DbPool, results};
+use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
+use tokenserver_db::{params, results, DbPoolTrait, DbTrait};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
 use crate::server::{tags::Taggable, MetricsWrapper};
@@ -309,7 +306,8 @@ struct QueryParams {
     pub duration: Option<String>,
 }
 
-pub struct DbWrapper(pub Box<dyn Db>);
+/// A local "newtype" that wraps `Box<dyn DbTrait>` so we can implement `FromRequest`.
+pub struct DbWrapper(pub Box<dyn DbTrait>);
 
 impl FromRequest for DbWrapper {
     type Config = ();
@@ -334,7 +332,7 @@ impl FromRequest for DbWrapper {
     }
 }
 
-struct DbPoolWrapper(Box<dyn DbPool>);
+struct DbPoolWrapper(Box<dyn DbPoolTrait>);
 
 impl FromRequest for DbPoolWrapper {
     type Config = ();
@@ -710,7 +708,7 @@ mod tests {
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
-    use tokenserver_mysql::mock::MockDbPool as MockTokenserverPool;
+    use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
     use crate::tokenserver::{

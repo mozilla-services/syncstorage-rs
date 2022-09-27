@@ -3,11 +3,11 @@ use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{Db, DbPool, STD_COLLS};
+use syncstorage_db_common::{DbPoolTrait, DbTrait, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
-pub use super::manager::Conn;
+pub(super) use super::manager::Conn;
 use super::{
     error::DbError,
     manager::{SpannerSession, SpannerSessionManager},
@@ -74,16 +74,16 @@ impl SpannerDbPool {
 }
 
 #[async_trait]
-impl<'a> DbPool for SpannerDbPool {
+impl<'a> DbPoolTrait for SpannerDbPool {
     type Error = DbError;
 
-    async fn get(&self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
+    async fn get(&self) -> DbResult<Box<dyn DbTrait<Error = Self::Error>>> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.get_pool", None);
 
         self.get_async()
             .await
-            .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
+            .map(|db| Box::new(db) as Box<dyn DbTrait<Error = Self::Error>>)
             .map_err(Into::into)
     }
 
@@ -91,7 +91,7 @@ impl<'a> DbPool for SpannerDbPool {
         super::batch::validate_batch_id(&id).map_err(Into::into)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn DbPoolTrait<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }
@@ -111,7 +111,7 @@ impl fmt::Debug for SpannerDbPool {
 }
 
 #[derive(Debug)]
-pub struct CollectionCache {
+pub(super) struct CollectionCache {
     pub by_name: RwLock<HashMap<String, i32>>,
     pub by_id: RwLock<HashMap<i32, String>>,
 }

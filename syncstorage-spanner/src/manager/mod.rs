@@ -2,5 +2,5 @@
 mod deadpool;
 mod session;
 
-pub use self::deadpool::{Conn, SpannerSessionManager};
-pub use self::session::SpannerSession;
+pub(super) use self::deadpool::{Conn, SpannerSessionManager};
+pub(super) use self::session::SpannerSession;

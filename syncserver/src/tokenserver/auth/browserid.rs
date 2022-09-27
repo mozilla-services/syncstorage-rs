@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use reqwest::{Client as ReqwestClient, StatusCode};
 use serde::{de::Deserializer, Deserialize, Serialize};
-use tokenserver_common::error::{ErrorLocation, TokenType, TokenserverError};
+use tokenserver_common::{ErrorLocation, TokenType, TokenserverError};
 use tokenserver_settings::Settings;
 
 use super::VerifyToken;

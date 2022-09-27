@@ -43,12 +43,18 @@ commands:
             flake8 syncserver/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
-  rust-clippy:
+  rust-clippy-mysql:
     steps:
       - run:
-          name: Rust Clippy
+          name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --all-features -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
+  rust-clippy-spanner:
+    steps:
+      - run:
+          name: Rust Clippy Spanner
+          command: |
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
   cargo-build:
     steps:
       - run:
@@ -105,7 +111,7 @@ commands:
                -f docker-compose.mysql.yaml
                -f docker-compose.e2e.mysql.yaml
                up
-               --exit-code-from e2e-tests
+               --exit-code-from mysql-e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -129,7 +135,7 @@ commands:
                -f docker-compose.spanner.yaml
                -f docker-compose.e2e.spanner.yaml
                up
-               --exit-code-from e2e-tests
+               --exit-code-from spanner-e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -170,7 +176,8 @@ jobs:
       - setup-rust-check
       - setup-gcp-grpc
       - rust-check
-      - rust-clippy
+      - rust-clippy-spanner
+      - rust-clippy-mysql
       - setup-python
       - python-check
 
@@ -196,16 +203,6 @@ jobs:
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
     steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - run:
-          name: Login to Dockerhub
-          command: |
-            if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
-              echo "Skipping Login to DockerHub, credentials unavailable"
-            else
-              echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
-            fi
       - checkout
       - display-rust
       - setup-python
@@ -220,9 +217,19 @@ jobs:
       - run-tests
       - run-tokenserver-scripts-tests
       #- save-sccache-cache
+  build-mysql-image:
+    docker:
+      - image: cimg/rust:1.60.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
       - run:
-          name: Build Docker image
-          command: docker build -t app:build .
+          name: Build MySQL Docker image
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
@@ -233,13 +240,42 @@ jobs:
             docker save -o /home/circleci/cache/docker.tar "app:build"
       - run:
           name: Save docker-compose config
-          command: cp docker-compose*.yaml /home/circleci/cache
+          command: cp docker-compose*mysql.yaml /home/circleci/cache
       - save_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
 
-  e2e-tests:
+  build-spanner-image:
+    docker:
+      - image: cimg/rust:1.60.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - run:
+          name: Build Spanner Docker image
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*spanner.yaml /home/circleci/cache
+      - save_cache:
+          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
+  mysql-e2e-tests:
     docker:
       - image: docker/compose:1.24.0
         auth:
@@ -248,7 +284,7 @@ jobs:
     steps:
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -256,6 +292,23 @@ jobs:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-mysql-tests
+
+  spanner-e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - restore_cache:
+          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-spanner-tests
 
   deploy:
@@ -265,9 +318,17 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
     steps:
+      - run:
+          name: Login to Dockerhub
+          command: |
+            if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
+              echo "Skipping Login to DockerHub, credentials unavailable"
+            else
+              echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
+            fi
       - setup_remote_docker
       - restore_cache:
-          key: v1-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -337,29 +398,49 @@ workflows:
   version: 2
   build-deploy:
     jobs:
-      - checks:
+      # - checks:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      # - build-and-test:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      - build-mysql-image:
+          # requires:
+          #   - build-and-test
           filters:
             tags:
               only: /.*/
-      - build-and-test:
+      - build-spanner-image:
+          # requires:
+          #   - build-and-test
           filters:
             tags:
               only: /.*/
-      - e2e-tests:
+      - mysql-e2e-tests:
           requires:
-            - build-and-test
+            - build-mysql-image
+          filters:
+            tags:
+              only: /.*/
+      - spanner-e2e-tests:
+          requires:
+            - build-spanner-image
           filters:
             tags:
               only: /.*/
       - deploy:
           requires:
-            - e2e-tests
+            - mysql-e2e-tests
+            - spanner-e2e-tests
           filters:
             tags:
               only: /.*/
       - deploy-python-utils:
           requires:
-            - e2e-tests
+            - mysql-e2e-tests
+            - spanner-e2e-tests
           filters:
             tags:
               only: /.*/

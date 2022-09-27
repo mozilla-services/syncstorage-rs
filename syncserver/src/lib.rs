@@ -8,14 +8,7 @@ extern crate validator_derive;
 
 #[macro_use]
 pub mod error;
-pub mod db;
 pub mod logging;
 pub mod server;
 pub mod tokenserver;
 pub mod web;
-
-#[cfg(all(feature = "mysql", feature = "spanner"))]
-compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
-
-#[cfg(not(any(feature = "mysql", feature = "spanner")))]
-compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");

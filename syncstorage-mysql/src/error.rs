@@ -4,9 +4,12 @@ use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
 use syncserver_db_common::error::MysqlError;
-use syncstorage_db_common::error::{CommonDbError, DbErrorIntrospect};
+use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
+/// An error type that represents any MySQL-related errors that may occur while processing a
+/// syncstorage request. These errors may be application-specific or lower-level errors that arise
+/// from the database backend.
 #[derive(Debug)]
 pub struct DbError {
     kind: DbErrorKind,
@@ -16,34 +19,34 @@ pub struct DbError {
 
 impl DbError {
     pub fn batch_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::batch_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::batch_not_found()).into()
     }
 
     pub fn bso_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::bso_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::bso_not_found()).into()
     }
 
     pub fn collection_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::collection_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::collection_not_found()).into()
     }
 
     pub fn conflict() -> Self {
-        DbErrorKind::Common(CommonDbError::conflict()).into()
+        DbErrorKind::Common(SyncstorageDbError::conflict()).into()
     }
 
     pub fn internal(msg: String) -> Self {
-        DbErrorKind::Common(CommonDbError::internal(msg)).into()
+        DbErrorKind::Common(SyncstorageDbError::internal(msg)).into()
     }
 
     pub fn quota() -> Self {
-        DbErrorKind::Common(CommonDbError::quota()).into()
+        DbErrorKind::Common(SyncstorageDbError::quota()).into()
     }
 }
 
 #[derive(Debug, Error)]
 enum DbErrorKind {
     #[error("{}", _0)]
-    Common(CommonDbError),
+    Common(SyncstorageDbError),
 
     #[error("{}", _0)]
     Mysql(MysqlError),
@@ -102,7 +105,7 @@ impl DbErrorIntrospect for DbError {
 
 impl_fmt_display!(DbError, DbErrorKind);
 
-from_error!(CommonDbError, DbError, DbErrorKind::Common);
+from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);
 from_error!(
     diesel::result::Error,
     DbError,

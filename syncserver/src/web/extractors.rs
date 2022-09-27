@@ -28,14 +28,12 @@ use serde::{
 };
 use serde_json::Value;
 use syncserver_common::{Metrics, X_WEAVE_RECORDS};
-use syncstorage_db_common::{
+use syncstorage_db::{
     params::{self, PostCollectionBso},
-    util::SyncTimestamp,
-    Sorting, UserIdentifier,
+    DbError, DbPoolTrait, Sorting, SyncTimestamp, UserIdentifier,
 };
 use validator::{Validate, ValidationError};
 
-use crate::db::{transaction::DbTransactionPool, BoxDbPool};
 use crate::error::{ApiError, ApiErrorKind};
 use crate::label;
 use crate::server::{
@@ -45,6 +43,7 @@ use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
+    transaction::DbTransactionPool,
     DOCKER_FLOW_ENDPOINTS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -938,7 +937,7 @@ pub struct QuotaInfo {
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    pub db_pool: BoxDbPool,
+    pub db_pool: Box<dyn DbPoolTrait<Error = DbError>>,
     pub quota: QuotaInfo,
 }
 
@@ -1759,8 +1758,8 @@ mod tests {
     use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
     use tokio::sync::RwLock;
 
-    use crate::db::mock::{MockDb, MockDbPool};
     use crate::server::ServerState;
+    use syncstorage_db::mock::{MockDb, MockDbPool};
 
     use crate::web::auth::HawkPayload;
 

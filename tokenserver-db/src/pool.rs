@@ -8,23 +8,23 @@ use diesel::{
 };
 use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
-#[cfg(test)]
+#[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
-use syncserver_db_common::{util, GetPoolState, PoolState};
+use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_settings::Settings;
 
 use super::{
     error::{DbError, DbResult},
-    models::{Db, TokenserverDb},
+    models::{DbTrait, TokenserverDb},
 };
 
-embed_migrations!("../migrations");
+embed_migrations!();
 
 /// Run the diesel embedded migrations
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
-pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
+fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = MysqlConnection::establish(database_url)?;
 
     embedded_migrations::run(&LoggingConnection::new(conn))?;
@@ -60,7 +60,7 @@ impl TokenserverPool {
             ))
             .min_idle(settings.database_pool_min_idle);
 
-        #[cfg(test)]
+        #[cfg(debug_assertions)]
         let builder = if _use_test_transactions {
             builder.connection_customizer(Box::new(TestTransactionCustomizer))
         } else {
@@ -89,7 +89,7 @@ impl TokenserverPool {
     #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
-        let conn = util::run_on_blocking_threadpool(
+        let conn = syncserver_db_common::run_on_blocking_threadpool(
             move || pool.inner.get().map_err(DbError::from),
             DbError::internal,
         )
@@ -105,13 +105,13 @@ impl TokenserverPool {
 }
 
 #[async_trait]
-impl DbPool for TokenserverPool {
-    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
+impl DbPoolTrait for TokenserverPool {
+    async fn get(&self) -> Result<Box<dyn DbTrait>, DbError> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
-        let conn = util::run_on_blocking_threadpool(
+        let conn = syncserver_db_common::run_on_blocking_threadpool(
             move || pool.inner.get().map_err(DbError::from),
             DbError::internal,
         )
@@ -122,19 +122,19 @@ impl DbPool for TokenserverPool {
             &self.metrics,
             self.service_id,
             self.spanner_node_id,
-        )) as Box<dyn Db>)
+        )) as Box<dyn DbTrait>)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPool> {
+    fn box_clone(&self) -> Box<dyn DbPoolTrait> {
         Box::new(self.clone())
     }
 }
 
 #[async_trait]
-pub trait DbPool: Sync + Send + GetPoolState {
-    async fn get(&self) -> Result<Box<dyn Db>, DbError>;
+pub trait DbPoolTrait: Sync + Send + GetPoolState {
+    async fn get(&self) -> Result<Box<dyn DbTrait>, DbError>;
 
-    fn box_clone(&self) -> Box<dyn DbPool>;
+    fn box_clone(&self) -> Box<dyn DbPoolTrait>;
 }
 
 impl GetPoolState for TokenserverPool {
@@ -143,14 +143,14 @@ impl GetPoolState for TokenserverPool {
     }
 }
 
-impl GetPoolState for Box<dyn DbPool> {
+impl GetPoolState for Box<dyn DbPoolTrait> {
     fn state(&self) -> PoolState {
         (**self).state()
     }
 }
 
-impl Clone for Box<dyn DbPool> {
-    fn clone(&self) -> Box<dyn DbPool> {
+impl Clone for Box<dyn DbPoolTrait> {
+    fn clone(&self) -> Box<dyn DbPoolTrait> {
         self.box_clone()
     }
 }

@@ -15,12 +15,12 @@ use cadence::StatsdClient;
 use futures::future::{self, Ready};
 use syncserver_common::Metrics;
 use syncserver_settings::Settings;
+use syncstorage_db::{DbError, DbPool, DbPoolTrait};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
 
-use crate::db::{spawn_pool_periodic_reporter, BoxDbPool, DbPool};
-use crate::error::ApiError;
 use crate::server::tags::Taggable;
+use crate::error::ApiError;
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
@@ -39,7 +39,7 @@ pub mod user_agent;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db_pool: BoxDbPool,
+    pub db_pool: Box<dyn DbPoolTrait<Error = DbError>>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
@@ -241,7 +241,6 @@ macro_rules! build_app_without_syncstorage {
 
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
-        println!("{}", settings.syncstorage.database_url);
         let settings_copy = settings.clone();
         let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
@@ -268,7 +267,7 @@ impl Server {
                 )?,
             )?;
 
-            spawn_pool_periodic_reporter(
+            syncstorage_db::spawn_pool_periodic_reporter(
                 Duration::from_secs(10),
                 *state.metrics.clone(),
                 state.db_pool.clone(),
@@ -279,7 +278,11 @@ impl Server {
             None
         };
 
-        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
+        syncstorage_db::spawn_pool_periodic_reporter(
+            Duration::from_secs(10),
+            metrics.clone(),
+            db_pool.clone(),
+        )?;
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
@@ -328,7 +331,7 @@ impl Server {
             )?,
         )?;
 
-        spawn_pool_periodic_reporter(
+        syncstorage_db::spawn_pool_periodic_reporter(
             Duration::from_secs(10),
             *tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),

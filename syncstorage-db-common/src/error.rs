@@ -9,14 +9,14 @@ use thiserror::Error;
 /// as being related more to the syncstorage application logic as opposed to a particular
 /// database backend.
 #[derive(Debug)]
-pub struct CommonDbError {
-    kind: CommonDbErrorKind,
+pub struct SyncstorageDbError {
+    kind: SyncstorageDbErrorKind,
     pub status: StatusCode,
     pub backtrace: Backtrace,
 }
 
 #[derive(Debug, Error)]
-enum CommonDbErrorKind {
+enum SyncstorageDbErrorKind {
     #[error("Specified collection does not exist")]
     CollectionNotFound,
 
@@ -36,29 +36,29 @@ enum CommonDbErrorKind {
     Quota,
 }
 
-impl CommonDbError {
+impl SyncstorageDbError {
     pub fn batch_not_found() -> Self {
-        CommonDbErrorKind::BatchNotFound.into()
+        SyncstorageDbErrorKind::BatchNotFound.into()
     }
 
     pub fn bso_not_found() -> Self {
-        CommonDbErrorKind::BsoNotFound.into()
+        SyncstorageDbErrorKind::BsoNotFound.into()
     }
 
     pub fn collection_not_found() -> Self {
-        CommonDbErrorKind::CollectionNotFound.into()
+        SyncstorageDbErrorKind::CollectionNotFound.into()
     }
 
     pub fn conflict() -> Self {
-        CommonDbErrorKind::Conflict.into()
+        SyncstorageDbErrorKind::Conflict.into()
     }
 
     pub fn internal(msg: String) -> Self {
-        CommonDbErrorKind::Internal(msg).into()
+        SyncstorageDbErrorKind::Internal(msg).into()
     }
 
     pub fn quota() -> Self {
-        CommonDbErrorKind::Quota.into()
+        SyncstorageDbErrorKind::Quota.into()
     }
 }
 
@@ -72,54 +72,54 @@ pub trait DbErrorIntrospect {
     fn is_batch_not_found(&self) -> bool;
 }
 
-impl DbErrorIntrospect for CommonDbError {
+impl DbErrorIntrospect for SyncstorageDbError {
     fn is_sentry_event(&self) -> bool {
-        !matches!(&self.kind, CommonDbErrorKind::Conflict)
+        !matches!(&self.kind, SyncstorageDbErrorKind::Conflict)
     }
 
     fn metric_label(&self) -> Option<String> {
         match &self.kind {
-            CommonDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
+            SyncstorageDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }
 
     fn is_collection_not_found(&self) -> bool {
-        matches!(self.kind, CommonDbErrorKind::CollectionNotFound)
+        matches!(self.kind, SyncstorageDbErrorKind::CollectionNotFound)
     }
 
     fn is_conflict(&self) -> bool {
-        matches!(self.kind, CommonDbErrorKind::Conflict)
+        matches!(self.kind, SyncstorageDbErrorKind::Conflict)
     }
 
     fn is_quota(&self) -> bool {
-        matches!(self.kind, CommonDbErrorKind::Quota)
+        matches!(self.kind, SyncstorageDbErrorKind::Quota)
     }
 
     fn is_bso_not_found(&self) -> bool {
-        matches!(self.kind, CommonDbErrorKind::BsoNotFound)
+        matches!(self.kind, SyncstorageDbErrorKind::BsoNotFound)
     }
 
     fn is_batch_not_found(&self) -> bool {
-        matches!(self.kind, CommonDbErrorKind::BatchNotFound)
+        matches!(self.kind, SyncstorageDbErrorKind::BatchNotFound)
     }
 }
 
-impl From<CommonDbErrorKind> for CommonDbError {
-    fn from(kind: CommonDbErrorKind) -> Self {
+impl From<SyncstorageDbErrorKind> for SyncstorageDbError {
+    fn from(kind: SyncstorageDbErrorKind) -> Self {
         let status = match kind {
-            CommonDbErrorKind::CollectionNotFound | CommonDbErrorKind::BsoNotFound => {
+            SyncstorageDbErrorKind::CollectionNotFound | SyncstorageDbErrorKind::BsoNotFound => {
                 StatusCode::NOT_FOUND
             }
             // Matching the Python code here (a 400 vs 404)
-            CommonDbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
+            SyncstorageDbErrorKind::BatchNotFound => StatusCode::BAD_REQUEST,
             // NOTE: the protocol specification states that we should return a
             // "409 Conflict" response here, but clients currently do not
             // handle these respones very well:
             //  * desktop bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959034
             //  * android bug: https://bugzilla.mozilla.org/show_bug.cgi?id=959032
-            CommonDbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
-            CommonDbErrorKind::Quota => StatusCode::FORBIDDEN,
+            SyncstorageDbErrorKind::Conflict => StatusCode::SERVICE_UNAVAILABLE,
+            SyncstorageDbErrorKind::Quota => StatusCode::FORBIDDEN,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -131,4 +131,4 @@ impl From<CommonDbErrorKind> for CommonDbError {
     }
 }
 
-impl_fmt_display!(CommonDbError, CommonDbErrorKind);
+impl_fmt_display!(SyncstorageDbError, SyncstorageDbErrorKind);

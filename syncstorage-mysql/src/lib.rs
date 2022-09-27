@@ -8,13 +8,15 @@ extern crate slog_scope;
 #[macro_use]
 mod batch;
 mod diesel_ext;
-pub mod error;
-pub mod models;
-pub mod pool;
+mod error;
+mod models;
+mod pool;
 mod schema;
 #[cfg(test)]
 mod test;
 
-pub use self::pool::MysqlDbPool;
+pub use error::DbError;
+pub use models::MysqlDb;
+pub use pool::MysqlDbPool;
 
-pub type DbResult<T> = Result<T, error::DbError>;
+pub(crate) type DbResult<T> = Result<T, error::DbError>;

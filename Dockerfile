@@ -1,8 +1,27 @@
-FROM rust:1.64-buster as builder
+FROM lukemathwalker/cargo-chef:0.1.35-rust-1.60-buster as chef
 WORKDIR /app
-ADD . /app
-ENV PATH=$PATH:/root/.cargo/bin
-# temp removed --no-install-recommends due to CI docker build issue
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS cacher
+ARG DATABASE_BACKEND=spanner
+
+# cmake is required to build grpcio-sys for Spanner builds
+RUN apt-get -q update && \
+    apt-get -q install -y --no-install-recommends cmake
+
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
+
+FROM chef as builder
+ARG DATABASE_BACKEND=spanner
+
+COPY . /app
+COPY --from=cacher /app/target /app/target
+COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
+
 RUN \
     echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
@@ -15,11 +34,13 @@ RUN \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
+ENV PATH=$PATH:/root/.cargo/bin
+
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --locked --root /app && \
-    cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl
+    cargo install --debug --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --locked --root /app && \
+    if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --debug --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
 FROM debian:buster-slim
 WORKDIR /app
@@ -57,7 +78,7 @@ COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver/process_account_events.py /app/tools/tokenserver/process_account_events.py
 COPY --from=builder /app/tools/tokenserver/requirements.txt /app/tools/tokenserver/requirements.txt
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
-COPY --from=builder /app/syncserver/src/db/spanner/schema.ddl /app/schema.ddl
+COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 RUN pip3 install -r /app/tools/integration_tests/requirements.txt

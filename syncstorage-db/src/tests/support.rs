@@ -3,17 +3,14 @@ use std::str::FromStr;
 use syncserver_common::Metrics;
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_db_common::{
-    params, util::SyncTimestamp, DbPool as DbPoolTrait, Sorting, UserIdentifier,
+    params, util::SyncTimestamp, DbPoolTrait, DbTrait, Sorting, UserIdentifier,
 };
 use syncstorage_settings::Settings as SyncstorageSettings;
 
-use crate::db::{BoxDb, DbPool};
-use crate::error::{ApiError, ApiResult};
-
-pub type Result<T> = std::result::Result<T, ApiError>;
+use crate::{DbError, DbPool};
 
 #[cfg(test)]
-pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool> {
+pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool, DbError> {
     let _ = env_logger::try_init();
     // The default for SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS is
     // false, but we want the mysql default to be true, so let's check
@@ -32,7 +29,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool> {
     Ok(pool)
 }
 
-pub async fn test_db(pool: DbPool) -> ApiResult<BoxDb> {
+pub async fn test_db(pool: DbPool) -> Result<Box<dyn DbTrait<Error = DbError>>, DbError> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

@@ -6,7 +6,7 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
-use tokenserver_common::error::TokenserverError;
+use tokenserver_common::TokenserverError;
 use tokenserver_settings::{Jwk, Settings};
 use tokio::time;
 

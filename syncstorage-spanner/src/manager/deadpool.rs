@@ -9,9 +9,9 @@ use syncstorage_settings::Settings;
 use super::session::{create_spanner_session, recycle_spanner_session, SpannerSession};
 use crate::error::DbError;
 
-pub type Conn = deadpool::managed::Object<SpannerSession, DbError>;
+pub(crate) type Conn = deadpool::managed::Object<SpannerSession, DbError>;
 
-pub struct SpannerSessionManager {
+pub(crate) struct SpannerSessionManager {
     database_name: String,
     /// The gRPC environment
     env: Arc<Environment>,

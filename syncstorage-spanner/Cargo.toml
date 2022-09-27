@@ -38,3 +38,4 @@ uuid = { version = "0.8.2", features = ["serde", "v4"] }
 
 [[bin]]
 name = "purge_ttl"
+path = "src/bin/purge_ttl.rs"

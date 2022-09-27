@@ -17,16 +17,15 @@ use serde_json::json;
 use sha2::Sha256;
 use syncserver_common::{self, X_LAST_MODIFIED};
 use syncserver_settings::{Secrets, Settings};
-use syncstorage_db_common::{
+use syncstorage_db::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
-    util::SyncTimestamp,
+    DbPool, SyncTimestamp,
 };
 use syncstorage_settings::ServerLimits;
 
 use super::*;
 use crate::build_app;
-use crate::db::DbPool;
 use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody};
 

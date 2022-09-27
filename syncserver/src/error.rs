@@ -22,12 +22,8 @@ use serde::{
 };
 
 use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
-use syncstorage_db_common::error::DbErrorIntrospect;
+use syncstorage_db::{DbError, DbErrorIntrospect};
 
-#[cfg(feature = "mysql")]
-use syncstorage_mysql::error::DbError;
-#[cfg(feature = "spanner")]
-use syncstorage_spanner::error::DbError;
 use thiserror::Error;
 
 use crate::web::error::{HawkError, ValidationError};

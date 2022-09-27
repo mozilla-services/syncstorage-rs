@@ -6,20 +6,22 @@ use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpReque
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
-use syncstorage_db_common::{
-    error::DbErrorIntrospect,
+use syncstorage_db::{
     params,
     results::{CreateBatch, Paginated},
+    DbError, DbErrorIntrospect, DbTrait,
 };
 use time;
 
 use crate::{
-    db::{transaction::DbTransactionPool, BoxDb, DbError},
     error::{ApiError, ApiErrorKind},
     server::ServerState,
-    web::extractors::{
-        BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
-        HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+    web::{
+        extractors::{
+            BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
+            HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+        },
+        transaction::DbTransactionPool,
     },
 };
 
@@ -188,7 +190,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: BoxDb,
+    db: Box<dyn DbTrait<Error = DbError>>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -279,7 +281,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: BoxDb,
+    db: Box<dyn DbTrait<Error = DbError>>,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
@@ -592,7 +594,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
-        use syncserver_db_common::PoolState;
+        use syncstorage_db::PoolState;
 
         let test_pool = PoolState {
             connections: u32::from_str(

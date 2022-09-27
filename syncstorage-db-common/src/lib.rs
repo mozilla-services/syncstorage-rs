@@ -48,23 +48,23 @@ pub const DEFAULT_BSO_TTL: u32 = 2_100_000_000;
 pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 
 #[async_trait]
-pub trait DbPool: Sync + Send + Debug + GetPoolState {
+pub trait DbPoolTrait: Sync + Send + Debug + GetPoolState {
     type Error;
 
-    async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error>;
+    async fn get(&self) -> Result<Box<dyn DbTrait<Error = Self::Error>>, Self::Error>;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), Self::Error>;
 
-    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>>;
+    fn box_clone(&self) -> Box<dyn DbPoolTrait<Error = Self::Error>>;
 }
 
-impl<E> Clone for Box<dyn DbPool<Error = E>> {
-    fn clone(&self) -> Box<dyn DbPool<Error = E>> {
+impl<E> Clone for Box<dyn DbPoolTrait<Error = E>> {
+    fn clone(&self) -> Box<dyn DbPoolTrait<Error = E>> {
         self.box_clone()
     }
 }
 
-pub trait Db: Debug {
+pub trait DbTrait: Debug {
     type Error: DbErrorIntrospect + 'static;
 
     fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
@@ -174,7 +174,7 @@ pub trait Db: Debug {
         params: params::CommitBatch,
     ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
 
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>>;
+    fn box_clone(&self) -> Box<dyn DbTrait<Error = Self::Error>>;
 
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error>;
 
@@ -251,11 +251,11 @@ pub trait Db: Debug {
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
-impl<E> Clone for Box<dyn Db<Error = E>>
+impl<E> Clone for Box<dyn DbTrait<Error = E>>
 where
     E: DbErrorIntrospect + 'static,
 {
-    fn clone(&self) -> Box<dyn Db<Error = E>> {
+    fn clone(&self) -> Box<dyn DbTrait<Error = E>> {
         self.box_clone()
     }
 }

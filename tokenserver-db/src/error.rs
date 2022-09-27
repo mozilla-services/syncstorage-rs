@@ -5,11 +5,13 @@ use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
 use syncserver_db_common::error::MysqlError;
 use thiserror::Error;
-use tokenserver_common::error::TokenserverError;
+use tokenserver_common::TokenserverError;
 
 pub(crate) type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 pub(crate) type DbResult<T> = Result<T, DbError>;
 
+/// An error type that represents any database-related errors that may occur while processing a
+/// tokenserver request.
 #[derive(Debug)]
 pub struct DbError {
     kind: DbErrorKind,
@@ -28,7 +30,7 @@ enum DbErrorKind {
     #[error("{}", _0)]
     Mysql(MysqlError),
 
-    #[error("{}", _0)]
+    #[error("Unexpected error: {}", _0)]
     Internal(String),
 }
 

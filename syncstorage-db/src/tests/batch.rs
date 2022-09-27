@@ -4,7 +4,8 @@ use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, BATCH_LIFETIME,
 };
 
-use super::support::{db_pool, gbso, hid, pbso, postbso, test_db, Result};
+use super::support::{db_pool, gbso, hid, pbso, postbso, test_db};
+use crate::DbError;
 
 fn cb(user_id: u32, coll: &str, bsos: Vec<params::PostCollectionBso>) -> params::CreateBatch {
     params::CreateBatch {
@@ -45,7 +46,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 }
 
 #[tokio::test]
-async fn create_delete() -> Result<()> {
+async fn create_delete() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -68,7 +69,7 @@ async fn create_delete() -> Result<()> {
 }
 
 #[tokio::test]
-async fn expiry() -> Result<()> {
+async fn expiry() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -92,7 +93,7 @@ async fn expiry() -> Result<()> {
 }
 
 #[tokio::test]
-async fn update() -> Result<()> {
+async fn update() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -116,7 +117,7 @@ async fn update() -> Result<()> {
 }
 
 #[tokio::test]
-async fn append_commit() -> Result<()> {
+async fn append_commit() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -159,7 +160,7 @@ async fn append_commit() -> Result<()> {
 }
 
 #[tokio::test]
-async fn quota_test_create_batch() -> Result<()> {
+async fn quota_test_create_batch() -> Result<(), DbError> {
     let mut settings = Settings::test_settings().syncstorage;
 
     if !settings.enable_quota {
@@ -201,7 +202,7 @@ async fn quota_test_create_batch() -> Result<()> {
 }
 
 #[tokio::test]
-async fn quota_test_append_batch() -> Result<()> {
+async fn quota_test_append_batch() -> Result<(), DbError> {
     let mut settings = Settings::test_settings().syncstorage;
 
     if !settings.enable_quota {
@@ -246,7 +247,7 @@ async fn quota_test_append_batch() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_append_async_w_null() -> Result<()> {
+async fn test_append_async_w_null() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     let pool = db_pool(Some(settings)).await?;
     let db = test_db(pool).await?;

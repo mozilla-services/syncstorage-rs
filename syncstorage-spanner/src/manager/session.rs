@@ -6,7 +6,6 @@ use google_cloud_rust_raw::spanner::v1::{
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, MetadataBuilder};
 use syncserver_common::Metrics;
-use syncserver_db_common::util;
 
 use crate::error::DbError;
 
@@ -40,7 +39,7 @@ pub async fn create_spanner_session(
     emulator_host: Option<String>,
 ) -> Result<SpannerSession, DbError> {
     let using_spanner_emulator = emulator_host.is_some();
-    let chan = util::run_on_blocking_threadpool(
+    let chan = syncserver_db_common::run_on_blocking_threadpool(
         move || -> Result<grpcio::Channel, DbError> {
             if let Some(spanner_emulator_address) = emulator_host {
                 Ok(ChannelBuilder::new(env)

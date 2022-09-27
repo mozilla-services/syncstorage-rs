@@ -1,37 +1,46 @@
 //! Generic db abstration.
 
+#[cfg(test)]
+#[macro_use]
+extern crate slog_scope;
+
 pub mod mock;
 #[cfg(test)]
 mod tests;
-pub mod transaction;
 
 use std::time::Duration;
 
 use cadence::{Gauged, StatsdClient};
-use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{results, Db as DbTrait, DbPool as DbPoolTrait};
-#[cfg(feature = "mysql")]
-use syncstorage_mysql::pool::MysqlDbPool;
-#[cfg(feature = "spanner")]
-use syncstorage_spanner::pool::SpannerDbPool;
 use tokio::{self, time};
 
 #[cfg(feature = "mysql")]
-pub type DbPool = MysqlDbPool;
+pub type DbPool = syncstorage_mysql::MysqlDbPool;
 #[cfg(feature = "mysql")]
-pub use syncstorage_mysql::error::DbError;
+pub use syncstorage_mysql::DbError;
 #[cfg(feature = "mysql")]
-pub type Db = syncstorage_mysql::models::MysqlDb;
+pub type Db = syncstorage_mysql::MysqlDb;
 
 #[cfg(feature = "spanner")]
-pub type DbPool = SpannerDbPool;
+pub type DbPool = syncstorage_spanner::SpannerDbPool;
 #[cfg(feature = "spanner")]
-pub use syncstorage_spanner::error::DbError;
+pub use syncstorage_spanner::DbError;
 #[cfg(feature = "spanner")]
-pub type Db = syncstorage_spanner::models::SpannerDb;
+pub type Db = syncstorage_spanner::SpannerDb;
 
-pub type BoxDb = Box<dyn DbTrait<Error = DbError>>;
-pub type BoxDbPool = Box<dyn DbPoolTrait<Error = DbError>>;
+pub use syncserver_db_common::{GetPoolState, PoolState};
+pub use syncstorage_db_common::error::DbErrorIntrospect;
+
+pub use syncstorage_db_common::{
+    params, results,
+    util::{to_rfc3339, SyncTimestamp},
+    DbPoolTrait, DbTrait, Sorting, UserIdentifier,
+};
+
+#[cfg(all(feature = "mysql", feature = "spanner"))]
+compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
+
+#[cfg(not(any(feature = "mysql", feature = "spanner")))]
+compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");
 
 /// Emit DbPool metrics periodically
 pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(

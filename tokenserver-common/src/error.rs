@@ -8,6 +8,8 @@ use serde::{
 };
 use syncserver_common::ReportableError;
 
+/// An error type that represents application-specific errors to Tokenserver. This error is not
+/// used to represent database-related errors; database-related errors have their own type.
 #[derive(Clone, Debug)]
 pub struct TokenserverError {
     pub status: &'static str,

@@ -268,7 +268,6 @@ fn decode_id(id: &str) -> DbResult<i64> {
         .map_err(|e| DbError::internal(format!("Invalid batch_id: {}", e)))
 }
 
-#[macro_export]
 macro_rules! batch_db_method {
     ($name:ident, $batch_name:ident, $type:ident) => {
         pub fn $name(&self, params: params::$type) -> DbResult<results::$type> {

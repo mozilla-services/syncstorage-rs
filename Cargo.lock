@@ -3010,7 +3010,6 @@ dependencies = [
  "hmac",
  "hostname",
  "lazy_static",
- "log",
  "mime",
  "mockito",
  "pyo3",
@@ -3031,16 +3030,13 @@ dependencies = [
  "slog-stdlog",
  "slog-term",
  "syncserver-common",
- "syncserver-db-common",
  "syncserver-settings",
- "syncstorage-db-common",
- "syncstorage-mysql",
+ "syncstorage-db",
  "syncstorage-settings",
- "syncstorage-spanner",
  "thiserror",
  "time 0.3.9",
  "tokenserver-common",
- "tokenserver-mysql",
+ "tokenserver-db",
  "tokenserver-settings",
  "tokio",
  "urlencoding",
@@ -3090,6 +3086,29 @@ dependencies = [
  "syncstorage-settings",
  "tokenserver-settings",
  "url 2.2.2",
+]
+
+[[package]]
+name = "syncstorage-db"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "cadence",
+ "env_logger",
+ "futures 0.3.19",
+ "hostname",
+ "lazy_static",
+ "log",
+ "rand 0.8.5",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-db-common",
+ "syncstorage-mysql",
+ "syncstorage-settings",
+ "syncstorage-spanner",
+ "tokio",
 ]
 
 [[package]]
@@ -3354,7 +3373,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokenserver-mysql"
+name = "tokenserver-db"
 version = "0.12.3"
 dependencies = [
  "async-trait",

@@ -3,9 +3,12 @@ use std::fmt;
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display};
-use syncstorage_db_common::error::{CommonDbError, DbErrorIntrospect};
+use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
+/// An error type that represents any Spanner-related errors that may occur while processing a
+/// syncstorage request. These errors may be application-specific or lower-level errors that arise
+/// from the database backend.
 #[derive(Debug)]
 pub struct DbError {
     kind: DbErrorKind,
@@ -15,19 +18,19 @@ pub struct DbError {
 
 impl DbError {
     pub fn batch_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::batch_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::batch_not_found()).into()
     }
 
     pub fn bso_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::bso_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::bso_not_found()).into()
     }
 
     pub fn collection_not_found() -> Self {
-        DbErrorKind::Common(CommonDbError::collection_not_found()).into()
+        DbErrorKind::Common(SyncstorageDbError::collection_not_found()).into()
     }
 
     pub fn conflict() -> Self {
-        DbErrorKind::Common(CommonDbError::conflict()).into()
+        DbErrorKind::Common(SyncstorageDbError::conflict()).into()
     }
 
     pub fn expired() -> Self {
@@ -39,11 +42,11 @@ impl DbError {
     }
 
     pub fn internal(msg: String) -> Self {
-        DbErrorKind::Common(CommonDbError::internal(msg)).into()
+        DbErrorKind::Common(SyncstorageDbError::internal(msg)).into()
     }
 
     pub fn quota() -> Self {
-        DbErrorKind::Common(CommonDbError::quota()).into()
+        DbErrorKind::Common(SyncstorageDbError::quota()).into()
     }
 
     pub fn too_large(msg: String) -> Self {
@@ -54,7 +57,7 @@ impl DbError {
 #[derive(Debug, Error)]
 enum DbErrorKind {
     #[error("{}", _0)]
-    Common(CommonDbError),
+    Common(SyncstorageDbError),
 
     #[error("Connection expired")]
     Expired,
@@ -128,9 +131,9 @@ from_error!(grpcio::Error, DbError, |inner: grpcio::Error| {
         grpcio::Error::RpcFailure(ref status) | grpcio::Error::RpcFinished(Some(ref status))
             if status.code() == grpcio::RpcStatusCode::ABORTED =>
         {
-            DbErrorKind::Common(CommonDbError::conflict())
+            DbErrorKind::Common(SyncstorageDbError::conflict())
         }
         _ => DbErrorKind::Grpc(inner),
     }
 });
-from_error!(CommonDbError, DbError, DbErrorKind::Common);
+from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);

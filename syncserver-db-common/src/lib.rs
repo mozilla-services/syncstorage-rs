@@ -1,9 +1,9 @@
 pub mod error;
 pub mod test;
-pub mod util;
 
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 
+use actix_web::{error::BlockingError, web};
 use futures::future::LocalBoxFuture;
 
 pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
@@ -36,4 +36,35 @@ impl From<deadpool::Status> for PoolState {
             idle_connections: status.available.max(0) as u32,
         }
     }
+}
+
+pub async fn run_on_blocking_threadpool<F, T, E, M>(f: F, e: M) -> Result<T, E>
+where
+    F: FnOnce() -> Result<T, E> + Send + 'static,
+    T: Send + 'static,
+    E: fmt::Debug + Send + 'static,
+    M: FnOnce(String) -> E,
+{
+    web::block(f)
+        .await
+        .map_err(|blocking_error| match blocking_error {
+            BlockingError::Error(inner) => inner,
+            BlockingError::Canceled => e("Db threadpool operation canceled".to_owned()),
+        })
+}
+
+#[macro_export]
+macro_rules! sync_db_method {
+    ($name:ident, $sync_name:ident, $type:ident) => {
+        sync_db_method!($name, $sync_name, $type, results::$type);
+    };
+    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
+        fn $name(&self, params: params::$type) -> DbFuture<'_, $result, Self::Error> {
+            let db = self.clone();
+            Box::pin(syncserver_db_common::run_on_blocking_threadpool(
+                move || db.$sync_name(params),
+                Self::Error::internal,
+            ))
+        }
+    };
 }

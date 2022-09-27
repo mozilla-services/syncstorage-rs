@@ -25,7 +25,7 @@ use protobuf::{
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncserver_db_common::DbFuture;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, DbTrait, Sorting,
     UserIdentifier, DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
@@ -42,14 +42,13 @@ use super::{
 };
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum CollectionLock {
+enum CollectionLock {
     Read,
     Write,
 }
 
-pub const TOMBSTONE: i32 = 0;
-
-pub const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
+const TOMBSTONE: i32 = 0;
+pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 
 /// Per session Db metadata
 #[derive(Debug, Default)]
@@ -103,7 +102,7 @@ impl Deref for SpannerDb {
 }
 
 impl SpannerDb {
-    pub fn new(
+    pub(super) fn new(
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
@@ -1878,7 +1877,7 @@ impl SpannerDb {
     }
 }
 
-impl Db for SpannerDb {
+impl DbTrait for SpannerDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
@@ -2178,7 +2177,7 @@ impl Db for SpannerDb {
         };
     }
 
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn DbTrait<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

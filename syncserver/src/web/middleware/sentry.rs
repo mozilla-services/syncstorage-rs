@@ -14,7 +14,7 @@ use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
 use serde_json::value::Value;
 use syncserver_common::{Metrics, ReportableError};
-use tokenserver_common::error::TokenserverError;
+use tokenserver_common::TokenserverError;
 
 use crate::error::ApiError;
 use crate::server::{tags::Taggable, user_agent, MetricsWrapper};

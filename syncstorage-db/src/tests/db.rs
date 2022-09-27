@@ -8,7 +8,8 @@ use syncstorage_db_common::{
     error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db, Result};
+use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db};
+use crate::DbError;
 
 // distant future (year 2099) timestamp for tests
 const MAX_TIMESTAMP: u64 = 4_070_937_600_000;
@@ -18,7 +19,7 @@ lazy_static! {
 }
 
 #[tokio::test]
-async fn bso_successfully_updates_single_values() -> Result<()> {
+async fn bso_successfully_updates_single_values() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -59,7 +60,7 @@ async fn bso_successfully_updates_single_values() -> Result<()> {
 }
 
 #[tokio::test]
-async fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
+async fn bso_modified_not_changed_on_ttl_touch() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -82,7 +83,7 @@ async fn bso_modified_not_changed_on_ttl_touch() -> Result<()> {
 }
 
 #[tokio::test]
-async fn put_bso_updates() -> Result<()> {
+async fn put_bso_updates() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -105,7 +106,7 @@ async fn put_bso_updates() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bsos_limit_offset() -> Result<()> {
+async fn get_bsos_limit_offset() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -226,7 +227,7 @@ async fn get_bsos_limit_offset() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bsos_newer() -> Result<()> {
+async fn get_bsos_newer() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -311,7 +312,7 @@ async fn get_bsos_newer() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bsos_sort() -> Result<()> {
+async fn get_bsos_sort() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -384,7 +385,7 @@ async fn get_bsos_sort() -> Result<()> {
 }
 
 #[tokio::test]
-async fn delete_bsos_in_correct_collection() -> Result<()> {
+async fn delete_bsos_in_correct_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -401,7 +402,7 @@ async fn delete_bsos_in_correct_collection() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_storage_timestamp() -> Result<()> {
+async fn get_storage_timestamp() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -424,7 +425,7 @@ async fn get_storage_timestamp() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_collection_id() -> Result<()> {
+async fn get_collection_id() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
     db.get_collection_id("bookmarks".to_owned()).await?;
@@ -432,7 +433,7 @@ async fn get_collection_id() -> Result<()> {
 }
 
 #[tokio::test]
-async fn create_collection() -> Result<()> {
+async fn create_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -445,7 +446,7 @@ async fn create_collection() -> Result<()> {
 }
 
 #[tokio::test]
-async fn update_collection() -> Result<()> {
+async fn update_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
     let collection = "test".to_owned();
@@ -461,7 +462,7 @@ async fn update_collection() -> Result<()> {
 }
 
 #[tokio::test]
-async fn delete_collection() -> Result<()> {
+async fn delete_collection() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -497,7 +498,7 @@ async fn delete_collection() -> Result<()> {
 }
 
 #[tokio::test]
-async fn delete_collection_tombstone() -> Result<()> {
+async fn delete_collection_tombstone() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -557,7 +558,7 @@ async fn delete_collection_tombstone() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_collection_timestamps() -> Result<()> {
+async fn get_collection_timestamps() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -585,7 +586,7 @@ async fn get_collection_timestamps() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_collection_timestamps_tombstone() -> Result<()> {
+async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -610,7 +611,7 @@ async fn get_collection_timestamps_tombstone() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_collection_usage() -> Result<()> {
+async fn get_collection_usage() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -662,7 +663,7 @@ async fn get_collection_usage() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_quota() -> Result<()> {
+async fn test_quota() -> Result<(), DbError> {
     let settings = Settings::test_settings();
 
     if !settings.syncstorage.enable_quota {
@@ -704,7 +705,7 @@ async fn test_quota() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_collection_counts() -> Result<()> {
+async fn get_collection_counts() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -727,7 +728,7 @@ async fn get_collection_counts() -> Result<()> {
 }
 
 #[tokio::test]
-async fn put_bso() -> Result<()> {
+async fn put_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -767,7 +768,7 @@ async fn put_bso() -> Result<()> {
 }
 
 #[tokio::test]
-async fn post_bsos() -> Result<()> {
+async fn post_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -838,7 +839,7 @@ async fn post_bsos() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bso() -> Result<()> {
+async fn get_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -859,7 +860,7 @@ async fn get_bso() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bsos() -> Result<()> {
+async fn get_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -930,7 +931,7 @@ async fn get_bsos() -> Result<()> {
 }
 
 #[tokio::test]
-async fn get_bso_timestamp() -> Result<()> {
+async fn get_bso_timestamp() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -951,7 +952,7 @@ async fn get_bso_timestamp() -> Result<()> {
 }
 
 #[tokio::test]
-async fn delete_bso() -> Result<()> {
+async fn delete_bso() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -967,7 +968,7 @@ async fn delete_bso() -> Result<()> {
 }
 
 #[tokio::test]
-async fn delete_bsos() -> Result<()> {
+async fn delete_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -1002,21 +1003,21 @@ async fn delete_bsos() -> Result<()> {
 
 /*
 #[tokio::test]
-async fn usage_stats() -> Result<()> {
+async fn usage_stats() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
     Ok(())
 }
 
 #[tokio::test]
-async fn purge_expired() -> Result<()> {
+async fn purge_expired() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
     Ok(())
 }
 
 #[tokio::test]
-async fn optimize() -> Result<()> {
+async fn optimize() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
     Ok(())
@@ -1024,7 +1025,7 @@ async fn optimize() -> Result<()> {
 */
 
 #[tokio::test]
-async fn delete_storage() -> Result<()> {
+async fn delete_storage() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -1050,7 +1051,7 @@ async fn delete_storage() -> Result<()> {
 }
 
 #[tokio::test]
-async fn collection_cache() -> Result<()> {
+async fn collection_cache() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -1071,7 +1072,7 @@ async fn collection_cache() -> Result<()> {
 }
 
 #[tokio::test]
-async fn lock_for_read() -> Result<()> {
+async fn lock_for_read() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -1089,7 +1090,7 @@ async fn lock_for_read() -> Result<()> {
 }
 
 #[tokio::test]
-async fn lock_for_write() -> Result<()> {
+async fn lock_for_write() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
@@ -1107,7 +1108,7 @@ async fn lock_for_write() -> Result<()> {
 }
 
 #[tokio::test]
-async fn heartbeat() -> Result<()> {
+async fn heartbeat() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 

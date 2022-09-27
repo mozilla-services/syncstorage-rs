@@ -8,6 +8,7 @@ async-trait = "0.1.40"
 backtrace = "0.3.61"
 base64 = "0.13"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
+diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 futures = { version = "0.3", features = ["compat"] }
 http = "0.2.5"
@@ -21,5 +22,4 @@ url = "2.1"
 
 [dev-dependencies]
 syncserver-settings = { path = "../syncserver-settings" }
-diesel_logger = "0.1.1"
 env_logger = "0.9"

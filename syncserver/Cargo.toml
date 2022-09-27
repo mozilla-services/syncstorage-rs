@@ -13,7 +13,7 @@ default-run = "syncserver"
 [dependencies]
 actix-http = "2"
 actix-web = "3"
-actix-rt = "1" # Pin to 1.0, due to dependencies on Tokio
+actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
 async-trait = "0.1.40"
 backtrace = "0.3.61"
@@ -24,15 +24,11 @@ docopt = "1.1.0"
 dyn-clone = "1.0.4"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
+hostname = "0.3.1"
 lazy_static = "1.4.0"
 hawk = "3.2"
 hex = "0.4.3"
-hostname = "0.3.1"
 hmac = "0.11"
-log = { version = "0.4", features = [
-  "max_level_debug",
-  "release_max_level_info",
-] }
 mime = "0.3"
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
@@ -59,16 +55,13 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 syncserver-settings = { path = "../syncserver-settings" }
-syncserver-db-common = { path = "../syncserver-db-common" }
-syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncserver-common = { path = "../syncserver-common" }
-syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }
+syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-syncstorage-spanner = { path = "../syncstorage-spanner", optional = true }
 time = "^0.3"
 thiserror = "1.0.26"
 tokenserver-common = { path = "../tokenserver-common" }
-tokenserver-mysql = { path = "../tokenserver-mysql" }
+tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
@@ -81,7 +74,5 @@ woothee = "0.11"
 mockito = "0.30.0"
 
 [features]
-default = ['mysql']
-mysql = ['syncstorage-mysql']
+default = ["syncstorage-db/mysql"]
 no_auth = []
-spanner = ['syncstorage-spanner']
