@@ -318,14 +318,6 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
     steps:
-      - run:
-          name: Login to Dockerhub
-          command: |
-            if [ "${DOCKER_USER}" == "" ] || [ "${DOCKER_PASS}" == "" ]; then
-              echo "Skipping Login to DockerHub, credentials unavailable"
-            else
-              echo "${DOCKER_PASS}" | docker login -u="${DOCKER_USER}" --password-stdin
-            fi
       - setup_remote_docker
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
