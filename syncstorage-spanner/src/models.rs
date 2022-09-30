@@ -196,7 +196,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn lock_for_read_async(&self, params: params::LockCollection) -> DbResult<()> {
+    async fn lock_for_read_async(&self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
         self.begin_async(false).await?;
 
@@ -233,7 +233,7 @@ impl SpannerDb {
         Ok(())
     }
 
-    pub async fn lock_for_write_async(&self, params: params::LockCollection) -> DbResult<()> {
+    async fn lock_for_write_async(&self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
         self.begin_async(true).await?;
         let collection_id = self
@@ -385,6 +385,7 @@ impl SpannerDb {
         Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql)?))
     }
 
+    #[allow(unused)]
     pub(super) fn insert(&self, table: &str, columns: &[&str], values: Vec<ListValue>) {
         let mut mutation = Mutation::new();
         mutation.set_insert(self.mutation_write(table, columns, values));
@@ -395,6 +396,7 @@ impl SpannerDb {
             .push(mutation);
     }
 
+    #[allow(unused)]
     pub(super) fn update(&self, table: &str, columns: &[&str], values: Vec<ListValue>) {
         let mut mutation = Mutation::new();
         mutation.set_update(self.mutation_write(table, columns, values));
@@ -462,7 +464,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn commit_async(&self) -> DbResult<()> {
+    async fn commit_async(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -507,7 +509,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn rollback_async(&self) -> DbResult<()> {
+    async fn rollback_async(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -525,7 +527,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn get_collection_timestamp_async(
+    async fn get_collection_timestamp_async(
         &self,
         params: params::GetCollectionTimestamp,
     ) -> DbResult<SyncTimestamp> {
@@ -565,7 +567,7 @@ impl SpannerDb {
         Ok(modified)
     }
 
-    pub async fn get_collection_timestamps_async(
+    async fn get_collection_timestamps_async(
         &self,
         user_id: params::GetCollectionTimestamps,
     ) -> DbResult<results::GetCollectionTimestamps> {
@@ -661,7 +663,7 @@ impl SpannerDb {
         Ok(names)
     }
 
-    pub async fn get_collection_counts_async(
+    async fn get_collection_counts_async(
         &self,
         user_id: params::GetCollectionCounts,
     ) -> DbResult<results::GetCollectionCounts> {
@@ -697,7 +699,7 @@ impl SpannerDb {
         self.map_collection_names(counts).await
     }
 
-    pub async fn get_collection_usage_async(
+    async fn get_collection_usage_async(
         &self,
         user_id: params::GetCollectionUsage,
     ) -> DbResult<results::GetCollectionUsage> {
@@ -733,7 +735,7 @@ impl SpannerDb {
         self.map_collection_names(usages).await
     }
 
-    pub async fn get_storage_timestamp(
+    async fn get_storage_timestamp(
         &self,
         user_id: params::GetStorageTimestamp,
     ) -> DbResult<SyncTimestamp> {
@@ -764,7 +766,7 @@ impl SpannerDb {
         .map_err(Into::into)
     }
 
-    pub async fn get_storage_usage_async(
+    async fn get_storage_usage_async(
         &self,
         user_id: params::GetStorageUsage,
     ) -> DbResult<results::GetStorageUsage> {
@@ -797,7 +799,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn get_quota_usage_async(
+    async fn get_quota_usage_async(
         &self,
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
@@ -840,7 +842,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn update_user_collection_quotas(
+    pub(super) async fn update_user_collection_quotas(
         &self,
         user: &UserIdentifier,
         collection_id: i32,
@@ -992,7 +994,7 @@ impl SpannerDb {
         self.checked_timestamp()
     }
 
-    pub async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> DbResult<()> {
+    async fn delete_storage_async(&self, user_id: params::DeleteStorage) -> DbResult<()> {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
         let (sqlparams, sqlparam_types) = params! {
@@ -1018,7 +1020,7 @@ impl SpannerDb {
             .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP() not read yet".to_owned()))
     }
 
-    pub async fn delete_collection_async(
+    async fn delete_collection_async(
         &self,
         params: params::DeleteCollection,
     ) -> DbResult<results::DeleteCollection> {
@@ -1131,10 +1133,7 @@ impl SpannerDb {
         Ok(timestamp)
     }
 
-    pub async fn delete_bso_async(
-        &self,
-        params: params::DeleteBso,
-    ) -> DbResult<results::DeleteBso> {
+    async fn delete_bso_async(&self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
         let user_id = params.user_id.clone();
         let (sqlparams, sqlparam_types) = params! {
@@ -1165,10 +1164,7 @@ impl SpannerDb {
         }
     }
 
-    pub async fn delete_bsos_async(
-        &self,
-        params: params::DeleteBsos,
-    ) -> DbResult<results::DeleteBsos> {
+    async fn delete_bsos_async(&self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.clone();
         let collection_id = self.get_collection_id_async(&params.collection).await?;
 
@@ -1357,7 +1353,7 @@ impl SpannerDb {
         */
     }
 
-    pub async fn get_bsos_async(&self, params: params::GetBsos) -> DbResult<results::GetBsos> {
+    async fn get_bsos_async(&self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let query = "\
             SELECT bso_id, sortindex, payload, modified, expiry
               FROM bsos
@@ -1397,7 +1393,7 @@ impl SpannerDb {
         })
     }
 
-    pub async fn get_bso_ids_async(&self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
+    async fn get_bso_ids_async(&self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
         let limit = params.limit.map(i64::from).unwrap_or(-1);
         let params::Offset { offset, timestamp } = params.offset.clone().unwrap_or_default();
         let sort = params.sort;
@@ -1439,7 +1435,7 @@ impl SpannerDb {
         })
     }
 
-    pub async fn get_bso_async(&self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
+    async fn get_bso_async(&self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let collection_id = self.get_collection_id_async(&params.collection).await?;
         let (sqlparams, sqlparam_types) = params! {
             "fxa_uid" => params.user_id.fxa_uid,
@@ -1465,7 +1461,7 @@ impl SpannerDb {
         .transpose()
     }
 
-    pub async fn get_bso_timestamp_async(
+    async fn get_bso_timestamp_async(
         &self,
         params: params::GetBsoTimestamp,
     ) -> DbResult<SyncTimestamp> {
@@ -1500,7 +1496,8 @@ impl SpannerDb {
         .map_err(Into::into)
     }
 
-    pub async fn put_bso_async(&self, params: params::PutBso) -> DbResult<results::PutBso> {
+    #[allow(unused)]
+    async fn put_bso_async(&self, params: params::PutBso) -> DbResult<results::PutBso> {
         let bsos = vec![params::PostCollectionBso {
             id: params.id,
             sortindex: params.sortindex,
@@ -1520,7 +1517,7 @@ impl SpannerDb {
         Ok(result.modified)
     }
 
-    pub async fn post_bsos_async(&self, params: params::PostBsos) -> DbResult<results::PostBsos> {
+    async fn post_bsos_async(&self, params: params::PostBsos) -> DbResult<results::PostBsos> {
         let user_id = params.user_id;
         let collection_id = self
             .get_or_create_collection_id_async(&params.collection)
@@ -1642,7 +1639,7 @@ impl SpannerDb {
         DbError::quota()
     }
 
-    pub async fn check_quota(
+    pub(super) async fn check_quota(
         &self,
         user_id: &UserIdentifier,
         collection: &str,
@@ -1671,7 +1668,8 @@ impl SpannerDb {
 
     // NOTE: Currently this put_bso_async_test impl. is only used during db tests,
     // see above for the non-tests version
-    pub async fn put_bso_async_test(&self, bso: params::PutBso) -> DbResult<results::PutBso> {
+    #[allow(unused)]
+    async fn put_bso_async_test(&self, bso: params::PutBso) -> DbResult<results::PutBso> {
         use syncstorage_db_common::util::to_rfc3339;
         let collection_id = self
             .get_or_create_collection_id_async(&bso.collection)
@@ -1845,10 +1843,8 @@ impl SpannerDb {
 
     // NOTE: Currently this post_bso_async_test impl. is only used during db tests,
     // see above for the non-tests version
-    pub async fn post_bsos_async_test(
-        &self,
-        input: params::PostBsos,
-    ) -> DbResult<results::PostBsos> {
+    #[allow(unused)]
+    async fn post_bsos_async_test(&self, input: params::PostBsos) -> DbResult<results::PostBsos> {
         let collection_id = self
             .get_or_create_collection_id_async(&input.collection)
             .await?;
