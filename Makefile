@@ -12,11 +12,11 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 
 clippy_mysql:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
 
 clippy_spanner:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=spanner -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
 
 clean:
 	cargo clean
@@ -51,7 +51,7 @@ run_mysql: python
 		PYTHONPATH=/Users/edonowitz/Dev/syncstorage-rs/venv/lib/python3.9/site-packages \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run -- --config config/local.toml
+		cargo run --no-default-features --features=syncstorage-db/mysql -- --config config/local.toml
 
 run_spanner: python
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
@@ -62,10 +62,10 @@ run_spanner: python
 	    PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=spanner -- --config config/local.toml
+		cargo run --no-default-features --features=syncstorage-db/spanner -- --config config/local.toml
 
 test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
 		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
 		RUST_TEST_THREADS=1 \
-		cargo test
+		cargo test --workspace

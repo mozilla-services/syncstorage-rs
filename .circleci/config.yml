@@ -390,23 +390,23 @@ workflows:
   version: 2
   build-deploy:
     jobs:
-      # - checks:
-      #     filters:
-      #       tags:
-      #         only: /.*/
-      # - build-and-test:
-      #     filters:
-      #       tags:
-      #         only: /.*/
+      - checks:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test:
+          filters:
+            tags:
+              only: /.*/
       - build-mysql-image:
-          # requires:
-          #   - build-and-test
+          requires:
+            - build-and-test
           filters:
             tags:
               only: /.*/
       - build-spanner-image:
-          # requires:
-          #   - build-and-test
+          requires:
+            - build-and-test
           filters:
             tags:
               only: /.*/
