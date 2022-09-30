@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::impl_fmt_display;
+use syncserver_common::{impl_fmt_display, ReportableError};
 use thiserror::Error;
 
 /// Errors common to all supported syncstorage database backends. These errors can be thought of
@@ -63,8 +63,6 @@ impl SyncstorageDbError {
 }
 
 pub trait DbErrorIntrospect {
-    fn is_sentry_event(&self) -> bool;
-    fn metric_label(&self) -> Option<String>;
     fn is_collection_not_found(&self) -> bool;
     fn is_conflict(&self) -> bool;
     fn is_quota(&self) -> bool;
@@ -73,17 +71,6 @@ pub trait DbErrorIntrospect {
 }
 
 impl DbErrorIntrospect for SyncstorageDbError {
-    fn is_sentry_event(&self) -> bool {
-        !matches!(&self.kind, SyncstorageDbErrorKind::Conflict)
-    }
-
-    fn metric_label(&self) -> Option<String> {
-        match &self.kind {
-            SyncstorageDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
-            _ => None,
-        }
-    }
-
     fn is_collection_not_found(&self) -> bool {
         matches!(self.kind, SyncstorageDbErrorKind::CollectionNotFound)
     }
@@ -102,6 +89,23 @@ impl DbErrorIntrospect for SyncstorageDbError {
 
     fn is_batch_not_found(&self) -> bool {
         matches!(self.kind, SyncstorageDbErrorKind::BatchNotFound)
+    }
+}
+
+impl ReportableError for SyncstorageDbError {
+    fn is_sentry_event(&self) -> bool {
+        !matches!(&self.kind, SyncstorageDbErrorKind::Conflict)
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        match &self.kind {
+            SyncstorageDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
+            _ => None,
+        }
+    }
+
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
     }
 }
 

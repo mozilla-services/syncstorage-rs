@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display, ReportableError};
 use syncserver_db_common::error::MysqlError;
 use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
@@ -89,7 +89,9 @@ impl DbErrorIntrospect for DbError {
     fn is_quota(&self) -> bool {
         matches!(&self.kind, DbErrorKind::Common(e) if e.is_quota())
     }
+}
 
+impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
         matches!(&self.kind, DbErrorKind::Common(e) if e.is_sentry_event())
     }
@@ -100,6 +102,10 @@ impl DbErrorIntrospect for DbError {
         } else {
             None
         }
+    }
+
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
     }
 }
 
