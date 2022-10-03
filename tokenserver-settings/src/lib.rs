@@ -29,7 +29,8 @@ pub struct Settings {
     pub fxa_oauth_request_timeout: u64,
     /// The JWK to be used to verify OAuth tokens. Passing a JWK to the PyFxA Python library
     /// prevents it from making an external API call to FxA to get the JWK, yielding substantial
-    /// performance benefits.
+    /// performance benefits. This value should match that on the `/v1/jwks` on the FxA Auth
+    /// Server.
     pub fxa_oauth_primary_jwk: Option<Jwk>,
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
