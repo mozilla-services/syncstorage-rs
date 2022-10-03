@@ -57,7 +57,7 @@ class TestMisc(TestCase, unittest.TestCase):
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertIn('https://example.com/1.5', res.json['api_endpoint'])
         self.assertIn('duration', res.json)
-        self.assertEquals(res.json['duration'], 300)
+        self.assertEquals(res.json['duration'], 3600)
 
     def test_current_user_is_the_most_up_to_date(self):
         # Add some users
@@ -220,3 +220,15 @@ class TestMisc(TestCase, unittest.TestCase):
         user = self._get_user(res.json['uid'])
         # The user is assigned to a new node
         self.assertEqual(user['nodeid'], self.NODE_ID)
+
+    def test_x_content_type_options(self):
+        self._add_user(generation=1234,
+                       keys_changed_at=1234,
+                       client_state='aaaa')
+        headers = self._build_auth_headers(generation=1234,
+                                           keys_changed_at=1234,
+                                           client_state='aaaa')
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+        # Tokenserver responses should include the
+        # `X-Content-Type-Options: nosniff` header
+        self.assertEqual(res.headers['X-Content-Type-Options'], 'nosniff')

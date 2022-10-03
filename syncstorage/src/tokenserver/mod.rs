@@ -35,6 +35,7 @@ pub struct ServerState {
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
     pub metrics: Box<StatsdClient>,
+    pub token_duration: u64,
 }
 
 impl ServerState {
@@ -73,6 +74,7 @@ impl ServerState {
                     node_capacity_release_rate: settings.node_capacity_release_rate,
                     node_type: settings.node_type,
                     metrics: Box::new(metrics),
+                    token_duration: settings.token_duration,
                 }
             })
             .map_err(Into::into)

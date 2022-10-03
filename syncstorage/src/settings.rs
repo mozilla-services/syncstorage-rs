@@ -289,6 +289,7 @@ impl Settings {
         s.set_default("tokenserver.node_type", "spanner")?;
         s.set_default("tokenserver.statsd_label", "syncstorage.tokenserver")?;
         s.set_default("tokenserver.run_migrations", cfg!(test))?;
+        s.set_default("tokenserver.token_duration", 3600)?;
 
         // Set Cors defaults
         s.set_default(
