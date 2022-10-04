@@ -1,3 +1,24 @@
+<a name="0.12.3"></a>
+## 0.12.3 (2022-09-23)
+
+
+#### Features
+
+*   Add `X-Content-Type-Options: nosniff` to Tokenserver responses (#1403) ([613f71ed](https://github.com/mozilla-services/syncstorage-rs/commit/613f71ed99aa875a234cbe92e1d93b6ba3413e73))
+
+
+
+<a name="0.12.2"></a>
+## 0.12.2 (2022-09-19)
+
+
+#### Bug Fixes
+
+*   fix Tokenserver generation and keys_changed_at handling (#1397) ([914e375b](https://github.com/mozilla-services/syncstorage-rs/commit/914e375b2bfa970fde01530d82e73b1af9ed3fd4))
+*   don't convert all oauth token verification errors to resource_unavailable (#1389) ([ebdd609e](https://github.com/mozilla-services/syncstorage-rs/commit/ebdd609ed2ab217ed423c5b0ed9341bfbf5f73e1))
+
+
+
 <a name="0.12.1"></a>
 ## 0.12.1 (2022-08-25)
 

@@ -30,7 +30,6 @@ pub struct Verifier {
     // pointer
     inner: Py<PyAny>,
     timeout: u64,
-    jwk_is_cached: bool,
 }
 
 impl Verifier {
@@ -90,8 +89,6 @@ impl TryFrom<&Settings> for Verifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
-            jwk_is_cached: settings.fxa_oauth_primary_jwk.is_some()
-                || settings.fxa_oauth_secondary_jwk.is_some(),
         })
     }
 }
@@ -147,33 +144,30 @@ impl VerifyToken for Verifier {
             }
         };
 
-        if self.jwk_is_cached {
-            verify_inner(self)
-        } else {
-            let verifier = self.clone();
+        let verifier = self.clone();
 
-            // If the JWK is not cached, PyFxA will make a request to FxA to retrieve it, blocking
-            // this thread. To improve performance, we make the request on a thread in a threadpool
-            // specifically used for blocking operations. The JWK should _always_ be cached in
-            // production to maximize performance.
-            let fut = web::block(move || verify_inner(&verifier)); //.map_err(|err| {
+        // If the JWK is not cached or if the token is not a JWT/wasn't signed by a known key
+        // type, PyFxA will make a request to FxA to retrieve it, blocking this thread. To
+        // improve performance, we make the request on a thread in a threadpool specifically
+        // used for blocking operations. The JWK should _always_ be cached in production to
+        // maximize performance.
+        let fut = web::block(move || verify_inner(&verifier));
 
-            // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
-            // by timing out the future if the verification process blocks this thread for longer
-            // than the specified number of seconds.
-            time::timeout(Duration::from_secs(self.timeout), fut)
-                .await
-                .map_err(|_| TokenserverError {
-                    context: "OAuth verification timeout".to_owned(),
-                    ..TokenserverError::resource_unavailable()
-                })?
-                .map_err(|e| match e {
-                    BlockingError::Error(inner) => inner,
-                    BlockingError::Canceled => TokenserverError {
-                        context: "Tokenserver threadpool operation failed".to_owned(),
-                        ..TokenserverError::internal_error()
-                    },
-                })
-        }
+        // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
+        // by timing out the future if the verification process blocks its thread for longer
+        // than the specified number of seconds.
+        time::timeout(Duration::from_secs(self.timeout), fut)
+            .await
+            .map_err(|_| TokenserverError {
+                context: "OAuth verification timeout".to_owned(),
+                ..TokenserverError::resource_unavailable()
+            })?
+            .map_err(|e| match e {
+                BlockingError::Error(inner) => inner,
+                BlockingError::Canceled => TokenserverError {
+                    context: "Tokenserver threadpool operation failed".to_owned(),
+                    ..TokenserverError::internal_error()
+                },
+            })
     }
 }
