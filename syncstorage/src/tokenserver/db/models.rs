@@ -682,7 +682,10 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.check_sync(),
+        ))
     }
 
     #[cfg(test)]

@@ -103,7 +103,8 @@ impl MysqlDbPool {
 impl DbPool for MysqlDbPool {
     async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a>>> {
         let pool = self.clone();
-        let db = db::run_on_blocking_threadpool(move || pool.get_sync()).await?;
+        let db =
+            db::run_on_blocking_threadpool(pool.metrics.clone(), move || pool.get_sync()).await?;
 
         Ok(Box::new(db) as Box<dyn Db<'a>>)
     }

@@ -69,13 +69,19 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
     Ok(())
 }
 
-pub async fn run_on_blocking_threadpool<F, T>(f: F) -> Result<T, DbError>
+pub async fn run_on_blocking_threadpool<F, T>(metrics: Metrics, f: F) -> Result<T, DbError>
 where
     F: FnOnce() -> Result<T, DbError> + Send + 'static,
     T: Send + 'static,
 {
-    web::block(f).await.map_err(|e| match e {
+    metrics.incr("blocking_tasks");
+
+    let result = web::block(f).await.map_err(|e| match e {
         BlockingError::Error(e) => e,
         BlockingError::Canceled => DbError::internal("Db threadpool operation canceled"),
-    })
+    });
+
+    metrics.decr("blocking_tasks");
+
+    result
 }

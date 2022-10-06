@@ -87,8 +87,10 @@ impl TokenserverPool {
     #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
-        let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+        let conn = db::run_on_blocking_threadpool(pool.metrics.clone(), move || {
+            pool.inner.get().map_err(DbError::from)
+        })
+        .await?;
 
         Ok(TokenserverDb::new(
             conn,
@@ -106,8 +108,10 @@ impl DbPool for TokenserverPool {
         metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
-        let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+        let conn = db::run_on_blocking_threadpool(pool.metrics.clone(), move || {
+            pool.inner.get().map_err(DbError::from)
+        })
+        .await?;
 
         Ok(Box::new(TokenserverDb::new(
             conn,
