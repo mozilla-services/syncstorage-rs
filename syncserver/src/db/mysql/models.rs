@@ -985,9 +985,10 @@ macro_rules! sync_db_method {
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
             let db = self.clone();
-            Box::pin(db::run_on_blocking_threadpool(move || {
-                db.$sync_name(params)
-            }))
+            Box::pin(db::run_on_blocking_threadpool(
+                db.metrics.clone(),
+                move || db.$sync_name(params),
+            ))
         }
     };
 }
@@ -995,12 +996,18 @@ macro_rules! sync_db_method {
 impl<'a> Db<'a> for MysqlDb {
     fn commit(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.commit_sync()))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.commit_sync(),
+        ))
     }
 
     fn rollback(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.rollback_sync()))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.rollback_sync(),
+        ))
     }
 
     fn begin(&self, for_write: bool) -> DbFuture<'_, ()> {
@@ -1014,7 +1021,10 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.check_sync(),
+        ))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1074,9 +1084,10 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || {
-            db.get_collection_id(&name)
-        }))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.get_collection_id(&name),
+        ))
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -1085,16 +1096,18 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn create_collection(&self, name: String) -> DbFuture<'_, i32> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || {
-            db.get_or_create_collection_id(&name)
-        }))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.get_or_create_collection_id(&name),
+        ))
     }
 
     fn update_collection(&self, param: params::UpdateCollection) -> DbFuture<'_, SyncTimestamp> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || {
-            db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
-        }))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || db.update_collection(param.user_id.legacy_id as u32, param.collection_id),
+        ))
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -1109,10 +1122,13 @@ impl<'a> Db<'a> for MysqlDb {
 
     fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || {
-            db.coll_cache.clear();
-            Ok(())
-        }))
+        Box::pin(db::run_on_blocking_threadpool(
+            db.metrics.clone(),
+            move || {
+                db.coll_cache.clear();
+                Ok(())
+            },
+        ))
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {

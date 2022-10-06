@@ -139,6 +139,11 @@ impl Metrics {
         self.incr_with_tags(label, None)
     }
 
+    // decrement a counter with no tags data.
+    pub fn decr(&self, label: &str) {
+        self.count_with_tags(label, -1, None)
+    }
+
     pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
         self.count_with_tags(label, 1, tags)
     }
