@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use actix_web::{error::BlockingError, web};
 use cadence::{Gauged, StatsdClient};
+use lazy_static::lazy_static;
 use syncserver_db_common::{
     error::{DbError, DbErrorKind},
     results, DbPool, GetPoolState, PoolState,
@@ -20,6 +21,13 @@ use tokio::{self, time};
 use url::Url;
 
 use crate::server::metrics::Metrics;
+
+lazy_static! {
+    static ref HOSTNAME: String = hostname::get()
+        .expect("Couldn't get hostname")
+        .into_string()
+        .expect("Couldn't get hostname");
+}
 
 /// Create/initialize a pool of managed Db connections
 pub async fn pool_from_settings(
@@ -79,14 +87,14 @@ where
     F: FnOnce() -> Result<T, DbError> + Send + 'static,
     T: Send + 'static,
 {
-    metrics.incr("blocking_tasks");
+    metrics.incr_with_tag("blocking_tasks", "hostname", &HOSTNAME);
 
     let result = web::block(f).await.map_err(|e| match e {
         BlockingError::Error(e) => e,
         BlockingError::Canceled => DbError::internal("Db threadpool operation canceled"),
     });
 
-    metrics.decr("blocking_tasks");
+    metrics.decr_with_tag("blocking_tasks", "hostname", &HOSTNAME);
 
     result
 }

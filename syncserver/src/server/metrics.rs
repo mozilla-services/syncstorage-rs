@@ -139,17 +139,17 @@ impl Metrics {
         self.incr_with_tags(label, None)
     }
 
-    // decrement a counter with no tags data.
-    pub fn decr(&self, label: &str) {
-        self.count_with_tags(label, -1, None)
-    }
-
     pub fn incr_with_tags(&self, label: &str, tags: Option<Tags>) {
         self.count_with_tags(label, 1, tags)
     }
 
     pub fn incr_with_tag(&self, label: &str, key: &str, value: &str) {
         self.incr_with_tags(label, Some(Tags::with_tag(key, value)))
+    }
+
+    // decrement a counter with no tags data.
+    pub fn decr_with_tag(&self, label: &str, key: &str, value: &str) {
+        self.count_with_tags(label, -1, Some(Tags::with_tag(key, value)))
     }
 
     pub fn count(&self, label: &str, count: i64) {
