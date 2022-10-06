@@ -69,6 +69,11 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
     Ok(())
 }
 
+/// Runs a function as a task on Actix's blocking threadpool.
+///
+/// WARNING: Calling `web::block` anywhere else will result in inaccurate threadpool metrics being
+/// reported. If you want to spawn a task on Actix's blocking threadpool, you **must** use this
+/// function.
 pub async fn run_on_blocking_threadpool<F, T>(metrics: Metrics, f: F) -> Result<T, DbError>
 where
     F: FnOnce() -> Result<T, DbError> + Send + 'static,
