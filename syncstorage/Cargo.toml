@@ -31,7 +31,7 @@ diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
-dyn-clone = "1.0.4"
+dyn-clone = "1.0.9"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 google-cloud-rust-raw = "0.11.0"
