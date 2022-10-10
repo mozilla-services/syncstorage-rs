@@ -14,13 +14,15 @@ const USAGE: &str = "
 Usage: syncstorage [options]
 
 Options:
-    -h, --help               Show this message.
-    --config=CONFIGFILE      Syncstorage configuration file path.
+    -h, --help                 Show this message.
+    --config=CONFIGFILE        Syncstorage configuration file path.
+    --enable_settings_logging  Enable logging for settings.
 ";
 
 #[derive(Debug, Deserialize)]
 struct Args {
     flag_config: Option<String>,
+    flag_enable_settings_logging: Option<bool>,
 }
 
 #[actix_web::main]
@@ -28,9 +30,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let args: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
+    // Note: logging statements in settings will not be displayed unless the logging has been initialized
+    // it's a chicken v. egg situation, so temporarily set the guard.
+    if args.flag_enable_settings_logging.unwrap_or_default() {
+        init_logging(true).expect("Logging failed to initialize");
+    };
     let settings = settings::Settings::with_env_and_config_file(&args.flag_config)?;
-    let _guard = init_logging(!settings.human_logs).expect("Logging failed to initialize");
-    _guard.cancel_reset();
+    // now, reset the guard to what the user specified as the logging settings.
+    init_logging(!settings.human_logs).expect("Logging failed to initialize");
     log::debug!("Starting up...");
     // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/

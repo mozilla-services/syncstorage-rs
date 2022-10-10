@@ -87,9 +87,7 @@ macro_rules! init_app {
     };
     ($settings:expr) => {
         async {
-            // _guard should stay in scope for the duration of
-            // the application.
-            let _guard = crate::logging::init_logging(false).unwrap();
+            crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.limits.clone());
             test::init_service(build_app!(
                 get_test_state(&$settings).await,
@@ -797,4 +795,15 @@ async fn lbheartbeat_ttl_check() {
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
     let sresp = app.call(lb_req).await.unwrap();
     assert_eq!(sresp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+#[actix_rt::test]
+async fn test_invalid_offset() {
+    test_endpoint(
+        http::Method::GET,
+        "/1.5/42/storage/bookmarks?offset=123456:789",
+        Some(StatusCode::PRECONDITION_FAILED),
+        None,
+    )
+    .await;
 }

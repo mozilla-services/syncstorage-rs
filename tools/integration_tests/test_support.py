@@ -27,7 +27,7 @@ import tokenlib
 import urllib.parse as urlparse
 # import unittest2 --obsolete
 import unittest
-import pytest
+# import pytest
 import uuid
 from webtest import TestApp
 from zope.interface import implementer
@@ -422,7 +422,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
     def _switch_user(self):
         # It's hard to reliably switch users when testing a live server.
         if self.distant:
-            raise pytest.skip("Skipped when testing a live server")
+            raise unittest.skip("Skipped when testing a live server")
         # Temporarily authenticate as a different user.
         orig_user_id = self.user_id
         orig_auth_token = self.auth_token

@@ -4,9 +4,8 @@ use crate::error::ApiResult;
 
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
-use slog_scope::GlobalLoggerGuard;
 
-pub fn init_logging(json: bool) -> ApiResult<GlobalLoggerGuard> {
+pub fn init_logging(json: bool) -> ApiResult<()> {
     let logger = if json {
         let hostname = hostname::get()
             .expect("Couldn't get hostname")
@@ -34,10 +33,13 @@ pub fn init_logging(json: bool) -> ApiResult<GlobalLoggerGuard> {
         slog::Logger::root(drain, slog_o!())
     };
     // With the fix landed by https://github.com/slog-rs/slog/issues/169
-    // we need to pass the guard back up to keep it in scope for the app.
+    // we normally need to pass the guard back up to keep it in scope for the app.
+    // Unfortunately, testing breaks due to guards not being set, or conflicting
+    // guards being created, so we still need to initialize and cancel the reset here.
     let guard = slog_scope::set_global_logger(logger);
     slog_stdlog::init().ok();
-    Ok(guard)
+    guard.cancel_reset();
+    Ok(())
 }
 
 pub fn reset_logging() {

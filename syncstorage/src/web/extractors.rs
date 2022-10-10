@@ -2452,13 +2452,8 @@ mod tests {
             }
         }
 
-        let result = Offset::from_str("123456:123");
-        assert!(&result.is_err());
-        let resp = result.err().unwrap().error_response();
-        assert!(resp.status() == StatusCode::PRECONDITION_FAILED);
-        let rbody = resp.into_body();
-        let body = rbody.body().as_str();
-        assert_eq!(body, "0");
+        // Offsets with a ":" are handled by a `.guard()` expression and
+        // should return a 412. See `server::test::test_invalid_offset`
 
         let result = Offset::from_str("123456*123");
         assert!(result.is_err());
