@@ -12,7 +12,7 @@ chrono = "0.4"
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
+diesel_migrations = { version = "2.0.0", features = ["mysql"] }
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
