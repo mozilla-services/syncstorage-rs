@@ -56,7 +56,7 @@ num_cpus = "1"
 protobuf = "2.20.0"
 pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
-regex = "1.4"
+regex = "1.6"
 reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
 sentry = { version = "0.19", features = [
