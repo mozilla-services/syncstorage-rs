@@ -40,7 +40,7 @@ google-cloud-rust-raw = "0.11.0"
 # `cargo build --features grpcio/openssl ...`
 grpcio = { version = "0.9" }
 lazy_static = "1.4.0"
-hawk = "3.2"
+hawk = "4.0"
 hex = "0.4.3"
 hostname = "0.3.1"
 hkdf = "0.11"
