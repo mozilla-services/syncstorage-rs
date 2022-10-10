@@ -20,7 +20,7 @@ backtrace = "0.3.61"
 base64 = "0.13"
 bb8 = "0.4.1"          # pin to 0.4 due to dependencies on Tokio
 bytes = "1.0"
-cadence = "0.26"
+cadence = "0.29"
 chrono = "0.4"
 config = "0.11"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
