@@ -40,6 +40,7 @@ use crate::tokenserver::auth::TokenserverOrigin;
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
+    tags::Tags,
     DOCKER_FLOW_ENDPOINTS, X_WEAVE_RECORDS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -1159,17 +1160,24 @@ impl FromRequest for HawkIdentifier {
             }
         };
 
-        future::ready(Self::extrude(
-            &req,
-            method.as_str(),
-            uri,
-            &connection_info,
-            secrets,
-        ))
+        let result = Self::extrude(&req, method.as_str(), uri, &connection_info, secrets);
+
+        if let Ok(ref hawk_id) = result {
+            // Store the origin of the token as an extra to be included when emitting a Sentry error
+            let mut exts = req.extensions_mut();
+            let mut tags = Tags::default();
+            tags.add_extra(
+                "tokenserver_origin",
+                &hawk_id.tokenserver_origin.to_string(),
+            );
+            tags.commit(&mut exts);
+        }
+
+        future::ready(result)
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, Deserialize, Validate, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, Deserialize, Eq, PartialEq, Validate)]
 #[serde(default)]
 pub struct Offset {
     pub timestamp: Option<SyncTimestamp>,
@@ -1494,14 +1502,14 @@ impl FromRequest for BatchRequestOpt {
 /// both.
 ///
 /// Used with Option<PreConditionHeader> to extract a possible PreConditionHeader.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PreConditionHeader {
     IfModifiedSince(SyncTimestamp),
     IfUnmodifiedSince(SyncTimestamp),
     NoHeader,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PreConditionHeaderOpt {
     pub opt: Option<PreConditionHeader>,
 }
@@ -1589,7 +1597,7 @@ impl FromRequest for PreConditionHeaderOpt {
 }
 
 /// Validation Error Location in the request
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum RequestErrorLocation {
     Body,
@@ -1641,7 +1649,7 @@ fn validate_qs_commit(commit: &str) -> Result<(), ValidationError> {
 
 /// Verifies the BSO sortindex is in the valid range
 fn validate_body_bso_sortindex(sort: i32) -> Result<(), ValidationError> {
-    if BSO_MIN_SORTINDEX_VALUE <= sort && sort <= BSO_MAX_SORTINDEX_VALUE {
+    if (BSO_MIN_SORTINDEX_VALUE..=BSO_MAX_SORTINDEX_VALUE).contains(&sort) {
         Ok(())
     } else {
         Err(request_error("invalid value", RequestErrorLocation::Body))

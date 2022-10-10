@@ -21,7 +21,7 @@ use serde::{
     Serialize,
 };
 
-use syncstorage_common::{from_error, impl_fmt_display};
+use syncstorage_common::{from_error, impl_fmt_display, ReportableError};
 use syncstorage_db_common::error::DbError;
 use thiserror::Error;
 
@@ -96,15 +96,6 @@ impl ApiErrorKind {
 }
 
 impl ApiError {
-    pub fn is_reportable(&self) -> bool {
-        // Should we report this error to sentry?
-        self.status.is_server_error()
-            && match &self.kind {
-                ApiErrorKind::Db(dbe) => dbe.is_reportable(),
-                _ => self.kind.metric_label().is_none(),
-            }
-    }
-
     fn weave_error_code(&self) -> WeaveError {
         match &self.kind {
             ApiErrorKind::Validation(ver) => ver.weave_error_code(),
@@ -142,10 +133,6 @@ impl ApiError {
 
     pub fn is_bso_not_found(&self) -> bool {
         matches!(&self.kind, ApiErrorKind::Db(dbe) if dbe.is_bso_not_found())
-    }
-
-    pub fn metric_label(&self) -> Option<String> {
-        self.kind.metric_label()
     }
 }
 
@@ -274,3 +261,22 @@ impl From<DbError> for ApiError {
 
 from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
+
+impl ReportableError for ApiError {
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
+    }
+
+    fn is_sentry_event(&self) -> bool {
+        // Should we report this error to sentry?
+        self.status.is_server_error()
+            && match &self.kind {
+                ApiErrorKind::Db(dbe) => dbe.is_sentry_event(),
+                _ => self.kind.metric_label().is_none(),
+            }
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        self.kind.metric_label()
+    }
+}

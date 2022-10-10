@@ -474,3 +474,89 @@ class TestBrowserId(TestCase, unittest.TestCase):
                                                 client_state="aaaa")
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         self.assertEqual(res.json["status"], "invalid-generation")
+
+    def test_reverting_to_no_keys_changed_at(self):
+        # Add a user that has no keys_changed_at set
+        uid = self._add_user(generation=0, keys_changed_at=None,
+                             client_state='aaaa')
+        # Send a request with keys_changed_at
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=1234,
+                                                client_state='aaaa')
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(uid)
+        # Confirm that keys_changed_at was set
+        self.assertEqual(user['keys_changed_at'], 1234)
+        # Send a request with no keys_changed_at
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
+        # Once a keys_changed_at has been set, the server expects to receive
+        # it from that point onwards
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'status': 'invalid-keysChangedAt',
+            'errors': [
+                {
+                    'location': 'body',
+                    'name': '',
+                    'description': 'Unauthorized',
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)
+
+    def test_zero_keys_changed_at_treated_as_null(self):
+        # Add a user that has a zero keys_changed_at
+        uid = self._add_user(generation=0, keys_changed_at=0,
+                             client_state='aaaa')
+        # Send a request with no keys_changed_at
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        # The request should succeed and the keys_changed_at should be
+        # unchanged
+        user = self._get_user(uid)
+        self.assertEqual(user['keys_changed_at'], 0)
+
+    def test_reverting_to_no_client_state(self):
+        # Add a user that has no client_state
+        uid = self._add_user(generation=0, keys_changed_at=None,
+                             client_state="")
+        # Send a request with no client state
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=None,
+                                                client_state=None)
+        # The request should succeed
+        self.app.get('/1.0/sync/1.5', headers=headers)
+        # Send a request that updates the client state
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=None,
+                                                client_state='aaaa')
+        # The request should succeed
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+        user = self._get_user(res.json['uid'])
+        # A new user should have been created
+        self.assertNotEqual(uid, res.json['uid'])
+        # The client state should have been updated
+        self.assertEqual(user['client_state'], 'aaaa')
+        # Send another request with no client state
+        headers = self._build_browserid_headers(generation=None,
+                                                keys_changed_at=None,
+                                                client_state=None)
+        # The request should fail, since we are trying to revert to using no
+        # client state after setting one
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'status': 'invalid-client-state',
+            'errors': [
+                {
+                    'location': 'header',
+                    'name': 'X-Client-State',
+                    'description': 'Unacceptable client-state value empty '
+                                   'string',
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)

@@ -1,4 +1,4 @@
-use std::{cmp::PartialEq, fmt};
+use std::{cmp::PartialEq, error::Error, fmt};
 
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use backtrace::Backtrace;
@@ -6,6 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use syncstorage_common::ReportableError;
 use syncstorage_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
@@ -19,7 +20,16 @@ pub struct TokenserverError {
     /// distinguish between similar errors in Sentry.
     pub context: String,
     pub backtrace: Backtrace,
+    pub token_type: TokenType,
 }
+
+#[derive(Clone, Debug)]
+pub enum TokenType {
+    BrowserId,
+    Oauth,
+}
+
+impl Error for TokenserverError {}
 
 // We implement `PartialEq` manually here because `Backtrace` doesn't implement `PartialEq`, so we
 // can't derive it
@@ -50,6 +60,7 @@ impl Default for TokenserverError {
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
             backtrace: Backtrace::new(),
+            token_type: TokenType::Oauth,
         }
     }
 }
@@ -145,7 +156,7 @@ impl TokenserverError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorLocation {
     Header,
     Url,
@@ -260,5 +271,26 @@ impl From<DbError> for TokenserverError {
 impl From<TokenserverError> for HttpResponse {
     fn from(inner: TokenserverError) -> Self {
         ResponseError::error_response(&inner)
+    }
+}
+
+impl ReportableError for TokenserverError {
+    fn error_backtrace(&self) -> String {
+        format!("{:#?}", self.backtrace)
+    }
+
+    fn is_sentry_event(&self) -> bool {
+        self.http_status.is_server_error() && self.metric_label().is_none()
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        if self.http_status.is_client_error() {
+            match self.token_type {
+                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
+                TokenType::Oauth => Some("request.error.oauth".to_owned()),
+            }
+        } else {
+            None
+        }
     }
 }

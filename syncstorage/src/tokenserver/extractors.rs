@@ -31,11 +31,10 @@ lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
 }
 
-const DEFAULT_TOKEN_DURATION: u64 = 5 * 60;
 const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 /// Information from the request needed to process a Tokenserver request.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct TokenserverRequest {
     pub user: results::GetOrCreateUser,
     pub auth_data: AuthData,
@@ -98,6 +97,14 @@ impl TokenserverRequest {
             });
         }
 
+        // If the client previously reported a client state, every subsequent request must include
+        // one. Note that this is only relevant for BrowserID requests, since OAuth requests must
+        // always include a client state.
+        if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
+            let error_message = "Unacceptable client-state value empty string".to_owned();
+            return Err(TokenserverError::invalid_client_state(error_message));
+        }
+
         // The client state on the request must not have been used in the past.
         if self
             .user
@@ -143,6 +150,26 @@ impl TokenserverRequest {
         if opt_cmp!(user_keys_changed_at > auth_keys_changed_at) {
             return Err(TokenserverError {
                 context: "New keys_changed_at less than previously-seen keys_changed_at".to_owned(),
+                ..TokenserverError::invalid_keys_changed_at()
+            });
+        }
+
+        // If there's no keys_changed_at on the request, there must be no value stored on the user
+        // record. Note that this is only relevant for BrowserID requests, since OAuth requests
+        // must always include a keys_changed_at header. The Python Tokenserver converts a NULL
+        // keys_changed_at on the user record to 0 in memory, which means that NULL
+        // keys_changed_ats are treated equivalently to 0 keys_changed_ats. This would allow users
+        // with a 0 keys_changed_at on their user record to hold off on sending a keys_changed_at
+        // in requests even though the value in the database is non-NULL. To be thorough, we
+        // handle this case here.
+        if auth_keys_changed_at.is_none()
+            && matches!(user_keys_changed_at, Some(inner) if inner != 0)
+        {
+            let context =
+                "No keys_changed_at sent for a user for whom we've already seen a keys_changed_at"
+                    .to_owned();
+            return Err(TokenserverError {
+                context,
                 ..TokenserverError::invalid_keys_changed_at()
             });
         }
@@ -252,7 +279,7 @@ impl FromRequest for TokenserverRequest {
                     match duration_string.parse::<u64>() {
                         // The specified token duration should never be greater than the default
                         // token duration set on the server.
-                        Ok(duration) if duration <= DEFAULT_TOKEN_DURATION => Some(duration),
+                        Ok(duration) if duration <= state.token_duration => Some(duration),
                         _ => None,
                     }
                 })
@@ -265,7 +292,7 @@ impl FromRequest for TokenserverRequest {
                 hashed_fxa_uid,
                 hashed_device_id,
                 service_id,
-                duration: duration.unwrap_or(DEFAULT_TOKEN_DURATION),
+                duration: duration.unwrap_or(state.token_duration),
                 node_type: state.node_type,
             };
 
@@ -387,7 +414,7 @@ impl FromRequest for Token {
 }
 
 /// The data extracted from the authentication token.
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct AuthData {
     pub client_state: String,
     pub device_id: Option<String>,
@@ -413,6 +440,15 @@ impl FromRequest for AuthData {
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
 
+            // The Python Tokenserver treats zero values and null values both as being
+            // null, so for consistency, we need to convert a `Some(0)` value to `None`
+            fn convert_zero_to_none(generation_or_keys_changed_at: Option<i64>) -> Option<i64> {
+                match generation_or_keys_changed_at {
+                    Some(0) => None,
+                    _ => generation_or_keys_changed_at,
+                }
+            }
+
             match token {
                 Token::BrowserIdAssertion(assertion) => {
                     let mut tags = Tags::default();
@@ -436,8 +472,8 @@ impl FromRequest for AuthData {
                         device_id: verify_output.device_id,
                         email: verify_output.email.clone(),
                         fxa_uid: fxa_uid.to_owned(),
-                        generation: verify_output.generation,
-                        keys_changed_at: verify_output.keys_changed_at,
+                        generation: convert_zero_to_none(verify_output.generation),
+                        keys_changed_at: convert_zero_to_none(verify_output.keys_changed_at),
                     })
                 }
                 Token::OAuthToken(token) => {
@@ -458,8 +494,8 @@ impl FromRequest for AuthData {
                         email,
                         device_id: None,
                         fxa_uid,
-                        generation: verify_output.generation,
-                        keys_changed_at: Some(key_id.keys_changed_at),
+                        generation: convert_zero_to_none(verify_output.generation),
+                        keys_changed_at: convert_zero_to_none(Some(key_id.keys_changed_at)),
                     })
                 }
             }
@@ -682,6 +718,8 @@ mod tests {
         static ref SECRETS: Arc<Secrets> = Arc::new(Secrets::new("Ted Koppel is a robot").unwrap());
         static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
     }
+
+    const TOKEN_DURATION: u64 = 3600;
 
     #[actix_rt::test]
     async fn test_valid_tokenserver_request() {
@@ -1064,7 +1102,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1107,7 +1145,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1149,7 +1187,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1192,7 +1230,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1229,7 +1267,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1267,7 +1305,7 @@ mod tests {
             hashed_fxa_uid: "abcdef".to_owned(),
             hashed_device_id: "abcdef".to_owned(),
             service_id: 1,
-            duration: DEFAULT_TOKEN_DURATION,
+            duration: TOKEN_DURATION,
             node_type: NodeType::default(),
         };
 
@@ -1303,6 +1341,7 @@ mod tests {
                 )
                 .unwrap(),
             ),
+            token_duration: TOKEN_DURATION,
         }
     }
 }

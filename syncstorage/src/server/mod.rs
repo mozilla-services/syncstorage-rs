@@ -215,6 +215,9 @@ macro_rules! build_app_without_syncstorage {
                         .body(include_str!("../../version.json"))
                 })),
             )
+            .service(
+                web::resource("/__error__").route(web::get().to(tokenserver::handlers::test_error)),
+            )
             .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
                 HttpResponse::Found()
                     .header(LOCATION, SYNC_DOCS_URL)
