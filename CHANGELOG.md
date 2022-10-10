@@ -1,3 +1,17 @@
+<a name="0.12.4"></a>
+## 0.12.4 (2022-10-10)
+
+
+#### Performance
+
+*   always verify OAuth tokens on blocking thread (#1406) ([d69508d3](https://github.com/mozilla-services/syncstorage-rs/commit/d69508d3cc0cc9da96f7e6aab3b091495ed88346))
+
+#### Chore
+
+*   update to Rust 1.64.0 (#1415) ([fca795e3](https://github.com/mozilla-services/syncstorage-rs/commit/fca795e3c09c7feee12b450791a53bb0a2871b48))
+
+
+
 <a name="0.12.3"></a>
 ## 0.12.3 (2022-09-23)
 
