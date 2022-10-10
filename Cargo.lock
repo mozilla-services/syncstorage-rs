@@ -842,10 +842,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b28135ecf6b7d446b43e27e225622a038cc4e2930a1022f51cdb97ada19b8e4d"
 dependencies = [
  "byteorder",
- "diesel_derives",
+ "diesel_derives 1.4.1",
  "mysqlclient-sys",
  "r2d2",
  "url 1.7.2",
+]
+
+[[package]]
+name = "diesel"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36da89704300f3b791425e68b628c852912fb81b3bf0841bfde2c315cb7a7887"
+dependencies = [
+ "diesel_derives 2.0.1",
+ "r2d2",
 ]
 
 [[package]]
@@ -860,12 +870,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "diesel_logger"
-version = "0.1.1"
+name = "diesel_derives"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1793935ad14586bf2aa51574a7157932640c345205ccfb2db431846d846e3db7"
+checksum = "143b758c91dbc3fe1fdcb0dba5bd13276c6a66422f2ef5795b58488248a310aa"
 dependencies = [
- "diesel",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "diesel_logger"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a22b1f4804a69ed8954910b2ab30dedc759665e0284e57db95eef4a7b5edffb"
+dependencies = [
+ "diesel 2.0.1",
  "log",
 ]
 
@@ -1720,7 +1742,7 @@ version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b4fc84e4af020b837029e017966f86a1c2d5e83e64b589963d5047525995860"
 dependencies = [
- "diesel",
+ "diesel 1.4.8",
 ]
 
 [[package]]
@@ -3016,7 +3038,7 @@ dependencies = [
  "chrono",
  "config 0.11.0",
  "deadpool",
- "diesel",
+ "diesel 1.4.8",
  "diesel_logger",
  "diesel_migrations",
  "docopt",
@@ -3081,7 +3103,7 @@ dependencies = [
  "backtrace",
  "chrono",
  "deadpool",
- "diesel",
+ "diesel 1.4.8",
  "diesel_migrations",
  "futures 0.3.19",
  "grpcio",

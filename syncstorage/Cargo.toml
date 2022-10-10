@@ -28,7 +28,7 @@ config = "0.11"
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_logger = "0.1.1"
+diesel_logger = "0.2.0"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 docopt = "1.1.0"
 dyn-clone = "1.0.4"
