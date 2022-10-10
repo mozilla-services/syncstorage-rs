@@ -34,7 +34,7 @@ docopt = "1.1.0"
 dyn-clone = "1.0.4"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
-google-cloud-rust-raw = "0.11.0"
+google-cloud-rust-raw = "0.13.0"
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`
