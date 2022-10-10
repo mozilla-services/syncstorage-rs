@@ -89,7 +89,7 @@ tokio = { version = "0.2.4", features = ["macros", "sync"] }
 url = "2.1"
 urlencoding = "2.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
-validator = "0.14"
+validator = "0.16"
 validator_derive = "0.14"
 woothee = "0.11"
 
