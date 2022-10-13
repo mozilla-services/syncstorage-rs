@@ -33,14 +33,14 @@ pub struct TokenserverResult {
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     db: Box<dyn Db>,
-    TokenserverMetrics(mut metrics): TokenserverMetrics,
+    mut metrics: TokenserverMetrics,
 ) -> Result<HttpResponse, TokenserverError> {
-    let updates = update_user(&req, db).await?;
+    let updates = update_user(&req, db, metrics.clone()).await?;
 
     let (token, derived_secret) = {
         let token_plaintext = get_token_plaintext(&req, &updates)?;
 
-        metrics.start_timer("token_creation", None);
+        metrics.0.start_timer("token_creation", None);
         // Get the token and secret
         Tokenlib::get_token_and_derived_secret(token_plaintext, &req.shared_secret)?
     };
@@ -78,11 +78,12 @@ fn get_token_plaintext(
     let fxa_kid = {
         // If decoding the hex bytes fails, it means we did something wrong when we stored the
         // client state in the database
-        let client_state =
-            hex::decode(req.auth_data.client_state.clone()).map_err(|e| TokenserverError {
-                context: format!("Failed to decode the client state hex: {}", e),
-                ..TokenserverError::internal_error()
-            })?;
+        let client_state = hex::decode(req.auth_data.client_state.clone()).map_err(|e| {
+            TokenserverError::internal_error(format!(
+                "Failed to decode the client state hex: {}",
+                e
+            ))
+        })?;
         let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
 
         format!(
@@ -122,13 +123,23 @@ struct UserUpdates {
 async fn update_user(
     req: &TokenserverRequest,
     db: Box<dyn Db>,
+    TokenserverMetrics(metrics): TokenserverMetrics,
 ) -> Result<UserUpdates, TokenserverError> {
     let keys_changed_at = match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
         // If the keys_changed_at in the request is larger than that stored on the user record,
         // update to the value in the request.
         (Some(request_keys_changed_at), Some(user_keys_changed_at))
-            if request_keys_changed_at >= user_keys_changed_at =>
+            if request_keys_changed_at > user_keys_changed_at =>
         {
+            metrics.incr("account_update.keys_changed_at_updated");
+            Some(request_keys_changed_at)
+        }
+        // If the keys_changed_at in the request is the same as that stored on the user record,
+        // keep the same value.
+        (Some(request_keys_changed_at), Some(user_keys_changed_at))
+            if request_keys_changed_at == user_keys_changed_at =>
+        {
+            metrics.incr("account_update.keys_changed_at_unchanged");
             Some(request_keys_changed_at)
         }
         // If there is a keys_changed_at in the request and it's smaller than that stored on the
@@ -136,23 +147,41 @@ async fn update_user(
         (Some(_request_keys_changed_at), Some(_user_keys_changed_at)) => unreachable!(),
         // If there is a keys_changed_at on the request but not one on the user record, this is the
         // first time the client reported it, so we assign the new value.
-        (Some(request_keys_changed_at), None) => Some(request_keys_changed_at),
+        (Some(request_keys_changed_at), None) => {
+            metrics.incr("account_update.keys_changed_at_initialized");
+            Some(request_keys_changed_at)
+        }
         // At this point, we've already validated that, if there is a keys_changed_at already
         // stored on the user record, there must be one in the request. If that isn't the case,
         // we've already returned an error.
         (None, Some(user_keys_changed_at)) if user_keys_changed_at != 0 => unreachable!(),
         // If there's no keys_changed_at in the request and the keys_changed_at on the user record
         // is 0, keep the value as 0.
-        (None, Some(_user_keys_changed_at)) => Some(0),
+        (None, Some(_user_keys_changed_at)) => {
+            metrics.incr("account_update.keys_changed_at_zero");
+            Some(0)
+        }
         // If there is no keys_changed_at on the user record or in the request, we want to leave
         // the value unset.
-        (None, None) => None,
+        (None, None) => {
+            metrics.incr("account_update.keys_changed_at_absent");
+            None
+        }
     };
 
     let generation = match req.auth_data.generation {
-        // If there's a generation in the request and it's greater than or equal to that stored on
-        // the user record, update to the value in the request.
-        Some(request_generation) if request_generation >= req.user.generation => request_generation,
+        // If there's a generation in the request and it's greater than that stored on the user
+        // record, update to the value in the request.
+        Some(request_generation) if request_generation > req.user.generation => {
+            metrics.incr("account_update.generation_updated");
+            request_generation
+        }
+        // If there's a generation on the reuqest and it's the same as that stored on the user
+        // record, keep the same value.
+        Some(request_generation) if request_generation == req.user.generation => {
+            metrics.incr("account_update.generation_unchanged");
+            request_generation
+        }
         // If there's a generation in the request and it's smaller than that stored on the user
         // record, we've already returned an error.
         Some(_request_generation) => unreachable!(),
@@ -165,6 +194,7 @@ async fn update_user(
                 if request_keys_changed_at > user_keys_changed_at
                     && request_keys_changed_at > req.user.generation =>
             {
+                metrics.incr("account_update.generation_set_to_keys_changed_at");
                 request_keys_changed_at
             }
             // If there's not a generation on the request but the keys_changed_at on the request
@@ -174,11 +204,20 @@ async fn update_user(
             (Some(request_keys_changed_at), None)
                 if request_keys_changed_at > req.user.generation =>
             {
+                metrics.incr("account_update.generation_set_to_keys_changed_at_initialization");
                 request_keys_changed_at
             }
-            // If the request has a keys_changed_at but the above conditions don't hold OR if the
-            // request doesn't have a keys_changed_at, just keep the same generation.
-            (_, _) => req.user.generation,
+            // If the request doesn't have a keys_changed_at, keep the same generation.
+            (None, _) => {
+                metrics.incr("account_update.no_keys_changed_or_generation");
+                req.user.generation
+            }
+            // If the request has a keys_changed_at but the above conditions don't hold, keep the
+            // same generation.
+            (_, _) => {
+                metrics.incr("account_update.generation_unchanged");
+                req.user.generation
+            }
         },
     };
 
@@ -276,9 +315,7 @@ pub async fn heartbeat(db: Box<dyn Db>) -> Result<HttpResponse, Error> {
 /// Generates an error to test the Sentry integration
 pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
     error!("Test Error");
-    Err(TokenserverError {
-        context: "Test error for Sentry".to_owned(),
-        description: "Test error for Sentry".to_owned(),
-        ..TokenserverError::internal_error()
-    })
+    Err(TokenserverError::internal_error(
+        "Test error for Sentry".to_owned(),
+    ))
 }

@@ -2,7 +2,7 @@ use actix_web::{error::BlockingError, web};
 use async_trait::async_trait;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
-    types::{IntoPyDict, PyString},
+    types::{IntoPyDict, PyTuple},
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -105,7 +105,7 @@ impl VerifyToken for Verifier {
         // since that would require passing `self` to a separate thread. Passing &Self to a closure
         // gives us the flexibility to clone only when necessary.
         let verify_inner = |verifier: &Self| {
-            let maybe_verify_output_string = Python::with_gil(|py| {
+            let (was_successful, data) = Python::with_gil(|py| {
                 let client = verifier.inner.as_ref(py);
                 // `client.verify_token(token)`
                 let result: &PyAny = client
@@ -116,29 +116,30 @@ impl VerifyToken for Verifier {
                         e
                     })?;
 
-                if result.is_none() {
-                    Ok(None)
-                } else {
-                    let verify_output_python_string = result.downcast::<PyString>()?;
-                    verify_output_python_string.extract::<String>().map(Some)
-                }
+                result.downcast::<PyTuple>()?.extract::<(bool, String)>()
             })
-            .map_err(|e| TokenserverError {
-                context: format!("pyo3 error in OAuth verifier: {}", e),
+            .map_err(|_| TokenserverError {
+                metric_label: Some("oauth.pyo3_error"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             })?;
 
-            match maybe_verify_output_string {
-                Some(verify_output_string) => {
+            match (was_successful, data) {
+                (true, verify_output_string) => {
                     serde_json::from_str::<VerifyOutput>(&verify_output_string).map_err(|e| {
                         TokenserverError {
-                            context: format!("Invalid OAuth verify output: {}", e),
+                            context: Some(format!("Invalid `VerifyOutput` format: {}", e)),
                             ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                         }
                     })
                 }
-                None => Err(TokenserverError {
-                    context: "Invalid OAuth token".to_owned(),
+                (false, error_message) => Err(TokenserverError {
+                    metric_label: Some(if error_message.contains("expired") {
+                        "oauth.expired_token"
+                    } else if error_message.contains("invalid signature") {
+                        "oauth.invalid_signature"
+                    } else {
+                        "oauth.other"
+                    }),
                     ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                 }),
             }
@@ -158,16 +159,14 @@ impl VerifyToken for Verifier {
         // than the specified number of seconds.
         time::timeout(Duration::from_secs(self.timeout), fut)
             .await
-            .map_err(|_| TokenserverError {
-                context: "OAuth verification timeout".to_owned(),
-                ..TokenserverError::resource_unavailable()
+            .map_err(|_| {
+                TokenserverError::resource_unavailable("OAuth verification timeout".to_owned())
             })?
             .map_err(|e| match e {
                 BlockingError::Error(inner) => inner,
-                BlockingError::Canceled => TokenserverError {
-                    context: "Tokenserver threadpool operation failed".to_owned(),
-                    ..TokenserverError::internal_error()
-                },
+                BlockingError::Canceled => TokenserverError::internal_error(
+                    "Tokenserver threadpool operation failed".to_owned(),
+                ),
             })
     }
 }

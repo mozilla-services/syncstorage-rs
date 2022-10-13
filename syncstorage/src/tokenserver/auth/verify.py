@@ -14,6 +14,6 @@ class FxaOAuthClient:
             token_data = self._client.verify_token(token, DEFAULT_OAUTH_SCOPE)
 
             # Serialize the data to make it easier to parse in Rust
-            return json.dumps(token_data)
-        except (ClientError, TrustError):
-            return None
+            return (True, json.dumps(token_data))
+        except (TrustError, ClientError) as e:
+            return (False, str(e).lower())

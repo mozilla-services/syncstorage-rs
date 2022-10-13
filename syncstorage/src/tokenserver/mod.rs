@@ -81,6 +81,7 @@ impl ServerState {
     }
 }
 
+#[derive(Clone)]
 pub struct TokenserverMetrics(Metrics);
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

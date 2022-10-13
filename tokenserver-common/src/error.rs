@@ -16,17 +16,15 @@ pub struct TokenserverError {
     pub name: String,
     pub description: String,
     pub http_status: StatusCode,
-    /// For internal use only. Used to report any additional context behind an error to
-    /// distinguish between similar errors in Sentry.
-    pub context: String,
     pub backtrace: Backtrace,
-    pub token_type: TokenType,
-}
-
-#[derive(Clone, Debug)]
-pub enum TokenType {
-    BrowserId,
-    Oauth,
+    /// The label used to report this error as a metric. A metric will be emitted for this error
+    /// if this field is `Some` OR if the HTTP status is 4XX. If the HTTP status is 4XX, a label
+    /// of `"other"` will be applied to the metric emission.
+    pub metric_label: Option<&'static str>,
+    /// For internal use only. Used to report any additional context behind an error to
+    /// distinguish between similar errors in Sentry. The error will be reported to Sentry if and
+    /// only if this field is `Some`.
+    pub context: Option<String>,
 }
 
 impl Error for TokenserverError {}
@@ -41,12 +39,17 @@ impl PartialEq for TokenserverError {
             && self.description == other.description
             && self.http_status == other.http_status
             && self.context == other.context
+            && self.metric_label == other.metric_label
     }
 }
 
 impl fmt::Display for TokenserverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.context)
+        write!(
+            f,
+            "{}",
+            self.context.clone().unwrap_or_else(|| "".to_owned())
+        )
     }
 }
 
@@ -58,9 +61,9 @@ impl Default for TokenserverError {
             name: "".to_owned(),
             description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
-            context: "Unauthorized".to_owned(),
+            context: None,
             backtrace: Backtrace::new(),
-            token_type: TokenType::Oauth,
+            metric_label: None,
         }
     }
 }
@@ -70,7 +73,6 @@ impl TokenserverError {
         Self {
             status: "invalid-generation",
             location: ErrorLocation::Body,
-            context: "Invalid generation".to_owned(),
             ..Self::default()
         }
     }
@@ -79,7 +81,6 @@ impl TokenserverError {
         Self {
             status: "invalid-keysChangedAt",
             location: ErrorLocation::Body,
-            context: "Invalid keys_changed_at".to_owned(),
             ..Self::default()
         }
     }
@@ -87,7 +88,6 @@ impl TokenserverError {
     pub fn invalid_key_id(description: String) -> Self {
         Self {
             status: "invalid-key-id",
-            context: description.clone(),
             description,
             ..Self::default()
         }
@@ -97,7 +97,6 @@ impl TokenserverError {
         Self {
             status: "invalid-credentials",
             location: ErrorLocation::Body,
-            context: description.clone(),
             description,
             ..Self::default()
         }
@@ -106,30 +105,29 @@ impl TokenserverError {
     pub fn invalid_client_state(description: String) -> Self {
         Self {
             status: "invalid-client-state",
-            context: description.clone(),
             description,
             name: "X-Client-State".to_owned(),
             ..Self::default()
         }
     }
 
-    pub fn internal_error() -> Self {
+    pub fn internal_error(context: String) -> Self {
         Self {
             status: "internal-error",
             location: ErrorLocation::Internal,
             description: "Server error".to_owned(),
             http_status: StatusCode::INTERNAL_SERVER_ERROR,
-            context: "Internal error".to_owned(),
+            context: Some(context),
             ..Self::default()
         }
     }
 
-    pub fn resource_unavailable() -> Self {
+    pub fn resource_unavailable(context: String) -> Self {
         Self {
             location: ErrorLocation::Body,
             description: "Resource is not available".to_owned(),
             http_status: StatusCode::SERVICE_UNAVAILABLE,
-            context: "Resource is not available".to_owned(),
+            context: Some(context),
             ..Default::default()
         }
     }
@@ -138,7 +136,6 @@ impl TokenserverError {
         Self {
             status: "error",
             location: ErrorLocation::Url,
-            context: description.clone(),
             description,
             name,
             http_status: StatusCode::NOT_FOUND,
@@ -149,7 +146,6 @@ impl TokenserverError {
     pub fn unauthorized(description: String) -> Self {
         Self {
             location: ErrorLocation::Body,
-            context: description.clone(),
             description,
             ..Self::default()
         }
@@ -253,7 +249,9 @@ impl From<DbError> for TokenserverError {
     fn from(db_error: DbError) -> Self {
         TokenserverError {
             description: db_error.to_string(),
-            context: db_error.to_string(),
+            // We always want to report this error to Sentry, since any unhandled DbError is an
+            // internal error we want to be made aware of
+            context: Some(db_error.to_string()),
             backtrace: db_error.backtrace,
             http_status: if db_error.status.is_server_error() {
                 // Use the status code from the DbError if it already suggests an internal error;
@@ -263,7 +261,7 @@ impl From<DbError> for TokenserverError {
                 StatusCode::SERVICE_UNAVAILABLE
             },
             // An unhandled DbError in the Tokenserver code is an internal error
-            ..TokenserverError::internal_error()
+            ..TokenserverError::internal_error("Unhandled database error".to_owned())
         }
     }
 }
@@ -280,15 +278,15 @@ impl ReportableError for TokenserverError {
     }
 
     fn is_sentry_event(&self) -> bool {
-        self.http_status.is_server_error() && self.metric_label().is_none()
+        self.context.is_some()
     }
 
     fn metric_label(&self) -> Option<String> {
         if self.http_status.is_client_error() {
-            match self.token_type {
-                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
-                TokenType::Oauth => Some("request.error.oauth".to_owned()),
-            }
+            Some(format!(
+                "error.{}",
+                self.metric_label().unwrap_or_else(|| "other".to_owned())
+            ))
         } else {
             None
         }

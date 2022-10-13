@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use reqwest::{Client as ReqwestClient, StatusCode};
 use serde::{de::Deserializer, Deserialize, Serialize};
-use tokenserver_common::error::{ErrorLocation, TokenType, TokenserverError};
+use tokenserver_common::error::{ErrorLocation, TokenserverError};
 
 use super::VerifyToken;
 use crate::tokenserver::settings::Settings;
@@ -67,51 +67,33 @@ impl VerifyToken for RemoteVerifier {
                 if e.is_connect() {
                     // If we are unable to reach the FxA server or if FxA responds with an HTTP
                     // status other than 200, report a 503 to the client
-                    TokenserverError {
-                        context: format!(
-                            "Request error occurred during BrowserID request to FxA: {}",
-                            e
-                        ),
-                        token_type: TokenType::BrowserId,
-                        ..TokenserverError::resource_unavailable()
-                    }
+                    TokenserverError::resource_unavailable(format!(
+                        "Unable to connect to the FxA BrowserID verifier: {}",
+                        e
+                    ))
                 } else {
                     // If any other error occurs during the request, report a 401 to the client
                     TokenserverError {
-                        context: format!(
-                            "Unknown error occurred during BrowserID request to FxA: {}",
-                            e
-                        ),
-                        token_type: TokenType::BrowserId,
+                        metric_label: Some("browserid.verifier_request_error"),
                         ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                     }
                 }
             })?;
 
         if response.status() != StatusCode::OK {
-            return Err(TokenserverError {
-                context: format!(
-                    "FxA returned a status code other than 200 ({})",
-                    response.status().as_u16()
-                ),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            });
+            return Err(TokenserverError::resource_unavailable(format!(
+                "FxA returned a status code other than 200 ({})",
+                response.status().as_u16()
+            )));
         }
 
         // If FxA responds with an invalid response body, report a 503 to the client
-        let response_body =
-            response
-                .json::<VerifyResponse>()
-                .await
-                .map_err(|e| TokenserverError {
-                    context: format!(
-                        "Invalid BrowserID verification response received from FxA: {}",
-                        e
-                    ),
-                    token_type: TokenType::BrowserId,
-                    ..TokenserverError::resource_unavailable()
-                })?;
+        let response_body = response.json::<VerifyResponse>().await.map_err(|e| {
+            TokenserverError::resource_unavailable(format!(
+                "Invalid BrowserID verification response received from FxA: {}",
+                e
+            ))
+        })?;
 
         match response_body {
             VerifyResponse::Failure {
@@ -120,34 +102,23 @@ impl VerifyToken for RemoteVerifier {
                 Err(TokenserverError {
                     status: "invalid-timestamp",
                     location: ErrorLocation::Body,
-                    context: "Expired BrowserID assertion".to_owned(),
-                    token_type: TokenType::BrowserId,
+                    metric_label: Some("browserid.expired_assertion"),
                     ..Default::default()
                 })
             }
-            VerifyResponse::Failure {
-                reason: Some(reason),
-            } => Err(TokenserverError {
-                context: format!("BrowserID verification error: {}", reason),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-            }),
             VerifyResponse::Failure { .. } => Err(TokenserverError {
-                context: "Unknown BrowserID verification error".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.unknown_error"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay { issuer, .. } if issuer != self.issuer => Err(TokenserverError {
-                context: "BrowserID issuer mismatch".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.issuer_mismatch"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay {
                 idp_claims: Some(claims),
                 ..
             } if !claims.token_verified() => Err(TokenserverError {
-                context: "BrowserID assertion not verified".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.invalid_assertion"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             }),
             VerifyResponse::Okay {
@@ -235,8 +206,7 @@ impl IdpClaims {
             Some(Some(_)) | None => Ok(self.generation.flatten()),
             // If the fxa-generation claim is null, return an error.
             Some(None) => Err(TokenserverError {
-                context: "null fxa-generation claim in BrowserID assertion".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.null_generation_claim"),
                 ..TokenserverError::invalid_generation()
             }),
         }
@@ -251,8 +221,7 @@ impl IdpClaims {
                 description: "invalid keysChangedAt".to_owned(),
                 status: "invalid-credentials",
                 location: ErrorLocation::Body,
-                context: "null fxa-keysChangedAt claim in BrowserID assertion".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.null_keys_changed_at_claim"),
                 ..Default::default()
             }),
         }
@@ -348,11 +317,9 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "FxA returned a status code other than 200 (500)".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "FxA returned a status code other than 200 (500)".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -366,11 +333,9 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: expected value at line 1 column 1".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: expected value at line 1 column 1".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -384,11 +349,9 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: unknown variant `error`, expected `okay` or `failure` at line 1 column 18".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: unknown variant `error`, expected `okay` or `failure` at line 1 column 18".to_owned()
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -402,11 +365,9 @@ mod tests {
             let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: unknown variant `potato`, expected `okay` or `failure` at line 1 column 19".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: unknown variant `potato`, expected `okay` or `failure` at line 1 column 19".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -421,8 +382,7 @@ mod tests {
             mock.assert();
 
             let expected_error = TokenserverError {
-                context: "BrowserID verification error: something broke".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.unknown_error"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             };
             assert_eq!(expected_error, error);
@@ -438,8 +398,7 @@ mod tests {
             mock.assert();
 
             let expected_error = TokenserverError {
-                context: "Unknown BrowserID verification error".to_owned(),
-                token_type: TokenType::BrowserId,
+                metric_label: Some("browserid.unknown_error"),
                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
             };
             assert_eq!(expected_error, error);
@@ -466,8 +425,7 @@ mod tests {
         }
 
         let expected_error = TokenserverError {
-            context: "BrowserID issuer mismatch".to_owned(),
-            token_type: TokenType::BrowserId,
+            metric_label: Some("browserid.issuer_mismatch"),
             ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
         };
         let verifier = RemoteVerifier::try_from(&Settings {
@@ -539,11 +497,9 @@ mod tests {
             let error = verifier.verify(assertion.clone()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: invalid type: integer `42`, expected a string".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: invalid type: integer `42`, expected a string".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -561,11 +517,9 @@ mod tests {
             let error = verifier.verify(assertion.clone()).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: invalid type: null, expected a string".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: invalid type: null, expected a string".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
 
@@ -582,11 +536,9 @@ mod tests {
             let error = verifier.verify(assertion).await.unwrap_err();
             mock.assert();
 
-            let expected_error = TokenserverError {
-                context: "Invalid BrowserID verification response received from FxA: error decoding response body: missing field `issuer`".to_owned(),
-                token_type: TokenType::BrowserId,
-                ..TokenserverError::resource_unavailable()
-            };
+            let expected_error = TokenserverError::resource_unavailable(
+                "Invalid BrowserID verification response received from FxA: error decoding response body: missing field `issuer`".to_owned(),
+            );
             assert_eq!(expected_error, error);
         }
     }

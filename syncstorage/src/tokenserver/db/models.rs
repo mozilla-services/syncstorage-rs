@@ -140,6 +140,9 @@ impl TokenserverDb {
                AND uid = ?
         "#;
 
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.replace_user", None);
+
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Integer, _>(params.service_id)
@@ -380,6 +383,12 @@ impl TokenserverDb {
                 old_client_states: vec![],
             })
         } else {
+            let mut metrics = self.metrics.clone();
+            metrics.start_timer(
+                "storage.get_or_create_user.process_previous_user_records",
+                None,
+            );
+
             raw_users.sort_by_key(|raw_user| (raw_user.generation, raw_user.created_at));
             raw_users.reverse();
 

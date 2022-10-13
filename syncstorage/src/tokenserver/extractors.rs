@@ -92,7 +92,7 @@ impl TokenserverRequest {
             && opt_cmp!(auth_generation < auth_keys_changed_at)
         {
             return Err(TokenserverError {
-                context: "keys_changed_at greater than generation".to_owned(),
+                metric_label: Some("validation.keys_changed_at_greater_than_generation"),
                 ..TokenserverError::invalid_keys_changed_at()
             });
         }
@@ -102,7 +102,10 @@ impl TokenserverRequest {
         // always include a client state.
         if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
             let error_message = "Unacceptable client-state value empty string".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError {
+                metric_label: Some("validation.empty_client_state"),
+                ..TokenserverError::invalid_client_state(error_message)
+            });
         }
 
         // The client state on the request must not have been used in the past.
@@ -112,7 +115,10 @@ impl TokenserverRequest {
             .contains(&self.auth_data.client_state)
         {
             let error_message = "Unacceptable client-state value stale value".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError {
+                metric_label: Some("validation.previously_used_client_state"),
+                ..TokenserverError::invalid_client_state(error_message)
+            });
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
@@ -122,7 +128,10 @@ impl TokenserverRequest {
         {
             let error_message =
                 "Unacceptable client-state value new value with no generation change".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError {
+                metric_label: Some("validation.new_client_state_without_new_generation"),
+                ..TokenserverError::invalid_client_state(error_message)
+            });
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
@@ -133,14 +142,17 @@ impl TokenserverRequest {
             let error_message =
                 "Unacceptable client-state value new value with no keys_changed_at change"
                     .to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError {
+                metric_label: Some("validation.new_client_state_without_new_keys_changed_at"),
+                ..TokenserverError::invalid_client_state(error_message)
+            });
         }
 
         // The generation on the request cannot be earlier than the generation stored on the user
         // record.
         if opt_cmp!(user_generation > auth_generation) {
             return Err(TokenserverError {
-                context: "New generation less than previously-seen generation".to_owned(),
+                metric_label: Some("validation.generation_less_than_current_value"),
                 ..TokenserverError::invalid_generation()
             });
         }
@@ -149,7 +161,7 @@ impl TokenserverRequest {
         // the user record.
         if opt_cmp!(user_keys_changed_at > auth_keys_changed_at) {
             return Err(TokenserverError {
-                context: "New keys_changed_at less than previously-seen keys_changed_at".to_owned(),
+                metric_label: Some("validation.keys_changed_at_less_than_current_value"),
                 ..TokenserverError::invalid_keys_changed_at()
             });
         }
@@ -165,11 +177,8 @@ impl TokenserverRequest {
         if auth_keys_changed_at.is_none()
             && matches!(user_keys_changed_at, Some(inner) if inner != 0)
         {
-            let context =
-                "No keys_changed_at sent for a user for whom we've already seen a keys_changed_at"
-                    .to_owned();
             return Err(TokenserverError {
-                context,
+                metric_label: Some("validation.empty_keys_changed_at"),
                 ..TokenserverError::invalid_keys_changed_at()
             });
         }
@@ -267,7 +276,7 @@ impl FromRequest for TokenserverRequest {
                         .await
                         .map_err(|_| TokenserverError {
                             description: "invalid query params".to_owned(),
-                            context: "invalid query params".to_owned(),
+                            metric_label: Some("request.invalid_query_params"),
                             http_status: StatusCode::BAD_REQUEST,
                             location: ErrorLocation::Url,
                             ..Default::default()
@@ -321,9 +330,11 @@ impl FromRequest for Box<dyn Db> {
                 .await?
                 .get()
                 .await
-                .map_err(|e| TokenserverError {
-                    context: format!("Couldn't acquire a database connection: {}", e),
-                    ..TokenserverError::internal_error()
+                .map_err(|e| {
+                    TokenserverError::internal_error(format!(
+                        "Couldn't acquire a database connection: {}",
+                        e
+                    ))
                 })
         })
     }
@@ -370,33 +381,42 @@ impl FromRequest for Token {
                 .ok_or_else(|| TokenserverError {
                     description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
-                    context: "No Authorization header".to_owned(),
+                    metric_label: Some("request.no_auth_header"),
                     ..Default::default()
                 })?
                 .to_str()
-                .map_err(|e| TokenserverError {
+                .map_err(|_| TokenserverError {
                     description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
-                    context: format!(
-                        "Authorization header contains invalid ASCII characters: {}",
-                        e
-                    ),
                     ..Default::default()
                 })?;
 
             if let Some((auth_type, token)) = authorization_header.split_once(' ') {
                 let auth_type = auth_type.to_ascii_lowercase();
 
+                // If the Authorization header has a valid type, we add a tag the request
+                // extensions to tag any metric emission from this point onwards with the token
+                // type
                 if auth_type == "bearer" {
+                    let mut exts = req.extensions_mut();
+                    let mut tags = Tags::default();
+                    tags.add_tag("token_type", "OAuth");
+                    tags.commit(&mut exts);
+
                     Ok(Token::OAuthToken(token.to_owned()))
                 } else if auth_type == "browserid" {
+                    let mut exts = req.extensions_mut();
+                    let mut tags = Tags::default();
+                    tags.add_tag("token_type", "BrowserID");
+                    tags.commit(&mut exts);
+
                     Ok(Token::BrowserIdAssertion(token.to_owned()))
                 } else {
                     // The request must use a Bearer token or BrowserID token
                     Err(TokenserverError {
                         description: "Unsupported".to_owned(),
                         location: ErrorLocation::Body,
-                        context: "Invalid authorization scheme".to_owned(),
+                        metric_label: Some("request.unsupported_auth_scheme"),
                         ..Default::default()
                     })
                 }
@@ -405,7 +425,7 @@ impl FromRequest for Token {
                 Err(TokenserverError {
                     description: "Unauthorized".to_owned(),
                     location: ErrorLocation::Body,
-                    context: "Invalid Authorization header format".to_owned(),
+                    metric_label: Some("request.invalid_auth_header"),
                     ..Default::default()
                 })
             }
@@ -530,7 +550,7 @@ impl FromRequest for XClientStateHeader {
                         description: "Invalid client state value".to_owned(),
                         name: "X-Client-State".to_owned(),
                         http_status: StatusCode::BAD_REQUEST,
-                        context: "Invalid client state value".to_owned(),
+                        metric_label: Some("request.invalid_x_client_state"),
                         ..Default::default()
                     });
                 }
@@ -563,18 +583,20 @@ impl FromRequest for KeyId {
             // The X-KeyID header must be present for requests using OAuth
             let x_key_id = headers
                 .get("X-KeyID")
-                .ok_or_else(|| {
-                    TokenserverError::invalid_key_id("Missing X-KeyID header".to_owned())
+                .ok_or_else(|| TokenserverError {
+                    metric_label: Some("request.missing_x_key_id"),
+                    ..TokenserverError::invalid_key_id("Missing X-KeyID header".to_owned())
                 })?
                 .to_str()
-                .map_err(|_| {
-                    TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned())
+                .map_err(|_| TokenserverError {
+                    metric_label: Some("request.invalid_x_key_id_to_str"),
+                    ..TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned())
                 })?;
 
             // The X-KeyID header is of the format `[keys_changed_at]-[base64-encoded client state]` (e.g. `00000000000001234-qqo`)
             let (keys_changed_at_string, encoded_client_state) =
                 x_key_id.split_once('-').ok_or_else(|| TokenserverError {
-                    context: "X-KeyID header has invalid format".to_owned(),
+                    metric_label: Some("request.invalid_x_key_id_format"),
                     ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                 })?;
 
@@ -585,11 +607,8 @@ impl FromRequest for KeyId {
                 let client_state_hex = {
                     let bytes =
                         base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                            .map_err(|e| TokenserverError {
-                                context: format!(
-                                    "Failed to decode client state base64 in X-KeyID: {}",
-                                    e
-                                ),
+                            .map_err(|_| TokenserverError {
+                                metric_label: Some("request.invalid_client_state_base64"),
                                 ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                             })?;
 
@@ -606,7 +625,7 @@ impl FromRequest for KeyId {
                         return Err(TokenserverError {
                             status: "invalid-client-state",
                             location: ErrorLocation::Body,
-                            context: "Client state mismatch in X-Client-State header".to_owned(),
+                            metric_label: Some("request.client_state_mismatch"),
                             ..TokenserverError::default()
                         });
                     }
@@ -618,8 +637,8 @@ impl FromRequest for KeyId {
             let keys_changed_at =
                 keys_changed_at_string
                     .parse::<i64>()
-                    .map_err(|e| TokenserverError {
-                        context: format!("Non-integral keys_changed_at in X-KeyID: {}", e),
+                    .map_err(|_| TokenserverError {
+                        metric_label: Some("request.non_integral_keys_changed_at"),
                         ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
                     })?;
 
@@ -652,24 +671,18 @@ impl FromRequest for TokenserverMetrics {
 }
 
 fn get_server_state(req: &HttpRequest) -> Result<&Data<Option<ServerState>>, TokenserverError> {
-    req.app_data::<Data<Option<ServerState>>>()
-        .ok_or_else(|| TokenserverError {
-            context: "Failed to load the application state".to_owned(),
-            ..TokenserverError::internal_error()
-        })
+    req.app_data::<Data<Option<ServerState>>>().ok_or_else(|| {
+        TokenserverError::internal_error("Failed to load the application state".to_owned())
+    })
 }
 
 fn get_secret(req: &HttpRequest) -> Result<String, TokenserverError> {
-    let secrets = req
-        .app_data::<Data<Arc<Secrets>>>()
-        .ok_or_else(|| TokenserverError {
-            context: "Failed to load the application secrets".to_owned(),
-            ..TokenserverError::internal_error()
-        })?;
+    let secrets = req.app_data::<Data<Arc<Secrets>>>().ok_or_else(|| {
+        TokenserverError::internal_error("Failed to load the application secrets".to_owned())
+    })?;
 
-    String::from_utf8(secrets.master_secret.clone()).map_err(|e| TokenserverError {
-        context: format!("Failed to read the master secret: {}", e),
-        ..TokenserverError::internal_error()
+    String::from_utf8(secrets.master_secret.clone()).map_err(|e| {
+        TokenserverError::internal_error(format!("Failed to read the master secret: {}", e))
     })
 }
 
@@ -1110,7 +1123,7 @@ mod tests {
         assert_eq!(
             error,
             TokenserverError {
-                context: "New generation less than previously-seen generation".to_owned(),
+                metric_label: Some("validation.generation_less_than_current_value"),
                 ..TokenserverError::invalid_generation()
             }
         );
@@ -1153,7 +1166,7 @@ mod tests {
         assert_eq!(
             error,
             TokenserverError {
-                context: "New keys_changed_at less than previously-seen keys_changed_at".to_owned(),
+                metric_label: Some("validation.keys_changed_at_less_than_current_value"),
                 ..TokenserverError::invalid_keys_changed_at()
             }
         );
@@ -1195,7 +1208,7 @@ mod tests {
         assert_eq!(
             error,
             TokenserverError {
-                context: "keys_changed_at greater than generation".to_owned(),
+                metric_label: Some("validation.keys_changed_at_greater_than_generation"),
                 ..TokenserverError::invalid_keys_changed_at()
             }
         );
@@ -1236,7 +1249,13 @@ mod tests {
 
         let error = tokenserver_request.validate().unwrap_err();
         let error_message = "Unacceptable client-state value stale value".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError {
+                metric_label: Some("validation.previously_used_client_state"),
+                ..TokenserverError::invalid_client_state(error_message)
+            }
+        );
     }
 
     #[actix_rt::test]
@@ -1274,7 +1293,13 @@ mod tests {
         let error = tokenserver_request.validate().unwrap_err();
         let error_message =
             "Unacceptable client-state value new value with no generation change".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError {
+                metric_label: Some("validation.new_client_state_without_new_generation"),
+                ..TokenserverError::invalid_client_state(error_message)
+            }
+        );
     }
 
     #[actix_rt::test]
@@ -1312,7 +1337,13 @@ mod tests {
         let error = tokenserver_request.validate().unwrap_err();
         let error_message =
             "Unacceptable client-state value new value with no keys_changed_at change".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError {
+                metric_label: Some("validation.new_client_state_without_new_keys_changed_at"),
+                ..TokenserverError::invalid_client_state(error_message)
+            }
+        );
     }
 
     fn extract_body_as_str(sresponse: ServiceResponse) -> String {

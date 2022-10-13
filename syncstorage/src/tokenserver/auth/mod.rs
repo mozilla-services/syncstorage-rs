@@ -144,8 +144,5 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
 }
 
 fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
-    TokenserverError {
-        context: e.to_string(),
-        ..TokenserverError::internal_error()
-    }
+    TokenserverError::internal_error(e.to_string())
 }
