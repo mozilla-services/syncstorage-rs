@@ -65,7 +65,7 @@ where
 
         Box::pin(self.service.call(sreq).and_then(move |sresp| {
             if let Some(items) = sresp.request().extensions().get::<LogItems>() {
-                info!("{}", items);
+                debug!("call: {}", items);
             }
 
             future::ok(sresp)

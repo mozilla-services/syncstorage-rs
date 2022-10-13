@@ -164,11 +164,17 @@ impl From<ApiErrorKind> for ApiError {
     fn from(kind: ApiErrorKind) -> Self {
         let status = match &kind {
             ApiErrorKind::Db(error) => error.status,
-            ApiErrorKind::Hawk(_) => StatusCode::UNAUTHORIZED,
+            ApiErrorKind::Hawk(e) => {
+                debug!("Hawk Error: {:?}", e);
+                StatusCode::UNAUTHORIZED
+            }
             ApiErrorKind::NoServerState | ApiErrorKind::Internal(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
-            ApiErrorKind::Validation(error) => error.status,
+            ApiErrorKind::Validation(error) => {
+                debug!("Validation Error: {:?}", error);
+                error.status
+            }
         };
 
         Self {

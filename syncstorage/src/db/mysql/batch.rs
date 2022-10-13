@@ -192,7 +192,6 @@ pub fn do_append(
         id: String,
     }
 
-    #[allow(clippy::extra_unused_lifetimes)]
     #[derive(AsChangeset)]
     #[table_name = "batch_upload_items"]
     struct UpdateBatches {

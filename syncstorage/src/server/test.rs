@@ -87,7 +87,9 @@ macro_rules! init_app {
     };
     ($settings:expr) => {
         async {
-            crate::logging::init_logging(false).unwrap();
+            // _guard should stay in scope for the duration of
+            // the application.
+            let _guard = crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.limits.clone());
             test::init_service(build_app!(
                 get_test_state(&$settings).await,

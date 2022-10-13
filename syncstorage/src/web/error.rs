@@ -17,6 +17,7 @@ use syncstorage_common::{from_error, impl_fmt_display};
 
 use super::extractors::RequestErrorLocation;
 use crate::error::{ApiError, WeaveError};
+use crate::web::extractors::OFFSET_ERROR_LABEL_COLON;
 
 use thiserror::Error;
 
@@ -97,7 +98,7 @@ pub enum HawkErrorKind {
 #[derive(Error, Debug)]
 pub struct ValidationError {
     pub status: StatusCode,
-    kind: ValidationErrorKind,
+    pub kind: ValidationErrorKind,
 }
 
 impl ValidationError {
@@ -181,6 +182,20 @@ impl From<ValidationErrorKind> for ValidationError {
     fn from(kind: ValidationErrorKind) -> Self {
         trace!("Validation Error: {:?}", kind);
         let status = match kind {
+            // Break potential chain of retries from iOS clients using bad
+            // offset strings.
+            ValidationErrorKind::FromDetails(
+                ref _description,
+                ref location,
+                Some(ref name),
+                Some(ref label),
+            ) if *location == RequestErrorLocation::QueryString
+                && name.as_str() == "offset"
+                && label.contains(OFFSET_ERROR_LABEL_COLON) =>
+            {
+                StatusCode::PRECONDITION_FAILED
+            }
+
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Header =>
             {
@@ -195,18 +210,6 @@ impl From<ValidationErrorKind> for ValidationError {
                     && ["bso", "collection"].contains(&name.as_ref()) =>
             {
                 StatusCode::NOT_FOUND
-            }
-            // Break potential chain of retries from iOS clients using bad offset strings.
-            ValidationErrorKind::FromDetails(
-                ref _description,
-                ref location,
-                Some(ref name),
-                Some(ref label),
-            ) if *location == RequestErrorLocation::QueryString
-                && ["offset"].contains(&name.as_ref())
-                && label.contains("invalid_offset_colon") =>
-            {
-                StatusCode::PRECONDITION_FAILED
             }
 
             _ => StatusCode::BAD_REQUEST,

@@ -60,7 +60,7 @@ pub fn report(tags: &Tags, mut event: Event<'static>) {
     let tags = tags.clone();
     event.tags = tags.clone().tag_tree();
     event.extra = tags.extra_tree();
-    trace!("Sentry: Sending error: {:?}", &event);
+    warn!("Sentry: Sending error: {:?}", &event);
     sentry::capture_event(event);
 }
 

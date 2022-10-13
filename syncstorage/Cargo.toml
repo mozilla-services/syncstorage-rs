@@ -70,7 +70,7 @@ serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 scheduled-thread-pool = "0.2"
 sha2 = "0.9"
 slog = { version = "2.5", features = [
-  "max_level_info",
+  "max_level_trace",        # NOTE: altering this may prevent local dev trace and debug messages from displaying
   "release_max_level_info",
   "dynamic-keys",
 ] }

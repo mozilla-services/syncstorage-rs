@@ -25,7 +25,9 @@ import sys
 import time
 import tokenlib
 import urllib.parse as urlparse
-import unittest2
+# import unittest2 --obsolete
+import unittest
+import pytest
 import uuid
 from webtest import TestApp
 from zope.interface import implementer
@@ -234,7 +236,7 @@ def restore_env(*keys):
     return decorator
 
 
-class TestCase(unittest2.TestCase):
+class TestCase(unittest.TestCase):
     """TestCase with some generic helper methods."""
 
     def setUp(self):
@@ -420,7 +422,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
     def _switch_user(self):
         # It's hard to reliably switch users when testing a live server.
         if self.distant:
-            raise unittest2.SkipTest("Skipped when testing a live server")
+            raise pytest.skip("Skipped when testing a live server")
         # Temporarily authenticate as a different user.
         orig_user_id = self.user_id
         orig_auth_token = self.auth_token
@@ -866,13 +868,13 @@ def run_live_functional_tests(TestCaseClass, argv=None):
     os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
 
     # Now use the unittest2 runner to execute them.
-    suite = unittest2.TestSuite()
+    suite = unittest.TestSuite()
     import test_storage
 
     test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
-    suite.addTest(unittest2.findTestCases(test_storage, test_prefix))
+    suite.addTest(unittest.findTestCases(test_storage, test_prefix))
     # suite.addTest(unittest2.makeSuite(LiveTestCases, prefix=test_prefix))
-    runner = unittest2.TextTestRunner(
+    runner = unittest.TextTestRunner(
         stream=sys.stderr,
         failfast=opts.failfast,
         verbosity=2,

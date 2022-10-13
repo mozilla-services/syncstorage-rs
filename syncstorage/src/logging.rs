@@ -4,8 +4,9 @@ use crate::error::ApiResult;
 
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
+use slog_scope::GlobalLoggerGuard;
 
-pub fn init_logging(json: bool) -> ApiResult<()> {
+pub fn init_logging(json: bool) -> ApiResult<GlobalLoggerGuard> {
     let logger = if json {
         let hostname = hostname::get()
             .expect("Couldn't get hostname")
@@ -32,13 +33,11 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
         let drain = slog_async::Async::new(drain).build().fuse();
         slog::Logger::root(drain, slog_o!())
     };
-    // XXX: cancel slog_scope's NoGlobalLoggerSet for now, it's difficult to
-    // prevent it from potentially panicing during tests. reset_logging resets
-    // the global logger during shutdown anyway:
-    // https://github.com/slog-rs/slog/issues/169
-    slog_scope::set_global_logger(logger).cancel_reset();
+    // With the fix landed by https://github.com/slog-rs/slog/issues/169
+    // we need to pass the guard back up to keep it in scope for the app.
+    let guard = slog_scope::set_global_logger(logger);
     slog_stdlog::init().ok();
-    Ok(())
+    Ok(guard)
 }
 
 pub fn reset_logging() {

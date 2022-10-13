@@ -125,7 +125,7 @@ pub async fn recycle_spanner_session(
                 let age = now - conn.create_time;
                 if age > max_life as i64 {
                     metrics.incr("db.connection.max_life");
-                    dbg!("### aging out", this_session.get_name());
+                    debug!("### aging out {:?}", this_session.get_name());
                     return Err(DbErrorKind::Expired.into());
                 }
             }
@@ -142,7 +142,7 @@ pub async fn recycle_spanner_session(
                     .unwrap_or_default();
                 if idle > max_idle as i64 {
                     metrics.incr("db.connection.max_idle");
-                    dbg!("### idling out", this_session.get_name());
+                    debug!("### idling out {:?}", this_session.get_name());
                     return Err(DbErrorKind::Expired.into());
                 }
                 // and update the connection's reference session info
