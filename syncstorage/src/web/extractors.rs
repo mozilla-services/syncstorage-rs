@@ -53,12 +53,6 @@ const BSO_MIN_SORTINDEX_VALUE: i32 = -999_999_999;
 const ACCEPTED_CONTENT_TYPES: [&str; 3] =
     ["application/json", "text/plain", "application/newlines"];
 
-// we create and check for this error because we can't deconstruct the error
-// in order to generate the correct status code.
-pub const OFFSET_ERROR: &str = "Unreadable Offset";
-pub const OFFSET_ERROR_LABEL: &str = "request.error.invalid_offset";
-pub const OFFSET_ERROR_LABEL_COLON: &str = "request.error.invalid_offset_colon";
-
 lazy_static! {
     static ref KNOWN_BAD_PAYLOAD_REGEX: Regex =
         Regex::new(r#"IV":\s*"AAAAAAAAAAAAAAAAAAAAAA=="#).unwrap();
@@ -1205,28 +1199,14 @@ impl FromStr for Offset {
         // issue559: Disable ':' support for now: simply parse as i64 as
         // previously (it was u64 previously but i64's close enough)
         //
-        // We were seeing a number of errors where iOS clients would return
-        // offsets that contained ':' (e.g. '123456790:123') This is a valid
-        // form that the original python server used, but is not implemented
-        // with this version. Returning a 412 was suggested in order to
-        // break any loop that might exist on the client.
-        if s.contains(':') {
-            return Err(ValidationErrorKind::FromDetails(
-                format!("{}: contains ':'", OFFSET_ERROR), // Note: We look for the "':'" string to return a 412
-                RequestErrorLocation::QueryString,
-                Some("offset".to_owned()),
-                label!(OFFSET_ERROR_LABEL_COLON),
-            )
-            .into());
-        }
         let result = Offset {
             timestamp: None,
             offset: s.parse::<u64>().map_err(|e| {
                 ValidationErrorKind::FromDetails(
-                    format!("{}: {:?}", OFFSET_ERROR, e),
+                    format!("Unreadable Offset: {:?}", e),
                     RequestErrorLocation::QueryString,
                     Some("offset".to_owned()),
-                    label!(OFFSET_ERROR_LABEL),
+                    label!("request.error.invalid_offset"),
                 )
             })?,
         };
@@ -1302,30 +1282,11 @@ impl FromRequest for BsoQueryParams {
         Box::pin(async move {
             let params = Query::<BsoQueryParams>::from_request(&req, &mut payload)
                 .map_err(|e| {
-                    // It would be delightful to decompose error back into
-                    // ApiError so that we could extract the location info,
-                    // but that's not possible. `from_request` returns an
-                    // `actix::Error`, which strips all of the extra info
-                    // out, meaning that we can only use the formatted
-                    // error message.
-                    let e_str = e.to_string();
-                    let (name, label) = if e_str.contains(OFFSET_ERROR) {
-                        (
-                            Some("offset".to_owned()),
-                            if e_str.contains("':'") {
-                                label!(OFFSET_ERROR_LABEL_COLON)
-                            } else {
-                                label!(OFFSET_ERROR_LABEL)
-                            },
-                        )
-                    } else {
-                        (None, None)
-                    };
                     ValidationErrorKind::FromDetails(
                         e.to_string(),
                         RequestErrorLocation::QueryString,
-                        name,
-                        label,
+                        None,
+                        None,
                     )
                 })
                 .await?

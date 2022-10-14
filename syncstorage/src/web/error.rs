@@ -17,7 +17,6 @@ use syncstorage_common::{from_error, impl_fmt_display};
 
 use super::extractors::RequestErrorLocation;
 use crate::error::{ApiError, WeaveError};
-use crate::web::extractors::OFFSET_ERROR_LABEL_COLON;
 
 use thiserror::Error;
 
@@ -182,20 +181,6 @@ impl From<ValidationErrorKind> for ValidationError {
     fn from(kind: ValidationErrorKind) -> Self {
         trace!("Validation Error: {:?}", kind);
         let status = match kind {
-            // Break potential chain of retries from iOS clients using bad
-            // offset strings.
-            ValidationErrorKind::FromDetails(
-                ref _description,
-                ref location,
-                Some(ref name),
-                Some(ref label),
-            ) if *location == RequestErrorLocation::QueryString
-                && name.as_str() == "offset"
-                && label.contains(OFFSET_ERROR_LABEL_COLON) =>
-            {
-                StatusCode::PRECONDITION_FAILED
-            }
-
             ValidationErrorKind::FromDetails(ref _description, ref location, Some(ref name), _)
                 if *location == RequestErrorLocation::Header =>
             {
