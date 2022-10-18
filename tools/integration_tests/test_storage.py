@@ -844,32 +844,6 @@ class TestStorage(StorageFunctionalTestCase):
         used = res.json[0]
         self.assertEquals(used - old_used, len(_PLD) / 1024.0)
 
-    def test_overquota(self):
-        # This can't be run against a live server.
-        if self.distant:
-            unittest.skip("requires local server")
-
-        # Clear out any data that's already in the store.
-        self.retry_delete(self.root + "/storage")
-
-        # Set a low quota for the storage.
-        self.config.registry.settings["storage.quota_size"] = 700
-
-        # Check the the remaining quota is correctly reported.
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
-        wanted = str(round(200 / 1024.0, 2))
-        self.assertEquals(res.headers["X-Weave-Quota-Remaining"], wanted)
-
-        # Set the quota so that they're over their limit.
-        self.config.registry.settings["storage.quota_size"] = 10
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(
-            self.root + "/storage/xxx_col2/12345", bso, status=403
-        )
-        self.assertEquals(res.content_type.split(";")[0], "application/json")
-        self.assertEquals(res.json["status"], "quota-exceeded")
-
     def test_get_collection_ttl(self):
         bso = {"payload": _PLD, "ttl": 0}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
