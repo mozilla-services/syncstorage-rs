@@ -35,13 +35,13 @@ DDL_STATEMENTS=$(
 ) 
 
 curl -sS --request POST \
-  "$SYNC_SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances" \
+  "$SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances" \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --data "{\"instance\":{\"config\":\"emulator-test-config\",\"nodeCount\":1,\"displayName\":\"Test Instance\"},\"instanceId\":\"$INSTANCE_ID\"}"
 
 curl -sS --request POST \
-  "$SYNC_SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances/$INSTANCE_ID/databases" \
+  "$SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances/$INSTANCE_ID/databases" \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"

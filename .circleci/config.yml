@@ -40,7 +40,7 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 syncstorage/src/tokenserver
+            flake8 syncserver/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
   rust-clippy:
@@ -48,7 +48,7 @@ commands:
       - run:
           name: Rust Clippy
           command: |
-            cargo clippy --all --all-targets --all-features -- -D warnings
+            cargo clippy --workspace --all-targets --all-features -- -D warnings
   cargo-build:
     steps:
       - run:
@@ -83,18 +83,18 @@ commands:
             "$CIRCLE_TAG" \
             "$CIRCLE_PROJECT_USERNAME" \
             "$CIRCLE_PROJECT_REPONAME" \
-            "$CIRCLE_BUILD_URL" > syncstorage/version.json
+            "$CIRCLE_BUILD_URL" > syncserver/version.json
 
   run-tests:
     steps:
       - run:
           name: cargo test
-          command: cargo test --all --verbose
+          command: cargo test --workspace --verbose
       - run:
           name: quota test
-          command: cargo test --all --verbose
+          command: cargo test --workspace --verbose
           environment:
-              SYNC_ENFORCE_QUOTA: 1
+              SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
   run-e2e-mysql-tests:
     steps:
@@ -181,7 +181,7 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            SYNC_DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+            SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
             SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
             RUST_BACKTRACE: 1
             # XXX: begin_test_transaction doesn't play nice over threaded tests

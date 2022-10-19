@@ -176,7 +176,7 @@ def get_args():
     parser.add_argument(
         "-u",
         "--sync_database_url",
-        default=os.environ.get("SYNC_DATABASE_URL"),
+        default=os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL"),
         help="Spanner Database DSN"
     )
     parser.add_argument(

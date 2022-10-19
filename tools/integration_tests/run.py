@@ -10,8 +10,8 @@ from test_support import run_live_functional_tests
 import time
 from tokenserver.run import run_end_to_end_tests, run_local_tests
 
-DEBUG_BUILD = "target/debug/syncstorage"
-RELEASE_BUILD = "/app/bin/syncstorage"
+DEBUG_BUILD = "target/debug/syncserver"
+RELEASE_BUILD = "/app/bin/syncserver"
 
 
 def terminate_process(process):
@@ -32,8 +32,8 @@ if __name__ == "__main__":
         target_binary = RELEASE_BUILD
     else:
         raise RuntimeError(
-            "Neither target/debug/syncstorage \
-                nor /app/bin/syncstorage were found."
+            "Neither target/debug/syncserver \
+                nor /app/bin/syncserver were found."
         )
 
     def start_server():

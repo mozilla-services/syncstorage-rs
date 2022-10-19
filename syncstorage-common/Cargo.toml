@@ -1,6 +1,0 @@
-[package]
-name = "syncstorage-common"
-version = "0.12.4"
-edition = "2021"
-
-[dependencies]
