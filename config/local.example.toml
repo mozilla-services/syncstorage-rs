@@ -1,5 +1,5 @@
 # Example MySQL DSN:
-database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
 
 # Example Spanner DSN:
 # database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
