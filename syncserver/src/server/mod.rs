@@ -4,8 +4,7 @@ use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
-    dev,
-    guard,
+    dev, guard,
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
