@@ -3076,12 +3076,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "syncstorage"
+name = "syncserver"
 version = "0.12.4"
 dependencies = [
  "actix-cors",
  "actix-http",
  "actix-rt",
+ "actix-service",
  "actix-web",
  "async-trait",
  "backtrace",
@@ -3090,7 +3091,6 @@ dependencies = [
  "bytes 1.2.1",
  "cadence",
  "chrono",
- "config 0.11.0",
  "deadpool",
  "diesel",
  "diesel_logger",
@@ -3104,7 +3104,6 @@ dependencies = [
  "grpcio",
  "hawk",
  "hex",
- "hkdf",
  "hmac",
  "hostname",
  "http",
@@ -3132,11 +3131,14 @@ dependencies = [
  "slog-scope",
  "slog-stdlog",
  "slog-term",
- "syncstorage-common",
- "syncstorage-db-common",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-settings",
  "thiserror",
  "time 0.3.12",
  "tokenserver-common",
+ "tokenserver-settings",
  "tokio",
  "url 2.2.2",
  "urlencoding",
@@ -3147,11 +3149,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "syncstorage-common"
+name = "syncserver-common"
 version = "0.12.4"
+dependencies = [
+ "hkdf",
+ "sha2",
+]
 
 [[package]]
-name = "syncstorage-db-common"
+name = "syncserver-db-common"
 version = "0.12.4"
 dependencies = [
  "async-trait",
@@ -3167,8 +3173,33 @@ dependencies = [
  "lazy_static",
  "serde 1.0.141",
  "serde_json",
- "syncstorage-common",
+ "syncserver-common",
  "thiserror",
+ "url 2.2.2",
+]
+
+[[package]]
+name = "syncserver-settings"
+version = "0.12.3"
+dependencies = [
+ "config 0.11.0",
+ "num_cpus",
+ "serde 1.0.141",
+ "slog-scope",
+ "syncserver-common",
+ "syncstorage-settings",
+ "tokenserver-settings",
+ "url 2.2.2",
+]
+
+[[package]]
+name = "syncstorage-settings"
+version = "0.12.3"
+dependencies = [
+ "rand 0.8.5",
+ "serde 1.0.141",
+ "syncserver-common",
+ "time 0.3.12",
 ]
 
 [[package]]
@@ -3361,9 +3392,17 @@ dependencies = [
  "backtrace",
  "serde 1.0.141",
  "serde_json",
- "syncstorage-common",
- "syncstorage-db-common",
+ "syncserver-common",
+ "syncserver-db-common",
  "thiserror",
+]
+
+[[package]]
+name = "tokenserver-settings"
+version = "0.12.3"
+dependencies = [
+ "serde 1.0.141",
+ "tokenserver-common",
 ]
 
 [[package]]

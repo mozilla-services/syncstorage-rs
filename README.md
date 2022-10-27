@@ -157,7 +157,7 @@ Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `
 
 To run an application server that points to the local Spanner emulator:
 ```sh
-SYNC_SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
+SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
 
 ### Running via Docker
@@ -166,7 +166,7 @@ This requires access to the mozilla-rust-sdk which is now available at `/vendor/
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
 3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
-4. Comment out the `image` value under `syncstorage-rs` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
+4. Comment out the `image` value under `syncserver` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
     ```yml
       build:
         context: .
@@ -220,7 +220,7 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 ### Unit tests
 
-`make test` - open the Makefile to adjust your `SYNC_DATABASE_URL` as needed.
+`make test` - open the Makefile to adjust your `SYNC_SYNCSTORAGE__DATABASE_URL` as needed.
 
 #### Debugging unit test state
 
@@ -229,7 +229,7 @@ default, we use the diesel test_transaction functionality to ensure test data
 is not committed to the database. Therefore, there is an environment variable
 which can be used to turn off test_transaction.
 
-        SYNC_DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
+        SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
 
 Note that you will almost certainly want to pass a single test name. When running
 the entire test suite, data from previous tests will cause future tests to fail.
