@@ -75,4 +75,19 @@ if __name__ == "__main__":
     finally:
         terminate_process(the_server_subprocess)
 
+    # Run the Tokenserver end-to-end tests without the JWK cached
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E"]
+
+    the_server_subprocess = start_server()
+    try:
+        res |= run_end_to_end_tests()
+    finally:
+        terminate_process(the_server_subprocess)
+
     sys.exit(res)
