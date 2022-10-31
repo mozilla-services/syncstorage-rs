@@ -30,7 +30,7 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
 pub struct TokenserverDb {
-    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
+    /// Synchronous Diesel calls are executed on a blocking threadpool to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
