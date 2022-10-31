@@ -1,16 +1,25 @@
 //! Main application server
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    fmt,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use actix_cors::Cors;
 use actix_web::{
     dev,
+    error::BlockingError,
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
     web, App, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::StatsdClient;
+use syncserver_common::InternalError;
 use syncserver_db_common::DbPool;
 use syncserver_settings::Settings;
 use syncstorage_settings::{Deadman, ServerLimits};
@@ -242,7 +251,13 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
-        let db_pool = pool_from_settings(&settings.syncstorage, &Metrics::from(&metrics)).await?;
+        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+        let db_pool = pool_from_settings(
+            &settings.syncstorage,
+            &Metrics::from(&metrics),
+            blocking_threadpool.clone(),
+        )
+        .await?;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -257,12 +272,14 @@ impl Server {
                     settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )?,
+                blocking_threadpool.clone(),
             )?;
 
             spawn_pool_periodic_reporter(
                 Duration::from_secs(10),
                 *state.metrics.clone(),
                 state.db_pool.clone(),
+                blocking_threadpool.clone(),
             )?;
 
             Some(state)
@@ -270,7 +287,12 @@ impl Server {
             None
         };
 
-        spawn_pool_periodic_reporter(Duration::from_secs(10), metrics.clone(), db_pool.clone())?;
+        spawn_pool_periodic_reporter(
+            Duration::from_secs(10),
+            metrics.clone(),
+            db_pool.clone(),
+            blocking_threadpool.clone(),
+        )?;
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
@@ -310,6 +332,7 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
+        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
             metrics::metrics_from_opts(
@@ -317,12 +340,14 @@ impl Server {
                 settings.statsd_host.as_deref(),
                 settings.statsd_port,
             )?,
+            blocking_threadpool.clone(),
         )?;
 
         spawn_pool_periodic_reporter(
             Duration::from_secs(10),
             *tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
+            blocking_threadpool,
         )?;
 
         let server = HttpServer::new(move || {
@@ -370,4 +395,44 @@ pub fn build_cors(settings: &Settings) -> Cors {
     }
 
     cors
+}
+
+/// A threadpool on which callers can spawn non-CPU-bound tasks that block their thread (this is
+/// mostly useful for running I/O tasks). `BlockingThreadpool` intentionally does not implement
+/// `Clone`: `Arc`s are not used internally, so a `BlockingThreadpool` should be instantiated once
+/// and shared by passing around `Arc<BlockingThreadpool>`s.
+#[derive(Debug, Default)]
+pub struct BlockingThreadpool {
+    spawned_tasks: AtomicU64,
+}
+
+impl BlockingThreadpool {
+    /// Runs a function as a task on the blocking threadpool.
+    ///
+    /// WARNING: Spawning a blocking task through means other than calling this method will
+    /// result in inaccurate threadpool metrics being reported. If you want to spawn a task on
+    /// the blocking threadpool, you **must** use this function.
+    pub async fn spawn<F, T, E>(&self, f: F) -> Result<T, E>
+    where
+        F: FnOnce() -> Result<T, E> + Send + 'static,
+        T: Send + 'static,
+        E: fmt::Debug + Send + InternalError + 'static,
+    {
+        self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
+
+        let result = web::block(f).await.map_err(|e| match e {
+            BlockingError::Error(e) => e,
+            BlockingError::Canceled => {
+                E::internal_error("Blocking threadpool operation canceled".to_owned())
+            }
+        });
+
+        self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
+
+        result
+    }
+
+    pub fn active_threads(&self) -> u64 {
+        self.spawned_tasks.load(Ordering::Relaxed)
+    }
 }

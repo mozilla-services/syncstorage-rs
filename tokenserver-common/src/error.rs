@@ -6,7 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncserver_common::ReportableError;
+use syncserver_common::{InternalError, ReportableError};
 use syncserver_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
@@ -291,6 +291,15 @@ impl ReportableError for TokenserverError {
             }
         } else {
             None
+        }
+    }
+}
+
+impl InternalError for TokenserverError {
+    fn internal_error(message: String) -> Self {
+        TokenserverError {
+            context: message,
+            ..TokenserverError::internal_error()
         }
     }
 }

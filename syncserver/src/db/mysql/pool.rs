@@ -20,7 +20,7 @@ use syncstorage_settings::{Quota, Settings};
 use super::models::{MysqlDb, Result};
 #[cfg(test)]
 use super::test::TestTransactionCustomizer;
-use crate::db;
+use crate::db::BlockingThreadpool;
 use crate::server::metrics::Metrics;
 
 embed_migrations!();
@@ -50,18 +50,27 @@ pub struct MysqlDbPool {
 
     metrics: Metrics,
     quota: Quota,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 impl MysqlDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
-    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self> {
         run_embedded_migrations(&settings.database_url)?;
-        Self::new_without_migrations(settings, metrics)
+        Self::new_without_migrations(settings, metrics, blocking_threadpool)
     }
 
-    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub fn new_without_migrations(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
@@ -86,6 +95,7 @@ impl MysqlDbPool {
                 enabled: settings.enable_quota,
                 enforced: settings.enforce_quota,
             },
+            blocking_threadpool,
         })
     }
 
@@ -95,6 +105,7 @@ impl MysqlDbPool {
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
+            self.blocking_threadpool.clone(),
         ))
     }
 }
@@ -103,8 +114,10 @@ impl MysqlDbPool {
 impl DbPool for MysqlDbPool {
     async fn get<'a>(&'a self) -> Result<Box<dyn Db<'a>>> {
         let pool = self.clone();
-        let db =
-            db::run_on_blocking_threadpool(pool.metrics.clone(), move || pool.get_sync()).await?;
+        let db = self
+            .blocking_threadpool
+            .spawn(move || pool.get_sync())
+            .await?;
 
         Ok(Box::new(db) as Box<dyn Db<'a>>)
     }
