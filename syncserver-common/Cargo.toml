@@ -1,0 +1,8 @@
+[package]
+name = "syncserver-common"
+version = "0.12.5"
+edition = "2021"
+
+[dependencies]
+hkdf = "0.11"
+sha2 = "0.9"

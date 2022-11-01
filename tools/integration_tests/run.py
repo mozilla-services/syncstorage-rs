@@ -10,8 +10,8 @@ from test_support import run_live_functional_tests
 import time
 from tokenserver.run import run_end_to_end_tests, run_local_tests
 
-DEBUG_BUILD = "target/debug/syncstorage"
-RELEASE_BUILD = "/app/bin/syncstorage"
+DEBUG_BUILD = "target/debug/syncserver"
+RELEASE_BUILD = "/app/bin/syncserver"
 
 
 def terminate_process(process):
@@ -32,8 +32,8 @@ if __name__ == "__main__":
         target_binary = RELEASE_BUILD
     else:
         raise RuntimeError(
-            "Neither target/debug/syncstorage \
-                nor /app/bin/syncstorage were found."
+            "Neither target/debug/syncserver \
+                nor /app/bin/syncserver were found."
         )
 
     def start_server():
@@ -69,6 +69,21 @@ if __name__ == "__main__":
         "https://verifier.stage.mozaws.net/v2"
     os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
         "https://oauth.stage.mozaws.net"
+    the_server_subprocess = start_server()
+    try:
+        res |= run_end_to_end_tests()
+    finally:
+        terminate_process(the_server_subprocess)
+
+    # Run the Tokenserver end-to-end tests without the JWK cached
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N"]
+    del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E"]
+
     the_server_subprocess = start_server()
     try:
         res |= run_end_to_end_tests()

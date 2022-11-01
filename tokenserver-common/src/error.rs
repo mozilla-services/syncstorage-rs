@@ -6,8 +6,8 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncstorage_common::ReportableError;
-use syncstorage_db_common::error::DbError;
+use syncserver_common::ReportableError;
+use syncserver_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
 pub struct TokenserverError {
