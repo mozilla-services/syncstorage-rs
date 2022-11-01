@@ -1,3 +1,13 @@
+<a name="0.12.5"></a>
+## 0.12.5 (2022-11-01)
+
+
+#### Chore
+
+*   switch from mariadb libmysqlclient to mysql's (#1435) ([b4fe184f](https://github.com/mozilla-services/syncstorage-rs/commit/b4fe184f5172f22bdb6885af482b658fc3368fdc), closes [#1434](https://github.com/mozilla-services/syncstorage-rs/issues/1434))
+
+
+
 <a name="0.12.4"></a>
 ## 0.12.4 (2022-10-10)
 
