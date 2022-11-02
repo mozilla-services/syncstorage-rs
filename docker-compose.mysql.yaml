@@ -5,7 +5,7 @@
 version: '3'
 services:
     sync-db:
-        image: mysql:5.7
+        image: docker.io/library/mysql:5.7
         volumes:
             - sync_db_data:/var/lib/mysql
         restart: always
@@ -19,7 +19,7 @@ services:
             MYSQL_PASSWORD: test
 
     tokenserver-db:
-        image: mysql:5.7
+        image: docker.io/library/mysql:5.7
         volumes:
             - tokenserver_db_data:/var/lib/mysql
         restart: always

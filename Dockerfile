@@ -1,4 +1,4 @@
-FROM rust:1.64-buster as builder
+FROM docker.io/library/rust:1.64-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin
@@ -21,7 +21,7 @@ RUN \
     cargo install --path ./syncserver --locked --root /app && \
     cargo install --path ./syncserver --locked --root /app --bin purge_ttl
 
-FROM debian:buster-slim
+FROM docker.io/library/debian:buster-slim
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
 COPY --from=builder /app/mysql_pubkey.asc /app
