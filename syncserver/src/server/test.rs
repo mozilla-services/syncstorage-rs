@@ -90,8 +90,9 @@ macro_rules! init_app {
         async {
             crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.syncstorage.limits.clone());
+            let state = get_test_state(&$settings).await;
             test::init_service(build_app!(
-                get_test_state(&$settings).await,
+                state,
                 None::<tokenserver::ServerState>,
                 Arc::clone(&SECRETS),
                 limits,
@@ -207,8 +208,9 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
+    let state = get_test_state(&settings).await;
     let mut app = test::init_service(build_app!(
-        get_test_state(&settings).await,
+        state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,
@@ -248,8 +250,9 @@ async fn test_endpoint_with_body(
 ) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
+    let state = get_test_state(&settings).await;
     let mut app = test::init_service(build_app!(
-        get_test_state(&settings).await,
+        state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,

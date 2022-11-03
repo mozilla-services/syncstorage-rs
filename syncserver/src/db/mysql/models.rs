@@ -31,7 +31,6 @@ use super::{
 };
 use crate::db;
 use crate::server::metrics::Metrics;
-use crate::web::tags::Tags;
 
 pub type Result<T> = std::result::Result<T, DbError>;
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
@@ -402,11 +401,9 @@ impl MysqlDb {
                 collection_id,
             })?;
             if usage.total_bytes >= self.quota.size as usize {
-                let mut tags = Tags::default();
-                tags.tags
-                    .insert("collection".to_owned(), bso.collection.clone());
-                self.metrics
-                    .incr_with_tags("storage.quota.at_limit", Some(tags));
+                let mut tags = HashMap::default();
+                tags.insert("collection".to_owned(), bso.collection.clone());
+                self.metrics.incr_with_tags("storage.quota.at_limit", tags);
                 if self.quota.enforced {
                     return Err(DbErrorKind::Quota.into());
                 } else {

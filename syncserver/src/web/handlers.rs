@@ -4,7 +4,7 @@ use std::convert::Into;
 
 use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpRequest, HttpResponse};
 use serde::Serialize;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncserver_db_common::{
     error::{DbError, DbErrorKind},
@@ -18,7 +18,6 @@ use crate::{
     db::transaction::DbTransactionPool,
     error::{ApiError, ApiErrorKind},
     server::ServerState,
-    tokenserver,
     web::extractors::{
         BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
         HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
@@ -538,7 +537,7 @@ pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
 /** Returns a status message indicating the state of the current server
  *
  */
-pub async fn heartbeat(hb: HeartbeatRequest, req: HttpRequest) -> Result<HttpResponse, ApiError> {
+pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),
@@ -547,48 +546,6 @@ pub async fn heartbeat(hb: HeartbeatRequest, req: HttpRequest) -> Result<HttpRes
     let db = hb.db_pool.get().await?;
 
     checklist.insert("quota".to_owned(), serde_json::to_value(hb.quota)?);
-
-    let tokenserver_state = match req.app_data::<Data<Option<tokenserver::ServerState>>>() {
-        Some(s) => s,
-        None => {
-            error!("⚠️ Could not load the app state");
-            return Ok(HttpResponse::InternalServerError().body(""));
-        }
-    };
-
-    let mut tokenserver_service_unavailable = false;
-    if let Some(tokenserver_state) = tokenserver_state.as_ref() {
-        let db = tokenserver_state
-            .db_pool
-            .get()
-            .await
-            .map_err(ApiError::from)?;
-        let mut tokenserver_checklist = Map::new();
-
-        match db.check().await {
-            Ok(result) => {
-                if result {
-                    tokenserver_checklist.insert("database".to_owned(), Value::from("Ok"));
-                } else {
-                    tokenserver_checklist.insert("database".to_owned(), Value::from("Err"));
-                    tokenserver_checklist.insert(
-                        "database_msg".to_owned(),
-                        Value::from("check failed without error"),
-                    );
-                };
-                let status = if result { "Ok" } else { "Err" };
-                tokenserver_checklist.insert("status".to_owned(), Value::from(status));
-            }
-            Err(e) => {
-                error!("Heartbeat error: {:?}", e);
-                tokenserver_checklist.insert("status".to_owned(), Value::from("Err"));
-                tokenserver_checklist.insert("database".to_owned(), Value::from("Unknown"));
-                tokenserver_service_unavailable = true;
-            }
-        }
-
-        checklist.insert("tokenserver".to_owned(), Value::from(tokenserver_checklist));
-    }
 
     match db.check().await {
         Ok(result) => {
@@ -604,11 +561,7 @@ pub async fn heartbeat(hb: HeartbeatRequest, req: HttpRequest) -> Result<HttpRes
             let status = if result { "Ok" } else { "Err" };
             checklist.insert("status".to_owned(), Value::from(status));
 
-            if tokenserver_service_unavailable {
-                Ok(HttpResponse::ServiceUnavailable().json(checklist))
-            } else {
-                Ok(HttpResponse::Ok().json(checklist))
-            }
+            Ok(HttpResponse::Ok().json(checklist))
         }
         Err(e) => {
             error!("Heartbeat error: {:?}", e);

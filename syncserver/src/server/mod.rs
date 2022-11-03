@@ -71,8 +71,14 @@ pub struct Server;
 macro_rules! build_app {
     ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr) => {
         App::new()
-            .data($syncstorage_state)
-            .data($tokenserver_state)
+            .configure(|cfg| {
+                cfg.data($syncstorage_state);
+
+                if let Some(tokenserver_state) = $tokenserver_state {
+                    let state = tokenserver_state.clone();
+                    cfg.data(state);
+                }
+            })
             .data($secrets)
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
@@ -327,7 +333,7 @@ impl Server {
 
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
-                Some(tokenserver_state.clone()),
+                tokenserver_state.clone(),
                 Arc::clone(&secrets),
                 build_cors(&settings_copy)
             )

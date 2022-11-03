@@ -1,8 +1,7 @@
-use std::cell::RefMut;
 use std::future::Future;
 
 use actix_http::http::{HeaderValue, Method, StatusCode};
-use actix_http::{Error, Extensions};
+use actix_http::Error;
 use actix_web::dev::{Payload, PayloadStream};
 use actix_web::http::header;
 use actix_web::web::Data;
@@ -19,7 +18,7 @@ use crate::server::ServerState;
 use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
-use crate::web::tags::Tags;
+use crate::web::tags::Taggable;
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
@@ -31,18 +30,16 @@ pub struct DbTransactionPool {
     precondition: PreConditionHeaderOpt,
 }
 
-fn set_extra(exts: &mut RefMut<'_, Extensions>, connection_info: ConnectionInfo) {
-    let mut tags = Tags::default();
-    tags.add_extra("connection_age", &connection_info.age.to_string());
-    tags.add_extra(
-        "spanner_connection_age",
-        &connection_info.spanner_age.to_string(),
+fn set_extra(req: &HttpRequest, connection_info: ConnectionInfo) {
+    req.add_extra("connection_age".to_owned(), connection_info.age.to_string());
+    req.add_extra(
+        "spanner_connection_age".to_owned(),
+        connection_info.spanner_age.to_string(),
     );
-    tags.add_extra(
-        "spanner_connection_idle",
-        &connection_info.spanner_idle.to_string(),
+    req.add_extra(
+        "spanner_connection_idle".to_owned(),
+        connection_info.spanner_idle.to_string(),
     );
-    tags.commit(exts);
 }
 
 impl DbTransactionPool {
@@ -73,7 +70,7 @@ impl DbTransactionPool {
         // Handle lock error
         if let Err(e) = result {
             // Update the extra info fields.
-            set_extra(&mut request.extensions_mut(), db.get_connection_info());
+            set_extra(&request, db.get_connection_info());
             db.rollback().await?;
             return Err(e.into());
         }
@@ -127,7 +124,7 @@ impl DbTransactionPool {
         let check_precondition = move |db: Box<dyn Db<'a>>| {
             async move {
                 // set the extra information for all requests so we capture default err handlers.
-                set_extra(&mut mreq.extensions_mut(), db.get_connection_info());
+                set_extra(&mreq, db.get_connection_info());
                 let resource_ts = db
                     .extract_resource(
                         self.user_id.clone(),
@@ -235,7 +232,11 @@ impl FromRequest for DbTransactionPool {
                 Ok(v) => v.map(|collection| collection.collection),
                 Err(e) => {
                     // Semi-example to show how to use metrics inside of middleware.
-                    Metrics::from(state.as_ref()).incr("sync.error.collectionParam");
+                    // `Result::unwrap` is safe to use here, since Metrics::extract can never fail
+                    Metrics::extract(&req)
+                        .await
+                        .unwrap()
+                        .incr("sync.error.collectionParam");
                     warn!("⚠️ CollectionParam err: {:?}", e);
                     return Err(e);
                 }
