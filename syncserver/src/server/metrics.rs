@@ -153,7 +153,10 @@ impl Metrics {
 
     // decrement a counter with no tags data.
     pub fn decr_with_tag(&self, label: &str, key: &str, value: &str) {
-        self.count_with_tags(label, -1, Some(Tags::with_tag(key, value)))
+        let mut tags = HashMap::default();
+        tags.insert(key.to_owned(), value.to_owned());
+
+        self.count_with_tags(label, -1, tags);
     }
 
     pub fn count(&self, label: &str, count: i64) {
