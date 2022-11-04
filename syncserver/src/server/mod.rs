@@ -275,24 +275,20 @@ impl Server {
                 blocking_threadpool.clone(),
             )?;
 
+            Some(state)
+        } else {
+            // Only spawn a metric-reporting task if tokenserver is not running; if tokenserver is
+            // running, we are running syncstorange and tokenserver as a single service, which
+            // is only done for self-hosters.
             spawn_metric_periodic_reporter(
                 Duration::from_secs(10),
-                *state.metrics.clone(),
-                state.db_pool.clone(),
+                metrics.clone(),
+                db_pool.clone(),
                 blocking_threadpool.clone(),
             )?;
 
-            Some(state)
-        } else {
             None
         };
-
-        spawn_metric_periodic_reporter(
-            Duration::from_secs(10),
-            metrics.clone(),
-            db_pool.clone(),
-            blocking_threadpool.clone(),
-        )?;
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
