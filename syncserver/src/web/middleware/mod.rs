@@ -6,6 +6,7 @@ pub mod weave;
 //
 // Matches the [Sync Storage middleware](https://github.com/mozilla-services/server-syncstorage/blob/master/syncstorage/tweens.py) (tweens).
 
+use std::collections::HashMap;
 use std::future::Future;
 
 use actix_web::{
@@ -16,7 +17,6 @@ use actix_web::{
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::{metrics::Metrics, ServerState};
 use crate::tokenserver::auth::TokenserverOrigin;
-use crate::web::tags::Tags;
 
 pub fn emit_http_status_with_tokenserver_origin(
     req: ServiceRequest,
@@ -39,18 +39,11 @@ pub fn emit_http_status_with_tokenserver_origin(
 
             Metrics::from(&*statsd_client)
         };
-        let tags = req
-            .extensions()
-            .get::<TokenserverOrigin>()
-            .copied()
-            .map(|origin| {
-                let mut tags = Tags::default();
 
-                tags.tags
-                    .insert("tokenserver_origin".to_string(), origin.to_string());
-
-                tags
-            });
+        let mut tags = HashMap::default();
+        if let Some(origin) = req.extensions().get::<TokenserverOrigin>().copied() {
+            tags.insert("tokenserver_origin".to_string(), origin.to_string());
+        };
 
         if res.status().is_informational() {
             metrics.incr_with_tags("http_1XX", tags);
