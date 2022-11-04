@@ -4,14 +4,14 @@ use std::task::{Context, Poll};
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     http::header::USER_AGENT,
-    web::Data,
-    Error, HttpResponse,
+    Error, FromRequest, HttpResponse,
 };
-use futures::future::{self, Either, Ready};
+use futures::future::{self, LocalBoxFuture, Ready};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::server::{metrics::Metrics, ServerState};
+use crate::error::{ApiError, ApiErrorKind};
+use crate::server::metrics::Metrics;
 
 lazy_static! {
     // e.g. "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))"
@@ -67,30 +67,31 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
-    type Future = Either<Ready<Result<Self::Response, Self::Error>>, S::Future>;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.service.poll_ready(cx)
     }
 
     fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        match sreq.headers().get(USER_AGENT) {
-            Some(header) if header.to_str().map_or(false, should_reject) => {
-                let data = sreq
-                    .app_data::<Data<ServerState>>()
-                    .expect("No app_data ServerState");
+        match sreq.headers().get(USER_AGENT).cloned() {
+            Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
                 trace!("Rejecting User-Agent: {:?}", header);
-                Metrics::from(data.get_ref()).incr("error.rejectua");
+                let (req, payload) = sreq.into_parts();
+                Metrics::extract(&req).await?.incr("error.rejectua");
+                let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
+                    ApiError::from(ApiErrorKind::Internal(
+                        "failed to reconstruct ServiceRequest from its parts".to_owned(),
+                    ))
+                })?;
 
-                Either::Left(future::ok(
-                    sreq.into_response(
-                        HttpResponse::ServiceUnavailable()
-                            .body("0".to_owned())
-                            .into_body(),
-                    ),
+                Ok(sreq.into_response(
+                    HttpResponse::ServiceUnavailable()
+                        .body("0".to_owned())
+                        .into_body(),
                 ))
-            }
-            _ => Either::Right(self.service.call(sreq)),
+            }),
+            _ => Box::pin(self.service.call(sreq)),
         }
     }
 }

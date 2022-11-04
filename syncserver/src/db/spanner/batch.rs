@@ -18,7 +18,6 @@ use uuid::Uuid;
 
 use super::models::{Result, SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
-use crate::web::tags::Tags;
 
 pub async fn create_async(
     db: &SpannerDb,
@@ -286,8 +285,8 @@ pub async fn do_append_async(
     let mut existing = HashSet::new();
     let mut collisions = HashSet::new();
     let mut count_collisions = 0;
-    let mut tags = Tags::default();
-    tags.tags.insert(
+    let mut tags = HashMap::new();
+    tags.insert(
         "collection".to_owned(),
         db.get_collection_name(collection_id)
             .await
@@ -330,7 +329,7 @@ pub async fn do_append_async(
     db.metrics.count_with_tags(
         "storage.spanner.batch.pre-existing",
         existing.len() as i64,
-        Some(tags.clone()),
+        tags.clone(),
     );
 
     // Approach 1:
@@ -398,7 +397,7 @@ pub async fn do_append_async(
         db.metrics.count_with_tags(
             "storage.spanner.batch.collisions",
             count_collisions,
-            Some(tags.clone()),
+            tags.clone(),
         );
     }
 
@@ -463,7 +462,7 @@ pub async fn do_append_async(
         db.metrics.count_with_tags(
             "storage.spanner.batch.insert",
             count_inserts as i64,
-            Some(tags.clone()),
+            tags.clone(),
         );
     }
 

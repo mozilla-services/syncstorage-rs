@@ -31,7 +31,7 @@ use syncserver_db_common::{
 };
 use syncstorage_settings::Quota;
 
-use crate::{db::spanner::now, server::metrics::Metrics, web::tags::Tags};
+use crate::{db::spanner::now, server::metrics::Metrics};
 
 use super::{
     batch,
@@ -1044,11 +1044,10 @@ impl SpannerDb {
             .execute_dml_async(&self.conn)
             .await?;
         if affected_rows > 0 {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection".to_string(), params.collection);
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_string(), params.collection);
             self.metrics
-                .incr_with_tags("storage.spanner.delete_collection", Some(tags));
+                .incr_with_tags("storage.spanner.delete_collection", tags);
             self.erect_tombstone(&params.user_id).await
         } else {
             self.get_storage_timestamp(params.user_id).await
@@ -1109,9 +1108,8 @@ impl SpannerDb {
                 .execute_dml_async(&self.conn)
                 .await?;
         } else {
-            let mut tags = Tags::default();
-            tags.tags
-                .insert("collection".to_owned(), collection.to_owned());
+            let mut tags = HashMap::default();
+            tags.insert("collection".to_owned(), collection.to_owned());
             self.metrics
                 .clone()
                 .start_timer("storage.quota.init_totals", Some(tags));
@@ -1187,11 +1185,10 @@ impl SpannerDb {
         .param_types(sqlparam_types)
         .execute_dml_async(&self.conn)
         .await?;
-        let mut tags = Tags::default();
-        tags.tags
-            .insert("collection".to_string(), params.collection.clone());
+        let mut tags = HashMap::default();
+        tags.insert("collection".to_string(), params.collection.clone());
         self.metrics
-            .incr_with_tags("self.storage.delete_bsos", Some(tags));
+            .incr_with_tags("self.storage.delete_bsos", tags);
         self.update_user_collection_quotas(&params.user_id, collection_id)
             .await
     }
@@ -1635,11 +1632,9 @@ impl SpannerDb {
 
     pub fn quota_error(&self, collection: &str) -> DbError {
         // return the over quota error.
-        let mut tags = Tags::default();
-        tags.tags
-            .insert("collection".to_owned(), collection.to_owned());
-        self.metrics
-            .incr_with_tags("storage.quota.at_limit", Some(tags));
+        let mut tags = HashMap::default();
+        tags.insert("collection".to_owned(), collection.to_owned());
+        self.metrics.incr_with_tags("storage.quota.at_limit", tags);
         DbErrorKind::Quota.into()
     }
 
