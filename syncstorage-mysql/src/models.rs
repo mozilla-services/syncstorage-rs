@@ -18,10 +18,8 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::Metrics;
 use syncserver_db_common::{sync_db_method, DbFuture};
 use syncstorage_db_common::{
-    error::DbErrorIntrospect,
-    params, results,
-    util::SyncTimestamp,
-    DbTrait, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, DbTrait, Sorting,
+    UserIdentifier, DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 

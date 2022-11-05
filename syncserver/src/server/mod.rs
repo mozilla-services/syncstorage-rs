@@ -19,8 +19,8 @@ use syncstorage_db::{DbError, DbPool, DbPoolTrait};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::sync::RwLock;
 
-use crate::server::tags::Taggable;
 use crate::error::ApiError;
+use crate::server::tags::Taggable;
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
