@@ -6,6 +6,7 @@ use grpcio::{EnvBuilder, Environment};
 use syncserver_db_common::error::{DbError, DbErrorKind};
 use syncstorage_settings::Settings;
 
+use crate::db::BlockingThreadpool;
 use crate::server::metrics::Metrics;
 
 use super::session::{create_spanner_session, recycle_spanner_session, SpannerSession};
@@ -21,6 +22,7 @@ pub struct SpannerSessionManager {
     max_lifespan: Option<u32>,
     max_idle: Option<u32>,
     emulator_host: Option<String>,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 impl fmt::Debug for SpannerSessionManager {
@@ -33,7 +35,11 @@ impl fmt::Debug for SpannerSessionManager {
 }
 
 impl SpannerSessionManager {
-    pub fn new(settings: &Settings, metrics: &Metrics) -> Result<Self, DbError> {
+    pub fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self, DbError> {
         let database_name = settings
             .spanner_database_name()
             .ok_or_else(|| DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?
@@ -53,6 +59,7 @@ impl SpannerSessionManager {
             max_lifespan: settings.database_pool_connection_lifespan,
             max_idle: settings.database_pool_connection_max_idle,
             emulator_host: settings.spanner_emulator_host.clone(),
+            blocking_threadpool,
         })
     }
 }
@@ -66,6 +73,7 @@ impl Manager<SpannerSession, DbError> for SpannerSessionManager {
             &self.database_name,
             self.test_transactions,
             self.emulator_host.clone(),
+            self.blocking_threadpool.clone(),
         )
         .await?;
         Ok(session)

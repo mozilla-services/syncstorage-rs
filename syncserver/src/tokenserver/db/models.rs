@@ -17,8 +17,7 @@ use std::{
 };
 
 use super::{params, results};
-use crate::db;
-use crate::server::metrics::Metrics;
+use crate::server::{metrics::Metrics, BlockingThreadpool};
 use crate::sync_db_method;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
@@ -31,7 +30,7 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
 pub struct TokenserverDb {
-    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
+    /// Synchronous Diesel calls are executed on a blocking threadpool to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
@@ -42,6 +41,7 @@ pub struct TokenserverDb {
     metrics: Metrics,
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -69,6 +69,7 @@ impl TokenserverDb {
         metrics: &Metrics,
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
+        blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
@@ -82,6 +83,7 @@ impl TokenserverDb {
             metrics: metrics.clone(),
             service_id,
             spanner_node_id,
+            blocking_threadpool,
         }
     }
 
@@ -226,7 +228,7 @@ impl TokenserverDb {
                  AND capacity > current_load
                  AND downed = 0
                  AND backoff = 0
-            ORDER BY LOG(current_load) / LOG(capacity) 
+            ORDER BY LOG(current_load) / LOG(capacity)
                LIMIT 1
         "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"
@@ -682,7 +684,7 @@ impl Db for TokenserverDb {
 
     fn check(&self) -> DbFuture<'_, results::Check> {
         let db = self.clone();
-        Box::pin(db::run_on_blocking_threadpool(move || db.check_sync()))
+        Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
     }
 
     #[cfg(test)]
@@ -2060,6 +2062,11 @@ mod tests {
         settings.run_migrations = true;
         let use_test_transactions = true;
 
-        TokenserverPool::new(&settings, &Metrics::noop(), use_test_transactions)
+        TokenserverPool::new(
+            &settings,
+            &Metrics::noop(),
+            Arc::new(BlockingThreadpool::default()),
+            use_test_transactions,
+        )
     }
 }

@@ -50,3 +50,9 @@ pub trait ReportableError {
     fn is_sentry_event(&self) -> bool;
     fn metric_label(&self) -> Option<String>;
 }
+
+/// Types that implement this trait can represent internal errors.
+pub trait InternalError {
+    /// Constructs an internal error with the given error message.
+    fn internal_error(message: String) -> Self;
+}

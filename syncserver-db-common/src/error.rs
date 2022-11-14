@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display, InternalError};
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -146,3 +146,9 @@ from_error!(
     DbError,
     DbErrorKind::Migration
 );
+
+impl InternalError for DbError {
+    fn internal_error(message: String) -> Self {
+        DbErrorKind::Internal(message).into()
+    }
+}

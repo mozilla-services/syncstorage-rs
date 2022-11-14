@@ -1,4 +1,4 @@
-use std::{collections::HashMap, result::Result as StdResult};
+use std::{collections::HashMap, result::Result as StdResult, sync::Arc};
 
 use diesel::{
     // expression_methods::TextExpressionMethods, // See note below about `not_like` becoming swedish
@@ -18,6 +18,7 @@ use crate::db::mysql::{
     pool::MysqlDbPool,
     schema::collections,
 };
+use crate::db::BlockingThreadpool;
 use crate::server::metrics;
 
 #[derive(Debug)]
@@ -33,7 +34,11 @@ pub fn db(settings: &SyncstorageSettings) -> Result<MysqlDb> {
     let _ = env_logger::try_init();
     // inherit SYNC_SYNCSTORAGE__DATABASE_URL from the env
 
-    let pool = MysqlDbPool::new(settings, &metrics::Metrics::noop())?;
+    let pool = MysqlDbPool::new(
+        settings,
+        &metrics::Metrics::noop(),
+        Arc::new(BlockingThreadpool::default()),
+    )?;
     pool.get_sync()
 }
 
