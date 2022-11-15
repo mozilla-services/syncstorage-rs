@@ -130,7 +130,7 @@ impl fmt::Debug for MysqlDbPool {
     }
 }
 
-impl<'a> GetPoolState for MysqlDbPool {
+impl GetPoolState for MysqlDbPool {
     fn state(&self) -> PoolState {
         self.pool.state().into()
     }

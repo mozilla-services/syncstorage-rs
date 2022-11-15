@@ -19,7 +19,7 @@ impl MockDbPool {
 }
 
 #[async_trait]
-impl<'a> DbPoolTrait for MockDbPool {
+impl DbPoolTrait for MockDbPool {
     type Error = DbError;
 
     async fn get(&self) -> Result<Box<dyn DbTrait<Error = DbError>>, Self::Error> {

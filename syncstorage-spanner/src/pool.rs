@@ -74,7 +74,7 @@ impl SpannerDbPool {
 }
 
 #[async_trait]
-impl<'a> DbPoolTrait for SpannerDbPool {
+impl DbPoolTrait for SpannerDbPool {
     type Error = DbError;
 
     async fn get(&self) -> DbResult<Box<dyn DbTrait<Error = Self::Error>>> {
@@ -96,7 +96,7 @@ impl<'a> DbPoolTrait for SpannerDbPool {
     }
 }
 
-impl<'a> GetPoolState for SpannerDbPool {
+impl GetPoolState for SpannerDbPool {
     fn state(&self) -> PoolState {
         self.pool.status().into()
     }

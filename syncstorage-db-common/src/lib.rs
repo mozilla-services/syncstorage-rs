@@ -260,7 +260,7 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Copy)]
+#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
     None,
