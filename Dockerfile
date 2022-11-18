@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:0.1.35-rust-1.60-buster as chef
+FROM lukemathwalker/cargo-chef:0.1.46-rust-1.64-buster as chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -9,8 +9,17 @@ FROM chef AS cacher
 ARG DATABASE_BACKEND=spanner
 
 # cmake is required to build grpcio-sys for Spanner builds
-RUN apt-get -q update && \
-    apt-get -q install -y --no-install-recommends cmake
+RUN \
+    echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
+    # mysql_pubkey.asc from:
+    # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
+    # related:
+    # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
+    apt-key adv --import mysql_pubkey.asc && \
+    apt-get -q update && \
+    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
+    pip3 install -r requirements.txt && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
