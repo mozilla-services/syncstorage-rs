@@ -1,3 +1,30 @@
+<a name="0.13.0"></a>
+## 0.13.0 (2022-11-14)
+
+
+#### Chore
+
+*   temporarily disable dependabot (#1432) ([5daf6327](https://github.com/mozilla-services/syncstorage-rs/commit/5daf6327fbe4acd9f9e7acde8380e2e0d93e91bf))
+
+#### Test
+
+*   run the Tokenserver E2E tests without a cached JWK (#1390) ([3a18de01](https://github.com/mozilla-services/syncstorage-rs/commit/3a18de01bbf5b5c0bcb87d4176fde14840629ae2))
+
+#### Features
+
+*   report blocking threadpool statistics (#1418) ([929a3144](https://github.com/mozilla-services/syncstorage-rs/commit/929a3144af45b1e54e41c5c9c28c422cff0b9518), closes [#1416](https://github.com/mozilla-services/syncstorage-rs/issues/1416))
+*   fix high cardinality metrics tags (#1437) ([9e36b882](https://github.com/mozilla-services/syncstorage-rs/commit/9e36b88297f387be86ac60736728ead09b9fedfc), closes [#1436](https://github.com/mozilla-services/syncstorage-rs/issues/1436))
+
+#### Breaking Changes
+
+*   add settings crates (#1306) ([0ae5fd20](https://github.com/mozilla-services/syncstorage-rs/commit/0ae5fd20594d3af769059088b2ff1b7899bee289), closes [#1276](https://github.com/mozilla-services/syncstorage-rs/issues/1276), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+#### Refactor
+
+*   add settings crates (#1306) ([0ae5fd20](https://github.com/mozilla-services/syncstorage-rs/commit/0ae5fd20594d3af769059088b2ff1b7899bee289), closes [#1276](https://github.com/mozilla-services/syncstorage-rs/issues/1276), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+
+
 <a name="0.12.5"></a>
 ## 0.12.5 (2022-11-01)
 
