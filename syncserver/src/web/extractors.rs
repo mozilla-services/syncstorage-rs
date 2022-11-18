@@ -1830,7 +1830,7 @@ mod tests {
             &SECRETS.master_secret,
         )
         .unwrap();
-        let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
+        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
         let credentials = Credentials {
             id,
             key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),

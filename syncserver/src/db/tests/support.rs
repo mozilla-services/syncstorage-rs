@@ -75,7 +75,7 @@ pub fn postbso(
 ) -> params::PostCollectionBso {
     params::PostCollectionBso {
         id: bid.to_owned(),
-        payload: payload.map(&str::to_owned),
+        payload: payload.map(str::to_owned),
         sortindex,
         ttl,
     }

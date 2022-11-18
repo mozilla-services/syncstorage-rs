@@ -172,7 +172,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         &SECRETS.master_secret,
     )
     .expect("hkdf_expand_32 failed in create_hawk_header");
-    let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
+    let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
