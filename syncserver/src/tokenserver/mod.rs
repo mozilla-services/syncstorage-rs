@@ -120,7 +120,7 @@ impl From<&RequestHead> for LogItems {
                 items.insert_if_not_empty("ua.os.family", metrics_os);
                 items.insert_if_not_empty("ua.browser.family", metrics_browser);
                 items.insert_if_not_empty("ua.name", ua_result.name);
-                items.insert_if_not_empty("ua.os.ver", &ua_result.os_version.to_owned());
+                items.insert_if_not_empty("ua.os.ver", &ua_result.os_version);
                 items.insert_if_not_empty("ua.browser.ver", ua_result.version);
                 items.insert_if_not_empty("ua", ua_result.version);
             }

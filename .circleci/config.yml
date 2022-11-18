@@ -160,7 +160,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.64.0
+      - image: cimg/rust:1.65.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -176,7 +176,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.64.0
+      - image: cimg/rust:1.65.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
