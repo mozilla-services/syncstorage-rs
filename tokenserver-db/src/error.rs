@@ -16,7 +16,7 @@ pub(crate) type DbResult<T> = Result<T, DbError>;
 pub struct DbError {
     kind: DbErrorKind,
     pub status: StatusCode,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
 }
 
 impl DbError {
@@ -39,13 +39,13 @@ impl From<DbErrorKind> for DbError {
         match kind {
             DbErrorKind::Mysql(ref mysql_error) => Self {
                 status: mysql_error.status,
-                backtrace: mysql_error.backtrace.clone(),
+                backtrace: Box::new(mysql_error.backtrace.clone()),
                 kind,
             },
             DbErrorKind::Internal(_) => Self {
                 kind,
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                backtrace: Backtrace::new(),
+                backtrace: Box::new(Backtrace::new()),
             },
         }
     }
@@ -56,7 +56,7 @@ impl From<DbError> for TokenserverError {
         TokenserverError {
             description: db_error.to_string(),
             context: db_error.to_string(),
-            backtrace: Box::new(db_error.backtrace),
+            backtrace: db_error.backtrace,
             http_status: if db_error.status.is_server_error() {
                 // Use the status code from the DbError if it already suggests an internal error;
                 // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`

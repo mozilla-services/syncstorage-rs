@@ -13,7 +13,7 @@ use thiserror::Error;
 pub struct DbError {
     kind: DbErrorKind,
     pub status: StatusCode,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
 }
 
 impl DbError {
@@ -84,7 +84,7 @@ impl From<DbErrorKind> for DbError {
         Self {
             kind,
             status,
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
         }
     }
 }

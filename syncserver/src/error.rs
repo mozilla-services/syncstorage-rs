@@ -58,7 +58,7 @@ pub const RETRY_AFTER: u8 = 10;
 #[derive(Debug)]
 pub struct ApiError {
     kind: ApiErrorKind,
-    pub(crate) backtrace: Backtrace,
+    pub(crate) backtrace: Box<Backtrace>,
     status: StatusCode,
 }
 
@@ -183,7 +183,7 @@ impl From<ApiErrorKind> for ApiError {
 
         Self {
             kind,
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
             status,
         }
     }

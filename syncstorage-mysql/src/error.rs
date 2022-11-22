@@ -14,7 +14,7 @@ use thiserror::Error;
 pub struct DbError {
     kind: DbErrorKind,
     pub status: StatusCode,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
 }
 
 impl DbError {
@@ -57,13 +57,13 @@ impl From<DbErrorKind> for DbError {
         match &kind {
             DbErrorKind::Common(dbe) => Self {
                 status: dbe.status,
-                backtrace: dbe.backtrace.clone(),
+                backtrace: Box::new(dbe.backtrace.clone()),
                 kind,
             },
             _ => Self {
                 kind,
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                backtrace: Backtrace::new(),
+                backtrace: Box::new(Backtrace::new()),
             },
         }
     }
