@@ -7,7 +7,8 @@ use diesel::{
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_db_common::{sync_db_method, DbFuture};
 
 use std::{
     sync::Arc,
@@ -15,7 +16,7 @@ use std::{
 };
 
 use super::{
-    error::{DbError, DbFuture, DbResult},
+    error::{DbError, DbResult},
     params, results,
 };
 
@@ -27,7 +28,7 @@ type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
 pub struct TokenserverDb {
-    /// Synchronous Diesel calls are executed in actix_web::web::block to satisfy
+    /// Synchronous Diesel calls are executed on a blocking threadpool to satisfy
     /// the Db trait's asynchronous interface.
     ///
     /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
@@ -38,6 +39,7 @@ pub struct TokenserverDb {
     metrics: Metrics,
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -65,6 +67,7 @@ impl TokenserverDb {
         metrics: &Metrics,
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
+        blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
@@ -78,6 +81,7 @@ impl TokenserverDb {
             metrics: metrics.clone(),
             service_id,
             spanner_node_id,
+            blocking_threadpool,
         }
     }
 
@@ -222,7 +226,7 @@ impl TokenserverDb {
                  AND capacity > current_load
                  AND downed = 0
                  AND backoff = 0
-            ORDER BY LOG(current_load) / LOG(capacity) 
+            ORDER BY LOG(current_load) / LOG(capacity)
                LIMIT 1
         "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"
@@ -660,21 +664,6 @@ impl TokenserverDb {
     }
 }
 
-macro_rules! sync_db_method {
-    ($name:ident, $sync_name:ident, $type:ident) => {
-        sync_db_method!($name, $sync_name, $type, results::$type);
-    };
-    ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<'_, $result> {
-            let db = self.clone();
-            Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-                move || db.$sync_name(params),
-                DbError::internal,
-            ))
-        }
-    };
-}
-
 impl DbTrait for TokenserverDb {
     sync_db_method!(replace_user, replace_user_sync, ReplaceUser);
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
@@ -691,12 +680,9 @@ impl DbTrait for TokenserverDb {
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
 
-    fn check(&self) -> DbFuture<'_, results::Check> {
+    fn check(&self) -> DbFuture<'_, results::Check, DbError> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.check_sync(),
-            DbError::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
     }
 
     #[cfg(test)]
@@ -730,63 +716,82 @@ impl DbTrait for TokenserverDb {
 }
 
 pub trait DbTrait {
-    fn replace_user(&self, params: params::ReplaceUser) -> DbFuture<'_, results::ReplaceUser>;
+    fn replace_user(
+        &self,
+        params: params::ReplaceUser,
+    ) -> DbFuture<'_, results::ReplaceUser, DbError>;
 
-    fn replace_users(&self, params: params::ReplaceUsers) -> DbFuture<'_, results::ReplaceUsers>;
+    fn replace_users(
+        &self,
+        params: params::ReplaceUsers,
+    ) -> DbFuture<'_, results::ReplaceUsers, DbError>;
 
-    fn post_user(&self, params: params::PostUser) -> DbFuture<'_, results::PostUser>;
+    fn post_user(&self, params: params::PostUser) -> DbFuture<'_, results::PostUser, DbError>;
 
-    fn put_user(&self, params: params::PutUser) -> DbFuture<'_, results::PutUser>;
+    fn put_user(&self, params: params::PutUser) -> DbFuture<'_, results::PutUser, DbError>;
 
-    fn check(&self) -> DbFuture<'_, results::Check>;
+    fn check(&self) -> DbFuture<'_, results::Check, DbError>;
 
-    fn get_node_id(&self, params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId>;
+    fn get_node_id(&self, params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId, DbError>;
 
-    fn get_best_node(&self, params: params::GetBestNode) -> DbFuture<'_, results::GetBestNode>;
+    fn get_best_node(
+        &self,
+        params: params::GetBestNode,
+    ) -> DbFuture<'_, results::GetBestNode, DbError>;
 
     fn add_user_to_node(
         &self,
         params: params::AddUserToNode,
-    ) -> DbFuture<'_, results::AddUserToNode>;
+    ) -> DbFuture<'_, results::AddUserToNode, DbError>;
 
-    fn get_users(&self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers>;
+    fn get_users(&self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers, DbError>;
 
     fn get_or_create_user(
         &self,
         params: params::GetOrCreateUser,
-    ) -> DbFuture<'_, results::GetOrCreateUser>;
+    ) -> DbFuture<'_, results::GetOrCreateUser, DbError>;
 
-    fn get_service_id(&self, params: params::GetServiceId) -> DbFuture<'_, results::GetServiceId>;
+    fn get_service_id(
+        &self,
+        params: params::GetServiceId,
+    ) -> DbFuture<'_, results::GetServiceId, DbError>;
 
     #[cfg(test)]
     fn set_user_created_at(
         &self,
         params: params::SetUserCreatedAt,
-    ) -> DbFuture<'_, results::SetUserCreatedAt>;
+    ) -> DbFuture<'_, results::SetUserCreatedAt, DbError>;
 
     #[cfg(test)]
     fn set_user_replaced_at(
         &self,
         params: params::SetUserReplacedAt,
-    ) -> DbFuture<'_, results::SetUserReplacedAt>;
+    ) -> DbFuture<'_, results::SetUserReplacedAt, DbError>;
 
     #[cfg(test)]
-    fn get_user(&self, params: params::GetUser) -> DbFuture<'_, results::GetUser>;
+    fn get_user(&self, params: params::GetUser) -> DbFuture<'_, results::GetUser, DbError>;
 
     #[cfg(test)]
-    fn post_node(&self, params: params::PostNode) -> DbFuture<'_, results::PostNode>;
+    fn post_node(&self, params: params::PostNode) -> DbFuture<'_, results::PostNode, DbError>;
 
     #[cfg(test)]
-    fn get_node(&self, params: params::GetNode) -> DbFuture<'_, results::GetNode>;
+    fn get_node(&self, params: params::GetNode) -> DbFuture<'_, results::GetNode, DbError>;
 
     #[cfg(test)]
-    fn unassign_node(&self, params: params::UnassignNode) -> DbFuture<'_, results::UnassignNode>;
+    fn unassign_node(
+        &self,
+        params: params::UnassignNode,
+    ) -> DbFuture<'_, results::UnassignNode, DbError>;
 
     #[cfg(test)]
-    fn remove_node(&self, params: params::RemoveNode) -> DbFuture<'_, results::RemoveNode>;
+    fn remove_node(&self, params: params::RemoveNode)
+        -> DbFuture<'_, results::RemoveNode, DbError>;
 
     #[cfg(test)]
-    fn post_service(&self, params: params::PostService) -> DbFuture<'_, results::PostService>;
+    fn post_service(
+        &self,
+        params: params::PostService,
+    ) -> DbFuture<'_, results::PostService, DbError>;
 }
 
 #[cfg(test)]
@@ -2074,6 +2079,11 @@ mod tests {
         settings.run_migrations = true;
         let use_test_transactions = true;
 
-        TokenserverPool::new(&settings, &Metrics::noop(), use_test_transactions)
+        TokenserverPool::new(
+            &settings,
+            &Metrics::noop(),
+            Arc::new(BlockingThreadpool::default()),
+            use_test_transactions,
+        )
     }
 }

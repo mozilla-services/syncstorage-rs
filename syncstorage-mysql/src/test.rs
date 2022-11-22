@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use diesel::{
     // expression_methods::TextExpressionMethods, // See note below about `not_like` becoming swedish
@@ -6,7 +6,7 @@ use diesel::{
     QueryDsl,
     RunQueryDsl,
 };
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
@@ -17,7 +17,11 @@ pub fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
     let _ = env_logger::try_init();
     // inherit SYNC_SYNCSTORAGE__DATABASE_URL from the env
 
-    let pool = MysqlDbPool::new(settings, &Metrics::noop())?;
+    let pool = MysqlDbPool::new(
+        settings,
+        &Metrics::noop(),
+        Arc::new(BlockingThreadpool::default()),
+    )?;
     pool.get_sync()
 }
 

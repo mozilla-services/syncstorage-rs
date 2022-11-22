@@ -6,7 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncserver_common::ReportableError;
+use syncserver_common::{InternalError, ReportableError};
 
 /// An error type that represents application-specific errors to Tokenserver. This error is not
 /// used to represent database-related errors; database-related errors have their own type.
@@ -20,7 +20,7 @@ pub struct TokenserverError {
     /// For internal use only. Used to report any additional context behind an error to
     /// distinguish between similar errors in Sentry.
     pub context: String,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
     pub token_type: TokenType,
 }
 
@@ -60,7 +60,7 @@ impl Default for TokenserverError {
             description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
             token_type: TokenType::Oauth,
         }
     }
@@ -273,6 +273,15 @@ impl ReportableError for TokenserverError {
             }
         } else {
             None
+        }
+    }
+}
+
+impl InternalError for TokenserverError {
+    fn internal_error(message: String) -> Self {
+        TokenserverError {
+            context: message,
+            ..TokenserverError::internal_error()
         }
     }
 }

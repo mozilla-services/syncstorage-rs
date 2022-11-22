@@ -1,6 +1,6 @@
 [package]
 name = "syncserver"
-version = "0.12.5"
+version = "0.13.0"
 license = "MPL-2.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
@@ -54,8 +54,9 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
-syncserver-settings = { path = "../syncserver-settings" }
 syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"

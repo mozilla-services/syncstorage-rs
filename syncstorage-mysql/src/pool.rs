@@ -14,7 +14,7 @@ use diesel::{
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
 use syncserver_db_common::{GetPoolState, PoolState};
@@ -50,18 +50,27 @@ pub struct MysqlDbPool {
 
     metrics: Metrics,
     quota: Quota,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 impl MysqlDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
     /// Also initializes the Mysql db, ensuring all migrations are ran.
-    pub fn new(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
+    pub fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> DbResult<Self> {
         run_embedded_migrations(&settings.database_url)?;
-        Self::new_without_migrations(settings, metrics)
+        Self::new_without_migrations(settings, metrics, blocking_threadpool)
     }
 
-    pub fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> DbResult<Self> {
+    pub fn new_without_migrations(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> DbResult<Self> {
         let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
@@ -86,6 +95,7 @@ impl MysqlDbPool {
                 enabled: settings.enable_quota,
                 enforced: settings.enforce_quota,
             },
+            blocking_threadpool,
         })
     }
 
@@ -95,6 +105,7 @@ impl MysqlDbPool {
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
+            self.blocking_threadpool.clone(),
         ))
     }
 }
@@ -103,14 +114,12 @@ impl MysqlDbPool {
 impl DbPoolTrait for MysqlDbPool {
     type Error = DbError;
 
-    async fn get(&self) -> DbResult<Box<dyn DbTrait<Error = Self::Error>>> {
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn DbTrait<Error = Self::Error>>> {
         let pool = self.clone();
-        syncserver_db_common::run_on_blocking_threadpool(
-            move || pool.get_sync(),
-            Self::Error::internal,
-        )
-        .await
-        .map(|db| Box::new(db) as Box<dyn DbTrait<Error = Self::Error>>)
+        self.blocking_threadpool
+            .spawn(move || pool.get_sync())
+            .await
+            .map(|db| Box::new(db) as Box<dyn DbTrait<Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {

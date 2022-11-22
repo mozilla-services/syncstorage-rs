@@ -1,6 +1,6 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_db_common::{
     params, util::SyncTimestamp, DbPoolTrait, DbTrait, Sorting, UserIdentifier,
@@ -25,7 +25,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool, Db
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = Metrics::noop();
-    let pool = DbPool::new(&settings, &metrics)?;
+    let pool = DbPool::new(&settings, &metrics, Arc::new(BlockingThreadpool::default()))?;
     Ok(pool)
 }
 
@@ -73,7 +73,7 @@ pub fn postbso(
 ) -> params::PostCollectionBso {
     params::PostCollectionBso {
         id: bid.to_owned(),
-        payload: payload.map(&str::to_owned),
+        payload: payload.map(str::to_owned),
         sortindex,
         ttl,
     }

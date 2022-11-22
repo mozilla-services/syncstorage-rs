@@ -1,6 +1,6 @@
 //! Main application server
 
-use std::{sync::Arc, time::Duration};
+use std::{env, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -11,13 +11,14 @@ use actix_web::{
     web::{self, Data},
     App, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
-use cadence::StatsdClient;
+use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolTrait};
 use syncstorage_settings::{Deadman, ServerLimits};
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, time};
 
 use crate::error::ApiError;
 use crate::server::tags::Taggable;
@@ -250,7 +251,12 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
-        let db_pool = DbPool::new(&settings.syncstorage, &Metrics::from(&metrics))?;
+        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+        let db_pool = DbPool::new(
+            &settings.syncstorage,
+            &Metrics::from(&metrics),
+            blocking_threadpool.clone(),
+        )?;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -265,24 +271,23 @@ impl Server {
                     settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )?,
-            )?;
-
-            syncstorage_db::spawn_pool_periodic_reporter(
-                Duration::from_secs(10),
-                *state.metrics.clone(),
-                state.db_pool.clone(),
+                blocking_threadpool,
             )?;
 
             Some(state)
         } else {
+            // Only spawn a metric-reporting task if tokenserver is not running; if tokenserver is
+            // running, we are running syncstorange and tokenserver as a single service, which
+            // is only done for self-hosters.
+            spawn_metric_periodic_reporter(
+                Duration::from_secs(10),
+                metrics.clone(),
+                db_pool.clone(),
+                blocking_threadpool,
+            )?;
+
             None
         };
-
-        syncstorage_db::spawn_pool_periodic_reporter(
-            Duration::from_secs(10),
-            metrics.clone(),
-            db_pool.clone(),
-        )?;
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
@@ -322,6 +327,7 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
+        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
             syncserver_common::metrics_from_opts(
@@ -329,12 +335,14 @@ impl Server {
                 settings.statsd_host.as_deref(),
                 settings.statsd_port,
             )?,
+            blocking_threadpool.clone(),
         )?;
 
-        syncstorage_db::spawn_pool_periodic_reporter(
+        spawn_metric_periodic_reporter(
             Duration::from_secs(10),
             *tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
+            blocking_threadpool,
         )?;
 
         let server = HttpServer::new(move || {
@@ -353,7 +361,7 @@ impl Server {
     }
 }
 
-pub fn build_cors(settings: &Settings) -> Cors {
+fn build_cors(settings: &Settings) -> Cors {
     // Followed by the "official middleware" so they run first.
     // actix is getting increasingly tighter about CORS headers. Our server is
     // not a huge risk but does deliver XHR JSON content.
@@ -413,4 +421,53 @@ impl FromRequest for MetricsWrapper {
             timer: None,
         }))
     }
+}
+
+/// Emit database pool and threadpool metrics periodically
+fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
+    interval: Duration,
+    metrics: StatsdClient,
+    pool: T,
+    blocking_threadpool: Arc<BlockingThreadpool>,
+) -> Result<(), DbError> {
+    let hostname = hostname::get()
+        .expect("Couldn't get hostname")
+        .into_string()
+        .expect("Couldn't get hostname");
+    let blocking_threadpool_size =
+        str::parse::<u64>(&env::var("ACTIX_THREADPOOL").unwrap()).unwrap();
+    tokio::spawn(async move {
+        loop {
+            let PoolState {
+                connections,
+                idle_connections,
+            } = pool.state();
+            metrics
+                .gauge_with_tags(
+                    "storage.pool.connections.active",
+                    (connections - idle_connections) as u64,
+                )
+                .with_tag("hostname", &hostname)
+                .send();
+            metrics
+                .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
+                .with_tag("hostname", &hostname)
+                .send();
+
+            let active_threads = blocking_threadpool.active_threads();
+            let idle_threads = blocking_threadpool_size - active_threads;
+            metrics
+                .gauge_with_tags("blocking_threadpool.active", active_threads)
+                .with_tag("hostname", &hostname)
+                .send();
+            metrics
+                .gauge_with_tags("blocking_threadpool.idle", idle_threads)
+                .with_tag("hostname", &hostname)
+                .send();
+
+            time::delay_for(interval).await;
+        }
+    });
+
+    Ok(())
 }

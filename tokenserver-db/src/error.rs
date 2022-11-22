@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display, InternalError};
 use syncserver_db_common::error::MysqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;
@@ -56,7 +56,7 @@ impl From<DbError> for TokenserverError {
         TokenserverError {
             description: db_error.to_string(),
             context: db_error.to_string(),
-            backtrace: db_error.backtrace,
+            backtrace: Box::new(db_error.backtrace),
             http_status: if db_error.status.is_server_error() {
                 // Use the status code from the DbError if it already suggests an internal error;
                 // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
@@ -67,6 +67,12 @@ impl From<DbError> for TokenserverError {
             // An unhandled DbError in the Tokenserver code is an internal error
             ..TokenserverError::internal_error()
         }
+    }
+}
+
+impl InternalError for DbError {
+    fn internal_error(message: String) -> Self {
+        DbErrorKind::Internal(message).into()
     }
 }
 

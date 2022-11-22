@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display, ReportableError};
+use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
@@ -126,6 +126,12 @@ impl ReportableError for DbError {
 
     fn error_backtrace(&self) -> String {
         format!("{:#?}", self.backtrace)
+    }
+}
+
+impl InternalError for DbError {
+    fn internal_error(message: String) -> Self {
+        DbErrorKind::Common(SyncstorageDbError::internal(message)).into()
     }
 }
 

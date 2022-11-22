@@ -1,9 +1,10 @@
 [package]
 name = "syncserver-common"
-version = "0.12.5"
+version = "0.13.0"
 edition = "2021"
 
 [dependencies]
+actix-web = "3"
 cadence = "0.26"
 futures = "0.3"
 hkdf = "0.11"

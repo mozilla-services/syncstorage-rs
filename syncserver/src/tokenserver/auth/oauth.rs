@@ -1,4 +1,3 @@
-use actix_web::{error::BlockingError, web};
 use async_trait::async_trait;
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
@@ -6,14 +5,14 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
+use syncserver_common::BlockingThreadpool;
 use tokenserver_common::TokenserverError;
 use tokenserver_settings::{Jwk, Settings};
 use tokio::time;
 
 use super::VerifyToken;
 
-use core::time::Duration;
-use std::convert::TryFrom;
+use std::{sync::Arc, time::Duration};
 
 /// The information extracted from a valid OAuth token.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -30,16 +29,16 @@ pub struct Verifier {
     // pointer
     inner: Py<PyAny>,
     timeout: u64,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 impl Verifier {
     const FILENAME: &'static str = "verify.py";
-}
 
-impl TryFrom<&Settings> for Verifier {
-    type Error = TokenserverError;
-
-    fn try_from(settings: &Settings) -> Result<Self, TokenserverError> {
+    pub fn new(
+        settings: &Settings,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, PyErr>>(|py| {
             let code = include_str!("verify.py");
             let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)?;
@@ -89,6 +88,7 @@ impl TryFrom<&Settings> for Verifier {
         Ok(Self {
             inner,
             timeout: settings.fxa_oauth_request_timeout,
+            blocking_threadpool,
         })
     }
 }
@@ -151,7 +151,9 @@ impl VerifyToken for Verifier {
         // improve performance, we make the request on a thread in a threadpool specifically
         // used for blocking operations. The JWK should _always_ be cached in production to
         // maximize performance.
-        let fut = web::block(move || verify_inner(&verifier));
+        let fut = self
+            .blocking_threadpool
+            .spawn(move || verify_inner(&verifier));
 
         // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
         // by timing out the future if the verification process blocks its thread for longer
@@ -162,12 +164,5 @@ impl VerifyToken for Verifier {
                 context: "OAuth verification timeout".to_owned(),
                 ..TokenserverError::resource_unavailable()
             })?
-            .map_err(|e| match e {
-                BlockingError::Error(inner) => inner,
-                BlockingError::Canceled => TokenserverError {
-                    context: "Tokenserver threadpool operation failed".to_owned(),
-                    ..TokenserverError::internal_error()
-                },
-            })
     }
 }

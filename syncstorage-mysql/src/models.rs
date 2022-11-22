@@ -15,7 +15,7 @@ use diesel::{
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
-use syncserver_common::Metrics;
+use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, DbTrait, Sorting,
@@ -84,6 +84,7 @@ pub struct MysqlDb {
 
     pub metrics: Metrics,
     pub quota: Quota,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -120,6 +121,7 @@ impl MysqlDb {
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
         quota: &Quota,
+        blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Self {
         let inner = MysqlDbInner {
             #[cfg(not(debug_assertions))]
@@ -133,6 +135,7 @@ impl MysqlDb {
             coll_cache,
             metrics: metrics.clone(),
             quota: *quota,
+            blocking_threadpool,
         }
     }
 
@@ -981,18 +984,12 @@ impl DbTrait for MysqlDb {
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.commit_sync(),
-            Self::Error::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || db.commit_sync()))
     }
 
     fn rollback(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.rollback_sync(),
-            Self::Error::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || db.rollback_sync()))
     }
 
     fn begin(&self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
@@ -1002,10 +999,7 @@ impl DbTrait for MysqlDb {
 
     fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.check_sync(),
-            Self::Error::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
     }
 
     sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
@@ -1065,10 +1059,10 @@ impl DbTrait for MysqlDb {
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.get_collection_id(&name),
-            Self::Error::internal,
-        ))
+        Box::pin(
+            self.blocking_threadpool
+                .spawn(move || db.get_collection_id(&name)),
+        )
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -1077,10 +1071,10 @@ impl DbTrait for MysqlDb {
 
     fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.get_or_create_collection_id(&name),
-            Self::Error::internal,
-        ))
+        Box::pin(
+            self.blocking_threadpool
+                .spawn(move || db.get_or_create_collection_id(&name)),
+        )
     }
 
     fn update_collection(
@@ -1088,10 +1082,9 @@ impl DbTrait for MysqlDb {
         param: params::UpdateCollection,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || db.update_collection(param.user_id.legacy_id as u32, param.collection_id),
-            Self::Error::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || {
+            db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
+        }))
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -1106,13 +1099,10 @@ impl DbTrait for MysqlDb {
 
     fn clear_coll_cache(&self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(syncserver_db_common::run_on_blocking_threadpool(
-            move || {
-                db.coll_cache.clear();
-                Ok(())
-            },
-            Self::Error::internal,
-        ))
+        Box::pin(self.blocking_threadpool.spawn(move || {
+            db.coll_cache.clear();
+            Ok(())
+        }))
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
