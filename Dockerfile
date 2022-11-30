@@ -21,7 +21,7 @@ RUN \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
+RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
 
 FROM chef as builder
 ARG DATABASE_BACKEND=spanner
