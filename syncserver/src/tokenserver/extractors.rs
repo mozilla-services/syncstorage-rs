@@ -439,6 +439,7 @@ impl FromRequest for AuthData {
             let token = Token::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
+            let mut log_items_mutator = LogItemsMutator::from(&req);
 
             // The Python Tokenserver treats zero values and null values both as being
             // null, so for consistency, we need to convert a `Some(0)` value to `None`
@@ -453,6 +454,7 @@ impl FromRequest for AuthData {
                 Token::BrowserIdAssertion(assertion) => {
                     // Add a tag to the request extensions
                     req.add_tag("token_type".to_owned(), "BrowserID".to_owned());
+                    log_items_mutator.insert("token_type".to_owned(), "BrowserID".to_owned());
 
                     // Start a timer with the same tag
                     let mut tags = HashMap::default();
@@ -482,6 +484,7 @@ impl FromRequest for AuthData {
                 Token::OAuthToken(token) => {
                     // Add a tag to the request extensions
                     req.add_tag("token_type".to_owned(), "OAuth".to_owned());
+                    log_items_mutator.insert("token_type".to_owned(), "OAuth".to_owned());
 
                     // Start a timer with the same tag
                     let mut tags = HashMap::default();
