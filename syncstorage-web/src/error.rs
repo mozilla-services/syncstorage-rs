@@ -6,15 +6,10 @@
 #![allow(clippy::single_match, clippy::large_enum_variant)]
 use backtrace::Backtrace;
 use std::convert::From;
+use std::error::Error;
 use std::fmt;
 
-use actix_web::{
-    dev::{HttpResponseBuilder, ServiceResponse},
-    error::ResponseError,
-    http::StatusCode,
-    middleware::errhandlers::ErrorHandlerResponse,
-    HttpResponse, Result,
-};
+use actix_web::{error::ResponseError, http::StatusCode, HttpResponse, Result};
 
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
@@ -26,8 +21,7 @@ use syncstorage_db::{DbError, DbErrorIntrospect};
 
 use thiserror::Error;
 
-use crate::web::error::{HawkError, ValidationError};
-use std::error::Error;
+use crate::api::error::{HawkError, ValidationError};
 
 /// Legacy Sync 1.1 error codes, which Sync 1.5 also returns by replacing the descriptive JSON
 /// information and replacing it with one of these error codes.
@@ -111,21 +105,6 @@ impl ApiError {
             ApiErrorKind::Validation(ver) => ver.weave_error_code(),
             ApiErrorKind::Db(dber) if dber.is_quota() => WeaveError::OverQuota,
             _ => WeaveError::UnknownError,
-        }
-    }
-
-    pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
-        if res.request().path().starts_with("/1.0/") {
-            // Do not use a custom response for Tokenserver requests.
-            Ok(ErrorHandlerResponse::Response(res))
-        } else {
-            // Replace the outbound error message with our own for Sync requests.
-            let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND)
-                .json(WeaveError::UnknownError as u32);
-            Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
-                res.request().clone(),
-                resp.into_body(),
-            )))
         }
     }
 

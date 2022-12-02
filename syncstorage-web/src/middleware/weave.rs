@@ -9,8 +9,8 @@ use actix_web::{
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 use syncstorage_db::SyncTimestamp;
 
+use crate::api::DOCKER_FLOW_ENDPOINTS;
 use crate::error::{ApiError, ApiErrorKind};
-use crate::web::DOCKER_FLOW_ENDPOINTS;
 
 /// Middleware to set the X-Weave-Timestamp header on all responses.
 pub fn set_weave_timestamp(

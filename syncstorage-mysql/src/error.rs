@@ -57,7 +57,7 @@ impl From<DbErrorKind> for DbError {
         match &kind {
             DbErrorKind::Common(dbe) => Self {
                 status: dbe.status,
-                backtrace: Box::new(dbe.backtrace.clone()),
+                backtrace: dbe.backtrace.clone(),
                 kind,
             },
             _ => Self {

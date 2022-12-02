@@ -5,13 +5,17 @@ edition = "2021"
 
 [dependencies]
 backtrace = "0.3.61"
+cadence = "0.26"
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-futures = { version = "0.3", features = ["compat"] }
 http = "0.2.6"
+hostname = "0.3.1"
+futures = { version = "0.3", features = ["compat"] }
 syncserver-common = { path = "../syncserver-common" }
 thiserror = "1.0.26"
+# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
+tokio = "0.2.4"

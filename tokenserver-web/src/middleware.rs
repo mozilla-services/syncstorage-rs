@@ -1,8 +1,9 @@
+use std::future::Future;
+
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     HttpMessage,
 };
-use futures::future::Future;
 
 use super::LogItems;
 

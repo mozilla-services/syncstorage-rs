@@ -6,16 +6,11 @@ use actix_http::HttpMessage;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
-    FromRequest,
 };
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
 use serde_json::value::Value;
-use syncserver_common::{Metrics, ReportableError};
-use tokenserver_common::TokenserverError;
-
-use crate::error::ApiError;
-use crate::server::{tags::Taggable, user_agent, MetricsWrapper};
+use syncserver_common::{Metrics, ReportableError, Taggable};
 
 pub fn report(
     tags: HashMap<String, String>,
@@ -62,6 +57,7 @@ pub fn report_error(
                         report(tags.clone(), extras.clone(), event);
                     }
                 }
+
                 if let Some(events) = sresp
                     .response_mut()
                     .extensions_mut()
@@ -76,9 +72,9 @@ pub fn report_error(
             Some(e) => {
                 let metrics = MetricsWrapper::extract(sresp.request()).await.unwrap().0;
 
-                if let Some(apie) = e.as_error::<ApiError>() {
+                if let Some(apie) = e.as_error::<syncstorage_web::ApiError>() {
                     process_error(apie, metrics, tags, extras);
-                } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
+                } else if let Some(tokenserver_error) = e.as_error::<tokenserver_web::ApiError>() {
                     process_error(tokenserver_error, metrics, tags, extras);
                 }
             }

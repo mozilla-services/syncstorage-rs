@@ -11,18 +11,17 @@ use syncstorage_db::{
     results::{CreateBatch, Paginated},
     Db, DbError, DbErrorIntrospect,
 };
-use time;
 
 use crate::{
-    error::{ApiError, ApiErrorKind},
-    server::ServerState,
-    web::{
+    api::{
         extractors::{
             BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
-            HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+            HeartbeatResponse, MetaRequest, ReplyFormat,
         },
         transaction::DbTransactionPool,
     },
+    error::{ApiError, ApiErrorKind},
+    ServerState,
 };
 
 pub const ONE_KB: f64 = 1024.0;
@@ -521,57 +520,6 @@ pub async fn put_bso(
         .await
 }
 
-pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
-    // With no DbConnection (via a `transaction_http` call) needed here, we
-    // miss out on a couple things it does:
-    // 1. Ensuring an X-Last-Modified (always 0.00) is returned
-    // 2. Handling precondition checks
-    // The precondition checks don't make sense against hardcoded to the
-    // service limits data + a 0.00 timestamp, so just ensure #1 is handled
-    HttpResponse::Ok()
-        .header(X_LAST_MODIFIED, "0.00")
-        .content_type("application/json")
-        .body(&state.limits_json)
-}
-
-/** Returns a status message indicating the state of the current server
- *
- */
-pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
-    let mut checklist = HashMap::new();
-    checklist.insert(
-        "version".to_owned(),
-        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
-    );
-    let db = hb.db_pool.get().await?;
-
-    checklist.insert("quota".to_owned(), serde_json::to_value(hb.quota)?);
-
-    match db.check().await {
-        Ok(result) => {
-            if result {
-                checklist.insert("database".to_owned(), Value::from("Ok"));
-            } else {
-                checklist.insert("database".to_owned(), Value::from("Err"));
-                checklist.insert(
-                    "database_msg".to_owned(),
-                    Value::from("check failed without error"),
-                );
-            };
-            let status = if result { "Ok" } else { "Err" };
-            checklist.insert("status".to_owned(), Value::from(status));
-
-            Ok(HttpResponse::Ok().json(checklist))
-        }
-        Err(e) => {
-            error!("Heartbeat error: {:?}", e);
-            checklist.insert("status".to_owned(), Value::from("Err"));
-            checklist.insert("database".to_owned(), Value::from("Unknown"));
-            Ok(HttpResponse::ServiceUnavailable().json(checklist))
-        }
-    }
-}
-
 pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let mut resp: HashMap<String, Value> = HashMap::new();
 
@@ -585,16 +533,10 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
 
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
-    if matches!(deadman.expiry, Some(expiry) if expiry <= time::Instant::now()) {
-        // We're set to report a failed health check after a certain time (to
-        // evict this instance and start a fresh one)
-        return Ok(HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR).json(resp));
-    }
-
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
-        use syncstorage_db::PoolState;
+        use syncserver_db_common::PoolState;
 
         let test_pool = PoolState {
             connections: u32::from_str(
@@ -651,16 +593,23 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     Ok(HttpResponseBuilder::new(status_code).json(json!(resp)))
 }
 
-// try returning an API error
-pub async fn test_error(
-    _req: HttpRequest,
-    _ter: TestErrorRequest,
-) -> Result<HttpResponse, ApiError> {
-    // generate an error for sentry.
+pub fn heartbeat(resp: HeartbeatResponse) -> HttpResponse {
+    if resp.is_available() {
+        HttpResponse::Ok().json(resp)
+    } else {
+        HttpResponse::ServiceUnavailable().json(resp)
+    }
+}
 
-    // ApiError will call the middleware layer to auto-append the tags.
-    error!("Test Error");
-    let err = ApiError::from(ApiErrorKind::Internal("Oh Noes!".to_owned()));
-
-    Err(err)
+pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
+    // With no DbConnection (via a `transaction_http` call) needed here, we
+    // miss out on a couple things it does:
+    // 1. Ensuring an X-Last-Modified (always 0.00) is returned
+    // 2. Handling precondition checks
+    // The precondition checks don't make sense against hardcoded to the
+    // service limits data + a 0.00 timestamp, so just ensure #1 is handled
+    HttpResponse::Ok()
+        .header(X_LAST_MODIFIED, "0.00")
+        .content_type("application/json")
+        .body(&state.limits_json)
 }

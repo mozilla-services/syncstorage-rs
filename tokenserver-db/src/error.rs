@@ -39,7 +39,7 @@ impl From<DbErrorKind> for DbError {
         match kind {
             DbErrorKind::Mysql(ref mysql_error) => Self {
                 status: mysql_error.status,
-                backtrace: Box::new(mysql_error.backtrace.clone()),
+                backtrace: mysql_error.backtrace.clone(),
                 kind,
             },
             DbErrorKind::Internal(_) => Self {

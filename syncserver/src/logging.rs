@@ -1,11 +1,9 @@
 use std::io;
 
-use crate::error::ApiResult;
-
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
 
-pub fn init_logging(json: bool) -> ApiResult<()> {
+pub fn init_logging(json: bool) {
     let logger = if json {
         let hostname = hostname::get()
             .expect("Couldn't get hostname")
@@ -38,7 +36,6 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
     // https://github.com/slog-rs/slog/issues/169
     slog_scope::set_global_logger(logger).cancel_reset();
     slog_stdlog::init().ok();
-    Ok(())
 }
 
 pub fn reset_logging() {

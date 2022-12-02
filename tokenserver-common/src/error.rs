@@ -1,12 +1,9 @@
 use std::{cmp::PartialEq, error::Error, fmt};
 
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use backtrace::Backtrace;
-use serde::{
-    ser::{SerializeMap, Serializer},
-    Serialize,
-};
+use http::StatusCode;
 use syncserver_common::{InternalError, ReportableError};
+use syncserver_db_common::error::MysqlError;
 
 /// An error type that represents application-specific errors to Tokenserver. This error is not
 /// used to represent database-related errors; database-related errors have their own type.
@@ -182,80 +179,6 @@ impl fmt::Display for ErrorLocation {
     }
 }
 
-impl ResponseError for TokenserverError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.http_status).json(ErrorResponse::from(self))
-    }
-
-    fn status_code(&self) -> StatusCode {
-        self.http_status
-    }
-}
-
-struct ErrorResponse {
-    status: &'static str,
-    errors: [ErrorInstance; 1],
-}
-
-struct ErrorInstance {
-    location: ErrorLocation,
-    name: String,
-    description: String,
-}
-
-impl From<&TokenserverError> for ErrorResponse {
-    fn from(error: &TokenserverError) -> Self {
-        ErrorResponse {
-            status: error.status,
-            errors: [ErrorInstance {
-                location: error.location,
-                name: error.name.clone(),
-                description: error.description.clone(),
-            }],
-        }
-    }
-}
-
-impl Serialize for ErrorInstance {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(3))?;
-        map.serialize_entry("location", &self.location.to_string())?;
-        map.serialize_entry("name", &self.name)?;
-        map.serialize_entry("description", &self.description)?;
-        map.end()
-    }
-}
-
-impl Serialize for ErrorResponse {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut map = serializer.serialize_map(Some(2))?;
-        map.serialize_entry("status", &self.status)?;
-        map.serialize_entry("errors", &self.errors)?;
-        map.end()
-    }
-}
-
-impl Serialize for TokenserverError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        ErrorResponse::from(self).serialize(serializer)
-    }
-}
-
-impl From<TokenserverError> for HttpResponse {
-    fn from(inner: TokenserverError) -> Self {
-        ResponseError::error_response(&inner)
-    }
-}
-
 impl ReportableError for TokenserverError {
     fn error_backtrace(&self) -> String {
         format!("{:#?}", self.backtrace)
@@ -281,6 +204,25 @@ impl InternalError for TokenserverError {
     fn internal_error(message: String) -> Self {
         TokenserverError {
             context: message,
+            ..TokenserverError::internal_error()
+        }
+    }
+}
+
+impl From<MysqlError> for TokenserverError {
+    fn from(mysql_error: MysqlError) -> Self {
+        TokenserverError {
+            description: mysql_error.to_string(),
+            context: mysql_error.to_string(),
+            backtrace: mysql_error.backtrace,
+            http_status: if mysql_error.status.is_server_error() {
+                // Use the status code from the DbError if it already suggests an internal error;
+                // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
+                mysql_error.status
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            },
+            // An unhandled DbError in the Tokenserver code is an internal error
             ..TokenserverError::internal_error()
         }
     }

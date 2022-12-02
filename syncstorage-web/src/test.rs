@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::time::Duration;
 
 use actix_web::{
     dev::Service,
     http::{self, HeaderName, HeaderValue, StatusCode},
+    // middleware::errhandlers::ErrorHandlers,
     test,
     web::Bytes,
+    App,
 };
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
@@ -20,17 +23,38 @@ use syncserver_settings::{Secrets, Settings};
 use syncstorage_db::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
-    DbPoolImpl, SyncTimestamp,
+    SyncTimestamp,
 };
 use syncstorage_settings::ServerLimits;
 
 use super::*;
-use crate::build_app;
-use crate::tokenserver;
-use crate::web::{auth::HawkPayload, extractors::BsoBody};
+use crate::api::{auth::HawkPayload, extractors::BsoBody};
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
+    /// NOTE: these tests run w/ test_settings() which enables
+    /// database_use_test_transactions (transactions don't commit), so data won't
+    /// persist to the db between requests. This can be overridden per test via
+    /// customizing the settings
+    static ref SETTINGS: Settings = {
+        let mut settings = Settings::test_settings();
+        let treq = test::TestRequest::with_uri("/").to_http_request();
+        let port = treq.uri().port_u16().unwrap_or(TEST_PORT);
+        // Make sure that our poolsize is >= the
+        let host = treq.uri().host().unwrap_or(TEST_HOST).to_owned();
+        let pool_size = u32::from_str(
+            std::env::var_os("RUST_TEST_THREADS")
+                .unwrap_or_else(|| std::ffi::OsString::from("10"))
+                .into_string()
+                .expect("Could not get RUST_TEST_THREADS")
+                .as_str(),
+        )
+        .expect("Could not get pool_size");
+        settings.port = port;
+        settings.host = host;
+        settings.syncstorage.database_pool_max_size = pool_size + 1;
+        settings
+    };
     static ref SECRETS: Arc<Secrets> =
         Arc::new(Secrets::new("foo").expect("Could not get Secrets in server/test.rs"));
     static ref RAND_UID: u32 = thread_rng().gen_range(0..10000);
@@ -39,73 +63,26 @@ lazy_static! {
 const TEST_HOST: &str = "localhost";
 const TEST_PORT: u16 = 8080;
 
-/// NOTE: these tests run w/ test_settings() which enables
-/// database_use_test_transactions (transactions don't commit), so data won't
-/// persist to the db between requests. This can be overridden per test via
-/// customizing the settings
-fn get_test_settings() -> Settings {
-    let mut settings = Settings::test_settings();
-    let treq = test::TestRequest::with_uri("/").to_http_request();
-    let port = treq.uri().port_u16().unwrap_or(TEST_PORT);
-    // Make sure that our poolsize is >= the
-    let host = treq.uri().host().unwrap_or(TEST_HOST).to_owned();
-    let pool_size = u32::from_str(
-        std::env::var_os("RUST_TEST_THREADS")
-            .unwrap_or_else(|| std::ffi::OsString::from("10"))
-            .into_string()
-            .expect("Could not get RUST_TEST_THREADS in get_test_settings")
-            .as_str(),
-    )
-    .expect("Could not get pool_size in get_test_settings");
-    settings.port = port;
-    settings.host = host;
-    settings.syncstorage.database_pool_max_size = pool_size + 1;
-    settings
-}
-
-async fn get_test_state(settings: &Settings) -> ServerState {
-    let metrics = Metrics::sink();
-    let blocking_threadpool = Arc::new(BlockingThreadpool::default());
-
-    ServerState {
-        db_pool: Box::new(
-            DbPoolImpl::new(
-                &settings.syncstorage,
-                &Metrics::from(&metrics),
-                blocking_threadpool,
-            )
-            .expect("Could not get db_pool in get_test_state"),
-        ),
-        limits: Arc::clone(&SERVER_LIMITS),
-        limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        metrics: Box::new(metrics),
-        port: settings.port,
-        quota_enabled: settings.syncstorage.enable_quota,
-        deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
-    }
-}
-
-macro_rules! init_app {
-    () => {
-        async {
-            let settings = get_test_settings();
-            init_app!(settings).await
-        }
-    };
-    ($settings:expr) => {
-        async {
-            crate::logging::init_logging(false).unwrap();
-            let limits = Arc::new($settings.syncstorage.limits.clone());
-            let state = get_test_state(&$settings).await;
-            test::init_service(build_app!(
-                state,
-                None::<tokenserver::ServerState>,
-                Arc::clone(&SECRETS),
-                limits,
-                build_cors(&$settings)
-            ))
-            .await
-        }
+macro_rules! build_app {
+    ($settings: expr) => {
+        test::init_service(
+            App::new()
+                .data(Arc::clone(&SECRETS))
+                // TODO: can we remove these
+                // .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, middleware::render_404))
+                // .wrap(middleware::SentryWrapper::default())
+                // .wrap(middleware::RejectUA::default())
+                // // Followed by the "official middleware" so they run first.
+                .configure(
+                    crate::get_configurator(
+                        &$settings.syncstorage,
+                        $settings.statsd_host.as_deref(),
+                        $settings.statsd_port,
+                        Arc::new(BlockingThreadpool::default()),
+                    )
+                    .expect("failed to build syncstorage configurator"),
+                ),
+        )
     };
 }
 
@@ -115,12 +92,11 @@ fn create_request(
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
 ) -> test::TestRequest {
-    let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
         .header(
             "Authorization",
-            create_hawk_header(method.as_str(), settings.port, path),
+            create_hawk_header(method.as_str(), SETTINGS.port, path),
         )
         .header("Accept", "application/json")
         .header(
@@ -191,7 +167,7 @@ async fn test_endpoint(
     status: Option<StatusCode>,
     expected_body: Option<&str>,
 ) {
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
 
     let req = create_request(method, path, None, None).to_request();
     let sresp = app
@@ -212,17 +188,7 @@ async fn test_endpoint_with_response<T>(method: http::Method, path: &str, assert
 where
     T: DeserializeOwned,
 {
-    let settings = get_test_settings();
-    let limits = Arc::new(settings.syncstorage.limits.clone());
-    let state = get_test_state(&settings).await;
-    let mut app = test::init_service(build_app!(
-        state,
-        None::<tokenserver::ServerState>,
-        Arc::clone(&SECRETS),
-        limits,
-        build_cors(&settings)
-    ))
-    .await;
+    let mut app = build_app!(SETTINGS).await;
 
     let req = create_request(method, path, None, None).to_request();
     let sresponse = match app.call(req).await {
@@ -254,17 +220,7 @@ async fn test_endpoint_with_body(
     path: &str,
     body: serde_json::Value,
 ) -> Bytes {
-    let settings = get_test_settings();
-    let limits = Arc::new(settings.syncstorage.limits.clone());
-    let state = get_test_state(&settings).await;
-    let mut app = test::init_service(build_app!(
-        state,
-        None::<tokenserver::ServerState>,
-        Arc::clone(&SECRETS),
-        limits,
-        build_cors(&settings)
-    ))
-    .await;
+    let mut app = build_app!(SETTINGS).await;
     let req = create_request(method, path, None, Some(body)).to_request();
     let sresponse = app
         .call(req)
@@ -479,7 +435,7 @@ async fn bsos_can_have_a_collection_field() {
 #[actix_rt::test]
 async fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -529,7 +485,7 @@ async fn invalid_content_type() {
 
 #[actix_rt::test]
 async fn invalid_batch_post() {
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
 
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
@@ -556,7 +512,7 @@ async fn invalid_batch_post() {
 
 #[actix_rt::test]
 async fn accept_new_or_dev_ios() {
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -573,7 +529,7 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -590,7 +546,7 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -610,7 +566,7 @@ async fn accept_new_or_dev_ios() {
 
 #[actix_rt::test]
 async fn reject_old_ios() {
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -644,7 +600,7 @@ async fn reject_old_ios() {
 
 #[actix_rt::test]
 async fn info_configuration_xlm() {
-    let mut app = init_app!().await;
+    let mut app = build_app!(SETTINGS).await;
     let req =
         create_request(http::Method::GET, "/1.5/42/info/configuration", None, None).to_request();
     let response = app.call(req).await.unwrap();
@@ -661,13 +617,13 @@ async fn info_configuration_xlm() {
 
 #[actix_rt::test]
 async fn overquota() {
-    let mut settings = get_test_settings();
+    let mut settings = SETTINGS.clone();
     settings.syncstorage.enable_quota = true;
     settings.syncstorage.enforce_quota = true;
     settings.syncstorage.limits.max_quota_limit = 5;
     // persist the db across requests
     settings.syncstorage.database_use_test_transactions = false;
-    let mut app = init_app!(settings).await;
+    let mut app = build_app!(SETTINGS).await;
 
     // Clear out any data that's already in the store.
     let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
@@ -728,10 +684,10 @@ async fn overquota() {
 async fn lbheartbeat_max_pool_size_check() {
     use actix_web::web::Buf;
 
-    let mut settings = get_test_settings();
+    let mut settings = SETTINGS.clone();
     settings.syncstorage.database_pool_max_size = 10;
 
-    let mut app = init_app!(settings).await;
+    let mut app = build_app!(settings).await;
 
     // Test all is well.
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
@@ -783,11 +739,11 @@ async fn lbheartbeat_max_pool_size_check() {
 
 #[actix_rt::test]
 async fn lbheartbeat_ttl_check() {
-    let mut settings = get_test_settings();
+    let mut settings = SETTINGS.clone();
     settings.syncstorage.lbheartbeat_ttl = Some(2);
     settings.syncstorage.lbheartbeat_ttl_jitter = 60;
 
-    let mut app = init_app!(settings).await;
+    let mut app = build_app!(settings).await;
 
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
     let sresp = app.call(lb_req).await.unwrap();

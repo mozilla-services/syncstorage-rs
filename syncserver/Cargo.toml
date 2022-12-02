@@ -12,36 +12,21 @@ default-run = "syncserver"
 
 [dependencies]
 actix-http = "2"
+
 actix-web = "3"
-actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
-async-trait = "0.1.40"
-backtrace = "0.3.61"
-base64 = "0.13"
-cadence = "0.26"
-chrono = "0.4"
 docopt = "1.1.0"
 dyn-clone = "1.0.4"
 env_logger = "0.9"
 futures = { version = "0.3", features = ["compat"] }
 hostname = "0.3.1"
 lazy_static = "1.4.0"
-hawk = "3.2"
-hex = "0.4.3"
-hmac = "0.11"
-mime = "0.3"
-rand = "0.8"
 regex = "1.4"
-reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = [
-  "with_curl_transport",
-] } # pin to 0.19 until on-prem sentry server is updated
+sentry = { version = "0.19", features = ["with_curl_transport"] }
 sentry-backtrace = "0.19"
 serde = "1.0"
-serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-sha2 = "0.9"
 slog = { version = "2.5", features = [
   "max_level_info",
   "release_max_level_info",
@@ -56,14 +41,17 @@ slog-term = "2.6"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
+syncserver-web-common = { path = "../syncserver-web-common" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
+syncstorage-web = { path = "../syncstorage-web", optional = true }
 time = "^0.3"
 thiserror = "1.0.26"
 tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
+tokenserver-web = { path = "../tokenserver-web", optional = true }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 urlencoding = "2.1"
@@ -72,5 +60,7 @@ validator_derive = "0.14"
 woothee = "0.11"
 
 [features]
-default = ["syncstorage-db/mysql"]
+default = ["syncstorage", "tokenserver"]
 no_auth = []
+syncstorage = ["syncstorage-web/mysql"]
+tokenserver = ["tokenserver-web"]

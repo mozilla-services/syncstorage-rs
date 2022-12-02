@@ -1,11 +1,7 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use actix_web::{http::StatusCode, Error, HttpResponse};
+use actix_web::{http::StatusCode, HttpResponse};
 use serde::Serialize;
-use serde_json::Value;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
@@ -17,6 +13,7 @@ use super::{
     extractors::{DbWrapper, TokenserverRequest},
     TokenserverMetrics,
 };
+use crate::{error::ApiError, extractors::HeartbeatResponse};
 
 #[derive(Debug, Serialize)]
 pub struct TokenserverResult {
@@ -34,7 +31,7 @@ pub async fn get_tokenserver_result(
     req: TokenserverRequest,
     DbWrapper(db): DbWrapper,
     TokenserverMetrics(mut metrics): TokenserverMetrics,
-) -> Result<HttpResponse, TokenserverError> {
+) -> Result<HttpResponse, ApiError> {
     let updates = update_user(&req, db).await?;
 
     let (token, derived_secret) = {
@@ -242,43 +239,10 @@ async fn update_user(
     }
 }
 
-pub async fn heartbeat(DbWrapper(db): DbWrapper) -> Result<HttpResponse, Error> {
-    let mut checklist = HashMap::new();
-    checklist.insert(
-        "version".to_owned(),
-        Value::String(env!("CARGO_PKG_VERSION").to_owned()),
-    );
-
-    match db.check().await {
-        Ok(result) => {
-            if result {
-                checklist.insert("database".to_owned(), Value::from("Ok"));
-            } else {
-                checklist.insert("database".to_owned(), Value::from("Err"));
-                checklist.insert(
-                    "database_msg".to_owned(),
-                    Value::from("check failed without error"),
-                );
-            };
-            let status = if result { "Ok" } else { "Err" };
-            checklist.insert("status".to_owned(), Value::from(status));
-            Ok(HttpResponse::Ok().json(checklist))
-        }
-        Err(e) => {
-            error!("Heartbeat error: {:?}", e);
-            checklist.insert("status".to_owned(), Value::from("Err"));
-            checklist.insert("database".to_owned(), Value::from("Unknown"));
-            Ok(HttpResponse::ServiceUnavailable().json(checklist))
-        }
+pub fn heartbeat(resp: HeartbeatResponse) -> HttpResponse {
+    if resp.is_available() {
+        HttpResponse::Ok().json(resp)
+    } else {
+        HttpResponse::ServiceUnavailable().json(resp)
     }
-}
-
-/// Generates an error to test the Sentry integration
-pub async fn test_error() -> Result<HttpResponse, TokenserverError> {
-    error!("Test Error");
-    Err(TokenserverError {
-        context: "Test error for Sentry".to_owned(),
-        description: "Test error for Sentry".to_owned(),
-        ..TokenserverError::internal_error()
-    })
 }

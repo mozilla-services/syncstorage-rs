@@ -9,5 +9,6 @@ pub mod params;
 mod pool;
 pub mod results;
 
+pub use error::DbError;
 pub use models::{Db, TokenserverDb};
 pub use pool::{DbPool, TokenserverPool};

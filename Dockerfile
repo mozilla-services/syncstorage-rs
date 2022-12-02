@@ -6,7 +6,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
-ARG DATABASE_BACKEND=spanner
+ARG FEATURES=syncstorage-web/mysql
 COPY --from=planner /app/mysql_pubkey.asc mysql_pubkey.asc
 
 # cmake is required to build grpcio-sys for Spanner builds
@@ -21,7 +21,7 @@ RUN \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
+RUN cargo chef cook --release --no-default-features --features=$FEATURES --recipe-path recipe.json
 
 FROM chef as builder
 ARG DATABASE_BACKEND=spanner
@@ -47,8 +47,8 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --locked --root /app && \
-    if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
+    cargo install --path ./syncserver --no-default-features --features=$FEATURES --locked --root /app && \
+    if [[ "$FEATURES" = *"spanner"* ]] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
 FROM debian:buster-slim
 WORKDIR /app

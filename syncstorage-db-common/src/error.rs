@@ -12,7 +12,7 @@ use thiserror::Error;
 pub struct SyncstorageDbError {
     kind: SyncstorageDbErrorKind,
     pub status: StatusCode,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
 }
 
 #[derive(Debug, Error)]
@@ -130,7 +130,7 @@ impl From<SyncstorageDbErrorKind> for SyncstorageDbError {
         Self {
             kind,
             status,
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
         }
     }
 }

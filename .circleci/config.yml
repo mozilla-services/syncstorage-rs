@@ -46,15 +46,33 @@ commands:
   rust-clippy-mysql:
     steps:
       - run:
-          name: Rust Clippy MySQL
+          name: Rust Clippy Syncstorage (MySQL) only
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage,syncstorage-web/mysql -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
-          name: Rust Clippy Spanner
+          name: Rust Clippy Syncstorage (Spanner) only
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage,syncstorage-web/spanner -- -D warnings
+  rust-clippy-tokenserver:
+    steps:
+      - run:
+          name: Rust Clippy Tokenserver only
+          command: |
+            cargo clippy --workspace --all-targets --no-default-features --features=tokenserver -- -D warnings
+  rust-clippy-tokenserver-mysql:
+    steps:
+      - run:
+          name: Rust Clippy Tokenserver with Syncstorage (MySQL)
+          command: |
+            cargo clippy --workspace --all-targets --no-default-features --features=tokenserver,syncstorage,syncstorage-web/mysql -- -D warnings
+  rust-clippy-tokenserver-spanner:
+    steps:
+      - run:
+          name: Rust Clippy Tokenserver with Syncstorage (Spanner)
+          command: |
+            cargo clippy --workspace --all-targets --no-default-features --features=tokenserver,syncstorage,syncstorage-web/spanner -- -D warnings
   cargo-build:
     steps:
       - run:
@@ -102,7 +120,7 @@ commands:
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
-  run-e2e-mysql-tests:
+  run-e2e-syncstorage-mysql-tests:
     steps:
       - run:
           name: e2e tests (syncstorage mysql)
@@ -111,7 +129,7 @@ commands:
                -f docker-compose.mysql.yaml
                -f docker-compose.e2e.mysql.yaml
                up
-               --exit-code-from mysql-e2e-tests
+               --exit-code-from syncstorage-mysql-e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -126,7 +144,7 @@ commands:
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
-  run-e2e-spanner-tests:
+  run-e2e-syncstorage-spanner-tests:
     steps:
       - run:
           name: e2e tests (syncstorage spanner)
@@ -135,7 +153,34 @@ commands:
                -f docker-compose.spanner.yaml
                -f docker-compose.e2e.spanner.yaml
                up
-               --exit-code-from spanner-e2e-tests
+               --exit-code-from syncstorage-spanner-e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
+
+  run-e2e-syncstorage-mysql-tests:
+    steps:
+      - run:
+          name: e2e tests (syncstorage mysql)
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.mysql.yaml
+               -f docker-compose.e2e.mysql.yaml
+               up
+               --exit-code-from syncstorage-mysql-e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
+
+  run-e2e-tokenserver-tests:
+    steps:
+      - run:
+          name: e2e tests (tokenserver)
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.e2e.tokenserver.yaml
+               up
+               --exit-code-from tokenserver-e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -219,7 +264,7 @@ jobs:
       - run-tests
       - run-tokenserver-scripts-tests
       #- save-sccache-cache
-  build-mysql-image:
+  build-syncstorage-mysql-image:
     docker:
       - image: cimg/rust:1.60.0
         auth:
@@ -232,7 +277,7 @@ jobs:
       - checkout
       - run:
           name: Build MySQL Docker image
-          command: docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
+          command: docker build -t app:build --build-arg FEATURES=syncstorage,syncstorage-web/mysql .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
@@ -249,7 +294,7 @@ jobs:
           paths:
             - /home/circleci/cache
 
-  build-spanner-image:
+  build-syncstorage-spanner-image:
     docker:
       - image: cimg/rust:1.60.0
         auth:
@@ -262,7 +307,7 @@ jobs:
       - checkout
       - run:
           name: Build Spanner Docker image
-          command: docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+          command: docker build -t app:build --build-arg FEATURES=syncstorage,syncstorage-web/spanner .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
@@ -279,7 +324,36 @@ jobs:
           paths:
             - /home/circleci/cache
 
-  mysql-e2e-tests:
+  build-tokenserver-image:
+    docker:
+      - image: cimg/rust:1.60.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - run:
+          name: Build Tokenserver Docker image
+          command: docker build -t app:build --build-arg FEATURES=tokenserver .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose.e2e.tokenserver.yaml /home/circleci/cache
+      - save_cache:
+          key: tokenserver-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
+  syncstorage-mysql-e2e-tests:
     docker:
       - image: docker/compose:1.24.0
         auth:
@@ -295,9 +369,9 @@ jobs:
       - run:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-mysql-tests
+      - run-e2e-syncstorage-mysql-tests
 
-  spanner-e2e-tests:
+  syncstorage-spanner-e2e-tests:
     docker:
       - image: docker/compose:1.24.0
         auth:
@@ -313,7 +387,25 @@ jobs:
       - run:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-spanner-tests
+      - run-e2e-syncstorage-spanner-tests
+
+  tokenserver-e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - restore_cache:
+          key: tokenserver-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose.e2e.tokenserver.yaml .
+      - run-e2e-tokenserver-tests
 
   deploy:
     docker:
@@ -402,41 +494,53 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - build-mysql-image:
+      - build-syncstorage-mysql-image:
           requires:
             - build-and-test
           filters:
             tags:
               only: /.*/
-      - build-spanner-image:
+      - build-syncstorage-spanner-image:
           requires:
             - build-and-test
           filters:
             tags:
               only: /.*/
-      - mysql-e2e-tests:
+      - build-tokenserver-image:
           requires:
-            - build-mysql-image
+            - build-and-test
           filters:
             tags:
               only: /.*/
-      - spanner-e2e-tests:
+      - syncstorage-mysql-e2e-tests:
           requires:
-            - build-spanner-image
+            - build-syncstorage-mysql-image
+          filters:
+            tags:
+              only: /.*/
+      - syncstorage-spanner-e2e-tests:
+          requires:
+            - build-syncstorage-spanner-image
+          filters:
+            tags:
+              only: /.*/
+      - tokenserver-e2e-tests:
+          requires:
+            - build-tokenserver-image
           filters:
             tags:
               only: /.*/
       - deploy:
           requires:
-            - mysql-e2e-tests
-            - spanner-e2e-tests
+            - syncstorage-mysql-e2e-tests
+            - syncstorage-spanner-e2e-tests
           filters:
             tags:
               only: /.*/
       - deploy-python-utils:
           requires:
-            - mysql-e2e-tests
-            - spanner-e2e-tests
+            - syncstorage-mysql-e2e-tests
+            - syncstorage-spanner-e2e-tests
           filters:
             tags:
               only: /.*/

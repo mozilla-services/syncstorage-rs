@@ -76,7 +76,7 @@ impl HawkPayload {
         expiry: u64,
     ) -> ApiResult<HawkPayload> {
         if header.len() < 5 || &header[0..5] != "Hawk " {
-            Err(HawkErrorKind::MissingPrefix)?;
+            return Err(HawkErrorKind::MissingPrefix.into());
         }
 
         let header: HawkHeader = header[5..].parse()?;
@@ -117,7 +117,7 @@ impl HawkPayload {
             ) {
                 Ok(payload)
             } else {
-                Err(HawkErrorKind::InvalidHeader)?
+                Err(HawkErrorKind::InvalidHeader.into())
             }
         }
     }
@@ -127,7 +127,7 @@ impl HawkPayload {
     fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> ApiResult<HawkPayload> {
         let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
         if decoded_id.len() <= 32 {
-            Err(HawkErrorKind::TruncatedId)?;
+            return Err(HawkErrorKind::TruncatedId.into());
         }
 
         let payload_length = decoded_id.len() - 32;
@@ -142,7 +142,7 @@ impl HawkPayload {
         if expiry == 0 || (payload.expires.round() as u64) > expiry {
             Ok(payload)
         } else {
-            Err(HawkErrorKind::Expired)?
+            Err(HawkErrorKind::Expired.into())
         }
     }
 

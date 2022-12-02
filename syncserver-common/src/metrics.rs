@@ -132,7 +132,7 @@ impl Metrics {
     }
 }
 
-pub fn metrics_from_opts(
+pub fn statsd_client_from_opts(
     label: &str,
     host: Option<&str>,
     port: u16,

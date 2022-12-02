@@ -15,26 +15,6 @@ services:
         entrypoint: "/app/scripts/prepare-spanner.sh"
         environment:
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
-    tokenserver-db:
-        image: mysql:5.7
-        volumes:
-            - tokenserver_db_data:/var/lib/mysql
-        restart: always
-        ports:
-            - "3306"
-        environment:
-            #MYSQL_RANDOM_ROOT_PASSWORD: yes
-            MYSQL_ROOT_PASSWORD: random
-            MYSQL_DATABASE: tokenserver
-            MYSQL_USER: test
-            MYSQL_PASSWORD: test
-    mock-fxa-server:
-        image: app:build
-        restart: "no"
-        entrypoint: "python3 /app/tools/integration_tests/tokenserver/mock_fxa_server.py"
-        environment:
-            MOCK_FXA_SERVER_HOST: 0.0.0.0
-            MOCK_FXA_SERVER_PORT: 6000
     syncserver:
         # NOTE: The naming in the rest of this repository has been updated to reflect the fact
         # that Syncstorage and Tokenserver are now part of one repository/server called
@@ -51,12 +31,6 @@ services:
             SYNC_MASTER_SECRET: secret0
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
-            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
-            SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
-
-volumes:
-    tokenserver_db_data:
-
         # Application runs off of port 8000.
         # you can test if it's available with
         # curl "http://localhost:8000/__heartbeat__"

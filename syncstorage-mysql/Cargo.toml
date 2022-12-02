@@ -11,7 +11,7 @@ diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_logger = "0.1.1"
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 futures = { version = "0.3", features = ["compat"] }
-http = "0.2.5"
+http = "0.2.6"
 slog-scope = "4.3"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }

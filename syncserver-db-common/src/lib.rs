@@ -1,11 +1,45 @@
 pub mod error;
 pub mod test;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, time::Duration};
 
+use cadence::{Gauged, StatsdClient};
 use futures::future::LocalBoxFuture;
+use tokio::time;
 
 pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
+
+/// Emit DbPool metrics periodically
+pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
+    interval: Duration,
+    metrics: StatsdClient,
+    pool: T,
+) {
+    let hostname = hostname::get()
+        .expect("Couldn't get hostname")
+        .into_string()
+        .expect("Couldn't get hostname");
+    tokio::spawn(async move {
+        loop {
+            let PoolState {
+                connections,
+                idle_connections,
+            } = pool.state();
+            metrics
+                .gauge_with_tags(
+                    "storage.pool.connections.active",
+                    (connections - idle_connections) as u64,
+                )
+                .with_tag("hostname", &hostname)
+                .send();
+            metrics
+                .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
+                .with_tag("hostname", &hostname)
+                .send();
+            time::delay_for(interval).await;
+        }
+    });
+}
 
 /// A trait to be implemented by database pool data structures. It provides an interface to
 /// derive the current state of the pool, as represented by the `PoolState` struct.
@@ -28,6 +62,7 @@ impl From<diesel::r2d2::State> for PoolState {
         }
     }
 }
+
 impl From<deadpool::Status> for PoolState {
     fn from(status: deadpool::Status) -> PoolState {
         PoolState {

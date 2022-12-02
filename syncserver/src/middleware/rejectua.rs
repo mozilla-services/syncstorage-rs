@@ -10,7 +10,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::MetricsWrapper;
+use crate::server::{MetricsWrapper, ServerState};
 
 lazy_static! {
     // e.g. "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))"

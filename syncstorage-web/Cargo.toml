@@ -1,0 +1,52 @@
+[package]
+name = "syncstorage-web"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-http = "2"
+actix-web = "3"
+actix-rt = "1" # Pin to 1.0, due to dependencies on Tokio
+async-trait = "0.1.40"
+backtrace = "0.3.61"
+base64 = "0.13"
+cadence = "0.26"
+chrono = "0.4"
+env_logger = "0.9"
+futures = { version = "0.3", features = ["compat"] }
+hawk = "3.2"
+hmac = "0.11"
+lazy_static = "1.4.0"
+log = { version = "0.4", features = [
+    "max_level_debug",
+    "release_max_level_info",
+] }
+mime = "0.3"
+rand = "0.8"
+regex = "1.4"
+serde = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+sha2 = "0.9"
+slog-scope = "4.3"
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-db = { path = "../syncstorage-db" }
+syncserver-settings = { path = "../syncserver-settings" }
+syncserver-web-common = { path = "../syncserver-web-common" }
+syncstorage-settings = { path = "../syncstorage-settings" }
+time = "^0.3"
+thiserror = "1.0.26"
+tokenserver-auth = { path = "../tokenserver-auth" }
+# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
+tokio = { version = "0.2.4", features = ["macros", "sync"] }
+urlencoding = "2.1"
+validator = "0.14"
+validator_derive = "0.14"
+
+[features]
+default = ["mysql"]
+mysql = ["syncstorage-db/mysql"]
+spanner = ["syncstorage-db/spanner"]

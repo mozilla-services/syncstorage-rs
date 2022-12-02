@@ -13,19 +13,20 @@ use actix_web::{
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
-use futures::future::LocalBoxFuture;
+use futures::future::{self, LocalBoxFuture, Ready};
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use lazy_static::lazy_static;
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use syncserver_common::{Metrics, Taggable};
 use syncserver_settings::Secrets;
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{params, results, Db, DbPool};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
-use crate::server::{tags::Taggable, MetricsWrapper};
+use crate::error::ApiError;
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -180,7 +181,7 @@ impl TokenserverRequest {
 
 impl FromRequest for TokenserverRequest {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -233,7 +234,8 @@ impl FromRequest for TokenserverRequest {
                         return Err(TokenserverError::unsupported(
                             "Unsupported application version".to_owned(),
                             version.to_owned(),
-                        ));
+                        )
+                        .into());
                     }
                 } else {
                     // NOTE: It would probably be better to include the name of the unsupported
@@ -244,7 +246,8 @@ impl FromRequest for TokenserverRequest {
                     return Err(TokenserverError::unsupported(
                         "Unsupported application".to_owned(),
                         "application".to_owned(),
-                    ));
+                    )
+                    .into());
                 }
             };
             let user = db
@@ -294,7 +297,7 @@ impl FromRequest for TokenserverRequest {
                 node_type: state.node_type,
             };
 
-            tokenserver_request.validate()?;
+            tokenserver_request.validate().map_err(ApiError::from)?;
 
             Ok(tokenserver_request)
         })
@@ -311,7 +314,7 @@ pub struct DbWrapper(pub Box<dyn Db>);
 
 impl FromRequest for DbWrapper {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -324,9 +327,12 @@ impl FromRequest for DbWrapper {
                 .get()
                 .await
                 .map(Self)
-                .map_err(|e| TokenserverError {
-                    context: format!("Couldn't acquire a database connection: {}", e),
-                    ..TokenserverError::internal_error()
+                .map_err(|e| {
+                    TokenserverError {
+                        context: format!("Couldn't acquire a database connection: {}", e),
+                        ..TokenserverError::internal_error()
+                    }
+                    .into()
                 })
         })
     }
@@ -336,7 +342,7 @@ struct DbPoolWrapper(Box<dyn DbPool>);
 
 impl FromRequest for DbPoolWrapper {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -359,7 +365,7 @@ pub enum Token {
 
 impl FromRequest for Token {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -401,7 +407,8 @@ impl FromRequest for Token {
                         location: ErrorLocation::Body,
                         context: "Invalid authorization scheme".to_owned(),
                         ..Default::default()
-                    })
+                    }
+                    .into())
                 }
             } else {
                 // Headers that are not of the format "[AUTH TYPE] [TOKEN]" are invalid
@@ -410,7 +417,8 @@ impl FromRequest for Token {
                     location: ErrorLocation::Body,
                     context: "Invalid Authorization header format".to_owned(),
                     ..Default::default()
-                })
+                }
+                .into())
             }
         })
     }
@@ -429,7 +437,7 @@ pub struct AuthData {
 
 impl FromRequest for AuthData {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -519,7 +527,7 @@ struct XClientStateHeader(Option<String>);
 
 impl FromRequest for XClientStateHeader {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -542,7 +550,8 @@ impl FromRequest for XClientStateHeader {
                         http_status: StatusCode::BAD_REQUEST,
                         context: "Invalid client state value".to_owned(),
                         ..Default::default()
-                    });
+                    }
+                    .into());
                 }
             }
 
@@ -561,7 +570,7 @@ struct KeyId {
 
 impl FromRequest for KeyId {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
@@ -618,20 +627,20 @@ impl FromRequest for KeyId {
                             location: ErrorLocation::Body,
                             context: "Client state mismatch in X-Client-State header".to_owned(),
                             ..TokenserverError::default()
-                        });
+                        }
+                        .into());
                     }
                 }
 
                 client_state_hex
             };
 
-            let keys_changed_at =
-                keys_changed_at_string
-                    .parse::<i64>()
-                    .map_err(|e| TokenserverError {
-                        context: format!("Non-integral keys_changed_at in X-KeyID: {}", e),
-                        ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                    })?;
+            let keys_changed_at = keys_changed_at_string.parse::<i64>().map_err(|e| {
+                ApiError::from(TokenserverError {
+                    context: format!("Non-integral keys_changed_at in X-KeyID: {}", e),
+                    ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                })
+            })?;
 
             Ok(KeyId {
                 client_state,
@@ -643,17 +652,106 @@ impl FromRequest for KeyId {
 
 impl FromRequest for TokenserverMetrics {
     type Config = ();
-    type Error = TokenserverError;
+    type Error = ApiError;
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        let client = req
+            .app_data::<Data<ServerState>>()
+            .map(|state| state.statsd_client.clone());
+
+        if client.is_none() {
+            warn!("⚠️ metric error: No App State");
+        }
+
+        future::ok(Self(Metrics {
+            client: client.as_deref().cloned(),
+            tags: req.get_tags(),
+            timer: None,
+        }))
+    }
+}
+
+#[derive(Clone, Copy, Serialize)]
+pub enum DbStatus {
+    Ok,
+    Err,
+    Unknown,
+}
+
+impl From<DbStatus> for Status {
+    fn from(db_status: DbStatus) -> Status {
+        match db_status {
+            DbStatus::Ok => Status::Ok,
+            _ => Status::Err,
+        }
+    }
+}
+
+impl FromRequest for DbStatus {
+    type Config = ();
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
 
-        // `Result::unwrap` is safe to use here, since MetricsWrapper::extract can never fail
         Box::pin(async move {
-            Ok(TokenserverMetrics(
-                MetricsWrapper::extract(&req).await.unwrap().0,
-            ))
+            let DbWrapper(db) = DbWrapper::extract(&req).await?;
+
+            match db.check().await {
+                Ok(true) => Ok(Self::Ok),
+                Ok(false) => Ok(Self::Err),
+                Err(e) => {
+                    error!("Heartbeat error: {:?}", e);
+                    Ok(Self::Unknown)
+                }
+            }
+        })
+    }
+}
+
+#[derive(Clone, Copy, Serialize)]
+pub struct HeartbeatResponse {
+    database: DbStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    database_msg: Option<&'static str>,
+    status: Status,
+    version: &'static str,
+}
+
+impl HeartbeatResponse {
+    pub fn is_available(&self) -> bool {
+        !matches!(self.database, DbStatus::Unknown)
+    }
+}
+
+#[derive(Clone, Copy, Serialize)]
+enum Status {
+    Ok,
+    Err,
+}
+
+impl FromRequest for HeartbeatResponse {
+    type Config = ();
+    type Error = ApiError;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let req = req.clone();
+
+        Box::pin(async move {
+            let db_status = DbStatus::extract(&req).await?;
+
+            Ok(Self {
+                database: db_status,
+                database_msg: match db_status {
+                    DbStatus::Err => Some("check failed without error"),
+                    _ => None,
+                },
+                status: db_status.into(),
+                version: env!("CARGO_PKG_VERSION"),
+            })
         })
     }
 }
@@ -704,7 +802,7 @@ mod tests {
         dev::ServiceResponse,
         http::{Method, StatusCode},
         test::{self, TestRequest},
-        HttpResponse,
+        HttpResponse, ResponseError,
     };
     use futures::executor::block_on;
     use lazy_static::lazy_static;
@@ -715,7 +813,7 @@ mod tests {
     use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
-    use crate::tokenserver::ServerState;
+    use crate::ServerState;
 
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -812,11 +910,13 @@ mod tests {
         let response: HttpResponse = TokenserverRequest::extract(&request)
             .await
             .unwrap_err()
-            .into();
+            .error_response();
 
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-        let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
+        let expected_error = ApiError::from(TokenserverError::invalid_credentials(
+            "Unauthorized".to_owned(),
+        ));
         let body = extract_body_as_str(ServiceResponse::new(request, response));
         assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
     }
@@ -857,14 +957,14 @@ mod tests {
             let response: HttpResponse = TokenserverRequest::extract(&request)
                 .await
                 .unwrap_err()
-                .into();
+                .error_response();
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported(
+            let expected_error = ApiError::from(TokenserverError::unsupported(
                 "Unsupported application version".to_owned(),
                 "1.0".to_owned(),
-            );
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -879,14 +979,14 @@ mod tests {
             let response: HttpResponse = TokenserverRequest::extract(&request)
                 .await
                 .unwrap_err()
-                .into();
+                .error_response();
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported(
+            let expected_error = ApiError::from(TokenserverError::unsupported(
                 "Unsupported application".to_owned(),
                 "application".to_owned(),
-            );
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -901,14 +1001,14 @@ mod tests {
             let response: HttpResponse = TokenserverRequest::extract(&request)
                 .await
                 .unwrap_err()
-                .into();
+                .error_response();
 
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
-            let expected_error = TokenserverError::unsupported(
+            let expected_error = ApiError::from(TokenserverError::unsupported(
                 "Unsupported application".to_owned(),
                 "application".to_owned(),
-            );
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -955,11 +1055,12 @@ mod tests {
         // Request with no X-KeyID header
         {
             let request = build_request().to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error =
-                TokenserverError::invalid_key_id("Missing X-KeyID header".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_key_id(
+                "Missing X-KeyID header".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -969,11 +1070,12 @@ mod tests {
             let request = build_request()
                 .header("x-keyid", "\u{200B}")
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error =
-                TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_key_id(
+                "Invalid X-KeyID header".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -983,10 +1085,12 @@ mod tests {
             let request = build_request()
                 .header("x-keyid", "00000000")
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_credentials(
+                "Unauthorized".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -996,10 +1100,12 @@ mod tests {
             let request = build_request()
                 .header("x-keyid", "0000000001234-notbase64")
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_credentials(
+                "Unauthorized".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -1009,11 +1115,12 @@ mod tests {
             let request = build_request()
                 .header("x-keyid", &[0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8][..])
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error =
-                TokenserverError::invalid_key_id("Invalid X-KeyID header".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_key_id(
+                "Invalid X-KeyID header".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -1023,10 +1130,12 @@ mod tests {
             let request = build_request()
                 .header("x-keyid", "notanumber-qqo")
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError::invalid_credentials("Unauthorized".to_owned());
+            let expected_error = ApiError::from(TokenserverError::invalid_credentials(
+                "Unauthorized".to_owned(),
+            ));
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -1037,14 +1146,14 @@ mod tests {
                 .header("x-keyid", "0000000001234-qqo")
                 .header("x-client-state", "bbbb")
                 .to_http_request();
-            let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
+            let response = KeyId::extract(&request).await.unwrap_err().error_response();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-            let expected_error = TokenserverError {
+            let expected_error = ApiError::from(TokenserverError {
                 status: "invalid-client-state",
                 location: ErrorLocation::Body,
                 ..TokenserverError::default()
-            };
+            });
             let body = extract_body_as_str(ServiceResponse::new(request, response));
             assert_eq!(body, serde_json::to_string(&expected_error).unwrap());
         }
@@ -1340,8 +1449,8 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            metrics: Box::new(
-                syncserver_common::metrics_from_opts(
+            statsd_client: Box::new(
+                syncserver_common::statsd_client_from_opts(
                     &tokenserver_settings.statsd_label,
                     syncserver_settings.statsd_host.as_deref(),
                     syncserver_settings.statsd_port,

@@ -18,28 +18,6 @@ services:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
 
-    tokenserver-db:
-        image: mysql:5.7
-        volumes:
-            - tokenserver_db_data:/var/lib/mysql
-        restart: always
-        ports:
-            - "3306"
-        environment:
-            #MYSQL_RANDOM_ROOT_PASSWORD: yes
-            MYSQL_ROOT_PASSWORD: random
-            MYSQL_DATABASE: tokenserver
-            MYSQL_USER: test
-            MYSQL_PASSWORD: test
-
-    mock-fxa-server:
-        image: app:build
-        restart: "no"
-        entrypoint: python3 /app/tools/integration_tests/tokenserver/mock_fxa_server.py
-        environment:
-            MOCK_FXA_SERVER_HOST: 0.0.0.0
-            MOCK_FXA_SERVER_PORT: 6000
-
     syncserver:
         # NOTE: The naming in the rest of this repository has been updated to reflect the fact
         # that Syncstorage and Tokenserver are now part of one repository/server called

@@ -1,0 +1,31 @@
+[package]
+name = "tokenserver-web"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3"
+actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
+base64 = "0.13"
+cadence = "0.26"
+futures = { version = "0.3", features = ["compat"] }
+lazy_static = "1.4.0"
+hex = "0.4.3"
+hmac = "0.11"
+regex = "1.4"
+serde = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+sha2 = "0.9"
+slog-scope = "4.3"
+syncserver-common = { path = "../syncserver-common" }
+syncserver-settings = { path = "../syncserver-settings" }
+syncserver-web-common = { path = "../syncserver-web-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-settings = { path = "../syncstorage-settings" }
+thiserror = "1.0.26"
+tokenserver-auth = { path = "../tokenserver-auth" }
+tokenserver-common = { path = "../tokenserver-common" }
+tokenserver-db = { path = "../tokenserver-db" }
+tokenserver-settings = { path = "../tokenserver-settings" }

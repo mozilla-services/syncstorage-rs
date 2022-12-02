@@ -1,25 +1,74 @@
+#[macro_use]
+extern crate slog_scope;
+
+mod error;
 pub mod extractors;
 pub mod handlers;
-pub mod logging;
+pub mod middleware;
 
-use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpRequest};
+use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc, time::Duration};
+
+use actix_web::{
+    dev::RequestHead,
+    http::header::USER_AGENT,
+    web::{self, ServiceConfig},
+    HttpRequest, HttpResponse,
+};
 use cadence::StatsdClient;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
 use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_web_common::user_agent;
 use tokenserver_auth::{browserid, oauth, VerifyToken};
-use tokenserver_common::NodeType;
+use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{params, DbPool, TokenserverPool};
 use tokenserver_settings::Settings;
 
-use crate::{
-    error::{ApiError, ApiErrorKind},
-    server::user_agent,
-};
+pub use error::ApiError;
+pub use extractors::HeartbeatResponse;
 
-use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc};
+pub fn get_configurator<'a>(
+    settings: &'a Settings,
+    statsd_host: Option<&'a str>,
+    statsd_port: u16,
+    blocking_threadpool: Arc<BlockingThreadpool>,
+) -> Result<impl FnOnce(&mut ServiceConfig) + 'a, ApiError> {
+    let statsd_client = syncserver_common::statsd_client_from_opts(
+        &settings.statsd_label,
+        statsd_host,
+        statsd_port,
+    )
+    .map_err(|e| TokenserverError {
+        context: e.to_string(),
+        ..TokenserverError::internal_error()
+    })?;
+    let state = ServerState::from_settings(settings, statsd_client.clone(), blocking_threadpool)?;
+
+    Ok(move |cfg: &mut ServiceConfig| {
+        syncserver_db_common::spawn_pool_periodic_reporter(
+            Duration::from_secs(10),
+            statsd_client,
+            state.db_pool.clone(),
+        );
+
+        cfg.data(state)
+            .service(
+                web::resource("/1.0/{application}/{version}")
+                    .route(web::get().to(handlers::get_tokenserver_result)),
+            )
+            .service(web::resource("/__heartbeat__").route(web::get().to(handlers::heartbeat)))
+            .service(
+                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
+                    // used by the load balancers, just return OK.
+                    HttpResponse::Ok()
+                        .content_type("application/json")
+                        .body("{}")
+                })),
+            );
+    })
+}
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -30,14 +79,14 @@ pub struct ServerState {
     pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
-    pub metrics: Box<StatsdClient>,
+    pub statsd_client: Box<StatsdClient>,
     pub token_duration: u64,
 }
 
 impl ServerState {
     pub fn from_settings(
         settings: &Settings,
-        metrics: StatsdClient,
+        statsd_client: StatsdClient,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
         let oauth_verifier = Box::new(
@@ -52,7 +101,7 @@ impl ServerState {
 
         TokenserverPool::new(
             settings,
-            &Metrics::from(&metrics),
+            &Metrics::from(&statsd_client),
             blocking_threadpool,
             use_test_transactions,
         )
@@ -78,11 +127,18 @@ impl ServerState {
                 db_pool: Box::new(db_pool),
                 node_capacity_release_rate: settings.node_capacity_release_rate,
                 node_type: settings.node_type,
-                metrics: Box::new(metrics),
+                statsd_client: Box::new(statsd_client),
                 token_duration: settings.token_duration,
             }
         })
-        .map_err(|_| ApiErrorKind::Internal("Failed to create Tokenserver pool".to_owned()).into())
+        .map_err(|_| {
+            TokenserverError {
+                description: "Failed to create Tokenserver pool".to_owned(),
+                context: "Failed to create Tokenserver pool".to_owned(),
+                ..TokenserverError::internal_error()
+            }
+            .into()
+        })
     }
 }
 

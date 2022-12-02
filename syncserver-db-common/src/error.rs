@@ -11,7 +11,7 @@ use thiserror::Error;
 pub struct MysqlError {
     kind: MysqlErrorKind,
     pub status: StatusCode,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
 }
 
 #[derive(Debug, Error)]
@@ -34,7 +34,7 @@ impl From<MysqlErrorKind> for MysqlError {
         Self {
             kind,
             status: StatusCode::INTERNAL_SERVER_ERROR,
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
         }
     }
 }

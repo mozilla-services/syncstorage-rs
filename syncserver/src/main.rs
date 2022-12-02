@@ -5,10 +5,10 @@ extern crate slog_scope;
 use std::{error::Error, sync::Arc};
 
 use docopt::Docopt;
-use serde::Deserialize;
-
+use lazy_static::lazy_static;
 use logging::init_logging;
-use syncserver::{logging, server};
+use serde::Deserialize;
+use syncserver::{logging, Server};
 use syncserver_settings::Settings;
 
 const USAGE: &str = "
@@ -24,13 +24,17 @@ struct Args {
     flag_config: Option<String>,
 }
 
-#[actix_web::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    let args: Args = Docopt::new(USAGE)
+lazy_static! {
+    static ref ARGS: Args = Docopt::new(USAGE)
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
-    let settings = Settings::with_env_and_config_file(args.flag_config.as_deref())?;
-    init_logging(!settings.human_logs).expect("Logging failed to initialize");
+    static ref SETTINGS: Settings = Settings::with_env_and_config_file(ARGS.flag_config.as_deref())
+        .expect("failed to parse settings");
+}
+
+#[actix_web::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    init_logging(!SETTINGS.human_logs);
     debug!("Starting up...");
     // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/
@@ -47,14 +51,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     // Setup and run the server
-    let banner = settings.banner();
-    let server = if !settings.syncstorage.enabled {
-        server::Server::tokenserver_only_with_settings(settings)
-            .await
-            .unwrap()
-    } else {
-        server::Server::with_settings(settings).await.unwrap()
-    };
+    let banner = SETTINGS.banner();
+    let server = Server::with_settings(&SETTINGS).await.unwrap();
     info!("Server running on {}", banner);
     server.await?;
     info!("Server closing");

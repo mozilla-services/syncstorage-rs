@@ -2,6 +2,7 @@
 extern crate slog_scope;
 
 mod metrics;
+mod tags;
 
 use std::{
     fmt,
@@ -12,7 +13,8 @@ use actix_web::{error::BlockingError, web};
 use hkdf::Hkdf;
 use sha2::Sha256;
 
-pub use metrics::{metrics_from_opts, MetricError, Metrics};
+pub use metrics::{statsd_client_from_opts, MetricError, Metrics};
+pub use tags::Taggable;
 
 // header statics must be lower case, numbers and symbols per the RFC spec. This reduces chance of error.
 pub static X_LAST_MODIFIED: &str = "x-last-modified";
