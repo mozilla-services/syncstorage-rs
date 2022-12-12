@@ -11,8 +11,9 @@ use std::{
 
 use actix_cors::Cors;
 use actix_web::{
-    dev, guard,
+    dev,
     error::BlockingError,
+    guard,
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
