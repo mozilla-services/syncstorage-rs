@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
@@ -10,9 +10,8 @@ use syncserver_db_common::{error::DbError, GetPoolState, PoolState};
 use tokenserver_settings::Settings;
 
 use super::models::{Db, DbResult, TokenserverDb};
-use crate::db;
 use crate::diesel::Connection;
-use crate::server::metrics::Metrics;
+use crate::server::{metrics::Metrics, BlockingThreadpool};
 
 #[cfg(test)]
 use crate::db::mysql::TestTransactionCustomizer;
@@ -39,12 +38,14 @@ pub struct TokenserverPool {
     // This field is public so the service ID can be set after the pool is created
     pub service_id: Option<i32>,
     spanner_node_id: Option<i32>,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 }
 
 impl TokenserverPool {
     pub fn new(
         settings: &Settings,
         metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
         if settings.run_migrations {
@@ -71,6 +72,7 @@ impl TokenserverPool {
             metrics: metrics.clone(),
             spanner_node_id: settings.spanner_node_id,
             service_id: None,
+            blocking_threadpool,
         })
     }
 
@@ -82,20 +84,24 @@ impl TokenserverPool {
             &self.metrics,
             self.service_id,
             self.spanner_node_id,
+            self.blocking_threadpool.clone(),
         ))
     }
 
     #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let pool = self.clone();
-        let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+        let conn = self
+            .blocking_threadpool
+            .spawn(move || pool.inner.get().map_err(DbError::from))
+            .await?;
 
         Ok(TokenserverDb::new(
             conn,
             &self.metrics,
             self.service_id,
             self.spanner_node_id,
+            self.blocking_threadpool.clone(),
         ))
     }
 }
@@ -107,14 +113,17 @@ impl DbPool for TokenserverPool {
         metrics.start_timer("storage.get_pool", None);
 
         let pool = self.clone();
-        let conn =
-            db::run_on_blocking_threadpool(move || pool.inner.get().map_err(DbError::from)).await?;
+        let conn = self
+            .blocking_threadpool
+            .spawn(move || pool.inner.get().map_err(DbError::from))
+            .await?;
 
         Ok(Box::new(TokenserverDb::new(
             conn,
             &self.metrics,
             self.service_id,
             self.spanner_node_id,
+            self.blocking_threadpool.clone(),
         )) as Box<dyn Db>)
     }
 

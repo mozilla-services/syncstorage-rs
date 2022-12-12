@@ -1,6 +1,6 @@
 [package]
 name = "syncserver-db-common"
-version = "0.12.4"
+version = "0.13.0"
 edition = "2021"
 
 [dependencies]

@@ -66,10 +66,16 @@ fn get_test_settings() -> Settings {
 
 async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Metrics::sink();
+    let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+
     ServerState {
-        db_pool: pool_from_settings(&settings.syncstorage, &Metrics::from(&metrics))
-            .await
-            .expect("Could not get db_pool in get_test_state"),
+        db_pool: pool_from_settings(
+            &settings.syncstorage,
+            &Metrics::from(&metrics),
+            blocking_threadpool.clone(),
+        )
+        .await
+        .expect("Could not get db_pool in get_test_state"),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         metrics: Box::new(metrics),
@@ -90,8 +96,9 @@ macro_rules! init_app {
         async {
             crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.syncstorage.limits.clone());
+            let state = get_test_state(&$settings).await;
             test::init_service(build_app!(
-                get_test_state(&$settings).await,
+                state,
                 None::<tokenserver::ServerState>,
                 Arc::clone(&SECRETS),
                 limits,
@@ -165,7 +172,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         &SECRETS.master_secret,
     )
     .expect("hkdf_expand_32 failed in create_hawk_header");
-    let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
+    let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
@@ -207,8 +214,9 @@ where
 {
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
+    let state = get_test_state(&settings).await;
     let mut app = test::init_service(build_app!(
-        get_test_state(&settings).await,
+        state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,
@@ -248,8 +256,9 @@ async fn test_endpoint_with_body(
 ) -> Bytes {
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
+    let state = get_test_state(&settings).await;
     let mut app = test::init_service(build_app!(
-        get_test_state(&settings).await,
+        state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,

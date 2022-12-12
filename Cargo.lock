@@ -3077,7 +3077,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver"
-version = "0.12.4"
+version = "0.13.0"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -3150,7 +3150,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-common"
-version = "0.12.4"
+version = "0.13.0"
 dependencies = [
  "hkdf",
  "sha2",
@@ -3158,7 +3158,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-db-common"
-version = "0.12.4"
+version = "0.13.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3180,7 +3180,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-settings"
-version = "0.12.3"
+version = "0.13.0"
 dependencies = [
  "config 0.11.0",
  "num_cpus",
@@ -3194,7 +3194,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-settings"
-version = "0.12.3"
+version = "0.13.0"
 dependencies = [
  "rand 0.8.5",
  "serde 1.0.141",
@@ -3386,7 +3386,7 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokenserver-common"
-version = "0.12.4"
+version = "0.13.0"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -3399,7 +3399,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-settings"
-version = "0.12.3"
+version = "0.13.0"
 dependencies = [
  "serde 1.0.141",
  "tokenserver-common",

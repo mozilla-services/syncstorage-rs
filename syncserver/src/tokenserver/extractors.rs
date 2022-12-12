@@ -4,6 +4,7 @@
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
 use core::fmt::Debug;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use actix_web::{
@@ -12,7 +13,7 @@ use actix_web::{
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
-use futures::future::{self, LocalBoxFuture, Ready};
+use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use lazy_static::lazy_static;
@@ -29,7 +30,8 @@ use super::{
     db::{models::Db, params, pool::DbPool, results},
     LogItemsMutator, ServerState, TokenserverMetrics,
 };
-use crate::{server::metrics, web::tags::Tags};
+use crate::server::metrics::Metrics;
+use crate::web::tags::Taggable;
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -194,9 +196,7 @@ impl FromRequest for TokenserverRequest {
             let mut log_items_mutator = LogItemsMutator::from(&req);
             let auth_data = AuthData::extract(&req).await?;
 
-            // XXX: Tokenserver state will no longer be an Option once the Tokenserver
-            // code is rolled out, so we will eventually be able to remove this unwrap().
-            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let state = get_server_state(&req)?.as_ref();
             let shared_secret = get_secret(&req)?;
             let fxa_metrics_hash_secret = &state.fxa_metrics_hash_secret.as_bytes();
 
@@ -342,9 +342,7 @@ impl FromRequest for Box<dyn DbPool> {
         let req = req.clone();
 
         Box::pin(async move {
-            // XXX: Tokenserver state will no longer be an Option once the Tokenserver
-            // code is rolled out, so we will eventually be able to remove this unwrap().
-            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let state = get_server_state(&req)?.as_ref();
 
             Ok(state.db_pool.clone())
         })
@@ -445,12 +443,11 @@ impl FromRequest for AuthData {
         let req = req.clone();
 
         Box::pin(async move {
-            // XXX: The Tokenserver state will no longer be an Option once the Tokenserver
-            // code is rolled out, so we will eventually be able to remove this unwrap().
-            let state = get_server_state(&req)?.as_ref().as_ref().unwrap();
+            let state = get_server_state(&req)?.as_ref();
             let token = Token::extract(&req).await?;
 
             let TokenserverMetrics(mut metrics) = TokenserverMetrics::extract(&req).await?;
+            let mut log_items_mutator = LogItemsMutator::from(&req);
 
             // The Python Tokenserver treats zero values and null values both as being
             // null, so for consistency, we need to convert a `Some(0)` value to `None`
@@ -463,9 +460,13 @@ impl FromRequest for AuthData {
 
             match token {
                 Token::BrowserIdAssertion(assertion) => {
-                    let mut tags = Tags::default();
-                    tags.tags
-                        .insert("token_type".to_owned(), "BrowserID".to_owned());
+                    // Add a tag to the request extensions
+                    req.add_tag("token_type".to_owned(), "BrowserID".to_owned());
+                    log_items_mutator.insert("token_type".to_owned(), "BrowserID".to_owned());
+
+                    // Start a timer with the same tag
+                    let mut tags = HashMap::default();
+                    tags.insert("token_type".to_owned(), "BrowserID".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.browserid_verifier.verify(assertion).await?;
 
@@ -489,9 +490,13 @@ impl FromRequest for AuthData {
                     })
                 }
                 Token::OAuthToken(token) => {
-                    let mut tags = Tags::default();
-                    tags.tags
-                        .insert("token_type".to_owned(), "OAuth".to_owned());
+                    // Add a tag to the request extensions
+                    req.add_tag("token_type".to_owned(), "OAuth".to_owned());
+                    log_items_mutator.insert("token_type".to_owned(), "OAuth".to_owned());
+
+                    // Start a timer with the same tag
+                    let mut tags = HashMap::default();
+                    tags.insert("token_type".to_owned(), "OAuth".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
                     let verify_output = state.oauth_verifier.verify(token).await?;
 
@@ -656,25 +661,18 @@ impl FromRequest for KeyId {
 impl FromRequest for TokenserverMetrics {
     type Config = ();
     type Error = TokenserverError;
-    type Future = Ready<Result<Self, Self::Error>>;
+    type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        let state = match get_server_state(req) {
-            // XXX: Tokenserver state will no longer be an Option once the Tokenserver
-            // code is rolled out, so we will eventually be able to remove this unwrap().
-            Ok(state) => state.as_ref().as_ref().unwrap(),
-            Err(e) => return future::err(e),
-        };
+        let req = req.clone();
 
-        future::ok(TokenserverMetrics(metrics::metrics_from_request(
-            req,
-            Some(state.metrics.clone()),
-        )))
+        // `Result::unwrap` is safe to use here, since Metrics::extract can never fail
+        Box::pin(async move { Ok(TokenserverMetrics(Metrics::extract(&req).await.unwrap())) })
     }
 }
 
-fn get_server_state(req: &HttpRequest) -> Result<&Data<Option<ServerState>>, TokenserverError> {
-    req.app_data::<Data<Option<ServerState>>>()
+fn get_server_state(req: &HttpRequest) -> Result<&Data<ServerState>, TokenserverError> {
+    req.app_data::<Data<ServerState>>()
         .ok_or_else(|| TokenserverError {
             context: "Failed to load the application state".to_owned(),
             ..TokenserverError::internal_error()
@@ -763,7 +761,7 @@ mod tests {
         let state = make_state(oauth_verifier, MockVerifier::default());
 
         let req = TestRequest::default()
-            .data(Some(state))
+            .data(state)
             .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
@@ -817,7 +815,7 @@ mod tests {
         let state = make_state(oauth_verifier, MockVerifier::default());
 
         let request = TestRequest::default()
-            .data(Some(state))
+            .data(state)
             .data(Arc::clone(&SECRETS))
             .header("authorization", "Bearer fake_token")
             .header("accept", "application/json,text/plain:q=0.5")
@@ -857,7 +855,7 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(Some(make_state(oauth_verifier, MockVerifier::default())))
+                .data(make_state(oauth_verifier, MockVerifier::default()))
                 .data(Arc::clone(&SECRETS))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
@@ -962,7 +960,7 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(Some(make_state(oauth_verifier, MockVerifier::default())))
+                .data(make_state(oauth_verifier, MockVerifier::default()))
                 .header("authorization", "Bearer fake_token")
                 .header("accept", "application/json,text/plain:q=0.5")
                 .param("application", "sync")

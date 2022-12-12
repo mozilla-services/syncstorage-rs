@@ -6,7 +6,7 @@ use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, Environment, Metada
 use std::sync::Arc;
 use syncserver_db_common::error::{DbError, DbErrorKind};
 
-use crate::db::{self, spanner::now};
+use crate::db::{spanner::now, BlockingThreadpool};
 use crate::server::metrics::Metrics;
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
@@ -37,29 +37,31 @@ pub async fn create_spanner_session(
     database_name: &str,
     use_test_transactions: bool,
     emulator_host: Option<String>,
+    blocking_threadpool: Arc<BlockingThreadpool>,
 ) -> Result<SpannerSession, DbError> {
     let using_spanner_emulator = emulator_host.is_some();
-    let chan = db::run_on_blocking_threadpool(move || -> Result<grpcio::Channel, DbError> {
-        if let Some(spanner_emulator_address) = emulator_host {
-            Ok(ChannelBuilder::new(env)
-                .max_send_message_len(100 << 20)
-                .max_receive_message_len(100 << 20)
-                .connect(&spanner_emulator_address))
-        } else {
-            // Requires
-            // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-            metrics.start_timer("storage.pool.grpc_auth", None);
+    let chan = blocking_threadpool
+        .spawn(move || -> Result<grpcio::Channel, DbError> {
+            if let Some(spanner_emulator_address) = emulator_host {
+                Ok(ChannelBuilder::new(env)
+                    .max_send_message_len(100 << 20)
+                    .max_receive_message_len(100 << 20)
+                    .connect(&spanner_emulator_address))
+            } else {
+                // Requires
+                // GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+                metrics.start_timer("storage.pool.grpc_auth", None);
 
-            // XXX: issue732: Could google_default_credentials (or
-            // ChannelBuilder::secure_connect) block?!
-            let creds = ChannelCredentials::google_default_credentials()?;
-            Ok(ChannelBuilder::new(env)
-                .max_send_message_len(100 << 20)
-                .max_receive_message_len(100 << 20)
-                .secure_connect(SPANNER_ADDRESS, creds))
-        }
-    })
-    .await?;
+                // XXX: issue732: Could google_default_credentials (or
+                // ChannelBuilder::secure_connect) block?!
+                let creds = ChannelCredentials::google_default_credentials()?;
+                Ok(ChannelBuilder::new(env)
+                    .max_send_message_len(100 << 20)
+                    .max_receive_message_len(100 << 20)
+                    .secure_connect(SPANNER_ADDRESS, creds))
+            }
+        })
+        .await?;
     let client = SpannerClient::new(chan);
 
     // Connect to the instance and create a Spanner session.

@@ -89,7 +89,7 @@ impl HawkPayload {
             &secrets.master_secret,
         )
         .map_err(|e| ApiErrorKind::Internal(format!("HKDF Error: {:?}", e)))?;
-        let token_secret = base64::encode_config(&token_secret, base64::URL_SAFE);
+        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
 
         let request = RequestBuilder::new(method, host, port, path).request();
 

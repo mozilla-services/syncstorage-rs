@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 use syncserver_db_common::{params, util::SyncTimestamp, Db, Sorting, UserIdentifier};
 use syncserver_settings::Settings as SyncserverSettings;
@@ -6,7 +6,7 @@ use syncstorage_settings::Settings as SyncstorageSettings;
 
 use crate::db::DbPool;
 use crate::error::ApiResult;
-use crate::{db::pool_from_settings, error::ApiError, server::metrics};
+use crate::{db::pool_from_settings, db::BlockingThreadpool, error::ApiError, server::metrics};
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
@@ -26,7 +26,8 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<Box<dyn Db
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = metrics::Metrics::noop();
-    let pool = pool_from_settings(&settings, &metrics).await?;
+    let pool =
+        pool_from_settings(&settings, &metrics, Arc::new(BlockingThreadpool::default())).await?;
     Ok(pool)
 }
 
@@ -74,7 +75,7 @@ pub fn postbso(
 ) -> params::PostCollectionBso {
     params::PostCollectionBso {
         id: bid.to_owned(),
-        payload: payload.map(&str::to_owned),
+        payload: payload.map(str::to_owned),
         sortindex,
         ttl,
     }

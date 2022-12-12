@@ -15,7 +15,7 @@ use tokenserver_settings::Settings;
 
 use crate::{
     error::ApiError,
-    server::{metrics::Metrics, user_agent},
+    server::{metrics::Metrics, user_agent, BlockingThreadpool},
 };
 use auth::{browserid, oauth, VerifyToken};
 use db::{
@@ -23,7 +23,7 @@ use db::{
     pool::{DbPool, TokenserverPool},
 };
 
-use std::{collections::HashMap, convert::TryFrom, fmt};
+use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc};
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -39,9 +39,13 @@ pub struct ServerState {
 }
 
 impl ServerState {
-    pub fn from_settings(settings: &Settings, metrics: StatsdClient) -> Result<Self, ApiError> {
+    pub fn from_settings(
+        settings: &Settings,
+        metrics: StatsdClient,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self, ApiError> {
         let oauth_verifier = Box::new(
-            oauth::Verifier::try_from(settings)
+            oauth::Verifier::new(settings, blocking_threadpool.clone())
                 .expect("failed to create Tokenserver OAuth verifier"),
         );
         let browserid_verifier = Box::new(
@@ -50,34 +54,39 @@ impl ServerState {
         );
         let use_test_transactions = false;
 
-        TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
-            .map(|mut db_pool| {
-                // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
-                // unlikely for this query to fail outside of network failures or other random
-                // errors
-                db_pool.service_id = db_pool
-                    .get_sync()
-                    .and_then(|db| {
-                        db.get_service_id_sync(params::GetServiceId {
-                            service: "sync-1.5".to_owned(),
-                        })
+        TokenserverPool::new(
+            settings,
+            &Metrics::from(&metrics),
+            blocking_threadpool,
+            use_test_transactions,
+        )
+        .map(|mut db_pool| {
+            // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
+            // unlikely for this query to fail outside of network failures or other random
+            // errors
+            db_pool.service_id = db_pool
+                .get_sync()
+                .and_then(|db| {
+                    db.get_service_id_sync(params::GetServiceId {
+                        service: "sync-1.5".to_owned(),
                     })
-                    .ok()
-                    .map(|result| result.id);
+                })
+                .ok()
+                .map(|result| result.id);
 
-                ServerState {
-                    fxa_email_domain: settings.fxa_email_domain.clone(),
-                    fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
-                    oauth_verifier,
-                    browserid_verifier,
-                    db_pool: Box::new(db_pool),
-                    node_capacity_release_rate: settings.node_capacity_release_rate,
-                    node_type: settings.node_type,
-                    metrics: Box::new(metrics),
-                    token_duration: settings.token_duration,
-                }
-            })
-            .map_err(Into::into)
+            ServerState {
+                fxa_email_domain: settings.fxa_email_domain.clone(),
+                fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
+                oauth_verifier,
+                browserid_verifier,
+                db_pool: Box::new(db_pool),
+                node_capacity_release_rate: settings.node_capacity_release_rate,
+                node_type: settings.node_type,
+                metrics: Box::new(metrics),
+                token_duration: settings.token_duration,
+            }
+        })
+        .map_err(Into::into)
     }
 }
 
@@ -111,7 +120,7 @@ impl From<&RequestHead> for LogItems {
                 items.insert_if_not_empty("ua.os.family", metrics_os);
                 items.insert_if_not_empty("ua.browser.family", metrics_browser);
                 items.insert_if_not_empty("ua.name", ua_result.name);
-                items.insert_if_not_empty("ua.os.ver", &ua_result.os_version.to_owned());
+                items.insert_if_not_empty("ua.os.ver", &ua_result.os_version);
                 items.insert_if_not_empty("ua.browser.ver", ua_result.version);
                 items.insert_if_not_empty("ua", ua_result.version);
             }

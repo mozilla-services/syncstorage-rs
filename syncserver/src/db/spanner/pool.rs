@@ -6,6 +6,7 @@ use syncserver_db_common::{error::DbError, Db, DbPool, GetPoolState, PoolState, 
 use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
+use crate::db::BlockingThreadpool;
 use crate::server::metrics::Metrics;
 
 pub use super::manager::Conn;
@@ -39,17 +40,25 @@ pub struct SpannerDbPool {
 
 impl SpannerDbPool {
     /// Creates a new pool of Spanner db connections.
-    pub async fn new(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub async fn new(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self> {
         //run_embedded_migrations(settings)?;
-        Self::new_without_migrations(settings, metrics).await
+        Self::new_without_migrations(settings, metrics, blocking_threadpool).await
     }
 
-    pub async fn new_without_migrations(settings: &Settings, metrics: &Metrics) -> Result<Self> {
+    pub async fn new_without_migrations(
+        settings: &Settings,
+        metrics: &Metrics,
+        blocking_threadpool: Arc<BlockingThreadpool>,
+    ) -> Result<Self> {
         let max_size = settings.database_pool_max_size as usize;
         let wait = settings
             .database_pool_connection_timeout
             .map(|seconds| Duration::from_secs(seconds as u64));
-        let manager = SpannerSessionManager::new(settings, metrics)?;
+        let manager = SpannerSessionManager::new(settings, metrics, blocking_threadpool)?;
         let timeouts = deadpool::managed::Timeouts {
             wait,
             ..Default::default()

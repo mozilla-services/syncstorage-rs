@@ -6,7 +6,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncserver_common::ReportableError;
+use syncserver_common::{InternalError, ReportableError};
 use syncserver_db_common::error::DbError;
 
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ pub struct TokenserverError {
     /// For internal use only. Used to report any additional context behind an error to
     /// distinguish between similar errors in Sentry.
     pub context: String,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
     pub token_type: TokenType,
 }
 
@@ -59,7 +59,7 @@ impl Default for TokenserverError {
             description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
             token_type: TokenType::Oauth,
         }
     }
@@ -254,7 +254,7 @@ impl From<DbError> for TokenserverError {
         TokenserverError {
             description: db_error.to_string(),
             context: db_error.to_string(),
-            backtrace: db_error.backtrace,
+            backtrace: Box::new(db_error.backtrace),
             http_status: if db_error.status.is_server_error() {
                 // Use the status code from the DbError if it already suggests an internal error;
                 // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
@@ -291,6 +291,15 @@ impl ReportableError for TokenserverError {
             }
         } else {
             None
+        }
+    }
+}
+
+impl InternalError for TokenserverError {
+    fn internal_error(message: String) -> Self {
+        TokenserverError {
+            context: message,
+            ..TokenserverError::internal_error()
         }
     }
 }
