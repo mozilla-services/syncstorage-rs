@@ -51,7 +51,6 @@ RUN \
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/syncserver/version.json /app
-COPY --from=builder /app/spanner_config.ini /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver/process_account_events.py /app/tools/tokenserver/process_account_events.py
@@ -65,4 +64,4 @@ RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
-ENTRYPOINT ["/app/bin/syncserver", "--config=spanner_config.ini"]
+ENTRYPOINT ["/app/bin/syncserver"]
