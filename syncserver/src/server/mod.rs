@@ -396,6 +396,16 @@ fn build_cors(settings: &Settings) -> Cors {
         cors = cors.max_age(*max_age);
     }
 
+    // explicitly set the CORS allow origin, since Default does not
+    // appear to set the `allow-origins: *` header.
+    if let Some(ref origin) = settings.cors_allowed_origin {
+        if origin == "*" {
+            cors = cors.allow_any_origin();
+        } else {
+            cors = cors.allowed_origin(origin);
+        }
+    }
+
     cors
 }
 

@@ -176,7 +176,7 @@ impl Default for Settings {
             statsd_host: Some("localhost".to_owned()),
             statsd_port: 8125,
             human_logs: false,
-            cors_allowed_origin: None,
+            cors_allowed_origin: Some("*".to_owned()),
             cors_allowed_methods: Some(
                 ["DELETE", "GET", "POST", "PUT"]
                     .into_iter()
@@ -202,7 +202,7 @@ impl Default for Settings {
                 .map(String::from)
                 .collect(),
             ),
-            cors_max_age: None,
+            cors_max_age: Some(1728000),
             syncstorage: SyncstorageSettings::default(),
             tokenserver: TokenserverSettings::default(),
         }
