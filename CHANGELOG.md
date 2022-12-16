@@ -1,3 +1,22 @@
+<a name="0.13.1"></a>
+## 0.13.1 (2022-12-16)
+
+
+#### Features
+
+*   add token type to Tokenserver log lines (#1445) ([0362bcab](https://github.com/mozilla-services/syncstorage-rs/commit/0362bcab3dd057de201915b918783b0a9a2de15e), closes [#1444](https://github.com/mozilla-services/syncstorage-rs/issues/1444))
+
+#### Bug Fixes
+
+*   fix CORS issue (#1447) ([3f836b1e](https://github.com/mozilla-services/syncstorage-rs/commit/3f836b1e98997d98dd9671f957e5721330182b5f))
+
+#### Chore
+
+*   remove `spanner_config.ini` (#1446) ([b9c1f7f6](https://github.com/mozilla-services/syncstorage-rs/commit/b9c1f7f67b5e4c99642d289a0e124f1053ec54b2))
+*   upgrade to Rust 1.65 (#1441) ([b95e549a](https://github.com/mozilla-services/syncstorage-rs/commit/b95e549acbf2bb31c385eb50f60016da0f54e253))
+
+
+
 <a name="0.13.0"></a>
 ## 0.13.0 (2022-11-14)
 
