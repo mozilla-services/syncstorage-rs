@@ -195,6 +195,7 @@ jobs:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
+    resource_class: large
     steps:
       - setup_remote_docker:
           docker_layer_caching: true
