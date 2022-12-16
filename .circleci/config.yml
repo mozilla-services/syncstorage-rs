@@ -10,7 +10,7 @@ commands:
     steps:
       - run:
           name: Display Rust Version
-          command: 
+          command:
             rustc --version
   setup-rust-check:
     steps:
@@ -69,7 +69,7 @@ commands:
       - run:
           name: Create Tokenserver database
           command: |
-            mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'   
+            mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
             mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
 
   write-version:

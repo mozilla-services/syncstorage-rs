@@ -11,6 +11,7 @@ requests
 simplejson
 sqlalchemy
 tokenlib
-unittest2
+#unittest2 -- no longer valid python3.10+
+pytest
 webtest
 wsgiproxy2

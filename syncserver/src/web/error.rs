@@ -97,7 +97,7 @@ pub enum HawkErrorKind {
 #[derive(Error, Debug)]
 pub struct ValidationError {
     pub status: StatusCode,
-    kind: ValidationErrorKind,
+    pub kind: ValidationErrorKind,
 }
 
 impl ValidationError {
@@ -196,6 +196,7 @@ impl From<ValidationErrorKind> for ValidationError {
             {
                 StatusCode::NOT_FOUND
             }
+
             _ => StatusCode::BAD_REQUEST,
         };
 

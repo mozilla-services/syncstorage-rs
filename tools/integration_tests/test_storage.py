@@ -14,8 +14,7 @@ consider it a bug.
 
 """
 
-import unittest2
-
+import unittest
 
 import re
 import json
@@ -153,6 +152,14 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertEquals(len(res), 2)
         self.assertEquals(res["xxx_col1"], 3)
         self.assertEquals(res["xxx_col2"], 5)
+
+    def test_offset_with_colon(self):
+        # Some iOS devices may have a cached bad offset from older updates.
+        # Returning a 412 should resolve that.
+        self.app.get(
+            self.root + "/storage/xxx_col2?limit=10000&offset=123456:123",
+            status=412
+        )
 
     def test_bad_cache(self):
         # fixes #637332
@@ -701,7 +708,7 @@ class TestStorage(StorageFunctionalTestCase):
     def test_x_timestamp_header(self):
         # This can't be run against a live server.
         if self.distant:
-            raise unittest2.SkipTest
+            unittest.skip("requires local server")
 
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -837,33 +844,6 @@ class TestStorage(StorageFunctionalTestCase):
         used = res.json[0]
         self.assertEquals(used - old_used, len(_PLD) / 1024.0)
 
-    def test_overquota(self):
-        # This can't be run against a live server.
-        raise unittest2.SkipTest
-        if self.distant:
-            raise unittest2.SkipTest
-
-        # Clear out any data that's already in the store.
-        self.retry_delete(self.root + "/storage")
-
-        # Set a low quota for the storage.
-        self.config.registry.settings["storage.quota_size"] = 700
-
-        # Check the the remaining quota is correctly reported.
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
-        wanted = str(round(200 / 1024.0, 2))
-        self.assertEquals(res.headers["X-Weave-Quota-Remaining"], wanted)
-
-        # Set the quota so that they're over their limit.
-        self.config.registry.settings["storage.quota_size"] = 10
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(
-            self.root + "/storage/xxx_col2/12345", bso, status=403
-        )
-        self.assertEquals(res.content_type.split(";")[0], "application/json")
-        self.assertEquals(res.json["status"], "quota-exceeded")
-
     def test_get_collection_ttl(self):
         bso = {"payload": _PLD, "ttl": 0}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
@@ -897,7 +877,7 @@ class TestStorage(StorageFunctionalTestCase):
             # Can't run against live server if it doesn't
             # report the right config options.
             if self.distant:
-                raise unittest2.SkipTest
+                unittest.skip("requires local server")
             max_bytes = get_limit_config(self.config, "max_post_bytes")
             max_count = get_limit_config(self.config, "max_post_records")
             max_req_bytes = get_limit_config(self.config, "max_request_bytes")
@@ -1483,7 +1463,7 @@ class TestStorage(StorageFunctionalTestCase):
         # This can't be run against a live server because we
         # have to forge an auth token to test things properly.
         if self.distant:
-            raise unittest2.SkipTest
+            unittest.skip("requires local server")
 
         # Write some items while we've got a good token.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
@@ -2122,7 +2102,7 @@ class TestStorage(StorageFunctionalTestCase):
             if batch1 == batch2:
                 break
         else:
-            raise unittest2.SkipTest("failed to generate conflicting batchid")
+            unittest.skip("failed to generate conflicting batchid")
 
     def test_that_we_dont_resurrect_committed_batches(self):
         # This retry loop tries to trigger a situation where we:
@@ -2146,7 +2126,7 @@ class TestStorage(StorageFunctionalTestCase):
             if batch1 == batch2:
                 break
         else:
-            raise unittest2.SkipTest("failed to trigger re-use of batchid")
+            unittest.skip("failed to trigger re-use of batchid")
         # Despite having the same batchid, the second batch should
         # be completely independent of the first.
         resp = self.app.get(self.root + "/storage/xxx_col2")

@@ -2,9 +2,7 @@
 //!
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
-use std::{
-    self, collections::HashMap, collections::HashSet, num::ParseIntError, str::FromStr, sync::Arc,
-};
+use std::{self, collections::HashMap, collections::HashSet, str::FromStr, sync::Arc};
 
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
@@ -1194,15 +1192,25 @@ impl From<Offset> for params::Offset {
 }
 
 impl FromStr for Offset {
-    type Err = ParseIntError;
+    type Err = ApiError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // issue559: Disable ':' support for now: simply parse as i64 as
         // previously (it was u64 previously but i64's close enough)
+        //
         let result = Offset {
             timestamp: None,
-            offset: s.parse::<u64>()?,
+            offset: s.parse::<u64>().map_err(|e| {
+                ValidationErrorKind::FromDetails(
+                    format!("Unreadable Offset: {:?}", e),
+                    RequestErrorLocation::QueryString,
+                    Some("offset".to_owned()),
+                    label!("request.error.invalid_offset"),
+                )
+            })?,
         };
         /*
+        // this code can be use for multi-part offsets. These can be
+        // more efficient and less subject to "drift"
         let result = match s.chars().position(|c| c == ':') {
             None => Offset {
                 timestamp: None,
@@ -1262,7 +1270,7 @@ pub struct BsoQueryParams {
 
 impl FromRequest for BsoQueryParams {
     type Config = ();
-    type Error = Error;
+    type Error = ApiError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
     /// Extract and validate the query parameters
@@ -2418,5 +2426,42 @@ mod tests {
 
         let offset_str = sample_offset.to_string();
         assert!(test_offset == Offset::from_str(&offset_str).unwrap())
+    }
+
+    #[actix_rt::test]
+    async fn test_invalid_offset() {
+        use actix_web::{http::StatusCode, ResponseError};
+        // Get the body to test.
+        use actix_web::body::{Body, ResponseBody};
+
+        trait BodyTest {
+            fn as_str(&self) -> &str;
+        }
+
+        impl BodyTest for ResponseBody<Body> {
+            fn as_str(&self) -> &str {
+                match self {
+                    ResponseBody::Body(ref b) => match b {
+                        Body::Bytes(ref by) => std::str::from_utf8(by).unwrap(),
+                        _ => panic!(),
+                    },
+                    ResponseBody::Other(ref b) => match b {
+                        Body::Bytes(ref by) => std::str::from_utf8(by).unwrap(),
+                        _ => panic!(),
+                    },
+                }
+            }
+        }
+
+        // Offsets with a ":" are handled by a `.guard()` expression and
+        // should return a 412. See `server::test::test_invalid_offset`
+
+        let result = Offset::from_str("123456*123");
+        assert!(result.is_err());
+        let resp = result.err().unwrap().error_response();
+        assert!(resp.status() == StatusCode::BAD_REQUEST);
+        let rbody = resp.into_body();
+        let body = rbody.body().as_str();
+        assert_eq!(body, "0");
     }
 }

@@ -799,3 +799,14 @@ async fn lbheartbeat_ttl_check() {
     let sresp = app.call(lb_req).await.unwrap();
     assert_eq!(sresp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }
+
+#[actix_rt::test]
+async fn test_invalid_offset() {
+    test_endpoint(
+        http::Method::GET,
+        "/1.5/42/storage/bookmarks?offset=123456:789",
+        Some(StatusCode::PRECONDITION_FAILED),
+        None,
+    )
+    .await;
+}

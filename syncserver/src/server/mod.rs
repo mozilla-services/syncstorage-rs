@@ -13,6 +13,7 @@ use actix_cors::Cors;
 use actix_web::{
     dev,
     error::BlockingError,
+    guard,
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
@@ -72,6 +73,16 @@ pub fn cfg_path(path: &str) -> String {
         )
         .replace("{bso}", &format!("{{bso:{}}}", BSO_ID_REGEX));
     format!("/{}/{{uid:{}}}{}", SYNC_VERSION_PATH, MYSQL_UID_REGEX, path)
+}
+
+fn get_offset(query: &str) -> Option<String> {
+    for part in query.split('&') {
+        let mut kv = part.splitn(2, '=');
+        if kv.next() == Some("offset") {
+            return kv.next().map(|v| v.to_owned());
+        }
+    }
+    None
 }
 
 pub struct Server;
@@ -136,6 +147,28 @@ macro_rules! build_app {
                             .content_type(|ct| ct == mime::TEXT_PLAIN),
                     )
                     .route(web::delete().to(handlers::delete_collection))
+                    .route(
+                        web::get()
+                            .guard(guard::fn_guard(|req: &actix_web::dev::RequestHead| {
+                                // We were seeing a number of errors where iOS clients would return
+                                // offsets that contained ':' (e.g. '123456790:123') This is a valid
+                                // form that the original python server used, but is not implemented
+                                // with this version. Returning a 412 was suggested in order to
+                                // break any loop that might exist on the client.
+                                if let Some(query) = req.uri.query() {
+                                    if let Some(offset) = get_offset(query) {
+                                        if offset.contains(':') {
+                                            trace!("invalid offset: {:?}", offset);
+                                            // pass to next step
+                                            return true;
+                                        }
+                                    }
+                                }
+                                // otherwise, fail with a 405.
+                                false
+                            }))
+                            .to(|| HttpResponse::build(StatusCode::PRECONDITION_FAILED).finish()),
+                    )
                     .route(web::get().to(handlers::get_collection))
                     .route(web::post().to(handlers::post_collection)),
             )

@@ -81,7 +81,6 @@ impl HawkPayload {
 
         let header: HawkHeader = header[5..].parse()?;
         let id = header.id.as_ref().ok_or(HawkErrorKind::MissingId)?;
-
         let payload = HawkPayload::extract_and_validate(id, secrets, expiry)?;
 
         let token_secret = syncserver_common::hkdf_expand_32(
@@ -191,7 +190,6 @@ impl HawkPayload {
         } else {
             Utc::now().timestamp() as u64
         };
-
         HawkPayload::new(header, method, path.as_str(), host, port, secrets, expiry)
     }
 }
