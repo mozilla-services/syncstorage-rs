@@ -187,7 +187,7 @@ impl Default for Settings {
                 [
                     "Authorization",
                     "Content-Type",
-                    "UserAgent",
+                    "User-Agent",
                     X_LAST_MODIFIED,
                     X_WEAVE_TIMESTAMP,
                     X_WEAVE_NEXT_OFFSET,
