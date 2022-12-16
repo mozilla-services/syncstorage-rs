@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
     os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
     os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
-    os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "localhost")
+    os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "*")
     mock_fxa_server_url = os.environ["MOCK_FXA_SERVER_URL"]
     url = "%s/v2" % mock_fxa_server_url
     os.environ["SYNC_TOKENSERVER__FXA_BROWSERID_SERVER_URL"] = url

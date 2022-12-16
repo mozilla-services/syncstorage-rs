@@ -2266,6 +2266,17 @@ class TestStorage(StorageFunctionalTestCase):
             res.headers["access-control-allow-origin"], "localhost"
         )
 
+    def test_cors_allows_any_origin(self):
+        self.app.options(
+            self.root + "/__heartbeat__",
+            headers={
+                "Access-Control-Request-Method": "GET",
+                "Origin": "http://test-website.com",
+                "Access-Control-Request-Headers": "Content-Type"
+            },
+            status=200
+        )
+
     # PATCH is not a default allowed method, so request should return 405
     def test_patch_is_not_allowed(self):
         collection = self.root + "/storage/xxx_col1"
