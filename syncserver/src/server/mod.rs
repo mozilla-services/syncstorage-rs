@@ -376,10 +376,6 @@ fn build_cors(settings: &Settings) -> Cors {
     // for finer grained specification.
     let mut cors = Cors::default();
 
-    if let Some(allowed_origin) = &settings.cors_allowed_origin {
-        cors = cors.allowed_origin(allowed_origin);
-    }
-
     if let Some(allowed_methods) = &settings.cors_allowed_methods {
         let mut methods = vec![];
         for method_string in allowed_methods {
