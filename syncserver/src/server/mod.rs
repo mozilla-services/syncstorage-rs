@@ -29,10 +29,7 @@ use crate::db::pool_from_settings;
 use crate::error::ApiError;
 use crate::server::metrics::Metrics;
 use crate::tokenserver;
-use crate::web::{
-    handlers,
-    middleware::{self, sentry},
-};
+use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
 pub const COLLECTION_ID_REGEX: &str = r"[a-zA-Z0-9._-]{1,32}";
@@ -98,7 +95,7 @@ macro_rules! build_app {
             // These are our wrappers
             .wrap_fn(middleware::weave::set_weave_timestamp)
             .wrap_fn(tokenserver::logging::handle_request_log_line)
-            .wrap_fn(sentry::report_error)
+            .wrap_fn(middleware::sentry::report_error)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
             .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
