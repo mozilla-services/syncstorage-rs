@@ -3,7 +3,7 @@
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
-    HttpResponse,
+    FromRequest, HttpResponse,
 };
 use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
@@ -43,7 +43,7 @@ pub fn reject_user_agent(
         Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
             trace!("Rejecting User-Agent: {:?}", header);
             let (req, payload) = request.into_parts();
-            Metrics::from_http_request(&req).incr("error.rejectua");
+            Metrics::extract(&req).await?.incr("error.rejectua");
             let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
                 ApiError::from(ApiErrorKind::Internal(
                     "failed to reconstruct ServiceRequest from its parts".to_owned(),

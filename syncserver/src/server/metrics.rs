@@ -29,31 +29,6 @@ pub struct Metrics {
     pub timer: Option<MetricTimer>,
 }
 
-impl Metrics {
-    pub fn from_http_request(req: &HttpRequest) -> Self {
-        let client = {
-            let syncstorage_metrics = req
-                .app_data::<Data<ServerState>>()
-                .map(|state| state.metrics.clone());
-            let tokenserver_metrics = req
-                .app_data::<Data<tokenserver::ServerState>>()
-                .map(|state| state.metrics.clone());
-
-            syncstorage_metrics.or(tokenserver_metrics)
-        };
-
-        if client.is_none() {
-            warn!("⚠️ metric error: No App State");
-        }
-
-        Self {
-            client: client.as_deref().cloned(),
-            tags: req.get_tags(),
-            timer: None,
-        }
-    }
-}
-
 impl Drop for Metrics {
     fn drop(&mut self) {
         let tags = self.tags.clone();
