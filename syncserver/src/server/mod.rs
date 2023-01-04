@@ -97,7 +97,7 @@ macro_rules! build_app {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap_fn(middleware::weave::set_weave_timestamp)
-            .wrap(tokenserver::logging::LoggingWrapper::new())
+            .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(sentry::report_error)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
@@ -202,7 +202,7 @@ macro_rules! build_app_without_syncstorage {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
             .wrap_fn(middleware::sentry::report_error)
-            .wrap(tokenserver::logging::LoggingWrapper::new())
+            .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             // Followed by the "official middleware" so they run first.
             // actix is getting increasingly tighter about CORS headers. Our server is
