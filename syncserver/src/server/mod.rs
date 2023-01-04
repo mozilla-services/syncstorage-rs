@@ -369,10 +369,6 @@ fn build_cors(settings: &Settings) -> Cors {
     // for finer grained specification.
     let mut cors = Cors::default();
 
-    if let Some(allowed_origin) = &settings.cors_allowed_origin {
-        cors = cors.allowed_origin(allowed_origin);
-    }
-
     if let Some(allowed_methods) = &settings.cors_allowed_methods {
         let mut methods = vec![];
         for method_string in allowed_methods {
@@ -387,6 +383,16 @@ fn build_cors(settings: &Settings) -> Cors {
 
     if let Some(max_age) = &settings.cors_max_age {
         cors = cors.max_age(*max_age);
+    }
+
+    // explicitly set the CORS allow origin, since Default does not
+    // appear to set the `allow-origins: *` header.
+    if let Some(ref origin) = settings.cors_allowed_origin {
+        if origin == "*" {
+            cors = cors.allow_any_origin();
+        } else {
+            cors = cors.allowed_origin(origin);
+        }
     }
 
     cors
