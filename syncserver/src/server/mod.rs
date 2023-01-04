@@ -99,7 +99,7 @@ macro_rules! build_app {
             .wrap_fn(middleware::weave::set_weave_timestamp)
             .wrap(tokenserver::logging::LoggingWrapper::new())
             .wrap_fn(sentry::report_error)
-            //.wrap_fn(middleware::rejectua::reject_user_agent)
+            .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
             .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
             .service(

@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let settings = Settings::with_env_and_config_file(args.flag_config.as_deref())?;
     init_logging(!settings.human_logs).expect("Logging failed to initialize");
     debug!("Starting up...");
-    // Set DSN environment variable to enable Sentry.
+    // Set SENTRY_DSN environment variable to enable Sentry.
     // Avoid its default reqwest transport for now due to issues w/
     // likely grpcio's boringssl
     let curl_transport_factory = |options: &sentry::ClientOptions| {
