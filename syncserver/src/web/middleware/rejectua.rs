@@ -43,10 +43,10 @@ pub fn reject_user_agent(
         Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
             trace!("Rejecting User-Agent: {:?}", header);
             let (req, payload) = request.into_parts();
-                MetricsWrapper::extract(&req)
-                    .await?
-                    .0
-                    .incr("error.rejectua");
+            MetricsWrapper::extract(&req)
+                .await?
+                .0
+                .incr("error.rejectua");
             let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
                 ApiError::from(ApiErrorKind::Internal(
                     "failed to reconstruct ServiceRequest from its parts".to_owned(),

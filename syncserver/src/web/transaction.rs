@@ -9,9 +9,7 @@ use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use syncserver_common::X_LAST_MODIFIED;
-use syncstorage_db::{
-    params, results::ConnectionInfo, DbError, DbPool, Db, UserIdentifier,
-};
+use syncstorage_db::{params, results::ConnectionInfo, Db, DbError, DbPool, UserIdentifier};
 
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::tags::Taggable;

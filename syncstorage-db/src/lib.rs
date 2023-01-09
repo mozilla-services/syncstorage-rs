@@ -33,7 +33,7 @@ pub use syncstorage_db_common::error::DbErrorIntrospect;
 pub use syncstorage_db_common::{
     params, results,
     util::{to_rfc3339, SyncTimestamp},
-    DbPool, Db, Sorting, UserIdentifier,
+    Db, DbPool, Sorting, UserIdentifier,
 };
 
 #[cfg(all(feature = "mysql", feature = "spanner"))]

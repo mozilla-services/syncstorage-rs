@@ -16,7 +16,7 @@ use futures::future::{self, Ready};
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
-use syncstorage_db::{DbError, DbPoolImpl, DbPool};
+use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
 

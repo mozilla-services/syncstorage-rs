@@ -9,7 +9,7 @@ use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncstorage_db::{
     params,
     results::{CreateBatch, Paginated},
-    DbError, DbErrorIntrospect, Db,
+    Db, DbError, DbErrorIntrospect,
 };
 use time;
 

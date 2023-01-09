@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, DbPool, Db};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
 
 use crate::DbError;
 

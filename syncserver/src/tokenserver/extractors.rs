@@ -22,7 +22,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_settings::Secrets;
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
-use tokenserver_db::{params, results, DbPool, Db};
+use tokenserver_db::{params, results, Db, DbPool};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
 use crate::server::{tags::Taggable, MetricsWrapper};
