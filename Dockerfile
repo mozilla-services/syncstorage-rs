@@ -1,10 +1,4 @@
-<<<<<<< HEAD
 FROM lukemathwalker/cargo-chef:0.1.50-rust-1.66-buster as chef
-||||||| 973e90fa
-FROM rust:1.65-buster as builder
-=======
-FROM rust:1.66-buster as builder
->>>>>>> master
 WORKDIR /app
 
 FROM chef AS planner
