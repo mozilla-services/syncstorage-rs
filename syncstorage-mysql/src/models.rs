@@ -487,7 +487,7 @@ impl MysqlDb {
                 bso::expiry,
             ))
             .filter(bso::user_id.eq(user_id))
-            .filter(bso::collection_id.eq(collection_id)) // XXX:
+            .filter(bso::collection_id.eq(collection_id))
             .filter(bso::expiry.gt(now))
             .into_boxed();
 
@@ -570,7 +570,7 @@ impl MysqlDb {
         let mut query = bso::table
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
-            .filter(bso::collection_id.eq(collection_id)) // XXX:
+            .filter(bso::collection_id.eq(collection_id))
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .into_boxed();
 
