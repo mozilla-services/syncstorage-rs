@@ -313,7 +313,7 @@ pub async fn post_collection_batch(
             CreateBatch {
                 id: id.clone(),
                 size: if coll.quota_enabled {
-                    Some(usage.total_bytes as usize)
+                    Some(usage.total_bytes)
                 } else {
                     None
                 },

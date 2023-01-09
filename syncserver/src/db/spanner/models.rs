@@ -1662,7 +1662,7 @@ impl SpannerDb {
                 warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
             }
         }
-        Ok(Some(usage.total_bytes as usize))
+        Ok(Some(usage.total_bytes))
     }
 
     // NOTE: Currently this put_bso_async_test impl. is only used during db tests,

@@ -83,7 +83,7 @@ fn get_token_plaintext(
                 context: format!("Failed to decode the client state hex: {}", e),
                 ..TokenserverError::internal_error()
             })?;
-        let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
+        let client_state_b64 = base64::encode_config(client_state, base64::URL_SAFE_NO_PAD);
 
         format!(
             "{:013}-{:}",

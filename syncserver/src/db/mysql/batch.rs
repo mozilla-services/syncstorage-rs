@@ -139,13 +139,13 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> Result<results::Comm
     let collection_id = db.get_collection_id(&params.collection)?;
     let timestamp = db.timestamp();
     sql_query(include_str!("batch_commit.sql"))
-        .bind::<BigInt, _>(user_id as i64)
+        .bind::<BigInt, _>(user_id)
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>((MAXTTL as i64) * 1000) // XXX:
         .bind::<BigInt, _>(&batch_id)
-        .bind::<BigInt, _>(user_id as i64)
+        .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
@@ -258,7 +258,7 @@ pub fn validate_batch_id(id: &str) -> Result<()> {
 }
 
 fn encode_id(id: i64) -> String {
-    base64::encode(&id.to_string())
+    base64::encode(id.to_string())
 }
 
 fn decode_id(id: &str) -> Result<i64> {
