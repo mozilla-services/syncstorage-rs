@@ -9,7 +9,7 @@ use serde_json::Value;
 use tokenserver_common::{NodeType, TokenserverError};
 use tokenserver_db::{
     params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
-    DbTrait,
+    Db,
 };
 
 use super::{
@@ -83,7 +83,7 @@ fn get_token_plaintext(
                 context: format!("Failed to decode the client state hex: {}", e),
                 ..TokenserverError::internal_error()
             })?;
-        let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
+        let client_state_b64 = base64::encode_config(client_state, base64::URL_SAFE_NO_PAD);
 
         format!(
             "{:013}-{:}",
@@ -121,7 +121,7 @@ struct UserUpdates {
 
 async fn update_user(
     req: &TokenserverRequest,
-    db: Box<dyn DbTrait>,
+    db: Box<dyn Db>,
 ) -> Result<UserUpdates, TokenserverError> {
     let keys_changed_at = match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
         // If the keys_changed_at in the request is larger than that stored on the user record,

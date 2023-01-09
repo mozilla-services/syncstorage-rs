@@ -664,7 +664,7 @@ impl TokenserverDb {
     }
 }
 
-impl DbTrait for TokenserverDb {
+impl Db for TokenserverDb {
     sync_db_method!(replace_user, replace_user_sync, ReplaceUser);
     sync_db_method!(replace_users, replace_users_sync, ReplaceUsers);
     sync_db_method!(post_user, post_user_sync, PostUser);
@@ -715,7 +715,7 @@ impl DbTrait for TokenserverDb {
     sync_db_method!(post_service, post_service_sync, PostService);
 }
 
-pub trait DbTrait {
+pub trait Db {
     fn replace_user(
         &self,
         params: params::ReplaceUser,
@@ -803,7 +803,7 @@ mod tests {
 
     use syncserver_settings::Settings;
 
-    use crate::pool::{DbPoolTrait, TokenserverPool};
+    use crate::pool::{DbPool, TokenserverPool};
 
     #[tokio::test]
     async fn test_update_generation() -> DbResult<()> {

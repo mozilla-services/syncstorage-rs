@@ -5,9 +5,9 @@ use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
 
 use super::error::{DbError, DbFuture};
-use super::models::DbTrait;
+use super::models::Db;
 use super::params;
-use super::pool::DbPoolTrait;
+use super::pool::DbPool;
 use super::results;
 
 #[derive(Clone, Debug)]
@@ -20,12 +20,12 @@ impl MockDbPool {
 }
 
 #[async_trait]
-impl DbPoolTrait for MockDbPool {
-    async fn get(&self) -> Result<Box<dyn DbTrait>, DbError> {
+impl DbPool for MockDbPool {
+    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         Ok(Box::new(MockDb::new()))
     }
 
-    fn box_clone(&self) -> Box<dyn DbPoolTrait> {
+    fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
     }
 }
@@ -45,7 +45,7 @@ impl MockDb {
     }
 }
 
-impl DbTrait for MockDb {
+impl Db for MockDb {
     fn replace_user(&self, _params: params::ReplaceUser) -> DbFuture<'_, results::ReplaceUser> {
         Box::pin(future::ok(()))
     }

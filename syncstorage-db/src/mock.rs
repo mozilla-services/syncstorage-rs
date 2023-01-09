@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, DbPoolTrait, DbTrait};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, DbPool, Db};
 
 use crate::DbError;
 
@@ -19,10 +19,10 @@ impl MockDbPool {
 }
 
 #[async_trait]
-impl DbPoolTrait for MockDbPool {
+impl DbPool for MockDbPool {
     type Error = DbError;
 
-    async fn get(&self) -> Result<Box<dyn DbTrait<Error = DbError>>, Self::Error> {
+    async fn get(&self) -> Result<Box<dyn Db<Error = DbError>>, Self::Error> {
         Ok(Box::new(MockDb::new()))
     }
 
@@ -30,7 +30,7 @@ impl DbPoolTrait for MockDbPool {
         Ok(())
     }
 
-    fn box_clone(&self) -> Box<dyn DbPoolTrait<Error = DbError>> {
+    fn box_clone(&self) -> Box<dyn DbPool<Error = DbError>> {
         Box::new(self.clone())
     }
 }
@@ -62,7 +62,7 @@ macro_rules! mock_db_method {
     };
 }
 
-impl DbTrait for MockDb {
+impl Db for MockDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, ()> {
@@ -77,7 +77,7 @@ impl DbTrait for MockDb {
         Box::pin(future::ok(()))
     }
 
-    fn box_clone(&self) -> Box<dyn DbTrait<Error = DbError>> {
+    fn box_clone(&self) -> Box<dyn Db<Error = DbError>> {
         Box::new(self.clone())
     }
 

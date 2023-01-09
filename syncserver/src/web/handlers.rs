@@ -9,7 +9,7 @@ use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
 use syncstorage_db::{
     params,
     results::{CreateBatch, Paginated},
-    DbError, DbErrorIntrospect, DbTrait,
+    DbError, DbErrorIntrospect, Db,
 };
 use time;
 
@@ -190,7 +190,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Box<dyn DbTrait<Error = DbError>>,
+    db: Box<dyn Db<Error = DbError>>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -281,7 +281,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Box<dyn DbTrait<Error = DbError>>,
+    db: Box<dyn Db<Error = DbError>>,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
@@ -315,7 +315,7 @@ pub async fn post_collection_batch(
             CreateBatch {
                 id: id.clone(),
                 size: if coll.quota_enabled {
-                    Some(usage.total_bytes as usize)
+                    Some(usage.total_bytes)
                 } else {
                     None
                 },

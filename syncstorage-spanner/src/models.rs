@@ -25,7 +25,7 @@ use protobuf::{
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncserver_db_common::DbFuture;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, DbTrait, Sorting,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
     UserIdentifier, DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
@@ -1663,7 +1663,7 @@ impl SpannerDb {
                 warn!("Quota at limit for user's collection: ({} bytes)", usage.total_bytes; "collection"=>collection);
             }
         }
-        Ok(Some(usage.total_bytes as usize))
+        Ok(Some(usage.total_bytes))
     }
 
     // NOTE: Currently this put_bso_async_test impl. is only used during db tests,
@@ -1873,7 +1873,7 @@ impl SpannerDb {
     }
 }
 
-impl DbTrait for SpannerDb {
+impl Db for SpannerDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
@@ -2173,7 +2173,7 @@ impl DbTrait for SpannerDb {
         };
     }
 
-    fn box_clone(&self) -> Box<dyn DbTrait<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

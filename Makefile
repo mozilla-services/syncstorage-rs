@@ -10,6 +10,8 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+SRC_ROOT = $(shell pwd)
+
 clippy_mysql:
 	# Matches what's run in circleci
 	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
@@ -48,7 +50,7 @@ run_mysql: python
 	PATH="./venv/bin:$(PATH)" \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 		# below env var
-		PYTHONPATH=/Users/edonowitz/Dev/syncstorage-rs/venv/lib/python3.9/site-packages \
+		PYTHONPATH=$(SRC_ROOT)/venv/lib/python3.9/site-packages \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/mysql -- --config config/local.toml
@@ -58,7 +60,7 @@ run_spanner: python
 		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 		# below env var
-		PYTHONPATH=/Users/edonowitz/Dev/syncstorage-rs/venv/lib/python3.9/site-packages \
+		PYTHONPATH=$(SRC_ROOT)/venv/lib/python3.9/site-packages \
 	    PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \

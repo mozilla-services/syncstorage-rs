@@ -22,7 +22,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_settings::Secrets;
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
-use tokenserver_db::{params, results, DbPoolTrait, DbTrait};
+use tokenserver_db::{params, results, DbPool, Db};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
 use crate::server::{tags::Taggable, MetricsWrapper};
@@ -306,8 +306,8 @@ struct QueryParams {
     pub duration: Option<String>,
 }
 
-/// A local "newtype" that wraps `Box<dyn DbTrait>` so we can implement `FromRequest`.
-pub struct DbWrapper(pub Box<dyn DbTrait>);
+/// A local "newtype" that wraps `Box<dyn Db>` so we can implement `FromRequest`.
+pub struct DbWrapper(pub Box<dyn Db>);
 
 impl FromRequest for DbWrapper {
     type Config = ();
@@ -332,7 +332,7 @@ impl FromRequest for DbWrapper {
     }
 }
 
-struct DbPoolWrapper(Box<dyn DbPoolTrait>);
+struct DbPoolWrapper(Box<dyn DbPool>);
 
 impl FromRequest for DbPoolWrapper {
     type Config = ();

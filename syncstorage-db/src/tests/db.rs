@@ -628,7 +628,7 @@ async fn get_collection_usage() -> Result<(), DbError> {
             db.put_bso(pbso(
                 uid,
                 coll,
-                &format!("b{}", i as i32),
+                &format!("b{}", i),
                 Some(&String::from_utf8_lossy(&payload)),
                 None,
                 None,

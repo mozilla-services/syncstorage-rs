@@ -30,7 +30,7 @@ use serde_json::Value;
 use syncserver_common::{Metrics, X_WEAVE_RECORDS};
 use syncstorage_db::{
     params::{self, PostCollectionBso},
-    DbError, DbPoolTrait, Sorting, SyncTimestamp, UserIdentifier,
+    DbError, DbPool, Sorting, SyncTimestamp, UserIdentifier,
 };
 use validator::{Validate, ValidationError};
 
@@ -937,7 +937,7 @@ pub struct QuotaInfo {
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    pub db_pool: Box<dyn DbPoolTrait<Error = DbError>>,
+    pub db_pool: Box<dyn DbPool<Error = DbError>>,
     pub quota: QuotaInfo,
 }
 

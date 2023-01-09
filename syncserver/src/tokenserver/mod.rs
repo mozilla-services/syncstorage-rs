@@ -11,7 +11,7 @@ use serde::{
 };
 use syncserver_common::{BlockingThreadpool, Metrics};
 use tokenserver_common::NodeType;
-use tokenserver_db::{params, DbPoolTrait, TokenserverPool};
+use tokenserver_db::{params, DbPool, TokenserverPool};
 use tokenserver_settings::Settings;
 
 use crate::{
@@ -24,7 +24,7 @@ use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc};
 
 #[derive(Clone)]
 pub struct ServerState {
-    pub db_pool: Box<dyn DbPoolTrait>,
+    pub db_pool: Box<dyn DbPool>,
     pub fxa_email_domain: String,
     pub fxa_metrics_hash_secret: String,
     pub oauth_verifier: Box<dyn VerifyToken<Output = oauth::VerifyOutput>>,

@@ -3,14 +3,14 @@ use std::{str::FromStr, sync::Arc};
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
 use syncstorage_db_common::{
-    params, util::SyncTimestamp, DbPoolTrait, DbTrait, Sorting, UserIdentifier,
+    params, util::SyncTimestamp, DbPool, Db, Sorting, UserIdentifier,
 };
 use syncstorage_settings::Settings as SyncstorageSettings;
 
-use crate::{DbError, DbPool};
+use crate::{DbError, DbPoolImpl};
 
 #[cfg(test)]
-pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool, DbError> {
+pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPoolImpl, DbError> {
     let _ = env_logger::try_init();
     // The default for SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS is
     // false, but we want the mysql default to be true, so let's check
@@ -25,11 +25,11 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPool, Db
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = Metrics::noop();
-    let pool = DbPool::new(&settings, &metrics, Arc::new(BlockingThreadpool::default()))?;
+    let pool = DbPoolImpl::new(&settings, &metrics, Arc::new(BlockingThreadpool::default()))?;
     Ok(pool)
 }
 
-pub async fn test_db(pool: DbPool) -> Result<Box<dyn DbTrait<Error = DbError>>, DbError> {
+pub async fn test_db(pool: DbPoolImpl) -> Result<Box<dyn Db<Error = DbError>>, DbError> {
     let db = pool.get().await?;
     // Spanner won't have a timestamp until lock_for_xxx are called: fill one
     // in for it

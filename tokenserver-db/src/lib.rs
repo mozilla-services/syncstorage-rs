@@ -9,5 +9,5 @@ pub mod params;
 mod pool;
 pub mod results;
 
-pub use models::{DbTrait, TokenserverDb};
-pub use pool::{DbPoolTrait, TokenserverPool};
+pub use models::{Db, TokenserverDb};
+pub use pool::{DbPool, TokenserverPool};

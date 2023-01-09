@@ -14,18 +14,18 @@ use cadence::{Gauged, StatsdClient};
 use tokio::{self, time};
 
 #[cfg(feature = "mysql")]
-pub type DbPool = syncstorage_mysql::MysqlDbPool;
+pub type DbPoolImpl = syncstorage_mysql::MysqlDbPool;
 #[cfg(feature = "mysql")]
 pub use syncstorage_mysql::DbError;
 #[cfg(feature = "mysql")]
-pub type Db = syncstorage_mysql::MysqlDb;
+pub type DbImpl = syncstorage_mysql::MysqlDb;
 
 #[cfg(feature = "spanner")]
-pub type DbPool = syncstorage_spanner::SpannerDbPool;
+pub type DbPoolImpl = syncstorage_spanner::SpannerDbPool;
 #[cfg(feature = "spanner")]
 pub use syncstorage_spanner::DbError;
 #[cfg(feature = "spanner")]
-pub type Db = syncstorage_spanner::SpannerDb;
+pub type DbImpl = syncstorage_spanner::SpannerDb;
 
 pub use syncserver_db_common::{GetPoolState, PoolState};
 pub use syncstorage_db_common::error::DbErrorIntrospect;
@@ -33,7 +33,7 @@ pub use syncstorage_db_common::error::DbErrorIntrospect;
 pub use syncstorage_db_common::{
     params, results,
     util::{to_rfc3339, SyncTimestamp},
-    DbPoolTrait, DbTrait, Sorting, UserIdentifier,
+    DbPool, Db, Sorting, UserIdentifier,
 };
 
 #[cfg(all(feature = "mysql", feature = "spanner"))]

@@ -16,7 +16,7 @@ use futures::future::{self, Ready};
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
-use syncstorage_db::{DbError, DbPool, DbPoolTrait};
+use syncstorage_db::{DbError, DbPoolImpl, DbPool};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
 
@@ -40,7 +40,7 @@ pub mod user_agent;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db_pool: Box<dyn DbPoolTrait<Error = DbError>>,
+    pub db_pool: Box<dyn DbPool<Error = DbError>>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
@@ -252,7 +252,7 @@ impl Server {
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
         let blocking_threadpool = Arc::new(BlockingThreadpool::default());
-        let db_pool = DbPool::new(
+        let db_pool = DbPoolImpl::new(
             &settings.syncstorage,
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),

@@ -18,7 +18,7 @@ use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{DbPoolTrait, DbTrait, STD_COLLS};
+use syncstorage_db_common::{DbPool, Db, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 
 use super::{error::DbError, models::MysqlDb, DbResult};
@@ -111,22 +111,22 @@ impl MysqlDbPool {
 }
 
 #[async_trait]
-impl DbPoolTrait for MysqlDbPool {
+impl DbPool for MysqlDbPool {
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn DbTrait<Error = Self::Error>>> {
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
         let pool = self.clone();
         self.blocking_threadpool
             .spawn(move || pool.get_sync())
             .await
-            .map(|db| Box::new(db) as Box<dyn DbTrait<Error = Self::Error>>)
+            .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
         super::batch::validate_batch_id(&id)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPoolTrait<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }

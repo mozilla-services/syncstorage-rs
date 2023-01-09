@@ -15,7 +15,7 @@ use tokenserver_settings::Settings;
 
 use super::{
     error::{DbError, DbResult},
-    models::{DbTrait, TokenserverDb},
+    models::{Db, TokenserverDb},
 };
 
 embed_migrations!();
@@ -109,8 +109,8 @@ impl TokenserverPool {
 }
 
 #[async_trait]
-impl DbPoolTrait for TokenserverPool {
-    async fn get(&self) -> Result<Box<dyn DbTrait>, DbError> {
+impl DbPool for TokenserverPool {
+    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_pool", None);
 
@@ -126,19 +126,19 @@ impl DbPoolTrait for TokenserverPool {
             self.service_id,
             self.spanner_node_id,
             self.blocking_threadpool.clone(),
-        )) as Box<dyn DbTrait>)
+        )) as Box<dyn Db>)
     }
 
-    fn box_clone(&self) -> Box<dyn DbPoolTrait> {
+    fn box_clone(&self) -> Box<dyn DbPool> {
         Box::new(self.clone())
     }
 }
 
 #[async_trait]
-pub trait DbPoolTrait: Sync + Send + GetPoolState {
-    async fn get(&self) -> Result<Box<dyn DbTrait>, DbError>;
+pub trait DbPool: Sync + Send + GetPoolState {
+    async fn get(&self) -> Result<Box<dyn Db>, DbError>;
 
-    fn box_clone(&self) -> Box<dyn DbPoolTrait>;
+    fn box_clone(&self) -> Box<dyn DbPool>;
 }
 
 impl GetPoolState for TokenserverPool {
@@ -147,14 +147,14 @@ impl GetPoolState for TokenserverPool {
     }
 }
 
-impl GetPoolState for Box<dyn DbPoolTrait> {
+impl GetPoolState for Box<dyn DbPool> {
     fn state(&self) -> PoolState {
         (**self).state()
     }
 }
 
-impl Clone for Box<dyn DbPoolTrait> {
-    fn clone(&self) -> Box<dyn DbPoolTrait> {
+impl Clone for Box<dyn DbPool> {
+    fn clone(&self) -> Box<dyn DbPool> {
         self.box_clone()
     }
 }

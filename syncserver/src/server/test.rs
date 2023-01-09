@@ -20,7 +20,7 @@ use syncserver_settings::{Secrets, Settings};
 use syncstorage_db::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
-    DbPool, SyncTimestamp,
+    DbPoolImpl, SyncTimestamp,
 };
 use syncstorage_settings::ServerLimits;
 
@@ -69,7 +69,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
 
     ServerState {
         db_pool: Box::new(
-            DbPool::new(
+            DbPoolImpl::new(
                 &settings.syncstorage,
                 &Metrics::from(&metrics),
                 blocking_threadpool,

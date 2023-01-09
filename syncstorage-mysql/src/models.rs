@@ -18,7 +18,7 @@ use diesel_logger::LoggingConnection;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, DbTrait, Sorting,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
     UserIdentifier, DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
@@ -401,7 +401,7 @@ impl MysqlDb {
                 collection: bso.collection.clone(),
                 collection_id,
             })?;
-            if usage.total_bytes >= self.quota.size as usize {
+            if usage.total_bytes >= self.quota.size {
                 let mut tags = HashMap::default();
                 tags.insert("collection".to_owned(), bso.collection.clone());
                 self.metrics.incr_with_tags("storage.quota.at_limit", tags);
@@ -487,7 +487,7 @@ impl MysqlDb {
                 bso::expiry,
             ))
             .filter(bso::user_id.eq(user_id))
-            .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
+            .filter(bso::collection_id.eq(collection_id)) // XXX:
             .filter(bso::expiry.gt(now))
             .into_boxed();
 
@@ -570,7 +570,7 @@ impl MysqlDb {
         let mut query = bso::table
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
-            .filter(bso::collection_id.eq(collection_id as i32)) // XXX:
+            .filter(bso::collection_id.eq(collection_id)) // XXX:
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .into_boxed();
 
@@ -979,7 +979,7 @@ impl MysqlDb {
     }
 }
 
-impl DbTrait for MysqlDb {
+impl Db for MysqlDb {
     type Error = DbError;
 
     fn commit(&self) -> DbFuture<'_, (), Self::Error> {
@@ -1113,7 +1113,7 @@ impl DbTrait for MysqlDb {
         }
     }
 
-    fn box_clone(&self) -> Box<dyn DbTrait<Error = Self::Error>> {
+    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
         Box::new(self.clone())
     }
 }
