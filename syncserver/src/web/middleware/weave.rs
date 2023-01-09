@@ -1,57 +1,44 @@
 use std::fmt::Display;
-
-use std::task::{Context, Poll};
+use std::future::Future;
 
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    dev::{Service, ServiceRequest, ServiceResponse},
     http::header::{self, HeaderMap},
-    Error,
 };
 
-use futures::future::{self, LocalBoxFuture};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_TIMESTAMP};
 use syncstorage_db::SyncTimestamp;
 
 use crate::error::{ApiError, ApiErrorKind};
 use crate::web::DOCKER_FLOW_ENDPOINTS;
 
-pub struct WeaveTimestampMiddleware<S> {
-    service: S,
-}
+/// Middleware to set the X-Weave-Timestamp header on all responses.
+pub fn set_weave_timestamp(
+    request: ServiceRequest,
+    service: &mut impl Service<
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = actix_web::Error,
+    >,
+) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    let request_path = request.uri().path().to_lowercase();
+    let ts = SyncTimestamp::default().as_seconds();
+    let fut = service.call(request);
 
-impl<S, B> Service for WeaveTimestampMiddleware<S>
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
-
-    fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        if DOCKER_FLOW_ENDPOINTS.contains(&sreq.uri().path().to_lowercase().as_str()) {
-            return Box::pin(self.service.call(sreq));
+    Box::pin(async move {
+        if DOCKER_FLOW_ENDPOINTS.contains(&request_path.as_str()) {
+            return fut.await;
         }
 
-        let ts = SyncTimestamp::default().as_seconds();
-        let fut = self.service.call(sreq);
-        Box::pin(async move {
-            let mut resp = fut.await?;
-            set_weave_timestamp(resp.headers_mut(), ts)?;
-            Ok(resp)
-        })
-    }
+        let mut resp = fut.await?;
+        insert_weave_timestamp_into_headers(resp.headers_mut(), ts)?;
+        Ok(resp)
+    })
 }
 
 /// Set a X-Weave-Timestamp header on all responses (depending on the
 /// response's X-Last-Modified header)
-fn set_weave_timestamp(headers: &mut HeaderMap, ts: f64) -> Result<(), ApiError> {
+fn insert_weave_timestamp_into_headers(headers: &mut HeaderMap, ts: f64) -> Result<(), ApiError> {
     fn invalid_xlm<E>(e: E) -> ApiError
     where
         E: Display,
@@ -80,39 +67,6 @@ fn set_weave_timestamp(headers: &mut HeaderMap, ts: f64) -> Result<(), ApiError>
     Ok(())
 }
 
-/// Middleware to set the X-Weave-Timestamp header on all responses.
-pub struct WeaveTimestamp;
-
-impl WeaveTimestamp {
-    pub fn new() -> Self {
-        WeaveTimestamp::default()
-    }
-}
-
-impl Default for WeaveTimestamp {
-    fn default() -> Self {
-        Self
-    }
-}
-
-impl<S: 'static, B> Transform<S> for WeaveTimestamp
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = WeaveTimestampMiddleware<S>;
-    type Future = LocalBoxFuture<'static, Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        Box::pin(future::ok(WeaveTimestampMiddleware { service }))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,7 +76,11 @@ mod tests {
     #[test]
     fn test_no_modified_header() {
         let mut resp = HttpResponse::build(http::StatusCode::OK).finish();
-        set_weave_timestamp(resp.headers_mut(), SyncTimestamp::default().as_seconds()).unwrap();
+        insert_weave_timestamp_into_headers(
+            resp.headers_mut(),
+            SyncTimestamp::default().as_seconds(),
+        )
+        .unwrap();
         let weave_hdr = resp
             .headers()
             .get(X_WEAVE_TIMESTAMP)
@@ -146,7 +104,7 @@ mod tests {
         let mut resp = HttpResponse::build(http::StatusCode::OK)
             .header(X_LAST_MODIFIED, hts.clone())
             .finish();
-        set_weave_timestamp(resp.headers_mut(), ts as f64).unwrap();
+        insert_weave_timestamp_into_headers(resp.headers_mut(), ts as f64).unwrap();
         let weave_hdr = resp
             .headers()
             .get(X_WEAVE_TIMESTAMP)
@@ -166,7 +124,7 @@ mod tests {
         let mut resp = HttpResponse::build(http::StatusCode::OK)
             .header(X_LAST_MODIFIED, hts.clone())
             .finish();
-        set_weave_timestamp(resp.headers_mut(), ts as f64 / 1_000.0).unwrap();
+        insert_weave_timestamp_into_headers(resp.headers_mut(), ts as f64 / 1_000.0).unwrap();
         let weave_hdr = resp
             .headers()
             .get(X_WEAVE_TIMESTAMP)

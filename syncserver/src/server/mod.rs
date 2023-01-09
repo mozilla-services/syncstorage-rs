@@ -87,10 +87,10 @@ macro_rules! build_app {
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
-            .wrap(middleware::weave::WeaveTimestamp::new())
-            .wrap(tokenserver::logging::LoggingWrapper::new())
-            .wrap(middleware::sentry::SentryWrapper::default())
-            .wrap(middleware::rejectua::RejectUA::default())
+            .wrap_fn(middleware::weave::set_weave_timestamp)
+            .wrap_fn(tokenserver::logging::handle_request_log_line)
+            .wrap_fn(middleware::sentry::report_error)
+            .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
             .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
             .service(
@@ -192,9 +192,9 @@ macro_rules! build_app_without_syncstorage {
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
-            .wrap(middleware::sentry::SentryWrapper::default())
-            .wrap(tokenserver::logging::LoggingWrapper::new())
-            .wrap(middleware::rejectua::RejectUA::default())
+            .wrap_fn(middleware::sentry::report_error)
+            .wrap_fn(tokenserver::logging::handle_request_log_line)
+            .wrap_fn(middleware::rejectua::reject_user_agent)
             // Followed by the "official middleware" so they run first.
             // actix is getting increasingly tighter about CORS headers. Our server is
             // not a huge risk but does deliver XHR JSON content.
