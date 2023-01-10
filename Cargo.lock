@@ -430,17 +430,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
-name = "bb8"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "374bba43fc924d90393ee7768e6f75d223a98307a488fe5bc34b66c3e96932a6"
-dependencies = [
- "async-trait",
- "futures 0.3.19",
- "tokio",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.57.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3006,41 +2995,27 @@ dependencies = [
  "actix-cors",
  "actix-http",
  "actix-rt",
- "actix-service",
  "actix-web",
  "async-trait",
  "backtrace",
  "base64 0.13.0",
- "bb8",
- "bytes 1.1.0",
  "cadence",
  "chrono",
- "deadpool",
- "diesel",
- "diesel_logger",
- "diesel_migrations",
  "docopt",
  "dyn-clone",
  "env_logger",
  "futures 0.3.19",
- "google-cloud-rust-raw",
- "grpcio",
  "hawk",
  "hex",
  "hmac",
  "hostname",
- "http",
  "lazy_static",
- "log",
  "mime",
  "mockito",
- "num_cpus",
- "protobuf",
  "pyo3",
  "rand 0.8.5",
  "regex",
  "reqwest",
- "scheduled-thread-pool",
  "sentry",
  "sentry-backtrace",
  "serde 1.0.135",
@@ -3057,15 +3032,15 @@ dependencies = [
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
+ "syncstorage-db",
  "syncstorage-settings",
  "thiserror",
  "time 0.3.9",
  "tokenserver-common",
+ "tokenserver-db",
  "tokenserver-settings",
  "tokio",
- "url 2.2.2",
  "urlencoding",
- "uuid",
  "validator",
  "validator_derive",
  "woothee",
@@ -3075,30 +3050,29 @@ dependencies = [
 name = "syncserver-common"
 version = "0.13.1"
 dependencies = [
+ "actix-web",
+ "cadence",
+ "futures 0.3.19",
  "hkdf",
+ "serde 1.0.135",
+ "serde_json",
  "sha2",
+ "slog",
+ "slog-scope",
 ]
 
 [[package]]
 name = "syncserver-db-common"
 version = "0.13.1"
 dependencies = [
- "async-trait",
  "backtrace",
- "chrono",
  "deadpool",
  "diesel",
  "diesel_migrations",
  "futures 0.3.19",
- "grpcio",
- "hostname",
  "http",
- "lazy_static",
- "serde 1.0.135",
- "serde_json",
  "syncserver-common",
  "thiserror",
- "url 2.2.2",
 ]
 
 [[package]]
@@ -3116,6 +3090,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "syncstorage-db"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "cadence",
+ "env_logger",
+ "futures 0.3.19",
+ "hostname",
+ "lazy_static",
+ "log",
+ "rand 0.8.5",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-db-common",
+ "syncstorage-mysql",
+ "syncstorage-settings",
+ "syncstorage-spanner",
+ "tokio",
+]
+
+[[package]]
+name = "syncstorage-db-common"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "chrono",
+ "diesel",
+ "diesel_migrations",
+ "futures 0.3.19",
+ "http",
+ "lazy_static",
+ "serde 1.0.135",
+ "serde_json",
+ "syncserver-common",
+ "syncserver-db-common",
+ "thiserror",
+]
+
+[[package]]
+name = "syncstorage-mysql"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "base64 0.13.0",
+ "diesel",
+ "diesel_logger",
+ "diesel_migrations",
+ "env_logger",
+ "futures 0.3.19",
+ "http",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-db-common",
+ "syncstorage-settings",
+ "thiserror",
+ "url 2.2.2",
+]
+
+[[package]]
 name = "syncstorage-settings"
 version = "0.13.1"
 dependencies = [
@@ -3123,6 +3162,32 @@ dependencies = [
  "serde 1.0.135",
  "syncserver-common",
  "time 0.3.9",
+]
+
+[[package]]
+name = "syncstorage-spanner"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "cadence",
+ "deadpool",
+ "env_logger",
+ "futures 0.3.19",
+ "google-cloud-rust-raw",
+ "grpcio",
+ "http",
+ "log",
+ "protobuf",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncstorage-db-common",
+ "syncstorage-settings",
+ "thiserror",
+ "tokio",
+ "url 2.2.2",
+ "uuid",
 ]
 
 [[package]]
@@ -3305,8 +3370,32 @@ dependencies = [
  "serde 1.0.135",
  "serde_json",
  "syncserver-common",
- "syncserver-db-common",
  "thiserror",
+]
+
+[[package]]
+name = "tokenserver-db"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "diesel",
+ "diesel_logger",
+ "diesel_migrations",
+ "env_logger",
+ "futures 0.3.19",
+ "http",
+ "serde 1.0.135",
+ "serde_derive",
+ "serde_json",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "thiserror",
+ "tokenserver-common",
+ "tokenserver-settings",
+ "tokio",
 ]
 
 [[package]]

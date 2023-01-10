@@ -1,33 +1,27 @@
 //! Main application server
 
-use std::{
-    env, fmt,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
+use std::{env, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
-    dev,
-    error::BlockingError,
+    dev::{self, Payload},
     http::StatusCode,
     http::{header::LOCATION, Method},
     middleware::errhandlers::ErrorHandlers,
-    web, App, HttpRequest, HttpResponse, HttpServer,
+    web::{self, Data},
+    App, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
 use cadence::{Gauged, StatsdClient};
-use syncserver_common::InternalError;
-use syncserver_db_common::{error::DbError, DbPool, GetPoolState, PoolState};
+use futures::future::{self, Ready};
+use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
+use syncstorage_db::{DbError, DbPool, DbPoolImpl};
 use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
 
-use crate::db::pool_from_settings;
 use crate::error::ApiError;
-use crate::server::metrics::Metrics;
+use crate::server::tags::Taggable;
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
@@ -38,7 +32,7 @@ pub const SYNC_DOCS_URL: &str =
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
-pub mod metrics;
+pub mod tags;
 #[cfg(test)]
 mod test;
 pub mod user_agent;
@@ -46,7 +40,7 @@ pub mod user_agent;
 /// This is the global HTTP state object that will be made available to all
 /// HTTP API calls.
 pub struct ServerState {
-    pub db_pool: Box<dyn DbPool>,
+    pub db_pool: Box<dyn DbPool<Error = DbError>>,
 
     /// Server-enforced limits for request payloads.
     pub limits: Arc<ServerLimits>,
@@ -249,7 +243,7 @@ macro_rules! build_app_without_syncstorage {
 impl Server {
     pub async fn with_settings(settings: Settings) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
-        let metrics = metrics::metrics_from_opts(
+        let metrics = syncserver_common::metrics_from_opts(
             &settings.syncstorage.statsd_label,
             settings.statsd_host.as_deref(),
             settings.statsd_port,
@@ -258,12 +252,11 @@ impl Server {
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
         let blocking_threadpool = Arc::new(BlockingThreadpool::default());
-        let db_pool = pool_from_settings(
+        let db_pool = DbPoolImpl::new(
             &settings.syncstorage,
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
-        )
-        .await?;
+        )?;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -273,12 +266,12 @@ impl Server {
         let tokenserver_state = if settings.tokenserver.enabled {
             let state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
-                metrics::metrics_from_opts(
+                syncserver_common::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
                     settings.statsd_host.as_deref(),
                     settings.statsd_port,
                 )?,
-                blocking_threadpool.clone(),
+                blocking_threadpool,
             )?;
 
             Some(state)
@@ -290,7 +283,7 @@ impl Server {
                 Duration::from_secs(10),
                 metrics.clone(),
                 db_pool.clone(),
-                blocking_threadpool.clone(),
+                blocking_threadpool,
             )?;
 
             None
@@ -298,7 +291,7 @@ impl Server {
 
         let mut server = HttpServer::new(move || {
             let syncstorage_state = ServerState {
-                db_pool: db_pool.clone(),
+                db_pool: Box::new(db_pool.clone()),
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
                 metrics: Box::new(metrics.clone()),
@@ -337,7 +330,7 @@ impl Server {
         let blocking_threadpool = Arc::new(BlockingThreadpool::default());
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
-            metrics::metrics_from_opts(
+            syncserver_common::metrics_from_opts(
                 &settings.tokenserver.statsd_label,
                 settings.statsd_host.as_deref(),
                 settings.statsd_port,
@@ -405,6 +398,37 @@ fn build_cors(settings: &Settings) -> Cors {
     cors
 }
 
+pub struct MetricsWrapper(pub Metrics);
+
+impl FromRequest for MetricsWrapper {
+    type Config = ();
+    type Error = ();
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        let client = {
+            let syncstorage_metrics = req
+                .app_data::<Data<ServerState>>()
+                .map(|state| state.metrics.clone());
+            let tokenserver_metrics = req
+                .app_data::<Data<tokenserver::ServerState>>()
+                .map(|state| state.metrics.clone());
+
+            syncstorage_metrics.or(tokenserver_metrics)
+        };
+
+        if client.is_none() {
+            warn!("⚠️ metric error: No App State");
+        }
+
+        future::ok(MetricsWrapper(Metrics {
+            client: client.as_deref().cloned(),
+            tags: req.get_tags(),
+            timer: None,
+        }))
+    }
+}
+
 /// Emit database pool and threadpool metrics periodically
 fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     interval: Duration,
@@ -452,44 +476,4 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     });
 
     Ok(())
-}
-
-/// A threadpool on which callers can spawn non-CPU-bound tasks that block their thread (this is
-/// mostly useful for running I/O tasks). `BlockingThreadpool` intentionally does not implement
-/// `Clone`: `Arc`s are not used internally, so a `BlockingThreadpool` should be instantiated once
-/// and shared by passing around `Arc<BlockingThreadpool>`s.
-#[derive(Debug, Default)]
-pub struct BlockingThreadpool {
-    spawned_tasks: AtomicU64,
-}
-
-impl BlockingThreadpool {
-    /// Runs a function as a task on the blocking threadpool.
-    ///
-    /// WARNING: Spawning a blocking task through means other than calling this method will
-    /// result in inaccurate threadpool metrics being reported. If you want to spawn a task on
-    /// the blocking threadpool, you **must** use this function.
-    pub async fn spawn<F, T, E>(&self, f: F) -> Result<T, E>
-    where
-        F: FnOnce() -> Result<T, E> + Send + 'static,
-        T: Send + 'static,
-        E: fmt::Debug + Send + InternalError + 'static,
-    {
-        self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
-
-        let result = web::block(f).await.map_err(|e| match e {
-            BlockingError::Error(e) => e,
-            BlockingError::Canceled => {
-                E::internal_error("Blocking threadpool operation canceled".to_owned())
-            }
-        });
-
-        self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
-
-        result
-    }
-
-    fn active_threads(&self) -> u64 {
-        self.spawned_tasks.load(Ordering::Relaxed)
-    }
 }

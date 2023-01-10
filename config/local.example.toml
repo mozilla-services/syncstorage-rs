@@ -1,22 +1,21 @@
-# Example MySQL DSN:
-database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
-
-# Example Spanner DSN:
-# database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
-
-"limits.max_total_records"=1666 # See issues #298/#333
 master_secret = "INSERT_SECRET_KEY_HERE"
 
 # removing this line will default to moz_json formatted logs (which is preferred for production envs)
 human_logs = 1
 
+# Example Syncstorage settings:
+# Example MySQL DSN:
+syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+# Example Spanner DSN:
+# database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
 # enable quota limits
-enable_quota = 0
+syncstorage.enable_quota = 0
 # set the quota limit to 2GB.
 # max_quota_limit = 200000000
+syncstorage.enabled = true
+syncstorage.limits.max_total_records = 1666 # See issues #298/#333
 
 # Example Tokenserver settings:
-disable_syncstorage = false
 tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
 tokenserver.enabled = true
 tokenserver.fxa_email_domain = "api-accounts.stage.mozaws.net"

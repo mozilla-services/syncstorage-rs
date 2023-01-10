@@ -5,12 +5,12 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json;
-use tokenserver_common::error::TokenserverError;
+use syncserver_common::BlockingThreadpool;
+use tokenserver_common::TokenserverError;
 use tokenserver_settings::{Jwk, Settings};
 use tokio::time;
 
 use super::VerifyToken;
-use crate::server::BlockingThreadpool;
 
 use std::{sync::Arc, time::Duration};
 

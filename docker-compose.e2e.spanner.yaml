@@ -14,7 +14,7 @@ services:
         sleep 15;
         /app/bin/syncserver;
       "
-  e2e-tests:
+  spanner-e2e-tests:
     depends_on:
       - mock-fxa-server
       - syncserver

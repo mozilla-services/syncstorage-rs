@@ -16,17 +16,16 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use sha2::Sha256;
 use syncserver_common::{self, X_LAST_MODIFIED};
-use syncserver_db_common::{
+use syncserver_settings::{Secrets, Settings};
+use syncstorage_db::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
-    util::SyncTimestamp,
+    DbPoolImpl, SyncTimestamp,
 };
-use syncserver_settings::{Secrets, Settings};
 use syncstorage_settings::ServerLimits;
 
 use super::*;
 use crate::build_app;
-use crate::db::pool_from_settings;
 use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody};
 
@@ -69,13 +68,14 @@ async fn get_test_state(settings: &Settings) -> ServerState {
     let blocking_threadpool = Arc::new(BlockingThreadpool::default());
 
     ServerState {
-        db_pool: pool_from_settings(
-            &settings.syncstorage,
-            &Metrics::from(&metrics),
-            blocking_threadpool.clone(),
-        )
-        .await
-        .expect("Could not get db_pool in get_test_state"),
+        db_pool: Box::new(
+            DbPoolImpl::new(
+                &settings.syncstorage,
+                &Metrics::from(&metrics),
+                blocking_threadpool,
+            )
+            .expect("Could not get db_pool in get_test_state"),
+        ),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         metrics: Box::new(metrics),

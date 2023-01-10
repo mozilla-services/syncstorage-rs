@@ -11,12 +11,11 @@ use actix_web::{
 use sentry::protocol::Event;
 use sentry_backtrace::parse_stacktrace;
 use serde_json::value::Value;
-use syncserver_common::ReportableError;
-use tokenserver_common::error::TokenserverError;
+use syncserver_common::{Metrics, ReportableError};
+use tokenserver_common::TokenserverError;
 
 use crate::error::ApiError;
-use crate::server::{metrics::Metrics, user_agent};
-use crate::web::tags::Taggable;
+use crate::server::{tags::Taggable, user_agent, MetricsWrapper};
 
 pub fn report(
     tags: HashMap<String, String>,
@@ -75,7 +74,7 @@ pub fn report_error(
                 }
             }
             Some(e) => {
-                let metrics = Metrics::extract(sresp.request()).await.unwrap();
+                let metrics = MetricsWrapper::extract(sresp.request()).await.unwrap().0;
 
                 if let Some(apie) = e.as_error::<ApiError>() {
                     process_error(apie, metrics, tags, extras);

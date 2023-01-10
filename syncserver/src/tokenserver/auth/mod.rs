@@ -10,7 +10,7 @@ use pyo3::{
     types::IntoPyDict,
 };
 use serde::{Deserialize, Serialize};
-use tokenserver_common::error::TokenserverError;
+use tokenserver_common::TokenserverError;
 
 /// Represents the origin of the token used by Sync clients to access their data.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]

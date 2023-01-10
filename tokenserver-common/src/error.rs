@@ -7,8 +7,9 @@ use serde::{
     Serialize,
 };
 use syncserver_common::{InternalError, ReportableError};
-use syncserver_db_common::error::DbError;
 
+/// An error type that represents application-specific errors to Tokenserver. This error is not
+/// used to represent database-related errors; database-related errors have their own type.
 #[derive(Clone, Debug)]
 pub struct TokenserverError {
     pub status: &'static str,
@@ -246,25 +247,6 @@ impl Serialize for TokenserverError {
         S: Serializer,
     {
         ErrorResponse::from(self).serialize(serializer)
-    }
-}
-
-impl From<DbError> for TokenserverError {
-    fn from(db_error: DbError) -> Self {
-        TokenserverError {
-            description: db_error.to_string(),
-            context: db_error.to_string(),
-            backtrace: Box::new(db_error.backtrace),
-            http_status: if db_error.status.is_server_error() {
-                // Use the status code from the DbError if it already suggests an internal error;
-                // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
-                db_error.status
-            } else {
-                StatusCode::SERVICE_UNAVAILABLE
-            },
-            // An unhandled DbError in the Tokenserver code is an internal error
-            ..TokenserverError::internal_error()
-        }
     }
 }
 

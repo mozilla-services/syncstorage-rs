@@ -13,9 +13,9 @@ use syncstorage_settings::Settings as SyncstorageSettings;
 use tokenserver_settings::Settings as TokenserverSettings;
 use url::Url;
 
-pub static PREFIX: &str = "sync";
+static PREFIX: &str = "sync";
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub port: u16,
@@ -134,6 +134,7 @@ impl Settings {
         }
     }
 
+    #[cfg(debug_assertions)]
     pub fn test_settings() -> Self {
         let mut settings =
             Self::with_env_and_config_file(None).expect("Could not get Settings in test_settings");

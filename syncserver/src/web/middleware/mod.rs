@@ -13,9 +13,10 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     web::Data,
 };
+use syncserver_common::Metrics;
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::{metrics::Metrics, ServerState};
+use crate::server::ServerState;
 use crate::tokenserver::auth::TokenserverOrigin;
 
 pub fn emit_http_status_with_tokenserver_origin(
