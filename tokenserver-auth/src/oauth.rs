@@ -156,7 +156,7 @@ impl VerifyToken for Verifier {
             .spawn(move || verify_inner(&verifier));
 
         // The PyFxA OAuth client does not offer a way to set a request timeout, so we set one here
-        // by timing out the future if the verification process blocks its thread for longer
+        // by timing out the future if the verification process blocks this thread for longer
         // than the specified number of seconds.
         time::timeout(Duration::from_secs(self.timeout), fut)
             .await

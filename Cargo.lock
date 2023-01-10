@@ -3011,8 +3011,6 @@ dependencies = [
  "hostname",
  "lazy_static",
  "mime",
- "mockito",
- "pyo3",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -3036,6 +3034,7 @@ dependencies = [
  "syncstorage-settings",
  "thiserror",
  "time 0.3.9",
+ "tokenserver-auth",
  "tokenserver-common",
  "tokenserver-db",
  "tokenserver-settings",
@@ -3362,6 +3361,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
+name = "tokenserver-auth"
+version = "0.12.3"
+dependencies = [
+ "async-trait",
+ "dyn-clone",
+ "futures 0.3.19",
+ "mockito",
+ "pyo3",
+ "reqwest",
+ "serde 1.0.135",
+ "serde_json",
+ "syncserver-common",
+ "tokenserver-common",
+ "tokenserver-settings",
+ "tokio",
+]
+
+[[package]]
 name = "tokenserver-common"
 version = "0.13.1"
 dependencies = [
@@ -3620,9 +3637,9 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 
 [[package]]
 name = "unindent"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f14ee04d9415b52b3aeab06258a3f07093182b88ba0f9b8d203f211a7a7d41c7"
+checksum = "514672a55d7380da379785a4d70ca8386c8883ff7eaae877be4d2081cebe73d8"
 
 [[package]]
 name = "untrusted"
