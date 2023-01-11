@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate slog_scope;
 
+mod metrics;
+
 use std::{
     fmt,
     sync::atomic::{AtomicU64, Ordering},
@@ -9,8 +11,6 @@ use std::{
 use actix_web::{error::BlockingError, web};
 use hkdf::Hkdf;
 use sha2::Sha256;
-
-mod metrics;
 
 pub use metrics::{metrics_from_opts, MetricError, Metrics};
 

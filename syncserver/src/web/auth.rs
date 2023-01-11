@@ -16,6 +16,7 @@ use sha2::Sha256;
 use syncserver_common;
 use syncserver_settings::Secrets;
 use time::Duration;
+use tokenserver_auth::TokenserverOrigin;
 
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::Uri;
@@ -26,7 +27,6 @@ use super::{
 };
 use crate::error::{ApiErrorKind, ApiResult};
 use crate::label;
-use crate::tokenserver::auth::TokenserverOrigin;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property

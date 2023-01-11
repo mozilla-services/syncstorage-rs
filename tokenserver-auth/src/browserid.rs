@@ -19,7 +19,7 @@ pub struct VerifyOutput {
 
 /// The verifier used to verify BrowserID assertions.
 #[derive(Clone)]
-pub struct RemoteVerifier {
+pub struct Verifier {
     audience: String,
     issuer: String,
     fxa_verifier_url: String,
@@ -28,7 +28,7 @@ pub struct RemoteVerifier {
     request_client: ReqwestClient,
 }
 
-impl TryFrom<&Settings> for RemoteVerifier {
+impl TryFrom<&Settings> for Verifier {
     type Error = &'static str;
 
     fn try_from(settings: &Settings) -> Result<Self, Self::Error> {
@@ -47,7 +47,7 @@ impl TryFrom<&Settings> for RemoteVerifier {
 }
 
 #[async_trait]
-impl VerifyToken for RemoteVerifier {
+impl VerifyToken for Verifier {
     type Output = VerifyOutput;
 
     /// Verifies a BrowserID assertion. Returns `VerifyOutput` for valid assertions and a
@@ -288,7 +288,7 @@ mod tests {
     use mockito::{self, Mock};
     use serde_json::json;
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_browserid_verifier_success() {
         let body = json!({
             "status": "okay",
@@ -305,7 +305,7 @@ mod tests {
             .with_header("content-type", "application/json")
             .with_body(body.to_string())
             .create();
-        let verifier = RemoteVerifier::try_from(&Settings {
+        let verifier = Verifier::try_from(&Settings {
             fxa_browserid_audience: "https://test.com".to_owned(),
             fxa_browserid_issuer: "accounts.firefox.com".to_owned(),
             fxa_browserid_server_url: format!("{}/v2", mockito::server_url()),
@@ -326,11 +326,11 @@ mod tests {
         assert_eq!(expected_result, result);
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_browserid_verifier_failure_cases() {
         const AUDIENCE: &str = "https://test.com";
 
-        let verifier = RemoteVerifier::try_from(&Settings {
+        let verifier = Verifier::try_from(&Settings {
             fxa_browserid_audience: AUDIENCE.to_owned(),
             fxa_browserid_server_url: format!("{}/v2", mockito::server_url()),
             ..Default::default()
@@ -446,7 +446,7 @@ mod tests {
         }
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn test_browserid_verifier_rejects_unissuers() {
         const AUDIENCE: &str = "https://test.com";
         const ISSUER: &str = "accounts.firefox.com";
@@ -470,7 +470,7 @@ mod tests {
             token_type: TokenType::BrowserId,
             ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
         };
-        let verifier = RemoteVerifier::try_from(&Settings {
+        let verifier = Verifier::try_from(&Settings {
             fxa_browserid_audience: AUDIENCE.to_owned(),
             fxa_browserid_issuer: ISSUER.to_owned(),
             fxa_browserid_server_url: format!("{}/v2", mockito::server_url()),

@@ -711,13 +711,11 @@ mod tests {
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
+    use tokenserver_auth::{browserid, oauth, MockVerifier};
     use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
-    use crate::tokenserver::{
-        auth::{browserid, oauth, MockVerifier},
-        ServerState,
-    };
+    use crate::tokenserver::ServerState;
 
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};

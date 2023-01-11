@@ -30,7 +30,6 @@ hawk = "3.2"
 hex = "0.4.3"
 hmac = "0.11"
 mime = "0.3"
-pyo3 = { version = "0.14", features = ["auto-initialize"] }
 rand = "0.8"
 regex = "1.4"
 reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
@@ -61,6 +60,7 @@ syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
 thiserror = "1.0.26"
+tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
@@ -70,9 +70,6 @@ urlencoding = "2.1"
 validator = "0.14"
 validator_derive = "0.14"
 woothee = "0.11"
-
-[dev-dependencies]
-mockito = "0.30.0"
 
 [features]
 default = ["syncstorage-db/mysql"]
