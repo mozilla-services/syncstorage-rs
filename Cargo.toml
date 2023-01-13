@@ -15,6 +15,7 @@ members = [
     "tokenserver-common",
     "tokenserver-db",
     "tokenserver-settings",
+    "tokenserver-web",
     "syncserver",
 ]
 default-members = ["syncserver"]
