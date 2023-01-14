@@ -200,7 +200,7 @@ This will walk you through the steps to connect this project to your local copy 
     sync-1.5 = "http://localhost:8000/1.5/1"```
 
 
-3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/token/1.0/sync/1.5`.
+3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/1.0/sync/1.5`
 4. Restart Firefox. Now, try syncing. You should see new BSOs in your local MySQL instance.
 
 ## Logging
