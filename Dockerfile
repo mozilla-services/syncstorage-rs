@@ -83,6 +83,7 @@ COPY --from=builder /app/syncserver/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver/process_account_events.py /app/tools/tokenserver/process_account_events.py
+COPY --from=builder /app/tools/tokenserver/util.py /app/tools/tokenserver/util.py
 COPY --from=builder /app/tools/tokenserver/requirements.txt /app/tools/tokenserver/requirements.txt
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
