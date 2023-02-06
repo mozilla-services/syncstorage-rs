@@ -1,3 +1,13 @@
+<a name="0.13.2"></a>
+## 0.13.2 (2023-02-06)
+
+
+#### Chore
+
+*   add missing util.py to docker for process_account_events.py (#1455) (#1457) ([d2f6cf65](https://github.com/mozilla-services/syncstorage-rs/commit/d2f6cf65ff412676935e6f4306311e4599e697e9))
+
+
+
 <a name="0.13.1"></a>
 ## 0.13.1 (2022-12-16)
 
