@@ -1,3 +1,83 @@
+<a name="0.13.1"></a>
+## 0.13.1 (2022-12-16)
+
+
+#### Features
+
+*   add token type to Tokenserver log lines (#1445) ([0362bcab](https://github.com/mozilla-services/syncstorage-rs/commit/0362bcab3dd057de201915b918783b0a9a2de15e), closes [#1444](https://github.com/mozilla-services/syncstorage-rs/issues/1444))
+
+#### Bug Fixes
+
+*   fix CORS issue (#1447) ([3f836b1e](https://github.com/mozilla-services/syncstorage-rs/commit/3f836b1e98997d98dd9671f957e5721330182b5f))
+
+#### Chore
+
+*   remove `spanner_config.ini` (#1446) ([b9c1f7f6](https://github.com/mozilla-services/syncstorage-rs/commit/b9c1f7f67b5e4c99642d289a0e124f1053ec54b2))
+*   upgrade to Rust 1.65 (#1441) ([b95e549a](https://github.com/mozilla-services/syncstorage-rs/commit/b95e549acbf2bb31c385eb50f60016da0f54e253))
+
+
+
+<a name="0.13.0"></a>
+## 0.13.0 (2022-11-14)
+
+
+#### Chore
+
+*   temporarily disable dependabot (#1432) ([5daf6327](https://github.com/mozilla-services/syncstorage-rs/commit/5daf6327fbe4acd9f9e7acde8380e2e0d93e91bf))
+
+#### Test
+
+*   run the Tokenserver E2E tests without a cached JWK (#1390) ([3a18de01](https://github.com/mozilla-services/syncstorage-rs/commit/3a18de01bbf5b5c0bcb87d4176fde14840629ae2))
+
+#### Features
+
+*   report blocking threadpool statistics (#1418) ([929a3144](https://github.com/mozilla-services/syncstorage-rs/commit/929a3144af45b1e54e41c5c9c28c422cff0b9518), closes [#1416](https://github.com/mozilla-services/syncstorage-rs/issues/1416))
+*   fix high cardinality metrics tags (#1437) ([9e36b882](https://github.com/mozilla-services/syncstorage-rs/commit/9e36b88297f387be86ac60736728ead09b9fedfc), closes [#1436](https://github.com/mozilla-services/syncstorage-rs/issues/1436))
+
+#### Breaking Changes
+
+*   add settings crates (#1306) ([0ae5fd20](https://github.com/mozilla-services/syncstorage-rs/commit/0ae5fd20594d3af769059088b2ff1b7899bee289), closes [#1276](https://github.com/mozilla-services/syncstorage-rs/issues/1276), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+#### Refactor
+
+*   add settings crates (#1306) ([0ae5fd20](https://github.com/mozilla-services/syncstorage-rs/commit/0ae5fd20594d3af769059088b2ff1b7899bee289), closes [#1276](https://github.com/mozilla-services/syncstorage-rs/issues/1276), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+
+
+<a name="0.12.5"></a>
+## 0.12.5 (2022-11-01)
+
+
+#### Chore
+
+*   switch from mariadb libmysqlclient to mysql's (#1435) ([b4fe184f](https://github.com/mozilla-services/syncstorage-rs/commit/b4fe184f5172f22bdb6885af482b658fc3368fdc), closes [#1434](https://github.com/mozilla-services/syncstorage-rs/issues/1434))
+
+
+
+<a name="0.12.4"></a>
+## 0.12.4 (2022-10-10)
+
+
+#### Performance
+
+*   always verify OAuth tokens on blocking thread (#1406) ([d69508d3](https://github.com/mozilla-services/syncstorage-rs/commit/d69508d3cc0cc9da96f7e6aab3b091495ed88346))
+
+#### Chore
+
+*   update to Rust 1.64.0 (#1415) ([fca795e3](https://github.com/mozilla-services/syncstorage-rs/commit/fca795e3c09c7feee12b450791a53bb0a2871b48))
+
+
+
+<a name="0.12.3"></a>
+## 0.12.3 (2022-09-23)
+
+
+#### Features
+
+*   Add `X-Content-Type-Options: nosniff` to Tokenserver responses (#1403) ([613f71ed](https://github.com/mozilla-services/syncstorage-rs/commit/613f71ed99aa875a234cbe92e1d93b6ba3413e73))
+
+
+
 <a name="0.12.2"></a>
 ## 0.12.2 (2022-09-19)
 

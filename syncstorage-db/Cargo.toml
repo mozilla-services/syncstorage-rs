@@ -1,0 +1,31 @@
+[package]
+name = "syncstorage-db"
+version = "0.12.3"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.40"
+cadence = "0.26"
+env_logger = "0.9"
+futures = { version = "0.3", features = ["compat"] }
+hostname = "0.3.1"
+lazy_static = "1.4.0"
+log = { version = "0.4", features = [
+    "max_level_debug",
+    "release_max_level_info",
+] }
+rand = "0.8"
+slog-scope = "4.3"
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-settings = { path = "../syncserver-settings" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }
+syncstorage-settings = { path = "../syncstorage-settings" }
+syncstorage-spanner = { path = "../syncstorage-spanner", optional = true }
+# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
+tokio = { version = "0.2.4", features = ["macros", "sync"] }
+
+[features]
+mysql = ['syncstorage-mysql']
+spanner = ['syncstorage-spanner']

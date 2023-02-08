@@ -3,22 +3,21 @@ services:
   sync-db:
   sync-db-setup:
   tokenserver-db:
-  syncstorage-rs:
+  syncserver:
     depends_on:
       - sync-db-setup
-    # TODO: either syncstorage-rs should retry the db connection
+    # TODO: either syncserver should retry the db connection
     # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us. Same (probably
-    # the latter solution) for server-syncstorage below
+    # inside its docker that would do this for us.
     entrypoint: >
       /bin/sh -c "
         sleep 15;
-        /app/bin/syncstorage;
+        /app/bin/syncserver;
       "
-  e2e-tests:
+  spanner-e2e-tests:
     depends_on:
       - mock-fxa-server
-      - syncstorage-rs
+      - syncserver
     image: app:build
     privileged: true
     user: root
@@ -26,8 +25,8 @@ services:
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-      SYNC_SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"

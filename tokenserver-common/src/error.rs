@@ -6,9 +6,10 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use syncstorage_common::ReportableError;
-use syncstorage_db_common::error::DbError;
+use syncserver_common::{InternalError, ReportableError};
 
+/// An error type that represents application-specific errors to Tokenserver. This error is not
+/// used to represent database-related errors; database-related errors have their own type.
 #[derive(Clone, Debug)]
 pub struct TokenserverError {
     pub status: &'static str,
@@ -19,7 +20,7 @@ pub struct TokenserverError {
     /// For internal use only. Used to report any additional context behind an error to
     /// distinguish between similar errors in Sentry.
     pub context: String,
-    pub backtrace: Backtrace,
+    pub backtrace: Box<Backtrace>,
     pub token_type: TokenType,
 }
 
@@ -59,7 +60,7 @@ impl Default for TokenserverError {
             description: "Unauthorized".to_owned(),
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
             token_type: TokenType::Oauth,
         }
     }
@@ -156,7 +157,7 @@ impl TokenserverError {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorLocation {
     Header,
     Url,
@@ -249,25 +250,6 @@ impl Serialize for TokenserverError {
     }
 }
 
-impl From<DbError> for TokenserverError {
-    fn from(db_error: DbError) -> Self {
-        TokenserverError {
-            description: db_error.to_string(),
-            context: db_error.to_string(),
-            backtrace: db_error.backtrace,
-            http_status: if db_error.status.is_server_error() {
-                // Use the status code from the DbError if it already suggests an internal error;
-                // it might be more specific than `StatusCode::SERVICE_UNAVAILABLE`
-                db_error.status
-            } else {
-                StatusCode::SERVICE_UNAVAILABLE
-            },
-            // An unhandled DbError in the Tokenserver code is an internal error
-            ..TokenserverError::internal_error()
-        }
-    }
-}
-
 impl From<TokenserverError> for HttpResponse {
     fn from(inner: TokenserverError) -> Self {
         ResponseError::error_response(&inner)
@@ -291,6 +273,15 @@ impl ReportableError for TokenserverError {
             }
         } else {
             None
+        }
+    }
+}
+
+impl InternalError for TokenserverError {
+    fn internal_error(message: String) -> Self {
+        TokenserverError {
+            context: message,
+            ..TokenserverError::internal_error()
         }
     }
 }
