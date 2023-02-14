@@ -428,6 +428,8 @@ workflows:
           filters:
             tags:
               only: /.*/
+            branches:
+              only: master
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests
