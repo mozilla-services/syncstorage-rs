@@ -27,15 +27,13 @@ log = { version = "0.4", features = [
   "max_level_debug",
   "release_max_level_info",
 ] }
-# must match what's used by googleapis-raw
-protobuf = "2.20.0"
+protobuf = "2.25.2" # must match what's used by googleapis-raw
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 thiserror = "1.0.26"
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["macros", "sync"] }
+tokio = { version = "0.2.4", features = ["macros", "sync"] } # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 url = "2.1"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 
