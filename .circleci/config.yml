@@ -363,7 +363,7 @@ jobs:
           command: |
             export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="${CIRCLE_SHA1}"
+              DOCKER_TAG="latest"
             fi
 
             if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
