@@ -1,3 +1,13 @@
+<a name="0.13.3"></a>
+## 0.13.3 (2023-02-24)
+
+
+#### Chore
+
+*   add another missing file to docker for process_account_events.py (#1463) ([6ee39da4](https://github.com/mozilla-services/syncstorage-rs/commit/6ee39da4a0926e6352bf513206d1d01b63232a2e))
+
+
+
 <a name="0.13.2"></a>
 ## 0.13.2 (2023-02-06)
 
