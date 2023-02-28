@@ -38,7 +38,7 @@ pub fn emit_http_status_with_tokenserver_origin(
                 .map(|state| state.metrics.clone())
                 .ok_or_else(|| ApiError::from(ApiErrorKind::NoServerState))?;
 
-            Metrics::from(&*statsd_client)
+            Metrics::from(&statsd_client)
         };
 
         let mut tags = HashMap::default();

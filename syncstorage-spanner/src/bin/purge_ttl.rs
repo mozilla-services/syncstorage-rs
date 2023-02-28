@@ -29,7 +29,7 @@ const SLEEP_ENV_VAR: &str = "PURGE_TTL_RETRY_SLEEP_MILLIS"; // Default value = 0
 use protobuf::well_known_types::Value;
 
 pub struct MetricTimer {
-    pub client: StatsdClient,
+    pub client: Arc<StatsdClient>,
     pub label: String,
     pub start: Instant,
 }
@@ -48,7 +48,7 @@ impl Drop for MetricTimer {
     }
 }
 
-pub fn start_timer(client: &StatsdClient, label: &str) -> MetricTimer {
+pub fn start_timer(client: &Arc<StatsdClient>, label: &str) -> MetricTimer {
     trace!("⌚ Starting timer... {:?}", label);
     MetricTimer {
         start: Instant::now(),
@@ -57,7 +57,7 @@ pub fn start_timer(client: &StatsdClient, label: &str) -> MetricTimer {
     }
 }
 
-pub fn statsd_from_env() -> Result<StatsdClient, Box<dyn Error>> {
+pub fn statsd_from_env() -> Result<Arc<StatsdClient>, Box<dyn Error>> {
     let statsd_host = env::var("STATSD_HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
     let statsd_port = match env::var("STATSD_PORT") {
         Ok(port) => port.parse::<u16>()?,
@@ -71,11 +71,13 @@ pub fn statsd_from_env() -> Result<StatsdClient, Box<dyn Error>> {
     let sink = QueuingMetricSink::from(udp_sink);
     let builder = StatsdClient::builder("syncstorage", sink);
 
-    Ok(builder
-        .with_error_handler(|err| {
-            warn!("Metric send error: {:?}", err);
-        })
-        .build())
+    Ok(Arc::new(
+        builder
+            .with_error_handler(|err| {
+                warn!("Metric send error: {:?}", err);
+            })
+            .build(),
+    ))
 }
 
 pub enum RequestType {

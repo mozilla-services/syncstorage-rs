@@ -1789,14 +1789,12 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,
-            metrics: Box::new(
-                syncserver_common::metrics_from_opts(
-                    &syncstorage_settings.statsd_label,
-                    syncserver_settings.statsd_host.as_deref(),
-                    syncserver_settings.statsd_port,
-                )
-                .unwrap(),
-            ),
+            metrics: syncserver_common::metrics_from_opts(
+                &syncstorage_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
             quota_enabled: syncstorage_settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
         }

@@ -29,7 +29,7 @@ license = "MPL-2.0"
 
 [workspace.dependencies]
 base64 = "0.21"
-cadence = "0.26"
+cadence = "0.29"
 backtrace = "0.3"
 chrono = "0.4"
 docopt = "1.1"

@@ -1341,14 +1341,12 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            metrics: Box::new(
-                syncserver_common::metrics_from_opts(
-                    &tokenserver_settings.statsd_label,
-                    syncserver_settings.statsd_host.as_deref(),
-                    syncserver_settings.statsd_port,
-                )
-                .unwrap(),
-            ),
+            metrics: syncserver_common::metrics_from_opts(
+                &tokenserver_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
             token_duration: TOKEN_DURATION,
         }
     }

@@ -65,7 +65,7 @@ fn get_test_settings() -> Settings {
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
-    let metrics = Metrics::sink();
+    let metrics = Arc::new(Metrics::sink());
     let blocking_threadpool = Arc::new(BlockingThreadpool::default());
 
     ServerState {
@@ -79,7 +79,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         ),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        metrics: Box::new(metrics),
+        metrics,
         port: settings.port,
         quota_enabled: settings.syncstorage.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
