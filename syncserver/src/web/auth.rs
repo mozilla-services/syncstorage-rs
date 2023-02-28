@@ -8,6 +8,7 @@
 
 use std::convert::TryInto;
 
+use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hmac::{Hmac, Mac, NewMac};
@@ -90,7 +91,7 @@ impl HawkPayload {
             &secrets.master_secret,
         )
         .map_err(|e| ApiErrorKind::Internal(format!("HKDF Error: {:?}", e)))?;
-        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+        let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
@@ -125,7 +126,7 @@ impl HawkPayload {
     /// Decode the `id` property of a Hawk header
     /// and verify the payload part against the signature part.
     fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> ApiResult<HawkPayload> {
-        let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
+        let decoded_id = engine::general_purpose::URL_SAFE.decode(id)?;
         if decoded_id.len() <= 32 {
             Err(HawkErrorKind::TruncatedId)?;
         }

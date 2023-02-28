@@ -13,6 +13,7 @@ use actix_web::{
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
+use base64::{engine, Engine};
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
@@ -593,15 +594,15 @@ impl FromRequest for KeyId {
                 // encoded as URL-safe base64 with the padding removed. We convert it to hex
                 // because we store the client state as hex in the database.
                 let client_state_hex = {
-                    let bytes =
-                        base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                            .map_err(|e| TokenserverError {
-                                context: format!(
-                                    "Failed to decode client state base64 in X-KeyID: {}",
-                                    e
-                                ),
-                                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                            })?;
+                    let bytes = engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(encoded_client_state)
+                        .map_err(|e| TokenserverError {
+                            context: format!(
+                                "Failed to decode client state base64 in X-KeyID: {}",
+                                e
+                            ),
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                        })?;
 
                     hex::encode(bytes)
                 };

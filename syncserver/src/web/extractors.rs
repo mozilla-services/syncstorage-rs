@@ -15,7 +15,6 @@ use actix_web::{
     web::{Data, Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-
 use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
 use syncserver_settings::Secrets;
 
@@ -1732,6 +1731,7 @@ impl_emit_api_metric!(BsoPutRequest);
 #[cfg(test)]
 mod tests {
     use actix_http::h1;
+    use base64::{engine, Engine};
     use futures::executor::block_on;
 
     use super::*;
@@ -1821,14 +1821,14 @@ mod tests {
         let payload_hash = hmac.finalize().into_bytes();
         let mut id = payload.as_bytes().to_vec();
         id.extend(payload_hash.to_vec());
-        let id = base64::encode_config(&id, base64::URL_SAFE);
+        let id = engine::general_purpose::URL_SAFE.encode(&id);
         let token_secret = syncserver_common::hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(salt.as_bytes()),
             &SECRETS.master_secret,
         )
         .unwrap();
-        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+        let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
         let credentials = Credentials {
             id,
             key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),

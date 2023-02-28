@@ -7,6 +7,7 @@ use actix_web::{
     test,
     web::Bytes,
 };
+use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac, NewMac};
@@ -165,14 +166,14 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let mut id: Vec<u8> = vec![];
     id.extend(payload.as_bytes());
     id.extend_from_slice(&signature);
-    let id = base64::encode_config(&id, base64::URL_SAFE);
+    let id = engine::general_purpose::URL_SAFE.encode(&id);
     let token_secret = syncserver_common::hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
         &SECRETS.master_secret,
     )
     .expect("hkdf_expand_32 failed in create_hawk_header");
-    let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+    let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
