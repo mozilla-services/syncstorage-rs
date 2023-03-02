@@ -246,3 +246,49 @@ class TestProcessAccountEvents(unittest.TestCase):
         process_account_event('{ "Message": "[1, 2, 3"] }')
         self.assertMessageWasLogged("Invalid account message")
         self.clearLogs()
+
+    def test_update_with_no_keys_changed_at(self):
+        user = self.database.allocate_user(
+            EMAIL,
+            generation=12,
+            keys_changed_at=None
+        )
+
+        # These update_user calls previously failed (SYNC-3633)
+        self.database.update_user(user, generation=13)
+        self.database.update_user(
+            user,
+            generation=14,
+            client_state="abcdef",
+            keys_changed_at=13
+        )
+
+        process_account_event(message_body(
+            event="reset",
+            uid=UID,
+            iss=ISS,
+            generation=43,
+        ))
+
+        user = self.database.get_user(EMAIL)
+        self.assertEquals(user["generation"], 42)
+
+    def test_update_with_no_keys_changed_at2(self):
+        user = self.database.allocate_user(
+            EMAIL,
+            generation=12,
+            keys_changed_at=None
+        )
+        # Mark the current record as replaced. This can probably only occur
+        # during a race condition in row creation
+        self.database.replace_user_record(user["uid"])
+
+        process_account_event(message_body(
+            event="reset",
+            uid=UID,
+            iss=ISS,
+            generation=43,
+        ))
+
+        user = self.database.get_user(EMAIL)
+        self.assertEquals(user["generation"], 42)
