@@ -1,3 +1,13 @@
+<a name="0.13.5"></a>
+## 0.13.5 (2023-03-03)
+
+
+#### Bug Fixes
+
+*   handle nullable (None) keys_changed_at values (#1464) ([7e298c2d](https://github.com/mozilla-services/syncstorage-rs/commit/7e298c2dd06dc12a0dbc2d7e6d5aab8ab8bdfba6))
+
+
+
 <a name="0.13.4"></a>
 ## 0.13.4 (2023-02-24)
 
