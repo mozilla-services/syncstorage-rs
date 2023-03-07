@@ -51,6 +51,7 @@ def process_account_events(queue_name, aws_region=None, queue_wait_time=20):
     to interrupt execution you'll need to e.g. SIGINT the process.
     """
     logger.info("Processing account events from %s", queue_name)
+    database = Database()
     try:
         # Connect to the SQS queue.
         # If no region is given, infer it from the instance metadata.
@@ -68,7 +69,7 @@ def process_account_events(queue_name, aws_region=None, queue_wait_time=20):
             msg = queue.read(wait_time_seconds=queue_wait_time)
             if msg is None:
                 continue
-            process_account_event(msg.get_body())
+            process_account_event(database, msg.get_body())
             # This intentionally deletes the event even if it was some
             # unrecognized type.  Not point leaving a backlog.
             queue.delete_message(msg)
@@ -77,9 +78,8 @@ def process_account_events(queue_name, aws_region=None, queue_wait_time=20):
         raise
 
 
-def process_account_event(body):
+def process_account_event(database, body):
     """Parse and process a single account event."""
-    database = Database()
     # Try very hard not to error out if there's junk in the queue.
     email = None
     event_type = None

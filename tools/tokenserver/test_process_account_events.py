@@ -61,6 +61,9 @@ class TestProcessAccountEvents(unittest.TestCase):
     def clearLogs(self):
         del self.logs.records[:]
 
+    def process_account_event(self, body):
+        process_account_event(self.database, body)
+
     def test_delete_user(self):
         self.database.allocate_user(EMAIL)
         user = self.database.get_user(EMAIL)
@@ -69,7 +72,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.assertEquals(len(records), 2)
         self.assertTrue(records[0]["replaced_at"] is not None)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="delete",
             uid=UID,
             iss=ISS,
@@ -88,7 +91,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.assertEquals(len(records), 2)
         self.assertTrue(records[0]["replaced_at"] is not None)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="delete",
             uid=EMAIL,
         ))
@@ -102,7 +105,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         records = list(self.database.get_user_records(EMAIL))
         self.assertEquals(len(records), 0)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="delete",
             uid=UID,
             iss=ISS
@@ -114,7 +117,7 @@ class TestProcessAccountEvents(unittest.TestCase):
     def test_reset_user(self):
         self.database.allocate_user(EMAIL, generation=12)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=UID,
             iss=ISS,
@@ -127,7 +130,7 @@ class TestProcessAccountEvents(unittest.TestCase):
     def test_reset_user_by_legacy_uid_format(self):
         self.database.allocate_user(EMAIL, generation=12)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=EMAIL,
             generation=43,
@@ -140,7 +143,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         records = list(self.database.get_user_records(EMAIL))
         self.assertEquals(len(records), 0)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=UID,
             iss=ISS,
@@ -153,7 +156,7 @@ class TestProcessAccountEvents(unittest.TestCase):
     def test_password_change(self):
         self.database.allocate_user(EMAIL, generation=12)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="passwordChange",
             uid=UID,
             iss=ISS,
@@ -167,7 +170,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         records = list(self.database.get_user_records(EMAIL))
         self.assertEquals(len(records), 0)
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="passwordChange",
             uid=UID,
             iss=ISS,
@@ -180,7 +183,7 @@ class TestProcessAccountEvents(unittest.TestCase):
     def test_malformed_events(self):
 
         # Unknown event type.
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="party",
             uid=UID,
             iss=ISS,
@@ -190,7 +193,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Missing event type.
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             uid=UID,
             iss=ISS,
             generation=43,
@@ -199,7 +202,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Missing uid.
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="delete",
             iss=ISS,
         ))
@@ -207,7 +210,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Missing generation for reset events.
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=UID,
             iss=ISS,
@@ -216,7 +219,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Missing generation for passwordChange events.
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="passwordChange",
             uid=UID,
             iss=ISS,
@@ -225,7 +228,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Missing issuer with nonemail uid
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="delete",
             uid=UID,
         ))
@@ -233,17 +236,17 @@ class TestProcessAccountEvents(unittest.TestCase):
         self.clearLogs()
 
         # Non-JSON garbage.
-        process_account_event("wat")
+        self.process_account_event("wat")
         self.assertMessageWasLogged("Invalid account message")
         self.clearLogs()
 
         # Non-JSON garbage in Message field.
-        process_account_event('{ "Message": "wat" }')
+        self.process_account_event('{ "Message": "wat" }')
         self.assertMessageWasLogged("Invalid account message")
         self.clearLogs()
 
         # Badly-typed JSON value in Message field.
-        process_account_event('{ "Message": "[1, 2, 3"] }')
+        self.process_account_event('{ "Message": "[1, 2, 3"] }')
         self.assertMessageWasLogged("Invalid account message")
         self.clearLogs()
 
@@ -263,7 +266,7 @@ class TestProcessAccountEvents(unittest.TestCase):
             keys_changed_at=13
         )
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=UID,
             iss=ISS,
@@ -283,7 +286,7 @@ class TestProcessAccountEvents(unittest.TestCase):
         # during a race condition in row creation
         self.database.replace_user_record(user["uid"])
 
-        process_account_event(message_body(
+        self.process_account_event(message_body(
             event="reset",
             uid=UID,
             iss=ISS,
