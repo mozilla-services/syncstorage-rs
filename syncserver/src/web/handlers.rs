@@ -6,21 +6,22 @@ use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpReque
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
-use syncserver_db_common::{
-    error::{DbError, DbErrorKind},
+use syncstorage_db::{
     params,
     results::{CreateBatch, Paginated},
-    Db,
+    Db, DbError, DbErrorIntrospect,
 };
 use time;
 
 use crate::{
-    db::transaction::DbTransactionPool,
     error::{ApiError, ApiErrorKind},
     server::ServerState,
-    web::extractors::{
-        BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
-        HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+    web::{
+        extractors::{
+            BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, EmitApiMetric,
+            HeartbeatRequest, MetaRequest, ReplyFormat, TestErrorRequest,
+        },
+        transaction::DbTransactionPool,
     },
 };
 
@@ -189,7 +190,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: Box<dyn Db<'_> + '_>,
+    db: Box<dyn Db<Error = DbError>>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -280,15 +281,16 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: Box<dyn Db<'_> + '_>,
+    db: Box<dyn Db<Error = DbError>>,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");
     // Bail early if we have nonsensical arguments
     // TODO: issue932 may make these multi-level transforms easier
-    let breq = coll.batch.clone().ok_or_else(|| -> ApiError {
-        ApiErrorKind::Db(DbErrorKind::BatchNotFound.into()).into()
-    })?;
+    let breq = coll
+        .batch
+        .clone()
+        .ok_or_else(|| -> ApiError { ApiErrorKind::Db(DbError::batch_not_found()).into() })?;
 
     let new_batch = if let Some(id) = breq.id.clone() {
         trace!("Batch: Validating {}", &id);
@@ -313,14 +315,13 @@ pub async fn post_collection_batch(
             CreateBatch {
                 id: id.clone(),
                 size: if coll.quota_enabled {
-                    Some(usage.total_bytes as usize)
+                    Some(usage.total_bytes)
                 } else {
                     None
                 },
             }
         } else {
-            let err: DbError = DbErrorKind::BatchNotFound.into();
-            return Err(ApiError::from(err));
+            return Err(ApiErrorKind::Db(DbError::batch_not_found()).into());
         }
     } else {
         trace!("Batch: Creating new batch");
@@ -405,8 +406,7 @@ pub async fn post_collection_batch(
         })
         .await?
     } else {
-        let err: DbError = DbErrorKind::BatchNotFound.into();
-        return Err(ApiError::from(err));
+        return Err(ApiErrorKind::Db(DbError::batch_not_found()).into());
     };
 
     // Then, write the BSOs contained in the commit request into the BSO table.
@@ -594,7 +594,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
     let db_state = if cfg!(test) {
         use actix_web::http::header::HeaderValue;
         use std::str::FromStr;
-        use syncserver_db_common::PoolState;
+        use syncstorage_db::PoolState;
 
         let test_pool = PoolState {
             connections: u32::from_str(

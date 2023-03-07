@@ -1,17 +1,16 @@
 #![allow(clippy::type_complexity)]
-use std::task::{Context, Poll};
 
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
-    Error, FromRequest, HttpResponse,
+    FromRequest, HttpResponse,
 };
-use futures::future::{self, LocalBoxFuture, Ready};
+use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::metrics::Metrics;
+use crate::server::MetricsWrapper;
 
 lazy_static! {
     // e.g. "Firefox-iOS-Sync/18.0b1 (iPhone; iPhone OS 13.2.2) (Fennec (synctesting))"
@@ -32,67 +31,35 @@ $
     .unwrap();
 }
 
-#[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Default)]
-pub struct RejectUA;
-
-impl<S, B> Transform<S> for RejectUA
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = RejectUAMiddleware<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        future::ok(RejectUAMiddleware { service })
-    }
-}
-#[allow(clippy::upper_case_acronyms)]
-pub struct RejectUAMiddleware<S> {
-    service: S,
-}
-
-impl<S, B> Service for RejectUAMiddleware<S>
-where
-    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-    B: 'static,
-{
-    type Request = ServiceRequest;
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(cx)
-    }
-
-    fn call(&mut self, sreq: ServiceRequest) -> Self::Future {
-        match sreq.headers().get(USER_AGENT).cloned() {
-            Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
-                trace!("Rejecting User-Agent: {:?}", header);
-                let (req, payload) = sreq.into_parts();
-                Metrics::extract(&req).await?.incr("error.rejectua");
-                let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
-                    ApiError::from(ApiErrorKind::Internal(
-                        "failed to reconstruct ServiceRequest from its parts".to_owned(),
-                    ))
-                })?;
-
-                Ok(sreq.into_response(
-                    HttpResponse::ServiceUnavailable()
-                        .body("0".to_owned())
-                        .into_body(),
+pub fn reject_user_agent(
+    request: ServiceRequest,
+    service: &mut (impl Service<
+        Request = ServiceRequest,
+        Response = ServiceResponse,
+        Error = actix_web::Error,
+    > + 'static),
+) -> LocalBoxFuture<'static, Result<ServiceResponse, actix_web::Error>> {
+    match request.headers().get(USER_AGENT).cloned() {
+        Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
+            trace!("Rejecting User-Agent: {:?}", header);
+            let (req, payload) = request.into_parts();
+            MetricsWrapper::extract(&req)
+                .await?
+                .0
+                .incr("error.rejectua");
+            let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
+                ApiError::from(ApiErrorKind::Internal(
+                    "failed to reconstruct ServiceRequest from its parts".to_owned(),
                 ))
-            }),
-            _ => Box::pin(self.service.call(sreq)),
-        }
+            })?;
+
+            Ok(sreq.into_response(
+                HttpResponse::ServiceUnavailable()
+                    .body("0".to_owned())
+                    .into_body(),
+            ))
+        }),
+        _ => Box::pin(service.call(request)),
     }
 }
 

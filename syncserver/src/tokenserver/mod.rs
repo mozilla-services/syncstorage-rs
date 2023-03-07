@@ -1,5 +1,3 @@
-pub mod auth;
-pub mod db;
 pub mod extractors;
 pub mod handlers;
 pub mod logging;
@@ -10,17 +8,15 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use syncserver_common::{BlockingThreadpool, Metrics};
+use tokenserver_auth::{browserid, oauth, VerifyToken};
 use tokenserver_common::NodeType;
+use tokenserver_db::{params, DbPool, TokenserverPool};
 use tokenserver_settings::Settings;
 
 use crate::{
-    error::ApiError,
-    server::{metrics::Metrics, user_agent, BlockingThreadpool},
-};
-use auth::{browserid, oauth, VerifyToken};
-use db::{
-    params,
-    pool::{DbPool, TokenserverPool},
+    error::{ApiError, ApiErrorKind},
+    server::user_agent,
 };
 
 use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc};
@@ -49,7 +45,7 @@ impl ServerState {
                 .expect("failed to create Tokenserver OAuth verifier"),
         );
         let browserid_verifier = Box::new(
-            browserid::RemoteVerifier::try_from(settings)
+            browserid::Verifier::try_from(settings)
                 .expect("failed to create Tokenserver BrowserID verifier"),
         );
         let use_test_transactions = false;
@@ -86,7 +82,7 @@ impl ServerState {
                 token_duration: settings.token_duration,
             }
         })
-        .map_err(Into::into)
+        .map_err(|_| ApiErrorKind::Internal("Failed to create Tokenserver pool".to_owned()).into())
     }
 }
 

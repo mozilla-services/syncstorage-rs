@@ -1,0 +1,41 @@
+[package]
+name = "syncstorage-spanner"
+version = "0.13.6"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.40"
+backtrace = "0.3.61"
+cadence = "0.26"
+# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
+# Fix for #803 (deadpool#92) points to our fork for now
+#deadpool = "0.5"  # pin to 0.5
+deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
+env_logger = "0.9"
+futures = { version = "0.3", features = ["compat"] }
+google-cloud-rust-raw = "0.11.0"
+# Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
+# syncserver to either fail to either compile, or start. In those cases, try
+# `cargo build --features grpcio/openssl ...`
+grpcio = { version = "0.9" }
+http = "0.2.5"
+log = { version = "0.4", features = [
+  "max_level_debug",
+  "release_max_level_info",
+] }
+# must match what's used by googleapis-raw
+protobuf = "2.20.0"
+slog-scope = "4.3"
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-settings = { path = "../syncstorage-settings" }
+thiserror = "1.0.26"
+# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
+tokio = { version = "0.2.4", features = ["macros", "sync"] }
+url = "2.1"
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+
+[[bin]]
+name = "purge_ttl"
+path = "src/bin/purge_ttl.rs"
