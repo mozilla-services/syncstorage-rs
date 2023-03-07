@@ -1,3 +1,17 @@
+<a name="0.13.6"></a>
+## 0.13.6 (2023-03-07)
+
+
+#### Chore
+
+*   update tempfile crate ([670d6832](https://github.com/mozilla-services/syncstorage-rs/commit/670d68325d48f1f0f7b02e431807aa6dcd252e5f))
+
+#### Bug Fixes
+
+*   connect to the db once instead of every loop iteration ([31192d52](https://github.com/mozilla-services/syncstorage-rs/commit/31192d52c9677e5b5def9ffc62fd43099e499bd1))
+
+
+
 <a name="0.13.5"></a>
 ## 0.13.5 (2023-03-03)
 
