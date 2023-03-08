@@ -1,3 +1,55 @@
+<a name="0.13.6"></a>
+## 0.13.6 (2023-03-07)
+
+
+#### Chore
+
+*   update tempfile crate ([670d6832](https://github.com/mozilla-services/syncstorage-rs/commit/670d68325d48f1f0f7b02e431807aa6dcd252e5f))
+
+#### Bug Fixes
+
+*   connect to the db once instead of every loop iteration ([31192d52](https://github.com/mozilla-services/syncstorage-rs/commit/31192d52c9677e5b5def9ffc62fd43099e499bd1))
+
+
+
+<a name="0.13.5"></a>
+## 0.13.5 (2023-03-03)
+
+
+#### Bug Fixes
+
+*   handle nullable (None) keys_changed_at values (#1464) ([7e298c2d](https://github.com/mozilla-services/syncstorage-rs/commit/7e298c2dd06dc12a0dbc2d7e6d5aab8ab8bdfba6))
+
+
+
+<a name="0.13.4"></a>
+## 0.13.4 (2023-02-24)
+
+
+*   Re-tag 0.13.3
+
+
+
+<a name="0.13.3"></a>
+## 0.13.3 (2023-02-24)
+
+
+#### Chore
+
+*   add another missing file to docker for process_account_events.py (#1463) ([6ee39da4](https://github.com/mozilla-services/syncstorage-rs/commit/6ee39da4a0926e6352bf513206d1d01b63232a2e))
+
+
+
+<a name="0.13.2"></a>
+## 0.13.2 (2023-02-06)
+
+
+#### Chore
+
+*   add missing util.py to docker for process_account_events.py (#1455) (#1457) ([d2f6cf65](https://github.com/mozilla-services/syncstorage-rs/commit/d2f6cf65ff412676935e6f4306311e4599e697e9))
+
+
+
 <a name="0.13.1"></a>
 ## 0.13.1 (2022-12-16)
 
