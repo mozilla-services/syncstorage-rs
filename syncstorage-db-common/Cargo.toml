@@ -1,6 +1,6 @@
 [package]
 name = "syncstorage-db-common"
-version = "0.12.3"
+version = "0.13.6"
 edition = "2021"
 
 [dependencies]
