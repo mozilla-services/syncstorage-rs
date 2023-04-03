@@ -18,7 +18,7 @@ async-trait = "0.1.40"
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
-google-cloud-rust-raw = "0.11.0"
+google-cloud-rust-raw = "0.14.0"
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
 # syncserver to either fail to either compile, or start. In those cases, try
 # `cargo build --features grpcio/openssl ...`

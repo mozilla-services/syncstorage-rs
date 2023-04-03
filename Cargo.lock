@@ -455,31 +455,12 @@ checksum = "a4a4ddaa51a5bc52a6948f74c06d20aaaddb71924eab79b8c97a8c556e942d6a"
 
 [[package]]
 name = "bindgen"
-version = "0.57.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd4865004a46a0aafb2a0a5eb19d3c9fc46ee5f063a6cfc605c69ac9ecf5263d"
-dependencies = [
- "bitflags",
- "cexpr 0.4.0",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "peeking_take_while",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex 0.1.1",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.59.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bd2a9a458e8f4304c52c43ebb0cfbd520289f8379a52e329a38afda99bf8eb8"
 dependencies = [
  "bitflags",
- "cexpr 0.6.0",
+ "cexpr",
  "clang-sys",
  "clap",
  "env_logger",
@@ -491,7 +472,7 @@ dependencies = [
  "quote",
  "regex",
  "rustc-hash",
- "shlex 1.1.0",
+ "shlex",
  "which",
 ]
 
@@ -517,15 +498,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
  "generic-array",
-]
-
-[[package]]
-name = "boringssl-src"
-version = "0.3.0+688fc5c"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f901accdf830d2ea2f4e27f923a5e1125cd8b1a39ab578b9db1a42d578a6922b"
-dependencies = [
- "cmake",
 ]
 
 [[package]]
@@ -605,15 +577,6 @@ name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "50d30906286121d95be3d479533b458f87493b30a4b5f79a607db8f5d11aa91f"
-
-[[package]]
-name = "cexpr"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4aedb84272dbe89af497cf81375129abda4fc0a9e7c5d317498c15cc30c0d27"
-dependencies = [
- "nom 5.1.2",
-]
 
 [[package]]
 name = "cexpr"
@@ -1371,26 +1334,12 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "google-cloud-rust-raw"
-version = "0.11.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0f0936883f3207fa424f69fc218956a5778de6fb847ea3c491f1dc47a39fb26"
+checksum = "1887de8efd052e35bf75e4ed4bc78de35b69447a4b6d9f2e7ede52579512f318"
 dependencies = [
  "futures 0.3.27",
- "grpcio 0.9.1",
- "protobuf",
-]
-
-[[package]]
-name = "grpcio"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24d99e00eed7e0a04ee2705112e7cfdbe1a3cc771147f22f016a8cd2d002187b"
-dependencies = [
- "futures 0.3.27",
- "grpcio-sys 0.9.1+1.38.0",
- "libc",
- "log",
- "parking_lot 0.11.2",
+ "grpcio",
  "protobuf",
 ]
 
@@ -1402,7 +1351,7 @@ checksum = "609832ca501baeb662dc81932fda9ed83f5d058f4b899a807ba222ce696f430a"
 dependencies = [
  "futures-executor",
  "futures-util",
- "grpcio-sys 0.12.1+1.46.5-patched",
+ "grpcio-sys",
  "libc",
  "log",
  "parking_lot 0.12.1",
@@ -1411,28 +1360,12 @@ dependencies = [
 
 [[package]]
 name = "grpcio-sys"
-version = "0.9.1+1.38.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9447d1a926beeef466606cc45717f80897998b548e7dc622873d453e1ecb4be4"
-dependencies = [
- "bindgen 0.57.0",
- "boringssl-src 0.3.0+688fc5c",
- "cc",
- "cmake",
- "libc",
- "libz-sys",
- "pkg-config",
- "walkdir",
-]
-
-[[package]]
-name = "grpcio-sys"
 version = "0.12.1+1.46.5-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf625d1803b6f44203f0428ddace847fb4994def5c803fc8a7a2f18fb3daec62"
 dependencies = [
- "bindgen 0.59.2",
- "boringssl-src 0.5.2+6195bf8",
+ "bindgen",
+ "boringssl-src",
  "cc",
  "cmake",
  "libc",
@@ -3074,12 +3007,6 @@ dependencies = [
 
 [[package]]
 name = "shlex"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
-
-[[package]]
-name = "shlex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
@@ -3518,7 +3445,7 @@ dependencies = [
  "env_logger",
  "futures 0.3.27",
  "google-cloud-rust-raw",
- "grpcio 0.12.1",
+ "grpcio",
  "http",
  "log",
  "protobuf",
