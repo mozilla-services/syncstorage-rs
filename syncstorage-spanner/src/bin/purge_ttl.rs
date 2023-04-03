@@ -305,7 +305,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let chan = ChannelBuilder::new(env)
         .max_send_message_len(100 << 20)
         .max_receive_message_len(100 << 20)
-        .secure_connect(SPANNER_ADDRESS, creds);
+        .set_credentials(creds)
+        .connect(SPANNER_ADDRESS);
     let client = SpannerClient::new(chan);
 
     // Create a session

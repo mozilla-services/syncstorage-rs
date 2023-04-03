@@ -58,7 +58,8 @@ pub async fn create_spanner_session(
                 Ok(ChannelBuilder::new(env)
                     .max_send_message_len(100 << 20)
                     .max_receive_message_len(100 << 20)
-                    .secure_connect(SPANNER_ADDRESS, creds))
+                    .set_credentials(creds)
+                    .connect(SPANNER_ADDRESS))
             }
         })
         .await?;
