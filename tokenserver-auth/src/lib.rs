@@ -13,19 +13,14 @@ use serde::{Deserialize, Serialize};
 use tokenserver_common::TokenserverError;
 
 /// Represents the origin of the token used by Sync clients to access their data.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TokenserverOrigin {
     /// The Python Tokenserver.
+    #[default]
     Python,
     /// The Rust Tokenserver.
     Rust,
-}
-
-impl Default for TokenserverOrigin {
-    fn default() -> Self {
-        TokenserverOrigin::Python
-    }
 }
 
 impl fmt::Display for TokenserverOrigin {
