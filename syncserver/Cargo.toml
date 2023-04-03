@@ -67,3 +67,4 @@ woothee = "0.11"
 [features]
 default = ["syncstorage-db/mysql"]
 no_auth = []
+spanner = ["syncstorage-db/spanner"]
