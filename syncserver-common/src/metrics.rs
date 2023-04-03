@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
+use std::sync::Arc;
 use std::time::Instant;
 
 use cadence::{
@@ -18,7 +19,7 @@ pub struct MetricTimer {
 
 #[derive(Debug, Default, Clone)]
 pub struct Metrics {
-    pub client: Option<StatsdClient>,
+    pub client: Option<Arc<StatsdClient>>,
     pub tags: HashMap<String, String>,
     pub timer: Option<MetricTimer>,
 }
@@ -59,7 +60,7 @@ impl Metrics {
 
     pub fn noop() -> Self {
         Self {
-            client: Some(Self::sink()),
+            client: Some(Arc::new(Self::sink())),
             timer: None,
             tags: HashMap::default(),
         }
@@ -136,7 +137,7 @@ pub fn metrics_from_opts(
     label: &str,
     host: Option<&str>,
     port: u16,
-) -> Result<StatsdClient, MetricError> {
+) -> Result<Arc<StatsdClient>, MetricError> {
     let builder = if let Some(statsd_host) = host {
         let socket = UdpSocket::bind("0.0.0.0:0")?;
         socket.set_nonblocking(true)?;
@@ -148,15 +149,17 @@ pub fn metrics_from_opts(
     } else {
         StatsdClient::builder(label, NopMetricSink)
     };
-    Ok(builder
-        .with_error_handler(|err| {
-            warn!("⚠️ Metric send error:  {:?}", err);
-        })
-        .build())
+    Ok(Arc::new(
+        builder
+            .with_error_handler(|err| {
+                warn!("⚠️ Metric send error:  {:?}", err);
+            })
+            .build(),
+    ))
 }
 
-impl From<&StatsdClient> for Metrics {
-    fn from(client: &StatsdClient) -> Self {
+impl From<&Arc<StatsdClient>> for Metrics {
+    fn from(client: &Arc<StatsdClient>) -> Self {
         Metrics {
             client: Some(client.clone()),
             tags: HashMap::default(),

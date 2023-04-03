@@ -28,8 +28,8 @@ edition = "2021"
 license = "MPL-2.0"
 
 [workspace.dependencies]
-base64 = "0.13"
-cadence = "0.26"
+base64 = "0.21"
+cadence = "0.29"
 backtrace = "0.3"
 chrono = "0.4"
 docopt = "1.1"
