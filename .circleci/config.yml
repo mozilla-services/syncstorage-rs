@@ -363,7 +363,7 @@ jobs:
           command: |
             export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="${CIRCLE_SHA1}"
+              DOCKER_TAG="latest"
             fi
 
             if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
@@ -428,6 +428,9 @@ workflows:
           filters:
             tags:
               only: /.*/
+            branches:
+              only: master
+              # touch: 1676417203
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests

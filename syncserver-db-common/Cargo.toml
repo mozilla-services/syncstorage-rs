@@ -1,17 +1,20 @@
 [package]
 name = "syncserver-db-common"
-version = "0.13.6"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
-backtrace = "0.3.61"
+backtrace.workspace=true
+futures.workspace=true
+http.workspace=true
+
 # Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
 # Fix for #803 (deadpool#92) points to our fork for now
 #deadpool = "0.5"  # pin to 0.5
 deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-futures = { version = "0.3", features = ["compat"] }
-http = "0.2.6"
 syncserver-common = { path = "../syncserver-common" }
 thiserror = "1.0.26"

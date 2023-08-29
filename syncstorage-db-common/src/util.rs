@@ -176,7 +176,12 @@ pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
     let nsecs = ((val % 1000) * 1_000_000).try_into().map_err(|e| {
         SyncstorageDbError::internal(format!("Invalid timestamp (nanoseconds) {}: {}", val, e))
     })?;
-    Ok(Utc
-        .timestamp(secs, nsecs)
-        .to_rfc3339_opts(SecondsFormat::Nanos, true))
+    let ts = Utc.timestamp_opt(secs, nsecs);
+    if let Some(dt) = ts.single() {
+        return Ok(dt.to_rfc3339_opts(SecondsFormat::Nanos, true));
+    };
+    Err(SyncstorageDbError::internal(format!(
+        "Invalid or ambiguous timestamp {}: {:?}",
+        val, ts
+    )))
 }

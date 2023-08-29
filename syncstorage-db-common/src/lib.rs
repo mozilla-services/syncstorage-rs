@@ -260,19 +260,14 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
+    #[default]
     None,
     Newest,
     Oldest,
     Index,
-}
-
-impl Default for Sorting {
-    fn default() -> Self {
-        Sorting::None
-    }
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]

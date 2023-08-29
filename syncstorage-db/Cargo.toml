@@ -1,21 +1,24 @@
 [package]
 name = "syncstorage-db"
-version = "0.13.6"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
+cadence.workspace=true
+env_logger.workspace=true
+futures.workspace=true
+lazy_static.workspace=true
+rand.workspace=true
+slog-scope.workspace=true
+
 async-trait = "0.1.40"
-cadence = "0.26"
-env_logger = "0.9"
-futures = { version = "0.3", features = ["compat"] }
 hostname = "0.3.1"
-lazy_static = "1.4.0"
 log = { version = "0.4", features = [
     "max_level_debug",
     "release_max_level_info",
 ] }
-rand = "0.8"
-slog-scope = "4.3"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
