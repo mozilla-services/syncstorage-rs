@@ -1,4 +1,5 @@
-FROM rust:1.65-buster as builder
+# NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
+FROM rust:1.72-buster as builder
 WORKDIR /app
 ADD . /app
 ENV PATH=$PATH:/root/.cargo/bin

@@ -6,4 +6,5 @@ ignore = [
     "RUSTSEC-2020-0159",
     "RUSTSEC-2020-0071",
     "RUSTSEC-2021-0124",
+    "RUSTSEC-2023-0034", # Bound by actix-http 2.2, Reqwest 0.10
 ]
