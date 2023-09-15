@@ -60,11 +60,6 @@ commands:
       - run:
           name: cargo build
           command: cargo build
-  setup-gcp-grpc:
-    steps:
-      - run:
-          name: Install grpcio dependencies
-          command: sudo apt-get update && sudo apt-get install -y cmake golang-go
   setup-mysql:
     steps:
       - run:
@@ -175,7 +170,6 @@ jobs:
       - checkout
       - display-rust
       - setup-rust-check
-      - setup-gcp-grpc
       - rust-check
       - rust-clippy-spanner
       - rust-clippy-mysql
@@ -208,7 +202,6 @@ jobs:
       - checkout
       - display-rust
       - setup-python
-      - setup-gcp-grpc
       - setup-mysql
       - create-tokenserver-database
       # XXX: currently the time needed to setup-sccache negates its savings
@@ -230,6 +223,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - write-version
       - run:
           name: Build MySQL Docker image
           command: docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
@@ -260,6 +254,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - write-version
       - run:
           name: Build Spanner Docker image
           command: docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
@@ -368,7 +363,7 @@ jobs:
           command: |
             export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="${CIRCLE_SHA1}"
+              DOCKER_TAG="latest"
             fi
 
             if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
@@ -433,6 +428,9 @@ workflows:
           filters:
             tags:
               only: /.*/
+            branches:
+              only: master
+              # touch: 1676417203
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests

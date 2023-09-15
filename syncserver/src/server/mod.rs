@@ -49,7 +49,7 @@ pub struct ServerState {
     pub limits_json: String,
 
     /// Metric reporting
-    pub metrics: Box<StatsdClient>,
+    pub metrics: Arc<StatsdClient>,
 
     pub port: u16,
 
@@ -294,7 +294,7 @@ impl Server {
                 db_pool: Box::new(db_pool.clone()),
                 limits: Arc::clone(&limits),
                 limits_json: limits_json.clone(),
-                metrics: Box::new(metrics.clone()),
+                metrics: metrics.clone(),
                 port,
                 quota_enabled,
                 deadman: Arc::clone(&deadman),
@@ -340,7 +340,7 @@ impl Server {
 
         spawn_metric_periodic_reporter(
             Duration::from_secs(10),
-            *tokenserver_state.metrics.clone(),
+            tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
             blocking_threadpool,
         )?;
@@ -422,7 +422,7 @@ impl FromRequest for MetricsWrapper {
         }
 
         future::ok(MetricsWrapper(Metrics {
-            client: client.as_deref().cloned(),
+            client,
             tags: req.get_tags(),
             timer: None,
         }))
@@ -432,7 +432,7 @@ impl FromRequest for MetricsWrapper {
 /// Emit database pool and threadpool metrics periodically
 fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     interval: Duration,
-    metrics: StatsdClient,
+    metrics: Arc<StatsdClient>,
     pool: T,
     blocking_threadpool: Arc<BlockingThreadpool>,
 ) -> Result<(), DbError> {

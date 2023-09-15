@@ -30,14 +30,14 @@ pub struct ServerState {
     pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
-    pub metrics: Box<StatsdClient>,
+    pub metrics: Arc<StatsdClient>,
     pub token_duration: u64,
 }
 
 impl ServerState {
     pub fn from_settings(
         settings: &Settings,
-        metrics: StatsdClient,
+        metrics: Arc<StatsdClient>,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
         let oauth_verifier = Box::new(
@@ -78,7 +78,7 @@ impl ServerState {
                 db_pool: Box::new(db_pool),
                 node_capacity_release_rate: settings.node_capacity_release_rate,
                 node_type: settings.node_type,
-                metrics: Box::new(metrics),
+                metrics,
                 token_duration: settings.token_duration,
             }
         })
