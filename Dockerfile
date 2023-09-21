@@ -1,9 +1,36 @@
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM rust:1.72-buster as builder
+FROM lukemathwalker/cargo-chef:0.1.62-rust-1.72-buster as chef
 WORKDIR /app
-ADD . /app
-ENV PATH=$PATH:/root/.cargo/bin
-# temp removed --no-install-recommends due to CI docker build issue
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS cacher
+ARG DATABASE_BACKEND=spanner
+COPY --from=planner /app/mysql_pubkey.asc mysql_pubkey.asc
+
+# cmake is required to build grpcio-sys for Spanner builds
+RUN \
+    echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
+    # mysql_pubkey.asc from:
+    # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
+    # related:
+    # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
+    apt-key adv --import mysql_pubkey.asc && \
+    apt-get -q update && \
+    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
+
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
+
+FROM chef as builder
+ARG DATABASE_BACKEND=spanner
+
+COPY . /app
+COPY --from=cacher /app/target /app/target
+COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
+
 RUN \
     echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
@@ -16,11 +43,13 @@ RUN \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
+ENV PATH=$PATH:/root/.cargo/bin
+
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --locked --root /app && \
-    cargo install --path ./syncserver --locked --root /app --bin purge_ttl
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --locked --root /app && \
+    if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
 FROM debian:buster-slim
 WORKDIR /app
@@ -56,7 +85,7 @@ COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
-COPY --from=builder /app/syncserver/src/db/spanner/schema.ddl /app/schema.ddl
+COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 RUN pip3 install -r /app/tools/integration_tests/requirements.txt

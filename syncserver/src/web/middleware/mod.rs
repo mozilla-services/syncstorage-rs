@@ -13,10 +13,11 @@ use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     web::Data,
 };
+use syncserver_common::Metrics;
+use tokenserver_auth::TokenserverOrigin;
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::{metrics::Metrics, ServerState};
-use crate::tokenserver::auth::TokenserverOrigin;
+use crate::server::ServerState;
 
 pub fn emit_http_status_with_tokenserver_origin(
     req: ServiceRequest,
@@ -37,7 +38,7 @@ pub fn emit_http_status_with_tokenserver_origin(
                 .map(|state| state.metrics.clone())
                 .ok_or_else(|| ApiError::from(ApiErrorKind::NoServerState))?;
 
-            Metrics::from(&*statsd_client)
+            Metrics::from(&statsd_client)
         };
 
         let mut tags = HashMap::default();

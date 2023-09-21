@@ -1,105 +1,70 @@
 [package]
 name = "syncserver"
-version = "0.13.7"
-license = "MPL-2.0"
-authors = [
-  "Ben Bangert <ben@groovie.org>",
-  "Phil Jenvey <pjenvey@underboss.org>",
-  "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
-]
-edition = "2018"
 default-run = "syncserver"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
+backtrace.workspace=true
+base64.workspace=true
+cadence.workspace=true
+chrono.workspace=true
+docopt.workspace=true
+env_logger.workspace=true
+futures.workspace=true
+hex.workspace=true
+lazy_static.workspace=true
+rand.workspace=true
+regex.workspace=true
+sentry-backtrace.workspace=true
+serde.workspace=true
+serde_derive.workspace=true
+serde_json.workspace=true
+sha2.workspace=true
+slog.workspace=true
+slog-async.workspace=true
+slog-envlogger.workspace=true
+slog-mozlog-json.workspace=true
+slog-scope.workspace=true
+slog-stdlog.workspace=true
+slog-term.workspace=true
+
 actix-http = "2"
 actix-web = "3"
-actix-rt = "1"          # Pin to 1.0, due to dependencies on Tokio
+actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
-actix-service = "1.0.6"
 async-trait = "0.1.40"
-backtrace = "0.3.61"
-base64 = "0.13"
-bb8 = "0.4.1"           # pin to 0.4 due to dependencies on Tokio
-bytes = "1.0"
-cadence = "0.26"
-chrono = "0.4"
-# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
-# Fix for #803 (deadpool#92) points to our fork for now
-#deadpool = "0.5"  # pin to 0.5
-deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
-diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_logger = "0.1.1"
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-docopt = "1.1.0"
 dyn-clone = "1.0.4"
-env_logger = "0.9"
-futures = { version = "0.3", features = ["compat"] }
-google-cloud-rust-raw = "0.11.0"
-# Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
-# syncserver to either fail to either compile, or start. In those cases, try
-# `cargo build --features grpcio/openssl ...`
-grpcio = { version = "0.9" }
-lazy_static = "1.4.0"
-hawk = "3.2"
-hex = "0.4.3"
 hostname = "0.3.1"
+hawk = "3.2"
 hmac = "0.11"
-http = "0.2.5"
-log = { version = "0.4", features = [
-  "max_level_debug",
-  "release_max_level_info",
-] }
 mime = "0.3"
-num_cpus = "1"
-# must match what's used by googleapis-raw
-protobuf = "2.20.0"
-pyo3 = { version = "0.14", features = ["auto-initialize"] }
-rand = "0.8"
-regex = "1.4"
 reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
 sentry = { version = "0.19", features = [
   "with_curl_transport",
 ] } # pin to 0.19 until on-prem sentry server is updated
-sentry-backtrace = "0.19"
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-scheduled-thread-pool = "0.2"
-sha2 = "0.9"
-slog = { version = "2.5", features = [
-  "max_level_info",
-  "release_max_level_info",
-  "dynamic-keys",
-] }
-slog-async = "2.5"
-slog-envlogger = "2.2.0"
-slog-mozlog-json = "0.1"
-slog-scope = "4.3"
-slog-stdlog = "4.1"
-slog-term = "2.6"
-syncserver-settings = { path = "../syncserver-settings" }
-syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-settings = { path = "../syncserver-settings" }
+syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
 thiserror = "1.0.26"
+tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
+tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
-url = "2.1"
 urlencoding = "2.1"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
 validator = "0.14"
 validator_derive = "0.14"
 woothee = "0.11"
 
-[dev-dependencies]
-mockito = "0.30.0"
-
 [features]
+default = ["syncstorage-db/mysql"]
 no_auth = []
-
-[[bin]]
-name = "purge_ttl"
+spanner = ["syncstorage-db/spanner"]

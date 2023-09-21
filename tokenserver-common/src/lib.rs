@@ -1,6 +1,8 @@
-pub mod error;
+mod error;
 
 use serde::{Deserialize, Serialize};
+
+pub use error::{ErrorLocation, TokenType, TokenserverError};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum NodeType {

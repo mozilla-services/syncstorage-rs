@@ -36,6 +36,7 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - make
 - pkg-config
 - [Rust stable](https://rustup.rs)
+- python 3.9+
 - MySQL 5.7 (or compatible)
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
@@ -48,7 +49,11 @@ are missing `libcurl4-openssl-dev`.
 
 1. Follow the instructions below to use either MySQL or Spanner as your DB.
 2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
-3. `make run` starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
+3. To start a local server in debug mode, run either:
+    - `make run_mysql` if using MySQL or,
+    - `make run_spanner` if using spanner.
+
+    The above starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
 4. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
 
 ### MySQL
@@ -57,13 +62,19 @@ Durable sync needs only a valid mysql DSN in order to set up connections to a My
 
 `mysql://_user_:_password_@_host_/_database_`
 
-To setup a fresh MySQL DB and user: (`mysql -u root`):
+To setup a fresh MySQL DB and user:
+
+- First make sure that you have a MySQL server running, to do that run: `mysqld`
+- Then, run the following to launch a mysql shell `mysql -u root`
+- Finally, run each of the following SQL statements
 
 ```sql
 CREATE USER "sample_user"@"localhost" IDENTIFIED BY "sample_password";
 CREATE DATABASE syncstorage_rs;
+CREATE DATABASE tokenserver_rs;
 
 GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
+GRANT ALL PRIVILEGES on tokenserver_rs.* to sample_user@localhost;
 ```
 
 ### Spanner

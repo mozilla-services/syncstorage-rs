@@ -15,7 +15,6 @@ use actix_web::{
     web::{Data, Json, Query},
     Error, FromRequest, HttpMessage, HttpRequest,
 };
-
 use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
 use syncserver_settings::Secrets;
 
@@ -27,23 +26,23 @@ use serde::{
     Deserialize, Serialize,
 };
 use serde_json::Value;
-use syncserver_common::X_WEAVE_RECORDS;
-use syncserver_db_common::{
+use syncserver_common::{Metrics, X_WEAVE_RECORDS};
+use syncstorage_db::{
     params::{self, PostCollectionBso},
-    util::SyncTimestamp,
-    DbPool, Sorting, UserIdentifier,
+    DbError, DbPool, Sorting, SyncTimestamp, UserIdentifier,
 };
+use tokenserver_auth::TokenserverOrigin;
 use validator::{Validate, ValidationError};
 
-use crate::db::transaction::DbTransactionPool;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::label;
-use crate::server::{metrics, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
-use crate::tokenserver::auth::TokenserverOrigin;
+use crate::server::{
+    tags::Taggable, MetricsWrapper, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX,
+};
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},
-    tags::Taggable,
+    transaction::DbTransactionPool,
     DOCKER_FLOW_ENDPOINTS,
 };
 const BATCH_MAX_IDS: usize = 100;
@@ -408,7 +407,6 @@ impl FromRequest for BsoBody {
                 )
                 .into());
             }
-
             let state = match req.app_data::<Data<ServerState>>() {
                 Some(s) => s,
                 None => {
@@ -637,7 +635,7 @@ impl FromRequest for CollectionParam {
 pub struct MetaRequest {
     pub user_id: UserIdentifier,
     pub tokenserver_origin: TokenserverOrigin,
-    pub metrics: metrics::Metrics,
+    pub metrics: Metrics,
 }
 
 impl FromRequest for MetaRequest {
@@ -655,7 +653,7 @@ impl FromRequest for MetaRequest {
             Ok(MetaRequest {
                 tokenserver_origin: user_id.tokenserver_origin,
                 user_id: user_id.into(),
-                metrics: metrics::Metrics::extract(&req).await?,
+                metrics: MetricsWrapper::extract(&req).await?.0,
             })
         }
         .boxed_local()
@@ -678,7 +676,7 @@ pub struct CollectionRequest {
     pub tokenserver_origin: TokenserverOrigin,
     pub query: BsoQueryParams,
     pub reply: ReplyFormat,
-    pub metrics: metrics::Metrics,
+    pub metrics: Metrics,
 }
 
 impl FromRequest for CollectionRequest {
@@ -719,7 +717,7 @@ impl FromRequest for CollectionRequest {
                 user_id: user_id.into(),
                 query,
                 reply,
-                metrics: metrics::Metrics::extract(&req).await?,
+                metrics: MetricsWrapper::extract(&req).await?.0,
             })
         }
         .boxed_local()
@@ -738,7 +736,7 @@ pub struct CollectionPostRequest {
     pub query: BsoQueryParams,
     pub bsos: BsoBodies,
     pub batch: Option<BatchRequest>,
-    pub metrics: metrics::Metrics,
+    pub metrics: Metrics,
     pub quota_enabled: bool,
 }
 
@@ -817,7 +815,7 @@ impl FromRequest for CollectionPostRequest {
                 query,
                 bsos,
                 batch: batch.opt,
-                metrics: metrics::Metrics::extract(&req).await?,
+                metrics: MetricsWrapper::extract(&req).await?.0,
                 quota_enabled: state.quota_enabled,
             })
         })
@@ -834,7 +832,7 @@ pub struct BsoRequest {
     pub tokenserver_origin: TokenserverOrigin,
     pub query: BsoQueryParams,
     pub bso: String,
-    pub metrics: metrics::Metrics,
+    pub metrics: Metrics,
 }
 
 impl FromRequest for BsoRequest {
@@ -860,7 +858,7 @@ impl FromRequest for BsoRequest {
                 user_id: user_id.into(),
                 query,
                 bso: bso.bso,
-                metrics: metrics::Metrics::extract(&req).await?,
+                metrics: MetricsWrapper::extract(&req).await?.0,
             })
         })
     }
@@ -876,7 +874,7 @@ pub struct BsoPutRequest {
     pub query: BsoQueryParams,
     pub bso: String,
     pub body: BsoBody,
-    pub metrics: metrics::Metrics,
+    pub metrics: Metrics,
 }
 
 impl FromRequest for BsoPutRequest {
@@ -889,7 +887,7 @@ impl FromRequest for BsoPutRequest {
         let mut payload = payload.take();
 
         async move {
-            let metrics = metrics::Metrics::extract(&req).await?;
+            let metrics = MetricsWrapper::extract(&req).await?.0;
             let (user_id, collection, query, bso, body) =
                 <(
                     HawkIdentifier,
@@ -938,7 +936,7 @@ pub struct QuotaInfo {
 #[derive(Clone, Debug)]
 pub struct HeartbeatRequest {
     pub headers: HeaderMap,
-    pub db_pool: Box<dyn DbPool>,
+    pub db_pool: Box<dyn DbPool<Error = DbError>>,
     pub quota: QuotaInfo,
 }
 
@@ -1733,6 +1731,7 @@ impl_emit_api_metric!(BsoPutRequest);
 #[cfg(test)]
 mod tests {
     use actix_http::h1;
+    use base64::{engine, Engine};
     use futures::executor::block_on;
 
     use super::*;
@@ -1755,13 +1754,12 @@ mod tests {
     use serde_json::{self, json};
     use sha2::Sha256;
     use syncserver_common;
-    use syncserver_db_common::Db;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
     use tokio::sync::RwLock;
 
-    use crate::db::mock::{MockDb, MockDbPool};
-    use crate::server::{metrics, ServerState};
+    use crate::server::ServerState;
+    use syncstorage_db::mock::{MockDb, MockDbPool};
 
     use crate::web::auth::HawkPayload;
 
@@ -1779,8 +1777,8 @@ mod tests {
     const INVALID_BSO_NAME: &str =
         "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";
 
-    fn make_db() -> Box<dyn Db<'static>> {
-        Box::new(MockDb::new())
+    fn make_db() -> MockDb {
+        MockDb::new()
     }
 
     fn make_state() -> ServerState {
@@ -1791,14 +1789,12 @@ mod tests {
             limits: Arc::clone(&SERVER_LIMITS),
             limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
             port: 8000,
-            metrics: Box::new(
-                metrics::metrics_from_opts(
-                    &syncstorage_settings.statsd_label,
-                    syncserver_settings.statsd_host.as_deref(),
-                    syncserver_settings.statsd_port,
-                )
-                .unwrap(),
-            ),
+            metrics: syncserver_common::metrics_from_opts(
+                &syncstorage_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
             quota_enabled: syncstorage_settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
         }
@@ -1823,14 +1819,14 @@ mod tests {
         let payload_hash = hmac.finalize().into_bytes();
         let mut id = payload.as_bytes().to_vec();
         id.extend(payload_hash.to_vec());
-        let id = base64::encode_config(&id, base64::URL_SAFE);
+        let id = engine::general_purpose::URL_SAFE.encode(&id);
         let token_secret = syncserver_common::hkdf_expand_32(
             format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
             Some(salt.as_bytes()),
             &SECRETS.master_secret,
         )
         .unwrap();
-        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+        let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
         let credentials = Credentials {
             id,
             key: Key::new(token_secret.as_bytes(), hawk::DigestAlgorithm::Sha256).unwrap(),

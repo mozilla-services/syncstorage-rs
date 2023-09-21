@@ -21,8 +21,9 @@ use serde::{
     Serialize,
 };
 
-use syncserver_common::{from_error, impl_fmt_display, ReportableError};
-use syncserver_db_common::error::DbError;
+use syncserver_common::{from_error, impl_fmt_display, MetricError, ReportableError};
+use syncstorage_db::{DbError, DbErrorIntrospect};
+
 use thiserror::Error;
 
 use crate::web::error::{HawkError, ValidationError};
@@ -57,7 +58,7 @@ pub const RETRY_AFTER: u8 = 10;
 #[derive(Debug)]
 pub struct ApiError {
     kind: ApiErrorKind,
-    pub(crate) backtrace: Backtrace,
+    pub(crate) backtrace: Box<Backtrace>,
     status: StatusCode,
 }
 
@@ -87,8 +88,8 @@ pub enum ApiErrorKind {
 impl ApiErrorKind {
     pub fn metric_label(&self) -> Option<String> {
         match self {
-            ApiErrorKind::Db(err) => err.metric_label(),
             ApiErrorKind::Hawk(err) => err.metric_label(),
+            ApiErrorKind::Db(err) => err.metric_label(),
             ApiErrorKind::Validation(err) => err.metric_label(),
             _ => None,
         }
@@ -96,6 +97,15 @@ impl ApiErrorKind {
 }
 
 impl ApiError {
+    pub fn is_sentry_event(&self) -> bool {
+        // Should we report this error to sentry?
+        self.status.is_server_error()
+            && match &self.kind {
+                ApiErrorKind::Db(dbe) => dbe.is_sentry_event(),
+                _ => self.kind.metric_label().is_none(),
+            }
+    }
+
     fn weave_error_code(&self) -> WeaveError {
         match &self.kind {
             ApiErrorKind::Validation(ver) => ver.weave_error_code(),
@@ -148,8 +158,8 @@ impl From<ApiError> for HttpResponse {
     }
 }
 
-impl From<cadence::MetricError> for ApiError {
-    fn from(inner: cadence::MetricError) -> Self {
+impl From<MetricError> for ApiError {
+    fn from(inner: MetricError) -> Self {
         ApiErrorKind::Internal(inner.to_string()).into()
     }
 }
@@ -173,7 +183,7 @@ impl From<ApiErrorKind> for ApiError {
 
         Self {
             kind,
-            backtrace: Backtrace::new(),
+            backtrace: Box::new(Backtrace::new()),
             status,
         }
     }

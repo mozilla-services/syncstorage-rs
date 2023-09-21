@@ -13,6 +13,7 @@ use actix_web::{
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
+use base64::{engine, Engine};
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
@@ -21,17 +22,11 @@ use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
 use syncserver_settings::Secrets;
-use tokenserver_common::{
-    error::{ErrorLocation, TokenserverError},
-    NodeType,
-};
+use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
+use tokenserver_db::{params, results, Db, DbPool};
 
-use super::{
-    db::{models::Db, params, pool::DbPool, results},
-    LogItemsMutator, ServerState, TokenserverMetrics,
-};
-use crate::server::metrics::Metrics;
-use crate::web::tags::Taggable;
+use super::{LogItemsMutator, ServerState, TokenserverMetrics};
+use crate::server::{tags::Taggable, MetricsWrapper};
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();
@@ -218,7 +213,7 @@ impl FromRequest for TokenserverRequest {
                 hash_device_id(&hashed_fxa_uid, device_id, fxa_metrics_hash_secret)
             };
 
-            let db = <Box<dyn Db>>::extract(&req).await?;
+            let DbWrapper(db) = DbWrapper::extract(&req).await?;
             let service_id = {
                 let path = req.match_info();
 
@@ -312,7 +307,10 @@ struct QueryParams {
     pub duration: Option<String>,
 }
 
-impl FromRequest for Box<dyn Db> {
+/// A local "newtype" that wraps `Box<dyn Db>` so we can implement `FromRequest`.
+pub struct DbWrapper(pub Box<dyn Db>);
+
+impl FromRequest for DbWrapper {
     type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -321,10 +319,12 @@ impl FromRequest for Box<dyn Db> {
         let req = req.clone();
 
         Box::pin(async move {
-            <Box<dyn DbPool>>::extract(&req)
+            DbPoolWrapper::extract(&req)
                 .await?
+                .0
                 .get()
                 .await
+                .map(Self)
                 .map_err(|e| TokenserverError {
                     context: format!("Couldn't acquire a database connection: {}", e),
                     ..TokenserverError::internal_error()
@@ -333,7 +333,9 @@ impl FromRequest for Box<dyn Db> {
     }
 }
 
-impl FromRequest for Box<dyn DbPool> {
+struct DbPoolWrapper(Box<dyn DbPool>);
+
+impl FromRequest for DbPoolWrapper {
     type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -344,7 +346,7 @@ impl FromRequest for Box<dyn DbPool> {
         Box::pin(async move {
             let state = get_server_state(&req)?.as_ref();
 
-            Ok(state.db_pool.clone())
+            Ok(Self(state.db_pool.clone()))
         })
     }
 }
@@ -592,15 +594,15 @@ impl FromRequest for KeyId {
                 // encoded as URL-safe base64 with the padding removed. We convert it to hex
                 // because we store the client state as hex in the database.
                 let client_state_hex = {
-                    let bytes =
-                        base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                            .map_err(|e| TokenserverError {
-                                context: format!(
-                                    "Failed to decode client state base64 in X-KeyID: {}",
-                                    e
-                                ),
-                                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                            })?;
+                    let bytes = engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(encoded_client_state)
+                        .map_err(|e| TokenserverError {
+                            context: format!(
+                                "Failed to decode client state base64 in X-KeyID: {}",
+                                e
+                            ),
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                        })?;
 
                     hex::encode(bytes)
                 };
@@ -648,8 +650,12 @@ impl FromRequest for TokenserverMetrics {
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
 
-        // `Result::unwrap` is safe to use here, since Metrics::extract can never fail
-        Box::pin(async move { Ok(TokenserverMetrics(Metrics::extract(&req).await.unwrap())) })
+        // `Result::unwrap` is safe to use here, since MetricsWrapper::extract can never fail
+        Box::pin(async move {
+            Ok(TokenserverMetrics(
+                MetricsWrapper::extract(&req).await.unwrap().0,
+            ))
+        })
     }
 }
 
@@ -706,14 +712,11 @@ mod tests {
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
+    use tokenserver_auth::{browserid, oauth, MockVerifier};
+    use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
-    use crate::server::metrics;
-    use crate::tokenserver::{
-        auth::{browserid, oauth, MockVerifier},
-        db::mock::MockDbPool as MockTokenserverPool,
-        ServerState,
-    };
+    use crate::tokenserver::ServerState;
 
     use std::sync::Arc;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1338,14 +1341,12 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            metrics: Box::new(
-                metrics::metrics_from_opts(
-                    &tokenserver_settings.statsd_label,
-                    syncserver_settings.statsd_host.as_deref(),
-                    syncserver_settings.statsd_port,
-                )
-                .unwrap(),
-            ),
+            metrics: syncserver_common::metrics_from_opts(
+                &tokenserver_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
             token_duration: TOKEN_DURATION,
         }
     }

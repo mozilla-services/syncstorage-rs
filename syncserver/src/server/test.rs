@@ -7,6 +7,7 @@ use actix_web::{
     test,
     web::Bytes,
 };
+use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac, NewMac};
@@ -16,17 +17,16 @@ use serde::de::DeserializeOwned;
 use serde_json::json;
 use sha2::Sha256;
 use syncserver_common::{self, X_LAST_MODIFIED};
-use syncserver_db_common::{
+use syncserver_settings::{Secrets, Settings};
+use syncstorage_db::{
     params,
     results::{DeleteBso, GetBso, PostBsos, PutBso},
-    util::SyncTimestamp,
+    DbPoolImpl, SyncTimestamp,
 };
-use syncserver_settings::{Secrets, Settings};
 use syncstorage_settings::ServerLimits;
 
 use super::*;
 use crate::build_app;
-use crate::db::pool_from_settings;
 use crate::tokenserver;
 use crate::web::{auth::HawkPayload, extractors::BsoBody};
 
@@ -65,20 +65,21 @@ fn get_test_settings() -> Settings {
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
-    let metrics = Metrics::sink();
+    let metrics = Arc::new(Metrics::sink());
     let blocking_threadpool = Arc::new(BlockingThreadpool::default());
 
     ServerState {
-        db_pool: pool_from_settings(
-            &settings.syncstorage,
-            &Metrics::from(&metrics),
-            blocking_threadpool.clone(),
-        )
-        .await
-        .expect("Could not get db_pool in get_test_state"),
+        db_pool: Box::new(
+            DbPoolImpl::new(
+                &settings.syncstorage,
+                &Metrics::from(&metrics),
+                blocking_threadpool,
+            )
+            .expect("Could not get db_pool in get_test_state"),
+        ),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        metrics: Box::new(metrics),
+        metrics,
         port: settings.port,
         quota_enabled: settings.syncstorage.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
@@ -165,14 +166,14 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let mut id: Vec<u8> = vec![];
     id.extend(payload.as_bytes());
     id.extend_from_slice(&signature);
-    let id = base64::encode_config(&id, base64::URL_SAFE);
+    let id = engine::general_purpose::URL_SAFE.encode(&id);
     let token_secret = syncserver_common::hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
         &SECRETS.master_secret,
     )
     .expect("hkdf_expand_32 failed in create_hawk_header");
-    let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+    let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,

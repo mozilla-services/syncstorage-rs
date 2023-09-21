@@ -4,17 +4,18 @@ use std::{
 };
 
 use actix_web::{http::StatusCode, Error, HttpResponse};
+use base64::{engine, Engine};
 use serde::Serialize;
 use serde_json::Value;
-use tokenserver_common::{error::TokenserverError, NodeType};
+use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
+use tokenserver_common::{NodeType, TokenserverError};
+use tokenserver_db::{
+    params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
+    Db,
+};
 
 use super::{
-    auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin},
-    db::{
-        models::Db,
-        params::{GetNodeId, PostUser, PutUser, ReplaceUsers},
-    },
-    extractors::TokenserverRequest,
+    extractors::{DbWrapper, TokenserverRequest},
     TokenserverMetrics,
 };
 
@@ -32,7 +33,7 @@ pub struct TokenserverResult {
 
 pub async fn get_tokenserver_result(
     req: TokenserverRequest,
-    db: Box<dyn Db>,
+    DbWrapper(db): DbWrapper,
     TokenserverMetrics(mut metrics): TokenserverMetrics,
 ) -> Result<HttpResponse, TokenserverError> {
     let updates = update_user(&req, db).await?;
@@ -83,7 +84,7 @@ fn get_token_plaintext(
                 context: format!("Failed to decode the client state hex: {}", e),
                 ..TokenserverError::internal_error()
             })?;
-        let client_state_b64 = base64::encode_config(&client_state, base64::URL_SAFE_NO_PAD);
+        let client_state_b64 = engine::general_purpose::URL_SAFE_NO_PAD.encode(client_state);
 
         format!(
             "{:013}-{:}",
@@ -242,7 +243,7 @@ async fn update_user(
     }
 }
 
-pub async fn heartbeat(db: Box<dyn Db>) -> Result<HttpResponse, Error> {
+pub async fn heartbeat(DbWrapper(db): DbWrapper) -> Result<HttpResponse, Error> {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),

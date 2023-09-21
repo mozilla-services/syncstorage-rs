@@ -8,6 +8,7 @@
 
 use std::convert::TryInto;
 
+use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Header as HawkHeader, Key, RequestBuilder};
 use hmac::{Hmac, Mac, NewMac};
@@ -16,6 +17,7 @@ use sha2::Sha256;
 use syncserver_common;
 use syncserver_settings::Secrets;
 use time::Duration;
+use tokenserver_auth::TokenserverOrigin;
 
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::Uri;
@@ -26,7 +28,6 @@ use super::{
 };
 use crate::error::{ApiErrorKind, ApiResult};
 use crate::label;
-use crate::tokenserver::auth::TokenserverOrigin;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -90,7 +91,7 @@ impl HawkPayload {
             &secrets.master_secret,
         )
         .map_err(|e| ApiErrorKind::Internal(format!("HKDF Error: {:?}", e)))?;
-        let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+        let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
 
         let request = RequestBuilder::new(method, host, port, path).request();
 
@@ -125,7 +126,7 @@ impl HawkPayload {
     /// Decode the `id` property of a Hawk header
     /// and verify the payload part against the signature part.
     fn extract_and_validate(id: &str, secrets: &Secrets, expiry: u64) -> ApiResult<HawkPayload> {
-        let decoded_id = base64::decode_config(id, base64::URL_SAFE)?;
+        let decoded_id = engine::general_purpose::URL_SAFE.decode(id)?;
         if decoded_id.len() <= 32 {
             Err(HawkErrorKind::TruncatedId)?;
         }

@@ -1,8 +1,18 @@
 [package]
 name = "syncserver-common"
-version = "0.13.7"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
+cadence.workspace=true
+futures.workspace=true
+sha2.workspace=true
+serde.workspace=true
+serde_json.workspace=true
+slog.workspace=true
+slog-scope.workspace=true
+
+actix-web = "3"
 hkdf = "0.11"
-sha2 = "0.9"
