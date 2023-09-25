@@ -113,6 +113,9 @@ impl SpannerDb {
             session: RefCell::new(Default::default()),
         };
         SpannerDb {
+            // We can probably move this to Rc:
+            // https://github.com/mozilla-services/syncstorage-rs/issues/1480
+            #[allow(clippy::arc_with_non_send_sync)]
             inner: Arc::new(inner),
             coll_cache,
             metrics: metrics.clone(),

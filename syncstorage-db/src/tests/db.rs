@@ -866,7 +866,7 @@ async fn get_bsos() -> Result<(), DbError> {
 
     let uid = 2;
     let coll = "clients";
-    let sortindexes = vec![1, 3, 4, 2, 0];
+    let sortindexes = [1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
             uid,
