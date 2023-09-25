@@ -130,6 +130,8 @@ impl MysqlDb {
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
         };
+        // https://github.com/mozilla-services/syncstorage-rs/issues/1480
+        #[allow(clippy::arc_with_non_send_sync)]
         MysqlDb {
             inner: Arc::new(inner),
             coll_cache,

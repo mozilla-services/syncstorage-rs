@@ -1,4 +1,5 @@
-FROM lukemathwalker/cargo-chef:0.1.50-rust-1.66-buster as chef
+# NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
+FROM lukemathwalker/cargo-chef:0.1.62-rust-1.72-buster as chef
 WORKDIR /app
 
 FROM chef AS planner

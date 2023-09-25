@@ -22,7 +22,7 @@ pub fn report(
     extra: HashMap<String, String>,
     mut event: Event<'static>,
 ) {
-    event.tags.extend(tags.into_iter());
+    event.tags.extend(tags);
     event
         .extra
         .extend(extra.into_iter().map(|(k, v)| (k, Value::from(v))));
