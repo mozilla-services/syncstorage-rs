@@ -1,3 +1,33 @@
+<a name="0.14.0"></a>
+## 0.14.0 (2023-09-26)
+
+
+#### Refactor
+
+*   quiet latest clippy warnings ([dc98e95f](https://github.com/mozilla-services/syncstorage-rs/commit/dc98e95ff3a59c267df7807ce9320d8b5a348b63))
+*   add tokenserver-auth crate (#1413) ([ab5df9ba](https://github.com/mozilla-services/syncstorage-rs/commit/ab5df9ba79651fd2ed6a2374f39b6f0e060dac49), closes [#1278](https://github.com/mozilla-services/syncstorage-rs/issues/1278))
+*   add database crates (#1407) ([b5b7e57f](https://github.com/mozilla-services/syncstorage-rs/commit/b5b7e57f935703f2c4207ad88eaa310c343fdb94), closes [#1277](https://github.com/mozilla-services/syncstorage-rs/issues/1277))
+*   convert middleware to `wrap_fn` paradigm (#1374) ([973e90fa](https://github.com/mozilla-services/syncstorage-rs/commit/973e90fae88f104b6fb66d4f49a1c76472816e4a), closes [#714](https://github.com/mozilla-services/syncstorage-rs/issues/714))
+
+#### Features
+
+*   convert dependencies to use `workspace`s ([1f9323b7](https://github.com/mozilla-services/syncstorage-rs/commit/1f9323b7b3a4dd94a669099043a5692553746554), closes [#1461](https://github.com/mozilla-services/syncstorage-rs/issues/1461))
+
+#### Chore
+
+*   bump the rust version and some crates ([0ccaa4ed](https://github.com/mozilla-services/syncstorage-rs/commit/0ccaa4ed0205d57c12d3c86b38ffda0a27653f9d))
+*   pin back to master's versions of protobuf/chrono ([e5058d26](https://github.com/mozilla-services/syncstorage-rs/commit/e5058d26d41865ec8afff93b6323c7185b16dd80))
+*   fix the version.json in Docker builds (#1456) ([5f646df4](https://github.com/mozilla-services/syncstorage-rs/commit/5f646df4bb81e05885e9c097831c63e9ebede685))
+*   add missing util.py to docker for process_account_events.py (#1455) ([489ee051](https://github.com/mozilla-services/syncstorage-rs/commit/489ee051a5adb5f03e0e6f30e1f9bad0018d4c39))
+*   updates for Rust 1.66 (#1451) ([d1178796](https://github.com/mozilla-services/syncstorage-rs/commit/d11787965c1be802c6f07e26aa49f722f3f9cc91))
+*   tag 0.13.1 (#1448) ([e48f9484](https://github.com/mozilla-services/syncstorage-rs/commit/e48f948456969f295f1250ab98156fc80e124bb8))
+
+#### Doc
+
+*   Minor improvements to onboarding docs (#1465) ([ef0fbfb9](https://github.com/mozilla-services/syncstorage-rs/commit/ef0fbfb9d76b4940ddb79705dcd226e34bba4401))
+
+
+
 <a name="0.13.7"></a>
 ## 0.13.7 (2023-09-12)
 
