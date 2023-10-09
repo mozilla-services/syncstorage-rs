@@ -46,9 +46,9 @@ impl SpannerSessionManager {
             .to_owned();
         let env = Arc::new(EnvBuilder::new().build());
 
-        #[cfg(not(test))]
+        #[cfg(not(debug_assertions))]
         let test_transactions = false;
-        #[cfg(test)]
+        #[cfg(debug_assertions)]
         let test_transactions = settings.database_use_test_transactions;
 
         Ok(Self {

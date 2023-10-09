@@ -399,7 +399,7 @@ impl MysqlDb {
         let timestamp = self.timestamp().as_i64();
         if self.quota.enabled {
             let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
-                user_id: UserIdentifier::new_legacy(user_id),
+                user_id: bso.user_id.clone(),
                 collection: bso.collection.clone(),
                 collection_id,
             })?;
