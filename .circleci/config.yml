@@ -90,10 +90,10 @@ commands:
     steps:
       - run:
           name: cargo test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace
       - run:
           name: quota test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
@@ -197,6 +197,7 @@ jobs:
             MYSQL_USER: test
             MYSQL_PASSWORD: test
             MYSQL_DATABASE: syncstorage
+      - image: gcr.io/cloud-spanner-emulator/emulator
     resource_class: large
     steps:
       - checkout
@@ -210,6 +211,22 @@ jobs:
       - write-version
       - cargo-build
       - run-tests
+      - run:
+          name: cargo build --no-default-features --features=syncstorage-db/spanner
+          command: cargo build --no-default-features --features=syncstorage-db/spanner
+      - run:
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+          name: setup spanner
+          command: scripts/prepare-spanner.sh
+      - run:
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+          # XXX: disable RUST_TEST_THREADS=1
+          name: cargo test --workspace --no-default-features --features=syncstorage-db/spanner
+          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner
       - run-tokenserver-scripts-tests
       #- save-sccache-cache
   build-mysql-image:

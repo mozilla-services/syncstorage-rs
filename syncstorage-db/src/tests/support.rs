@@ -21,7 +21,6 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPoolImpl
     // inherit SYNC_SYNCSTORAGE__DATABASE_URL from the env
     let mut settings = settings.unwrap_or_else(|| SyncserverSettings::test_settings().syncstorage);
     settings.database_use_test_transactions = use_test_transactions;
-    settings.database_spanner_use_mutations = false;
 
     let metrics = Metrics::noop();
     let pool = DbPoolImpl::new(&settings, &metrics, Arc::new(BlockingThreadpool::default()))?;
