@@ -12,7 +12,13 @@ services:
         depends_on:
             - sync-db
         restart: "no"
-        entrypoint: "/app/scripts/prepare-spanner.sh"
+        entrypoint: >
+            /bin/sh -c "
+              sleep 5;
+              /app/bin/syncserver;
+              sleep infinity;
+            "
+"/app/scripts/prepare-spanner.sh"
         environment:
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
     tokenserver-db:
