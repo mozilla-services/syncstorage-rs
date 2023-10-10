@@ -17,7 +17,6 @@ services:
               /app/bin/wait-for-it.sh 127.0.0.1:9010 --strict -- /app/scripts/prepare-spanner.sh /app/schema.ddl &&
               sleep infinity;
             "
-"/app/scripts/prepare-spanner.sh"
         environment:
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
     tokenserver-db:

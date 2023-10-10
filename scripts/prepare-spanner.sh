@@ -20,7 +20,7 @@
 
 #sleep 5
 
-set -e
+set -ex
 
 PROJECT_ID=test-project
 INSTANCE_ID=test-instance
@@ -34,13 +34,13 @@ DDL_STATEMENTS=$(
   | jq -R -s -c 'split(";")'
 ) 
 
-curl -sS --request POST \
+curl -v -sS --request POST \
   "$SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances" \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --data "{\"instance\":{\"config\":\"emulator-test-config\",\"nodeCount\":1,\"displayName\":\"Test Instance\"},\"instanceId\":\"$INSTANCE_ID\"}"
 
-curl -sS --request POST \
+curl -v -sS --request POST \
   "$SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST/v1/projects/$PROJECT_ID/instances/$INSTANCE_ID/databases" \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
