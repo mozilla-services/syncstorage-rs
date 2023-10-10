@@ -14,8 +14,7 @@ services:
         restart: "no"
         entrypoint: >
             /bin/sh -c "
-              sleep 5;
-              /app/bin/syncserver;
+              /app/bin/wait-for-it.sh 127.0.0.1:9010 --strict -- /app/scripts/prepare-spanner.sh /app/schema.ddl &&
               sleep infinity;
             "
 "/app/scripts/prepare-spanner.sh"

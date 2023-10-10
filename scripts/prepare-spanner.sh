@@ -18,7 +18,7 @@
 # This file contains modifications of the original version.
 #
 
-sleep 5
+#sleep 5
 
 set -e
 
@@ -27,7 +27,7 @@ INSTANCE_ID=test-instance
 DATABASE_ID=test-database
 
 DDL_STATEMENTS=$(
-  grep -v ^-- schema.ddl \
+  grep -v ^-- $1 \
   | sed -n 's/ \+/ /gp' \
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
@@ -46,4 +46,4 @@ curl -sS --request POST \
   --header 'Content-Type: application/json' \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"
 
-sleep infinity
+#sleep infinity

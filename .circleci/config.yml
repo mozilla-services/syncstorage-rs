@@ -219,7 +219,7 @@ jobs:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
           name: setup spanner
-          command: scripts/prepare-spanner.sh
+          command: scripts/prepare-spanner.sh syncstorage-spanner/src/schema.ddl
       - run:
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
