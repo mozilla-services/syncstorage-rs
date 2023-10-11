@@ -14,7 +14,8 @@ consider it a bug.
 
 """
 
-import unittest2
+# unittest imported by pytest requirement
+import unittest
 
 
 import re
@@ -701,7 +702,7 @@ class TestStorage(StorageFunctionalTestCase):
     def test_x_timestamp_header(self):
         # This can't be run against a live server.
         if self.distant:
-            raise unittest2.SkipTest
+            raise unittest.SkipTest
 
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -839,7 +840,7 @@ class TestStorage(StorageFunctionalTestCase):
 
     def test_overquota(self):
         # This can't be run against a live server.
-        raise unittest2.SkipTest
+        raise unittest.SkipTest
         if self.distant:
             raise unittest2.SkipTest
 
@@ -897,7 +898,7 @@ class TestStorage(StorageFunctionalTestCase):
             # Can't run against live server if it doesn't
             # report the right config options.
             if self.distant:
-                raise unittest2.SkipTest
+                raise unittest.SkipTest
             max_bytes = get_limit_config(self.config, "max_post_bytes")
             max_count = get_limit_config(self.config, "max_post_records")
             max_req_bytes = get_limit_config(self.config, "max_request_bytes")
@@ -1483,7 +1484,7 @@ class TestStorage(StorageFunctionalTestCase):
         # This can't be run against a live server because we
         # have to forge an auth token to test things properly.
         if self.distant:
-            raise unittest2.SkipTest
+            raise unittest.SkipTest
 
         # Write some items while we've got a good token.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
@@ -2122,7 +2123,7 @@ class TestStorage(StorageFunctionalTestCase):
             if batch1 == batch2:
                 break
         else:
-            raise unittest2.SkipTest("failed to generate conflicting batchid")
+            raise unittest.SkipTest("failed to generate conflicting batchid")
 
     def test_that_we_dont_resurrect_committed_batches(self):
         # This retry loop tries to trigger a situation where we:
@@ -2146,7 +2147,7 @@ class TestStorage(StorageFunctionalTestCase):
             if batch1 == batch2:
                 break
         else:
-            raise unittest2.SkipTest("failed to trigger re-use of batchid")
+            raise unittest.SkipTest("failed to trigger re-use of batchid")
         # Despite having the same batchid, the second batch should
         # be completely independent of the first.
         resp = self.app.get(self.root + "/storage/xxx_col2")
