@@ -1,4 +1,4 @@
-FROM python:3.7.7-buster
+FROM python:3.11-bullseye
 
 COPY purge_ttl.py count_expired_rows.py count_users.py requirements.txt /app/
 
