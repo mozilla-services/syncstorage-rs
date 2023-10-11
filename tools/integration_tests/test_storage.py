@@ -842,7 +842,7 @@ class TestStorage(StorageFunctionalTestCase):
         # This can't be run against a live server.
         raise unittest.SkipTest
         if self.distant:
-            raise unittest2.SkipTest
+            raise unittest.SkipTest
 
         # Clear out any data that's already in the store.
         self.retry_delete(self.root + "/storage")
