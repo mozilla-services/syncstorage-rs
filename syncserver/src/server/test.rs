@@ -10,7 +10,7 @@ use actix_web::{
 use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
