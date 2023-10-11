@@ -77,6 +77,8 @@ pub struct Settings {
     pub database_pool_connection_max_idle: Option<u32>,
     #[cfg(debug_assertions)]
     pub database_use_test_transactions: bool,
+    #[cfg(debug_assertions)]
+    pub database_spanner_use_mutations: bool,
 
     /// Server-enforced limits for request payloads.
     pub limits: ServerLimits,
@@ -108,6 +110,8 @@ impl Default for Settings {
             database_pool_connection_timeout: Some(30),
             #[cfg(debug_assertions)]
             database_use_test_transactions: false,
+            #[cfg(debug_assertions)]
+            database_spanner_use_mutations: true,
             limits: ServerLimits::default(),
             statsd_label: "syncstorage".to_string(),
             enable_quota: false,

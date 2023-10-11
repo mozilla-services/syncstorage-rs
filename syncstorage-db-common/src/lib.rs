@@ -278,22 +278,3 @@ pub struct UserIdentifier {
     pub fxa_uid: String,
     pub fxa_kid: String,
 }
-
-impl UserIdentifier {
-    /// Create a new legacy id user identifier
-    pub fn new_legacy(user_id: u64) -> Self {
-        Self {
-            legacy_id: user_id,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<u32> for UserIdentifier {
-    fn from(val: u32) -> Self {
-        Self {
-            legacy_id: val.into(),
-            ..Default::default()
-        }
-    }
-}

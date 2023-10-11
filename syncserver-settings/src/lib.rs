@@ -141,6 +141,7 @@ impl Settings {
         settings.port = 8000;
         settings.syncstorage.database_pool_max_size = 1;
         settings.syncstorage.database_use_test_transactions = true;
+        settings.syncstorage.database_spanner_use_mutations = false;
         settings.syncstorage.database_pool_connection_max_idle = Some(300);
         settings.syncstorage.database_pool_connection_lifespan = Some(300);
         settings
