@@ -816,6 +816,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "curl"
+version = "0.4.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "509bd11746c7ac09ebd19f0b17782eae80aadee26237658a6b4808afb5c11a22"
+dependencies = [
+ "curl-sys",
+ "libc",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "socket2 0.4.9",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "curl-sys"
+version = "0.4.67+curl-8.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cc35d066510b197a0f72de863736641539957628c8a42e70e27c66849e77c34"
+dependencies = [
+ "cc",
+ "libc",
+ "libz-sys",
+ "openssl-sys",
+ "pkg-config",
+ "vcpkg",
+ "windows-sys",
+]
+
+[[package]]
 name = "deadpool"
 version = "0.5.2"
 source = "git+https://github.com/mozilla-services/deadpool?branch=deadpool-v0.5.2-issue92#ede2a1f1fa22a7266cf4681edd2b988dfd333af9"
@@ -2841,6 +2871,7 @@ version = "0.31.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0097a48cd1999d983909f07cb03b15241c5af29e5e679379efac1c06296abecc"
 dependencies = [
+ "curl",
  "httpdate 1.0.3",
  "native-tls",
  "reqwest 0.11.22",

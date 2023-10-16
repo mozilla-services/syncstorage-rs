@@ -43,7 +43,7 @@ lazy_static = "1.4"
 protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
 rand = "0.8"
 regex = "1.4"
-sentry = { version = "0.31" }
+sentry = { version = "0.31", features = ["curl"] }
 sentry-backtrace = "0.31"
 serde = "1.0"
 serde_derive = "1.0"
