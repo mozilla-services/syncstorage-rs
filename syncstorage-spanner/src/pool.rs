@@ -19,9 +19,6 @@ use super::{
 pub struct SpannerDbPool {
     /// Pool of db connections
     pool: deadpool::managed::Pool<SpannerSession, DbError>,
-    /// Whether `SpannerDb` use Spanner mutations (which should be more
-    /// efficient for their bulk operations)
-    use_mutations: bool,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -56,14 +53,9 @@ impl SpannerDbPool {
         };
         let config = deadpool::managed::PoolConfig { max_size, timeouts };
         let pool = deadpool::managed::Pool::from_config(manager, config);
-        #[cfg(not(debug_assertions))]
-        let use_mutations = true;
-        #[cfg(debug_assertions)]
-        let use_mutations = settings.database_spanner_use_mutations;
 
         Ok(Self {
             pool,
-            use_mutations,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
             quota: Quota {
@@ -83,7 +75,6 @@ impl SpannerDbPool {
         })?;
         Ok(SpannerDb::new(
             conn,
-            self.use_mutations,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             self.quota,
