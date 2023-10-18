@@ -1,51 +1,49 @@
 [package]
 name = "syncserver"
 default-run = "syncserver"
-version.workspace=true
-license.workspace=true
-authors.workspace=true
-edition.workspace=true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-backtrace.workspace=true
-base64.workspace=true
-cadence.workspace=true
-chrono.workspace=true
-docopt.workspace=true
-env_logger.workspace=true
-futures.workspace=true
-hex.workspace=true
-lazy_static.workspace=true
-rand.workspace=true
-regex.workspace=true
-sentry-backtrace.workspace=true
-serde.workspace=true
-serde_derive.workspace=true
-serde_json.workspace=true
-sha2.workspace=true
-slog.workspace=true
-slog-async.workspace=true
-slog-envlogger.workspace=true
-slog-mozlog-json.workspace=true
-slog-scope.workspace=true
-slog-stdlog.workspace=true
-slog-term.workspace=true
+actix-web.workspace = true
+backtrace.workspace = true
+base64.workspace = true
+cadence.workspace = true
+chrono.workspace = true
+docopt.workspace = true
+env_logger.workspace = true
+futures.workspace = true
+hex.workspace = true
+lazy_static.workspace = true
+rand.workspace = true
+regex.workspace = true
+sentry.workspace = true
+sentry-backtrace.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+slog.workspace = true
+slog-async.workspace = true
+slog-envlogger.workspace = true
+slog-mozlog-json.workspace = true
+slog-scope.workspace = true
+slog-stdlog.workspace = true
+slog-term.workspace = true
 
 actix-http = "2"
-actix-web = "3"
 actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
 actix-cors = "0.5"
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 hostname = "0.3.1"
 hawk = "3.2"
-hmac = "0.11"
+hmac = "0.12"
 mime = "0.3"
 reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = [
-  "with_curl_transport",
-] } # pin to 0.19 until on-prem sentry server is updated
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
@@ -60,9 +58,9 @@ tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { version = "0.2.4", features = ["macros", "sync"] }
 urlencoding = "2.1"
-validator = "0.14"
-validator_derive = "0.14"
-woothee = "0.11"
+validator = "0.16"
+validator_derive = "0.16"
+woothee = "0.13"
 
 [features]
 default = ["syncstorage-db/mysql"]

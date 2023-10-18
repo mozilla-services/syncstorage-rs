@@ -1,5 +1,5 @@
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM lukemathwalker/cargo-chef:0.1.62-rust-1.72-buster as chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.62-rust-1.72-bullseye as chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -12,7 +12,7 @@ COPY --from=planner /app/mysql_pubkey.asc mysql_pubkey.asc
 
 # cmake is required to build grpcio-sys for Spanner builds
 RUN \
-    echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
@@ -32,7 +32,7 @@ COPY --from=cacher /app/target /app/target
 COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 
 RUN \
-    echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
@@ -51,7 +51,7 @@ RUN \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --locked --root /app && \
     if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
-FROM debian:buster-slim
+FROM docker.io/library/debian:bullseye-slim
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
 COPY --from=builder /app/mysql_pubkey.asc /app
@@ -67,7 +67,7 @@ RUN \
     apt-get -q update && \
     # and ca-certificates needed for https://repo.mysql.com
     apt-get install -y gnupg ca-certificates && \
-    echo "deb https://repo.mysql.com/apt/debian/ buster mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     apt-key adv --import mysql_pubkey.asc && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
