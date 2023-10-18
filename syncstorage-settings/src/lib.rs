@@ -79,6 +79,8 @@ pub struct Settings {
     pub database_use_test_transactions: bool,
     #[cfg(debug_assertions)]
     pub database_spanner_use_mutations: bool,
+    /// Whether leader aware router headers are sent to Spanner
+    pub database_spanner_route_to_leader: bool,
 
     /// Server-enforced limits for request payloads.
     pub limits: ServerLimits,
@@ -112,6 +114,7 @@ impl Default for Settings {
             database_use_test_transactions: false,
             #[cfg(debug_assertions)]
             database_spanner_use_mutations: true,
+            database_spanner_route_to_leader: false,
             limits: ServerLimits::default(),
             statsd_label: "syncstorage".to_string(),
             enable_quota: false,
