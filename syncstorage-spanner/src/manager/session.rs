@@ -72,7 +72,7 @@ pub struct SpannerSessionSettings {
 }
 
 impl SpannerSessionSettings {
-    pub fn from(settings: &Settings) -> Result<Self, DbError> {
+    pub fn from_settings(settings: &Settings) -> Result<Self, DbError> {
         let database = settings
             .spanner_database_name()
             .ok_or_else(|| {

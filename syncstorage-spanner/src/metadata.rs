@@ -27,6 +27,9 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 /// transactions to the leader region." as described by other Spanner clients
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
+/// Our user agent value for [METRICS_KEY]
+const USER_AGENT: &str = "gcp-grpc-rs";
+
 /// Builds the [grpcio::Metadata] for all db operations
 #[derive(Default)]
 pub struct MetadataBuilder<'a> {
@@ -61,7 +64,7 @@ impl<'a> MetadataBuilder<'a> {
     pub fn build(self) -> Result<grpcio::Metadata, grpcio::Error> {
         let mut meta = grpcio::MetadataBuilder::new();
         meta.add_str(PREFIX_KEY, self.prefix)?;
-        meta.add_str(METRICS_KEY, "gcp-grpc-rs")?;
+        meta.add_str(METRICS_KEY, USER_AGENT)?;
         if self.route_to_leader {
             meta.add_str(LEADER_AWARE_KEY, "true")?;
         }
@@ -86,7 +89,9 @@ impl<'a> MetadataBuilder<'a> {
 mod tests {
     use std::{collections::HashMap, str};
 
-    use super::{MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY};
+    use super::{
+        MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
+    };
 
     pub const DB: &str = "/projects/sync/instances/test/databases/sync1";
     pub const SESSION: &str = "/projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
@@ -104,7 +109,7 @@ mod tests {
         assert_eq!(str::from_utf8(meta.get(PREFIX_KEY).unwrap()).unwrap(), DB);
         assert_eq!(
             str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(),
-            "gcp-grpc-rs"
+            USER_AGENT
         );
         assert_eq!(
             str::from_utf8(meta.get(ROUTING_KEY).unwrap()).unwrap(),

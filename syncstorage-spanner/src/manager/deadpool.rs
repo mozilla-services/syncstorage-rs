@@ -37,7 +37,7 @@ impl SpannerSessionManager {
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, DbError> {
         Ok(Self {
-            settings: SpannerSessionSettings::from(settings)?,
+            settings: SpannerSessionSettings::from_settings(settings)?,
             env: Arc::new(EnvBuilder::new().build()),
             metrics: metrics.clone(),
             blocking_threadpool,
