@@ -7,10 +7,10 @@ pyjwt
 pyramid
 pyramid_hawkauth
 pyfxa
+pytest
 requests
 simplejson
 sqlalchemy
 tokenlib
-unittest2
 webtest
 wsgiproxy2
