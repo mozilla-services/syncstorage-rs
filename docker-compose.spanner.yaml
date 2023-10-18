@@ -16,7 +16,7 @@ services:
         environment:
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
     tokenserver-db:
-        image: mysql:5.7
+        image: docker.io/library/mysql:5.7
         volumes:
             - tokenserver_db_data:/var/lib/mysql
         restart: always
