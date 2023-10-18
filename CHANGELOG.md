@@ -1,3 +1,22 @@
+<a name="0.14.1"></a>
+## 0.14.1 (2023-10-18)
+
+
+#### Features
+
+*   add dynamic routing headers to all Spanner ops (#1491) ([af416fc2](https://github.com/mozilla-services/syncstorage-rs/commit/af416fc29f51ef48115ff876b4cd99e274631d0a))
+
+#### Chore
+
+*   missed fixes from rollup (#1492) ([68d32670](https://github.com/mozilla-services/syncstorage-rs/commit/68d326701505a7c3ae04d59953eb099cf8add4d2))
+*   tag 0.14.0 (#1485) ([c563ce5b](https://github.com/mozilla-services/syncstorage-rs/commit/c563ce5ba9006d4b12324a0912e765b2c562c01c))
+
+#### Bug Fixes
+
+*   switch more test flags to cfg(debug_assertions) (#1488) ([fb701288](https://github.com/mozilla-services/syncstorage-rs/commit/fb701288244daeee18a3ec26c986b6e6a98bb4f8))
+
+
+
 <a name="0.14.0"></a>
 ## 0.14.0 (2023-09-26)
 
