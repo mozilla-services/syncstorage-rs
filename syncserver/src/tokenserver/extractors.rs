@@ -16,7 +16,7 @@ use actix_web::{
 use base64::{engine, Engine};
 use futures::future::LocalBoxFuture;
 use hex;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;

@@ -7,7 +7,7 @@ use actix_web::Error as ActixError;
 use base64::DecodeError;
 
 use hawk::Error as ParseError;
-use hmac::crypto_mac::{InvalidKeyLength, MacError};
+use hmac::digest::{InvalidLength, MacError};
 use serde::{
     ser::{SerializeSeq, Serializer},
     Serialize,
@@ -69,7 +69,7 @@ pub enum HawkErrorKind {
     InvalidHeader,
 
     #[error("{}", _0)]
-    InvalidKeyLength(InvalidKeyLength),
+    InvalidKeyLength(InvalidLength),
 
     #[error("{}", _0)]
     Json(JsonError),
@@ -166,7 +166,7 @@ impl_fmt_display!(HawkError, HawkErrorKind);
 impl_fmt_display!(ValidationError, ValidationErrorKind);
 
 from_error!(DecodeError, ApiError, HawkErrorKind::Base64);
-from_error!(InvalidKeyLength, ApiError, HawkErrorKind::InvalidKeyLength);
+from_error!(InvalidLength, ApiError, HawkErrorKind::InvalidKeyLength);
 from_error!(JsonError, ApiError, HawkErrorKind::Json);
 from_error!(MacError, ApiError, HawkErrorKind::Hmac);
 from_error!(ToStrError, ApiError, HawkErrorKind::Header);

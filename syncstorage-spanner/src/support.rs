@@ -18,7 +18,7 @@ use syncstorage_db_common::{
     params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-use super::{error::DbError, pool::Conn, DbResult};
+use crate::{error::DbError, pool::Conn, DbResult};
 
 pub trait IntoSpannerValue {
     const TYPE_CODE: TypeCode;
@@ -167,7 +167,7 @@ impl ExecuteSqlRequestBuilder {
     pub fn execute_async(self, conn: &Conn) -> DbResult<StreamedResultSetAsync> {
         let stream = conn
             .client
-            .execute_streaming_sql(&self.prepare_request(conn))?;
+            .execute_streaming_sql_opt(&self.prepare_request(conn), conn.session_opt()?)?;
         Ok(StreamedResultSetAsync::new(stream))
     }
 
@@ -175,7 +175,7 @@ impl ExecuteSqlRequestBuilder {
     pub async fn execute_dml_async(self, conn: &Conn) -> DbResult<i64> {
         let rs = conn
             .client
-            .execute_sql_async(&self.prepare_request(conn))?
+            .execute_sql_async_opt(&self.prepare_request(conn), conn.session_opt()?)?
             .await?;
         Ok(rs.get_stats().get_row_count_exact())
     }
