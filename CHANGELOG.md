@@ -1,3 +1,17 @@
+<a name="0.14.2"></a>
+## 0.14.2 (2023-11-21)
+
+
+#### Doc
+
+*   remove outdated firefox-ios warning (#1497) ([59283b59](https://github.com/mozilla-services/syncstorage-rs/commit/59283b5977a5d997c1292eb5392f6ad252855c0d))
+
+#### Bug Fixes
+
+*   disable sentry's debug-images feature (#1499) ([8d9185e4](https://github.com/mozilla-services/syncstorage-rs/commit/8d9185e4a012b1113f0a89d3d2852b55c7449114))
+
+
+
 <a name="0.14.1"></a>
 ## 0.14.1 (2023-10-18)
 
