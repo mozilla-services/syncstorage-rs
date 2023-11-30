@@ -1,3 +1,13 @@
+<a name="0.14.3"></a>
+## 0.14.3 (2023-11-30)
+
+
+#### Bug Fixes
+
+*   restore emitting backend specific db errors to sentry (#1500) ([18f4d594](https://github.com/mozilla-services/syncstorage-rs/commit/18f4d594905e9dd4affc557a5da39cd19b6882f7))
+
+
+
 <a name="0.14.2"></a>
 ## 0.14.2 (2023-11-21)
 
