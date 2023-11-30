@@ -113,7 +113,10 @@ impl DbErrorIntrospect for DbError {
 
 impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
-        matches!(&self.kind, DbErrorKind::Common(e) if e.is_sentry_event())
+        match &self.kind {
+            DbErrorKind::Common(e) => e.is_sentry_event(),
+            _ => true,
+        }
     }
 
     fn metric_label(&self) -> Option<String> {
