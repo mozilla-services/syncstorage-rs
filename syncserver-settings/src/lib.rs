@@ -45,11 +45,11 @@ pub struct Settings {
 impl Settings {
     /// Load the settings from the config file if supplied, then the environment.
     pub fn with_env_and_config_file(filename: Option<&str>) -> Result<Self, ConfigError> {
-        let mut s = Config::builder();
+        let mut s = Config::default();
 
         // Merge the config file if supplied
         if let Some(config_filename) = filename {
-            s = s.add_source(File::with_name(config_filename));
+            s.merge(File::with_name(config_filename))?;
         }
 
         // Merge the environment overrides
@@ -58,11 +58,9 @@ impl Settings {
         // Environment ever change their policy about case insensitivity.
         // This will accept environment variables specified as
         // `SYNC_FOO__BAR_VALUE="gorp"` as `foo.bar_value = "gorp"`
-        s = s.add_source(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"));
+        s.merge(Environment::with_prefix(&PREFIX.to_uppercase()).separator("__"))?;
 
-        let config = s.build()?;
-
-        match config.try_deserialize::<Settings>() {
+        match s.try_into::<Self>() {
             Ok(mut s) => {
                 s.syncstorage.normalize();
 
@@ -114,7 +112,7 @@ impl Settings {
                             .to_string(),
                     );
                 }
-
+                dbg!(&s);
                 Ok(s)
             }
             // Configuration errors are not very sysop friendly, Try to make them
