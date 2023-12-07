@@ -1,3 +1,7 @@
+use std::sync::OnceLock;
+
+use google_cloud_rust_raw::VERSION;
+
 /// gRPC metadata Resource prefix header
 ///
 /// Generic across Google APIs. This "improves routing by the backend" as
@@ -28,7 +32,7 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
 /// Our user agent value for [METRICS_KEY]
-const USER_AGENT: &str = "gl-external/{version} gccl/{version}";
+static USER_AGENT: OnceLock<String> = OnceLock::new();
 
 /// Builds the [grpcio::Metadata] for all db operations
 #[derive(Default)]
@@ -63,9 +67,8 @@ impl<'a> MetadataBuilder<'a> {
     /// Build the [grpcio::Metadata]
     pub fn build(self) -> Result<grpcio::Metadata, grpcio::Error> {
         let mut meta = grpcio::MetadataBuilder::new();
-        let ua = USER_AGENT
-            .to_owned()
-            .replace("{version}", env!("CARGO_PKG_VERSION"));
+        let ua = USER_AGENT.get_or_init(|| format!("gl-external/{VERSION} gccl/{VERSION}"));
+
         meta.add_str(PREFIX_KEY, self.prefix)?;
         meta.add_str(METRICS_KEY, &ua)?;
         if self.route_to_leader {
@@ -92,9 +95,8 @@ impl<'a> MetadataBuilder<'a> {
 mod tests {
     use std::{collections::HashMap, str};
 
-    use super::{
-        MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
-    };
+    use super::{MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY};
+    use google_cloud_rust_raw::VERSION;
 
     pub const DB: &str = "/projects/sync/instances/test/databases/sync1";
     pub const SESSION: &str = "/projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
@@ -110,10 +112,11 @@ mod tests {
 
         assert_eq!(meta.len(), 3);
         assert_eq!(str::from_utf8(meta.get(PREFIX_KEY).unwrap()).unwrap(), DB);
-        let ua = USER_AGENT
-            .to_owned()
-            .replace("{version}", env!("CARGO_PKG_VERSION"));
-        assert_eq!(str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(), &ua);
+        let ua_test = format!("gl-external/{VERSION} gccl/{VERSION}");
+        assert_eq!(
+            str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(),
+            &ua_test
+        );
         assert_eq!(
             str::from_utf8(meta.get(ROUTING_KEY).unwrap()).unwrap(),
             format!("session={SESSION}&foo=bar+baz")
