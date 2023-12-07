@@ -113,7 +113,6 @@ mod tests {
         let ua = USER_AGENT
             .to_owned()
             .replace("{version}", env!("CARGO_PKG_VERSION"));
-        dbg!(&ua);
         assert_eq!(str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(), &ua);
         assert_eq!(
             str::from_utf8(meta.get(ROUTING_KEY).unwrap()).unwrap(),
