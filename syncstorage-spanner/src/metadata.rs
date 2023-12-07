@@ -70,7 +70,7 @@ impl<'a> MetadataBuilder<'a> {
         let ua = USER_AGENT.get_or_init(|| format!("gl-external/{VERSION} gccl/{VERSION}"));
 
         meta.add_str(PREFIX_KEY, self.prefix)?;
-        meta.add_str(METRICS_KEY, &ua)?;
+        meta.add_str(METRICS_KEY, ua)?;
         if self.route_to_leader {
             meta.add_str(LEADER_AWARE_KEY, "true")?;
         }
