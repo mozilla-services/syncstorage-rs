@@ -28,7 +28,7 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
 /// Our user agent value for [METRICS_KEY]
-const USER_AGENT: &str = "gcp-grpc-rs";
+const USER_AGENT: &str = "gl-external/{version} gccl/{version}";
 
 /// Builds the [grpcio::Metadata] for all db operations
 #[derive(Default)]
@@ -63,8 +63,11 @@ impl<'a> MetadataBuilder<'a> {
     /// Build the [grpcio::Metadata]
     pub fn build(self) -> Result<grpcio::Metadata, grpcio::Error> {
         let mut meta = grpcio::MetadataBuilder::new();
+        let ua = USER_AGENT
+            .to_owned()
+            .replace("{version}", env!("CARGO_PKG_VERSION"));
         meta.add_str(PREFIX_KEY, self.prefix)?;
-        meta.add_str(METRICS_KEY, USER_AGENT)?;
+        meta.add_str(METRICS_KEY, &ua)?;
         if self.route_to_leader {
             meta.add_str(LEADER_AWARE_KEY, "true")?;
         }
@@ -97,7 +100,7 @@ mod tests {
     pub const SESSION: &str = "/projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
 
     #[test]
-    fn basic() {
+    fn metadata_basic() {
         let meta = MetadataBuilder::with_prefix(DB)
             .routing_param("session", SESSION)
             .routing_param("foo", "bar baz")
@@ -107,10 +110,11 @@ mod tests {
 
         assert_eq!(meta.len(), 3);
         assert_eq!(str::from_utf8(meta.get(PREFIX_KEY).unwrap()).unwrap(), DB);
-        assert_eq!(
-            str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(),
-            USER_AGENT
-        );
+        let ua = USER_AGENT
+            .to_owned()
+            .replace("{version}", env!("CARGO_PKG_VERSION"));
+        dbg!(&ua);
+        assert_eq!(str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(), &ua);
         assert_eq!(
             str::from_utf8(meta.get(ROUTING_KEY).unwrap()).unwrap(),
             format!("session={SESSION}&foo=bar+baz")
