@@ -28,7 +28,7 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
 /// The USER_AGENT string is a static value specified by Google.
-/// It's meaning is not to be known to the uninitiated.
+/// Its meaning is not to be known to the uninitiated.
 const USER_AGENT: &str = "gl-external/1.0 gccl/1.0";
 
 /// Builds the [grpcio::Metadata] for all db operations
