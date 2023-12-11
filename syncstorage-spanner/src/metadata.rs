@@ -1,7 +1,3 @@
-use std::sync::OnceLock;
-
-use google_cloud_rust_raw::VERSION;
-
 /// gRPC metadata Resource prefix header
 ///
 /// Generic across Google APIs. This "improves routing by the backend" as
@@ -31,8 +27,9 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 /// transactions to the leader region." as described by other Spanner clients
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
-/// Our user agent value for [METRICS_KEY]
-static USER_AGENT: OnceLock<String> = OnceLock::new();
+/// The USER_AGENT string is a static value specified by Google.
+/// It's meaning is not to be known to the uninitiated.
+const USER_AGENT: &str = "gl-external/1.0 gccl/1.0";
 
 /// Builds the [grpcio::Metadata] for all db operations
 #[derive(Default)]
@@ -67,10 +64,9 @@ impl<'a> MetadataBuilder<'a> {
     /// Build the [grpcio::Metadata]
     pub fn build(self) -> Result<grpcio::Metadata, grpcio::Error> {
         let mut meta = grpcio::MetadataBuilder::new();
-        let ua = USER_AGENT.get_or_init(|| format!("gl-external/{VERSION} gccl/{VERSION}"));
 
         meta.add_str(PREFIX_KEY, self.prefix)?;
-        meta.add_str(METRICS_KEY, ua)?;
+        meta.add_str(METRICS_KEY, USER_AGENT)?;
         if self.route_to_leader {
             meta.add_str(LEADER_AWARE_KEY, "true")?;
         }
@@ -95,11 +91,13 @@ impl<'a> MetadataBuilder<'a> {
 mod tests {
     use std::{collections::HashMap, str};
 
-    use super::{MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY};
-    use google_cloud_rust_raw::VERSION;
+    use super::{
+        MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
+    };
 
-    pub const DB: &str = "/projects/sync/instances/test/databases/sync1";
-    pub const SESSION: &str = "/projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
+    // Resource paths should not start with a "/"
+    pub const DB: &str = "projects/sync/instances/test/databases/sync1";
+    pub const SESSION: &str = "projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
 
     #[test]
     fn metadata_basic() {
@@ -112,10 +110,9 @@ mod tests {
 
         assert_eq!(meta.len(), 3);
         assert_eq!(str::from_utf8(meta.get(PREFIX_KEY).unwrap()).unwrap(), DB);
-        let ua_test = format!("gl-external/{VERSION} gccl/{VERSION}");
         assert_eq!(
             str::from_utf8(meta.get(METRICS_KEY).unwrap()).unwrap(),
-            &ua_test
+            USER_AGENT
         );
         assert_eq!(
             str::from_utf8(meta.get(ROUTING_KEY).unwrap()).unwrap(),
