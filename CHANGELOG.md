@@ -1,3 +1,13 @@
+<a name="0.14.4"></a>
+## 0.14.4 (2023-12-11)
+
+
+#### Bug Fixes
+
+*   Use google specified UA for x-goog-api-client (#1506) ([9916b3bd](https://github.com/mozilla-services/syncstorage-rs/commit/9916b3bdb0506e9805f505007222f189f1c4dc54))
+
+
+
 <a name="0.14.3"></a>
 ## 0.14.3 (2023-11-30)
 
