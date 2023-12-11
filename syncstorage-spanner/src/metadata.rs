@@ -27,8 +27,9 @@ const ROUTING_KEY: &str = "x-goog-request-params";
 /// transactions to the leader region." as described by other Spanner clients
 const LEADER_AWARE_KEY: &str = "x-goog-spanner-route-to-leader";
 
-/// Our user agent value for [METRICS_KEY]
-const USER_AGENT: &str = "gcp-grpc-rs";
+/// The USER_AGENT string is a static value specified by Google.
+/// Its meaning is not to be known to the uninitiated.
+const USER_AGENT: &str = "gl-external/1.0 gccl/1.0";
 
 /// Builds the [grpcio::Metadata] for all db operations
 #[derive(Default)]
@@ -63,6 +64,7 @@ impl<'a> MetadataBuilder<'a> {
     /// Build the [grpcio::Metadata]
     pub fn build(self) -> Result<grpcio::Metadata, grpcio::Error> {
         let mut meta = grpcio::MetadataBuilder::new();
+
         meta.add_str(PREFIX_KEY, self.prefix)?;
         meta.add_str(METRICS_KEY, USER_AGENT)?;
         if self.route_to_leader {
@@ -93,11 +95,12 @@ mod tests {
         MetadataBuilder, LEADER_AWARE_KEY, METRICS_KEY, PREFIX_KEY, ROUTING_KEY, USER_AGENT,
     };
 
-    pub const DB: &str = "/projects/sync/instances/test/databases/sync1";
-    pub const SESSION: &str = "/projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
+    // Resource paths should not start with a "/"
+    pub const DB: &str = "projects/sync/instances/test/databases/sync1";
+    pub const SESSION: &str = "projects/sync/instances/test/databases/sync1/sessions/f00B4r_quuX";
 
     #[test]
-    fn basic() {
+    fn metadata_basic() {
         let meta = MetadataBuilder::with_prefix(DB)
             .routing_param("session", SESSION)
             .routing_param("foo", "bar baz")
