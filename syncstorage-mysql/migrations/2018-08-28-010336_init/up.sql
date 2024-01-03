@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `bso`(
     KEY `bso_usr_col_mod_idx` (`user_id`, `collection_id`, `modified`)
 ) ENGINE = InnoDB DEFAULT CHARSET = latin1;
 DROP TABLE IF EXISTS `collections`;
-CREATE TABLE `collections` if not exists (
+CREATE TABLE IF NOT EXISTS `collections`(
     `id` INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(32) UNIQUE NOT NULL
 ) ENGINE = InnoDB DEFAULT CHARSET = latin1;

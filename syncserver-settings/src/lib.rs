@@ -112,7 +112,6 @@ impl Settings {
                             .to_string(),
                     );
                 }
-                dbg!(&s);
                 Ok(s)
             }
             // Configuration errors are not very sysop friendly, Try to make them

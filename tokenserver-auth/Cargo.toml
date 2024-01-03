@@ -15,12 +15,12 @@ serde_json.workspace = true
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 pyo3 = { version = "0.20", features = ["auto-initialize"] }
-reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["blocking"] }
+tokio = { workspace = true, features = ["blocking"] }
 
 [dev-dependencies]
 mockito = "0.30.0"
