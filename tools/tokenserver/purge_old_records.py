@@ -83,15 +83,24 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                     if settings and not settings.dryrun:
                         pass
                     else:
-                        delete_service_data(row, secret, timeout=request_timeout, settings=settings)
+                        delete_service_data(
+                            row,
+                            secret,
+                            timeout=request_timeout,
+                            settings=settings)
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif settings and settings.force:
                     logger.info(
-                        f"Forcing tokenserver record delete: {row.uid} on {row.node}"
+                        "Forcing tokenserver record delete: "
+                        f"{row.uid} on {row.node}"
                     )
                     if not settings.dryrun:
-                        delete_service_data(row, secret, timeout=request_timeout, settings=settings)
+                        delete_service_data(
+                            row,
+                            secret,
+                            timeout=request_timeout,
+                            settings=settings)
                         database.delete_user_record(row.uid)
                     counter += 1
                 if settings and settings.max_records:
