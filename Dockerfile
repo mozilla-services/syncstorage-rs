@@ -17,7 +17,6 @@ RUN \
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
-    apt-key adv --import mysql_pubkey.asc && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
