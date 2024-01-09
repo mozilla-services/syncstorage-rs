@@ -66,7 +66,7 @@ RUN \
     # first, an apt-get update is required for gnupg, which is required for apt-key adv
     apt-get -q update && \
     # and ca-certificates needed for https://repo.mysql.com
-    apt-get install -y gnupg ca-certificates && \
+    apt-get install -y gnupg ca-certificates wget && \
     echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
