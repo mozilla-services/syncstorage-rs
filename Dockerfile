@@ -12,13 +12,14 @@ COPY --from=planner /app/mysql_pubkey.asc mysql_pubkey.asc
 
 # cmake is required to build grpcio-sys for Spanner builds
 RUN \
+    ( wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ) && \
     echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
+    apt-get -q install -y --no-install-recommends libmariadb-dev cmake
 
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
@@ -36,9 +37,9 @@ RUN \
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
     # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
     # which wants the mariadb
-    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
+    ( wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ) && \
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
+    apt-get -q install -y --no-install-recommends libmariadb-dev cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
@@ -72,10 +73,10 @@ RUN \
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
     # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
     # which wants the mariadb
-    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
+    ( wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ) && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
-    apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
+    apt-get -q install -y build-essential libmariadb-dev libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
