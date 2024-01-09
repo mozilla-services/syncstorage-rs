@@ -19,6 +19,7 @@ import binascii
 import hawkauthlib
 import logging
 import optparse
+import os
 import random
 import requests
 import time
@@ -28,8 +29,8 @@ import util
 from database import Database
 from util import format_key_id
 
-
 logger = logging.getLogger("tokenserver.scripts.purge_old_records")
+logger.setLevel(os.environ.get("PYTHON_LOG", "ERROR").upper())
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -80,6 +81,8 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                 elif not row.downed:
                     logger.info("Purging uid %s on %s", row.uid, row.node)
                     if settings and not settings.dryrun:
+                        pass
+                    else:
                         delete_service_data(row, secret, timeout=request_timeout, settings=settings)
                         database.delete_user_record(row.uid)
                     counter += 1
