@@ -32,12 +32,12 @@ COPY --from=cacher /app/target /app/target
 COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 
 RUN \
-    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
-    # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
-    apt-key adv --import mysql_pubkey.asc && \
+    # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
+    # which wants the mariadb
+    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
     pip3 install -r requirements.txt && \
@@ -68,7 +68,12 @@ RUN \
     # and ca-certificates needed for https://repo.mysql.com
     apt-get install -y gnupg ca-certificates && \
     echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
-    apt-key adv --import mysql_pubkey.asc && \
+    # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
+    # related:
+    # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
+    # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
+    # which wants the mariadb
+    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
     apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
