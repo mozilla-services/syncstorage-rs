@@ -124,6 +124,8 @@ def delete_service_data(user, secret, timeout=60, settings=None):
     secret = tokenlib.get_derived_secret(token, secret=secret)
     endpoint = PATTERN.format(uid=user.uid, node=user.node)
     auth = HawkAuth(token, secret)
+    if settings and settings.dryrun:
+        return
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
         resp.raise_for_status()
