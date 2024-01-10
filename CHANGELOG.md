@@ -1,3 +1,56 @@
+<a name="0.14.4"></a>
+## 0.14.4 (2023-12-11)
+
+
+#### Bug Fixes
+
+*   Use google specified UA for x-goog-api-client (#1506) ([9916b3bd](https://github.com/mozilla-services/syncstorage-rs/commit/9916b3bdb0506e9805f505007222f189f1c4dc54))
+
+
+
+<a name="0.14.3"></a>
+## 0.14.3 (2023-11-30)
+
+
+#### Bug Fixes
+
+*   restore emitting backend specific db errors to sentry (#1500) ([18f4d594](https://github.com/mozilla-services/syncstorage-rs/commit/18f4d594905e9dd4affc557a5da39cd19b6882f7))
+
+
+
+<a name="0.14.2"></a>
+## 0.14.2 (2023-11-21)
+
+
+#### Doc
+
+*   remove outdated firefox-ios warning (#1497) ([59283b59](https://github.com/mozilla-services/syncstorage-rs/commit/59283b5977a5d997c1292eb5392f6ad252855c0d))
+
+#### Bug Fixes
+
+*   disable sentry's debug-images feature (#1499) ([8d9185e4](https://github.com/mozilla-services/syncstorage-rs/commit/8d9185e4a012b1113f0a89d3d2852b55c7449114))
+
+
+
+<a name="0.14.1"></a>
+## 0.14.1 (2023-10-18)
+
+
+#### Features
+
+*   add dynamic routing headers to all Spanner ops (#1491) ([af416fc2](https://github.com/mozilla-services/syncstorage-rs/commit/af416fc29f51ef48115ff876b4cd99e274631d0a))
+
+#### Chore
+
+*   missed fixes from rollup (#1492) ([68d32670](https://github.com/mozilla-services/syncstorage-rs/commit/68d326701505a7c3ae04d59953eb099cf8add4d2))
+*   tag 0.14.0 (#1485) ([c563ce5b](https://github.com/mozilla-services/syncstorage-rs/commit/c563ce5ba9006d4b12324a0912e765b2c562c01c))
+
+#### Bug Fixes
+
+*   switch more test flags to cfg(debug_assertions) (#1488) ([fb701288](https://github.com/mozilla-services/syncstorage-rs/commit/fb701288244daeee18a3ec26c986b6e6a98bb4f8))
+
+
+
 <a name="0.14.0"></a>
 ## 0.14.0 (2023-09-26)
 
