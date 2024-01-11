@@ -3367,7 +3367,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -3424,7 +3424,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-common"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "actix-web",
  "cadence",
@@ -3439,7 +3439,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-db-common"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "backtrace",
  "deadpool",
@@ -3453,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-settings"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "config 0.11.0",
  "num_cpus",
@@ -3467,7 +3467,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "cadence",
@@ -3490,7 +3490,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db-common"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3509,7 +3509,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-mysql"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3532,7 +3532,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-settings"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "rand 0.8.5",
  "serde 1.0.194",
@@ -3542,7 +3542,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-spanner"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3767,7 +3767,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokenserver-auth"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "dyn-clone",
@@ -3785,7 +3785,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-common"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -3797,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3822,7 +3822,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-settings"
-version = "0.14.0"
+version = "0.14.4"
 dependencies = [
  "serde 1.0.194",
  "tokenserver-common",
