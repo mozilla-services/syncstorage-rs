@@ -1,17 +1,17 @@
 [package]
 name = "syncstorage-db"
-version.workspace=true
-license.workspace=true
-authors.workspace=true
-edition.workspace=true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-cadence.workspace=true
-env_logger.workspace=true
-futures.workspace=true
-lazy_static.workspace=true
-rand.workspace=true
-slog-scope.workspace=true
+cadence.workspace = true
+env_logger.workspace = true
+futures.workspace = true
+lazy_static.workspace = true
+rand.workspace = true
+slog-scope.workspace = true
 
 async-trait = "0.1.40"
 hostname = "0.3.1"
@@ -27,7 +27,7 @@ syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }
 syncstorage-settings = { path = "../syncstorage-settings" }
 syncstorage-spanner = { path = "../syncstorage-spanner", optional = true }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["macros", "sync"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
 
 [features]
 mysql = ['syncstorage-mysql']
