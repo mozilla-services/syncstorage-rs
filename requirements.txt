@@ -3,6 +3,6 @@
 # the cryptography package with Rust results in a segfault, so we need to
 # set the CRYPTOGRAPHY_DONT_BUILD_RUST env var to force the package to build
 # with C instead. This env var is only present in cryptography<3.5.
-cryptography==3.4.8
+cryptography==41.0
 pyfxa==0.7.7
 tokenlib==2.0.0

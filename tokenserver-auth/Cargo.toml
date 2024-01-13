@@ -1,26 +1,26 @@
 [package]
 name = "tokenserver-auth"
-version.workspace=true
-license.workspace=true
-authors.workspace=true
-edition.workspace=true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures.workspace=true
-serde.workspace=true
-serde_json.workspace=true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
-pyo3 = { version = "0.14", features = ["auto-initialize"] }
-reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
+pyo3 = { version = "0.20", features = ["auto-initialize"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 # pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["blocking"] }
+tokio = { workspace = true, features = ["blocking"] }
 
 [dev-dependencies]
 mockito = "0.30.0"
