@@ -41,8 +41,7 @@ impl ServerState {
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
         let oauth_verifier = Box::new(
-            oauth::Verifier::new(settings, blocking_threadpool.clone())
-                .expect("failed to create Tokenserver OAuth verifier"),
+            oauth::Verifier::new(settings).expect("failed to create Tokenserver OAuth verifier"),
         );
         let browserid_verifier = Box::new(
             browserid::Verifier::try_from(settings)

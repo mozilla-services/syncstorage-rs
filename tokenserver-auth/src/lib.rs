@@ -1,16 +1,19 @@
 pub mod browserid;
+mod crypto;
+use crypto::{Crypto, CryptoImpl};
 pub mod oauth;
 
 use std::fmt;
 
 use async_trait::async_trait;
+use base64::engine::Engine;
 use dyn_clone::{self, DynClone};
-use pyo3::{
-    prelude::{IntoPy, PyErr, PyModule, PyObject, Python},
-    types::IntoPyDict,
-};
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokenserver_common::TokenserverError;
+
+const HKDF_SIGNING_INFO: &[u8] = b"services.mozilla.com/tokenlib/v1/signing";
+const HKDF_INFO_DERIVE: &[u8] = b"services.mozilla.com/tokenlib/v1/derive/";
 
 /// Represents the origin of the token used by Sync clients to access their data.
 #[derive(Clone, Copy, Default, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
@@ -33,7 +36,7 @@ impl fmt::Display for TokenserverOrigin {
 }
 
 /// The plaintext needed to build a token.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct MakeTokenPlaintext {
     pub node: String,
     pub fxa_kid: String,
@@ -45,27 +48,6 @@ pub struct MakeTokenPlaintext {
     pub tokenserver_origin: TokenserverOrigin,
 }
 
-impl IntoPy<PyObject> for MakeTokenPlaintext {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        let dict = [
-            ("node", self.node),
-            ("fxa_kid", self.fxa_kid),
-            ("fxa_uid", self.fxa_uid),
-            ("hashed_device_id", self.hashed_device_id),
-            ("hashed_fxa_uid", self.hashed_fxa_uid),
-            ("tokenserver_origin", self.tokenserver_origin.to_string()),
-        ]
-        .into_py_dict(py);
-
-        // These need to be set separately since they aren't strings, and
-        // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", self.expires).unwrap();
-        dict.set_item("uid", self.uid).unwrap();
-
-        dict.into()
-    }
-}
-
 /// An adapter to the tokenlib Python library.
 pub struct Tokenlib;
 
@@ -75,36 +57,37 @@ impl Tokenlib {
         plaintext: MakeTokenPlaintext,
         shared_secret: &str,
     ) -> Result<(String, String), TokenserverError> {
-        Python::with_gil(|py| {
-            // `import tokenlib`
-            let module = PyModule::import(py, "tokenlib").map_err(|e| {
-                e.print_and_set_sys_last_vars(py);
-                e
-            })?;
-            // `kwargs = { 'secret': shared_secret }`
-            let kwargs = [("secret", shared_secret)].into_py_dict(py);
-            // `token = tokenlib.make_token(plaintext, **kwargs)`
-            let token = module
-                .getattr("make_token")?
-                .call((plaintext,), Some(kwargs))
-                .map_err(|e| {
-                    e.print_and_set_sys_last_vars(py);
-                    e
-                })
-                .and_then(|x| x.extract())?;
-            // `derived_secret = tokenlib.get_derived_secret(token, **kwargs)`
-            let derived_secret = module
-                .getattr("get_derived_secret")?
-                .call((&token,), Some(kwargs))
-                .map_err(|e| {
-                    e.print_and_set_sys_last_vars(py);
-                    e
-                })
-                .and_then(|x| x.extract())?;
-            // `return (token, derived_secret)`
-            Ok((token, derived_secret))
+        #[derive(Serialize)]
+        struct Token<'a> {
+            #[serde(flatten)]
+            plaintext: MakeTokenPlaintext,
+            salt: &'a str,
+        }
+
+        let mut salt_bytes = [0u8; 3];
+        let mut rng = rand::thread_rng();
+        rng.fill_bytes(&mut salt_bytes);
+        let salt = hex::encode(salt_bytes);
+        let token_str = serde_json::to_string(&Token {
+            plaintext,
+            salt: &salt,
         })
-        .map_err(pyerr_to_tokenserver_error)
+        .map_err(|_| TokenserverError::internal_error())?;
+        let crypto_lib = CryptoImpl {};
+        let hmac_key = crypto_lib.hkdf(shared_secret, None, HKDF_SIGNING_INFO)?;
+        let signature = crypto_lib.hmac_sign(&hmac_key, token_str.as_bytes())?;
+        let mut token_bytes = Vec::with_capacity(token_str.len() + signature.len());
+        token_bytes.extend_from_slice(token_str.as_bytes());
+        token_bytes.extend_from_slice(&signature);
+        let token = base64::engine::general_purpose::URL_SAFE.encode(token_bytes);
+        // Now that we finialized the token, lets generate our per token secret
+        let mut info = Vec::with_capacity(HKDF_INFO_DERIVE.len() + token.as_bytes().len());
+        info.extend_from_slice(HKDF_INFO_DERIVE);
+        info.extend_from_slice(token.as_bytes());
+
+        let per_token_secret = crypto_lib.hkdf(shared_secret, Some(salt.as_bytes()), &info)?;
+        let per_token_secret = base64::engine::general_purpose::URL_SAFE.encode(per_token_secret);
+        Ok((token, per_token_secret))
     }
 }
 
@@ -135,12 +118,5 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
         self.valid
             .then(|| self.verify_output.clone())
             .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized".to_owned()))
-    }
-}
-
-fn pyerr_to_tokenserver_error(e: PyErr) -> TokenserverError {
-    TokenserverError {
-        context: e.to_string(),
-        ..TokenserverError::internal_error()
     }
 }

@@ -38,7 +38,9 @@ docopt = "1.1"
 env_logger = "0.10"
 futures = { version = "0.3", features = ["compat"] }
 hex = "0.4"
+hmac = "0.12"
 http = "0.2"
+jsonwebtoken = "9.2"
 lazy_static = "1.4"
 protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
 rand = "0.8"
@@ -62,6 +64,7 @@ slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
 tokio = "1"
+thiserror = "1.0.26"
 
 [profile.release]
 # Enables line numbers in Sentry reporting

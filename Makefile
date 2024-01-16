@@ -43,20 +43,12 @@ docker_start_spanner_rebuild:
 docker_stop_spanner:
 	docker-compose -f docker-compose.spanner.yaml down
 
-python:
-	python3 -m venv venv
-	venv/bin/python -m pip install -r requirements.txt
-
-run_mysql: python
-	PATH="./venv/bin:$(PATH)" \
-		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
-		# below env var
-		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
-		RUST_LOG=debug \
+run_mysql: 
+	 RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/mysql -- --config config/local.toml
 
-run_spanner: python
+run_spanner:
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
 		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the

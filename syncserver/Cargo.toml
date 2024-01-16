@@ -32,6 +32,8 @@ slog-mozlog-json.workspace = true
 slog-scope.workspace = true
 slog-stdlog.workspace = true
 slog-term.workspace = true
+hmac.workspace = true
+thiserror.workspace = true
 
 actix-http = "3"
 actix-rt = "2"
@@ -53,7 +55,6 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-thiserror = "1.0.26"
 tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
