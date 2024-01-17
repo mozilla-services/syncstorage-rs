@@ -56,7 +56,7 @@ class TestPurgeOldRecords(unittest.TestCase):
 
         del self.service_requests[:]
 
-    def test_settings(self, args:dict[str, any]=dict()):
+    def test_settings(self, args: dict[str, any] = dict()):
         class Settings(object):
             pass
 
@@ -66,7 +66,6 @@ class TestPurgeOldRecords(unittest.TestCase):
         setattr(settings, "max_records", args.get("max_records", 20))
 
         return settings
-
 
     @classmethod
     def tearDownClass(cls):
@@ -163,8 +162,13 @@ class TestPurgeOldRecords(unittest.TestCase):
         # With the node down, we should be able to purge any records.
         self.database.update_node(self.service_node, downed=1)
 
-        settings = self.test_settings({"force":True})
-        self.assertTrue(purge_old_records(node_secret, grace_period=0, settings=settings))
+        settings = self.test_settings({"force": True})
+        self.assertTrue(
+            purge_old_records(
+                node_secret,
+                grace_period=0,
+                settings=settings)
+            )
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 1)
@@ -183,7 +187,12 @@ class TestPurgeOldRecords(unittest.TestCase):
 
         # Don't actually perform anything destructive.
         settings = self.test_settings({"dryrun": True})
-        self.assertTrue(purge_old_records(node_secret, grace_period=0, settings=settings))
+        self.assertTrue(
+            purge_old_records(
+                node_secret,
+                grace_period=0,
+                settings=settings)
+            )
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 2)
