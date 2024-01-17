@@ -56,6 +56,18 @@ class TestPurgeOldRecords(unittest.TestCase):
 
         del self.service_requests[:]
 
+    def test_settings(self, args:dict[str, any]=dict()):
+        class Settings(object):
+            pass
+
+        settings = Settings()
+        setattr(settings, "force", args.get("force", False))
+        setattr(settings, "dryrun", args.get("dryrun", False))
+        setattr(settings, "max_records", args.get("max_records", 20))
+
+        return settings
+
+
     @classmethod
     def tearDownClass(cls):
         cls.service.shutdown()
@@ -138,3 +150,41 @@ class TestPurgeOldRecords(unittest.TestCase):
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 1)
         self.assertEqual(len(self.service_requests), 1)
+
+    def test_force(self):
+        # Make some old user records.
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+        user = self.database.allocate_user(email, client_state="aa")
+        self.database.update_user(user, client_state="bb")
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 2)
+
+        # With the node down, we should be able to purge any records.
+        self.database.update_node(self.service_node, downed=1)
+
+        settings = self.test_settings({"force":True})
+        self.assertTrue(purge_old_records(node_secret, grace_period=0, settings=settings))
+
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 1)
+        self.assertEqual(len(self.service_requests), 1)
+
+    def test_dry_run(self):
+        # Make some old user records.
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+        user = self.database.allocate_user(email, client_state="aa")
+        self.database.update_user(user, client_state="bb")
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 2)
+
+        self.database.update_node(self.service_node, downed=1)
+
+        # Don't actually perform anything destructive.
+        settings = self.test_settings({"dryrun": True})
+        self.assertTrue(purge_old_records(node_secret, grace_period=0, settings=settings))
+
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 2)
+        self.assertEqual(len(self.service_requests), 0)
