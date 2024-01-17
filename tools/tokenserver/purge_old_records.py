@@ -80,7 +80,7 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                         database.delete_user_record(row.uid)
                 elif not row.downed:
                     logger.info("Purging uid %s on %s", row.uid, row.node)
-                    if settings and not settings.dryrun:
+                    if settings and settings.dryrun:
                         pass
                     else:
                         delete_service_data(
