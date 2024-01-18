@@ -19,8 +19,7 @@ reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { workspace = true, features = ["blocking"] }
+tokio = { workspace = true }
 
 [dev-dependencies]
 mockito = "0.30.0"

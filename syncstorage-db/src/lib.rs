@@ -69,7 +69,7 @@ pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
                 .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
                 .with_tag("hostname", &hostname)
                 .send();
-            time::delay_for(interval).await;
+            time::sleep(interval).await;
         }
     });
 

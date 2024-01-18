@@ -1,13 +1,13 @@
 //! Main application server
 
-use std::{env, sync::Arc, time::Duration};
+use std::{convert::Infallible, env, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
     dev::{self, Payload},
     http::StatusCode,
     http::{header::LOCATION, Method},
-    middleware::errhandlers::ErrorHandlers,
+    middleware::ErrorHandlers,
     web::{self, Data},
     App, FromRequest, HttpRequest, HttpResponse, HttpServer,
 };
@@ -75,14 +75,14 @@ macro_rules! build_app {
     ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr) => {
         App::new()
             .configure(|cfg| {
-                cfg.data($syncstorage_state);
+                cfg.app_data(Data::new($syncstorage_state));
 
                 if let Some(tokenserver_state) = $tokenserver_state {
                     let state = tokenserver_state.clone();
-                    cfg.data(state);
+                    cfg.app_data(Data::new(state));
                 }
             })
-            .data($secrets)
+            .app_data(Data::new($secrets))
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
@@ -165,7 +165,7 @@ macro_rules! build_app {
                                        */
             )))
             .service(
-                web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                web::resource("/__version__").route(web::get().to(|_: HttpRequest| async {
                     // return the contents of the version.json file created by circleci
                     // and stored in the docker root
                     HttpResponse::Ok()
@@ -174,11 +174,13 @@ macro_rules! build_app {
                 })),
             )
             .service(web::resource("/__error__").route(web::get().to(handlers::test_error)))
-            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
-                HttpResponse::Found()
-                    .header(LOCATION, SYNC_DOCS_URL)
-                    .finish()
-            })))
+            .service(
+                web::resource("/").route(web::get().to(|_: HttpRequest| async {
+                    HttpResponse::Found()
+                        .insert_header((LOCATION, SYNC_DOCS_URL))
+                        .finish()
+                })),
+            )
     };
 }
 
@@ -186,8 +188,8 @@ macro_rules! build_app {
 macro_rules! build_app_without_syncstorage {
     ($state: expr, $secrets: expr, $cors: expr) => {
         App::new()
-            .data($state)
-            .data($secrets)
+            .app_data(Data::new($state))
+            .app_data(Data::new($secrets))
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
@@ -212,16 +214,16 @@ macro_rules! build_app_without_syncstorage {
                 web::resource("/__heartbeat__")
                     .route(web::get().to(tokenserver::handlers::heartbeat)),
             )
-            .service(
-                web::resource("/__lbheartbeat__").route(web::get().to(|_: HttpRequest| {
+            .service(web::resource("/__lbheartbeat__").route(web::get().to(
+                |_: HttpRequest| async {
                     // used by the load balancers, just return OK.
                     HttpResponse::Ok()
                         .content_type("application/json")
                         .body("{}")
-                })),
-            )
+                },
+            )))
             .service(
-                web::resource("/__version__").route(web::get().to(|_: HttpRequest| {
+                web::resource("/__version__").route(web::get().to(|_: HttpRequest| async {
                     // return the contents of the version.json file created by circleci
                     // and stored in the docker root
                     HttpResponse::Ok()
@@ -232,11 +234,13 @@ macro_rules! build_app_without_syncstorage {
             .service(
                 web::resource("/__error__").route(web::get().to(tokenserver::handlers::test_error)),
             )
-            .service(web::resource("/").route(web::get().to(|_: HttpRequest| {
-                HttpResponse::Found()
-                    .header(LOCATION, SYNC_DOCS_URL)
-                    .finish()
-            })))
+            .service(
+                web::resource("/").route(web::get().to(|_: HttpRequest| async {
+                    HttpResponse::Found()
+                        .insert_header((LOCATION, SYNC_DOCS_URL))
+                        .finish()
+                })),
+            )
     };
 }
 
@@ -310,7 +314,7 @@ impl Server {
         });
 
         if let Some(keep_alive) = actix_keep_alive {
-            server = server.keep_alive(keep_alive as usize);
+            server = server.keep_alive(Duration::from_secs(keep_alive as u64));
         }
 
         let server = server
@@ -401,8 +405,7 @@ fn build_cors(settings: &Settings) -> Cors {
 pub struct MetricsWrapper(pub Metrics);
 
 impl FromRequest for MetricsWrapper {
-    type Config = ();
-    type Error = ();
+    type Error = Infallible;
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
@@ -471,7 +474,7 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
                 .with_tag("hostname", &hostname)
                 .send();
 
-            time::delay_for(interval).await;
+            time::sleep(interval).await;
         }
     });
 

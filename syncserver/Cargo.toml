@@ -33,9 +33,9 @@ slog-scope.workspace = true
 slog-stdlog.workspace = true
 slog-term.workspace = true
 
-actix-http = "2"
-actix-rt = "1" # Pin to 1.0, due to dependencies on Tokio
-actix-cors = "0.5" # pin to 0.5. 0.6 introduces breaking change
+actix-http = "3"
+actix-rt = "2"
+actix-cors = "0.6"
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 hostname = "0.3.1"
@@ -58,7 +58,6 @@ tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
 validator = "0.16"

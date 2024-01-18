@@ -9,7 +9,7 @@ use std::{
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload, RequestHead},
     http::{
-        header::{qitem, Accept, ContentType, Header, HeaderMap},
+        header::{Accept, ContentType, Header, HeaderMap, QualityItem},
         Uri,
     },
     web::{Data, Json, Query},
@@ -134,7 +134,7 @@ impl From<BatchBsoBody> for PostCollectionBso {
 // This will pull the first accepted content type listed, or the highest rated non-accepted type.
 fn get_accepted(req: &HttpRequest, accepted: &[&str], default: &'static str) -> String {
     let mut candidates = Accept::parse(req).unwrap_or_else(|_| {
-        Accept(vec![qitem(
+        Accept(vec![QualityItem::max(
             mime::Mime::from_str(default).expect("Could not get accept in get_accepted"),
         )])
     });
@@ -165,7 +165,6 @@ pub struct BsoBodies {
 }
 
 impl FromRequest for BsoBodies {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -370,7 +369,6 @@ pub struct BsoBody {
 }
 
 impl FromRequest for BsoBody {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<BsoBody, Self::Error>>;
 
@@ -533,7 +531,6 @@ impl BsoParam {
 }
 
 impl FromRequest for BsoParam {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -606,7 +603,6 @@ impl CollectionParam {
 }
 
 impl FromRequest for CollectionParam {
-    type Config = ();
     type Error = Error;
 
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
@@ -639,7 +635,6 @@ pub struct MetaRequest {
 }
 
 impl FromRequest for MetaRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -680,7 +675,6 @@ pub struct CollectionRequest {
 }
 
 impl FromRequest for CollectionRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -741,7 +735,6 @@ pub struct CollectionPostRequest {
 }
 
 impl FromRequest for CollectionPostRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -836,7 +829,6 @@ pub struct BsoRequest {
 }
 
 impl FromRequest for BsoRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -878,7 +870,6 @@ pub struct BsoPutRequest {
 }
 
 impl FromRequest for BsoPutRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -941,7 +932,6 @@ pub struct HeartbeatRequest {
 }
 
 impl FromRequest for HeartbeatRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -985,7 +975,6 @@ pub struct TestErrorRequest {
 }
 
 impl FromRequest for TestErrorRequest {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -1136,7 +1125,6 @@ impl From<HawkIdentifier> for UserIdentifier {
 }
 
 impl FromRequest for HawkIdentifier {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -1259,7 +1247,6 @@ pub struct BsoQueryParams {
 }
 
 impl FromRequest for BsoQueryParams {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -1341,7 +1328,6 @@ pub struct BatchRequestOpt {
 }
 
 impl FromRequest for BatchRequestOpt {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<BatchRequestOpt, Self::Error>>;
 
@@ -1560,7 +1546,6 @@ impl PreConditionHeaderOpt {
 }
 
 impl FromRequest for PreConditionHeaderOpt {
-    type Config = ();
     type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -1857,11 +1842,11 @@ mod tests {
             .data(state)
             .data(secrets)
             .method(Method::POST)
-            .header("authorization", header)
-            .header("content-type", "application/json; charset=UTF-8")
-            .header("accept", "application/json;q=0.9,/;q=0.2")
+            .insert_header(("authorization", header))
+            .insert_header(("content-type", "application/json; charset=UTF-8"))
+            .insert_header(("accept", "application/json;q=0.9,/;q=0.2"))
             .set_payload(bod_str.to_owned())
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -1904,10 +1889,10 @@ mod tests {
     #[test]
     fn test_weighted_header() {
         // test non-priority, full weight selection
-        let req = TestRequest::with_header(
+        let req = TestRequest::default().insert_header((
             ACCEPT,
             HeaderValue::from_static("application/json;q=0.9,text/plain"),
-        );
+        ));
         let selected = get_accepted(
             &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
@@ -1916,7 +1901,8 @@ mod tests {
         assert_eq!(selected, "text/plain".to_owned());
 
         // test default for */*
-        let req = TestRequest::with_header(ACCEPT, HeaderValue::from_static("*/*;q=0.2,foo/bar"));
+        let req = TestRequest::default()
+            .insert_header((ACCEPT, HeaderValue::from_static("*/*;q=0.2,foo/bar")));
         let selected = get_accepted(
             &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
@@ -1925,10 +1911,10 @@ mod tests {
         assert_eq!(selected, "application/json".to_owned());
 
         // test default for selected weighted.
-        let req = TestRequest::with_header(
+        let req = TestRequest::default().insert_header((
             ACCEPT,
             HeaderValue::from_static("foo/bar;q=0.1,application/json;q=0.5,text/plain;q=0.9"),
-        );
+        ));
         let selected = get_accepted(
             &req.to_http_request(),
             &ACCEPTED_CONTENT_TYPES,
@@ -1960,9 +1946,9 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
+            .insert_header(("authorization", header))
             .method(Method::GET)
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
@@ -1985,10 +1971,10 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
+            .insert_header(("authorization", header))
             .method(Method::GET)
             // `param` sets the value that would be extracted from the tokenized URI, as if the router did it.
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .param("bso", INVALID_BSO_NAME)
             .to_http_request();
@@ -2025,11 +2011,11 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
-            .header("content-type", "application/json")
+            .insert_header(("authorization", header))
+            .insert_header(("content-type", "application/json"))
             .method(Method::POST)
             .set_payload(bso_body.to_string())
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
@@ -2058,11 +2044,11 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
-            .header("content-type", "application/json")
+            .insert_header(("authorization", header))
+            .insert_header(("content-type", "application/json"))
             .method(Method::POST)
             .set_payload(bso_body.to_string())
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .param("bso", "asdf")
             .to_http_request();
@@ -2096,10 +2082,10 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
-            .header("accept", "application/json,text/plain:q=0.5")
+            .insert_header(("authorization", header))
+            .insert_header(("accept", "application/json,text/plain:q=0.5"))
             .method(Method::GET)
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", "tabs")
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -2125,8 +2111,8 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
-            .header("accept", "application/json,text/plain:q=0.5")
+            .insert_header(("authorization", header))
+            .insert_header(("accept", "application/json,text/plain:q=0.5"))
             .method(Method::GET)
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -2146,11 +2132,11 @@ mod tests {
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
-            .header("authorization", header)
+            .insert_header(("authorization", header))
             .method(Method::GET)
             .data(state)
             .data(secrets)
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .param("collection", INVALID_COLLECTION_NAME)
             .to_http_request();
         req.extensions_mut().insert(make_db());
@@ -2284,8 +2270,8 @@ mod tests {
         }
         let req = TestRequest::with_uri("/")
             .data(make_state())
-            .header("X-If-Modified-Since", "32124.32")
-            .header("X-If-Unmodified-Since", "4212.12")
+            .insert_header(("X-If-Modified-Since", "32124.32"))
+            .insert_header(("X-If-Unmodified-Since", "4212.12"))
             .to_http_request();
         assert_invalid_header(
             req,
@@ -2294,7 +2280,7 @@ mod tests {
         );
         let req = TestRequest::with_uri("/")
             .data(make_state())
-            .header("X-If-Modified-Since", "-32.1")
+            .insert_header(("X-If-Modified-Since", "-32.1"))
             .to_http_request();
         assert_invalid_header(req, "X-If-Modified-Since", "Invalid value");
     }
@@ -2303,7 +2289,7 @@ mod tests {
     fn test_valid_precondition_headers() {
         let req = TestRequest::with_uri("/")
             .data(make_state())
-            .header("X-If-Modified-Since", "32.1")
+            .insert_header(("X-If-Modified-Since", "32.1"))
             .to_http_request();
         let result = PreConditionHeaderOpt::extrude(req.headers())
             .unwrap()
@@ -2315,7 +2301,7 @@ mod tests {
         );
         let req = TestRequest::with_uri("/")
             .data(make_state())
-            .header("X-If-Unmodified-Since", "32.14")
+            .insert_header(("X-If-Unmodified-Since", "32.14"))
             .to_http_request();
         let result = PreConditionHeaderOpt::extrude(req.headers())
             .unwrap()
@@ -2336,11 +2322,11 @@ mod tests {
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
-            .header("authorization", header)
+            .insert_header(("authorization", header))
             .method(Method::GET)
             .data(state)
             .data(secrets)
-            .param("uid", &USER_ID_STR)
+            .param("uid", USER_ID_STR.as_str())
             .to_http_request();
         let mut payload = Payload::None;
         let result = block_on(HawkIdentifier::from_request(&req, &mut payload))
@@ -2361,7 +2347,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
-            .header("authorization", header)
+            .insert_header(("authorization", header))
             .method(Method::GET)
             .param("uid", mismatch_uid)
             .to_http_request();
