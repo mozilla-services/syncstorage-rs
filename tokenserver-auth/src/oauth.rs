@@ -1,16 +1,16 @@
-use std::borrow::Cow;
-
 use super::VerifyToken;
+use crate::crypto::OAuthVerifyError;
+pub use crate::crypto::{JWTVerifier, JWTVerifierImpl};
 use async_trait::async_trait;
-use jsonwebtoken::{errors::ErrorKind, jwk::Jwk, Algorithm, DecodingKey, Validation};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use tokenserver_common::TokenserverError;
 use tokenserver_settings::Settings;
 
 const SYNC_SCOPE: &str = "https://identity.mozilla.com/apps/oldsync";
 
-#[derive(Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct TokenClaims {
     #[serde(rename = "sub")]
     user: String,
@@ -39,18 +39,6 @@ impl From<TokenClaims> for VerifyOutput {
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-enum OAuthVerifyError {
-    #[error("Untrusted token")]
-    TrustError,
-    #[error("Invalid Key")]
-    InvalidKey,
-    #[error("Error decoding JWT")]
-    DecodingError,
-    #[error("No keys were provided")]
-    NoKeys,
-}
-
 /// The information extracted from a valid OAuth token.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct VerifyOutput {
@@ -61,33 +49,20 @@ pub struct VerifyOutput {
 
 /// The verifier used to verify OAuth tokens.
 #[derive(Clone)]
-pub struct Verifier {
+pub struct Verifier<J> {
     server_url: Url,
-    jwks: Vec<Jwk>,
-    validation: Validation,
+    jwk_verifiers: Vec<J>,
 }
 
-impl Verifier {
-    pub fn new(settings: &Settings) -> Result<Self, TokenserverError> {
-        let mut validation = Validation::new(Algorithm::RS256);
-        // The FxA OAuth ecosystem currently doesn't make good use of aud, and
-        // instead relies on scope for restricting which services can accept
-        // which tokens. So there's no value in checking it here, and in fact if
-        // we check it here, it fails because the right audience isn't being
-        // requested.
-        validation.validate_aud = false;
-        let mut jwks = Vec::new();
-        if let Some(primary) = &settings.fxa_oauth_primary_jwk {
-            jwks.push(primary.clone())
-        }
-        if let Some(secondary) = &settings.fxa_oauth_secondary_jwk {
-            jwks.push(secondary.clone())
-        }
+impl<J> Verifier<J>
+where
+    J: JWTVerifier,
+{
+    pub fn new(settings: &Settings, jwk_verifiers: Vec<J>) -> Result<Self, TokenserverError> {
         Ok(Self {
             server_url: Url::parse(&settings.fxa_oauth_server_url)
                 .map_err(|_| TokenserverError::internal_error())?,
-            jwks,
-            validation,
+            jwk_verifiers,
         })
     }
 
@@ -97,7 +72,7 @@ impl Verifier {
             token: &'a str,
         }
 
-        #[derive(Deserialize)]
+        #[derive(Serialize, Deserialize)]
         struct VerifyResponse {
             user: String,
             scope: Vec<String>,
@@ -124,98 +99,91 @@ impl Verifier {
             .json(&VerifyRequest { token })
             .send()
             .await
-            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized".to_string()))?
+            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized".to_string()))
+            .and_then(|res| {
+                if !res.status().is_success() {
+                    Err(TokenserverError::invalid_credentials(
+                        "Unauthorized".to_string(),
+                    ))
+                } else {
+                    Ok(res)
+                }
+            })?
             .json::<VerifyResponse>()
             .await
             .map_err(|_| TokenserverError::invalid_credentials("Unauthorized".to_string()))?
             .into())
     }
 
-    async fn get_remote_jwks(&self) -> Result<Vec<Jwk>, TokenserverError> {
+    async fn get_remote_jwks(&self) -> Result<Vec<J>, TokenserverError> {
         #[derive(Deserialize)]
-        struct KeysResponse {
-            keys: Vec<Jwk>,
+        struct KeysResponse<K> {
+            keys: Vec<K>,
         }
         let client = reqwest::Client::new();
         let url = self
             .server_url
             .join("v1/jwks")
             .map_err(|_| TokenserverError::internal_error())?;
-        Ok(client
+        client
             .get(url)
             .send()
             .await
             .map_err(|_| TokenserverError::internal_error())?
-            .json::<KeysResponse>()
+            .json::<KeysResponse<J::Key>>()
             .await
             .map_err(|_| TokenserverError::internal_error())?
-            .keys)
+            .keys
+            .into_iter()
+            .map(|key| {
+                key.try_into()
+                    .map_err(|_| TokenserverError::internal_error())
+            })
+            .collect()
     }
 
     fn verify_jwt_locally(
         &self,
-        keys: &[Cow<'_, Jwk>],
+        verifiers: &[Cow<'_, J>],
         token: &str,
     ) -> Result<TokenClaims, OAuthVerifyError> {
-        if keys.is_empty() {
-            return Err(OAuthVerifyError::NoKeys);
+        if verifiers.is_empty() {
+            return Err(OAuthVerifyError::InvalidKey);
         }
 
-        for key in keys {
-            let decoding_key =
-                DecodingKey::from_jwk(key).map_err(|_| OAuthVerifyError::InvalidKey)?;
-
-            let token_data =
-                match jsonwebtoken::decode::<TokenClaims>(token, &decoding_key, &self.validation) {
-                    Ok(res) => res,
-                    Err(e) => match e.kind() {
-                        // Invalid signature, lets try the other keys if we have any
-                        ErrorKind::InvalidSignature => continue,
-
-                        // If the signature is expired, we return right away, hitting the FxA
-                        // server won't change anything
-                        ErrorKind::ExpiredSignature => return Err(OAuthVerifyError::TrustError),
-                        // If the token shape is invalid, and weren't able to decode it into the shape we think the tokens should have,
-                        // we want to be able to fallback to asking FxA to
-                        // verify
-                        _ => return Err(OAuthVerifyError::DecodingError),
-                    },
-                };
-            token_data
-                .header
-                .typ
-                .ok_or(OAuthVerifyError::TrustError)
-                .and_then(|typ| {
-                    // Ref https://tools.ietf.org/html/rfc7515#section-4.1.9 the `typ` header
-                    // is lowercase and has an implicit default `application/` prefix.
-                    let typ = if !typ.contains('/') {
-                        format!("application/{}", typ)
-                    } else {
-                        typ
-                    };
-                    if typ.to_lowercase() != "application/at+jwt" {
-                        return Err(OAuthVerifyError::TrustError);
-                    }
-                    Ok(typ)
-                })?;
-            return Ok(token_data.claims);
-        }
-        // All the keys were well formatted, but we weren't able to verify the token
-        // we return a TrustError
-        Err(OAuthVerifyError::TrustError)
+        verifiers
+            .iter()
+            .find_map(|verifier| {
+                match verifier.verify::<TokenClaims>(token) {
+                    // If it's an invalid signature, it means our key was well formatted,
+                    // but the signature was incorrect. Lets try another key if we have any
+                    Err(OAuthVerifyError::InvalidSignature) => None,
+                    res => Some(res),
+                }
+            })
+            // If there is nothing, it means all of our keys were well formatted, but none of them
+            // were able to verify the signature, lets erturn a TrustError
+            .ok_or(OAuthVerifyError::TrustError)?
     }
 }
 
 #[async_trait]
-impl VerifyToken for Verifier {
+impl<J> VerifyToken for Verifier<J>
+where
+    J: JWTVerifier,
+{
     type Output = VerifyOutput;
 
     /// Verifies an OAuth token. Returns `VerifyOutput` for valid tokens and a `TokenserverError`
     /// for invalid tokens.
     async fn verify(&self, token: String) -> Result<VerifyOutput, TokenserverError> {
-        let mut keys: Vec<Cow<'_, Jwk>> = self.jwks.iter().map(Cow::Borrowed).collect();
-        if keys.is_empty() {
-            keys = self
+        let mut verifiers = self
+            .jwk_verifiers
+            .iter()
+            .map(Cow::Borrowed)
+            .collect::<Vec<_>>();
+        if self.jwk_verifiers.is_empty() {
+            verifiers = self
                 .get_remote_jwks()
                 .await
                 .unwrap_or_else(|_| vec![])
@@ -224,11 +192,11 @@ impl VerifyToken for Verifier {
                 .collect();
         }
 
-        let claims = match self.verify_jwt_locally(&keys, &token) {
+        let claims = match self.verify_jwt_locally(&verifiers, &token) {
             Ok(res) => res,
-            Err(OAuthVerifyError::DecodingError)
-            | Err(OAuthVerifyError::InvalidKey)
-            | Err(OAuthVerifyError::NoKeys) => self.remote_verify_token(&token).await?,
+            Err(OAuthVerifyError::DecodingError) | Err(OAuthVerifyError::InvalidKey) => {
+                self.remote_verify_token(&token).await?
+            }
             _ => {
                 return Err(TokenserverError::invalid_credentials(
                     "Unauthorized".to_string(),
@@ -236,5 +204,300 @@ impl VerifyToken for Verifier {
             }
         };
         claims.validate()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    #[derive(Deserialize)]
+    struct MockJWK {}
+
+    macro_rules! mock_jwk_verifier {
+        ($im:expr) => {
+            mock_jwk_verifier!(_token, $im);
+        };
+        ($token:ident, $im:expr) => {
+            #[derive(Clone, Debug)]
+            struct MockJWTVerifier {}
+            impl TryFrom<MockJWK> for MockJWTVerifier {
+                type Error = OAuthVerifyError;
+                fn try_from(_value: MockJWK) -> Result<Self, Self::Error> {
+                    Ok(Self {})
+                }
+            }
+
+            impl JWTVerifier for MockJWTVerifier {
+                type Key = MockJWK;
+                fn verify<T: ::serde::de::DeserializeOwned>(
+                    &self,
+                    $token: &str,
+                ) -> Result<T, OAuthVerifyError> {
+                    $im
+                }
+            }
+        };
+    }
+
+    #[tokio::test]
+    async fn test_no_keys_in_verifier_fallsback_to_fxa() -> Result<(), TokenserverError> {
+        // We will first ask FxA for its keys, and if that fails we'll give up and ask
+        // fxa to verify for us
+        let mock_jwks = mockito::mock("GET", "/v1/jwks").with_status(500).create();
+
+        let body = json!({
+            "user": "fxa_id",
+            "scope": [SYNC_SCOPE],
+            "generation": 123
+        });
+        let mock_verify = mockito::mock("POST", "/v1/verify")
+            .with_header("content-type", "application/json")
+            .with_status(200)
+            .with_body(body.to_string())
+            .create();
+
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Default::default()
+        };
+        let verifer: Verifier<JWTVerifierImpl> = Verifier::new(&settings, vec![])?;
+        let res = verifer
+            .verify("a token fxa will validate".to_string())
+            .await?;
+        mock_jwks.expect(1);
+        mock_verify.expect(1);
+        assert_eq!(res.generation.unwrap(), 123);
+        assert_eq!(res.fxa_uid, "fxa_id");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_expired_signature_fails() -> Result<(), TokenserverError> {
+        let mock = mockito::mock("POST", "/v1/verify").create();
+        mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
+
+        let jwk_verifiers = vec![MockJWTVerifier {}];
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers)?;
+
+        let err = verifier
+            .verify("An expired token".to_string())
+            .await
+            .unwrap_err();
+        // We also make sure we didn't try to hit the server
+        mock.expect(0);
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_verifier_attempts_all_keys_if_invalid_signature() -> Result<(), TokenserverError>
+    {
+        let mock = mockito::mock("POST", "/v1/verify").create();
+        #[derive(Debug, Clone)]
+        struct MockJWTVerifier {
+            id: u8,
+        }
+
+        impl From<MockJWK> for MockJWTVerifier {
+            fn from(_value: MockJWK) -> Self {
+                Self { id: 0 }
+            }
+        }
+
+        impl JWTVerifier for MockJWTVerifier {
+            type Key = MockJWK;
+            fn verify<T: serde::de::DeserializeOwned>(
+                &self,
+                token: &str,
+            ) -> Result<T, OAuthVerifyError> {
+                if self.id == 0 {
+                    Err(OAuthVerifyError::InvalidSignature)
+                } else {
+                    Ok(serde_json::from_str(token).unwrap())
+                }
+            }
+        }
+
+        let jwk_verifiers = vec![MockJWTVerifier { id: 0 }, MockJWTVerifier { id: 1 }];
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+
+        let token_claims = TokenClaims {
+            user: "fxa_id".to_string(),
+            scope: SYNC_SCOPE.to_string(),
+            generation: Some(124),
+        };
+
+        let res = verifier
+            .verify(serde_json::to_string(&token_claims).unwrap())
+            .await?;
+        assert_eq!(res.fxa_uid, "fxa_id");
+        assert_eq!(res.generation.unwrap(), 124);
+        mock.expect(0); // We shouldn't have hit the server
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_verifier_all_signature_failures_fails() -> Result<(), TokenserverError> {
+        let mock_verify = mockito::mock("POST", "/v1/verify").create();
+        mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
+
+        let jwk_verifiers = vec![MockJWTVerifier {}, MockJWTVerifier {}];
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+        let err = verifier
+            .verify("a token with an invalid signature".to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+
+        mock_verify.expect(0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_verifier_fallsback_if_decode_error() -> Result<(), TokenserverError> {
+        let body = json!({
+            "user": "fxa_id",
+            "scope": [SYNC_SCOPE],
+            "generation": 123
+        });
+        let mock_verify = mockito::mock("POST", "/v1/verify")
+            .with_header("content-type", "application/json")
+            .with_status(200)
+            .with_body(body.to_string())
+            .create();
+
+        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+
+        let jwk_verifiers = vec![MockJWTVerifier {}];
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+
+        let res = verifier
+            .verify("invalid token that can't be decoded".to_string())
+            .await?;
+        assert_eq!(res.fxa_uid, "fxa_id");
+        assert_eq!(res.generation.unwrap(), 123);
+        mock_verify.expect(1); // We would have have hit the server
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_sync_scope_fails() -> Result<(), TokenserverError> {
+        let token_claims = TokenClaims {
+            user: "fxa_id".to_string(),
+            scope: "some other scope".to_string(),
+            generation: Some(124),
+        };
+        mock_jwk_verifier!(token, Ok(serde_json::from_str(token).unwrap()));
+        let jwk_verifiers = vec![MockJWTVerifier {}];
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+        let err = verifier
+            .verify(serde_json::to_string(&token_claims).unwrap())
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fxa_rejects_token_no_matter_the_body() -> Result<(), TokenserverError> {
+        let body = json!({
+            "user": "fxa_id",
+            "scope": [SYNC_SCOPE],
+            "generation": 123
+        });
+        let mock_verify = mockito::mock("POST", "/v1/verify")
+            .with_header("content-type", "application/json")
+            .with_status(401)
+            // Even though the body is fine, if FxA returns a none-200, we automatically
+            // return a credential error
+            .with_body(body.to_string())
+            .create();
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+
+        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+        let jwk_verifiers = vec![];
+
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+
+        let err = verifier
+            .verify("A token that we will ask FxA about".to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+        mock_verify.expect(1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fxa_accepts_token_but_bad_body() -> Result<(), TokenserverError> {
+        let body = json!({
+            "bad_key": "foo",
+            "scope": [SYNC_SCOPE],
+            "bad_genreation": 123
+        });
+        let mock_verify = mockito::mock("POST", "/v1/verify")
+            .with_header("content-type", "application/json")
+            .with_status(200)
+            // Even though the body is valid json, it doesn't match our expectation so we'll error
+            // out
+            .with_body(body.to_string())
+            .create();
+        let settings = Settings {
+            fxa_oauth_server_url: mockito::server_url(),
+            ..Settings::default()
+        };
+
+        mock_jwk_verifier!(Err(OAuthVerifyError::DecodingError));
+        let jwk_verifiers = vec![];
+
+        let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
+
+        let err = verifier
+            .verify("A token that we will ask FxA about".to_string())
+            .await
+            .unwrap_err();
+        assert_eq!(err.status, "invalid-credentials");
+        assert_eq!(err.http_status, 401);
+        assert_eq!(err.description, "Unauthorized");
+        mock_verify.expect(1);
+
+        Ok(())
     }
 }

@@ -2,6 +2,7 @@ pub mod browserid;
 mod crypto;
 use crypto::{Crypto, CryptoImpl};
 pub mod oauth;
+pub use crypto::{JWTVerifier, JWTVerifierImpl};
 
 use std::fmt;
 

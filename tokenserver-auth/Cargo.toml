@@ -8,21 +8,21 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures.workspace=true
-serde.workspace=true
-serde_json.workspace=true
-hex.workspace=true
-hmac.workspace=true
-jsonwebtoken.workspace=true
-base64.workspace=true
-rand.workspace=true
-sha2.workspace=true
-thiserror.workspace=true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+jsonwebtoken.workspace = true
+base64.workspace = true
+rand.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
 
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
-hkdf = "0.12"
 
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
@@ -32,3 +32,4 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 mockito = "0.30.0"
+tokio = { workspace = true, features = ["macros"]}

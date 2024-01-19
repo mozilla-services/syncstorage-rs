@@ -38,6 +38,7 @@ docopt = "1.1"
 env_logger = "0.10"
 futures = { version = "0.3", features = ["compat"] }
 hex = "0.4"
+hkdf = "0.12"
 hmac = "0.12"
 http = "0.2"
 jsonwebtoken = "9.2"

@@ -40,8 +40,26 @@ impl ServerState {
         metrics: Arc<StatsdClient>,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
+        let mut jwk_verifiers: Vec<oauth::JWTVerifierImpl> = Vec::new();
+        if let Some(primary) = &settings.fxa_oauth_primary_jwk {
+            jwk_verifiers.push(
+                primary
+                    .clone()
+                    .try_into()
+                    .expect("Invalid primary key, should either be fixed or removed"),
+            )
+        }
+        if let Some(secondary) = &settings.fxa_oauth_secondary_jwk {
+            jwk_verifiers.push(
+                secondary
+                    .clone()
+                    .try_into()
+                    .expect("Invalid secondary key, should either be fixed or removed"),
+            );
+        }
         let oauth_verifier = Box::new(
-            oauth::Verifier::new(settings).expect("failed to create Tokenserver OAuth verifier"),
+            oauth::Verifier::new(settings, jwk_verifiers)
+                .expect("failed to create Tokenserver OAuth verifier"),
         );
         let browserid_verifier = Box::new(
             browserid::Verifier::try_from(settings)
