@@ -6,6 +6,7 @@ use std::{error::Error, sync::Arc};
 
 use docopt::Docopt;
 use serde::Deserialize;
+use tracing::info;
 
 use logging::init_logging;
 use syncserver::{logging, server};
@@ -30,7 +31,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .and_then(|d| d.deserialize())
         .unwrap_or_else(|e| e.exit());
     let settings = Settings::with_env_and_config_file(args.flag_config.as_deref())?;
-    init_logging(!settings.human_logs).expect("Logging failed to initialize");
+    let _logging_guard = init_logging(!settings.human_logs).expect("Logging failed to initialize");
     debug!("Starting up...");
 
     // Set SENTRY_DSN environment variable to enable Sentry.
@@ -60,7 +61,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     } else {
         server::Server::with_settings(settings).await.unwrap()
     };
-    info!("Server running on {}", banner);
+    info!(server = banner, "Server starting up");
     server.await?;
     info!("Server closing");
     logging::reset_logging();

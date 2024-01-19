@@ -26,12 +26,11 @@ serde_derive.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 slog.workspace = true
-slog-async.workspace = true
-slog-envlogger.workspace = true
-slog-mozlog-json.workspace = true
 slog-scope.workspace = true
-slog-stdlog.workspace = true
-slog-term.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-slog.workspace = true
+tracing-subscriber.workspace = true
 
 actix-http = "3"
 actix-rt = "2"
