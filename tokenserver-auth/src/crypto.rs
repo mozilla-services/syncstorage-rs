@@ -4,7 +4,7 @@ use jsonwebtoken::{errors::ErrorKind, jwk::Jwk, Algorithm, DecodingKey, Validati
 use serde::de::DeserializeOwned;
 use sha2::Sha256;
 use tokenserver_common::TokenserverError;
-const SHA256_OUTPUT_LEN: usize = 32;
+pub const SHA256_OUTPUT_LEN: usize = 32;
 /// A triat representing all the required cryptographic operations by the token server
 pub trait Crypto {
     type Error;
@@ -13,6 +13,9 @@ pub trait Crypto {
 
     /// HMAC signiture
     fn hmac_sign(&self, key: &[u8], payload: &[u8]) -> Result<Vec<u8>, Self::Error>;
+
+    /// Verify an HMAC signature on a payload given a shared key
+    fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error>;
 }
 
 /// An implementation for the needed cryptographic using
@@ -34,6 +37,15 @@ impl Crypto for CryptoImpl {
             Hmac::new_from_slice(key).map_err(|_| TokenserverError::internal_error())?;
         mac.update(payload);
         Ok(mac.finalize().into_bytes().to_vec())
+    }
+
+    fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error> {
+        let mut mac: Hmac<Sha256> =
+            Hmac::new_from_slice(key).map_err(|_| TokenserverError::internal_error())?;
+        mac.update(payload);
+        mac.verify_slice(signature)
+            .map_err(|_| TokenserverError::internal_error())?;
+        Ok(())
     }
 }
 

@@ -37,7 +37,7 @@ impl fmt::Display for TokenserverOrigin {
 }
 
 /// The plaintext needed to build a token.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct MakeTokenPlaintext {
     pub node: String,
     pub fxa_kid: String,
@@ -47,6 +47,12 @@ pub struct MakeTokenPlaintext {
     pub expires: u64,
     pub uid: i64,
     pub tokenserver_origin: TokenserverOrigin,
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct Token<'a> {
+    #[serde(flatten)]
+    plaintext: MakeTokenPlaintext,
+    salt: &'a str,
 }
 
 /// An adapter to the tokenlib Python library.
@@ -58,13 +64,6 @@ impl Tokenlib {
         plaintext: MakeTokenPlaintext,
         shared_secret: &str,
     ) -> Result<(String, String), TokenserverError> {
-        #[derive(Serialize)]
-        struct Token<'a> {
-            #[serde(flatten)]
-            plaintext: MakeTokenPlaintext,
-            salt: &'a str,
-        }
-
         let mut salt_bytes = [0u8; 3];
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut salt_bytes);
@@ -119,5 +118,61 @@ impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
         self.valid
             .then(|| self.verify_output.clone())
             .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized".to_owned()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::crypto::SHA256_OUTPUT_LEN;
+
+    use super::*;
+
+    #[test]
+    fn test_generate_valid_token_and_per_token_secret() -> Result<(), TokenserverError> {
+        // First we verify that the token we generated has a valid
+        // and correct HMAC signature if signed using the same key
+        let plaintext = MakeTokenPlaintext {
+            node: "https://www.example.com".to_string(),
+            fxa_kid: "kid".to_string(),
+            fxa_uid: "user uid".to_string(),
+            hashed_fxa_uid: "hased uid".to_string(),
+            hashed_device_id: "hashed device id".to_string(),
+            expires: 1031,
+            uid: 13,
+            tokenserver_origin: TokenserverOrigin::Rust,
+        };
+        let secret = "foobar";
+        let crypto_impl = CryptoImpl {};
+        let hmac_key = crypto_impl.hkdf(secret, None, HKDF_SIGNING_INFO).unwrap();
+        let (b64_token, per_token_secret) =
+            Tokenlib::get_token_and_derived_secret(plaintext.clone(), secret).unwrap();
+        let token = base64::engine::general_purpose::URL_SAFE
+            .decode(&b64_token)
+            .unwrap();
+        let token_size = token.len();
+        let signature = &token[token_size - SHA256_OUTPUT_LEN..];
+        let payload = &token[..token_size - SHA256_OUTPUT_LEN];
+        crypto_impl
+            .hmac_verify(&hmac_key, payload, signature)
+            .unwrap();
+        // Then we verify that the payload value we signed, is a valid
+        // Token represented by our Token struct, and has exactly the same
+        // plain_text values
+        let token_data = serde_json::from_slice::<Token<'_>>(payload).unwrap();
+        assert_eq!(token_data.plaintext, plaintext);
+        // Finally, we verify that the same per_token_secret can be derived given the payload
+        // and the shared secret
+        let mut info = Vec::with_capacity(HKDF_INFO_DERIVE.len() + b64_token.as_bytes().len());
+        info.extend_from_slice(HKDF_INFO_DERIVE);
+        info.extend_from_slice(b64_token.as_bytes());
+
+        let expected_per_token_secret =
+            crypto_impl.hkdf(secret, Some(token_data.salt.as_bytes()), &info)?;
+        let expected_per_token_secret =
+            base64::engine::general_purpose::URL_SAFE.encode(expected_per_token_secret);
+
+        assert_eq!(expected_per_token_secret, per_token_secret);
+
+        Ok(())
     }
 }
