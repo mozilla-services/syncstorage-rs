@@ -8,7 +8,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use actix_web::{error::BlockingError, web};
+use actix_web::web;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
@@ -93,11 +93,10 @@ impl BlockingThreadpool {
     {
         self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
 
-        let result = web::block(f).await.map_err(|e| match e {
-            BlockingError::Error(e) => e,
-            BlockingError::Canceled => {
-                E::internal_error("Blocking threadpool operation canceled".to_owned())
-            }
+        let result = web::block(f).await.unwrap_or_else(|_| {
+            Err(E::internal_error(
+                "Blocking threadpool operation canceled".to_owned(),
+            ))
         });
 
         self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);

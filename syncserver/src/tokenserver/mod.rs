@@ -2,7 +2,7 @@ pub mod extractors;
 pub mod handlers;
 pub mod logging;
 
-use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpRequest};
+use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpMessage, HttpRequest};
 use cadence::StatsdClient;
 use serde::{
     ser::{SerializeMap, Serializer},

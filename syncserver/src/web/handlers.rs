@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::convert::Into;
 
-use actix_web::{dev::HttpResponseBuilder, http::StatusCode, web::Data, HttpRequest, HttpResponse};
+use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -38,7 +38,7 @@ pub async fn get_collections(
             let result = db.get_collection_timestamps(meta.user_id).await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .insert_header((X_WEAVE_RECORDS, result.len().to_string()))
                 .json(result))
         })
         .await
@@ -55,7 +55,7 @@ pub async fn get_collection_counts(
             let result = db.get_collection_counts(meta.user_id).await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, result.len().to_string())
+                .insert_header((X_WEAVE_RECORDS, result.len().to_string()))
                 .json(result))
         })
         .await
@@ -77,7 +77,7 @@ pub async fn get_collection_usage(
                 .collect();
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .header(X_WEAVE_RECORDS, usage.len().to_string())
+                .insert_header((X_WEAVE_RECORDS, usage.len().to_string()))
                 .json(usage))
         })
         .await
@@ -148,7 +148,7 @@ pub async fn delete_collection(
 
             let mut resp = HttpResponse::Ok();
             if delete_bsos {
-                resp.header(X_LAST_MODIFIED, timestamp.as_header());
+                resp.insert_header((X_LAST_MODIFIED, timestamp.as_header()));
             }
             Ok(resp.json(timestamp))
         })
@@ -212,11 +212,11 @@ where
 
     let mut builder = HttpResponse::build(StatusCode::OK);
     let resp = builder
-        .header(X_LAST_MODIFIED, ts.as_header())
-        .header(X_WEAVE_RECORDS, result.items.len().to_string());
+        .insert_header((X_LAST_MODIFIED, ts.as_header()))
+        .insert_header((X_WEAVE_RECORDS, result.items.len().to_string()));
 
     if let Some(offset) = result.offset {
-        resp.header(X_WEAVE_NEXT_OFFSET, offset);
+        resp.insert_header((X_WEAVE_NEXT_OFFSET, offset));
     }
 
     match coll.reply {
@@ -231,8 +231,8 @@ where
                 .collect();
 
             Ok(resp
-                .header("Content-Type", "application/newlines")
-                .header("Content-Length", format!("{}", items.len()))
+                .insert_header(("Content-Type", "application/newlines"))
+                .insert_header(("Content-Length", format!("{}", items.len())))
                 .body(items))
         }
     }
@@ -271,7 +271,7 @@ pub async fn post_collection(
                 .await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .header(X_LAST_MODIFIED, result.modified.as_header())
+                .insert_header((X_LAST_MODIFIED, result.modified.as_header()))
                 .json(result))
         })
         .await
@@ -447,7 +447,7 @@ pub async fn post_collection_batch(
     resp["modified"] = json!(modified);
     trace!("Batch: Returning result: {}", &resp);
     Ok(HttpResponse::build(StatusCode::OK)
-        .header(X_LAST_MODIFIED, modified.as_header())
+        .insert_header((X_LAST_MODIFIED, modified.as_header()))
         .json(resp))
 }
 
@@ -515,13 +515,13 @@ pub async fn put_bso(
                 .await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .header(X_LAST_MODIFIED, result.as_header())
+                .insert_header((X_LAST_MODIFIED, result.as_header()))
                 .json(result))
         })
         .await
 }
 
-pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
+pub async fn get_configuration(state: Data<ServerState>) -> HttpResponse {
     // With no DbConnection (via a `transaction_http` call) needed here, we
     // miss out on a couple things it does:
     // 1. Ensuring an X-Last-Modified (always 0.00) is returned
@@ -529,9 +529,9 @@ pub fn get_configuration(state: Data<ServerState>) -> HttpResponse {
     // The precondition checks don't make sense against hardcoded to the
     // service limits data + a 0.00 timestamp, so just ensure #1 is handled
     HttpResponse::Ok()
-        .header(X_LAST_MODIFIED, "0.00")
+        .insert_header((X_LAST_MODIFIED, "0.00"))
         .content_type("application/json")
-        .body(&state.limits_json)
+        .body(state.limits_json.clone())
 }
 
 /** Returns a status message indicating the state of the current server

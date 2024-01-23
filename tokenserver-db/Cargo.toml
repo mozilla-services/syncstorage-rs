@@ -23,7 +23,6 @@ syncserver-db-common = { path = "../syncserver-db-common" }
 thiserror = "1.0.26"
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 [dev-dependencies]

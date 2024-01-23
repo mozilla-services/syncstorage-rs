@@ -13,19 +13,15 @@ use crate::error::{ApiError, ApiErrorKind};
 use crate::web::DOCKER_FLOW_ENDPOINTS;
 
 /// Middleware to set the X-Weave-Timestamp header on all responses.
-pub fn set_weave_timestamp(
+pub fn set_weave_timestamp<B>(
     request: ServiceRequest,
-    service: &mut impl Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = actix_web::Error,
-    >,
-) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    service: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
     let request_path = request.uri().path().to_lowercase();
     let ts = SyncTimestamp::default().as_seconds();
     let fut = service.call(request);
 
-    Box::pin(async move {
+    async move {
         if DOCKER_FLOW_ENDPOINTS.contains(&request_path.as_str()) {
             return fut.await;
         }
@@ -33,7 +29,7 @@ pub fn set_weave_timestamp(
         let mut resp = fut.await?;
         insert_weave_timestamp_into_headers(resp.headers_mut(), ts)?;
         Ok(resp)
-    })
+    }
 }
 
 /// Set a X-Weave-Timestamp header on all responses (depending on the
@@ -102,7 +98,7 @@ mod tests {
         let ts = (Utc::now().timestamp_millis() as u64) - 1000;
         let hts = format!("{:.*}", 2, ts as f64 / 1_000.0);
         let mut resp = HttpResponse::build(http::StatusCode::OK)
-            .header(X_LAST_MODIFIED, hts.clone())
+            .insert_header((X_LAST_MODIFIED, hts.clone()))
             .finish();
         insert_weave_timestamp_into_headers(resp.headers_mut(), ts as f64).unwrap();
         let weave_hdr = resp
@@ -122,7 +118,7 @@ mod tests {
         let ts = (Utc::now().timestamp_millis() as u64) + 4000;
         let hts = format!("{:.2}", ts as f64 / 1_000.0);
         let mut resp = HttpResponse::build(http::StatusCode::OK)
-            .header(X_LAST_MODIFIED, hts.clone())
+            .insert_header((X_LAST_MODIFIED, hts.clone()))
             .finish();
         insert_weave_timestamp_into_headers(resp.headers_mut(), ts as f64 / 1_000.0).unwrap();
         let weave_hdr = resp

@@ -1,8 +1,7 @@
 use std::future::Future;
 
-use actix_http::http::{HeaderValue, Method, StatusCode};
-use actix_http::Error;
-use actix_web::dev::{Payload, PayloadStream};
+use actix_http::{header::HeaderValue, BoxedPayloadStream, Error, HttpMessage, Method, StatusCode};
+use actix_web::dev::Payload;
 use actix_web::http::header;
 use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
@@ -149,9 +148,8 @@ impl DbTransactionPool {
                     if status != StatusCode::OK {
                         return Ok(HttpResponse::build(status)
                             .content_type("application/json")
-                            .header(X_LAST_MODIFIED, resource_ts.as_header())
-                            .body("".to_owned())
-                            .into_body());
+                            .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
+                            .body("".to_owned()));
                     };
                 }
 
@@ -197,11 +195,10 @@ impl DbTransactionPool {
 }
 
 impl FromRequest for DbTransactionPool {
-    type Error = Error;
+    type Error = actix_web::Error;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
-    type Config = ();
 
-    fn from_request(req: &HttpRequest, _: &mut Payload<PayloadStream>) -> Self::Future {
+    fn from_request(req: &HttpRequest, _: &mut Payload<BoxedPayloadStream>) -> Self::Future {
         // Cache in extensions to avoid parsing for the lock info multiple times
         if let Some(pool) = req.extensions().get::<Self>() {
             return futures::future::ok(pool.clone()).boxed_local();
