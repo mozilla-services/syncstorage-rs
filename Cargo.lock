@@ -1435,10 +1435,10 @@ version = "9.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c7ea04a7c5c055c175f189b6dc6ba036fd62306b58c66c9f6389036c503a3f4"
 dependencies = [
- "base64 0.21.7",
+ "base64",
  "js-sys",
  "pem",
- "ring 0.17.7",
+ "ring",
  "serde 1.0.195",
  "serde_json",
  "simple_asn1",
@@ -1867,7 +1867,7 @@ version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8fcc794035347fb64beda2d3b462595dd2753e3f268d89c5aae77e8cf2c310"
 dependencies = [
- "base64 0.21.7",
+ "base64",
  "serde 1.0.195",
 ]
 
@@ -3004,7 +3004,7 @@ name = "tokenserver-auth"
 version = "0.14.4"
 dependencies = [
  "async-trait",
- "base64 0.21.7",
+ "base64",
  "dyn-clone",
  "futures 0.3.30",
  "hex",

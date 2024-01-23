@@ -3,6 +3,7 @@ mod crypto;
 use crypto::{Crypto, CryptoImpl};
 pub mod oauth;
 pub use crypto::{JWTVerifier, JWTVerifierImpl};
+use syncserver_common::Metrics;
 
 use std::fmt;
 
@@ -13,6 +14,10 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokenserver_common::TokenserverError;
 
+// Those two constants were pulled directly from
+// https://github.com/mozilla-services/tokenlib/blob/91ec9e2c922e55306eddba1394590a88f3b10602/tokenlib/__init__.py#L43-L45
+// We could change them, but we'd want to make sure that we also change them syncstorage, however
+// that would cause temporary auth issues for anyone with an old pre-new-value token
 const HKDF_SIGNING_INFO: &[u8] = b"services.mozilla.com/tokenlib/v1/signing";
 const HKDF_INFO_DERIVE: &[u8] = b"services.mozilla.com/tokenlib/v1/derive/";
 
@@ -98,7 +103,11 @@ pub trait VerifyToken: DynClone + Sync + Send {
 
     /// Verifies the given token. This function is async because token verification often involves
     /// making a request to a remote server.
-    async fn verify(&self, token: String) -> Result<Self::Output, TokenserverError>;
+    async fn verify(
+        &self,
+        token: String,
+        metrics: &Metrics,
+    ) -> Result<Self::Output, TokenserverError>;
 }
 
 dyn_clone::clone_trait_object!(<T> VerifyToken<Output=T>);
@@ -114,7 +123,7 @@ pub struct MockVerifier<T: Clone + Send + Sync> {
 impl<T: Clone + Send + Sync> VerifyToken for MockVerifier<T> {
     type Output = T;
 
-    async fn verify(&self, _token: String) -> Result<T, TokenserverError> {
+    async fn verify(&self, _token: String, _metrics: &Metrics) -> Result<T, TokenserverError> {
         self.valid
             .then(|| self.verify_output.clone())
             .ok_or_else(|| TokenserverError::invalid_credentials("Unauthorized".to_owned()))

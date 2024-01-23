@@ -49,6 +49,7 @@ impl Crypto for CryptoImpl {
     }
 }
 
+/// OAuthVerifyError captures the errors possible while verifing an OAuth JWT access token
 #[derive(Debug, thiserror::Error)]
 pub enum OAuthVerifyError {
     #[error("The signature has expired")]
@@ -61,6 +62,22 @@ pub enum OAuthVerifyError {
     DecodingError,
     #[error("The key was well formatted, but the signature was invalid")]
     InvalidSignature,
+}
+
+impl OAuthVerifyError {
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            Self::ExpiredSignature => "oauth.error.expired_signature",
+            Self::TrustError => "oauth.error.trust_error",
+            Self::InvalidKey => "oauth.error.invalid_key",
+            Self::InvalidSignature => "oauth.error.invalid_signature",
+            Self::DecodingError => "oauth.error.decoding_error",
+        }
+    }
+
+    pub fn is_reportable_err(&self) -> bool {
+        matches!(self, Self::InvalidKey | Self::DecodingError)
+    }
 }
 
 impl From<jsonwebtoken::errors::Error> for OAuthVerifyError {

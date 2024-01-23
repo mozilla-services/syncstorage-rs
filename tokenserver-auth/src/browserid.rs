@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use reqwest::{Client as ReqwestClient, StatusCode};
 use serde::{de::Deserializer, Deserialize, Serialize};
+use syncserver_common::Metrics;
 use tokenserver_common::{ErrorLocation, TokenType, TokenserverError};
 use tokenserver_settings::Settings;
 
@@ -52,7 +53,11 @@ impl VerifyToken for Verifier {
 
     /// Verifies a BrowserID assertion. Returns `VerifyOutput` for valid assertions and a
     /// `TokenserverError` for invalid assertions.
-    async fn verify(&self, assertion: String) -> Result<VerifyOutput, TokenserverError> {
+    async fn verify(
+        &self,
+        assertion: String,
+        _metrics: &Metrics,
+    ) -> Result<VerifyOutput, TokenserverError> {
         let response = self
             .request_client
             .post(&self.fxa_verifier_url)
@@ -313,7 +318,10 @@ mod tests {
         })
         .unwrap();
 
-        let result = verifier.verify("test".to_owned()).await.unwrap();
+        let result = verifier
+            .verify("test".to_owned(), &Default::default())
+            .await
+            .unwrap();
         mock.assert();
 
         let expected_result = VerifyOutput {
@@ -345,7 +353,10 @@ mod tests {
                 .with_header("content-type", "application/json")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -363,7 +374,10 @@ mod tests {
                 .with_body("<h1>Server Error</h1>")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -381,7 +395,10 @@ mod tests {
                 .with_body("{\"status\": \"error\"}")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -399,7 +416,10 @@ mod tests {
                 .with_body("{\"status\": \"potato\"}")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -417,7 +437,10 @@ mod tests {
                 .with_body("{\"status\": \"failure\", \"reason\": \"something broke\"}")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -434,7 +457,10 @@ mod tests {
                 .with_body("{\"status\": \"failure\"}")
                 .create();
 
-            let error = verifier.verify(assertion.to_owned()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.to_owned(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -481,7 +507,10 @@ mod tests {
 
         {
             let mock = mock("login.persona.org");
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
 
             mock.assert();
             assert_eq!(expected_error, error);
@@ -489,7 +518,10 @@ mod tests {
 
         {
             let mock = mock(ISSUER);
-            let result = verifier.verify(assertion.clone()).await.unwrap();
+            let result = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap();
             let expected_result = VerifyOutput {
                 device_id: None,
                 email: "test@example.com".to_owned(),
@@ -503,7 +535,10 @@ mod tests {
 
         {
             let mock = mock("accounts.firefox.org");
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
 
             mock.assert();
             assert_eq!(expected_error, error);
@@ -511,7 +546,10 @@ mod tests {
 
         {
             let mock = mock("http://accounts.firefox.com");
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
 
             mock.assert();
             assert_eq!(expected_error, error);
@@ -519,7 +557,10 @@ mod tests {
 
         {
             let mock = mock("accounts.firefox.co");
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
 
             mock.assert();
             assert_eq!(expected_error, error);
@@ -536,7 +577,10 @@ mod tests {
                 .with_header("content-type", "application/json")
                 .with_body(body.to_string())
                 .create();
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -558,7 +602,10 @@ mod tests {
                 .with_header("content-type", "application/json")
                 .with_body(body.to_string())
                 .create();
-            let error = verifier.verify(assertion.clone()).await.unwrap_err();
+            let error = verifier
+                .verify(assertion.clone(), &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {
@@ -579,7 +626,10 @@ mod tests {
                 .with_header("content-type", "application/json")
                 .with_body(body.to_string())
                 .create();
-            let error = verifier.verify(assertion).await.unwrap_err();
+            let error = verifier
+                .verify(assertion, &Default::default())
+                .await
+                .unwrap_err();
             mock.assert();
 
             let expected_error = TokenserverError {

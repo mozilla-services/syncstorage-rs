@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use syncserver_common::Metrics;
 use tokenserver_common::TokenserverError;
 use tokenserver_settings::Settings;
 
@@ -176,7 +177,11 @@ where
 
     /// Verifies an OAuth token. Returns `VerifyOutput` for valid tokens and a `TokenserverError`
     /// for invalid tokens.
-    async fn verify(&self, token: String) -> Result<VerifyOutput, TokenserverError> {
+    async fn verify(
+        &self,
+        token: String,
+        metrics: &Metrics,
+    ) -> Result<VerifyOutput, TokenserverError> {
         let mut verifiers = self
             .jwk_verifiers
             .iter()
@@ -194,13 +199,20 @@ where
 
         let claims = match self.verify_jwt_locally(&verifiers, &token) {
             Ok(res) => res,
-            Err(OAuthVerifyError::DecodingError) | Err(OAuthVerifyError::InvalidKey) => {
-                self.remote_verify_token(&token).await?
-            }
-            _ => {
-                return Err(TokenserverError::invalid_credentials(
-                    "Unauthorized".to_string(),
-                ))
+            Err(e) => {
+                if e.is_reportable_err() {
+                    metrics.incr(e.metric_label())
+                }
+                match e {
+                    OAuthVerifyError::DecodingError | OAuthVerifyError::InvalidKey => {
+                        self.remote_verify_token(&token).await?
+                    }
+                    _ => {
+                        return Err(TokenserverError::invalid_credentials(
+                            "Unauthorized".to_string(),
+                        ))
+                    }
+                }
             }
         };
         claims.validate()
@@ -209,6 +221,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::crypto::OAuthVerifyError;
     use serde_json::json;
 
     use super::*;
@@ -264,7 +277,7 @@ mod tests {
         };
         let verifer: Verifier<JWTVerifierImpl> = Verifier::new(&settings, vec![])?;
         let res = verifer
-            .verify("a token fxa will validate".to_string())
+            .verify("a token fxa will validate".to_string(), &Default::default())
             .await?;
         mock_jwks.expect(1);
         mock_verify.expect(1);
@@ -287,7 +300,7 @@ mod tests {
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers)?;
 
         let err = verifier
-            .verify("An expired token".to_string())
+            .verify("An expired token".to_string(), &Default::default())
             .await
             .unwrap_err();
         // We also make sure we didn't try to hit the server
@@ -342,7 +355,10 @@ mod tests {
         };
 
         let res = verifier
-            .verify(serde_json::to_string(&token_claims).unwrap())
+            .verify(
+                serde_json::to_string(&token_claims).unwrap(),
+                &Default::default(),
+            )
             .await?;
         assert_eq!(res.fxa_uid, "fxa_id");
         assert_eq!(res.generation.unwrap(), 124);
@@ -362,7 +378,10 @@ mod tests {
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
         let err = verifier
-            .verify("a token with an invalid signature".to_string())
+            .verify(
+                "a token with an invalid signature".to_string(),
+                &Default::default(),
+            )
             .await
             .unwrap_err();
         assert_eq!(err.status, "invalid-credentials");
@@ -396,7 +415,10 @@ mod tests {
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
 
         let res = verifier
-            .verify("invalid token that can't be decoded".to_string())
+            .verify(
+                "invalid token that can't be decoded".to_string(),
+                &Default::default(),
+            )
             .await?;
         assert_eq!(res.fxa_uid, "fxa_id");
         assert_eq!(res.generation.unwrap(), 123);
@@ -419,7 +441,10 @@ mod tests {
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
         let err = verifier
-            .verify(serde_json::to_string(&token_claims).unwrap())
+            .verify(
+                serde_json::to_string(&token_claims).unwrap(),
+                &Default::default(),
+            )
             .await
             .unwrap_err();
         assert_eq!(err.status, "invalid-credentials");
@@ -454,7 +479,10 @@ mod tests {
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
 
         let err = verifier
-            .verify("A token that we will ask FxA about".to_string())
+            .verify(
+                "A token that we will ask FxA about".to_string(),
+                &Default::default(),
+            )
             .await
             .unwrap_err();
         assert_eq!(err.status, "invalid-credentials");
@@ -490,7 +518,10 @@ mod tests {
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
 
         let err = verifier
-            .verify("A token that we will ask FxA about".to_string())
+            .verify(
+                "A token that we will ask FxA about".to_string(),
+                &Default::default(),
+            )
             .await
             .unwrap_err();
         assert_eq!(err.status, "invalid-credentials");
