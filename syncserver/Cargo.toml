@@ -39,7 +39,7 @@ actix-cors = "0.6"
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 hostname = "0.3.1"
-hawk = "4.0"
+hawk = "5.0"
 hmac = "0.12"
 mime = "0.3"
 reqwest = { workspace = true, features = [
