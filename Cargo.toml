@@ -41,7 +41,7 @@ hex = "0.4"
 hkdf = "0.12"
 hmac = "0.12"
 http = "0.2"
-jsonwebtoken = "9.2"
+jsonwebtoken = { version = "9.2", default-features = false }
 lazy_static = "1.4"
 protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
 rand = "0.8"
