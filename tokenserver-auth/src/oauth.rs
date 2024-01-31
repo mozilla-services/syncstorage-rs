@@ -51,7 +51,8 @@ pub struct VerifyOutput {
 /// The verifier used to verify OAuth tokens.
 #[derive(Clone)]
 pub struct Verifier<J> {
-    server_url: Url,
+    verify_url: Url,
+    jwks_url: Url,
     jwk_verifiers: Vec<J>,
 }
 
@@ -60,9 +61,18 @@ where
     J: JWTVerifier,
 {
     pub fn new(settings: &Settings, jwk_verifiers: Vec<J>) -> Result<Self, TokenserverError> {
+        let base_url = Url::parse(&settings.fxa_oauth_server_url)
+            .map_err(|_| TokenserverError::internal_error())?;
+        let verify_url = base_url
+            .join("v1/verify")
+            .map_err(|_| TokenserverError::internal_error())?;
+        let jwks_url = base_url
+            .join("v1/jwks")
+            .map_err(|_| TokenserverError::internal_error())?;
+
         Ok(Self {
-            server_url: Url::parse(&settings.fxa_oauth_server_url)
-                .map_err(|_| TokenserverError::internal_error())?,
+            verify_url,
+            jwks_url,
             jwk_verifiers,
         })
     }
@@ -91,28 +101,25 @@ where
         }
 
         let client = reqwest::Client::new();
-        let url = self
-            .server_url
-            .join("v1/verify")
-            .map_err(|_| TokenserverError::internal_error())?;
         Ok(client
-            .post(url)
+            .post(self.verify_url.clone())
             .json(&VerifyRequest { token })
             .send()
             .await
-            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized".to_string()))
+            .map_err(unauthorized_err_with_ctx)
             .and_then(|res| {
                 if !res.status().is_success() {
-                    Err(TokenserverError::invalid_credentials(
-                        "Unauthorized".to_string(),
-                    ))
+                    Err(unauthorized_err_with_ctx(format!(
+                        "Got verify status code: {}",
+                        res.status()
+                    )))
                 } else {
                     Ok(res)
                 }
             })?
             .json::<VerifyResponse>()
             .await
-            .map_err(|_| TokenserverError::invalid_credentials("Unauthorized".to_string()))?
+            .map_err(unauthorized_err_with_ctx)?
             .into())
     }
 
@@ -122,24 +129,17 @@ where
             keys: Vec<K>,
         }
         let client = reqwest::Client::new();
-        let url = self
-            .server_url
-            .join("v1/jwks")
-            .map_err(|_| TokenserverError::internal_error())?;
         client
-            .get(url)
+            .get(self.jwks_url.clone())
             .send()
             .await
-            .map_err(|_| TokenserverError::internal_error())?
+            .map_err(internal_err_with_ctx)?
             .json::<KeysResponse<J::Key>>()
             .await
-            .map_err(|_| TokenserverError::internal_error())?
+            .map_err(internal_err_with_ctx)?
             .keys
             .into_iter()
-            .map(|key| {
-                key.try_into()
-                    .map_err(|_| TokenserverError::internal_error())
-            })
+            .map(|key| key.try_into().map_err(internal_err_with_ctx))
             .collect()
     }
 
@@ -191,7 +191,10 @@ where
             verifiers = self
                 .get_remote_jwks()
                 .await
-                .unwrap_or_else(|_| vec![])
+                .unwrap_or_else(|e| {
+                    slog_scope::warn!("Error requesting remote jwks: {}", e);
+                    vec![]
+                })
                 .into_iter()
                 .map(Cow::Owned)
                 .collect();
@@ -207,15 +210,25 @@ where
                     OAuthVerifyError::DecodingError | OAuthVerifyError::InvalidKey => {
                         self.remote_verify_token(&token).await?
                     }
-                    _ => {
-                        return Err(TokenserverError::invalid_credentials(
-                            "Unauthorized".to_string(),
-                        ))
-                    }
+                    e => return Err(unauthorized_err_with_ctx(e)),
                 }
             }
         };
         claims.validate()
+    }
+}
+
+fn unauthorized_err_with_ctx<E: std::fmt::Display>(err: E) -> TokenserverError {
+    TokenserverError {
+        context: err.to_string(),
+        ..TokenserverError::invalid_credentials("Unauthorized".to_string())
+    }
+}
+
+fn internal_err_with_ctx<E: std::fmt::Display>(err: E) -> TokenserverError {
+    TokenserverError {
+        context: err.to_string(),
+        ..TokenserverError::internal_error()
     }
 }
 
@@ -321,9 +334,10 @@ mod tests {
             id: u8,
         }
 
-        impl From<MockJWK> for MockJWTVerifier {
-            fn from(_value: MockJWK) -> Self {
-                Self { id: 0 }
+        impl TryFrom<MockJWK> for MockJWTVerifier {
+            type Error = OAuthVerifyError;
+            fn try_from(_value: MockJWK) -> Result<Self, Self::Error> {
+                Ok(Self { id: 0 })
             }
         }
 

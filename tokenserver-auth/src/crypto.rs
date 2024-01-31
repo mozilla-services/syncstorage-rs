@@ -92,7 +92,7 @@ impl From<jsonwebtoken::errors::Error> for OAuthVerifyError {
 }
 
 /// A trait representing a JSON Web Token verifier <https://datatracker.ietf.org/doc/html/rfc7519>
-pub trait JWTVerifier: TryFrom<Self::Key> + Sync + Send + Clone {
+pub trait JWTVerifier: TryFrom<Self::Key, Error = OAuthVerifyError> + Sync + Send + Clone {
     type Key: DeserializeOwned;
 
     fn verify<T: DeserializeOwned>(&self, token: &str) -> Result<T, OAuthVerifyError>;

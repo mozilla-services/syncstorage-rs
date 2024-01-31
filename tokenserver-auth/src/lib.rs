@@ -69,6 +69,8 @@ impl Tokenlib {
         plaintext: MakeTokenPlaintext,
         shared_secret: &str,
     ) -> Result<(String, String), TokenserverError> {
+        // First we make the token itself, the code blow was ported from:
+        // https://github.com/mozilla-services/tokenlib/blob/91ec9e2c922e55306eddba1394590a88f3b10602/tokenlib/__init__.py#L96-L97
         let mut salt_bytes = [0u8; 3];
         let mut rng = rand::thread_rng();
         rng.fill_bytes(&mut salt_bytes);
@@ -86,6 +88,8 @@ impl Tokenlib {
         token_bytes.extend_from_slice(&signature);
         let token = base64::engine::general_purpose::URL_SAFE.encode(token_bytes);
         // Now that we finialized the token, lets generate our per token secret
+        // The code below was ported from:
+        // https://github.com/mozilla-services/tokenlib/blob/91ec9e2c922e55306eddba1394590a88f3b10602/tokenlib/__init__.py#L158-L159
         let mut info = Vec::with_capacity(HKDF_INFO_DERIVE.len() + token.as_bytes().len());
         info.extend_from_slice(HKDF_INFO_DERIVE);
         info.extend_from_slice(token.as_bytes());

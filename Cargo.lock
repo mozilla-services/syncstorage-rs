@@ -2972,6 +2972,7 @@ dependencies = [
  "serde 1.0.195",
  "serde_json",
  "sha2",
+ "slog-scope",
  "syncserver-common",
  "thiserror",
  "tokenserver-common",
