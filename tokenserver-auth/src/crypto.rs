@@ -1,6 +1,7 @@
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac};
 use jsonwebtoken::{errors::ErrorKind, jwk::Jwk, Algorithm, DecodingKey, Validation};
+use ring::rand::{SecureRandom, SystemRandom};
 use serde::de::DeserializeOwned;
 use sha2::Sha256;
 use tokenserver_common::TokenserverError;
@@ -16,10 +17,14 @@ pub trait Crypto {
 
     /// Verify an HMAC signature on a payload given a shared key
     fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error>;
+
+    /// Generates random bytes using a cryptographic random number generator
+    fn rand_bytes(&self, output: &mut [u8]) -> Result<(), Self::Error>;
 }
 
 /// An implementation for the needed cryptographic using
 ///    the hmac crate for hmac and hkdf crate for hkdf
+///    it uses ring for the random number generation
 pub struct CryptoImpl {}
 
 impl Crypto for CryptoImpl {
@@ -44,6 +49,13 @@ impl Crypto for CryptoImpl {
             Hmac::new_from_slice(key).map_err(|_| TokenserverError::internal_error())?;
         mac.update(payload);
         mac.verify_slice(signature)
+            .map_err(|_| TokenserverError::internal_error())?;
+        Ok(())
+    }
+
+    fn rand_bytes(&self, output: &mut [u8]) -> Result<(), Self::Error> {
+        let rng = SystemRandom::new();
+        rng.fill(output)
             .map_err(|_| TokenserverError::internal_error())?;
         Ok(())
     }

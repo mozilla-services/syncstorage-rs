@@ -10,7 +10,6 @@ use std::fmt;
 use async_trait::async_trait;
 use base64::engine::Engine;
 use dyn_clone::{self, DynClone};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokenserver_common::TokenserverError;
 
@@ -71,16 +70,15 @@ impl Tokenlib {
     ) -> Result<(String, String), TokenserverError> {
         // First we make the token itself, the code blow was ported from:
         // https://github.com/mozilla-services/tokenlib/blob/91ec9e2c922e55306eddba1394590a88f3b10602/tokenlib/__init__.py#L96-L97
+        let crypto_lib = CryptoImpl {};
         let mut salt_bytes = [0u8; 3];
-        let mut rng = rand::thread_rng();
-        rng.fill_bytes(&mut salt_bytes);
+        crypto_lib.rand_bytes(&mut salt_bytes)?;
         let salt = hex::encode(salt_bytes);
         let token_str = serde_json::to_string(&Token {
             plaintext,
             salt: &salt,
         })
         .map_err(|_| TokenserverError::internal_error())?;
-        let crypto_lib = CryptoImpl {};
         let hmac_key = crypto_lib.hkdf(shared_secret, None, HKDF_SIGNING_INFO)?;
         let signature = crypto_lib.hmac_sign(&hmac_key, token_str.as_bytes())?;
         let mut token_bytes = Vec::with_capacity(token_str.len() + signature.len());

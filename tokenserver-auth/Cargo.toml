@@ -16,7 +16,6 @@ hkdf.workspace = true
 hmac.workspace = true
 jsonwebtoken.workspace = true
 base64.workspace = true
-rand.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 slog-scope.workspace = true
@@ -24,7 +23,7 @@ slog-scope.workspace = true
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
-
+ring = "0.17"
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
