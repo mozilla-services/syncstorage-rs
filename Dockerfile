@@ -1,5 +1,5 @@
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM docker.io/lukemathwalker/cargo-chef:0.1.62-rust-1.72-bullseye as chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.62-rust-1.75-bullseye as chef
 WORKDIR /app
 
 FROM chef AS planner
