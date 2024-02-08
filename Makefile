@@ -15,11 +15,11 @@ PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sys
 
 clippy_mysql:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
 
 clippy_spanner:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
 
 clean:
 	cargo clean
@@ -43,12 +43,21 @@ docker_start_spanner_rebuild:
 docker_stop_spanner:
 	docker-compose -f docker-compose.spanner.yaml down
 
-run_mysql: 
-	 RUST_LOG=debug \
-		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/mysql -- --config config/local.toml
+python:
+	python3 -m venv venv
+	venv/bin/python -m pip install -r requirements.txt
 
-run_spanner:
+
+run_mysql: python
+	PATH="./venv/bin:$(PATH)" \
+		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
+		# below env var
+		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
+	        RUST_LOG=debug \
+		RUST_BACKTRACE=full \
+		cargo run --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- --config config/local.toml
+
+run_spanner: python
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
 		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
@@ -57,7 +66,7 @@ run_spanner:
 	    PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/spanner -- --config config/local.toml
+		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
 
 test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \

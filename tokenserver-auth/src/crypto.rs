@@ -10,15 +10,23 @@ pub const SHA256_OUTPUT_LEN: usize = 32;
 pub trait Crypto {
     type Error;
     /// HKDF key derivation
+    ///
+    /// This expands `info` into a 32 byte value using `secret` and the optional `salt`.
+    /// Salt is normally specified, except when this function is called in [syncserver-settings::Secrets::new] or when deriving
+    /// a key to be used to sign the tokenserver tokens, so both syncserver and tokenserver can
+    /// sign and validate the signatures
     fn hkdf(&self, secret: &str, salt: Option<&[u8]>, info: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
     /// HMAC signiture
+    ///
+    /// Signs the `payload` using HMAC given the `key`
     fn hmac_sign(&self, key: &[u8], payload: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
     /// Verify an HMAC signature on a payload given a shared key
     fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error>;
 
     /// Generates random bytes using a cryptographic random number generator
+    /// and fills `output` with those bytes
     fn rand_bytes(&self, output: &mut [u8]) -> Result<(), Self::Error>;
 }
 

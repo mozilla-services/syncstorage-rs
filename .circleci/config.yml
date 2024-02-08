@@ -27,6 +27,7 @@ commands:
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
             pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2
+            pip3 install -r requirements.txt
   rust-check:
     steps:
       - run:
@@ -47,13 +48,13 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
   cargo-build:
     steps:
       - run:
