@@ -5,7 +5,7 @@ use crate::VerifyToken;
 use async_trait::async_trait;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use std::{borrow::Cow, time::Duration};
 use syncserver_common::Metrics;
 use tokenserver_common::TokenserverError;
 use tokenserver_settings::Settings;
@@ -47,6 +47,7 @@ pub struct Verifier<J> {
     verify_url: Url,
     jwks_url: Url,
     jwk_verifiers: Vec<J>,
+    http_client: reqwest::Client,
 }
 
 impl<J> Verifier<J>
@@ -62,11 +63,17 @@ where
         let jwks_url = base_url
             .join("v1/jwks")
             .map_err(|_| TokenserverError::internal_error())?;
+        let http_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(settings.fxa_oauth_request_timeout))
+            .use_rustls_tls()
+            .build()
+            .map_err(|_| TokenserverError::internal_error())?;
 
         Ok(Self {
             verify_url,
             jwks_url,
             jwk_verifiers,
+            http_client,
         })
     }
 
@@ -93,8 +100,8 @@ where
             }
         }
 
-        let client = reqwest::Client::new();
-        Ok(client
+        Ok(self
+            .http_client
             .post(self.verify_url.clone())
             .json(&VerifyRequest { token })
             .send()
@@ -121,8 +128,7 @@ where
         struct KeysResponse<K> {
             keys: Vec<K>,
         }
-        let client = reqwest::Client::new();
-        client
+        self.http_client
             .get(self.jwks_url.clone())
             .send()
             .await
