@@ -18,7 +18,7 @@ commands:
           name: Setup Rust checks
           command: |
             rustup component add rustfmt
-            cargo install cargo-audit
+            cargo install --locked cargo-audit
             rustup component add clippy
   setup-python:
     steps:
@@ -140,7 +140,7 @@ commands:
       - run:
           name: Install sccache
           command: |
-            cargo install sccache
+            cargo install --locked sccache
             # This configures Rust to use sccache.
             echo 'export "RUSTC_WRAPPER"="sccache"' >> $BASH_ENV
             # This is the maximum space sccache cache will use on disk.
@@ -161,7 +161,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.72.0
+      - image: cimg/rust:1.75.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -178,7 +178,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.72.0
+      - image: cimg/rust:1.75.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -214,7 +214,7 @@ jobs:
       #- save-sccache-cache
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.60.0
+      - image: cimg/rust:1.75.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -245,7 +245,7 @@ jobs:
 
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.60.0
+      - image: cimg/rust:1.75.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS

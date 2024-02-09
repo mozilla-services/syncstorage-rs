@@ -145,7 +145,7 @@ fn create_request(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",
         ));
     if let Some(body) = payload {
-        req = req.set_json(&body);
+        req = req.set_json(body);
     };
     if let Some(h) = headers {
         for (k, v) in h {
