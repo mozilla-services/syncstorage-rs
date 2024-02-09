@@ -15,7 +15,7 @@ serde_json.workspace = true
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 pyo3 = { version = "0.20", features = ["auto-initialize"] }
-reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, features = ["json"] }
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
