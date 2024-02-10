@@ -167,6 +167,12 @@ impl From<std::io::Error> for ApiError {
     }
 }
 
+impl From<tracing::subscriber::SetGlobalDefaultError> for ApiError {
+    fn from(_: tracing::subscriber::SetGlobalDefaultError) -> Self {
+        ApiErrorKind::Internal("Logging failed to initialize".to_string()).into()
+    }
+}
+
 impl From<ApiErrorKind> for ApiError {
     fn from(kind: ApiErrorKind) -> Self {
         let status = match &kind {

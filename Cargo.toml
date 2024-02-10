@@ -55,13 +55,12 @@ slog = { version = "2.5", features = [
   "release_max_level_info",
   "dynamic-keys",
 ] }
-slog-async = "2.5"
-slog-envlogger = "2.2.0"
-slog-mozlog-json = "0.1"
 slog-scope = "4.3"
-slog-stdlog = "4.1"
-slog-term = "2.6"
 tokio = "1"
+tracing = "0.1.40"
+tracing-appender = "0.2.3"
+tracing-slog = "0.2.0"
+tracing-subscriber = { version = "0.3.18", features = ["ansi", "env-filter", "json", "registry", "std", "tracing-log"] }
 
 [profile.release]
 # Enables line numbers in Sentry reporting

@@ -102,6 +102,38 @@ async fn get_test_state(settings: &Settings) -> ServerState {
     }
 }
 
+/// Wrapper around an `actix_web::Service` used to run the tests.
+///
+/// It also stores the tracing subscriber guard to ensure that logging is setup while running the
+/// test.
+struct TestService<S> {
+    service: S,
+    _subscriber_guard: tracing::subscriber::DefaultGuard,
+}
+
+impl<S> TestService<S> {
+    fn new(service: S) -> Self {
+        Self {
+            service,
+            _subscriber_guard: crate::logging::init_test_logging(),
+        }
+    }
+}
+
+impl<S> std::ops::Deref for TestService<S> {
+    type Target = S;
+
+    fn deref(&self) -> &S {
+        &self.service
+    }
+}
+
+impl<S> std::ops::DerefMut for TestService<S> {
+    fn deref_mut(&mut self) -> &mut S {
+        &mut self.service
+    }
+}
+
 macro_rules! init_app {
     () => {
         async {
@@ -111,17 +143,18 @@ macro_rules! init_app {
     };
     ($settings:expr) => {
         async {
-            crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.syncstorage.limits.clone());
             let state = get_test_state(&$settings).await;
-            test::init_service(build_app!(
-                state,
-                None::<tokenserver::ServerState>,
-                Arc::clone(&SECRETS),
-                limits,
-                build_cors(&$settings)
-            ))
-            .await
+            TestService::new(
+                test::init_service(build_app!(
+                    state,
+                    None::<tokenserver::ServerState>,
+                    Arc::clone(&SECRETS),
+                    limits,
+                    build_cors(&$settings)
+                ))
+                .await,
+            )
         }
     };
 }
