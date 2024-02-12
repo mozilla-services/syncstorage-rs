@@ -1068,8 +1068,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190092ea657667030ac6a35e305e62fc4dd69fd98ac98631e5d3a2b1575a12b5"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1437,6 +1439,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a1d36f1235bc969acba30b7f5990b864423a6068a10f7c90ae8f0112e3a59d1"
 dependencies = [
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jsonwebtoken"
+version = "9.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c7ea04a7c5c055c175f189b6dc6ba036fd62306b58c66c9f6389036c503a3f4"
+dependencies = [
+ "base64",
+ "js-sys",
+ "ring",
+ "serde 1.0.195",
+ "serde_json",
 ]
 
 [[package]]
@@ -3032,14 +3047,23 @@ name = "tokenserver-auth"
 version = "0.14.4"
 dependencies = [
  "async-trait",
+ "base64",
  "dyn-clone",
  "futures 0.3.30",
+ "hex",
+ "hkdf",
+ "hmac",
+ "jsonwebtoken",
  "mockito",
  "pyo3",
  "reqwest",
+ "ring",
  "serde 1.0.195",
  "serde_json",
+ "sha2",
+ "slog-scope",
  "syncserver-common",
+ "thiserror",
  "tokenserver-common",
  "tokenserver-settings",
  "tokio",
@@ -3051,6 +3075,7 @@ version = "0.14.4"
 dependencies = [
  "actix-web",
  "backtrace",
+ "jsonwebtoken",
  "serde 1.0.195",
  "serde_json",
  "syncserver-common",
@@ -3086,6 +3111,7 @@ dependencies = [
 name = "tokenserver-settings"
 version = "0.14.4"
 dependencies = [
+ "jsonwebtoken",
  "serde 1.0.195",
  "tokenserver-common",
 ]

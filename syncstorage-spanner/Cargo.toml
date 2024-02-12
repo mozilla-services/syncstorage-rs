@@ -12,6 +12,7 @@ env_logger.workspace = true
 futures.workspace = true
 http.workspace = true
 slog-scope.workspace = true
+thiserror.workspace = true
 
 async-trait = "0.1.40"
 google-cloud-rust-raw = { version = "0.16.1", features = ["spanner"] }
@@ -30,7 +31,6 @@ syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-thiserror = "1.0.26"
 tokio = { workspace = true, features = [
   "macros",
   "sync",

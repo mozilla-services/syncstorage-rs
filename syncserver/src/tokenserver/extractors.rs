@@ -457,7 +457,8 @@ impl FromRequest for AuthData {
                     let mut tags = HashMap::default();
                     tags.insert("token_type".to_owned(), "BrowserID".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
-                    let verify_output = state.browserid_verifier.verify(assertion).await?;
+                    let verify_output =
+                        state.browserid_verifier.verify(assertion, &metrics).await?;
 
                     // For requests using BrowserID, the client state is embedded in the
                     // X-Client-State header, and the generation and keys_changed_at are extracted
@@ -487,7 +488,7 @@ impl FromRequest for AuthData {
                     let mut tags = HashMap::default();
                     tags.insert("token_type".to_owned(), "OAuth".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
-                    let verify_output = state.oauth_verifier.verify(token).await?;
+                    let verify_output = state.oauth_verifier.verify(token, &metrics).await?;
 
                     // For requests using OAuth, the keys_changed_at and client state are embedded
                     // in the X-KeyID header.

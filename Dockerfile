@@ -19,7 +19,7 @@ RUN \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --recipe-path recipe.json
+RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
 
 FROM chef as builder
 ARG DATABASE_BACKEND=spanner
@@ -46,7 +46,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --locked --root /app && \
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app && \
     if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
 FROM docker.io/library/debian:bullseye-slim
@@ -56,11 +56,12 @@ COPY --from=builder /app/requirements.txt /app
 # have to set this env var to prevent the cryptography package from building
 # with Rust. See this link for more information:
 # https://pythonshowcase.com/question/problem-installing-cryptography-on-raspberry-pi
+ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 
 RUN \
     apt-get -q update && apt-get -qy install wget
 
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
+
 RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \

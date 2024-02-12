@@ -215,14 +215,14 @@ class TestE2e(TestCase, unittest.TestCase):
         raw = urlsafe_b64decode(res.json['id'])
         payload = raw[:-32]
         signature = raw[-32:]
-        payload_dict = json.loads(payload.decode('utf-8'))
+        payload_str = payload.decode('utf-8')
+        payload_dict = json.loads(payload_str)
         # The `id` payload should include a field indicating the origin of the
         # token
         self.assertEqual(payload_dict['tokenserver_origin'], 'rust')
         signing_secret = self.TOKEN_SIGNING_SECRET
-        expected_token = tokenlib.make_token(payload_dict,
-                                             secret=signing_secret)
-        expected_signature = urlsafe_b64decode(expected_token)[-32:]
+        tm = tokenlib.TokenManager(secret=signing_secret)
+        expected_signature = tm._get_signature(payload_str.encode('utf8'))
         # Using the #compare_digest method here is not strictly necessary, as
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))
@@ -271,12 +271,11 @@ class TestE2e(TestCase, unittest.TestCase):
         raw = urlsafe_b64decode(res.json['id'])
         payload = raw[:-32]
         signature = raw[-32:]
-        payload_dict = json.loads(payload.decode('utf-8'))
+        payload_str = payload.decode('utf-8')
 
         signing_secret = self.TOKEN_SIGNING_SECRET
-        expected_token = tokenlib.make_token(payload_dict,
-                                             secret=signing_secret)
-        expected_signature = urlsafe_b64decode(expected_token)[-32:]
+        tm = tokenlib.TokenManager(secret=signing_secret)
+        expected_signature = tm._get_signature(payload_str.encode('utf8'))
         # Using the #compare_digest method here is not strictly necessary, as
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))

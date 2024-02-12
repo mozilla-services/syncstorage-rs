@@ -32,6 +32,8 @@ slog-mozlog-json.workspace = true
 slog-scope.workspace = true
 slog-stdlog.workspace = true
 slog-term.workspace = true
+hmac.workspace = true
+thiserror.workspace = true
 
 actix-http = "3"
 actix-rt = "2"
@@ -40,7 +42,6 @@ async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 hostname = "0.3.1"
 hawk = "5.0"
-hmac = "0.12"
 mime = "0.3"
 reqwest = { workspace = true, features = [
     "json",
@@ -53,8 +54,7 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-thiserror = "1.0.26"
-tokenserver-auth = { path = "../tokenserver-auth" }
+tokenserver-auth = { path = "../tokenserver-auth", default-features = false}
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
@@ -65,7 +65,8 @@ validator_derive = "0.16"
 woothee = "0.13"
 
 [features]
-default = ["mysql"]
+default = ["mysql", "py_verifier"]
 no_auth = []
+py_verifier = ["tokenserver-auth/py"]
 mysql = ["syncstorage-db/mysql"]
 spanner = ["syncstorage-db/spanner"]

@@ -14,5 +14,5 @@ serde_json.workspace = true
 slog.workspace = true
 slog-scope.workspace = true
 actix-web.workspace = true
+hkdf.workspace = true
 
-hkdf = "0.12"

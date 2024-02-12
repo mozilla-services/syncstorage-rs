@@ -1,3 +1,4 @@
+use jsonwebtoken::jwk::Jwk;
 use serde::Deserialize;
 use tokenserver_common::NodeType;
 
@@ -67,18 +68,6 @@ pub struct Settings {
     pub additional_blocking_threads_for_fxa_requests: Option<u32>,
     /// The amount of time in seconds before a token provided by Tokenserver expires.
     pub token_duration: u64,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct Jwk {
-    pub kty: String,
-    pub alg: String,
-    pub kid: String,
-    pub fxa_created_at: u64,
-    #[serde(rename = "use")]
-    pub use_of_key: String,
-    pub n: String,
-    pub e: String,
 }
 
 impl Default for Settings {
