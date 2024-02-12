@@ -9,6 +9,8 @@ use serde::{
     Serialize,
 };
 use syncserver_common::{BlockingThreadpool, Metrics};
+#[cfg(not(feature = "py_verifier"))]
+use tokenserver_auth::JWTVerifierImpl;
 use tokenserver_auth::{browserid, oauth, VerifyToken};
 use tokenserver_common::NodeType;
 use tokenserver_db::{params, DbPool, TokenserverPool};
@@ -40,6 +42,32 @@ impl ServerState {
         metrics: Arc<StatsdClient>,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
+        #[cfg(not(feature = "py_verifier"))]
+        let oauth_verifier = {
+            let mut jwk_verifiers: Vec<JWTVerifierImpl> = Vec::new();
+            if let Some(primary) = &settings.fxa_oauth_primary_jwk {
+                jwk_verifiers.push(
+                    primary
+                        .clone()
+                        .try_into()
+                        .expect("Invalid primary key, should either be fixed or removed"),
+                )
+            }
+            if let Some(secondary) = &settings.fxa_oauth_secondary_jwk {
+                jwk_verifiers.push(
+                    secondary
+                        .clone()
+                        .try_into()
+                        .expect("Invalid secondary key, should either be fixed or removed"),
+                );
+            }
+            Box::new(
+                oauth::Verifier::new(settings, jwk_verifiers)
+                    .expect("failed to create Tokenserver OAuth verifier"),
+            )
+        };
+
+        #[cfg(feature = "py_verifier")]
         let oauth_verifier = Box::new(
             oauth::Verifier::new(settings, blocking_threadpool.clone())
                 .expect("failed to create Tokenserver OAuth verifier"),

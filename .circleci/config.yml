@@ -48,13 +48,13 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
   cargo-build:
     steps:
       - run:
