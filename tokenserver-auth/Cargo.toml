@@ -22,7 +22,7 @@ slog-scope.workspace = true
 
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
-reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, features = ["json"] }
 ring = "0.17"
 syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
