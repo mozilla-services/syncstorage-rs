@@ -12,6 +12,7 @@ use std::future::Future;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse},
     web::Data,
+    HttpMessage,
 };
 use syncserver_common::Metrics;
 use tokenserver_auth::TokenserverOrigin;
@@ -19,14 +20,10 @@ use tokenserver_auth::TokenserverOrigin;
 use crate::error::{ApiError, ApiErrorKind};
 use crate::server::ServerState;
 
-pub fn emit_http_status_with_tokenserver_origin(
+pub fn emit_http_status_with_tokenserver_origin<B>(
     req: ServiceRequest,
-    srv: &mut impl Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = actix_web::Error,
-    >,
-) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    srv: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
     let fut = srv.call(req);
 
     async move {

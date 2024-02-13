@@ -1842,10 +1842,7 @@ impl SpannerDb {
             sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
             sqlparams.insert("payload".to_string(), payload.into_spanner_value());
             let now_millis = timestamp.as_i64();
-            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
-                ttl.try_into()
-                    .expect("Could not get ttl in put_bso_async_test")
-            }) * 1000;
+            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.into()) * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(
                 "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",

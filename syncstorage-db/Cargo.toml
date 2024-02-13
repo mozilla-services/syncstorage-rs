@@ -26,7 +26,6 @@ syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }
 syncstorage-settings = { path = "../syncstorage-settings" }
 syncstorage-spanner = { path = "../syncstorage-spanner", optional = true }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 [features]

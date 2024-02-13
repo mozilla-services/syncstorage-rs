@@ -20,6 +20,7 @@ static PREFIX: &str = "sync";
 pub struct Settings {
     pub port: u16,
     pub host: String,
+    /// Keep-alive header value (seconds)
     pub actix_keep_alive: Option<u32>,
     /// The master secret, from which are derived
     /// the signing secret and token secret

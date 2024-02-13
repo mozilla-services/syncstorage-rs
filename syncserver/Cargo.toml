@@ -32,15 +32,16 @@ slog-mozlog-json.workspace = true
 slog-scope.workspace = true
 slog-stdlog.workspace = true
 slog-term.workspace = true
+hmac.workspace = true
+thiserror.workspace = true
 
-actix-http = "2"
-actix-rt = "1" # Pin to 1.0, due to dependencies on Tokio
-actix-cors = "0.5" # pin to 0.5. 0.6 introduces breaking change
+actix-http = "3"
+actix-rt = "2"
+actix-cors = "0.6"
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
 hostname = "0.3.1"
-hawk = "4.0"
-hmac = "0.12"
+hawk = "5.0"
 mime = "0.3"
 reqwest = { workspace = true, features = [
     "json",
@@ -53,12 +54,10 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-thiserror = "1.0.26"
-tokenserver-auth = { path = "../tokenserver-auth" }
+tokenserver-auth = { path = "../tokenserver-auth", default-features = false}
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
 validator = "0.16"
@@ -66,7 +65,8 @@ validator_derive = "0.16"
 woothee = "0.13"
 
 [features]
-default = ["mysql"]
+default = ["mysql", "py_verifier"]
 no_auth = []
+py_verifier = ["tokenserver-auth/py"]
 mysql = ["syncstorage-db/mysql"]
 spanner = ["syncstorage-db/spanner"]

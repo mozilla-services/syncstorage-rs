@@ -1,13 +1,2 @@
 [advisories]
-ignore = [
-    "RUSTSEC-2020-0041", # https://github.com/bodil/sized-chunks/issues/11
-    "RUSTSEC-2021-0078",
-    "RUSTSEC-2021-0079",
-    "RUSTSEC-2020-0159",
-    "RUSTSEC-2020-0071",
-    "RUSTSEC-2021-0124",
-    "RUSTSEC-2023-0034", # Bound by actix-http 2.2, Reqwest 0.10
-    "RUSTSEC-2023-0044", # Bound to native-tls 0.2.11, request 0.10.10, hyper-tls 0.4.3
-    "RUSTSEC-2023-0052", # Bound by reqwest, various tls libs
-    "RUSTSEC-2024-0003", # Bound by reqwest, actix-http
-]
+ignore = []

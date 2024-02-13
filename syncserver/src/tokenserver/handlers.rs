@@ -63,12 +63,12 @@ pub async fn get_tokenserver_result(
     };
 
     Ok(HttpResponse::build(StatusCode::OK)
-        .header("X-Timestamp", timestamp.to_string())
+        .insert_header(("X-Timestamp", timestamp.to_string()))
         // This header helps to prevent cross-site scripting attacks by
         // blocking content type sniffing. It was set automatically by the
         // Pyramid cornice library used by the Python Tokenserver, so we set
         // it here for safety and consistency.
-        .header("X-Content-Type-Options", "nosniff")
+        .insert_header(("X-Content-Type-Options", "nosniff"))
         .json(result))
 }
 

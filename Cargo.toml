@@ -28,7 +28,7 @@ edition = "2021"
 license = "MPL-2.0"
 
 [workspace.dependencies]
-actix-web = "3"
+actix-web = "4"
 
 base64 = "0.21"
 cadence = "0.29"
@@ -38,12 +38,15 @@ docopt = "1.1"
 env_logger = "0.10"
 futures = { version = "0.3", features = ["compat"] }
 hex = "0.4"
+hkdf = "0.12"
+hmac = "0.12"
 http = "0.2"
+jsonwebtoken = { version = "9.2", default-features = false }
 lazy_static = "1.4"
 protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
 rand = "0.8"
 regex = "1.4"
-reqwest = "^0.10" # 0.11+ requires tokio v1.34
+reqwest = "0.11"
 sentry = { version = "0.31", features = ["curl"] }
 sentry-backtrace = "0.31"
 serde = "1.0"
@@ -61,7 +64,8 @@ slog-mozlog-json = "0.1"
 slog-scope = "4.3"
 slog-stdlog = "4.1"
 slog-term = "2.6"
-tokio = "^0.2.4"
+tokio = "1"
+thiserror = "1.0.26"
 
 [profile.release]
 # Enables line numbers in Sentry reporting

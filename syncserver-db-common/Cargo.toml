@@ -9,12 +9,9 @@ edition.workspace=true
 backtrace.workspace=true
 futures.workspace=true
 http.workspace=true
+thiserror.workspace=true
 
-# Pin to 0.5 for now, to keep it under tokio 0.2 (issue977).
-# Fix for #803 (deadpool#92) points to our fork for now
-#deadpool = "0.5"  # pin to 0.5
-deadpool = { git = "https://github.com/mozilla-services/deadpool", branch = "deadpool-v0.5.2-issue92" }
+deadpool = { git = "https://github.com/mozilla-services/deadpool", tag = "deadpool-v0.7.0" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
 syncserver-common = { path = "../syncserver-common" }
-thiserror = "1.0.26"
