@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
+from fxa.errors import ServerError
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
 
@@ -69,9 +70,14 @@ class TestE2e(TestCase, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.acct.clear()
+        # A teardown of some of the tests can produce a 401 error because
+        # of a race condition, where the record had already been removed.
+        # This causes `destroy_account` to return an error if it attempts
+        # to parse the invalid JSON response.
+        # This traps for that event.
         try:
             cls.client.destroy_account(cls.acct.email, cls.fxa_password)
-        except Exception as ex:
+        except ServerError as ex:
             print(f"warning: Encountered error when cleaning up: {ex}")
 
     @staticmethod
