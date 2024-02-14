@@ -69,7 +69,10 @@ class TestE2e(TestCase, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.acct.clear()
-        cls.client.destroy_account(cls.acct.email, cls.fxa_password)
+        try:
+            cls.client.destroy_account(cls.acct.email, cls.fxa_password)
+        except Exception as ex:
+            print(f"warning: Encountered error when cleaning up: {ex}")
 
     @staticmethod
     def _generate_password():
