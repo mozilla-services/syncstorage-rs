@@ -181,7 +181,7 @@ SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 
 ### Running via Docker
 
-This requires access to [Google Cloud Rust (raw)](https://github.com/mozilla-services/google-cloud-rust-raw/) crate. Please note that due to interdependencies, you will need to ensure that `grpcio` and `protobuf` match the version used by `google-cloud-rust-raw`.
+This requires access to [Google Cloud Rust (raw)](https://crates.io/crates/google-cloud-rust-raw/) crate. Please note that due to interdependencies, you will need to ensure that `grpcio` and `protobuf` match the version used by `google-cloud-rust-raw`.
 
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
