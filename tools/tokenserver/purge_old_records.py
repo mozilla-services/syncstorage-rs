@@ -36,7 +36,8 @@ PATTERN = "{node}/1.5/{uid}"
 
 
 def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
-                      request_timeout=60, settings=None):
+                      max_records=0, request_timeout=60, dryrun=False,
+                      force=False):
     """Purge old records from the database.
 
     This function queries all of the old user records in the database, deletes
@@ -67,6 +68,7 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                 break
             if rows == previous_list:
                 raise Exception("Loop detected")
+            previous_list = rows
             logger.info("Fetched %d rows at offset %d", len(rows), offset)
             counter = 0
             for row in rows:
@@ -76,37 +78,36 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                 if row.node is None:
                     logger.info("Deleting user record for uid %s on %s",
                                 row.uid, row.node)
-                    if settings and not settings.dryrun:
+                    if not dryrun:
                         database.delete_user_record(row.uid)
+                    # NOTE: only delete_user+service_data calls count
+                    # against the counter
                 elif not row.downed:
                     logger.info("Purging uid %s on %s", row.uid, row.node)
-                    if settings and settings.dryrun:
-                        pass
-                    else:
+                    if not dryrun:
                         delete_service_data(
                             row,
                             secret,
                             timeout=request_timeout,
-                            settings=settings)
+                            dryrun=dryrun)
                         database.delete_user_record(row.uid)
                     counter += 1
-                elif settings and settings.force:
+                elif force:
                     logger.info(
                         "Forcing tokenserver record delete: "
                         f"{row.uid} on {row.node}"
                     )
-                    if not settings.dryrun:
+                    if not dryrun:
                         delete_service_data(
                             row,
                             secret,
                             timeout=request_timeout,
-                            settings=settings)
+                            dryrun=dryrun)
                         database.delete_user_record(row.uid)
                     counter += 1
-                if settings and settings.max_records:
-                    if counter >= settings.max_records:
-                        logger.info("Reached max_records, exiting")
-                        return True
+                if max_records and counter >= max_records:
+                    logger.info("Reached max_records, exiting")
+                    return True
             if len(rows) < max_per_loop:
                 break
     except Exception:
@@ -117,7 +118,7 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
         return True
 
 
-def delete_service_data(user, secret, timeout=60, settings=None):
+def delete_service_data(user, secret, timeout=60, dryrun=False):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
@@ -136,7 +137,10 @@ def delete_service_data(user, secret, timeout=60, settings=None):
     secret = tokenlib.get_derived_secret(token, secret=secret)
     endpoint = PATTERN.format(uid=user.uid, node=user.node)
     auth = HawkAuth(token, secret)
-    if settings and settings.dryrun:
+    if dryrun:
+        # NOTE: this function currently isn't called during dryrun
+        # (but we may want to add logging here and change that in the
+        # future)
         return
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
@@ -173,6 +177,9 @@ def main(args=None):
     # selects will return zero rows. Choose this value accordingly.
     parser.add_option("", "--max-offset", type="int", default=0,
                       help="Use random offset from 0 to max_offset")
+    parser.add_option("", "--max-records", type="int", default=0,
+                      help="Max number of syncstorage data purges to "
+                      "make")
     parser.add_option("", "--request-timeout", type="int", default=60,
                       help="Timeout for service deletion requests")
     parser.add_option("", "--oneshot", action="store_true",
@@ -182,8 +189,8 @@ def main(args=None):
     parser.add_option("", "--dryrun", action="store_true",
                       help="Don't do destructive things")
     parser.add_option("", "--force", action="store_true",
-                      help="force record to be deleted from TS db,"
-                      " even if node is down")
+                      help="Force syncstorage data to be purged, even "
+                      "if the user's node is marked as down")
 
     opts, args = parser.parse_args(args)
     if len(args) != 2:
@@ -198,8 +205,10 @@ def main(args=None):
                       grace_period=opts.grace_period,
                       max_per_loop=opts.max_per_loop,
                       max_offset=opts.max_offset,
+                      max_records=opts.max_records,
                       request_timeout=opts.request_timeout,
-                      settings=opts)
+                      dryrun=opts.dryrun,
+                      force=opts.force)
     if not opts.oneshot:
         while True:
             # Randomize sleep interval +/- thirty percent to desynchronize
@@ -211,8 +220,10 @@ def main(args=None):
             purge_old_records(grace_period=opts.grace_period,
                               max_per_loop=opts.max_per_loop,
                               max_offset=opts.max_offset,
+                              max_records=opts.max_records,
                               request_timeout=opts.request_timeout,
-                              settings=opts)
+                              dryrun=opts.dryrun,
+                              force=opts.force)
     return 0
 
 
