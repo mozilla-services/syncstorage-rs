@@ -1,3 +1,22 @@
+<a name="0.15.0"></a>
+## 0.15.0 (2024-02-27)
+
+
+#### Features
+
+*   Puts pyo3 behind feature flag and derives tokens directly in Rust (#1513) ([1b116846](https://github.com/mozilla-services/syncstorage-rs/commit/1b11684648f2b6e632b1ef286c62008278cb4c08))
+*   Upgrading to Actix 4.x (#1514) ([97985586](https://github.com/mozilla-services/syncstorage-rs/commit/97985586b464976923bede595c40a05def2c0a64))
+
+#### Bug Fixes
+
+*   Copy modified purge script from old tokenserver  repo (#1512) ([06ecb78e](https://github.com/mozilla-services/syncstorage-rs/commit/06ecb78e2414c9fd7385709d19987ac8a1d1fa3d))
+
+#### Chore
+
+*   Cleans up TLS dependencies (#1519) ([ac3b479a](https://github.com/mozilla-services/syncstorage-rs/commit/ac3b479a58275d16e3529a17ef68521564b8b571))
+
+
+
 <a name="0.14.4"></a>
 ## 0.14.4 (2023-12-11)
 
