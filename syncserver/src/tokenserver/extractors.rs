@@ -790,6 +790,7 @@ mod tests {
             duration: 100,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         assert_eq!(result, expected_tokenserver_request);
@@ -1126,6 +1127,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1171,6 +1173,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1215,6 +1218,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1260,6 +1264,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1299,6 +1304,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1339,6 +1345,7 @@ mod tests {
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
             spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
