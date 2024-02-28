@@ -155,6 +155,14 @@ impl TokenserverError {
             ..Self::default()
         }
     }
+
+    pub fn bad_node() -> Self {
+        Self {
+            context: "Expired Auth token".to_string(),
+            description: "Expired Auth token".to_string(),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

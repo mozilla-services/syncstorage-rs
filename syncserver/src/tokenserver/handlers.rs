@@ -5,6 +5,7 @@ use std::{
 
 use actix_web::{http::StatusCode, Error, HttpResponse};
 use base64::{engine, Engine};
+use cadence::CountedExt;
 use serde::Serialize;
 use serde_json::Value;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
@@ -183,18 +184,20 @@ async fn update_user(
         },
     };
 
-    let over_ride = if let Some(override_node_id) = req.spanner_node_id {
+    if let Some(override_node_id) = req.spanner_node_id {
         if let Some(user_node_id) = req.user.node_id {
-            user_node_id != override_node_id as i64
-        } else {
-            false
+            if user_node_id != (override_node_id as i64) {
+                if let Some(metrics) = &req.metrics {
+                    metrics.incr_with_tags("override").send();
+                }
+                // The only thing we can do at this point is to return a 401.
+                return Err(TokenserverError::bad_node());
+            }
         }
-    } else {
-        false
     };
     // If the client state changed, we need to mark the current user as "replaced" and create a
     // new user record. Otherwise, we can update the user in place.
-    if over_ride || req.auth_data.client_state != req.user.client_state {
+    if req.auth_data.client_state != req.user.client_state {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
