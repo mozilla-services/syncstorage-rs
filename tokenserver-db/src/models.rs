@@ -335,7 +335,7 @@ impl TokenserverDb {
         metrics.start_timer("storage.get_users", None);
 
         const QUERY: &str = r#"
-                     SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at,
+                     SELECT uid, nodes.node, users.nodeid, generation, keys_changed_at, client_state, created_at,
                             replaced_at
                        FROM users
             LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
@@ -375,6 +375,7 @@ impl TokenserverDb {
                 client_state: params.client_state,
                 generation: params.generation,
                 node: allocate_user_result.node,
+                node_id: Some(allocate_user_result.node_id),
                 keys_changed_at: params.keys_changed_at,
                 created_at: allocate_user_result.created_at,
                 replaced_at: None,
@@ -439,6 +440,7 @@ impl TokenserverDb {
                         client_state: raw_user.client_state,
                         generation: raw_user.generation,
                         node: allocate_user_result.node,
+                        node_id: Some(allocate_user_result.node_id),
                         keys_changed_at: raw_user.keys_changed_at,
                         created_at: allocate_user_result.created_at,
                         replaced_at: None,
@@ -454,6 +456,7 @@ impl TokenserverDb {
                     client_state: raw_user.client_state,
                     generation: raw_user.generation,
                     node,
+                    node_id: raw_user.node_id,
                     keys_changed_at: raw_user.keys_changed_at,
                     created_at: raw_user.created_at,
                     replaced_at: None,
@@ -504,6 +507,7 @@ impl TokenserverDb {
         Ok(results::AllocateUser {
             uid,
             node: node.node,
+            node_id: node.id,
             created_at,
         })
     }

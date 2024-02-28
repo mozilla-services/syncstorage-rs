@@ -16,6 +16,8 @@ pub struct GetRawUser {
     #[sql_type = "Nullable<Text>"]
     pub node: Option<String>,
     #[sql_type = "Nullable<Bigint>"]
+    pub node_id: Option<i64>,
+    #[sql_type = "Nullable<Bigint>"]
     pub keys_changed_at: Option<i64>,
     #[sql_type = "Bigint"]
     pub created_at: i64,
@@ -29,6 +31,7 @@ pub type GetUsers = Vec<GetRawUser>;
 pub struct AllocateUser {
     pub uid: i64,
     pub node: String,
+    pub node_id: i64,
     pub created_at: i64,
 }
 
@@ -42,6 +45,7 @@ pub struct GetOrCreateUser {
     pub client_state: String,
     pub generation: i64,
     pub node: String,
+    pub node_id: Option<i64>,
     pub keys_changed_at: Option<i64>,
     pub created_at: i64,
     pub replaced_at: Option<i64>,

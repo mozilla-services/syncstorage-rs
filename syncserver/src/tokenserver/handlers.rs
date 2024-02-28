@@ -183,9 +183,22 @@ async fn update_user(
         },
     };
 
+    let over_ride = if let Some(override_node_id) = req.spanner_node_id {
+        if let Some(user_node_id) = req.user.node_id {
+            if user_node_id != override_node_id as i64 {
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
     // If the client state changed, we need to mark the current user as "replaced" and create a
     // new user record. Otherwise, we can update the user in place.
-    if req.auth_data.client_state != req.user.client_state {
+    if over_ride || req.auth_data.client_state != req.user.client_state {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
