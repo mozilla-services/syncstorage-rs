@@ -185,11 +185,7 @@ async fn update_user(
 
     let over_ride = if let Some(override_node_id) = req.spanner_node_id {
         if let Some(user_node_id) = req.user.node_id {
-            if user_node_id != override_node_id as i64 {
-                true
-            } else {
-                false
-            }
+            user_node_id != override_node_id as i64
         } else {
             false
         }

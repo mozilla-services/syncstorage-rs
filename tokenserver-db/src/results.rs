@@ -16,6 +16,7 @@ pub struct GetRawUser {
     #[sql_type = "Nullable<Text>"]
     pub node: Option<String>,
     #[sql_type = "Nullable<Bigint>"]
+    #[column_name = "nodeid"]
     pub node_id: Option<i64>,
     #[sql_type = "Nullable<Bigint>"]
     pub keys_changed_at: Option<i64>,
