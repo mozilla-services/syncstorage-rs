@@ -1,10 +1,13 @@
 [package]
 name = "syncstorage-settings"
-version = "0.13.1"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
-rand = "0.8"
-serde = "1.0"
+rand.workspace=true
+serde.workspace=true
+
 syncserver-common = { path = "../syncserver-common" }
 time = "^0.3"

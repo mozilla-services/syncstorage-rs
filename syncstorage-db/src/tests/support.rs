@@ -54,7 +54,7 @@ pub fn pbso(
     ttl: Option<u32>,
 ) -> params::PutBso {
     params::PutBso {
-        user_id: UserIdentifier::new_legacy(u64::from(user_id)),
+        user_id: hid(user_id),
         collection: coll.to_owned(),
         id: bid.to_owned(),
         payload: payload.map(|payload| payload.to_owned()),
@@ -126,5 +126,9 @@ pub fn dbsos(user_id: u32, coll: &str, bids: &[&str]) -> params::DeleteBsos {
 }
 
 pub fn hid(user_id: u32) -> UserIdentifier {
-    UserIdentifier::new_legacy(u64::from(user_id))
+    UserIdentifier {
+        legacy_id: u64::from(user_id),
+        fxa_uid: format!("xxx_unit_tests_fxa_uid{}", user_id),
+        fxa_kid: format!("xxx_unit_tests_fxa_kid{}", user_id),
+    }
 }

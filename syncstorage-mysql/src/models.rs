@@ -130,6 +130,8 @@ impl MysqlDb {
             conn: LoggingConnection::new(conn),
             session: RefCell::new(Default::default()),
         };
+        // https://github.com/mozilla-services/syncstorage-rs/issues/1480
+        #[allow(clippy::arc_with_non_send_sync)]
         MysqlDb {
             inner: Arc::new(inner),
             coll_cache,
@@ -397,7 +399,7 @@ impl MysqlDb {
         let timestamp = self.timestamp().as_i64();
         if self.quota.enabled {
             let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
-                user_id: UserIdentifier::new_legacy(user_id),
+                user_id: bso.user_id.clone(),
                 collection: bso.collection.clone(),
                 collection_id,
             })?;

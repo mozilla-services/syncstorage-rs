@@ -1,8 +1,12 @@
 [package]
 name = "tokenserver-settings"
-version = "0.13.1"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
-serde = "1.0"
+serde.workspace=true
+jsonwebtoken.workspace=true
+
 tokenserver-common = { path = "../tokenserver-common" }

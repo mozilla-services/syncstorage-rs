@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
+from fxa.errors import ServerError
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
 
@@ -69,7 +70,15 @@ class TestE2e(TestCase, unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.acct.clear()
-        cls.client.destroy_account(cls.acct.email, cls.fxa_password)
+        # A teardown of some of the tests can produce a 401 error because
+        # of a race condition, where the record had already been removed.
+        # This causes `destroy_account` to return an error if it attempts
+        # to parse the invalid JSON response.
+        # This traps for that event.
+        try:
+            cls.client.destroy_account(cls.acct.email, cls.fxa_password)
+        except ServerError as ex:
+            print(f"warning: Encountered error when cleaning up: {ex}")
 
     @staticmethod
     def _generate_password():
@@ -215,14 +224,14 @@ class TestE2e(TestCase, unittest.TestCase):
         raw = urlsafe_b64decode(res.json['id'])
         payload = raw[:-32]
         signature = raw[-32:]
-        payload_dict = json.loads(payload.decode('utf-8'))
+        payload_str = payload.decode('utf-8')
+        payload_dict = json.loads(payload_str)
         # The `id` payload should include a field indicating the origin of the
         # token
         self.assertEqual(payload_dict['tokenserver_origin'], 'rust')
         signing_secret = self.TOKEN_SIGNING_SECRET
-        expected_token = tokenlib.make_token(payload_dict,
-                                             secret=signing_secret)
-        expected_signature = urlsafe_b64decode(expected_token)[-32:]
+        tm = tokenlib.TokenManager(secret=signing_secret)
+        expected_signature = tm._get_signature(payload_str.encode('utf8'))
         # Using the #compare_digest method here is not strictly necessary, as
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))
@@ -271,12 +280,11 @@ class TestE2e(TestCase, unittest.TestCase):
         raw = urlsafe_b64decode(res.json['id'])
         payload = raw[:-32]
         signature = raw[-32:]
-        payload_dict = json.loads(payload.decode('utf-8'))
+        payload_str = payload.decode('utf-8')
 
         signing_secret = self.TOKEN_SIGNING_SECRET
-        expected_token = tokenlib.make_token(payload_dict,
-                                             secret=signing_secret)
-        expected_signature = urlsafe_b64decode(expected_token)[-32:]
+        tm = tokenlib.TokenManager(secret=signing_secret)
+        expected_signature = tm._get_signature(payload_str.encode('utf8'))
         # Using the #compare_digest method here is not strictly necessary, as
         # this is not a security-sensitive situation, but it's good practice
         self.assertTrue(hmac.compare_digest(expected_signature, signature))

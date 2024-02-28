@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use syncserver_settings::Settings;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, UserIdentifier, DEFAULT_BSO_TTL,
+    error::DbErrorIntrospect, params, util::SyncTimestamp, Sorting, DEFAULT_BSO_TTL,
 };
 
 use super::support::{db_pool, dbso, dbsos, gbso, gbsos, hid, pbso, postbso, test_db};
@@ -489,7 +489,7 @@ async fn delete_collection() -> Result<(), DbError> {
 
     let result = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.to_string(),
         })
         .await;
@@ -577,7 +577,7 @@ async fn get_collection_timestamps() -> Result<(), DbError> {
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.clone(),
         })
         .await?;
@@ -615,7 +615,7 @@ async fn get_collection_usage() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
-    let uid = 5;
+    let uid = *UID;
     let mut expected = HashMap::new();
 
     for &coll in ["bookmarks", "history", "prefs"].iter() {
@@ -648,7 +648,7 @@ async fn get_collection_usage() -> Result<(), DbError> {
         let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
         let quota = db
             .get_quota_usage(params::GetQuotaUsage {
-                user_id: UserIdentifier::new_legacy(uid as u64),
+                user_id: hid(uid),
                 collection: "ignored".to_owned(),
                 collection_id,
             })
@@ -674,7 +674,7 @@ async fn test_quota() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
 
-    let uid = 5;
+    let uid = *UID;
     let coll = "bookmarks";
 
     let size = 5000;
@@ -709,7 +709,7 @@ async fn get_collection_counts() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
-    let uid = 4;
+    let uid = *UID;
     let mut expected = HashMap::new();
     let mut rng = thread_rng();
 
@@ -739,7 +739,7 @@ async fn put_bso() -> Result<(), DbError> {
     db.put_bso(bso1).await?;
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.to_string(),
         })
         .await?;
@@ -754,7 +754,7 @@ async fn put_bso() -> Result<(), DbError> {
         db.put_bso(bso2).await?;
         let ts = db
             .get_collection_timestamp(params::GetCollectionTimestamp {
-                user_id: uid.into(),
+                user_id: hid(uid),
                 collection: coll.to_string(),
             })
             .await?;
@@ -796,7 +796,7 @@ async fn post_bsos() -> Result<(), DbError> {
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.to_string(),
         })
         .await?;
@@ -830,7 +830,7 @@ async fn post_bsos() -> Result<(), DbError> {
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.to_string(),
         })
         .await?;
@@ -864,9 +864,9 @@ async fn get_bsos() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let db = test_db(pool).await?;
 
-    let uid = 2;
+    let uid = *UID;
     let coll = "clients";
-    let sortindexes = vec![1, 3, 4, 2, 0];
+    let sortindexes = [1, 3, 4, 2, 0];
     for (i, (revi, sortindex)) in sortindexes.iter().enumerate().rev().enumerate() {
         let bso = pbso(
             uid,
@@ -942,7 +942,7 @@ async fn get_bso_timestamp() -> Result<(), DbError> {
     db.put_bso(bso).await?;
     let ts = db
         .get_bso_timestamp(params::GetBsoTimestamp {
-            user_id: uid.into(),
+            user_id: hid(uid),
             collection: coll.to_string(),
             id: bid.to_string(),
         })

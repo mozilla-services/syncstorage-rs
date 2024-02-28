@@ -260,19 +260,14 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, Clone, PartialEq, Eq, Copy)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum Sorting {
+    #[default]
     None,
     Newest,
     Oldest,
     Index,
-}
-
-impl Default for Sorting {
-    fn default() -> Self {
-        Sorting::None
-    }
 }
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
@@ -282,23 +277,4 @@ pub struct UserIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
-}
-
-impl UserIdentifier {
-    /// Create a new legacy id user identifier
-    pub fn new_legacy(user_id: u64) -> Self {
-        Self {
-            legacy_id: user_id,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<u32> for UserIdentifier {
-    fn from(val: u32) -> Self {
-        Self {
-            legacy_id: val.into(),
-            ..Default::default()
-        }
-    }
 }

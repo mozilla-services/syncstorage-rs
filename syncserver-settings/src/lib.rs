@@ -20,6 +20,7 @@ static PREFIX: &str = "sync";
 pub struct Settings {
     pub port: u16,
     pub host: String,
+    /// Keep-alive header value (seconds)
     pub actix_keep_alive: Option<u32>,
     /// The master secret, from which are derived
     /// the signing secret and token secret
@@ -112,7 +113,6 @@ impl Settings {
                             .to_string(),
                     );
                 }
-
                 Ok(s)
             }
             // Configuration errors are not very sysop friendly, Try to make them
@@ -141,6 +141,7 @@ impl Settings {
         settings.port = 8000;
         settings.syncstorage.database_pool_max_size = 1;
         settings.syncstorage.database_use_test_transactions = true;
+        settings.syncstorage.database_spanner_use_mutations = false;
         settings.syncstorage.database_pool_connection_max_idle = Some(300);
         settings.syncstorage.database_pool_connection_lifespan = Some(300);
         settings

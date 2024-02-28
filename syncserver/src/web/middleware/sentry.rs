@@ -22,7 +22,7 @@ pub fn report(
     extra: HashMap<String, String>,
     mut event: Event<'static>,
 ) {
-    event.tags.extend(tags.into_iter());
+    event.tags.extend(tags);
     event
         .extra
         .extend(extra.into_iter().map(|(k, v)| (k, Value::from(v))));
@@ -30,20 +30,16 @@ pub fn report(
     sentry::capture_event(event);
 }
 
-pub fn report_error(
+pub fn report_error<B>(
     request: ServiceRequest,
-    service: &mut impl Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = actix_web::Error,
-    >,
-) -> impl Future<Output = Result<ServiceResponse, actix_web::Error>> {
+    service: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
+) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
     add_initial_tags(&request, request.head().method.to_string());
     add_initial_extras(&request, request.head().uri.to_string());
 
     let fut = service.call(request);
 
-    Box::pin(async move {
+    async move {
         let mut sresp = fut.await?;
         let tags = sresp.request().get_tags();
         let extras = sresp.request().get_extras();
@@ -84,7 +80,7 @@ pub fn report_error(
             }
         }
         Ok(sresp)
-    })
+    }
 }
 
 fn process_error<E>(
@@ -199,7 +195,7 @@ mod tests {
         let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0";
         let req = TestRequest::default()
             .uri(&uri)
-            .header(header::USER_AGENT, header::HeaderValue::from_static(ua))
+            .insert_header((header::USER_AGENT, header::HeaderValue::from_static(ua)))
             .to_http_request();
 
         add_initial_tags(&req, "GET".to_owned());
@@ -236,10 +232,10 @@ mod tests {
         let uri = "/1.5/42/storage/meta/global".to_owned();
         let req = TestRequest::default()
             .uri(&uri)
-            .header(
+            .insert_header((
                 header::USER_AGENT,
                 header::HeaderValue::from_static("Mozilla/5.0 (curl) Gecko/20100101 curl"),
-            )
+            ))
             .to_http_request();
         add_initial_tags(&req, "GET".to_owned());
         add_initial_extras(&req, uri);

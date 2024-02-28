@@ -13,9 +13,10 @@ use actix_web::{
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
+use base64::{engine, Engine};
 use futures::future::LocalBoxFuture;
 use hex;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
@@ -179,7 +180,6 @@ impl TokenserverRequest {
 }
 
 impl FromRequest for TokenserverRequest {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -310,7 +310,6 @@ struct QueryParams {
 pub struct DbWrapper(pub Box<dyn Db>);
 
 impl FromRequest for DbWrapper {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -335,7 +334,6 @@ impl FromRequest for DbWrapper {
 struct DbPoolWrapper(Box<dyn DbPool>);
 
 impl FromRequest for DbPoolWrapper {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -358,7 +356,6 @@ pub enum Token {
 }
 
 impl FromRequest for Token {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -428,7 +425,6 @@ pub struct AuthData {
 }
 
 impl FromRequest for AuthData {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -461,7 +457,8 @@ impl FromRequest for AuthData {
                     let mut tags = HashMap::default();
                     tags.insert("token_type".to_owned(), "BrowserID".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
-                    let verify_output = state.browserid_verifier.verify(assertion).await?;
+                    let verify_output =
+                        state.browserid_verifier.verify(assertion, &metrics).await?;
 
                     // For requests using BrowserID, the client state is embedded in the
                     // X-Client-State header, and the generation and keys_changed_at are extracted
@@ -491,7 +488,7 @@ impl FromRequest for AuthData {
                     let mut tags = HashMap::default();
                     tags.insert("token_type".to_owned(), "OAuth".to_owned());
                     metrics.start_timer("token_verification", Some(tags));
-                    let verify_output = state.oauth_verifier.verify(token).await?;
+                    let verify_output = state.oauth_verifier.verify(token, &metrics).await?;
 
                     // For requests using OAuth, the keys_changed_at and client state are embedded
                     // in the X-KeyID header.
@@ -518,7 +515,6 @@ impl FromRequest for AuthData {
 struct XClientStateHeader(Option<String>);
 
 impl FromRequest for XClientStateHeader {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -560,7 +556,6 @@ struct KeyId {
 }
 
 impl FromRequest for KeyId {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -593,15 +588,15 @@ impl FromRequest for KeyId {
                 // encoded as URL-safe base64 with the padding removed. We convert it to hex
                 // because we store the client state as hex in the database.
                 let client_state_hex = {
-                    let bytes =
-                        base64::decode_config(encoded_client_state, base64::URL_SAFE_NO_PAD)
-                            .map_err(|e| TokenserverError {
-                                context: format!(
-                                    "Failed to decode client state base64 in X-KeyID: {}",
-                                    e
-                                ),
-                                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
-                            })?;
+                    let bytes = engine::general_purpose::URL_SAFE_NO_PAD
+                        .decode(encoded_client_state)
+                        .map_err(|e| TokenserverError {
+                            context: format!(
+                                "Failed to decode client state base64 in X-KeyID: {}",
+                                e
+                            ),
+                            ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                        })?;
 
                     hex::encode(bytes)
                 };
@@ -642,7 +637,6 @@ impl FromRequest for KeyId {
 }
 
 impl FromRequest for TokenserverMetrics {
-    type Config = ();
     type Error = TokenserverError;
     type Future = LocalBoxFuture<'static, Result<Self, Self::Error>>;
 
@@ -747,9 +741,9 @@ mod tests {
         let req = TestRequest::default()
             .data(state)
             .data(Arc::clone(&SECRETS))
-            .header("authorization", "Bearer fake_token")
-            .header("accept", "application/json,text/plain:q=0.5")
-            .header("x-keyid", "0000000001234-qqo")
+            .insert_header(("authorization", "Bearer fake_token"))
+            .insert_header(("accept", "application/json,text/plain:q=0.5"))
+            .insert_header(("x-keyid", "0000000001234-qqo"))
             .param("application", "sync")
             .param("version", "1.5")
             .uri("/1.0/sync/1.5?duration=100")
@@ -801,9 +795,9 @@ mod tests {
         let request = TestRequest::default()
             .data(state)
             .data(Arc::clone(&SECRETS))
-            .header("authorization", "Bearer fake_token")
-            .header("accept", "application/json,text/plain:q=0.5")
-            .header("x-keyid", "0000000001234-qqo")
+            .insert_header(("authorization", "Bearer fake_token"))
+            .insert_header(("accept", "application/json,text/plain:q=0.5"))
+            .insert_header(("x-keyid", "0000000001234-qqo"))
             .param("application", "sync")
             .param("version", "1.5")
             .method(Method::GET)
@@ -841,9 +835,9 @@ mod tests {
             TestRequest::default()
                 .data(make_state(oauth_verifier, MockVerifier::default()))
                 .data(Arc::clone(&SECRETS))
-                .header("authorization", "Bearer fake_token")
-                .header("accept", "application/json,text/plain:q=0.5")
-                .header("x-keyid", "0000000001234-qqo")
+                .insert_header(("authorization", "Bearer fake_token"))
+                .insert_header(("accept", "application/json,text/plain:q=0.5"))
+                .insert_header(("x-keyid", "0000000001234-qqo"))
                 .method(Method::GET)
         }
 
@@ -945,8 +939,8 @@ mod tests {
 
             TestRequest::default()
                 .data(make_state(oauth_verifier, MockVerifier::default()))
-                .header("authorization", "Bearer fake_token")
-                .header("accept", "application/json,text/plain:q=0.5")
+                .insert_header(("authorization", "Bearer fake_token"))
+                .insert_header(("accept", "application/json,text/plain:q=0.5"))
                 .param("application", "sync")
                 .param("version", "1.5")
                 .method(Method::GET)
@@ -967,7 +961,7 @@ mod tests {
         // X-KeyID header with non-visible ASCII characters (\u{200B} is the zero-width space character)
         {
             let request = build_request()
-                .header("x-keyid", "\u{200B}")
+                .insert_header(("x-keyid", "\u{200B}"))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -981,7 +975,7 @@ mod tests {
         // Improperly-formatted X-KeyID header
         {
             let request = build_request()
-                .header("x-keyid", "00000000")
+                .insert_header(("x-keyid", "00000000"))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -994,7 +988,7 @@ mod tests {
         // X-KeyID header with improperly-base64-encoded client state bytes
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-notbase64")
+                .insert_header(("x-keyid", "0000000001234-notbase64"))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1007,7 +1001,7 @@ mod tests {
         // X-KeyID header with non-UTF-8 bytes
         {
             let request = build_request()
-                .header("x-keyid", &[0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8][..])
+                .insert_header(("x-keyid", &[0xFFu8, 0xFFu8, 0xFFu8, 0xFFu8][..]))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1021,7 +1015,7 @@ mod tests {
         // X-KeyID header with non-integral keys_changed_at
         {
             let request = build_request()
-                .header("x-keyid", "notanumber-qqo")
+                .insert_header(("x-keyid", "notanumber-qqo"))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1034,8 +1028,8 @@ mod tests {
         // X-KeyID header with client state that does not match that in the X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-qqo")
-                .header("x-client-state", "bbbb")
+                .insert_header(("x-keyid", "0000000001234-qqo"))
+                .insert_header(("x-client-state", "bbbb"))
                 .to_http_request();
             let response: HttpResponse = KeyId::extract(&request).await.unwrap_err().into();
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -1052,8 +1046,8 @@ mod tests {
         // Valid X-KeyID header with matching X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-qqo")
-                .header("x-client-state", "aaaa")
+                .insert_header(("x-keyid", "0000000001234-qqo"))
+                .insert_header(("x-client-state", "aaaa"))
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
@@ -1067,7 +1061,7 @@ mod tests {
         // Valid X-KeyID header with no X-Client-State header
         {
             let request = build_request()
-                .header("x-keyid", "0000000001234-qqo")
+                .insert_header(("x-keyid", "0000000001234-qqo"))
                 .to_http_request();
             let key_id = KeyId::extract(&request).await.unwrap();
             let expected_key_id = KeyId {
@@ -1340,14 +1334,12 @@ mod tests {
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,
             node_type: NodeType::default(),
-            metrics: Box::new(
-                syncserver_common::metrics_from_opts(
-                    &tokenserver_settings.statsd_label,
-                    syncserver_settings.statsd_host.as_deref(),
-                    syncserver_settings.statsd_port,
-                )
-                .unwrap(),
-            ),
+            metrics: syncserver_common::metrics_from_opts(
+                &tokenserver_settings.statsd_label,
+                syncserver_settings.statsd_host.as_deref(),
+                syncserver_settings.statsd_port,
+            )
+            .unwrap(),
             token_duration: TOKEN_DURATION,
         }
     }

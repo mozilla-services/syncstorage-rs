@@ -30,7 +30,7 @@ use syncstorage_db_common::{
 };
 use syncstorage_settings::Quota;
 
-use super::{
+use crate::{
     batch,
     error::DbError,
     pool::{CollectionCache, Conn},
@@ -113,6 +113,9 @@ impl SpannerDb {
             session: RefCell::new(Default::default()),
         };
         SpannerDb {
+            // We can probably move this to Rc:
+            // https://github.com/mozilla-services/syncstorage-rs/issues/1480
+            #[allow(clippy::arc_with_non_send_sync)]
             inner: Arc::new(inner),
             coll_cache,
             metrics: metrics.clone(),
@@ -155,7 +158,7 @@ impl SpannerDb {
         // This should always run within a r/w transaction, so that: "If a
         // transaction successfully commits, then no other writer modified the
         // data that was read in the transaction after it was read."
-        if !cfg!(test) && !self.in_write_transaction() {
+        if !cfg!(debug_assertions) && !self.in_write_transaction() {
             return Err(DbError::internal(
                 "Can't escalate read-lock to write-lock".to_owned(),
             ));
@@ -320,7 +323,9 @@ impl SpannerDb {
         let mut req = BeginTransactionRequest::new();
         req.set_session(spanner.session.get_name().to_owned());
         req.set_options(options);
-        let mut transaction = spanner.client.begin_transaction(&req)?;
+        let mut transaction = spanner
+            .client
+            .begin_transaction_opt(&req, spanner.session_opt()?)?;
 
         let mut ts = TransactionSelector::new();
         ts.set_id(transaction.take_id());
@@ -340,7 +345,10 @@ impl SpannerDb {
         let mut req = BeginTransactionRequest::new();
         req.set_session(spanner.session.get_name().to_owned());
         req.set_options(options);
-        let mut transaction = spanner.client.begin_transaction_async(&req)?.await?;
+        let mut transaction = spanner
+            .client
+            .begin_transaction_async_opt(&req, spanner.session_opt()?)?
+            .await?;
 
         let mut ts = TransactionSelector::new();
         ts.set_id(transaction.take_id());
@@ -445,7 +453,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
 
-        if cfg!(test) && spanner.use_test_transactions {
+        if cfg!(debug_assertions) && spanner.settings.use_test_transactions {
             // don't commit test transactions
             return Ok(());
         }
@@ -457,7 +465,7 @@ impl SpannerDb {
             if let Some(mutations) = self.session.borrow_mut().mutations.take() {
                 req.set_mutations(RepeatedField::from_vec(mutations));
             }
-            spanner.client.commit(&req)?;
+            spanner.client.commit_opt(&req, spanner.session_opt()?)?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to commit".to_owned()))
@@ -472,7 +480,7 @@ impl SpannerDb {
 
         let spanner = &self.conn;
 
-        if cfg!(test) && spanner.use_test_transactions {
+        if cfg!(debug_assertions) && spanner.settings.use_test_transactions {
             // don't commit test transactions
             return Ok(());
         }
@@ -484,7 +492,10 @@ impl SpannerDb {
             if let Some(mutations) = self.session.borrow_mut().mutations.take() {
                 req.set_mutations(RepeatedField::from_vec(mutations));
             }
-            spanner.client.commit_async(&req)?.await?;
+            spanner
+                .client
+                .commit_async_opt(&req, spanner.session_opt()?)?
+                .await?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to commit".to_owned()))
@@ -502,7 +513,7 @@ impl SpannerDb {
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
-            spanner.client.rollback(&req)?;
+            spanner.client.rollback_opt(&req, spanner.session_opt()?)?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to rollback".to_owned()))
@@ -520,7 +531,10 @@ impl SpannerDb {
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
-            spanner.client.rollback_async(&req)?.await?;
+            spanner
+                .client
+                .rollback_async_opt(&req, spanner.session_opt()?)?
+                .await?;
             Ok(())
         } else {
             Err(DbError::internal("No transaction to rollback".to_owned()))
@@ -1073,7 +1087,7 @@ impl SpannerDb {
         // buffered on the client side and only issued to Spanner in the final
         // transaction Commit.
         let timestamp = self.checked_timestamp()?;
-        if !cfg!(test) && self.session.borrow().updated_collection {
+        if !cfg!(debug_assertions) && self.session.borrow().updated_collection {
             // No need to touch it again (except during tests where we
             // currently reuse Dbs for multiple requests)
             return Ok(timestamp);
@@ -1297,7 +1311,7 @@ impl SpannerDb {
 
     /// Whether to stabilize the sort order for get_bsos_async
     fn stabilize_bsos_sort_order(&self) -> bool {
-        self.inner.conn.using_spanner_emulator
+        self.inner.conn.settings.using_spanner_emulator()
     }
 
     pub fn encode_next_offset(
@@ -1496,8 +1510,15 @@ impl SpannerDb {
         .map_err(Into::into)
     }
 
-    #[allow(unused)]
     async fn put_bso_async(&self, params: params::PutBso) -> DbResult<results::PutBso> {
+        if self.conn.settings.use_mutations {
+            self.put_bso_with_mutations(params).await
+        } else {
+            self.put_bso_without_mutations(params).await
+        }
+    }
+
+    async fn put_bso_with_mutations(&self, params: params::PutBso) -> DbResult<results::PutBso> {
         let bsos = vec![params::PostCollectionBso {
             id: params.id,
             sortindex: params.sortindex,
@@ -1505,7 +1526,7 @@ impl SpannerDb {
             ttl: params.ttl,
         }];
         let result = self
-            .post_bsos_async(params::PostBsos {
+            .post_bsos_with_mutations(params::PostBsos {
                 user_id: params.user_id,
                 collection: params.collection,
                 bsos,
@@ -1518,6 +1539,17 @@ impl SpannerDb {
     }
 
     async fn post_bsos_async(&self, params: params::PostBsos) -> DbResult<results::PostBsos> {
+        if self.conn.settings.use_mutations {
+            self.post_bsos_with_mutations(params).await
+        } else {
+            self.post_bsos_without_mutations(params).await
+        }
+    }
+
+    async fn post_bsos_with_mutations(
+        &self,
+        params: params::PostBsos,
+    ) -> DbResult<results::PostBsos> {
         let user_id = params.user_id;
         let collection_id = self
             .get_or_create_collection_id_async(&params.collection)
@@ -1666,10 +1698,9 @@ impl SpannerDb {
         Ok(Some(usage.total_bytes))
     }
 
-    // NOTE: Currently this put_bso_async_test impl. is only used during db tests,
-    // see above for the non-tests version
-    #[allow(unused)]
-    async fn put_bso_async_test(&self, bso: params::PutBso) -> DbResult<results::PutBso> {
+    // NOTE: Currently this put_bso_async_without_mutations impl is only used
+    // during db tests, see the with_mutations impl for the non-tests version
+    async fn put_bso_without_mutations(&self, bso: params::PutBso) -> DbResult<results::PutBso> {
         use syncstorage_db_common::util::to_rfc3339;
         let collection_id = self
             .get_or_create_collection_id_async(&bso.collection)
@@ -1811,10 +1842,7 @@ impl SpannerDb {
             sqlparam_types.insert("payload".to_owned(), payload.spanner_type());
             sqlparams.insert("payload".to_string(), payload.into_spanner_value());
             let now_millis = timestamp.as_i64();
-            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| {
-                ttl.try_into()
-                    .expect("Could not get ttl in put_bso_async_test")
-            }) * 1000;
+            let ttl = bso.ttl.map_or(i64::from(DEFAULT_BSO_TTL), |ttl| ttl.into()) * 1000;
             let expirystring = to_rfc3339(now_millis + ttl)?;
             debug!(
                 "!!!!! [test] INSERT expirystring:{:?}, timestamp:{:?}, ttl:{:?}",
@@ -1841,10 +1869,12 @@ impl SpannerDb {
             .await
     }
 
-    // NOTE: Currently this post_bso_async_test impl. is only used during db tests,
-    // see above for the non-tests version
-    #[allow(unused)]
-    async fn post_bsos_async_test(&self, input: params::PostBsos) -> DbResult<results::PostBsos> {
+    // NOTE: Currently this post_bsos_without_mutations impl is only used
+    // during db tests, see the with_mutations impl for the non-tests version
+    async fn post_bsos_without_mutations(
+        &self,
+        input: params::PostBsos,
+    ) -> DbResult<results::PostBsos> {
         let collection_id = self
             .get_or_create_collection_id_async(&input.collection)
             .await?;
@@ -1856,7 +1886,7 @@ impl SpannerDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            self.put_bso_async_test(params::PutBso {
+            self.put_bso_without_mutations(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
@@ -2036,28 +2066,14 @@ impl Db for SpannerDb {
         Box::pin(async move { db.get_bso_timestamp_async(param).map_err(Into::into).await })
     }
 
-    #[cfg(not(test))]
     fn put_bso(&self, param: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.put_bso_async(param).map_err(Into::into).await })
     }
 
-    #[cfg(test)]
-    fn put_bso(&self, param: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error> {
-        let db = self.clone();
-        Box::pin(async move { db.put_bso_async_test(param).map_err(Into::into).await })
-    }
-
-    #[cfg(not(test))]
     fn post_bsos(&self, param: params::PostBsos) -> DbFuture<'_, results::PostBsos, Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.post_bsos_async(param).map_err(Into::into).await })
-    }
-
-    #[cfg(test)]
-    fn post_bsos(&self, param: params::PostBsos) -> DbFuture<'_, results::PostBsos, Self::Error> {
-        let db = self.clone();
-        Box::pin(async move { db.post_bsos_async_test(param).map_err(Into::into).await })
     }
 
     fn create_batch(

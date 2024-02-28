@@ -76,6 +76,8 @@ impl TokenserverDb {
             conn: LoggingConnection::new(conn),
         };
 
+        // https://github.com/mozilla-services/syncstorage-rs/issues/1480
+        #[allow(clippy::arc_with_non_send_sync)]
         Self {
             inner: Arc::new(inner),
             metrics: metrics.clone(),

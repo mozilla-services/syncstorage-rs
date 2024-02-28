@@ -1,21 +1,71 @@
 [workspace]
 resolver = "2"
 members = [
-    "syncserver-common",
-    "syncserver-db-common",
-    "syncserver-settings",
-    "syncstorage-db",
-    "syncstorage-db-common",
-    "syncstorage-mysql",
-    "syncstorage-settings",
-    "syncstorage-spanner",
-    "tokenserver-auth",
-    "tokenserver-common",
-    "tokenserver-db",
-    "tokenserver-settings",
-    "syncserver",
+  "syncserver-common",
+  "syncserver-db-common",
+  "syncserver-settings",
+  "syncstorage-db",
+  "syncstorage-db-common",
+  "syncstorage-mysql",
+  "syncstorage-settings",
+  "syncstorage-spanner",
+  "tokenserver-auth",
+  "tokenserver-common",
+  "tokenserver-db",
+  "tokenserver-settings",
+  "syncserver",
 ]
 default-members = ["syncserver"]
+
+[workspace.package]
+version = "0.14.4"
+authors = [
+  "Ben Bangert <ben@groovie.org>",
+  "Phil Jenvey <pjenvey@underboss.org>",
+  "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
+]
+edition = "2021"
+license = "MPL-2.0"
+
+[workspace.dependencies]
+actix-web = "4"
+
+base64 = "0.21"
+cadence = "0.29"
+backtrace = "0.3"
+chrono = "0.4"
+docopt = "1.1"
+env_logger = "0.10"
+futures = { version = "0.3", features = ["compat"] }
+hex = "0.4"
+hkdf = "0.12"
+hmac = "0.12"
+http = "0.2"
+jsonwebtoken = { version = "9.2", default-features = false }
+lazy_static = "1.4"
+protobuf = "=2.25.2" # pin to 2.25.2 to prevent side updating
+rand = "0.8"
+regex = "1.4"
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"]}
+sentry = { version = "0.31", default-features = false, features = ["curl", "backtrace", "contexts", "debug-images"] }
+sentry-backtrace = "0.31"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = { version = "1.0", features = ["arbitrary_precision"] }
+sha2 = "0.10"
+slog = { version = "2.5", features = [
+  "max_level_info",
+  "release_max_level_info",
+  "dynamic-keys",
+] }
+slog-async = "2.5"
+slog-envlogger = "2.2.0"
+slog-mozlog-json = "0.1"
+slog-scope = "4.3"
+slog-stdlog = "4.1"
+slog-term = "2.6"
+tokio = "1"
+thiserror = "1.0.26"
 
 [profile.release]
 # Enables line numbers in Sentry reporting

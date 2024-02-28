@@ -3,13 +3,18 @@ use std::str::FromStr;
 
 use actix_web::{
     dev::Service,
-    http::{self, HeaderName, HeaderValue, StatusCode},
+    http::{
+        self,
+        header::{HeaderName, HeaderValue},
+        StatusCode,
+    },
     test,
     web::Bytes,
 };
+use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
@@ -57,6 +62,18 @@ fn get_test_settings() -> Settings {
             .as_str(),
     )
     .expect("Could not get pool_size in get_test_settings");
+    if cfg!(feature = "mysql") && settings.syncstorage.uses_spanner() {
+        panic!(
+            "Spanner database_url specified for MySQL feature, please correct.\n\t{}",
+            &settings.syncstorage.database_url
+        )
+    }
+    if cfg!(feature = "spanner") && !&settings.syncstorage.uses_spanner() {
+        panic!(
+            "MySQL database_url specified for Spanner feature, please correct.\n\t{}",
+            &settings.syncstorage.database_url
+        )
+    }
     settings.port = port;
     settings.host = host;
     settings.syncstorage.database_pool_max_size = pool_size + 1;
@@ -64,7 +81,7 @@ fn get_test_settings() -> Settings {
 }
 
 async fn get_test_state(settings: &Settings) -> ServerState {
-    let metrics = Metrics::sink();
+    let metrics = Arc::new(Metrics::sink());
     let blocking_threadpool = Arc::new(BlockingThreadpool::default());
 
     ServerState {
@@ -78,7 +95,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         ),
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
-        metrics: Box::new(metrics),
+        metrics,
         port: settings.port,
         quota_enabled: settings.syncstorage.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
@@ -118,17 +135,17 @@ fn create_request(
     let settings = get_test_settings();
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
-        .header(
+        .insert_header((
             "Authorization",
             create_hawk_header(method.as_str(), settings.port, path),
-        )
-        .header("Accept", "application/json")
-        .header(
+        ))
+        .insert_header(("Accept", "application/json"))
+        .insert_header((
             "User-Agent",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0",
-        );
+        ));
     if let Some(body) = payload {
-        req = req.set_json(&body);
+        req = req.set_json(body);
     };
     if let Some(h) = headers {
         for (k, v) in h {
@@ -136,7 +153,7 @@ fn create_request(
             let hn = HeaderName::from_lowercase(ln.as_bytes())
                 .expect("Could not get hn in create_request");
             let hv = HeaderValue::from_str(v.as_str()).expect("Could not get hv in create_request");
-            req = req.header(hn, hv);
+            req = req.insert_header((hn, hv));
         }
     }
     req
@@ -165,14 +182,14 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
     let mut id: Vec<u8> = vec![];
     id.extend(payload.as_bytes());
     id.extend_from_slice(&signature);
-    let id = base64::encode_config(&id, base64::URL_SAFE);
+    let id = engine::general_purpose::URL_SAFE.encode(&id);
     let token_secret = syncserver_common::hkdf_expand_32(
         format!("services.mozilla.com/tokenlib/v1/derive/{}", id).as_bytes(),
         Some(b"wibble"),
         &SECRETS.master_secret,
     )
     .expect("hkdf_expand_32 failed in create_hawk_header");
-    let token_secret = base64::encode_config(token_secret, base64::URL_SAFE);
+    let token_secret = engine::general_purpose::URL_SAFE.encode(token_secret);
     let request = RequestBuilder::new(method, host, port, path).request();
     let credentials = Credentials {
         id,
@@ -191,7 +208,7 @@ async fn test_endpoint(
     status: Option<StatusCode>,
     expected_body: Option<&str>,
 ) {
-    let mut app = init_app!().await;
+    let app = init_app!().await;
 
     let req = create_request(method, path, None, None).to_request();
     let sresp = app
@@ -215,7 +232,7 @@ where
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
     let state = get_test_state(&settings).await;
-    let mut app = test::init_service(build_app!(
+    let app = test::init_service(build_app!(
         state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
@@ -257,7 +274,7 @@ async fn test_endpoint_with_body(
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
     let state = get_test_state(&settings).await;
-    let mut app = test::init_service(build_app!(
+    let app = test::init_service(build_app!(
         state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
@@ -479,7 +496,7 @@ async fn bsos_can_have_a_collection_field() {
 #[actix_rt::test]
 async fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks/wibble";
-    let mut app = init_app!().await;
+    let app = init_app!().await;
 
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
@@ -529,7 +546,7 @@ async fn invalid_content_type() {
 
 #[actix_rt::test]
 async fn invalid_batch_post() {
-    let mut app = init_app!().await;
+    let app = init_app!().await;
 
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
@@ -556,7 +573,7 @@ async fn invalid_batch_post() {
 
 #[actix_rt::test]
 async fn accept_new_or_dev_ios() {
-    let mut app = init_app!().await;
+    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -573,7 +590,7 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let mut app = init_app!().await;
+    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -590,7 +607,7 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let mut app = init_app!().await;
+    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -610,7 +627,7 @@ async fn accept_new_or_dev_ios() {
 
 #[actix_rt::test]
 async fn reject_old_ios() {
-    let mut app = init_app!().await;
+    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -644,7 +661,7 @@ async fn reject_old_ios() {
 
 #[actix_rt::test]
 async fn info_configuration_xlm() {
-    let mut app = init_app!().await;
+    let app = init_app!().await;
     let req =
         create_request(http::Method::GET, "/1.5/42/info/configuration", None, None).to_request();
     let response = app.call(req).await.unwrap();
@@ -667,7 +684,7 @@ async fn overquota() {
     settings.syncstorage.limits.max_quota_limit = 5;
     // persist the db across requests
     settings.syncstorage.database_use_test_transactions = false;
-    let mut app = init_app!(settings).await;
+    let app = init_app!(settings).await;
 
     // Clear out any data that's already in the store.
     let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
@@ -689,7 +706,7 @@ async fn overquota() {
     assert_eq!(status, StatusCode::OK);
 
     // avoid the request calls running so quickly that they trigger a 503
-    actix_rt::time::delay_for(Duration::from_millis(10)).await;
+    actix_rt::time::sleep(Duration::from_millis(10)).await;
 
     let req = create_request(
         http::Method::PUT,
@@ -726,12 +743,10 @@ async fn overquota() {
 
 #[actix_rt::test]
 async fn lbheartbeat_max_pool_size_check() {
-    use actix_web::web::Buf;
-
     let mut settings = get_test_settings();
     settings.syncstorage.database_pool_max_size = 10;
 
-    let mut app = init_app!(settings).await;
+    let app = init_app!(settings).await;
 
     // Test all is well.
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
@@ -757,14 +772,14 @@ async fn lbheartbeat_max_pool_size_check() {
     assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
 
     // check duration for exhausted connections
-    actix_rt::time::delay_for(Duration::from_secs(1)).await;
+    actix_rt::time::sleep(Duration::from_secs(1)).await;
     let req =
         create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
     let sresp = app.call(req).await.unwrap();
     let status = sresp.status();
     let body = test::read_body(sresp).await;
     let resp: HashMap<String, serde_json::value::Value> =
-        serde_json::de::from_str(std::str::from_utf8(body.bytes()).unwrap()).unwrap();
+        serde_json::de::from_str(std::str::from_utf8(body.as_ref()).unwrap()).unwrap();
     // dbg!(status, body, &resp);
     assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
     assert!(resp.get("duration_ms").unwrap().as_u64().unwrap() > 1000);
@@ -787,13 +802,13 @@ async fn lbheartbeat_ttl_check() {
     settings.syncstorage.lbheartbeat_ttl = Some(2);
     settings.syncstorage.lbheartbeat_ttl_jitter = 60;
 
-    let mut app = init_app!(settings).await;
+    let app = init_app!(settings).await;
 
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
     let sresp = app.call(lb_req).await.unwrap();
     assert!(sresp.status().is_success());
 
-    actix_rt::time::delay_for(Duration::from_secs(3)).await;
+    actix_rt::time::sleep(Duration::from_secs(3)).await;
 
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
     let sresp = app.call(lb_req).await.unwrap();

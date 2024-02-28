@@ -1,3 +1,146 @@
+<a name="0.14.4"></a>
+## 0.14.4 (2023-12-11)
+
+
+#### Bug Fixes
+
+*   Use google specified UA for x-goog-api-client (#1506) ([9916b3bd](https://github.com/mozilla-services/syncstorage-rs/commit/9916b3bdb0506e9805f505007222f189f1c4dc54))
+
+
+
+<a name="0.14.3"></a>
+## 0.14.3 (2023-11-30)
+
+
+#### Bug Fixes
+
+*   restore emitting backend specific db errors to sentry (#1500) ([18f4d594](https://github.com/mozilla-services/syncstorage-rs/commit/18f4d594905e9dd4affc557a5da39cd19b6882f7))
+
+
+
+<a name="0.14.2"></a>
+## 0.14.2 (2023-11-21)
+
+
+#### Doc
+
+*   remove outdated firefox-ios warning (#1497) ([59283b59](https://github.com/mozilla-services/syncstorage-rs/commit/59283b5977a5d997c1292eb5392f6ad252855c0d))
+
+#### Bug Fixes
+
+*   disable sentry's debug-images feature (#1499) ([8d9185e4](https://github.com/mozilla-services/syncstorage-rs/commit/8d9185e4a012b1113f0a89d3d2852b55c7449114))
+
+
+
+<a name="0.14.1"></a>
+## 0.14.1 (2023-10-18)
+
+
+#### Features
+
+*   add dynamic routing headers to all Spanner ops (#1491) ([af416fc2](https://github.com/mozilla-services/syncstorage-rs/commit/af416fc29f51ef48115ff876b4cd99e274631d0a))
+
+#### Chore
+
+*   missed fixes from rollup (#1492) ([68d32670](https://github.com/mozilla-services/syncstorage-rs/commit/68d326701505a7c3ae04d59953eb099cf8add4d2))
+*   tag 0.14.0 (#1485) ([c563ce5b](https://github.com/mozilla-services/syncstorage-rs/commit/c563ce5ba9006d4b12324a0912e765b2c562c01c))
+
+#### Bug Fixes
+
+*   switch more test flags to cfg(debug_assertions) (#1488) ([fb701288](https://github.com/mozilla-services/syncstorage-rs/commit/fb701288244daeee18a3ec26c986b6e6a98bb4f8))
+
+
+
+<a name="0.14.0"></a>
+## 0.14.0 (2023-09-26)
+
+
+#### Refactor
+
+*   quiet latest clippy warnings ([dc98e95f](https://github.com/mozilla-services/syncstorage-rs/commit/dc98e95ff3a59c267df7807ce9320d8b5a348b63))
+*   add tokenserver-auth crate (#1413) ([ab5df9ba](https://github.com/mozilla-services/syncstorage-rs/commit/ab5df9ba79651fd2ed6a2374f39b6f0e060dac49), closes [#1278](https://github.com/mozilla-services/syncstorage-rs/issues/1278))
+*   add database crates (#1407) ([b5b7e57f](https://github.com/mozilla-services/syncstorage-rs/commit/b5b7e57f935703f2c4207ad88eaa310c343fdb94), closes [#1277](https://github.com/mozilla-services/syncstorage-rs/issues/1277))
+*   convert middleware to `wrap_fn` paradigm (#1374) ([973e90fa](https://github.com/mozilla-services/syncstorage-rs/commit/973e90fae88f104b6fb66d4f49a1c76472816e4a), closes [#714](https://github.com/mozilla-services/syncstorage-rs/issues/714))
+
+#### Features
+
+*   convert dependencies to use `workspace`s ([1f9323b7](https://github.com/mozilla-services/syncstorage-rs/commit/1f9323b7b3a4dd94a669099043a5692553746554), closes [#1461](https://github.com/mozilla-services/syncstorage-rs/issues/1461))
+
+#### Chore
+
+*   bump the rust version and some crates ([0ccaa4ed](https://github.com/mozilla-services/syncstorage-rs/commit/0ccaa4ed0205d57c12d3c86b38ffda0a27653f9d))
+*   pin back to master's versions of protobuf/chrono ([e5058d26](https://github.com/mozilla-services/syncstorage-rs/commit/e5058d26d41865ec8afff93b6323c7185b16dd80))
+*   fix the version.json in Docker builds (#1456) ([5f646df4](https://github.com/mozilla-services/syncstorage-rs/commit/5f646df4bb81e05885e9c097831c63e9ebede685))
+*   add missing util.py to docker for process_account_events.py (#1455) ([489ee051](https://github.com/mozilla-services/syncstorage-rs/commit/489ee051a5adb5f03e0e6f30e1f9bad0018d4c39))
+*   updates for Rust 1.66 (#1451) ([d1178796](https://github.com/mozilla-services/syncstorage-rs/commit/d11787965c1be802c6f07e26aa49f722f3f9cc91))
+*   tag 0.13.1 (#1448) ([e48f9484](https://github.com/mozilla-services/syncstorage-rs/commit/e48f948456969f295f1250ab98156fc80e124bb8))
+
+#### Doc
+
+*   Minor improvements to onboarding docs (#1465) ([ef0fbfb9](https://github.com/mozilla-services/syncstorage-rs/commit/ef0fbfb9d76b4940ddb79705dcd226e34bba4401))
+
+
+
+<a name="0.13.7"></a>
+## 0.13.7 (2023-09-12)
+
+
+*   Re-tag 0.13.6
+
+
+
+<a name="0.13.6"></a>
+## 0.13.6 (2023-03-07)
+
+
+#### Chore
+
+*   update tempfile crate ([670d6832](https://github.com/mozilla-services/syncstorage-rs/commit/670d68325d48f1f0f7b02e431807aa6dcd252e5f))
+
+#### Bug Fixes
+
+*   connect to the db once instead of every loop iteration ([31192d52](https://github.com/mozilla-services/syncstorage-rs/commit/31192d52c9677e5b5def9ffc62fd43099e499bd1))
+
+
+
+<a name="0.13.5"></a>
+## 0.13.5 (2023-03-03)
+
+
+#### Bug Fixes
+
+*   handle nullable (None) keys_changed_at values (#1464) ([7e298c2d](https://github.com/mozilla-services/syncstorage-rs/commit/7e298c2dd06dc12a0dbc2d7e6d5aab8ab8bdfba6))
+
+
+
+<a name="0.13.4"></a>
+## 0.13.4 (2023-02-24)
+
+
+*   Re-tag 0.13.3
+
+
+
+<a name="0.13.3"></a>
+## 0.13.3 (2023-02-24)
+
+
+#### Chore
+
+*   add another missing file to docker for process_account_events.py (#1463) ([6ee39da4](https://github.com/mozilla-services/syncstorage-rs/commit/6ee39da4a0926e6352bf513206d1d01b63232a2e))
+
+
+
+<a name="0.13.2"></a>
+## 0.13.2 (2023-02-06)
+
+
+#### Chore
+
+*   add missing util.py to docker for process_account_events.py (#1455) (#1457) ([d2f6cf65](https://github.com/mozilla-services/syncstorage-rs/commit/d2f6cf65ff412676935e6f4306311e4599e697e9))
+
+
+
 <a name="0.13.1"></a>
 ## 0.13.1 (2022-12-16)
 

@@ -9,11 +9,8 @@ use std::convert::From;
 use std::fmt;
 
 use actix_web::{
-    dev::{HttpResponseBuilder, ServiceResponse},
-    error::ResponseError,
-    http::StatusCode,
-    middleware::errhandlers::ErrorHandlerResponse,
-    HttpResponse, Result,
+    dev::ServiceResponse, error::ResponseError, http::StatusCode, middleware::ErrorHandlerResponse,
+    HttpResponse, HttpResponseBuilder, Result,
 };
 
 use serde::{
@@ -117,14 +114,14 @@ impl ApiError {
     pub fn render_404<B>(res: ServiceResponse<B>) -> Result<ErrorHandlerResponse<B>> {
         if res.request().path().starts_with("/1.0/") {
             // Do not use a custom response for Tokenserver requests.
-            Ok(ErrorHandlerResponse::Response(res))
+            Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
         } else {
             // Replace the outbound error message with our own for Sync requests.
             let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND)
                 .json(WeaveError::UnknownError as u32);
             Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
                 res.request().clone(),
-                resp.into_body(),
+                resp.map_into_right_body(),
             )))
         }
     }
@@ -199,7 +196,7 @@ impl ResponseError for ApiError {
         // So instead we translate our error to a backwards compatible one
         let mut resp = HttpResponse::build(self.status);
         if self.is_conflict() {
-            resp.header("Retry-After", RETRY_AFTER.to_string());
+            resp.insert_header(("Retry-After", RETRY_AFTER.to_string()));
         };
         resp.json(self.weave_error_code() as i32)
     }

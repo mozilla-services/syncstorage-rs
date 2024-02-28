@@ -1,6 +1,7 @@
 #![allow(clippy::type_complexity)]
 
 use actix_web::{
+    body::EitherBody,
     dev::{Service, ServiceRequest, ServiceResponse},
     http::header::USER_AGENT,
     FromRequest, HttpResponse,
@@ -9,7 +10,6 @@ use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::error::{ApiError, ApiErrorKind};
 use crate::server::MetricsWrapper;
 
 lazy_static! {
@@ -31,14 +31,11 @@ $
     .unwrap();
 }
 
-pub fn reject_user_agent(
+pub fn reject_user_agent<B>(
     request: ServiceRequest,
-    service: &mut (impl Service<
-        Request = ServiceRequest,
-        Response = ServiceResponse,
-        Error = actix_web::Error,
-    > + 'static),
-) -> LocalBoxFuture<'static, Result<ServiceResponse, actix_web::Error>> {
+    service: &(impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>
+          + 'static),
+) -> LocalBoxFuture<'static, Result<ServiceResponse<EitherBody<B>>, actix_web::Error>> {
     match request.headers().get(USER_AGENT).cloned() {
         Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
             trace!("Rejecting User-Agent: {:?}", header);
@@ -47,19 +44,18 @@ pub fn reject_user_agent(
                 .await?
                 .0
                 .incr("error.rejectua");
-            let sreq = ServiceRequest::from_parts(req, payload).map_err(|_| {
-                ApiError::from(ApiErrorKind::Internal(
-                    "failed to reconstruct ServiceRequest from its parts".to_owned(),
-                ))
-            })?;
+            let sreq = ServiceRequest::from_parts(req, payload);
 
             Ok(sreq.into_response(
                 HttpResponse::ServiceUnavailable()
-                    .body("0".to_owned())
-                    .into_body(),
+                    .body("0")
+                    .map_into_right_body(),
             ))
         }),
-        _ => Box::pin(service.call(request)),
+        _ => {
+            let fut = service.call(request);
+            Box::pin(async move { fut.await.map(|resp| resp.map_into_left_body()) })
+        }
     }
 }
 

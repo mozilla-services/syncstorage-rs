@@ -4,6 +4,7 @@ use std::{
 };
 
 use actix_web::{http::StatusCode, Error, HttpResponse};
+use base64::{engine, Engine};
 use serde::Serialize;
 use serde_json::Value;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
@@ -62,12 +63,12 @@ pub async fn get_tokenserver_result(
     };
 
     Ok(HttpResponse::build(StatusCode::OK)
-        .header("X-Timestamp", timestamp.to_string())
+        .insert_header(("X-Timestamp", timestamp.to_string()))
         // This header helps to prevent cross-site scripting attacks by
         // blocking content type sniffing. It was set automatically by the
         // Pyramid cornice library used by the Python Tokenserver, so we set
         // it here for safety and consistency.
-        .header("X-Content-Type-Options", "nosniff")
+        .insert_header(("X-Content-Type-Options", "nosniff"))
         .json(result))
 }
 
@@ -83,7 +84,7 @@ fn get_token_plaintext(
                 context: format!("Failed to decode the client state hex: {}", e),
                 ..TokenserverError::internal_error()
             })?;
-        let client_state_b64 = base64::encode_config(client_state, base64::URL_SAFE_NO_PAD);
+        let client_state_b64 = engine::general_purpose::URL_SAFE_NO_PAD.encode(client_state);
 
         format!(
             "{:013}-{:}",

@@ -2,13 +2,15 @@ pub mod extractors;
 pub mod handlers;
 pub mod logging;
 
-use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpRequest};
+use actix_web::{dev::RequestHead, http::header::USER_AGENT, HttpMessage, HttpRequest};
 use cadence::StatsdClient;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
 use syncserver_common::{BlockingThreadpool, Metrics};
+#[cfg(not(feature = "py_verifier"))]
+use tokenserver_auth::JWTVerifierImpl;
 use tokenserver_auth::{browserid, oauth, VerifyToken};
 use tokenserver_common::NodeType;
 use tokenserver_db::{params, DbPool, TokenserverPool};
@@ -30,16 +32,42 @@ pub struct ServerState {
     pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
-    pub metrics: Box<StatsdClient>,
+    pub metrics: Arc<StatsdClient>,
     pub token_duration: u64,
 }
 
 impl ServerState {
     pub fn from_settings(
         settings: &Settings,
-        metrics: StatsdClient,
+        metrics: Arc<StatsdClient>,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
+        #[cfg(not(feature = "py_verifier"))]
+        let oauth_verifier = {
+            let mut jwk_verifiers: Vec<JWTVerifierImpl> = Vec::new();
+            if let Some(primary) = &settings.fxa_oauth_primary_jwk {
+                jwk_verifiers.push(
+                    primary
+                        .clone()
+                        .try_into()
+                        .expect("Invalid primary key, should either be fixed or removed"),
+                )
+            }
+            if let Some(secondary) = &settings.fxa_oauth_secondary_jwk {
+                jwk_verifiers.push(
+                    secondary
+                        .clone()
+                        .try_into()
+                        .expect("Invalid secondary key, should either be fixed or removed"),
+                );
+            }
+            Box::new(
+                oauth::Verifier::new(settings, jwk_verifiers)
+                    .expect("failed to create Tokenserver OAuth verifier"),
+            )
+        };
+
+        #[cfg(feature = "py_verifier")]
         let oauth_verifier = Box::new(
             oauth::Verifier::new(settings, blocking_threadpool.clone())
                 .expect("failed to create Tokenserver OAuth verifier"),
@@ -78,7 +106,7 @@ impl ServerState {
                 db_pool: Box::new(db_pool),
                 node_capacity_release_rate: settings.node_capacity_release_rate,
                 node_type: settings.node_type,
-                metrics: Box::new(metrics),
+                metrics,
                 token_duration: settings.token_duration,
             }
         })

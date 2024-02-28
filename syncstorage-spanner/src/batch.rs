@@ -23,7 +23,7 @@ pub async fn create_async(
     db: &SpannerDb,
     params: params::CreateBatch,
 ) -> DbResult<results::CreateBatch> {
-    let batch_id = Uuid::new_v4().to_simple().to_string();
+    let batch_id = Uuid::new_v4().simple().to_string();
     let collection_id = db.get_collection_id_async(&params.collection).await?;
     let timestamp = db.checked_timestamp()?.as_i64();
 

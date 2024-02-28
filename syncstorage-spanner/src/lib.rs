@@ -9,6 +9,7 @@ mod macros;
 mod batch;
 mod error;
 mod manager;
+mod metadata;
 mod models;
 mod pool;
 mod support;

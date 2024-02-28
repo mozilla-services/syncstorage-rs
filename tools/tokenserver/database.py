@@ -334,15 +334,12 @@ class Database:
             res = self._execute_sql(_UPDATE_USER_RECORD_IN_PLACE, **params)
             res.close()
 
-            user['generation'] = max([x
-                                      for x
-                                      in [generation, user['generation']]
-                                      if x is not None])
-            user['keys_changed_at'] = max([x
-                                           for x
-                                           in [keys_changed_at,
-                                               user['keys_changed_at']]
-                                           if x is not None])
+            if generation is not None:
+                user['generation'] = max(user['generation'], generation)
+            user['keys_changed_at'] = max_keys_changed_at(
+                user,
+                keys_changed_at
+            )
         else:
             # Reject previously-seen client-state strings.
             if client_state is None:
@@ -369,10 +366,7 @@ class Database:
                 generation = max(user['generation'], generation)
             else:
                 generation = user['generation']
-            if keys_changed_at is not None:
-                keys_changed_at = max(user['keys_changed_at'], keys_changed_at)
-            else:
-                keys_changed_at = user['keys_changed_at']
+            keys_changed_at = max_keys_changed_at(user, keys_changed_at)
             now = get_timestamp()
             params = {
                 'service': self._get_service_id(SERVICE_NAME),
@@ -650,3 +644,18 @@ class Database:
         if row is None:
             raise Exception('unknown node: ' + node)
         return row
+
+
+def max_keys_changed_at(user, keys_changed_at):
+    """Return the largest `keys_changed_at` between the user record and the
+    specified value.
+
+    May return `None` as the column is nullable.
+
+    """
+    it = (
+        x
+        for x in (keys_changed_at, user['keys_changed_at'])
+        if x is not None
+    )
+    return max(it, default=None)

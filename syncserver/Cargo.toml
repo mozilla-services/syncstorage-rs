@@ -1,76 +1,67 @@
 [package]
 name = "syncserver"
-version = "0.13.1"
-license = "MPL-2.0"
-authors = [
-  "Ben Bangert <ben@groovie.org>",
-  "Phil Jenvey <pjenvey@underboss.org>",
-  "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
-]
-edition = "2018"
 default-run = "syncserver"
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-actix-http = "2"
-actix-web = "3"
-actix-rt = "1"                                                       # Pin to 1.0, due to dependencies on Tokio
-actix-cors = "0.5"
+actix-web.workspace = true
+backtrace.workspace = true
+base64.workspace = true
+cadence.workspace = true
+chrono.workspace = true
+docopt.workspace = true
+futures.workspace = true
+hex.workspace = true
+lazy_static.workspace = true
+rand.workspace = true
+regex.workspace = true
+sentry.workspace = true
+sentry-backtrace.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+slog.workspace = true
+slog-async.workspace = true
+slog-envlogger.workspace = true
+slog-mozlog-json.workspace = true
+slog-scope.workspace = true
+slog-stdlog.workspace = true
+slog-term.workspace = true
+hmac.workspace = true
+thiserror.workspace = true
+
+actix-http = "3"
+actix-rt = "2"
+actix-cors = "0.6"
 async-trait = "0.1.40"
-backtrace = "0.3.61"
-base64 = "0.13"
-cadence = "0.26"
-chrono = "0.4"
-docopt = "1.1.0"
 dyn-clone = "1.0.4"
-env_logger = "0.9"
-futures = { version = "0.3", features = ["compat"] }
 hostname = "0.3.1"
-lazy_static = "1.4.0"
-hawk = "3.2"
-hex = "0.4.3"
-hmac = "0.11"
+hawk = "5.0"
 mime = "0.3"
-rand = "0.8"
-regex = "1.4"
-reqwest = { version = "0.10.10", features = ["json", "rustls-tls"] }
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
-sentry = { version = "0.19", features = [
-  "with_curl_transport",
-] } # pin to 0.19 until on-prem sentry server is updated
-sentry-backtrace = "0.19"
-serde = "1.0"
-serde_derive = "1.0"
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
-sha2 = "0.9"
-slog = { version = "2.5", features = [
-  "max_level_info",
-  "release_max_level_info",
-  "dynamic-keys",
-] }
-slog-async = "2.5"
-slog-envlogger = "2.2.0"
-slog-mozlog-json = "0.1"
-slog-scope = "4.3"
-slog-stdlog = "4.1"
-slog-term = "2.6"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-thiserror = "1.0.26"
-tokenserver-auth = { path = "../tokenserver-auth" }
+tokenserver-auth = { path = "../tokenserver-auth", default-features = false}
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-# pinning to 0.2.4 due to high number of dependencies (actix, bb8, deadpool, etc.)
-tokio = { version = "0.2.4", features = ["macros", "sync"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
-validator = "0.14"
-validator_derive = "0.14"
-woothee = "0.11"
+validator = "0.16"
+validator_derive = "0.16"
+woothee = "0.13"
 
 [features]
-default = ["syncstorage-db/mysql"]
+default = ["mysql", "py_verifier"]
 no_auth = []
+py_verifier = ["tokenserver-auth/py"]
+mysql = ["syncstorage-db/mysql"]
+spanner = ["syncstorage-db/spanner"]

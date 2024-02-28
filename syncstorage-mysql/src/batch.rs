@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::collections::HashSet;
 
 use diesel::{
@@ -257,11 +258,13 @@ pub fn validate_batch_id(id: &str) -> DbResult<()> {
 }
 
 fn encode_id(id: i64) -> String {
-    base64::encode(id.to_string())
+    base64::engine::general_purpose::STANDARD.encode(id.to_string())
 }
 
 fn decode_id(id: &str) -> DbResult<i64> {
-    let bytes = base64::decode(id).unwrap_or_else(|_| id.as_bytes().to_vec());
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(id)
+        .unwrap_or_else(|_| id.as_bytes().to_vec());
     let decoded = std::str::from_utf8(&bytes).unwrap_or(id);
     decoded
         .parse::<i64>()

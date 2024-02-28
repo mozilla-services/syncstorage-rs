@@ -1,19 +1,22 @@
 [package]
 name = "syncstorage-db-common"
-version = "0.12.3"
-edition = "2021"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
 
 [dependencies]
+backtrace.workspace=true
+chrono.workspace=true
+futures.workspace=true
+lazy_static.workspace=true
+http.workspace=true
+serde.workspace=true
+serde_json.workspace=true
+thiserror.workspace=true
+
 async-trait = "0.1.40"
-backtrace = "0.3.61"
-chrono = "0.4"
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }
 diesel_migrations = { version = "1.4.0", features = ["mysql"] }
-futures = { version = "0.3", features = ["compat"] }
-http = "0.2.6"
-lazy_static = "1.4.0"
-serde = "1.0"
-serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
-thiserror = "1.0.26"
