@@ -1,3 +1,17 @@
+<a name="0.15.1"></a>
+## 0.15.1 (2024-02-29)
+
+
+#### Bug Fixes
+
+*   don't emit a content-type header for 304s (#1526) ([8faf7280](https://github.com/mozilla-services/syncstorage-rs/commit/8faf7280de843b5d398aeb997c99aebfdc5d9a8c))
+
+#### Doc
+
+*   Remove reference to legacy vendored library (#1522) ([3edd4206](https://github.com/mozilla-services/syncstorage-rs/commit/3edd420621520e073dff0828fd7b30579a4c9349))
+
+
+
 <a name="0.15.0"></a>
 ## 0.15.0 (2024-02-27)
 
