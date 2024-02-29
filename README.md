@@ -2,7 +2,7 @@
 
 # Syncstorage-rs
 
-Mozilla Sync Storage built with [Rust](https://rust-lang.org).
+Mozilla Sync Storage built with [Rust](https://rust-lang.org) on [GCP](https://cloud.google.com/).
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
