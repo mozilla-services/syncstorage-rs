@@ -8,11 +8,6 @@ pub mod mock;
 #[cfg(test)]
 mod tests;
 
-use std::time::Duration;
-
-use cadence::{Gauged, StatsdClient};
-use tokio::{self, time};
-
 #[cfg(feature = "mysql")]
 pub type DbPoolImpl = syncstorage_mysql::MysqlDbPool;
 #[cfg(feature = "mysql")]
@@ -41,37 +36,3 @@ compile_error!("only one of the \"mysql\" and \"spanner\" features can be enable
 
 #[cfg(not(any(feature = "mysql", feature = "spanner")))]
 compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");
-
-/// Emit DbPool metrics periodically
-pub fn spawn_pool_periodic_reporter<T: GetPoolState + Send + 'static>(
-    interval: Duration,
-    metrics: StatsdClient,
-    pool: T,
-) -> Result<(), DbError> {
-    let hostname = hostname::get()
-        .expect("Couldn't get hostname")
-        .into_string()
-        .expect("Couldn't get hostname");
-    tokio::spawn(async move {
-        loop {
-            let PoolState {
-                connections,
-                idle_connections,
-            } = pool.state();
-            metrics
-                .gauge_with_tags(
-                    "storage.pool.connections.active",
-                    (connections - idle_connections) as u64,
-                )
-                .with_tag("hostname", &hostname)
-                .send();
-            metrics
-                .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
-                .with_tag("hostname", &hostname)
-                .send();
-            time::sleep(interval).await;
-        }
-    });
-
-    Ok(())
-}

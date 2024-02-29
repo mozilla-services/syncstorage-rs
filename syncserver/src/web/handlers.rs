@@ -579,7 +579,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
         Some(s) => s,
         None => {
             error!("⚠️ Could not load the app state");
-            return Ok(HttpResponse::InternalServerError().body(""));
+            return Ok(HttpResponse::InternalServerError().finish());
         }
     };
 

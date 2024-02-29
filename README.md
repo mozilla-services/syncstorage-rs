@@ -138,7 +138,9 @@ To point to a GCP-hosted Spanner instance from your local machine, follow these 
 Note, that unlike MySQL, there is no automatic migrations facility. Currently, the Spanner schema must be hand edited and modified.
 
 #### Emulator
+
 Google supports an in-memory Spanner emulator, which can run on your local machine for development purposes. You can install the emulator via the gcloud CLI or Docker by following the instructions [here](https://cloud.google.com/spanner/docs/emulator#installing_and_running_the_emulator). Once the emulator is running, you'll need to create a new instance and a new database. To create an instance using the REST API (exposed via port 9020 on the emulator), we can use `curl`:
+
 ```sh
 curl --request POST \
   "localhost:9020/v1/projects/$PROJECT_ID/instances" \
@@ -146,7 +148,9 @@ curl --request POST \
   --header 'Content-Type: application/json' \
   --data "{\"instance\":{\"config\":\"emulator-test-config\",\"nodeCount\":1,\"displayName\":\"Test Instance\"},\"instanceId\":\"$INSTANCE_ID\"}"
 ```
+
 Note that you may set `PROJECT_ID` and `INSTANCE_ID` to your liking. To create a new database on this instance, we'll use a similar HTTP request, but we'll need to include information about the database schema. Since we don't have migrations for Spanner, we keep an up-to-date schema in `src/db/spanner/schema.ddl`. The `jq` utility allows us to parse this file for use in the JSON body of an HTTP POST request:
+
 ```sh
 DDL_STATEMENTS=$(
   grep -v ^-- schema.ddl \
@@ -156,7 +160,9 @@ DDL_STATEMENTS=$(
   | jq -R -s -c 'split(";")'
 )
 ```
+
 Finally, to create the database:
+
 ```sh
 curl -sS --request POST \
   "localhost:9020/v1/projects/$PROJECT_ID/instances/$INSTANCE_ID/databases" \
@@ -164,26 +170,30 @@ curl -sS --request POST \
   --header 'Content-Type: application/json' \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"
 ```
+
 Note that, again, you may set `DATABASE_ID` to your liking. Make sure that the `database_url` config variable reflects your choice of project name, instance name, and database name (i.e. it should be of the format `spanner://projects/<your project ID here>/instances/<your instance ID here>/databases/<your database ID here>`).
 
 To run an application server that points to the local Spanner emulator:
+
 ```sh
 SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
 
 ### Running via Docker
-This requires access to the mozilla-rust-sdk which is now available at `/vendor/mozilla-rust-sdk`.
+
+This requires access to [Google Cloud Rust (raw)](https://crates.io/crates/google-cloud-rust-raw/) crate. Please note that due to interdependencies, you will need to ensure that `grpcio` and `protobuf` match the version used by `google-cloud-rust-raw`.
 
 1. Make sure you have [Docker installed](https://docs.docker.com/install/) locally.
 2. Copy the contents of mozilla-rust-sdk into top level root dir here.
-3. Change cargo.toml mozilla-rust-sdk entry to point to `"path = "mozilla-rust-sdk/googleapis-raw"` instead of the parent dir.
-4. Comment out the `image` value under `syncserver` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
+3. Comment out the `image` value under `syncserver` in either docker-compose.mysql.yml or docker-compose.spanner.yml (depending on which database backend you want to run), and add this instead:
+
     ```yml
       build:
         context: .
     ```
-5. If you are using MySQL, adjust the MySQL db credentials in docker-compose.mysql.yml to match your local setup.
-6. `make docker_start_mysql` or `make docker_start_spanner` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
+
+4. If you are using MySQL, adjust the MySQL db credentials in docker-compose.mysql.yml to match your local setup.
+5. `make docker_start_mysql` or `make docker_start_spanner` - You can verify it's working by visiting [localhost:8000/\_\_heartbeat\_\_](http://localhost:8000/__heartbeat__)
 
 ### Connecting to Firefox
 
@@ -209,7 +219,6 @@ This will walk you through the steps to connect this project to your local copy 
 
     [endpoints]
     sync-1.5 = "http://localhost:8000/1.5/1"```
-
 
 3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/1.0/sync/1.5`.
 4. Restart Firefox. Now, try syncing. You should see new BSOs in your local MySQL instance.

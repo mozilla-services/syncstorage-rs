@@ -147,9 +147,8 @@ impl DbTransactionPool {
                     };
                     if status != StatusCode::OK {
                         return Ok(HttpResponse::build(status)
-                            .content_type("application/json")
                             .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
-                            .body("".to_owned()));
+                            .finish());
                     };
                 }
 
