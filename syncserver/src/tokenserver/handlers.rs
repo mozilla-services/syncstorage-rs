@@ -190,7 +190,16 @@ async fn update_user(
                 if let Some(metrics) = &req.metrics {
                     metrics.incr_with_tags("override").send();
                 }
-                // The only thing we can do at this point is to return a 401.
+                // force a replace user event. On the next iteration the user should be moved to
+                // the spanner.
+                db.replace_user(tokenserver_db::params::ReplaceUser {
+                    uid: req.user.uid,
+                    service_id: req.service_id,
+                    replaced_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                });
                 return Err(TokenserverError::bad_node());
             }
         }
