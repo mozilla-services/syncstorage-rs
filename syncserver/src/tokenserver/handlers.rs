@@ -199,7 +199,8 @@ async fn update_user(
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_millis() as i64,
-                });
+                })
+                .await?;
                 return Err(TokenserverError::bad_node());
             }
         }
