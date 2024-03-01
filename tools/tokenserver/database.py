@@ -156,7 +156,6 @@ where
     and created_at <= :timestamp
 """)
 
-
 _GET_BEST_NODE = sqltext("""\
 select
     id, node
@@ -599,24 +598,32 @@ class Database:
         """
         # We may have to re-try the query if we need to release more capacity.
         # This loop allows a maximum of five retries before bailing out.
-        for _ in range(5):
-            res = self._execute_sql(_GET_BEST_NODE,
-                                    service=self._get_service_id(SERVICE_NAME))
-            row = res.fetchone()
-            res.close()
-            if row is None:
-                # Try to release additional capacity from any nodes
-                # that are not fully occupied.
-                res = self._execute_sql(
-                    _RELEASE_NODE_CAPACITY,
-                    capacity_release_rate=self.capacity_release_rate,
-                    service=self._get_service_id(SERVICE_NAME)
-                )
+        override = os.environ.get("SYNC_TOKENSERVER__SPANNER_NODE_ID", os.environ.get("SPANNER_NODE_ID"))
+        if override:
+            with self._execute_sql(_GET_NODE,
+                                    service = self._get_service_id(SERVICE_NAME),
+                                    node=override
+                                    ) as res:
+                row = res.fetchone()
+        else:
+            for _ in range(5):
+                res = self._execute_sql(_GET_BEST_NODE,
+                                        service=self._get_service_id(SERVICE_NAME))
+                row = res.fetchone()
                 res.close()
-                if res.rowcount == 0:
+                if row is None:
+                    # Try to release additional capacity from any nodes
+                    # that are not fully occupied.
+                    res = self._execute_sql(
+                        _RELEASE_NODE_CAPACITY,
+                        capacity_release_rate=self.capacity_release_rate,
+                        service=self._get_service_id(SERVICE_NAME)
+                    )
+                    res.close()
+                    if res.rowcount == 0:
+                        break
+                else:
                     break
-            else:
-                break
 
         # Did we succeed in finding a node?
         if row is None:
