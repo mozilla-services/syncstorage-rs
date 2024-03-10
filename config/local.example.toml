@@ -5,9 +5,13 @@ human_logs = 1
 
 # Example Syncstorage settings:
 # Example MySQL DSN:
-syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
+#syncstorage.database_url = "mysql://sample_user:sample_password@localhost/syncstorage_rs"
 # Example Spanner DSN:
 # database_url="spanner://projects/SAMPLE_GCP_PROJECT/instances/SAMPLE_SPANNER_INSTANCE/databases/SAMPLE_SPANNER_DB"
+# Example SQLite DSN:
+# database_url="sqlite://PATH_TO_FILE/FILE.sqlite"
+syncstorage.database_url = ":memory:"
+
 # enable quota limits
 syncstorage.enable_quota = 0
 # set the quota limit to 2GB.
@@ -16,7 +20,8 @@ syncstorage.enabled = true
 syncstorage.limits.max_total_records = 1666 # See issues #298/#333
 
 # Example Tokenserver settings:
-tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
+#tokenserver.database_url = "mysql://sample_user:sample_password@localhost/tokenserver_rs"
+tokenserver.database_url = ":memory:"
 tokenserver.enabled = true
 tokenserver.fxa_email_domain = "api-accounts.stage.mozaws.net"
 tokenserver.fxa_metrics_hash_secret = "INSERT_SECRET_KEY_HERE"
@@ -26,5 +31,5 @@ tokenserver.fxa_browserid_issuer = "https://api-accounts.stage.mozaws.net"
 tokenserver.fxa_browserid_server_url = "https://verifier.stage.mozaws.net/v2"
 
 # cors settings
-# cors_allowed_origin = "localhost"
+cors_allowed_origin = "localhost"
 # cors_max_age = 86400

@@ -11,7 +11,7 @@ futures.workspace = true
 http.workspace = true
 thiserror.workspace = true
 
-diesel = { workspace = true, features = ["mysql", "r2d2"] }
 deadpool = { git = "https://github.com/mozilla-services/deadpool", tag = "deadpool-v0.7.0" }
-diesel_migrations = { workspace = true, features = ["mysql"] }
+diesel = { workspace = true, features = ["mysql", "sqlite","r2d2"] }
+diesel_migrations = { workspace = true, features = ["mysql", "sqlite"] }
 syncserver-common = { path = "../syncserver-common" }
