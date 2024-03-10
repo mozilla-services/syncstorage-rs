@@ -1,0 +1,28 @@
+[package]
+name = "syncstorage-sqlite"
+version.workspace=true
+license.workspace=true
+authors.workspace=true
+edition.workspace=true
+
+[dependencies]
+backtrace.workspace=true
+base64.workspace=true
+futures.workspace=true
+http.workspace=true
+slog-scope.workspace=true
+
+async-trait = "0.1.40"
+diesel = { version = "1.4", features = ["sqlite", "r2d2"] }
+diesel_logger = "0.1.1"
+diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
+syncserver-common = { path = "../syncserver-common" }
+syncserver-db-common = { path = "../syncserver-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-settings = { path = "../syncstorage-settings" }
+thiserror = "1.0.26"
+url = "2.1"
+
+[dev-dependencies]
+env_logger.workspace=true
+syncserver-settings = { path = "../syncserver-settings" }

@@ -1,24 +1,31 @@
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use diesel::{
+    mysql::MysqlConnection,
+    r2d2::{ConnectionManager, PooledConnection},
     sql_types::{Bigint, Float, Integer, Nullable, Text},
-    OptionalExtension, RunQueryDsl,
+    RunQueryDsl,
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
-use tokenserver_db_common::error::{DbError, DbResult};
 
-use super::{params, results, PooledConn};
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use super::{
+    error::{DbError, DbResult},
+    params,
+    results,
+};
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
+
+type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
 pub struct TokenserverDb {
@@ -43,9 +50,9 @@ unsafe impl Send for TokenserverDb {}
 
 struct DbInner {
     #[cfg(not(test))]
-    pub(super) conn: PooledConn,
+    pub(super) conn: Conn,
     #[cfg(test)]
-    pub(super) conn: LoggingConnection<PooledConn>, // display SQL when RUST_LOG="diesel_logger=trace"
+    pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
 }
 
 impl TokenserverDb {
@@ -57,7 +64,7 @@ impl TokenserverDb {
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
 
     pub fn new(
-        conn: PooledConn,
+        conn: Conn,
         metrics: &Metrics,
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
