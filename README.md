@@ -38,8 +38,10 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - pkg-config
 - [Rust stable](https://rustup.rs)
 - python 3.9+
-- MySQL 5.7 (or compatible)
-  * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
+- At least one database backend (depending on which one you'll be running)
+  * MySQL 5.7 (or compatible)
+    * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
+  * SQLite v3.24 or greater
 
 Depending on your OS, you may also need to install `libgrpcdev`,
 and `protobuf-compiler-grpc`. *Note*: if the code complies cleanly,
@@ -52,7 +54,8 @@ are missing `libcurl4-openssl-dev`.
 2. Now `cp config/local.example.toml config/local.toml`. Open `config/local.toml` and make sure you have the desired settings configured. For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
 3. To start a local server in debug mode, run either:
     - `make run_mysql` if using MySQL or,
-    - `make run_spanner` if using spanner.
+    - `make run_spanner` if using spanner or,
+    - `make run_sqlite` if using sqlite.
 
     The above starts the server in debug mode, using your new `local.toml` file for config options. Or, simply `cargo run` with your own config options provided as env vars.
 4. Visit `http://localhost:8000/__heartbeat__` to make sure the server is running.
@@ -185,9 +188,24 @@ SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 Setting up the server with sqlite only requires a path to the database file,
 which will be created automatically:
 
-`sqlite:path/syncdb.sqlite`
+One for the syncserver data
+`sqlite:path/syncdb.sqlite`  
+And one for the tokenserver data
+`sqlite:path/tokendb.sqlite`
 
-This requires at least sqlite v3.24.0 to be installed on the host system.
+Note that after database initialisation you will still need to run two SQL
+insert on the tokenserver database to announce the presence of your syncserver
+to the clients.
+```sql
+-- Create a new service record
+INSERT INTO `services` (`id`, `service`, `pattern`)
+VALUES ('1', 'sync-1.5', '{node}/1.5/{uid}');
+
+-- Create a new service node record. Set the node field to the path of your
+-- syncserver.
+INSERT INTO `nodes` (`id`, `service`, `node`, `available`, `current_load`, `capacity`, `downed`, `backoff`)
+VALUES ('1', '1', 'http://localhost:8000', '1', '0', '1', '0', '0');
+```
 
 ### Running via Docker
 
