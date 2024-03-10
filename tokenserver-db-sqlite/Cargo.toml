@@ -1,9 +1,9 @@
 [package]
-name = "tokenserver-db"
+name = "tokenserver-db-sqlite"
 version.workspace = true
-license.workspace = true
 authors.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 backtrace.workspace = true
@@ -13,28 +13,20 @@ serde.workspace = true
 serde_derive.workspace = true
 serde_json.workspace = true
 slog-scope.workspace = true
-thiserror.workspace = true
 
 async-trait = "0.1.40"
-# diesel 1.4
-diesel = { workspace = true, features = ["mysql", "r2d2"] }
-diesel_logger = { workspace = true }
-diesel_migrations = { workspace = true, features = ["mysql"] }
+diesel = { version = "1.4", features = ["sqlite", "r2d2"] }
+diesel_logger = "0.1.1"
+diesel_migrations = { version = "1.4.0", features = ["sqlite"] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
+thiserror = "1.0.26"
 tokenserver-common = { path = "../tokenserver-common" }
+tokenserver-db-common = { path = "../tokenserver-db-common"}
 tokenserver-settings = { path = "../tokenserver-settings" }
-tokenserver-db-common = { path = "../tokenserver-db-common" }
-tokenserver-db-mysql = { path = "../tokenserver-db-mysql", optional = true}
-tokenserver-db-sqlite = { path = "../tokenserver-db-sqlite", optional = true}
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 [dev-dependencies]
 env_logger.workspace = true
 
 syncserver-settings = { path = "../syncserver-settings" }
-
-[features]
-default = []
-mysql = ["tokenserver-db-mysql"]
-sqlite = ["tokenserver-db-sqlite"]

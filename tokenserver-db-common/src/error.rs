@@ -7,8 +7,8 @@ use syncserver_db_common::error::SqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;
 
-pub(crate) type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
-pub(crate) type DbResult<T> = Result<T, DbError>;
+pub type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
+pub type DbResult<T> = Result<T, DbError>;
 
 /// An error type that represents any database-related errors that may occur while processing a
 /// tokenserver request.
@@ -20,7 +20,7 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn internal(msg: String) -> Self {
+    pub fn internal(msg: String) -> Self {
         DbErrorKind::Internal(msg).into()
     }
 }
