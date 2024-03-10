@@ -15,6 +15,13 @@ pub use syncstorage_mysql::DbError;
 #[cfg(feature = "mysql")]
 pub type DbImpl = syncstorage_mysql::MysqlDb;
 
+#[cfg(feature = "sqlite")]
+pub type DbPoolImpl = syncstorage_sqlite::SqliteDbPool;
+#[cfg(feature = "sqlite")]
+pub use syncstorage_sqlite::DbError;
+#[cfg(feature = "sqlite")]
+pub type DbImpl = syncstorage_sqlite::SqliteDb;
+
 #[cfg(feature = "spanner")]
 pub type DbPoolImpl = syncstorage_spanner::SpannerDbPool;
 #[cfg(feature = "spanner")]
@@ -31,8 +38,8 @@ pub use syncstorage_db_common::{
     Db, DbPool, Sorting, UserIdentifier,
 };
 
-#[cfg(all(feature = "mysql", feature = "spanner"))]
+#[cfg(all(feature = "mysql", feature = "spanner", feature = "sqlite"))]
 compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
 
-#[cfg(not(any(feature = "mysql", feature = "spanner")))]
+#[cfg(not(any(feature = "mysql", feature = "spanner", feature = "sqlite")))]
 compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");
