@@ -64,6 +64,11 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: make clippy_mysql
+  rust-clippy-sqlite:
+    steps:
+      - run:
+          name: Rust Clippy SQLite
+          command: make clippy_sqlite
   rust-clippy-spanner:
     steps:
       - run:
