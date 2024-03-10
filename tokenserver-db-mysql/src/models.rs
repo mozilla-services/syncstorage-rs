@@ -1,27 +1,31 @@
-use std::{
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
 use diesel::{
+    mysql::MysqlConnection,
+    r2d2::{ConnectionManager, PooledConnection},
     sql_types::{Bigint, Float, Integer, Nullable, Text},
-    OptionalExtension, RunQueryDsl,
+    RunQueryDsl,
 };
 #[cfg(test)]
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
-use tokenserver_db_common::error::{DbError, DbResult};
+
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use super::{
-    params, results,
-    PooledConn
+    error::{DbError, DbResult},
+    params,
+    results,
 };
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
+
+type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
 
 #[derive(Clone)]
 pub struct TokenserverDb {
@@ -37,7 +41,6 @@ pub struct TokenserverDb {
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
     blocking_threadpool: Arc<BlockingThreadpool>,
-    pub timeout: Option<Duration>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -47,9 +50,9 @@ unsafe impl Send for TokenserverDb {}
 
 struct DbInner {
     #[cfg(not(test))]
-    pub(super) conn: PooledConn,
+    pub(super) conn: Conn,
     #[cfg(test)]
-    pub(super) conn: LoggingConnection<PooledConn>, // display SQL when RUST_LOG="diesel_logger=trace"
+    pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
 }
 
 impl TokenserverDb {
@@ -61,12 +64,11 @@ impl TokenserverDb {
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
 
     pub fn new(
-        conn: PooledConn,
+        conn: Conn,
         metrics: &Metrics,
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
         blocking_threadpool: Arc<BlockingThreadpool>,
-        timeout: Option<Duration>,
     ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
@@ -83,7 +85,6 @@ impl TokenserverDb {
             service_id,
             spanner_node_id,
             blocking_threadpool,
-            timeout,
         }
     }
 
@@ -389,7 +390,7 @@ impl TokenserverDb {
             let raw_user = raw_users[0].clone();
 
             // Collect any old client states that differ from the current client state
-            let old_client_states: Vec<String> = {
+            let old_client_states = {
                 raw_users[1..]
                     .iter()
                     .map(|user| user.client_state.clone())
@@ -463,11 +464,7 @@ impl TokenserverDb {
                 // The most up-to-date user doesn't have a node and is retired. This is an internal
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
-                (_, None) => {
-                    let uid = raw_user.uid;
-                    warn!("Tokenserver user retired"; "uid" => &uid);
-                    Err(DbError::internal("Tokenserver user retired".to_owned()))
-                }
+                (_, None) => Err(DbError::internal("Tokenserver user retired".to_owned())),
             }
         }
     }
@@ -683,10 +680,6 @@ impl Db for TokenserverDb {
     sync_db_method!(get_or_create_user, get_or_create_user_sync, GetOrCreateUser);
     sync_db_method!(get_service_id, get_service_id_sync, GetServiceId);
 
-    fn timeout(&self) -> Option<Duration> {
-        self.timeout
-    }
-
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
 
@@ -726,10 +719,6 @@ impl Db for TokenserverDb {
 }
 
 pub trait Db {
-    fn timeout(&self) -> Option<Duration> {
-        None
-    }
-
     fn replace_user(
         &self,
         params: params::ReplaceUser,
