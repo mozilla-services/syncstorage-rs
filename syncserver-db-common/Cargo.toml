@@ -12,6 +12,6 @@ http.workspace=true
 thiserror.workspace=true
 
 deadpool = { git = "https://github.com/mozilla-services/deadpool", tag = "deadpool-v0.7.0" }
-diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
+diesel = { version = "1.4", features = ["mysql", "sqlite","r2d2"] }
+diesel_migrations = { version = "1.4.0", features = ["mysql", "sqlite"] }
 syncserver-common = { path = "../syncserver-common" }

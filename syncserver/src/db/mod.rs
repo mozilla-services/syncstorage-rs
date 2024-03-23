@@ -3,6 +3,7 @@
 pub mod mock;
 pub mod mysql;
 pub mod spanner;
+pub mod sqlite;
 #[cfg(test)]
 mod tests;
 pub mod transaction;
@@ -35,6 +36,11 @@ pub async fn pool_from_settings(
         "spanner" => Box::new(
             spanner::pool::SpannerDbPool::new(settings, metrics, blocking_threadpool).await?,
         ),
+        "sqlite" => Box::new(sqlite::pool::SqliteDbPool::new(
+            settings,
+            metrics,
+            blocking_threadpool,
+        )?),
         _ => Err(DbErrorKind::InvalidUrl(settings.database_url.to_owned()))?,
     })
 }
