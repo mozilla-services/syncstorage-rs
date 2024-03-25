@@ -34,7 +34,6 @@ use syncstorage_db::{
 use tokenserver_auth::TokenserverOrigin;
 use validator::{Validate, ValidationError};
 
-use crate::error::{ApiError, ApiErrorKind};
 use crate::label;
 use crate::server::{
     tags::Taggable, MetricsWrapper, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX,
@@ -44,6 +43,10 @@ use crate::web::{
     error::{HawkErrorKind, ValidationErrorKind},
     transaction::DbTransactionPool,
     DOCKER_FLOW_ENDPOINTS,
+};
+use crate::{
+    error::{ApiError, ApiErrorKind},
+    tokenserver,
 };
 const BATCH_MAX_IDS: usize = 100;
 
@@ -929,6 +932,7 @@ pub struct HeartbeatRequest {
     pub headers: HeaderMap,
     pub db_pool: Box<dyn DbPool<Error = DbError>>,
     pub quota: QuotaInfo,
+    pub spanner_node_id: Option<i32>,
 }
 
 impl FromRequest for HeartbeatRequest {
@@ -953,6 +957,10 @@ impl FromRequest for HeartbeatRequest {
                     .into());
                 }
             };
+            let spanner_node_id = req
+                .app_data::<Data<tokenserver::ServerState>>()
+                .map(|state| state.spanner_node_id)
+                .unwrap_or_default();
             let db_pool = state.db_pool.clone();
             let quota = QuotaInfo {
                 enabled: state.quota_enabled,
@@ -963,6 +971,7 @@ impl FromRequest for HeartbeatRequest {
                 headers,
                 db_pool,
                 quota,
+                spanner_node_id,
             })
         }
         .boxed_local()

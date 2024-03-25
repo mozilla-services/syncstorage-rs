@@ -546,6 +546,11 @@ pub async fn heartbeat(hb: HeartbeatRequest) -> Result<HttpResponse, ApiError> {
     let db = hb.db_pool.get().await?;
 
     checklist.insert("quota".to_owned(), serde_json::to_value(hb.quota)?);
+    if let Some(node_id) = hb.spanner_node_id {
+        checklist.insert("spanner_node_id".to_owned(), Value::from(node_id));
+    } else {
+        checklist.insert("spanner_node_id".to_owned(), Value::from("INVALID"));
+    }
 
     match db.check().await {
         Ok(result) => {

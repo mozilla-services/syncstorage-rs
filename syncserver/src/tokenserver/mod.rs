@@ -34,6 +34,7 @@ pub struct ServerState {
     pub node_type: NodeType,
     pub metrics: Arc<StatsdClient>,
     pub token_duration: u64,
+    pub spanner_node_id: Option<i32>,
 }
 
 impl ServerState {
@@ -108,6 +109,7 @@ impl ServerState {
                 node_type: settings.node_type,
                 metrics,
                 token_duration: settings.token_duration,
+                spanner_node_id: settings.spanner_node_id,
             }
         })
         .map_err(|_| ApiErrorKind::Internal("Failed to create Tokenserver pool".to_owned()).into())

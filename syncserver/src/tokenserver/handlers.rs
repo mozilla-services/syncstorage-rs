@@ -5,6 +5,7 @@ use std::{
 
 use actix_web::{http::StatusCode, Error, HttpResponse};
 use base64::{engine, Engine};
+use cadence::CountedExt;
 use serde::Serialize;
 use serde_json::Value;
 use tokenserver_auth::{MakeTokenPlaintext, Tokenlib, TokenserverOrigin};
@@ -183,6 +184,27 @@ async fn update_user(
         },
     };
 
+    if let Some(override_node_id) = req.spanner_node_id {
+        if let Some(user_node_id) = req.user.node_id {
+            if user_node_id != (override_node_id as i64) {
+                if let Some(metrics) = &req.metrics {
+                    metrics.incr_with_tags("override").send();
+                }
+                // force a replace user event. On the next iteration the user should be moved to
+                // the spanner.
+                db.replace_user(tokenserver_db::params::ReplaceUser {
+                    uid: req.user.uid,
+                    service_id: req.service_id,
+                    replaced_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis() as i64,
+                })
+                .await?;
+                return Err(TokenserverError::bad_node());
+            }
+        }
+    };
     // If the client state changed, we need to mark the current user as "replaced" and create a
     // new user record. Otherwise, we can update the user in place.
     if req.auth_data.client_state != req.user.client_state {

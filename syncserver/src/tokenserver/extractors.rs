@@ -14,6 +14,7 @@ use actix_web::{
     FromRequest, HttpRequest,
 };
 use base64::{engine, Engine};
+use cadence::StatsdClient;
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac};
@@ -35,7 +36,7 @@ lazy_static! {
 const SYNC_SERVICE_NAME: &str = "sync-1.5";
 
 /// Information from the request needed to process a Tokenserver request.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Debug, Default)]
 pub struct TokenserverRequest {
     pub user: results::GetOrCreateUser,
     pub auth_data: AuthData,
@@ -45,6 +46,22 @@ pub struct TokenserverRequest {
     pub service_id: i32,
     pub duration: u64,
     pub node_type: NodeType,
+    pub spanner_node_id: Option<i32>,
+    pub metrics: Option<Arc<StatsdClient>>,
+}
+
+impl PartialEq for TokenserverRequest {
+    fn eq(&self, other: &Self) -> bool {
+        self.user == other.user
+            && self.auth_data == other.auth_data
+            && self.shared_secret == other.shared_secret
+            && self.hashed_fxa_uid == other.hashed_fxa_uid
+            && self.hashed_device_id == other.hashed_device_id
+            && self.service_id == other.service_id
+            && self.duration == other.duration
+            && self.node_type == other.node_type
+            && self.spanner_node_id == other.spanner_node_id
+    }
 }
 
 impl TokenserverRequest {
@@ -292,6 +309,8 @@ impl FromRequest for TokenserverRequest {
                 service_id,
                 duration: duration.unwrap_or(state.token_duration),
                 node_type: state.node_type,
+                spanner_node_id: state.spanner_node_id,
+                metrics: Some(state.metrics.clone()),
             };
 
             tokenserver_request.validate()?;
@@ -770,6 +789,8 @@ mod tests {
             service_id: i32::default(),
             duration: 100,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         assert_eq!(result, expected_tokenserver_request);
@@ -1084,6 +1105,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 replaced_at: None,
                 created_at: 1234,
@@ -1104,6 +1126,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1127,6 +1151,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
@@ -1147,6 +1172,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1169,6 +1196,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
@@ -1189,6 +1217,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1212,6 +1242,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
@@ -1232,6 +1263,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1249,6 +1282,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
@@ -1269,6 +1303,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1287,6 +1323,7 @@ mod tests {
                 client_state: "aaaa".to_owned(),
                 generation: 1234,
                 node: "node".to_owned(),
+                node_id: None,
                 keys_changed_at: Some(1234),
                 created_at: 1234,
                 first_seen_at: 1234,
@@ -1307,6 +1344,8 @@ mod tests {
             service_id: 1,
             duration: TOKEN_DURATION,
             node_type: NodeType::default(),
+            spanner_node_id: None,
+            metrics: None,
         };
 
         let error = tokenserver_request.validate().unwrap_err();
@@ -1341,6 +1380,7 @@ mod tests {
             )
             .unwrap(),
             token_duration: TOKEN_DURATION,
+            spanner_node_id: None,
         }
     }
 }
