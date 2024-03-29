@@ -1,5 +1,3 @@
-pub mod browserid;
-
 #[cfg(not(feature = "py"))]
 mod crypto;
 

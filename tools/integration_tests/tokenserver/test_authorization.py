@@ -304,18 +304,6 @@ class TestAuthorization(TestCase, unittest.TestCase):
         uid = self._add_user(generation=0, keys_changed_at=None,
                              client_state='aaaa')
 
-        # Only BrowserID requests can omit keys_changed_at
-        if self.auth_method == 'browserid':
-            # Send a request without a generation that doesn't update
-            # keys_changed_at
-            headers = self._build_auth_headers(generation=None,
-                                               keys_changed_at=None,
-                                               client_state='aaaa')
-            self.app.get('/1.0/sync/1.5', headers=headers)
-            user = self._get_user(uid)
-            # This should not have set the user's generation
-            self.assertEqual(user['generation'], 0)
-
         # Send a request without a generation that updates keys_changed_at
         headers = self._build_auth_headers(generation=None,
                                            keys_changed_at=1234,

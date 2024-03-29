@@ -9,7 +9,6 @@ use std::sync::Arc;
 
 use actix_web::{
     dev::Payload,
-    http::StatusCode,
     web::{Data, Query},
     FromRequest, HttpRequest,
 };
@@ -17,6 +16,7 @@ use base64::{engine, Engine};
 use futures::future::LocalBoxFuture;
 use hex;
 use hmac::{Hmac, Mac};
+use http::StatusCode;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
@@ -98,14 +98,6 @@ impl TokenserverRequest {
             });
         }
 
-        // If the client previously reported a client state, every subsequent request must include
-        // one. Note that this is only relevant for BrowserID requests, since OAuth requests must
-        // always include a client state.
-        if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
-            let error_message = "Unacceptable client-state value empty string".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
-        }
-
         // The client state on the request must not have been used in the past.
         if self
             .user
@@ -155,26 +147,6 @@ impl TokenserverRequest {
             });
         }
 
-        // If there's no keys_changed_at on the request, there must be no value stored on the user
-        // record. Note that this is only relevant for BrowserID requests, since OAuth requests
-        // must always include a keys_changed_at header. The Python Tokenserver converts a NULL
-        // keys_changed_at on the user record to 0 in memory, which means that NULL
-        // keys_changed_ats are treated equivalently to 0 keys_changed_ats. This would allow users
-        // with a 0 keys_changed_at on their user record to hold off on sending a keys_changed_at
-        // in requests even though the value in the database is non-NULL. To be thorough, we
-        // handle this case here.
-        if auth_keys_changed_at.is_none()
-            && matches!(user_keys_changed_at, Some(inner) if inner != 0)
-        {
-            let context =
-                "No keys_changed_at sent for a user for whom we've already seen a keys_changed_at"
-                    .to_owned();
-            return Err(TokenserverError {
-                context,
-                ..TokenserverError::invalid_keys_changed_at()
-            });
-        }
-
         Ok(())
     }
 }
@@ -205,12 +177,8 @@ impl FromRequest for TokenserverRequest {
             log_items_mutator.insert("metrics_uid".to_owned(), hashed_fxa_uid.clone());
 
             // To preserve anonymity, compute a hash of the FxA device ID to be used for reporting
-            // metrics. Only requests using BrowserID will have a device ID, so use "none" as
-            // a placeholder for OAuth requests.
-            let hashed_device_id = {
-                let device_id = auth_data.device_id.as_deref().unwrap_or("none");
-                hash_device_id(&hashed_fxa_uid, device_id, fxa_metrics_hash_secret)
-            };
+            // metrics. Use "none" as a placeholder for "device" with OAuth requests.
+            let hashed_device_id = hash_device_id(&hashed_fxa_uid, "none", fxa_metrics_hash_secret);
 
             let DbWrapper(db) = DbWrapper::extract(&req).await?;
             let service_id = {
@@ -348,10 +316,9 @@ impl FromRequest for DbPoolWrapper {
     }
 }
 
-/// An authentication token as parsed from the `Authorization` header. Both BrowserID assertions
-/// and OAuth tokens are opaque to Tokenserver and must be verified via FxA.
+/// An authentication token as parsed from the `Authorization` header.
+/// OAuth tokens are opaque to Tokenserver and must be verified via FxA.
 pub enum Token {
-    BrowserIdAssertion(String),
     OAuthToken(String),
 }
 
@@ -389,10 +356,8 @@ impl FromRequest for Token {
 
                 if auth_type == "bearer" {
                     Ok(Token::OAuthToken(token.to_owned()))
-                } else if auth_type == "browserid" {
-                    Ok(Token::BrowserIdAssertion(token.to_owned()))
                 } else {
-                    // The request must use a Bearer token or BrowserID token
+                    // The request must use a Bearer token
                     Err(TokenserverError {
                         description: "Unsupported".to_owned(),
                         location: ErrorLocation::Body,
@@ -448,37 +413,6 @@ impl FromRequest for AuthData {
             }
 
             match token {
-                Token::BrowserIdAssertion(assertion) => {
-                    // Add a tag to the request extensions
-                    req.add_tag("token_type".to_owned(), "BrowserID".to_owned());
-                    log_items_mutator.insert("token_type".to_owned(), "BrowserID".to_owned());
-
-                    // Start a timer with the same tag
-                    let mut tags = HashMap::default();
-                    tags.insert("token_type".to_owned(), "BrowserID".to_owned());
-                    metrics.start_timer("token_verification", Some(tags));
-                    let verify_output =
-                        state.browserid_verifier.verify(assertion, &metrics).await?;
-
-                    // For requests using BrowserID, the client state is embedded in the
-                    // X-Client-State header, and the generation and keys_changed_at are extracted
-                    // from the assertion as part of the verification process.
-                    let XClientStateHeader(client_state) =
-                        XClientStateHeader::extract(&req).await?;
-                    let (fxa_uid, _) = verify_output
-                        .email
-                        .split_once('@')
-                        .unwrap_or((&verify_output.email, ""));
-
-                    Ok(AuthData {
-                        client_state: client_state.unwrap_or_else(|| "".to_owned()),
-                        device_id: verify_output.device_id,
-                        email: verify_output.email.clone(),
-                        fxa_uid: fxa_uid.to_owned(),
-                        generation: convert_zero_to_none(verify_output.generation),
-                        keys_changed_at: convert_zero_to_none(verify_output.keys_changed_at),
-                    })
-                }
                 Token::OAuthToken(token) => {
                     // Add a tag to the request extensions
                     req.add_tag("token_type".to_owned(), "OAuth".to_owned());
@@ -705,7 +639,7 @@ mod tests {
     use serde_json;
     use syncserver_settings::Settings as GlobalSettings;
     use syncstorage_settings::ServerLimits;
-    use tokenserver_auth::{browserid, oauth, MockVerifier};
+    use tokenserver_auth::{oauth, MockVerifier};
     use tokenserver_db::mock::MockDbPool as MockTokenserverPool;
     use tokenserver_settings::Settings as TokenserverSettings;
 
@@ -736,7 +670,7 @@ mod tests {
                 verify_output,
             }
         };
-        let state = make_state(oauth_verifier, MockVerifier::default());
+        let state = make_state(oauth_verifier);
 
         let req = TestRequest::default()
             .data(state)
@@ -790,7 +724,7 @@ mod tests {
                 verify_output,
             }
         };
-        let state = make_state(oauth_verifier, MockVerifier::default());
+        let state = make_state(oauth_verifier);
 
         let request = TestRequest::default()
             .data(state)
@@ -833,7 +767,7 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(make_state(oauth_verifier, MockVerifier::default()))
+                .data(make_state(oauth_verifier))
                 .data(Arc::clone(&SECRETS))
                 .insert_header(("authorization", "Bearer fake_token"))
                 .insert_header(("accept", "application/json,text/plain:q=0.5"))
@@ -938,7 +872,7 @@ mod tests {
             };
 
             TestRequest::default()
-                .data(make_state(oauth_verifier, MockVerifier::default()))
+                .data(make_state(oauth_verifier))
                 .insert_header(("authorization", "Bearer fake_token"))
                 .insert_header(("accept", "application/json,text/plain:q=0.5"))
                 .param("application", "sync")
@@ -1319,17 +1253,13 @@ mod tests {
         String::from_utf8(block_on(test::read_body(sresponse)).to_vec()).unwrap()
     }
 
-    fn make_state(
-        oauth_verifier: MockVerifier<oauth::VerifyOutput>,
-        browserid_verifier: MockVerifier<browserid::VerifyOutput>,
-    ) -> ServerState {
+    fn make_state(oauth_verifier: MockVerifier<oauth::VerifyOutput>) -> ServerState {
         let syncserver_settings = GlobalSettings::default();
         let tokenserver_settings = TokenserverSettings::default();
 
         ServerState {
             fxa_email_domain: "test.com".to_owned(),
             fxa_metrics_hash_secret: "".to_owned(),
-            browserid_verifier: Box::new(browserid_verifier),
             oauth_verifier: Box::new(oauth_verifier),
             db_pool: Box::new(MockTokenserverPool::new()),
             node_capacity_release_rate: None,

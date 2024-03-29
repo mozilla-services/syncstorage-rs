@@ -188,7 +188,7 @@ jobs:
             RUST_BACKTRACE: 1
             # XXX: begin_test_transaction doesn't play nice over threaded tests
             RUST_TEST_THREADS: 1
-      - image: circleci/mysql:5.7-ram
+      - image: cimg/mysql:5.7
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS

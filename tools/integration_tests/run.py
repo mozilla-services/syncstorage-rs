@@ -8,7 +8,7 @@ import sys
 from test_storage import TestStorage
 from test_support import run_live_functional_tests
 import time
-from tokenserver.run import run_end_to_end_tests, run_local_tests
+from tokenserver.run import run_end_to_end_tests
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
@@ -52,21 +52,15 @@ if __name__ == "__main__":
     os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "*")
     mock_fxa_server_url = os.environ["MOCK_FXA_SERVER_URL"]
     url = "%s/v2" % mock_fxa_server_url
-    os.environ["SYNC_TOKENSERVER__FXA_BROWSERID_SERVER_URL"] = url
     os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = mock_fxa_server_url
     the_server_subprocess = start_server()
     try:
         res = 0
         res |= run_live_functional_tests(TestStorage, sys.argv)
         os.environ["TOKENSERVER_AUTH_METHOD"] = "oauth"
-        res |= run_local_tests(include_browserid_specific_tests=False)
-        os.environ["TOKENSERVER_AUTH_METHOD"] = "browserid"
-        res |= run_local_tests(include_browserid_specific_tests=True)
     finally:
         terminate_process(the_server_subprocess)
 
-    os.environ["SYNC_TOKENSERVER__FXA_BROWSERID_SERVER_URL"] = \
-        "https://verifier.stage.mozaws.net/v2"
     os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
         "https://oauth.stage.mozaws.net"
     the_server_subprocess = start_server()
@@ -86,7 +80,8 @@ if __name__ == "__main__":
 
     the_server_subprocess = start_server()
     try:
-        res |= run_end_to_end_tests()
+        verbosity = int(os.environ.get("VERBOSITY", "1"))
+        res |= run_end_to_end_tests(verbosity=verbosity)
     finally:
         terminate_process(the_server_subprocess)
 

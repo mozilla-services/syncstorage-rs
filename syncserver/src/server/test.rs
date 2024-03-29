@@ -6,7 +6,6 @@ use actix_web::{
     http::{
         self,
         header::{HeaderName, HeaderValue},
-        StatusCode,
     },
     test,
     web::Bytes,
@@ -15,6 +14,7 @@ use base64::{engine, Engine};
 use chrono::offset::Utc;
 use hawk::{self, Credentials, Key, RequestBuilder};
 use hmac::{Hmac, Mac};
+use http::StatusCode;
 use lazy_static::lazy_static;
 use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;

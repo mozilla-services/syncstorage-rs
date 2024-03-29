@@ -4,32 +4,28 @@
 import unittest
 
 from tokenserver.test_authorization import TestAuthorization
-from tokenserver.test_browserid import TestBrowserId
 from tokenserver.test_e2e import TestE2e
 from tokenserver.test_misc import TestMisc
 from tokenserver.test_node_assignment import TestNodeAssignment
 
 
-def run_local_tests(include_browserid_specific_tests=True):
+def run_local_tests(include_browserid_specific_tests=False):
     test_classes = [TestAuthorization, TestMisc, TestNodeAssignment]
-
-    if include_browserid_specific_tests:
-        test_classes.append(TestBrowserId)
 
     return run_tests(test_classes)
 
 
-def run_end_to_end_tests():
-    return run_tests([TestE2e])
+def run_end_to_end_tests(verbosity=1):
+    return run_tests([TestE2e], verbosity=verbosity)
 
 
-def run_tests(test_cases):
+def run_tests(test_cases, verbosity=1):
     loader = unittest.TestLoader()
     success = True
 
     for test_case in test_cases:
         suite = loader.loadTestsFromTestCase(test_case)
-        runner = unittest.TextTestRunner()
+        runner = unittest.TextTestRunner(verbosity=verbosity)
         res = runner.run(suite)
         success = success and res.wasSuccessful()
 

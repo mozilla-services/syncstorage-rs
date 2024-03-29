@@ -1,7 +1,8 @@
 use std::{cmp::PartialEq, error::Error, fmt};
 
-use actix_web::{http::StatusCode, HttpResponse, ResponseError};
+use actix_web::{HttpResponse, ResponseError};
 use backtrace::Backtrace;
+use http::StatusCode;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
@@ -26,7 +27,6 @@ pub struct TokenserverError {
 
 #[derive(Clone, Debug)]
 pub enum TokenType {
-    BrowserId,
     Oauth,
 }
 
@@ -184,11 +184,11 @@ impl fmt::Display for ErrorLocation {
 
 impl ResponseError for TokenserverError {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::build(self.http_status).json(ErrorResponse::from(self))
+        HttpResponse::build(self.status_code()).json(ErrorResponse::from(self))
     }
 
-    fn status_code(&self) -> StatusCode {
-        self.http_status
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        actix_web::http::StatusCode::from_u16(self.http_status.as_u16()).unwrap()
     }
 }
 
@@ -268,7 +268,6 @@ impl ReportableError for TokenserverError {
     fn metric_label(&self) -> Option<String> {
         if self.http_status.is_client_error() {
             match self.token_type {
-                TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
                 TokenType::Oauth => Some("request.error.oauth".to_owned()),
             }
         } else {

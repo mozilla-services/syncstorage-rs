@@ -30,7 +30,7 @@ FXA_UID = "DEADBEEF00004be4ae957006c0ceb620"
 FXA_KID = "DEADBEEF00004be4ae957006c0ceb620"
 DEVICE_ID = "device1"
 NODE = "http://localhost:8000"
-SECRET = "Ted_Koppel_is_a_robot"
+SECRET = os.envrion.get("SYNC_MASTER_SECRET", "Ted_Koppel_is_a_robot")
 HMAC_KEY = b"foo"
 
 # 10 years
