@@ -10,6 +10,8 @@ pub enum NodeType {
     MySql,
     #[serde(rename = "spanner")]
     Spanner,
+    #[serde(rename = "sqlite")]
+    Sqlite,
 }
 
 impl NodeType {
