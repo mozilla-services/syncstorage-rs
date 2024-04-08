@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
-from fxa.errors import ServerError
+from fxa.errors import ClientError, ServerError
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
 
@@ -77,7 +77,7 @@ class TestE2e(TestCase, unittest.TestCase):
         # This traps for that event.
         try:
             cls.client.destroy_account(cls.acct.email, cls.fxa_password)
-        except ServerError as ex:
+        except (ServerError | ClientError) as ex:
             print(f"warning: Encountered error when cleaning up: {ex}")
 
     @staticmethod
