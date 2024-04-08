@@ -35,9 +35,17 @@ logger.setLevel(os.environ.get("PYTHON_LOG", "ERROR").upper())
 PATTERN = "{node}/1.5/{uid}"
 
 
-def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
-                      max_records=0, request_timeout=60, dryrun=False,
-                      force=False, override_node=None):
+def purge_old_records(
+    secret,
+    grace_period=-1,
+    max_per_loop=10,
+    max_offset=0,
+    max_records=0,
+    request_timeout=60,
+    dryrun=False,
+    force=False,
+    override_node=None,
+):
     """Purge old records from the database.
 
     This function queries all of the old user records in the database, deletes
@@ -76,8 +84,9 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                 # Instead wait for them to either come back up or to be
                 # completely removed from service.
                 if row.node is None:
-                    logger.info("Deleting user record for uid %s on %s",
-                                row.uid, row.node)
+                    logger.info(
+                        "Deleting user record for uid %s on %s", row.uid, row.node
+                    )
                     if not dryrun:
                         database.delete_user_record(row.uid)
                     # NOTE: only delete_user+service_data calls count
@@ -86,16 +95,13 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                     logger.info("Purging uid %s on %s", row.uid, row.node)
                     if not dryrun:
                         delete_service_data(
-                            row,
-                            secret,
-                            timeout=request_timeout,
-                            dryrun=dryrun)
+                            row, secret, timeout=request_timeout, dryrun=dryrun
+                        )
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif force:
                     logger.info(
-                        "Forcing tokenserver record delete: "
-                        f"{row.uid} on {row.node}"
+                        "Forcing tokenserver record delete: " f"{row.uid} on {row.node}"
                     )
                     if not dryrun:
                         try:
@@ -109,12 +115,12 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                             if override_node is not None:
                                 row.node = override_node
                             delete_service_data(
-                                row,
-                                secret,
-                                timeout=request_timeout,
-                                dryrun=dryrun)
+                                row, secret, timeout=request_timeout, dryrun=dryrun
+                            )
                         except requests.HTTPError as e:
-                            logger.warn(f"Delete failed for user {row.uid} [{row.node}]")
+                            logger.warn(
+                                f"Delete failed for user {row.uid} [{row.node}]"
+                            )
                         database.delete_user_record(row.uid)
                     counter += 1
                 if max_records and counter >= max_records:
@@ -137,15 +143,18 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
     remove any data it still has stored for the user.  We simulate a DELETE
     request from the user's own account.
     """
-    token = tokenlib.make_token({
-        "uid": user.uid,
-        "node": user.node,
-        "fxa_uid": user.email.split("@", 1)[0],
-        "fxa_kid": format_key_id(
-            user.keys_changed_at or user.generation,
-            binascii.unhexlify(user.client_state)
-        ),
-    }, secret=secret)
+    token = tokenlib.make_token(
+        {
+            "uid": user.uid,
+            "node": user.node,
+            "fxa_uid": user.email.split("@", 1)[0],
+            "fxa_kid": format_key_id(
+                user.keys_changed_at or user.generation,
+                binascii.unhexlify(user.client_state),
+            ),
+        },
+        secret=secret,
+    )
     secret = tokenlib.get_derived_secret(token, secret=secret)
     endpoint = PATTERN.format(uid=user.uid, node=user.node)
     auth = HawkAuth(token, secret)
@@ -179,30 +188,70 @@ def main(args=None):
     """
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
-    parser.add_option("", "--purge-interval", type="int", default=3600,
-                      help="Interval to sleep between purging runs")
-    parser.add_option("", "--grace-period", type="int", default=86400,
-                      help="Number of seconds grace to allow on replacement")
-    parser.add_option("", "--max-per-loop", type="int", default=10,
-                      help="Maximum number of items to fetch in one go")
+    parser.add_option(
+        "",
+        "--purge-interval",
+        type="int",
+        default=3600,
+        help="Interval to sleep between purging runs",
+    )
+    parser.add_option(
+        "",
+        "--grace-period",
+        type="int",
+        default=86400,
+        help="Number of seconds grace to allow on replacement",
+    )
+    parser.add_option(
+        "",
+        "--max-per-loop",
+        type="int",
+        default=10,
+        help="Maximum number of items to fetch in one go",
+    )
     # N.B., if the number of purgeable rows is <<< max_offset then most
     # selects will return zero rows. Choose this value accordingly.
-    parser.add_option("", "--max-offset", type="int", default=0,
-                      help="Use random offset from 0 to max_offset")
-    parser.add_option("", "--max-records", type="int", default=0,
-                      help="Max number of syncstorage data purges to "
-                      "make")
-    parser.add_option("", "--request-timeout", type="int", default=60,
-                      help="Timeout for service deletion requests")
-    parser.add_option("", "--oneshot", action="store_true",
-                      help="Do a single purge run and then exit")
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
-    parser.add_option("", "--dryrun", action="store_true",
-                      help="Don't do destructive things")
-    parser.add_option("", "--force", action="store_true",
-                      help="Force syncstorage data to be purged, even "
-                      "if the user's node is marked as down")
+    parser.add_option(
+        "",
+        "--max-offset",
+        type="int",
+        default=0,
+        help="Use random offset from 0 to max_offset",
+    )
+    parser.add_option(
+        "",
+        "--max-records",
+        type="int",
+        default=0,
+        help="Max number of syncstorage data purges to " "make",
+    )
+    parser.add_option(
+        "",
+        "--request-timeout",
+        type="int",
+        default=60,
+        help="Timeout for service deletion requests",
+    )
+    parser.add_option(
+        "", "--oneshot", action="store_true", help="Do a single purge run and then exit"
+    )
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
+    parser.add_option(
+        "", "--dryrun", action="store_true", help="Don't do destructive things"
+    )
+    parser.add_option(
+        "",
+        "--force",
+        action="store_true",
+        help="Force syncstorage data to be purged, even "
+        "if the user's node is marked as down",
+    )
     parser.add_option(
         "", "--override_node", help="Use this node when deleting (if data was copied)"
     )
@@ -216,15 +265,16 @@ def main(args=None):
 
     util.configure_script_logging(opts)
 
-    purge_old_records(secret,
-                      grace_period=opts.grace_period,
-                      max_per_loop=opts.max_per_loop,
-                      max_offset=opts.max_offset,
-                      max_records=opts.max_records,
-                      request_timeout=opts.request_timeout,
-                      dryrun=opts.dryrun,
-                      force=opts.force,
-                      override_node=opts.override_node,
+    purge_old_records(
+        secret,
+        grace_period=opts.grace_period,
+        max_per_loop=opts.max_per_loop,
+        max_offset=opts.max_offset,
+        max_records=opts.max_records,
+        request_timeout=opts.request_timeout,
+        dryrun=opts.dryrun,
+        force=opts.force,
+        override_node=opts.override_node,
     )
     if not opts.oneshot:
         while True:
@@ -234,14 +284,15 @@ def main(args=None):
             sleep_time += random.randint(-0.3 * sleep_time, 0.3 * sleep_time)
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
-            purge_old_records(grace_period=opts.grace_period,
-                              max_per_loop=opts.max_per_loop,
-                              max_offset=opts.max_offset,
-                              max_records=opts.max_records,
-                              request_timeout=opts.request_timeout,
-                              dryrun=opts.dryrun,
-                              force=opts.force,
-                              override_node=opts.override_node
+            purge_old_records(
+                grace_period=opts.grace_period,
+                max_per_loop=opts.max_per_loop,
+                max_offset=opts.max_offset,
+                max_records=opts.max_records,
+                request_timeout=opts.request_timeout,
+                dryrun=opts.dryrun,
+                force=opts.force,
+                override_node=opts.override_node,
             )
     return 0
 
