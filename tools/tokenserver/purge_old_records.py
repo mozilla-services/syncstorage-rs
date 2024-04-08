@@ -98,11 +98,19 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                         f"{row.uid} on {row.node}"
                     )
                     if not dryrun:
-                        delete_service_data(
-                            row,
-                            secret,
-                            timeout=request_timeout,
-                            dryrun=dryrun)
+                        try:
+                            # Attempt to delete the user information from the existing
+                            # data set. This may fail, either because the HawkAuth is referring
+                            # to an invalid node, or because the corresponding request refers to
+                            # a node not contained by the existing data set. (The call mimics
+                            # a user DELETE request.)
+                            delete_service_data(
+                                row,
+                                secret,
+                                timeout=request_timeout,
+                                dryrun=dryrun)
+                        except requests.HTTPError as e:
+                            logger.warn(f"Delete failed for user {row.uid} [{row.node}]")
                         database.delete_user_record(row.uid)
                     counter += 1
                 if max_records and counter >= max_records:

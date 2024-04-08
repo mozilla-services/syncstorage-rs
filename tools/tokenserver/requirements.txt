@@ -1,4 +1,4 @@
-boto==2.49.0
+boto3==1.34
 hawkauthlib==2.0.0
 mysqlclient==2.1.1
 pyramid==2.0.1

@@ -36,6 +36,8 @@ import boto.sqs
 import boto.sqs.message
 import boto.utils
 
+import boto3
+
 import util
 from database import Database
 
@@ -52,17 +54,20 @@ def process_account_events(queue_name, aws_region=None, queue_wait_time=20):
     """
     logger.info("Processing account events from %s", queue_name)
     database = Database()
+    sqs3 = boto3.resource('sqs')
     try:
         # Connect to the SQS queue.
         # If no region is given, infer it from the instance metadata.
-        if aws_region is None:
-            logger.debug("Finding default region from instance metadata")
-            aws_info = boto.utils.get_instance_metadata()
-            aws_region = aws_info["placement"]["availability-zone"][:-1]
-        logger.debug("Connecting to queue %r in %r", queue_name, aws_region)
-        conn = boto.sqs.connect_to_region(aws_region)
-        queue = conn.get_queue(queue_name)
+        # if aws_region is None:
+        #     logger.debug("Finding default region from instance metadata")
+        #     aws_info = boto.utils.get_instance_metadata()
+        #     aws_region = aws_info["placement"]["availability-zone"][:-1]
+        # logger.debug("Connecting to queue %r in %r", queue_name, aws_region)
+        # conn = boto.sqs.connect_to_region(aws_region)
+        queue3 = sqs3.get_queue_by_name(QueueName=queue_name)
+        # queue = conn.get_queue(queue_name)
         # We must force boto not to b64-decode the message contents, ugh.
+
         queue.set_message_class(boto.sqs.message.RawMessage)
         # Poll for messages indefinitely.
         while True:
