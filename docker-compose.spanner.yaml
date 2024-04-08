@@ -1,7 +1,14 @@
 version: '3'
 services:
     sync-db:
-        image: gcr.io/cloud-spanner-emulator/emulator
+        # Getting sporadic errors in spanner.
+        # These errors are "INTERNAL: ZETASQL_RET_CHECK failure"
+        # in the `backend/query/query_engine.cc` file for spanner.
+        # These result in a 500 error, which causes the test to fail.
+        # I believe come from the SQL parser, but am not sure. I am
+        # unable to produce these errors locally, and am using the cited
+        # version.
+        image: gcr.io/cloud-spanner-emulator/emulator:1.5.13
         ports:
             - "9010:9010"
             - "9020:9020"
