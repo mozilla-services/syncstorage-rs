@@ -77,7 +77,7 @@ class TestE2e(TestCase, unittest.TestCase):
         # This traps for that event.
         try:
             cls.client.destroy_account(cls.acct.email, cls.fxa_password)
-        except (ServerError | ClientError) as ex:
+        except (ServerError, ClientError) as ex:
             print(f"warning: Encountered error when cleaning up: {ex}")
 
     @staticmethod
