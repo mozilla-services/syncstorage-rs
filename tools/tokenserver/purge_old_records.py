@@ -37,7 +37,7 @@ PATTERN = "{node}/1.5/{uid}"
 
 def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                       max_records=0, request_timeout=60, dryrun=False,
-                      force=False):
+                      force=False, override_node=None):
     """Purge old records from the database.
 
     This function queries all of the old user records in the database, deletes
@@ -104,6 +104,10 @@ def purge_old_records(secret, grace_period=-1, max_per_loop=10, max_offset=0,
                             # to an invalid node, or because the corresponding request refers to
                             # a node not contained by the existing data set. (The call mimics
                             # a user DELETE request.)
+
+                            # if an override was specifed, use that node ID.
+                            if override_node is not None:
+                                row.node = override_node
                             delete_service_data(
                                 row,
                                 secret,
@@ -199,6 +203,9 @@ def main(args=None):
     parser.add_option("", "--force", action="store_true",
                       help="Force syncstorage data to be purged, even "
                       "if the user's node is marked as down")
+    parser.add_option(
+        "", "--override_node", help="Use this node when deleting (if data was copied)"
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 2:
@@ -216,7 +223,9 @@ def main(args=None):
                       max_records=opts.max_records,
                       request_timeout=opts.request_timeout,
                       dryrun=opts.dryrun,
-                      force=opts.force)
+                      force=opts.force,
+                      override_node=opts.override_node,
+    )
     if not opts.oneshot:
         while True:
             # Randomize sleep interval +/- thirty percent to desynchronize
@@ -231,7 +240,9 @@ def main(args=None):
                               max_records=opts.max_records,
                               request_timeout=opts.request_timeout,
                               dryrun=opts.dryrun,
-                              force=opts.force)
+                              force=opts.force,
+                              override_node=opts.override_node
+            )
     return 0
 
 
