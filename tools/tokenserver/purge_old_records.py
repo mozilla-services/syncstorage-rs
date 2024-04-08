@@ -85,41 +85,56 @@ def purge_old_records(
                 # completely removed from service.
                 if row.node is None:
                     logger.info(
-                        "Deleting user record for uid %s on %s", row.uid, row.node
+                        "Deleting user record for uid %s on %s",
+                        row.uid,
+                        row.node
                     )
                     if not dryrun:
                         database.delete_user_record(row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
                 elif not row.downed:
-                    logger.info("Purging uid %s on %s", row.uid, row.node)
+                    logger.info(
+                        "Purging uid %s on %s",
+                        row.uid,
+                        row.node)
                     if not dryrun:
                         delete_service_data(
-                            row, secret, timeout=request_timeout, dryrun=dryrun
+                            row,
+                            secret,
+                            timeout=request_timeout,
+                            dryrun=dryrun
                         )
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif force:
                     logger.info(
-                        "Forcing tokenserver record delete: " f"{row.uid} on {row.node}"
+                        "Forcing tokenserver record delete: "
+                        f"{row.uid} on {row.node}"
                     )
                     if not dryrun:
                         try:
-                            # Attempt to delete the user information from the existing
-                            # data set. This may fail, either because the HawkAuth is referring
-                            # to an invalid node, or because the corresponding request refers to
-                            # a node not contained by the existing data set. (The call mimics
-                            # a user DELETE request.)
+                            # Attempt to delete the user information from
+                            # the existing data set. This may fail, either
+                            # because the HawkAuth is referring to an
+                            # invalid node, or because the corresponding
+                            # request refers to a node not contained by
+                            # the existing data set.
+                            # (The call mimics a user DELETE request.)
 
                             # if an override was specifed, use that node ID.
                             if override_node is not None:
                                 row.node = override_node
                             delete_service_data(
-                                row, secret, timeout=request_timeout, dryrun=dryrun
+                                row,
+                                secret,
+                                timeout=request_timeout,
+                                dryrun=dryrun
                             )
-                        except requests.HTTPError as e:
+                        except requests.HTTPError:
                             logger.warn(
-                                f"Delete failed for user {row.uid} [{row.node}]"
+                                "Delete failed for user "
+                                f"{row.uid} [{row.node}]"
                             )
                         database.delete_user_record(row.uid)
                     counter += 1
@@ -233,7 +248,8 @@ def main(args=None):
         help="Timeout for service deletion requests",
     )
     parser.add_option(
-        "", "--oneshot", action="store_true", help="Do a single purge run and then exit"
+        "", "--oneshot", action="store_true",
+        help="Do a single purge run and then exit"
     )
     parser.add_option(
         "-v",
@@ -243,7 +259,8 @@ def main(args=None):
         help="Control verbosity of log messages",
     )
     parser.add_option(
-        "", "--dryrun", action="store_true", help="Don't do destructive things"
+        "", "--dryrun", action="store_true",
+        help="Don't do destructive things"
     )
     parser.add_option(
         "",
@@ -253,7 +270,8 @@ def main(args=None):
         "if the user's node is marked as down",
     )
     parser.add_option(
-        "", "--override_node", help="Use this node when deleting (if data was copied)"
+        "", "--override_node",
+        help="Use this node when deleting (if data was copied)"
     )
 
     opts, args = parser.parse_args(args)
