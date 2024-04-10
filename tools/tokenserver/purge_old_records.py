@@ -162,7 +162,7 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
         {
             "uid": user.uid,
             "node": user.node,
-            "fxa_uid": user.email.split("@", 1)[0],
+            "fxa_uid": user.email.partition("@")[0],
             "fxa_kid": format_key_id(
                 user.keys_changed_at or user.generation,
                 binascii.unhexlify(user.client_state),
@@ -208,7 +208,7 @@ def main(args=None):
         "--purge-interval",
         type="int",
         default=3600,
-        help="Interval to sleep between purging runs",
+        help="Interval in seconds to sleep between purging runs",
     )
     parser.add_option(
         "",
@@ -238,14 +238,14 @@ def main(args=None):
         "--max-records",
         type="int",
         default=0,
-        help="Max number of syncstorage data purges to " "make",
+        help="Max number of syncstorage data purges to make",
     )
     parser.add_option(
         "",
         "--request-timeout",
         type="int",
         default=60,
-        help="Timeout for service deletion requests",
+        help="Timeout in seconds for service deletion requests",
     )
     parser.add_option(
         "", "--oneshot", action="store_true",
