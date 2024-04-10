@@ -9,7 +9,7 @@ from tokenserver.test_misc import TestMisc
 from tokenserver.test_node_assignment import TestNodeAssignment
 
 
-def run_local_tests(include_browserid_specific_tests=False):
+def run_local_tests():
     test_classes = [TestAuthorization, TestMisc, TestNodeAssignment]
 
     return run_tests(test_classes)

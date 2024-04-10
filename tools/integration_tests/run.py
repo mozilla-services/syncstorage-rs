@@ -8,7 +8,7 @@ import sys
 from test_storage import TestStorage
 from test_support import run_live_functional_tests
 import time
-from tokenserver.run import run_end_to_end_tests
+from tokenserver.run import (run_end_to_end_tests, run_local_tests)
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
@@ -58,6 +58,7 @@ if __name__ == "__main__":
         res = 0
         res |= run_live_functional_tests(TestStorage, sys.argv)
         os.environ["TOKENSERVER_AUTH_METHOD"] = "oauth"
+        res |= run_local_tests()
     finally:
         terminate_process(the_server_subprocess)
 
