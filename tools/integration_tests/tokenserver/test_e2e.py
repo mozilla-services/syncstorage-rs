@@ -16,7 +16,11 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
 from fxa.core import Client
 from fxa.oauth import Client as OAuthClient
+<<<<<<< HEAD
 from fxa.errors import ServerError, ClientError
+=======
+from fxa.errors import ClientError, ServerError
+>>>>>>> b777fa0d967472ca34b023c606cfc5ef5309bf73
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
 
@@ -78,7 +82,11 @@ class TestE2e(TestCase, unittest.TestCase):
         try:
             cls.client.destroy_account(cls.acct.email, cls.fxa_password)
         except (ServerError, ClientError) as ex:
+<<<<<<< HEAD
             print(f"⚠️: Encountered error when cleaning up: {ex}")
+=======
+            print(f"warning: Encountered error when cleaning up: {ex}")
+>>>>>>> b777fa0d967472ca34b023c606cfc5ef5309bf73
 
     @staticmethod
     def _generate_password():
