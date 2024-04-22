@@ -108,12 +108,14 @@ def purge_old_records(
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif force:
+                    delete_sd = not points_to_active(database, row, override_node)
                     logger.info(
                         "Forcing tokenserver record delete: "
-                        f"{row.uid} on {row.node}"
+                        f"{row.uid} on {row.node} "
+                        f"(deleting service data: {delete_sd})"
                     )
                     if not dryrun:
-                        try:
+                        if delete_sd:
                             # Attempt to delete the user information from
                             # the existing data set. This may fail, either
                             # because the HawkAuth is referring to an
@@ -121,21 +123,23 @@ def purge_old_records(
                             # request refers to a node not contained by
                             # the existing data set.
                             # (The call mimics a user DELETE request.)
-
-                            # if an override was specifed, use that node ID.
-                            if override_node is not None:
-                                row.node = override_node
-                            delete_service_data(
-                                row,
-                                secret,
-                                timeout=request_timeout,
-                                dryrun=dryrun
-                            )
-                        except requests.HTTPError:
-                            logger.warn(
-                                "Delete failed for user "
-                                f"{row.uid} [{row.node}]"
-                            )
+                            try:
+                                delete_service_data(
+                                    row,
+                                    secret,
+                                    timeout=request_timeout,
+                                    dryrun=dryrun,
+                                    # if an override was specifed, use that node ID
+                                    override_node=override_node
+                                )
+                            except requests.HTTPError:
+                                logger.warn(
+                                    "Delete failed for user "
+                                    f"{row.uid} [{row.node}]"
+                                )
+                                if override_node:
+                                    # Assume the override_node should be reachable
+                                    raise
                         database.delete_user_record(row.uid)
                     counter += 1
                 if max_records and counter >= max_records:
@@ -151,17 +155,18 @@ def purge_old_records(
         return True
 
 
-def delete_service_data(user, secret, timeout=60, dryrun=False):
+def delete_service_data(user, secret, timeout=60, dryrun=False, override_node=None):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
     remove any data it still has stored for the user.  We simulate a DELETE
     request from the user's own account.
     """
+    node = override_node if override_node else user.node
     token = tokenlib.make_token(
         {
             "uid": user.uid,
-            "node": user.node,
+            "node": node,
             "fxa_uid": user.email.partition("@")[0],
             "fxa_kid": format_key_id(
                 user.keys_changed_at or user.generation,
@@ -171,7 +176,7 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
         secret=secret,
     )
     secret = tokenlib.get_derived_secret(token, secret=secret)
-    endpoint = PATTERN.format(uid=user.uid, node=user.node)
+    endpoint = PATTERN.format(uid=user.uid, node=node)
     auth = HawkAuth(token, secret)
     if dryrun:
         # NOTE: this function currently isn't called during dryrun
@@ -182,6 +187,23 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
     if resp.status_code >= 400 and resp.status_code != 404:
         resp.raise_for_status()
 
+
+def points_to_active(database, replaced_at_row, override_node):
+    """Determine if a `replaced_at` user record has the same
+    generation/client_state as their active record.
+
+    In which case issuing a `force`/`override_node` delete (to their current
+    node) would delete their active data, which should be avoided
+    """
+    if override_node and replaced_at_row.node != override_node:
+        # NOTE: Users who never connected after being migrated could be
+        # assigned a spanner node record by get_user (TODO: rename get_user ->
+        # get_or_assign_user)
+        user = database.get_user(replaced_at_row.email)
+        if (user["generation"] == replaced_at_row.generation and
+            user["client_state"] == replaced_at_row.client_state):
+            return True
+    return False
 
 class HawkAuth(requests.auth.AuthBase):
     """Hawk-signing auth helper class."""
