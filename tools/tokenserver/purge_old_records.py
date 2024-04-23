@@ -200,9 +200,8 @@ def points_to_active(database, replaced_at_row, override_node):
         # assigned a spanner node record by get_user (TODO: rename get_user ->
         # get_or_assign_user)
         user = database.get_user(replaced_at_row.email)
-        if (user["generation"] == replaced_at_row.generation and
-            user["client_state"] == replaced_at_row.client_state):
-            return True
+        return (user["generation"] == replaced_at_row.generation and
+                user["client_state"] == replaced_at_row.client_state)
     return False
 
 class HawkAuth(requests.auth.AuthBase):
