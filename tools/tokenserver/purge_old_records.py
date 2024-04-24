@@ -108,7 +108,8 @@ def purge_old_records(
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif force:
-                    delete_sd = not points_to_active(database, row, override_node)
+                    delete_sd = not points_to_active(
+                        database, row, override_node)
                     logger.info(
                         "Forcing tokenserver record delete: "
                         f"{row.uid} on {row.node} "
@@ -129,7 +130,8 @@ def purge_old_records(
                                     secret,
                                     timeout=request_timeout,
                                     dryrun=dryrun,
-                                    # if an override was specifed, use that node ID
+                                    # if an override was specifed,
+                                    # use that node ID
                                     override_node=override_node
                                 )
                             except requests.HTTPError:
@@ -138,7 +140,8 @@ def purge_old_records(
                                     f"{row.uid} [{row.node}]"
                                 )
                                 if override_node:
-                                    # Assume the override_node should be reachable
+                                    # Assume the override_node should be
+                                    # reachable
                                     raise
                         database.delete_user_record(row.uid)
                     counter += 1
@@ -155,7 +158,8 @@ def purge_old_records(
         return True
 
 
-def delete_service_data(user, secret, timeout=60, dryrun=False, override_node=None):
+def delete_service_data(
+        user, secret, timeout=60, dryrun=False, override_node=None):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
@@ -203,6 +207,7 @@ def points_to_active(database, replaced_at_row, override_node):
         return (user["generation"] == replaced_at_row.generation and
                 user["client_state"] == replaced_at_row.client_state)
     return False
+
 
 class HawkAuth(requests.auth.AuthBase):
     """Hawk-signing auth helper class."""

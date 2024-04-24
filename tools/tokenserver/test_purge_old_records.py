@@ -12,6 +12,7 @@ from wsgiref.simple_server import make_server
 from database import Database
 from purge_old_records import purge_old_records
 
+
 class PurgeOldRecordsTestCase(unittest.TestCase):
 
     @classmethod
@@ -196,10 +197,12 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.spanner_service = make_server("localhost", 0, cls._service_app)
+        cls.spanner_service = make_server(
+            "localhost", 0, cls._service_app)
         host, port = cls.spanner_service.server_address
         cls.spanner_node = f"http://{host}:{port}"
-        cls.spanner_thread = threading.Thread(target=cls.spanner_service.serve_forever)
+        cls.spanner_thread = threading.Thread(
+            target=cls.spanner_service.serve_forever)
         cls.spanner_thread.start()
         cls.downed_node = f"http://{host}:9999"
 
@@ -230,7 +233,8 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         email = "test@mozilla.com"
         user = self.database.allocate_user(email, client_state="aa")
         self.database.replace_user_record(user["uid"])
-        user = self.database.allocate_user(email, node=self.spanner_node, client_state="aa")
+        user = self.database.allocate_user(
+            email, node=self.spanner_node, client_state="aa")
 
         self.assertTrue(purge_old_records(node_secret, grace_period=0))
         user_records = list(self.database.get_user_records(email))
@@ -259,7 +263,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret, grace_period=0, force=True, override_node=self.spanner_node
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node
             )
         )
         user_records = list(self.database.get_user_records(email))
@@ -290,7 +297,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret, grace_period=0, force=True, override_node=self.spanner_node
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node
             )
         )
         user_records = list(self.database.get_user_records(email))
