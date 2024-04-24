@@ -1,5 +1,15 @@
+<a name="0.15.3"></a>
+## 0.15.3 (2024-04-24)
+
+
+#### Features
+
+*   special case purging of users previously migrated to Spanner (#1543) ([13e53eba](https://github.com/mozilla-services/syncstorage-rs/commit/13e53eba13ca21f8bd41ddd86d52375f4af38a71))
+
+
+
 <a name="0.14.5"></a>
-## 0.14.5 (2024-04-16)
+## 0.15.2 (2024-04-16)
 
 
 #### Bug Fixes
@@ -10,6 +20,39 @@
 #### Chore
 
 *   bump mio per RUSTSEC-2024-0019 (#1530) ([b4306d93](https://github.com/mozilla-services/syncstorage-rs/commit/b4306d9379930ab6602a4efdb1278e4eb302b567))
+
+
+
+<a name="0.15.1"></a>
+## 0.15.1 (2024-02-29)
+
+
+#### Bug Fixes
+
+*   don't emit a content-type header for 304s (#1526) ([8faf7280](https://github.com/mozilla-services/syncstorage-rs/commit/8faf7280de843b5d398aeb997c99aebfdc5d9a8c))
+
+#### Doc
+
+*   Remove reference to legacy vendored library (#1522) ([3edd4206](https://github.com/mozilla-services/syncstorage-rs/commit/3edd420621520e073dff0828fd7b30579a4c9349))
+
+
+
+<a name="0.15.0"></a>
+## 0.15.0 (2024-02-27)
+
+
+#### Features
+
+*   Puts pyo3 behind feature flag and derives tokens directly in Rust (#1513) ([1b116846](https://github.com/mozilla-services/syncstorage-rs/commit/1b11684648f2b6e632b1ef286c62008278cb4c08))
+*   Upgrading to Actix 4.x (#1514) ([97985586](https://github.com/mozilla-services/syncstorage-rs/commit/97985586b464976923bede595c40a05def2c0a64))
+
+#### Bug Fixes
+
+*   Copy modified purge script from old tokenserver  repo (#1512) ([06ecb78e](https://github.com/mozilla-services/syncstorage-rs/commit/06ecb78e2414c9fd7385709d19987ac8a1d1fa3d))
+
+#### Chore
+
+*   Cleans up TLS dependencies (#1519) ([ac3b479a](https://github.com/mozilla-services/syncstorage-rs/commit/ac3b479a58275d16e3529a17ef68521564b8b571))
 
 
 
