@@ -13,21 +13,15 @@ from database import Database
 from purge_old_records import purge_old_records
 
 
-class TestPurgeOldRecords(unittest.TestCase):
-    """A testcase for proper functioning of the purge_old_records.py script.
-
-    This is a tricky one, because we have to actually run the script and
-    test that it does the right thing.  We also run a mock downstream service
-    so we can test that data-deletion requests go through ok.
-    """
+class PurgeOldRecordsTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
         cls.service_requests = []
-        cls.service_node = "http://localhost:8002"
-        cls.service = make_server("localhost", 8002, cls._service_app)
-        target = cls.service.serve_forever
-        cls.service_thread = threading.Thread(target=target)
+        cls.service = make_server("localhost", 0, cls._service_app)
+        host, port = cls.service.server_address
+        cls.service_node = f"http://{host}:{port}"
+        cls.service_thread = threading.Thread(target=cls.service.serve_forever)
         # Note: If the following `start` causes the test thread to hang,
         # you may need to specify
         # `[app::pyramid.app] pyramid.worker_class = sync` in the test_*.ini
@@ -37,7 +31,7 @@ class TestPurgeOldRecords(unittest.TestCase):
         cls.service.RequestHandlerClass.log_request = lambda *a: None
 
     def setUp(self):
-        super(TestPurgeOldRecords, self).setUp()
+        super().setUp()
 
         # Configure the node-assignment backend to talk to our test service.
         self.database = Database()
@@ -67,6 +61,15 @@ class TestPurgeOldRecords(unittest.TestCase):
         start_response("200 OK", [])
         return ""
 
+
+class TestPurgeOldRecords(PurgeOldRecordsTestCase):
+    """A testcase for proper functioning of the purge_old_records.py script.
+
+    This is a tricky one, because we have to actually run the script and
+    test that it does the right thing.  We also run a mock downstream service
+    so we can test that data-deletion requests go through ok.
+    """
+
     def test_purging_of_old_user_records(self):
         # Make some old user records.
         email = "test@mozilla.com"
@@ -79,8 +82,8 @@ class TestPurgeOldRecords(unittest.TestCase):
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 3)
         user = self.database.get_user(email)
-        self.assertEquals(user["client_state"], "cc")
-        self.assertEquals(len(user["old_client_states"]), 2)
+        self.assertEqual(user["client_state"], "cc")
+        self.assertEqual(len(user["old_client_states"]), 2)
 
         # The default grace-period should prevent any cleanup.
         node_secret = "SECRET"
@@ -99,7 +102,7 @@ class TestPurgeOldRecords(unittest.TestCase):
         expected_kids = ["0000000000450-uw", "0000000000123-qg"]
         for i, environ in enumerate(self.service_requests):
             # They must be to the correct path.
-            self.assertEquals(environ["REQUEST_METHOD"], "DELETE")
+            self.assertEqual(environ["REQUEST_METHOD"], "DELETE")
             self.assertTrue(re.match("/1.5/[0-9]+", environ["PATH_INFO"]))
             # They must have a correct request signature.
             token = hawkauthlib.get_id(environ)
@@ -113,8 +116,8 @@ class TestPurgeOldRecords(unittest.TestCase):
 
         # Check that the user's current state is unaffected
         user = self.database.get_user(email)
-        self.assertEquals(user["client_state"], "cc")
-        self.assertEquals(len(user["old_client_states"]), 0)
+        self.assertEqual(user["client_state"], "cc")
+        self.assertEqual(len(user["old_client_states"]), 0)
 
     def test_purging_is_not_done_on_downed_nodes(self):
         # Make some old user records.
@@ -184,3 +187,124 @@ class TestPurgeOldRecords(unittest.TestCase):
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 2)
         self.assertEqual(len(self.service_requests), 0)
+
+
+class TestMigrationRecords(PurgeOldRecordsTestCase):
+    """Test user records that were migrated from the old MySQL cluster of
+    syncstorage nodes to a single Spanner node
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.spanner_service = make_server(
+            "localhost", 0, cls._service_app)
+        host, port = cls.spanner_service.server_address
+        cls.spanner_node = f"http://{host}:{port}"
+        cls.spanner_thread = threading.Thread(
+            target=cls.spanner_service.serve_forever)
+        cls.spanner_thread.start()
+        cls.downed_node = f"http://{host}:9999"
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.spanner_service.shutdown()
+        cls.spanner_thread.join()
+
+    def setUp(self):
+        super().setUp()
+        self.database.add_node(self.downed_node, 100, downed=True)
+        self.database.add_node(self.spanner_node, 100)
+
+    def test_purging_replaced_at(self):
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+        user = self.database.allocate_user(email, client_state="aa")
+        self.database.replace_user_record(user["uid"])
+
+        self.assertTrue(purge_old_records(node_secret, grace_period=0))
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 0)
+        self.assertEqual(len(self.service_requests), 1)
+
+    def test_purging_no_override(self):
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+        user = self.database.allocate_user(email, client_state="aa")
+        self.database.replace_user_record(user["uid"])
+        user = self.database.allocate_user(
+            email, node=self.spanner_node, client_state="aa")
+
+        self.assertTrue(purge_old_records(node_secret, grace_period=0))
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 1)
+        self.assertEqual(len(self.service_requests), 1)
+
+    def test_purging_override_with_migrated(self):
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+
+        # User previously on a node now downed
+        user = self.database.allocate_user(
+            email, node=self.downed_node, client_state="aa"
+        )
+        # Simulate the Spanner migration process (mark their original record as
+        # replaced_at):
+        # https://github.com/mozilla-services/cloudops-docs/blob/389e61f/Services/Durable%20Sync/SYNC-PY-MIGRATION.md#migration-steps
+
+        # The process then copied their data to spanner_node with no change to
+        # their generation/client_state
+        self.database.replace_user_record(user["uid"])
+        # Migration finished: the user's active record now points to Spanner
+        user = self.database.allocate_user(
+            email, node=self.spanner_node, client_state="aa"
+        )
+
+        self.assertTrue(
+            purge_old_records(
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node
+            )
+        )
+        user_records = list(self.database.get_user_records(email))
+        # The user's old downed node record was purged
+        self.assertEqual(len(user_records), 1)
+        self.assertEqual(user_records[0].node, self.spanner_node)
+        # But that old downed node record had an identical
+        # generation/client_state to the active spanner_node's record: so a
+        # simple forcing of a delete to the spanner node would delete their
+        # current data. Ensure force/override_node includes logic to detect
+        # this case and not issue such a delete
+        self.assertEqual(len(self.service_requests), 0)
+
+    def test_purging_override_with_migrated_password_change(self):
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+
+        # A user migrated to spanner (like test_purging_override_with_migrated)
+        user = self.database.allocate_user(
+            email, node=self.downed_node, client_state="aa"
+        )
+        self.database.replace_user_record(user["uid"])
+        user = self.database.allocate_user(
+            email, node=self.spanner_node, client_state="aa"
+        )
+        # User changes their password
+        self.database.update_user(user, client_state="ab")
+
+        self.assertTrue(
+            purge_old_records(
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node
+            )
+        )
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 1)
+        # Both replaced_at records issued deletes as normal as neither point to
+        # their active record
+        self.assertEqual(len(self.service_requests), 2)
