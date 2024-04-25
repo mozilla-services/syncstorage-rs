@@ -472,7 +472,7 @@ impl TokenserverDb {
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
                 (_, None) => {
-                    let uid = raw_user.uid.clone();
+                    let uid = raw_user.uid;
                     warn!("Tokenserver user retired"; "uid" => &uid);
                     Err(DbError::internal("Tokenserver user retired".to_owned()))
                 }
