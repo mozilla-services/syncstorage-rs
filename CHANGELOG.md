@@ -1,3 +1,17 @@
+<a name="0.15.4"></a>
+## 0.15.4 (2024-04-25)
+
+
+#### Bug Fixes
+
+*   take keys_changed_at into account w/ migrated records' special case (#1545) ([f68fb607](https://github.com/mozilla-services/syncstorage-rs/commit/f68fb607fe0284f74c77faa4eb1de14ed95e3d3e))
+
+#### Chore
+
+*   fix changelog version anchor ([8098d839](https://github.com/mozilla-services/syncstorage-rs/commit/8098d839b6987bfa0731f876162672bb21e8fded))
+
+
+
 <a name="0.15.3"></a>
 ## 0.15.3 (2024-04-24)
 
