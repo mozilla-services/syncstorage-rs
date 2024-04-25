@@ -308,3 +308,36 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         # Both replaced_at records issued deletes as normal as neither point to
         # their active record
         self.assertEqual(len(self.service_requests), 2)
+
+    def test_purging_override_null_keys_changed_at(self):
+        # Same as test_purging_override_with_migrated but with a null
+        # keys_changed_at
+        node_secret = "SECRET"
+        email = "test@mozilla.com"
+
+        user = self.database.allocate_user(
+            email,
+            node=self.downed_node,
+            client_state="aa",
+            keys_changed_at=None,
+        )
+        self.database.replace_user_record(user["uid"])
+        user = self.database.allocate_user(
+            email,
+            node=self.spanner_node,
+            client_state="aa",
+            keys_changed_at=None,
+        )
+
+        self.assertTrue(
+            purge_old_records(
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node
+            )
+        )
+        user_records = list(self.database.get_user_records(email))
+        self.assertEqual(len(user_records), 1)
+        self.assertEqual(user_records[0].node, self.spanner_node)
+        self.assertEqual(len(self.service_requests), 0)
