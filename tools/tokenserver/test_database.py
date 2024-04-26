@@ -487,4 +487,3 @@ class TestDatabase(unittest.TestCase):
         self.assert_(sql.text.find("uid < :end") > 0)
         self.assertEqual(params.get("start"), rrange[0])
         self.assertEqual(params.get("end"), rrange[1])
-
