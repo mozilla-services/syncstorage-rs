@@ -205,8 +205,22 @@ def points_to_active(database, replaced_at_row, override_node):
         # assigned a spanner node record by get_user (TODO: rename get_user ->
         # get_or_assign_user)
         user = database.get_user(replaced_at_row.email)
-        return (user["generation"] == replaced_at_row.generation and
-                user["client_state"] == replaced_at_row.client_state)
+        # The index of the data in syncstorage is determined by the user's
+        # `fxa_uid` and `fxa_kid`. Both records have the same `fxa_uid`
+        # (derived from their email). Check if the `fxa_kid` produced from the
+        # active user record matches the `fxa_kid` produced by the
+        # `replaced_at` record
+        user_fxa_kid = format_key_id(
+            user["keys_changed_at"] or user["generation"],
+            binascii.unhexlify(user["client_state"]),
+        )
+        # mimic what `get_user` does for this nullable column
+        replaced_at_row_keys_changed_at = replaced_at_row.keys_changed_at or 0
+        replaced_at_row_fxa_kid = format_key_id(
+            replaced_at_row_keys_changed_at or replaced_at_row.generation,
+            binascii.unhexlify(replaced_at_row.client_state),
+        )
+        return user_fxa_kid == replaced_at_row_fxa_kid
     return False
 
 

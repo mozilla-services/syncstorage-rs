@@ -1,3 +1,18 @@
+<a name="0.14.5"></a>
+## 0.14.5 (2024-04-16)
+
+
+#### Bug Fixes
+
+*   Add try/except handler for force (#1535) ([b777fa0d](https://github.com/mozilla-services/syncstorage-rs/commit/b777fa0d967472ca34b023c606cfc5ef5309bf73))
+*   add line break to do not display backticks (#1529) ([143e93b6](https://github.com/mozilla-services/syncstorage-rs/commit/143e93b66f27e0d03509d17db8da53f9397fe73e))
+
+#### Chore
+
+*   bump mio per RUSTSEC-2024-0019 (#1530) ([b4306d93](https://github.com/mozilla-services/syncstorage-rs/commit/b4306d9379930ab6602a4efdb1278e4eb302b567))
+
+
+
 <a name="0.14.4"></a>
 ## 0.14.4 (2023-12-11)
 
