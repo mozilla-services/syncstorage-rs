@@ -440,7 +440,7 @@ class Database:
         finally:
             res.close()
 
-    def _build_old_user_query(self, range, **params):
+    def _build_old_user_query(self, range, params, **kwargs):
         if range:
             # construct the range from the passed arguments
             rstr = []
@@ -474,7 +474,7 @@ class Database:
             "offset": offset
         }
 
-        sql = self._build_old_user_query(range, **params)
+        sql = self._build_old_user_query(range, params)
 
         res = self._execute_sql(sql, **params)
         try:
