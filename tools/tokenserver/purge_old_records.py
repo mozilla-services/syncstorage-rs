@@ -45,6 +45,7 @@ def purge_old_records(
     dryrun=False,
     force=False,
     override_node=None,
+    uid_range=None,
 ):
     """Purge old records from the database.
 
@@ -313,6 +314,18 @@ def main(args=None):
         "", "--override_node",
         help="Use this node when deleting (if data was copied)"
     )
+    parser.add_option(
+        "",
+        "--range_start",
+        default=None,
+        help="Start of UID range to check"
+    )
+    parser.add_option(
+        "",
+        "--range_end",
+        default=None,
+        help="End of UID range to check"
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 2:
@@ -322,6 +335,10 @@ def main(args=None):
     secret = args[1]
 
     util.configure_script_logging(opts)
+
+    uid_range = None
+    if opts.start_range or opts.end_range:
+        uid_range = (opts.start_range, opts.end_range)
 
     purge_old_records(
         secret,
@@ -333,6 +350,7 @@ def main(args=None):
         dryrun=opts.dryrun,
         force=opts.force,
         override_node=opts.override_node,
+        range=uid_range,
     )
     if not opts.oneshot:
         while True:
@@ -351,6 +369,7 @@ def main(args=None):
                 dryrun=opts.dryrun,
                 force=opts.force,
                 override_node=opts.override_node,
+                range=uid_range,
             )
     return 0
 
