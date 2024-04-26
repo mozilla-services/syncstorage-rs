@@ -463,3 +463,27 @@ class TestDatabase(unittest.TestCase):
         user3 = self.database.get_user(EMAIL)
         self.assertEqual(user3['uid'], user2['uid'])
         self.assertNotEqual(user3['first_seen_at'], user2['first_seen_at'])
+
+    def test_build_old_range(self):
+        params = dict()
+        sql = self.database._build_old_user_query(None, **params)
+        self.assert_(not sql.text.contains("uid > :start"))
+        self.assert_(not sql.text.contains("uid < :end"))
+        self.assertIsNone(params.get("start"))
+        self.assertIsNone(params.get("end"))
+
+        params = dict()
+        rrange = (None, "abcd")
+        sql = self.database._build_old_user_query(rrange, **params)
+        self.assert_(not sql.text.contains("uid > :start"))
+        self.assert_(sql.text.contains("uid < :end"))
+        self.assertIsNone(params.get("start"))
+        self.assertEqual(params.get("end"), rrange[1])
+
+        params = dict()
+        rrange = ("1234", "abcd")
+        sql = self.database._build_old_user_query(rrange, **params)
+        self.assert_(sql.text.contains("uid > :start"))
+        self.assert_(sql.text.contains("uid < :end"))
+        self.assertEqual(params.get("start"), rrange[0])
+        self.assertEqual(params.get("end"), rrange[1])

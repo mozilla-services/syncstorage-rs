@@ -101,6 +101,26 @@ offset
     :offset
 """)
 
+_GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE = """\
+select
+    uid, email, generation, keys_changed_at, client_state,
+    nodes.node, nodes.downed, created_at, replaced_at
+from
+    users left outer join nodes on users.nodeid = nodes.id
+where
+    users.service = :service
+and
+    replaced_at is not null and replaced_at < :timestamp
+and
+    ::RANGE::
+order by
+    replaced_at desc, uid desc
+limit
+    :limit
+offset
+    :offset
+"""
+
 
 _GET_ALL_USER_RECORDS_FOR_SERVICE = sqltext("""\
 select
@@ -420,8 +440,29 @@ class Database:
         finally:
             res.close()
 
+    def _build_old_user_query(self, range, **params):
+        if range:
+            # construct the range from the passed arguments
+            rstr = []
+            try:
+                if range[0]:
+                    rstr.append("uid > :start")
+                    params["start"] = range[0]
+                if range[1]:
+                    rstr.append("uid < :end")
+                    params["end"] = range[1]
+            except IndexError:
+                pass
+            rrep = " and ".join(rstr)
+            sql = sqltext(
+                _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE.replace(
+                    "::RANGE::", rrep))
+        else:
+            sql = _GET_OLD_USER_RECORDS_FOR_SERVICE
+        return sql
+
     def get_old_user_records(self, grace_period=-1, limit=100,
-                             offset=0):
+                             offset=0, range=None):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
@@ -432,7 +473,10 @@ class Database:
             "limit": limit,
             "offset": offset
         }
-        res = self._execute_sql(_GET_OLD_USER_RECORDS_FOR_SERVICE, **params)
+
+        sql = self._build_old_user_query(range, **params)
+
+        res = self._execute_sql(sql, **params)
         try:
             for row in res:
                 yield row
