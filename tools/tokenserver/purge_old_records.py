@@ -361,6 +361,7 @@ def main(args=None):
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
             purge_old_records(
+                secret,
                 grace_period=opts.grace_period,
                 max_per_loop=opts.max_per_loop,
                 max_offset=opts.max_offset,
