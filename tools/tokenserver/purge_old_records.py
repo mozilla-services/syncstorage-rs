@@ -79,7 +79,14 @@ def purge_old_records(
             if rows == previous_list:
                 raise Exception("Loop detected")
             previous_list = rows
-            logger.info("Fetched %d rows at offset %d", len(rows), offset)
+            range_msg = ""
+            if range:
+                range_msg = (
+                    f" within range {range[0] or 'Start'}"
+                    f" to {range[1] or 'End'}"
+                )
+            logger.info(
+                f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
             counter = 0
             for row in rows:
                 # Don't attempt to purge data from downed nodes.
