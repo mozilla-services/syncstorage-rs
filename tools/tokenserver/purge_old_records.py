@@ -80,10 +80,10 @@ def purge_old_records(
                 raise Exception("Loop detected")
             previous_list = rows
             range_msg = ""
-            if range:
+            if uid_range:
                 range_msg = (
-                    f" within range {range[0] or 'Start'}"
-                    f" to {range[1] or 'End'}"
+                    f" within range {uid_range[0] or 'Start'}"
+                    f" to {uid_range[1] or 'End'}"
                 )
             logger.info(
                 f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
