@@ -70,6 +70,7 @@ def purge_old_records(
                 "grace_period": grace_period,
                 "limit": max_per_loop,
                 "offset": offset,
+                "range": uid_range,
             }
             rows = list(database.get_old_user_records(**kwds))
             if not rows:
