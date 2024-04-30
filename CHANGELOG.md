@@ -1,6 +1,5 @@
 <a name="0.15.5"></a>
-### 0.15.5 (2024-04-30)
-
+## 0.15.5 (2024-04-30)
 
 #### Features
 
@@ -8,24 +7,33 @@
 
 
 <a name="0.15.4"></a>
-### 0.15.4 (2024-04-25)
+## 0.15.4 (2024-04-25)
 
 
-#### Features
+#### Bug Fixes
 
-*   special case purging of users previously migrated to Spanner (#1543) ([13e53eba](https://github.com/mozilla-services/syncstorage-rs/commit/13e53eba13ca21f8bd41ddd86d52375f4af38a71))
+*   take keys_changed_at into account w/ migrated records' special case (#1545) ([f68fb607](https://github.com/mozilla-services/syncstorage-rs/commit/f68fb607fe0284f74c77faa4eb1de14ed95e3d3e))
+
+#### Chore
+
+*   fix changelog version anchor ([8098d839](https://github.com/mozilla-services/syncstorage-rs/commit/8098d839b6987bfa0731f876162672bb21e8fded))
+
 
 
 <a name="0.15.3"></a>
-### 0.15.3 (2024-04-)
+## 0.15.3 (2024-04-24)
+
+>>>>>>> 97389f44e8776564be460f2cfd9aca887e6e763c
 
 #### Features
 
 *   special case purging of users previously migrated to Spanner (#1543) ([13e53eba](https://github.com/mozilla-services/syncstorage-rs/commit/13e53eba13ca21f8bd41ddd86d52375f4af38a71))
 
 
+
 <a name="0.15.2"></a>
-### 0.15.2 (2024-04-)
+## 0.15.2 (2024-04-16)
+
 
 #### Bug Fixes
 
@@ -37,8 +45,10 @@
 *   bump mio per RUSTSEC-2024-0019 (#1530) ([b4306d93](https://github.com/mozilla-services/syncstorage-rs/commit/b4306d9379930ab6602a4efdb1278e4eb302b567))
 
 
-<a name="0.15.0"></a>
-## 0.15.0 (2024-04-)
+
+<a name="0.15.1"></a>
+## 0.15.1 (2024-02-29)
+
 
 #### Bug Fixes
 
@@ -47,6 +57,11 @@
 #### Doc
 
 *   Remove reference to legacy vendored library (#1522) ([3edd4206](https://github.com/mozilla-services/syncstorage-rs/commit/3edd420621520e073dff0828fd7b30579a4c9349))
+
+
+
+<a name="0.15.0"></a>
+## 0.15.0 (2024-02-27)
 
 
 #### Features
@@ -61,20 +76,6 @@
 #### Chore
 
 *   Cleans up TLS dependencies (#1519) ([ac3b479a](https://github.com/mozilla-services/syncstorage-rs/commit/ac3b479a58275d16e3529a17ef68521564b8b571))
-
-
-<a name="0.14.5"></a>
-## 0.14.5 (2024-04-16)
-
-
-#### Bug Fixes
-
-*   Add try/except handler for force (#1535) ([b777fa0d](https://github.com/mozilla-services/syncstorage-rs/commit/b777fa0d967472ca34b023c606cfc5ef5309bf73))
-*   add line break to do not display backticks (#1529) ([143e93b6](https://github.com/mozilla-services/syncstorage-rs/commit/143e93b66f27e0d03509d17db8da53f9397fe73e))
-
-#### Chore
-
-*   bump mio per RUSTSEC-2024-0019 (#1530) ([b4306d93](https://github.com/mozilla-services/syncstorage-rs/commit/b4306d9379930ab6602a4efdb1278e4eb302b567))
 
 
 
