@@ -353,7 +353,7 @@ def main(args=None):
     util.configure_script_logging(opts)
 
     uid_range = None
-    if opts.range_start or opts.range_start:
+    if opts.range_start or opts.range_end:
         uid_range = (opts.range_start, opts.range_end)
         logger.debug(f"Looking in range {uid_range}")
 
