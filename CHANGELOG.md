@@ -1,3 +1,13 @@
+<a name="0.15.5"></a>
+## 0.15.5 (2024-04-30)
+
+
+#### Features
+
+*   Allow uid range for purge function (SYNC-4246) (#1547) ([cc160822](https://github.com/mozilla-services/syncstorage-rs/commit/cc160822419cd56646d15d425812cf36a19d89a2), closes [#1548](https://github.com/mozilla-services/syncstorage-rs/issues/1548))
+
+
+
 <a name="0.15.4"></a>
 ## 0.15.4 (2024-04-25)
 
