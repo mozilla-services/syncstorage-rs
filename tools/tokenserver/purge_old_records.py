@@ -342,11 +342,11 @@ def main(args=None):
 
     opts, args = parser.parse_args(args)
 
-    if len(args) == 0 :
+    if len(args) == 0:
         parser.print_usage()
         return 1
 
-    ## Secret is the last arg?
+    # Secret is the last arg?
     secret = args[-1]
     logger.info(f"Secret: {secret}")
 
