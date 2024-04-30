@@ -1,3 +1,13 @@
+<a name="0.15.6"></a>
+## 0.15.6 (2024-04-30)
+
+
+#### Bug Fixes
+
+*   validate val names (#1550) ([5dc53f22](https://github.com/mozilla-services/syncstorage-rs/commit/5dc53f2282d1d97c3b5baf730bb4b8165f06d8a1))
+
+
+
 <a name="0.15.5"></a>
 ## 0.15.5 (2024-04-30)
 
