@@ -45,6 +45,7 @@ def purge_old_records(
     dryrun=False,
     force=False,
     override_node=None,
+    uid_range=None,
 ):
     """Purge old records from the database.
 
@@ -69,6 +70,7 @@ def purge_old_records(
                 "grace_period": grace_period,
                 "limit": max_per_loop,
                 "offset": offset,
+                "range": uid_range,
             }
             rows = list(database.get_old_user_records(**kwds))
             if not rows:
@@ -77,7 +79,14 @@ def purge_old_records(
             if rows == previous_list:
                 raise Exception("Loop detected")
             previous_list = rows
-            logger.info("Fetched %d rows at offset %d", len(rows), offset)
+            range_msg = ""
+            if uid_range:
+                range_msg = (
+                    f" within range {uid_range[0] or 'Start'}"
+                    f" to {uid_range[1] or 'End'}"
+                )
+            logger.info(
+                f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
             counter = 0
             for row in rows:
                 # Don't attempt to purge data from downed nodes.
@@ -313,6 +322,18 @@ def main(args=None):
         "", "--override_node",
         help="Use this node when deleting (if data was copied)"
     )
+    parser.add_option(
+        "",
+        "--range_start",
+        default=None,
+        help="Start of UID range to check"
+    )
+    parser.add_option(
+        "",
+        "--range_end",
+        default=None,
+        help="End of UID range to check"
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 2:
@@ -322,6 +343,10 @@ def main(args=None):
     secret = args[1]
 
     util.configure_script_logging(opts)
+
+    uid_range = None
+    if opts.start_range or opts.end_range:
+        uid_range = (opts.start_range, opts.end_range)
 
     purge_old_records(
         secret,
@@ -333,6 +358,7 @@ def main(args=None):
         dryrun=opts.dryrun,
         force=opts.force,
         override_node=opts.override_node,
+        range=uid_range,
     )
     if not opts.oneshot:
         while True:
@@ -343,6 +369,7 @@ def main(args=None):
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
             purge_old_records(
+                secret,
                 grace_period=opts.grace_period,
                 max_per_loop=opts.max_per_loop,
                 max_offset=opts.max_offset,
@@ -351,6 +378,7 @@ def main(args=None):
                 dryrun=opts.dryrun,
                 force=opts.force,
                 override_node=opts.override_node,
+                range=uid_range,
             )
     return 0
 
