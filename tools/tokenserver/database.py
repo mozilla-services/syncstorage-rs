@@ -448,7 +448,7 @@ class Database:
                 if uid_range[0]:
                     rstr.append("uid > :start")
                     params["start"] = uid_range[0]
-                if range[1]:
+                if uid_range[1]:
                     rstr.append("uid < :end")
                     params["end"] = uid_range[1]
             except IndexError:
