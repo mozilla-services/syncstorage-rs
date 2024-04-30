@@ -29,8 +29,12 @@ import util
 from database import Database
 from util import format_key_id
 
-logger = logging.getLogger("tokenserver.scripts.purge_old_records")
-logger.setLevel(os.environ.get("PYTHON_LOG", "ERROR").upper())
+LOGGER = "tokenserver.scripts.purge_old_records"
+
+logger = logging.getLogger(LOGGER)
+log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
+logger.setLevel(log_level)
+logger.debug(f"Setting level to {log_level}")
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -70,7 +74,7 @@ def purge_old_records(
                 "grace_period": grace_period,
                 "limit": max_per_loop,
                 "offset": offset,
-                "range": uid_range,
+                "uid_range": uid_range,
             }
             rows = list(database.get_old_user_records(**kwds))
             if not rows:
@@ -250,6 +254,7 @@ def main(args=None):
     This function parses command-line arguments and passes them on
     to the purge_old_records() function.
     """
+    logger = logging.getLogger(LOGGER)
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -336,17 +341,21 @@ def main(args=None):
     )
 
     opts, args = parser.parse_args(args)
-    if len(args) != 2:
+
+    if len(args) == 0:
         parser.print_usage()
         return 1
 
-    secret = args[1]
+    # Secret is the last arg?
+    secret = args[-1]
+    logger.debug(f"Secret: {secret}")
 
     util.configure_script_logging(opts)
 
     uid_range = None
-    if opts.start_range or opts.end_range:
-        uid_range = (opts.start_range, opts.end_range)
+    if opts.range_start or opts.range_end:
+        uid_range = (opts.range_start, opts.range_end)
+        logger.debug(f"Looking in range {uid_range}")
 
     purge_old_records(
         secret,
@@ -358,7 +367,7 @@ def main(args=None):
         dryrun=opts.dryrun,
         force=opts.force,
         override_node=opts.override_node,
-        range=uid_range,
+        uid_range=uid_range,
     )
     if not opts.oneshot:
         while True:
@@ -378,7 +387,7 @@ def main(args=None):
                 dryrun=opts.dryrun,
                 force=opts.force,
                 override_node=opts.override_node,
-                range=uid_range,
+                uid_range=uid_range,
             )
     return 0
 

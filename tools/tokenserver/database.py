@@ -440,17 +440,17 @@ class Database:
         finally:
             res.close()
 
-    def _build_old_user_query(self, range, params, **kwargs):
-        if range:
+    def _build_old_user_query(self, uid_range, params, **kwargs):
+        if uid_range:
             # construct the range from the passed arguments
             rstr = []
             try:
-                if range[0]:
+                if uid_range[0]:
                     rstr.append("uid > :start")
-                    params["start"] = range[0]
-                if range[1]:
+                    params["start"] = uid_range[0]
+                if uid_range[1]:
                     rstr.append("uid < :end")
-                    params["end"] = range[1]
+                    params["end"] = uid_range[1]
             except IndexError:
                 pass
             rrep = " and ".join(rstr)
@@ -462,7 +462,7 @@ class Database:
         return sql
 
     def get_old_user_records(self, grace_period=-1, limit=100,
-                             offset=0, range=None):
+                             offset=0, uid_range=None):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
@@ -474,7 +474,7 @@ class Database:
             "offset": offset
         }
 
-        sql = self._build_old_user_query(range, params)
+        sql = self._build_old_user_query(uid_range, params)
 
         res = self._execute_sql(sql, **params)
         try:
