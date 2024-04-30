@@ -32,7 +32,7 @@ from util import format_key_id
 LOGGER = "tokenserver.scripts.purge_old_records"
 
 logger = logging.getLogger(LOGGER)
-log_level = os.environ.get("PYTHON_LOG", "DEBUG").upper()
+log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
 logger.setLevel(log_level)
 logger.debug(f"Setting level to {log_level}")
 
@@ -348,14 +348,14 @@ def main(args=None):
 
     # Secret is the last arg?
     secret = args[-1]
-    logger.info(f"Secret: {secret}")
+    logger.debug(f"Secret: {secret}")
 
     util.configure_script_logging(opts)
 
     uid_range = None
     if opts.range_start or opts.range_start:
         uid_range = (opts.range_start, opts.range_end)
-        logger.info(f"Looking in range {uid_range}")
+        logger.debug(f"Looking in range {uid_range}")
 
     purge_old_records(
         secret,
