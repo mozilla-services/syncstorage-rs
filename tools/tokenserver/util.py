@@ -23,26 +23,32 @@ def run_script(main):
     sys.exit(exitcode)
 
 
-def configure_script_logging(opts=None):
+def configure_script_logging(opts=None, logger=None):
     """Configure stdlib logging to produce output from the script.
 
     This basically configures logging to send messages to stderr, with
     formatting that's more for human readability than machine parsing.
     It also takes care of the --verbosity command-line option.
     """
+    # Retrofitted to take a logger object
+    if not logger:
+        logger = logging.getLogger("")
+
     if not opts or not opts.verbosity:
-        loglevel = logging.WARNING
+        loglevel = logger.getEffectiveLevel() or logging.WARNING
     elif opts.verbosity == 1:
         loglevel = logging.INFO
     else:
         loglevel = logging.DEBUG
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    handler.setLevel(loglevel)
-    logger = logging.getLogger("")
-    logger.addHandler(handler)
     logger.setLevel(loglevel)
+
+    if not logger.hasHandlers():
+        # Don't add more handlers if one is already present.
+        # This overrides the first "default" handler.
+        handler = logger.handlers[0]
+        handler.setFormatter(
+            logging.Formatter("%(levelname) 7s::%(message)s"))
+        logger.addHandler(handler)
 
 
 def format_key_id(keys_changed_at, key_hash):

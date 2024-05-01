@@ -29,14 +29,19 @@ import util
 from database import Database
 from util import format_key_id
 
-LOGGER = "tokenserver.scripts.purge_old_records"
-
-logger = logging.getLogger(LOGGER)
-log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
-logger.setLevel(log_level)
-logger.debug(f"Setting level to {log_level}")
-
+LOGGER = ""
 PATTERN = "{node}/1.5/{uid}"
+
+
+# Create a logger for debugging the purge script.
+log_level = os.environ.get("PYTHON_LOG", "WARNING").upper()
+logging.basicConfig(level=log_level)
+plogger = logging.getLogger(LOGGER)
+# match the `util.configure_script_logging` handler
+handler = plogger.handlers[0]
+handler.setFormatter(logging.Formatter("%(levelname) 7s::%(message)s"))
+plogger.setLevel(log_level)
+plogger.debug(f"Setting level to {log_level}")
 
 
 def purge_old_records(
@@ -63,6 +68,7 @@ def purge_old_records(
     a (likely) different set of records to work on. A cheap, imperfect
     randomization.
     """
+    logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
     try:
         database = Database()
@@ -255,6 +261,7 @@ def main(args=None):
     to the purge_old_records() function.
     """
     logger = logging.getLogger(LOGGER)
+
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -342,6 +349,9 @@ def main(args=None):
 
     opts, args = parser.parse_args(args)
 
+    # use the old logging code to create a logger for "".
+    util.configure_script_logging(opts, logger=plogger)
+
     if len(args) == 0:
         parser.print_usage()
         return 1
@@ -350,13 +360,13 @@ def main(args=None):
     secret = args[-1]
     logger.debug(f"Secret: {secret}")
 
-    util.configure_script_logging(opts)
-
     uid_range = None
     if opts.range_start or opts.range_end:
         uid_range = (opts.range_start, opts.range_end)
         logger.debug(f"Looking in range {uid_range}")
 
+    if opts.oneshot:
+        logger.info("Running once...")
     purge_old_records(
         secret,
         grace_period=opts.grace_period,
@@ -389,8 +399,11 @@ def main(args=None):
                 override_node=opts.override_node,
                 uid_range=uid_range,
             )
+    logger.info("Completed")
     return 0
 
 
 if __name__ == "__main__":
+    logger = init_logging()
+    logger.info("Starting up")
     util.run_script(main)
