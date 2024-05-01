@@ -34,21 +34,28 @@ def configure_script_logging(opts=None, logger=None):
     if not logger:
         logger = logging.getLogger("")
 
-    if not opts or not opts.verbosity:
-        loglevel = logger.getEffectiveLevel() or logging.WARNING
-    elif opts.verbosity == 1:
-        loglevel = logging.INFO
-    else:
-        loglevel = logging.DEBUG
-    logger.setLevel(loglevel)
+    loglevel = logger.getEffectiveLevel() or logging.WARNING
+    if opts and opts.verbosity:
+        if opts.verbosity == 1:
+            loglevel = logging.INFO
+        else:
+            loglevel = logging.DEBUG
 
+        # use the more verbose setting for logging
+    loglevel = min(logger.getEffectiveLevel(), loglevel)
+    logger.debug(f"Final level {logging._levelToName.get(loglevel)}")
+    logger.setLevel(loglevel)
     if not logger.hasHandlers():
         # Don't add more handlers if one is already present.
         # This overrides the first "default" handler.
-        handler = logger.handlers[0]
-        handler.setFormatter(
-            logging.Formatter("%(levelname) 7s::%(message)s"))
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        handler.setLevel(loglevel)
         logger.addHandler(handler)
+
+    # force the primary handler level to match the current log level
+    handler = logger.handlers[0]
+    handler.setLevel(loglevel)
 
 
 def format_key_id(keys_changed_at, key_hash):

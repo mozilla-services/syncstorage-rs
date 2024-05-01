@@ -34,14 +34,20 @@ PATTERN = "{node}/1.5/{uid}"
 
 
 # Create a logger for debugging the purge script.
-log_level = os.environ.get("PYTHON_LOG", "WARNING").upper()
-logging.basicConfig(level=log_level)
-plogger = logging.getLogger(LOGGER)
-# match the `util.configure_script_logging` handler
-handler = plogger.handlers[0]
-handler.setFormatter(logging.Formatter("%(levelname) 7s::%(message)s"))
-plogger.setLevel(log_level)
-plogger.debug(f"Setting level to {log_level}")
+def init_logging():
+    # Create a logger for debugging the purge script.
+    # We create this here because we may want to do logging
+    # before the options are processed.
+    log_level = os.environ.get("PYTHON_LOG", "WARNING").upper()
+    logging.basicConfig(level=log_level)
+    logger = logging.getLogger(LOGGER)
+    handler = logger.handlers[0] if logger.hasHandlers() else \
+        logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname) 7s::%(message)s"))
+    handler.setLevel(log_level)
+    logger.setLevel(log_level)
+    logger.debug(f"Setting level to {log_level}")
+    return logger
 
 
 def purge_old_records(
@@ -349,8 +355,10 @@ def main(args=None):
 
     opts, args = parser.parse_args(args)
 
-    # use the old logging code to create a logger for "".
-    util.configure_script_logging(opts, logger=plogger)
+    # Use the old logging code to create a logger for "".
+    # This allows scripts that may not use `PYTHON_LOG`
+    # to work as expected.
+    util.configure_script_logging(opts, logger=logger)
 
     if len(args) == 0:
         parser.print_usage()
