@@ -1,3 +1,13 @@
+<a name="0.15.7"></a>
+## 0.15.7 (2024-05-02)
+
+
+#### Features
+
+*   optionally force the spanner node via get_best_node (#1553) ([4a145dd1](https://github.com/mozilla-services/syncstorage-rs/commit/4a145dd18bc13345179dbaedf6a0ae2d31ad4281))
+
+
+
 <a name="0.15.6"></a>
 ## 0.15.6 (2024-04-30)
 
