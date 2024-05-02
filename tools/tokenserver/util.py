@@ -10,6 +10,11 @@ Admin/managment scripts for TokenServer.
 import sys
 import time
 import logging
+import os
+import json
+from datetime import datetime
+
+import datadog
 
 from browserid.utils import encode_bytes as encode_bytes_b64
 
@@ -45,6 +50,42 @@ def configure_script_logging(opts=None):
     logger.setLevel(loglevel)
 
 
+# We need to reformat a few things to get the record to display correctly
+# This includes "escaping" the message as well as converting the timestamp
+# into a parsable format.
+class GCP_JSON_Formatter(logging.Formatter):
+
+    def format(self, record):
+        return json.dumps({
+            "severity": record.levelname,
+            "message": record.getMessage(),
+            "timestamp": datetime.fromtimestamp(
+                record.created).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ%z"  # RFC3339
+                ),
+        })
+
+
+def configure_gcp_logging(opts=None):
+    """Add or override the default handler to write a GCP logging compatible
+    error message.
+    """
+    verbosity = (opts and getattr(opts, "verbosity", 0)) or 0
+    logger = logging.getLogger(getattr(opts, "app_label", ""))
+    level = os.environ.get("PYTHON_LOG", "").upper() or \
+        max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
+        logger.getEffectiveLevel()
+
+    if logger.hasHandlers():
+        handler = logger.handlers[0]
+    else:
+        handler = logging.StreamHandler()
+        handler.setLevel(level)
+        logger.addHandler(handler)
+    handler.setFormatter(GCP_JSON_Formatter())
+    logger.setLevel(level)
+
+
 def format_key_id(keys_changed_at, key_hash):
     """Format an FxA key ID from a timestamp and key hash."""
     return "{:013d}-{}".format(
@@ -56,3 +97,25 @@ def format_key_id(keys_changed_at, key_hash):
 def get_timestamp():
     """Get current timestamp in milliseconds."""
     return int(time.time() * 1000)
+
+
+class Metrics():
+    prefix = ""
+
+    def __init__(cls, opts):
+        options = dict(
+            namespace=getattr(opts, "app_label", ""),
+            api_key=getattr(
+                opts, "metric_api_key", os.environ.get("METRIC_API_KEY")),
+            app_key=getattr(
+                opts, "metric_app_key", os.environ.get("METRIC_APP_KEY")),
+            statsd_host=getattr(
+                opts, "metric_host", os.environ.get("METRIC_HOST")),
+            statsd_port=getattr(
+                opts, "metric_port", os.environ.get("METRIC_PORT")),
+        )
+        cls.prefix = options.get("namespace")
+        datadog.initialize(**options)
+
+    def incr(self, label, tags=None):
+        datadog.statsd.increment(label, tags=tags)

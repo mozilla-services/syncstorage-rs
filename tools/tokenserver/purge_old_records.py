@@ -50,6 +50,7 @@ def purge_old_records(
     force=False,
     override_node=None,
     uid_range=None,
+    metrics=None,
 ):
     """Purge old records from the database.
 
@@ -103,6 +104,9 @@ def purge_old_records(
                         row.node
                     )
                     if not dryrun:
+                        metrics and metrics.incr(
+                            "delete_user",
+                            tags={"type": "nodeless"})
                         database.delete_user_record(row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
@@ -116,13 +120,21 @@ def purge_old_records(
                             row,
                             secret,
                             timeout=request_timeout,
-                            dryrun=dryrun
+                            dryrun=dryrun,
+                            metrics=metrics,
+                        )
+                        metrics and metrics.incr(
+                            "delete_data"
                         )
                         database.delete_user_record(row.uid)
+                        metrics and metrics.incr(
+                            "delete_user",
+                            tags={"type": "not_down"}
+                        )
                     counter += 1
                 elif force:
                     delete_sd = not points_to_active(
-                        database, row, override_node)
+                        database, row, override_node, metrics=metrics)
                     logger.info(
                         "Forcing tokenserver record delete: "
                         f"{row.uid} on {row.node} "
@@ -145,7 +157,12 @@ def purge_old_records(
                                     dryrun=dryrun,
                                     # if an override was specifed,
                                     # use that node ID
-                                    override_node=override_node
+                                    override_node=override_node,
+                                    metrics=metrics,
+                                )
+                                metrics and metrics(
+                                    "delete_data",
+                                    tags={"type": "force"}
                                 )
                             except requests.HTTPError:
                                 logger.warn(
@@ -157,9 +174,14 @@ def purge_old_records(
                                     # reachable
                                     raise
                         database.delete_user_record(row.uid)
+                        metrics and metrics.incr(
+                            "delete_data",
+                            tags={"type": "force"}
+                        )
                     counter += 1
                 if max_records and counter >= max_records:
                     logger.info("Reached max_records, exiting")
+                    metrics and metrics.incr("max_records")
                     return True
             if len(rows) < max_per_loop:
                 break
@@ -172,7 +194,8 @@ def purge_old_records(
 
 
 def delete_service_data(
-        user, secret, timeout=60, dryrun=False, override_node=None):
+        user, secret, timeout=60, dryrun=False, override_node=None,
+        metrics=None):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
@@ -202,10 +225,11 @@ def delete_service_data(
         return
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
+        metrics and metrics.incr("error.gone")
         resp.raise_for_status()
 
 
-def points_to_active(database, replaced_at_row, override_node):
+def points_to_active(database, replaced_at_row, override_node, metrics=None):
     """Determine if a `replaced_at` user record has the same
     generation/client_state as their active record.
 
@@ -232,7 +256,10 @@ def points_to_active(database, replaced_at_row, override_node):
             replaced_at_row_keys_changed_at or replaced_at_row.generation,
             binascii.unhexlify(replaced_at_row.client_state),
         )
-        return user_fxa_kid == replaced_at_row_fxa_kid
+        override = user_fxa_kid == replaced_at_row_fxa_kid
+        if override and metrics:
+            metrics.incr("override")
+        return override
     return False
 
 
@@ -339,8 +366,25 @@ def main(args=None):
         default=None,
         help="End of UID range to check"
     )
+    parser.add_option(
+        "",
+        "--human",
+        action="store_true",
+        help="Human readable logs"
+    )
 
     opts, args = parser.parse_args(args)
+
+    # set up logging
+    if not getattr(opts, "app_label", None):
+        setattr(opts, "app_label", LOGGER)
+    if opts.human:
+        util.configure_script_logging(opts)
+    else:
+        util.configure_gcp_logging(opts)
+
+    # set up metrics:
+    metrics = util.Metrics(opts)
 
     if len(args) == 0:
         parser.print_usage()
@@ -349,8 +393,6 @@ def main(args=None):
     # Secret is the last arg?
     secret = args[-1]
     logger.debug(f"Secret: {secret}")
-
-    util.configure_script_logging(opts)
 
     uid_range = None
     if opts.range_start or opts.range_end:
@@ -368,6 +410,7 @@ def main(args=None):
         force=opts.force,
         override_node=opts.override_node,
         uid_range=uid_range,
+        metrics=metrics,
     )
     if not opts.oneshot:
         while True:
@@ -388,6 +431,7 @@ def main(args=None):
                 force=opts.force,
                 override_node=opts.override_node,
                 uid_range=uid_range,
+                metrics=metrics,
             )
     return 0
 
