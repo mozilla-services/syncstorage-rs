@@ -1,8 +1,9 @@
-extern crate diesel;
-#[macro_use]
-extern crate diesel_migrations;
+use diesel::r2d2::{ConnectionManager, PooledConnection};
+#[cfg(feature = "mysql")]
+use diesel::MysqlConnection;
+#[cfg(feature = "sqlite")]
+use diesel::SqliteConnection;
 
-mod error;
 pub mod mock;
 mod models;
 pub mod params;
@@ -11,3 +12,9 @@ pub mod results;
 
 pub use models::{Db, TokenserverDb};
 pub use pool::{DbPool, TokenserverPool};
+
+#[cfg(feature = "mysql")]
+type Conn = MysqlConnection;
+#[cfg(feature = "sqlite")]
+type Conn = SqliteConnection;
+type PooledConn = PooledConnection<ConnectionManager<Conn>>;

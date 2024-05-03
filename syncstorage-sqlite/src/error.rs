@@ -49,7 +49,7 @@ enum DbErrorKind {
     Common(SyncstorageDbError),
 
     #[error("{}", _0)]
-    Mysql(SqlError),
+    Sqlite(SqlError),
 }
 
 impl From<DbErrorKind> for DbError {
@@ -124,24 +124,24 @@ from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);
 from_error!(
     diesel::result::Error,
     DbError,
-    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
+    |error: diesel::result::Error| DbError::from(DbErrorKind::Sqlite(SqlError::from(error)))
 );
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(SqlError::from(
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Sqlite(SqlError::from(
         error
     )))
 );
 from_error!(
     diesel::r2d2::PoolError,
     DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
+    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Sqlite(SqlError::from(error)))
 );
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
-    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Mysql(
+    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Sqlite(
         SqlError::from(error)
     ))
 );
