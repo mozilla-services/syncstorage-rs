@@ -19,7 +19,6 @@ import binascii
 import hawkauthlib
 import logging
 import optparse
-import os
 import random
 import requests
 import time
@@ -32,9 +31,6 @@ from util import format_key_id
 LOGGER = "tokenserver.scripts.purge_old_records"
 
 logger = logging.getLogger(LOGGER)
-log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
-logger.setLevel(log_level)
-logger.debug(f"Setting level to {log_level}")
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -116,21 +112,49 @@ def purge_old_records(
                         row.uid,
                         row.node)
                     if not dryrun:
-                        delete_service_data(
-                            row,
-                            secret,
-                            timeout=request_timeout,
-                            dryrun=dryrun,
-                            metrics=metrics,
-                        )
-                        metrics and metrics.incr(
-                            "delete_data"
-                        )
-                        database.delete_user_record(row.uid)
-                        metrics and metrics.incr(
-                            "delete_user",
-                            tags={"type": "not_down"}
-                        )
+                        for loop in range(0, 10):
+                            try:
+                                loop -= 1
+                                delete_service_data(
+                                    row,
+                                    secret,
+                                    timeout=request_timeout,
+                                    dryrun=dryrun,
+                                    metrics=metrics,
+                                )
+                                metrics and metrics.incr(
+                                    "delete_data"
+                                )
+                                break
+                            except requests.HTTPError as ex:
+                                if ex.response.status_code not in \
+                                        [502, 503, 504]:
+                                    nap = random.randint(5, 20)
+                                    logger.info(
+                                        f"retry delete_data in "
+                                        f"{row.uid} on {row.node}"
+                                        f" in {nap}s")
+                                    time.sleep(nap)
+                                    continue
+                                raise
+                        for loop in range(0, 10):
+                            try:
+                                database.delete_user_record(row.uid)
+                                metrics and metrics.incr(
+                                    "delete_user",
+                                    tags={"type": "not_down"}
+                                )
+                                break
+                            except requests.HTTPError as ex:
+                                if ex.response.status_code not in \
+                                        [502, 503, 504]:
+                                    nap = random.randint(5, 20)
+                                    logger.info(
+                                        f"retry delete_user for "
+                                        f"{row.uid} in {nap}s")
+                                    time.sleep(nap)
+                                    continue
+                                raise
                     counter += 1
                 elif force:
                     delete_sd = not points_to_active(
@@ -149,30 +173,37 @@ def purge_old_records(
                             # request refers to a node not contained by
                             # the existing data set.
                             # (The call mimics a user DELETE request.)
-                            try:
-                                delete_service_data(
-                                    row,
-                                    secret,
-                                    timeout=request_timeout,
-                                    dryrun=dryrun,
-                                    # if an override was specifed,
-                                    # use that node ID
-                                    override_node=override_node,
-                                    metrics=metrics,
-                                )
-                                metrics and metrics(
-                                    "delete_data",
-                                    tags={"type": "force"}
-                                )
-                            except requests.HTTPError:
-                                logger.warn(
-                                    "Delete failed for user "
-                                    f"{row.uid} [{row.node}]"
-                                )
-                                if override_node:
-                                    # Assume the override_node should be
-                                    # reachable
-                                    raise
+                            for loop in range(0, 10):
+                                try:
+                                    delete_service_data(
+                                        row,
+                                        secret,
+                                        timeout=request_timeout,
+                                        dryrun=dryrun,
+                                        # if an override was specifed,
+                                        # use that node ID
+                                        override_node=override_node,
+                                        metrics=metrics,
+                                    )
+                                    metrics and metrics(
+                                        "delete_data",
+                                        tags={"type": "force"}
+                                    )
+                                    break
+                                except requests.HTTPError as ex:
+                                    if ex.response.status_code not in \
+                                            [502, 503, 504]:
+                                        time.sleep(random.randint(5, 20))
+                                        continue
+                                    logger.warn(
+                                        "Delete failed for user "
+                                        f"{row.uid} [{row.node}]"
+                                    )
+                                    if override_node:
+                                        # Assume the override_node should be
+                                        # reachable
+                                        raise
+
                         database.delete_user_record(row.uid)
                         metrics and metrics.incr(
                             "delete_data",
