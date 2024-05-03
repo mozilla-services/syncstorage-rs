@@ -14,7 +14,7 @@ import os
 import json
 from datetime import datetime
 
-import datadog
+from datadog import initialize, statsd
 
 from browserid.utils import encode_bytes as encode_bytes_b64
 
@@ -101,21 +101,21 @@ def get_timestamp():
 
 class Metrics():
     prefix = ""
+    client = None
 
     def __init__(cls, opts):
         options = dict(
             namespace=getattr(opts, "app_label", ""),
-            api_key=getattr(
-                opts, "metric_api_key", os.environ.get("METRIC_API_KEY")),
-            app_key=getattr(
-                opts, "metric_app_key", os.environ.get("METRIC_APP_KEY")),
+            statsd_namespace=getattr(opts, "app_label", ""),
             statsd_host=getattr(
                 opts, "metric_host", os.environ.get("METRIC_HOST")),
             statsd_port=getattr(
                 opts, "metric_port", os.environ.get("METRIC_PORT")),
+            statsd_socket_path=getattr(
+                opts, "metric_path", os.environ.get("METRIC_PATH")),
         )
         cls.prefix = options.get("namespace")
-        datadog.initialize(**options)
+        initialize(**options)
 
     def incr(self, label, tags=None):
-        datadog.statsd.increment(label, tags=tags)
+        statsd.increment(label, tags=tags)
