@@ -29,8 +29,12 @@ import util
 from database import Database
 from util import format_key_id
 
-logger = logging.getLogger("tokenserver.scripts.purge_old_records")
-logger.setLevel(os.environ.get("PYTHON_LOG", "ERROR").upper())
+LOGGER = "tokenserver.scripts.purge_old_records"
+
+logger = logging.getLogger(LOGGER)
+log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
+logger.setLevel(log_level)
+logger.debug(f"Setting level to {log_level}")
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -45,6 +49,7 @@ def purge_old_records(
     dryrun=False,
     force=False,
     override_node=None,
+    uid_range=None,
 ):
     """Purge old records from the database.
 
@@ -69,6 +74,7 @@ def purge_old_records(
                 "grace_period": grace_period,
                 "limit": max_per_loop,
                 "offset": offset,
+                "uid_range": uid_range,
             }
             rows = list(database.get_old_user_records(**kwds))
             if not rows:
@@ -77,7 +83,14 @@ def purge_old_records(
             if rows == previous_list:
                 raise Exception("Loop detected")
             previous_list = rows
-            logger.info("Fetched %d rows at offset %d", len(rows), offset)
+            range_msg = ""
+            if uid_range:
+                range_msg = (
+                    f" within range {uid_range[0] or 'Start'}"
+                    f" to {uid_range[1] or 'End'}"
+                )
+            logger.info(
+                f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
             counter = 0
             for row in rows:
                 # Don't attempt to purge data from downed nodes.
@@ -108,12 +121,15 @@ def purge_old_records(
                         database.delete_user_record(row.uid)
                     counter += 1
                 elif force:
+                    delete_sd = not points_to_active(
+                        database, row, override_node)
                     logger.info(
                         "Forcing tokenserver record delete: "
-                        f"{row.uid} on {row.node}"
+                        f"{row.uid} on {row.node} "
+                        f"(deleting service data: {delete_sd})"
                     )
                     if not dryrun:
-                        try:
+                        if delete_sd:
                             # Attempt to delete the user information from
                             # the existing data set. This may fail, either
                             # because the HawkAuth is referring to an
@@ -121,21 +137,25 @@ def purge_old_records(
                             # request refers to a node not contained by
                             # the existing data set.
                             # (The call mimics a user DELETE request.)
-
-                            # if an override was specifed, use that node ID.
-                            if override_node is not None:
-                                row.node = override_node
-                            delete_service_data(
-                                row,
-                                secret,
-                                timeout=request_timeout,
-                                dryrun=dryrun
-                            )
-                        except requests.HTTPError:
-                            logger.warn(
-                                "Delete failed for user "
-                                f"{row.uid} [{row.node}]"
-                            )
+                            try:
+                                delete_service_data(
+                                    row,
+                                    secret,
+                                    timeout=request_timeout,
+                                    dryrun=dryrun,
+                                    # if an override was specifed,
+                                    # use that node ID
+                                    override_node=override_node
+                                )
+                            except requests.HTTPError:
+                                logger.warn(
+                                    "Delete failed for user "
+                                    f"{row.uid} [{row.node}]"
+                                )
+                                if override_node:
+                                    # Assume the override_node should be
+                                    # reachable
+                                    raise
                         database.delete_user_record(row.uid)
                     counter += 1
                 if max_records and counter >= max_records:
@@ -151,17 +171,19 @@ def purge_old_records(
         return True
 
 
-def delete_service_data(user, secret, timeout=60, dryrun=False):
+def delete_service_data(
+        user, secret, timeout=60, dryrun=False, override_node=None):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
     remove any data it still has stored for the user.  We simulate a DELETE
     request from the user's own account.
     """
+    node = override_node if override_node else user.node
     token = tokenlib.make_token(
         {
             "uid": user.uid,
-            "node": user.node,
+            "node": node,
             "fxa_uid": user.email.partition("@")[0],
             "fxa_kid": format_key_id(
                 user.keys_changed_at or user.generation,
@@ -171,7 +193,7 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
         secret=secret,
     )
     secret = tokenlib.get_derived_secret(token, secret=secret)
-    endpoint = PATTERN.format(uid=user.uid, node=user.node)
+    endpoint = PATTERN.format(uid=user.uid, node=node)
     auth = HawkAuth(token, secret)
     if dryrun:
         # NOTE: this function currently isn't called during dryrun
@@ -181,6 +203,37 @@ def delete_service_data(user, secret, timeout=60, dryrun=False):
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
         resp.raise_for_status()
+
+
+def points_to_active(database, replaced_at_row, override_node):
+    """Determine if a `replaced_at` user record has the same
+    generation/client_state as their active record.
+
+    In which case issuing a `force`/`override_node` delete (to their current
+    node) would delete their active data, which should be avoided
+    """
+    if override_node and replaced_at_row.node != override_node:
+        # NOTE: Users who never connected after being migrated could be
+        # assigned a spanner node record by get_user (TODO: rename get_user ->
+        # get_or_assign_user)
+        user = database.get_user(replaced_at_row.email)
+        # The index of the data in syncstorage is determined by the user's
+        # `fxa_uid` and `fxa_kid`. Both records have the same `fxa_uid`
+        # (derived from their email). Check if the `fxa_kid` produced from the
+        # active user record matches the `fxa_kid` produced by the
+        # `replaced_at` record
+        user_fxa_kid = format_key_id(
+            user["keys_changed_at"] or user["generation"],
+            binascii.unhexlify(user["client_state"]),
+        )
+        # mimic what `get_user` does for this nullable column
+        replaced_at_row_keys_changed_at = replaced_at_row.keys_changed_at or 0
+        replaced_at_row_fxa_kid = format_key_id(
+            replaced_at_row_keys_changed_at or replaced_at_row.generation,
+            binascii.unhexlify(replaced_at_row.client_state),
+        )
+        return user_fxa_kid == replaced_at_row_fxa_kid
+    return False
 
 
 class HawkAuth(requests.auth.AuthBase):
@@ -201,6 +254,7 @@ def main(args=None):
     This function parses command-line arguments and passes them on
     to the purge_old_records() function.
     """
+    logger = logging.getLogger(LOGGER)
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -273,15 +327,35 @@ def main(args=None):
         "", "--override_node",
         help="Use this node when deleting (if data was copied)"
     )
+    parser.add_option(
+        "",
+        "--range_start",
+        default=None,
+        help="Start of UID range to check"
+    )
+    parser.add_option(
+        "",
+        "--range_end",
+        default=None,
+        help="End of UID range to check"
+    )
 
     opts, args = parser.parse_args(args)
-    if len(args) != 2:
+
+    if len(args) == 0:
         parser.print_usage()
         return 1
 
-    secret = args[1]
+    # Secret is the last arg?
+    secret = args[-1]
+    logger.debug(f"Secret: {secret}")
 
     util.configure_script_logging(opts)
+
+    uid_range = None
+    if opts.range_start or opts.range_end:
+        uid_range = (opts.range_start, opts.range_end)
+        logger.debug(f"Looking in range {uid_range}")
 
     purge_old_records(
         secret,
@@ -293,6 +367,7 @@ def main(args=None):
         dryrun=opts.dryrun,
         force=opts.force,
         override_node=opts.override_node,
+        uid_range=uid_range,
     )
     if not opts.oneshot:
         while True:
@@ -303,6 +378,7 @@ def main(args=None):
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
             purge_old_records(
+                secret,
                 grace_period=opts.grace_period,
                 max_per_loop=opts.max_per_loop,
                 max_offset=opts.max_offset,
@@ -311,6 +387,7 @@ def main(args=None):
                 dryrun=opts.dryrun,
                 force=opts.force,
                 override_node=opts.override_node,
+                uid_range=uid_range,
             )
     return 0
 
