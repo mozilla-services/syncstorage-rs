@@ -397,14 +397,6 @@ impl TokenserverDb {
                     .collect()
             };
 
-            if !old_client_states.is_empty() {
-                info!(
-                    "Tokenserver user has old client states";
-                    "uid" => raw_user.uid,
-                    "count" => old_client_states.len()
-                )
-            }
-
             // Make sure every old row is marked as replaced. They might not be, due to races in row
             // creation.
             for old_user in &raw_users[1..] {
