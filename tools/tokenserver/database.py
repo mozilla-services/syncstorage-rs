@@ -110,9 +110,9 @@ from
 where
     users.service = :service
 and
-    replaced_at is not null and replaced_at < :timestamp
-and
     ::RANGE::
+and
+    replaced_at is not null and replaced_at < :timestamp
 order by
     replaced_at desc, uid desc
 limit
@@ -240,6 +240,18 @@ where
     and node = :node
  """)
 
+
+_GET_SPANNER_NODE = sqltext("""\
+select
+     id, node
+from
+     nodes
+where
+     id = :id
+limit
+    1
+""")
+
 SERVICE_NAME = 'sync-1.5'
 
 
@@ -251,6 +263,8 @@ class Database:
             connect()
         self.capacity_release_rate = os.environ. \
             get("NODE_CAPACITY_RELEASE_RATE", 0.1)
+        self.spanner_node_id = os.environ.get(
+            "SYNC_TOKENSERVER__SPANNER_NODE_ID")
 
     def _execute_sql(self, *args, **kwds):
         return self.database.execute(*args, **kwds)
@@ -440,17 +454,17 @@ class Database:
         finally:
             res.close()
 
-    def _build_old_user_query(self, range, params, **kwargs):
-        if range:
+    def _build_old_user_query(self, uid_range, params, **kwargs):
+        if uid_range:
             # construct the range from the passed arguments
             rstr = []
             try:
-                if range[0]:
+                if uid_range[0]:
                     rstr.append("uid > :start")
-                    params["start"] = range[0]
-                if range[1]:
+                    params["start"] = uid_range[0]
+                if uid_range[1]:
                     rstr.append("uid < :end")
-                    params["end"] = range[1]
+                    params["end"] = uid_range[1]
             except IndexError:
                 pass
             rrep = " and ".join(rstr)
@@ -462,7 +476,7 @@ class Database:
         return sql
 
     def get_old_user_records(self, grace_period=-1, limit=100,
-                             offset=0, range=None):
+                             offset=0, uid_range=None):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
@@ -474,7 +488,7 @@ class Database:
             "offset": offset
         }
 
-        sql = self._build_old_user_query(range, params)
+        sql = self._build_old_user_query(uid_range, params)
 
         res = self._execute_sql(sql, **params)
         try:
@@ -641,26 +655,36 @@ class Database:
         """Returns the 'least loaded' node currently available, increments the
         active count on that node, and decrements the slots currently available
         """
-        # We may have to re-try the query if we need to release more capacity.
-        # This loop allows a maximum of five retries before bailing out.
-        for _ in range(5):
-            res = self._execute_sql(_GET_BEST_NODE,
-                                    service=self._get_service_id(SERVICE_NAME))
+        if self.spanner_node_id:
+            res = self._execute_sql(
+                _GET_SPANNER_NODE,
+                id=self.spanner_node_id
+            )
             row = res.fetchone()
             res.close()
-            if row is None:
-                # Try to release additional capacity from any nodes
-                # that are not fully occupied.
+        else:
+            # We may have to re-try the query if we need to release more
+            # capacity.  This loop allows a maximum of five retries before
+            # bailing out.
+            for _ in range(5):
                 res = self._execute_sql(
-                    _RELEASE_NODE_CAPACITY,
-                    capacity_release_rate=self.capacity_release_rate,
-                    service=self._get_service_id(SERVICE_NAME)
-                )
+                    _GET_BEST_NODE,
+                    service=self._get_service_id(SERVICE_NAME))
+                row = res.fetchone()
                 res.close()
-                if res.rowcount == 0:
+                if row is None:
+                    # Try to release additional capacity from any nodes
+                    # that are not fully occupied.
+                    res = self._execute_sql(
+                        _RELEASE_NODE_CAPACITY,
+                        capacity_release_rate=self.capacity_release_rate,
+                        service=self._get_service_id(SERVICE_NAME)
+                    )
+                    res.close()
+                    if res.rowcount == 0:
+                        break
+                else:
                     break
-            else:
-                break
 
         # Did we succeed in finding a node?
         if row is None:

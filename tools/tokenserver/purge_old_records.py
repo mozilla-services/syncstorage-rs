@@ -29,8 +29,12 @@ import util
 from database import Database
 from util import format_key_id
 
-logger = logging.getLogger("tokenserver.scripts.purge_old_records")
-logger.setLevel(os.environ.get("PYTHON_LOG", "ERROR").upper())
+LOGGER = "tokenserver.scripts.purge_old_records"
+
+logger = logging.getLogger(LOGGER)
+log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
+logger.setLevel(log_level)
+logger.debug(f"Setting level to {log_level}")
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -70,6 +74,7 @@ def purge_old_records(
                 "grace_period": grace_period,
                 "limit": max_per_loop,
                 "offset": offset,
+                "uid_range": uid_range,
             }
             rows = list(database.get_old_user_records(**kwds))
             if not rows:
@@ -78,7 +83,14 @@ def purge_old_records(
             if rows == previous_list:
                 raise Exception("Loop detected")
             previous_list = rows
-            logger.info("Fetched %d rows at offset %d", len(rows), offset)
+            range_msg = ""
+            if uid_range:
+                range_msg = (
+                    f" within range {uid_range[0] or 'Start'}"
+                    f" to {uid_range[1] or 'End'}"
+                )
+            logger.info(
+                f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
             counter = 0
             for row in rows:
                 # Don't attempt to purge data from downed nodes.
@@ -205,8 +217,22 @@ def points_to_active(database, replaced_at_row, override_node):
         # assigned a spanner node record by get_user (TODO: rename get_user ->
         # get_or_assign_user)
         user = database.get_user(replaced_at_row.email)
-        return (user["generation"] == replaced_at_row.generation and
-                user["client_state"] == replaced_at_row.client_state)
+        # The index of the data in syncstorage is determined by the user's
+        # `fxa_uid` and `fxa_kid`. Both records have the same `fxa_uid`
+        # (derived from their email). Check if the `fxa_kid` produced from the
+        # active user record matches the `fxa_kid` produced by the
+        # `replaced_at` record
+        user_fxa_kid = format_key_id(
+            user["keys_changed_at"] or user["generation"],
+            binascii.unhexlify(user["client_state"]),
+        )
+        # mimic what `get_user` does for this nullable column
+        replaced_at_row_keys_changed_at = replaced_at_row.keys_changed_at or 0
+        replaced_at_row_fxa_kid = format_key_id(
+            replaced_at_row_keys_changed_at or replaced_at_row.generation,
+            binascii.unhexlify(replaced_at_row.client_state),
+        )
+        return user_fxa_kid == replaced_at_row_fxa_kid
     return False
 
 
@@ -228,6 +254,7 @@ def main(args=None):
     This function parses command-line arguments and passes them on
     to the purge_old_records() function.
     """
+    logger = logging.getLogger(LOGGER)
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -304,27 +331,31 @@ def main(args=None):
         "",
         "--range_start",
         default=None,
-        help="Start of UID range to purge"
+        help="Start of UID range to check"
     )
     parser.add_option(
         "",
         "--range_end",
         default=None,
-        help="End of UID range to purge (exclusive)"
+        help="End of UID range to check"
     )
 
     opts, args = parser.parse_args(args)
-    if len(args) != 2:
+
+    if len(args) == 0:
         parser.print_usage()
         return 1
 
-    secret = args[1]
+    # Secret is the last arg?
+    secret = args[-1]
+    logger.debug(f"Secret: {secret}")
 
     util.configure_script_logging(opts)
 
     uid_range = None
-    if opts.start_range or opts.end_range:
-        uid_range = (opts.start_range, opts.end_range)
+    if opts.range_start or opts.range_end:
+        uid_range = (opts.range_start, opts.range_end)
+        logger.debug(f"Looking in range {uid_range}")
 
     purge_old_records(
         secret,
@@ -336,7 +367,7 @@ def main(args=None):
         dryrun=opts.dryrun,
         force=opts.force,
         override_node=opts.override_node,
-        range=uid_range
+        uid_range=uid_range,
     )
     if not opts.oneshot:
         while True:
@@ -347,6 +378,7 @@ def main(args=None):
             logger.debug("Sleeping for %d seconds", sleep_time)
             time.sleep(sleep_time)
             purge_old_records(
+                secret,
                 grace_period=opts.grace_period,
                 max_per_loop=opts.max_per_loop,
                 max_offset=opts.max_offset,
@@ -355,6 +387,7 @@ def main(args=None):
                 dryrun=opts.dryrun,
                 force=opts.force,
                 override_node=opts.override_node,
+                uid_range=uid_range,
             )
     return 0
 
