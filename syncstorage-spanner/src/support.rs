@@ -468,6 +468,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 pub trait MapAndThenTrait {
     /// Return an iterator adaptor that applies the provided closure to every
     /// DbResult::Ok value. DbResult::Err values are unchanged.
