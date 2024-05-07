@@ -240,6 +240,18 @@ where
     and node = :node
  """)
 
+
+_GET_SPANNER_NODE = sqltext("""\
+select
+     id, node
+from
+     nodes
+where
+     id = :id
+limit
+    1
+""")
+
 SERVICE_NAME = 'sync-1.5'
 
 
@@ -251,6 +263,8 @@ class Database:
             connect()
         self.capacity_release_rate = os.environ. \
             get("NODE_CAPACITY_RELEASE_RATE", 0.1)
+        self.spanner_node_id = os.environ.get(
+            "SYNC_TOKENSERVER__SPANNER_NODE_ID")
 
     def _execute_sql(self, *args, **kwds):
         return self.database.execute(*args, **kwds)
@@ -641,26 +655,36 @@ class Database:
         """Returns the 'least loaded' node currently available, increments the
         active count on that node, and decrements the slots currently available
         """
-        # We may have to re-try the query if we need to release more capacity.
-        # This loop allows a maximum of five retries before bailing out.
-        for _ in range(5):
-            res = self._execute_sql(_GET_BEST_NODE,
-                                    service=self._get_service_id(SERVICE_NAME))
+        if self.spanner_node_id:
+            res = self._execute_sql(
+                _GET_SPANNER_NODE,
+                id=self.spanner_node_id
+            )
             row = res.fetchone()
             res.close()
-            if row is None:
-                # Try to release additional capacity from any nodes
-                # that are not fully occupied.
+        else:
+            # We may have to re-try the query if we need to release more
+            # capacity.  This loop allows a maximum of five retries before
+            # bailing out.
+            for _ in range(5):
                 res = self._execute_sql(
-                    _RELEASE_NODE_CAPACITY,
-                    capacity_release_rate=self.capacity_release_rate,
-                    service=self._get_service_id(SERVICE_NAME)
-                )
+                    _GET_BEST_NODE,
+                    service=self._get_service_id(SERVICE_NAME))
+                row = res.fetchone()
                 res.close()
-                if res.rowcount == 0:
+                if row is None:
+                    # Try to release additional capacity from any nodes
+                    # that are not fully occupied.
+                    res = self._execute_sql(
+                        _RELEASE_NODE_CAPACITY,
+                        capacity_release_rate=self.capacity_release_rate,
+                        service=self._get_service_id(SERVICE_NAME)
+                    )
+                    res.close()
+                    if res.rowcount == 0:
+                        break
+                else:
                     break
-            else:
-                break
 
         # Did we succeed in finding a node?
         if row is None:
