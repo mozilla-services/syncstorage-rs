@@ -267,7 +267,7 @@ class Database:
             "SYNC_TOKENSERVER__SPANNER_NODE_ID")
         self.spanner_node = None
         if self.spanner_node_id:
-            self.spanner_node = self.get_node(self.spanner_node_id)
+            self.spanner_node = self.get_spanner_node(self.spanner_node_id)
 
     def _execute_sql(self, *args, **kwds):
         return self.database.execute(*args, **kwds)
@@ -664,14 +664,8 @@ class Database:
             return self.spanner_node_id, self.spanner_node
         # if, for whatever reason, we haven't gotten the spanner node yet...
         if self.spanner_node_id:
-            res = self._execute_sql(
-                _GET_SPANNER_NODE,
-                id=self.spanner_node_id
-            )
-            row = res.fetchone()
-            res.close()
-            # The spanner node is the best node.
-            return self.spanner_node_id, str(row.node)
+            self.spanner_node = self.get_spanner_node(self.spanner_node_id)
+            return self.spanner_node_id, self.spanner_node
         else:
             # We may have to re-try the query if we need to release more
             # capacity.  This loop allows a maximum of five retries before
@@ -724,6 +718,16 @@ class Database:
         if row is None:
             raise Exception('unknown node: ' + node)
         return row
+
+    # somewhat simplified version that just gets the one Spanner node.
+    def get_spanner_node(self, node):
+        res = self._execute_sql(_GET_SPANNER_NODE,
+                                id=node)
+        row = res.fetchone()
+        res.close()
+        if row is None:
+            raise Exception(f'unknown node: {node}')
+        return str(row.node)
 
 
 def max_keys_changed_at(user, keys_changed_at):
