@@ -265,6 +265,9 @@ class Database:
             get("NODE_CAPACITY_RELEASE_RATE", 0.1)
         self.spanner_node_id = os.environ.get(
             "SYNC_TOKENSERVER__SPANNER_NODE_ID")
+        self.spanner_node = None
+        if self.spanner_node_id:
+            self.spanner_node = self.get_node(self.spanner_node_id)
 
     def _execute_sql(self, *args, **kwds):
         return self.database.execute(*args, **kwds)
@@ -522,8 +525,9 @@ class Database:
     def delete_user_record(self, uid):
         """Delete the user record with the given uid."""
         params = {'service': self._get_service_id(SERVICE_NAME), 'uid': uid}
-        res = self._execute_sql(_FREE_SLOT_ON_NODE, **params)
-        res.close()
+        if not self.spanner_node_id:
+            res = self._execute_sql(_FREE_SLOT_ON_NODE, **params)
+            res.close()
         res = self._execute_sql(_DELETE_USER_RECORD, **params)
         res.close()
 
@@ -655,6 +659,10 @@ class Database:
         """Returns the 'least loaded' node currently available, increments the
         active count on that node, and decrements the slots currently available
         """
+        # The spanner node is the best node.
+        if self.spanner_node:
+            return self.spanner_node_id, self.spanner_node
+        # if, for whatever reason, we haven't gotten the spanner node yet...
         if self.spanner_node_id:
             res = self._execute_sql(
                 _GET_SPANNER_NODE,
@@ -662,6 +670,8 @@ class Database:
             )
             row = res.fetchone()
             res.close()
+            # The spanner node is the best node.
+            return self.spanner_node_id, str(row.node)
         else:
             # We may have to re-try the query if we need to release more
             # capacity.  This loop allows a maximum of five retries before
@@ -704,6 +714,8 @@ class Database:
         return nodeid, node
 
     def get_node(self, node):
+        if node is None:
+            raise Exception("NONE node")
         res = self._execute_sql(_GET_NODE,
                                 service=self._get_service_id(SERVICE_NAME),
                                 node=node)
