@@ -44,8 +44,8 @@ impl DbTransactionPool {
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
     /// action has succeeded (ex. check HTTP response for internal error).
-    async fn transaction_internal<'a, A: 'a, R, F>(
-        &'a self,
+    async fn transaction_internal<'a, A, R, F>(
+        &self,
         request: HttpRequest,
         action: A,
     ) -> Result<(R, Box<dyn Db<Error = DbError>>), ApiError>
@@ -90,7 +90,7 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A: 'a, R, F>(
+    pub async fn transaction<'a, A, R, F>(
         &'a self,
         request: HttpRequest,
         action: A,
@@ -108,7 +108,7 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A: 'a, F>(
+    pub async fn transaction_http<'a, A, F>(
         &'a self,
         request: HttpRequest,
         action: A,

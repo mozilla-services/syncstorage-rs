@@ -2,7 +2,7 @@ use std::fmt;
 
 use backtrace::Backtrace;
 use http::StatusCode;
-use syncserver_common::{from_error, impl_fmt_display};
+use syncserver_common::{from_error, impl_fmt_display, ReportableError};
 use thiserror::Error;
 
 /// Error specific to any MySQL database backend. These errors are not related to the syncstorage
@@ -36,6 +36,34 @@ impl From<MysqlErrorKind> for MysqlError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             backtrace: Backtrace::new(),
         }
+    }
+}
+
+impl ReportableError for MysqlError {
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        // There are no further local errors, therefore no need to
+        // look deeper
+        None
+    }
+
+    fn is_sentry_event(&self) -> bool {
+        true
+    }
+
+    fn metric_label(&self) -> Option<String> {
+        Some(
+            match self.kind {
+                MysqlErrorKind::DieselQuery(_) => "diesel_query",
+                MysqlErrorKind::DieselConnection(_) => "diesel_connection",
+                MysqlErrorKind::Pool(_) => "pool",
+                MysqlErrorKind::Migration(_) => "migration",
+            }
+            .to_string(),
+        )
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 }
 

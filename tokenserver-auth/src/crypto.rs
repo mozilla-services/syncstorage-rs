@@ -22,6 +22,7 @@ pub trait Crypto {
     /// Signs the `payload` using HMAC given the `key`
     fn hmac_sign(&self, key: &[u8], payload: &[u8]) -> Result<Vec<u8>, Self::Error>;
 
+    #[allow(dead_code)]
     /// Verify an HMAC signature on a payload given a shared key
     fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error>;
 

@@ -140,7 +140,7 @@ where
     E: ReportableError + StdError,
 {
     let mut exception = exception_from_error(err);
-    exception.stacktrace = parse_stacktrace(&err.error_backtrace());
+    exception.stacktrace = parse_stacktrace(&format!("{:?}", &err.backtrace()));
     exception
 }
 

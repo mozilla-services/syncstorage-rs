@@ -9,6 +9,7 @@ use std::{
 };
 
 use actix_web::web;
+use backtrace::Backtrace;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
@@ -59,9 +60,34 @@ macro_rules! impl_fmt_display {
 }
 
 pub trait ReportableError {
-    fn error_backtrace(&self) -> String;
+    /// Like [Error::source] but returns the source (if any) of this error as a
+    /// [ReportableError] if it implements the trait. Otherwise callers of this
+    /// method will likely subsequently call [Error::source] to return the
+    /// source (if any) as the parent [Error] trait.
+
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        None
+    }
+
+    /// Return a `Backtrace` for this Error if one was captured
+    fn backtrace(&self) -> Option<&Backtrace>;
+
+    /// Whether this error is reported to Sentry
     fn is_sentry_event(&self) -> bool;
+
+    /// Errors that don't emit Sentry events (!is_sentry_event()) emit an
+    /// increment metric instead with this label
     fn metric_label(&self) -> Option<String>;
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        vec![]
+    }
+
+    /// Experimental: return key value pairs for Sentry Event's extra data
+    /// TODO: should probably return Vec<(&str, Value)> or Vec<(String, Value)>
+    fn extras(&self) -> Vec<(&str, String)> {
+        vec![]
+    }
 }
 
 /// Types that implement this trait can represent internal errors.

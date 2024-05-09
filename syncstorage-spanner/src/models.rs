@@ -222,8 +222,7 @@ impl SpannerDb {
             .session
             .borrow()
             .coll_locks
-            .get(&(params.user_id.clone(), collection_id))
-            .is_some()
+            .contains_key(&(params.user_id.clone(), collection_id))
         {
             return Ok(());
         }

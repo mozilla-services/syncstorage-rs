@@ -257,8 +257,12 @@ impl From<TokenserverError> for HttpResponse {
 }
 
 impl ReportableError for TokenserverError {
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        None
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 
     fn is_sentry_event(&self) -> bool {
