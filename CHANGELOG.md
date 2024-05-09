@@ -1,3 +1,13 @@
+<a name="0.15.8"></a>
+## 0.15.8 (2024-05-08)
+
+
+#### Features
+
+*   Ignore non-spanner nodes for scripts (#1557) ([581c2507](https://github.com/mozilla-services/syncstorage-rs/commit/581c250739f0f51f392dc5dc5984924395545791))
+
+
+
 <a name="0.15.7"></a>
 ## 0.15.7 (2024-05-02)
 

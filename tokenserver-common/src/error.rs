@@ -270,6 +270,14 @@ impl ReportableError for TokenserverError {
             match self.token_type {
                 TokenType::Oauth => Some("request.error.oauth".to_owned()),
             }
+        } else if matches!(
+            self,
+            TokenserverError {
+                status: "invalid-client-state",
+                ..
+            }
+        ) {
+            Some("request.error.invalid_client_state".to_owned())
         } else {
             None
         }
