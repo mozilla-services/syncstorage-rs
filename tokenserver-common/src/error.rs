@@ -271,6 +271,14 @@ impl ReportableError for TokenserverError {
                 TokenType::BrowserId => Some("request.error.browser_id".to_owned()),
                 TokenType::Oauth => Some("request.error.oauth".to_owned()),
             }
+        } else if matches!(
+            self,
+            TokenserverError {
+                status: "invalid-client-state",
+                ..
+            }
+        ) {
+            Some("request.error.invalid_client_state".to_owned())
         } else {
             None
         }
