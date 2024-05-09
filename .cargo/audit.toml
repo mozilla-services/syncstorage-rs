@@ -1,4 +1,5 @@
 [advisories]
 ignore = [
        "RUSTSEC-2024-0365", # Bound by diesel 1.4 (4GB limit n/a to tokenserver)
+       "RUSTSEC-2022-0090",
 ]
