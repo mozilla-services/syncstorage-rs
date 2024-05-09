@@ -389,7 +389,7 @@ impl TokenserverDb {
             let raw_user = raw_users[0].clone();
 
             // Collect any old client states that differ from the current client state
-            let old_client_states = {
+            let old_client_states: Vec<String> = {
                 raw_users[1..]
                     .iter()
                     .map(|user| user.client_state.clone())
@@ -463,7 +463,11 @@ impl TokenserverDb {
                 // The most up-to-date user doesn't have a node and is retired. This is an internal
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
-                (_, None) => Err(DbError::internal("Tokenserver user retired".to_owned())),
+                (_, None) => {
+                    let uid = raw_user.uid;
+                    warn!("Tokenserver user retired"; "uid" => &uid);
+                    Err(DbError::internal("Tokenserver user retired".to_owned()))
+                }
             }
         }
     }
