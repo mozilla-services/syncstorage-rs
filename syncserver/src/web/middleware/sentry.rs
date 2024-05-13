@@ -1,245 +1,263 @@
-use std::collections::HashMap;
-use std::error::Error as StdError;
-use std::future::Future;
+use std::{cell::RefCell, collections::BTreeMap, marker::PhantomData, rc::Rc, sync::Arc};
 
-use actix_http::HttpMessage;
 use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse},
-    http::header::USER_AGENT,
-    FromRequest,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    Error,
 };
-use sentry::protocol::Event;
-use sentry_backtrace::parse_stacktrace;
-use serde_json::value::Value;
-use syncserver_common::{Metrics, ReportableError};
-use tokenserver_common::TokenserverError;
+use cadence::{CountedExt, StatsdClient};
+use futures::{future::LocalBoxFuture, FutureExt};
+use futures_util::future::{ok, Ready};
+use sentry::{protocol::Event, Hub};
 
-use crate::error::ApiError;
-use crate::server::{tags::Taggable, user_agent, MetricsWrapper};
+use crate::server::tags::Taggable;
+use syncserver_common::ReportableError;
 
-pub fn report(
-    tags: HashMap<String, String>,
-    extra: HashMap<String, String>,
-    mut event: Event<'static>,
-) {
-    event.tags.extend(tags);
-    event
-        .extra
-        .extend(extra.into_iter().map(|(k, v)| (k, Value::from(v))));
-    trace!("Sentry: Sending error: {:?}", &event);
-    sentry::capture_event(event);
+#[derive(Clone)]
+pub struct SentryWrapper<E> {
+    metrics: Arc<StatsdClient>,
+    metric_label: String,
+    phantom: PhantomData<E>,
 }
 
-pub fn report_error<B>(
-    request: ServiceRequest,
-    service: &impl Service<ServiceRequest, Response = ServiceResponse<B>, Error = actix_web::Error>,
-) -> impl Future<Output = Result<ServiceResponse<B>, actix_web::Error>> {
-    add_initial_tags(&request, request.head().method.to_string());
-    add_initial_extras(&request, request.head().uri.to_string());
-
-    let fut = service.call(request);
-
-    async move {
-        let mut sresp = fut.await?;
-        let tags = sresp.request().get_tags();
-        let extras = sresp.request().get_extras();
-
-        match sresp.response().error() {
-            None => {
-                // Middleware errors are eaten by current versions of Actix. Errors are now added
-                // to the extensions. Need to check both for any errors and report them.
-                if let Some(events) = sresp
-                    .request()
-                    .extensions_mut()
-                    .remove::<Vec<Event<'static>>>()
-                {
-                    for event in events {
-                        trace!("Sentry: found an error stored in request: {:?}", &event);
-                        report(tags.clone(), extras.clone(), event);
-                    }
-                }
-                if let Some(events) = sresp
-                    .response_mut()
-                    .extensions_mut()
-                    .remove::<Vec<Event<'static>>>()
-                {
-                    for event in events {
-                        trace!("Sentry: Found an error stored in response: {:?}", &event);
-                        report(tags.clone(), extras.clone(), event);
-                    }
-                }
-            }
-            Some(e) => {
-                let metrics = MetricsWrapper::extract(sresp.request()).await.unwrap().0;
-
-                if let Some(apie) = e.as_error::<ApiError>() {
-                    process_error(apie, metrics, tags, extras);
-                } else if let Some(tokenserver_error) = e.as_error::<TokenserverError>() {
-                    process_error(tokenserver_error, metrics, tags, extras);
-                }
-            }
+impl<E> SentryWrapper<E> {
+    pub fn new(metrics: Arc<StatsdClient>, metric_label: String) -> Self {
+        Self {
+            metrics,
+            metric_label,
+            phantom: PhantomData,
         }
-        Ok(sresp)
     }
 }
 
-fn process_error<E>(
-    err: &E,
-    metrics: Metrics,
-    tags: HashMap<String, String>,
-    extras: HashMap<String, String>,
-) where
-    E: ReportableError + StdError + 'static,
+impl<S, B, E> Transform<S, ServiceRequest> for SentryWrapper<E>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    E: ReportableError + actix_web::ResponseError + 'static,
 {
-    if let Some(label) = err.metric_label() {
-        metrics.incr(&label);
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Transform = SentryWrapperMiddleware<S, E>;
+    type InitError = ();
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(SentryWrapperMiddleware {
+            service: Rc::new(RefCell::new(service)),
+            metrics: self.metrics.clone(),
+            metric_label: self.metric_label.clone(),
+            phantom: PhantomData,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct SentryWrapperMiddleware<S, E> {
+    service: Rc<RefCell<S>>,
+    metrics: Arc<StatsdClient>,
+    metric_label: String,
+    phantom: PhantomData<E>,
+}
+
+impl<S, B, E> Service<ServiceRequest> for SentryWrapperMiddleware<S, E>
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    E: ReportableError + actix_web::ResponseError + 'static,
+{
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    actix_web::dev::forward_ready!(service);
+
+    fn call(&self, sreq: ServiceRequest) -> Self::Future {
+        // Set up the hub to add request data to events
+        let hub = Hub::new_from_top(Hub::main());
+        let _ = hub.push_scope();
+        let sentry_request = sentry_request_from_http(&sreq);
+        hub.configure_scope(|scope| {
+            scope.add_event_processor(Box::new(move |event| process_event(event, &sentry_request)))
+        });
+
+        // get the tag information
+        let metrics = self.metrics.clone();
+        let metric_label = self.metric_label.clone();
+        let tags = sreq.get_tags();
+        let extras = sreq.get_extras();
+
+        let fut = self.service.call(sreq);
+
+        async move {
+            let response: Self::Response = match fut.await {
+                Ok(response) => response,
+                Err(error) => {
+                    if let Some(reportable_err) = error.as_error::<E>() {
+                        // if it's not reportable, and we have access to the metrics, record it as a metric.
+                        if !reportable_err.is_sentry_event() {
+                            // The error (e.g. VapidErrorKind::InvalidKey(String)) might be too cardinal,
+                            // but we may need that information to debug a production issue. We can
+                            // add an info here, temporarily turn on info level debugging on a given server,
+                            // capture it, and then turn it off before we run out of money.
+                            if let Some(label) = reportable_err.metric_label() {
+                                info!("Sentry: Sending error to metrics: {:?}", reportable_err);
+                                let _ = metrics.incr(&format!("{}.{}", metric_label, label));
+                            }
+                            debug!("Sentry: Not reporting error (service error): {:?}", error);
+                            return Err(error);
+                        }
+                    };
+                    debug!("Reporting error to Sentry (service error): {}", error);
+                    let mut event = event_from_actix_error::<E>(&error);
+                    // Add in the tags from the request
+                    event.tags.extend(tags);
+                    event.extra.extend(extras);
+                    let event_id = hub.capture_event(event);
+                    trace!("event_id = {}", event_id);
+                    return Err(error);
+                }
+            };
+            // Check for errors inside the response
+            if let Some(error) = response.response().error() {
+                if let Some(reportable_err) = error.as_error::<E>() {
+                    if !reportable_err.is_sentry_event() {
+                        if let Some(label) = reportable_err.metric_label() {
+                            info!("Sentry: Sending error to metrics: {:?}", reportable_err);
+                            let _ = metrics.incr(&format!("{}.{}", metric_label, label));
+                        }
+                        debug!("Not reporting error (service error): {:?}", error);
+                        return Ok(response);
+                    }
+                }
+                debug!("Reporting error to Sentry (response error): {}", error);
+                let event = event_from_actix_error::<E>(error);
+                let event_id = hub.capture_event(event);
+                trace!("event_id = {}", event_id);
+            }
+            Ok(response)
+        }
+        .boxed_local()
+    }
+}
+
+/// Build a Sentry request struct from the HTTP request
+fn sentry_request_from_http(request: &ServiceRequest) -> sentry::protocol::Request {
+    sentry::protocol::Request {
+        url: format!(
+            "{}://{}{}",
+            request.connection_info().scheme(),
+            request.connection_info().host(),
+            request.uri()
+        )
+        .parse()
+        .ok(),
+        method: Some(request.method().to_string()),
+        headers: request
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or_default().to_string()))
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// Add request data to a Sentry event
+#[allow(clippy::unnecessary_wraps)]
+fn process_event(
+    mut event: Event<'static>,
+    request: &sentry::protocol::Request,
+) -> Option<Event<'static>> {
+    if event.request.is_none() {
+        event.request = Some(request.clone());
     }
 
-    if err.is_sentry_event() {
-        report(tags, extras, event_from_error(err));
+    // TODO: Use ServiceRequest::match_pattern for the event transaction.
+    //       Coming in Actix v3.
+
+    Some(event)
+}
+
+/// Convert Actix errors into a Sentry event. ReportableError is handled
+/// explicitly so the event can include a backtrace and source error
+/// information.
+fn event_from_actix_error<E>(error: &actix_web::Error) -> sentry::protocol::Event<'static>
+where
+    E: ReportableError + actix_web::ResponseError + 'static,
+{
+    // Actix errors don't have support source/cause, so to get more information
+    // about the error we need to downcast.
+    if let Some(reportable_err) = error.as_error::<E>() {
+        // Use our error and associated backtrace for the event
+        event_from_error(reportable_err)
     } else {
-        trace!("Sentry: Not reporting error: {:?}", err);
+        // Fallback to the Actix error
+        sentry::event_from_error(error)
     }
 }
 
 /// Custom `sentry::event_from_error` for `ReportableError`
 ///
-/// `sentry::event_from_error` can't access `std::Error` backtraces as its
-/// `backtrace()` method is currently Rust nightly only. This function works
-/// against `ReportableError` instead to access its backtrace.
-pub fn event_from_error<E>(err: &E) -> Event<'static>
-where
-    E: ReportableError + StdError + 'static,
-{
-    let mut exceptions = vec![exception_from_error_with_backtrace(err)];
+/// `std::error::Error` doesn't support backtraces, thus `sentry::event_from_error`
+/// doesn't either. This function works against `ReportableError` instead to
+/// extract backtraces, etc. from it and its chain of `reportable_source's.
+///
+/// A caveat of this function is that it cannot extract
+/// `ReportableError`s/backtraces, etc. that occur in a chain after a
+/// `std::error::Error` occurs: as `std::error::Error::source` only allows
+/// downcasting to a concrete type, not `dyn ReportableError`.
+pub fn event_from_error(
+    mut reportable_err: &dyn ReportableError,
+) -> sentry::protocol::Event<'static> {
+    let mut exceptions = vec![];
+    let mut tags = BTreeMap::new();
+    let mut extra = BTreeMap::new();
 
-    let mut source = err.source();
-    while let Some(err) = source {
-        let exception = if let Some(err) = err.downcast_ref::<E>() {
-            exception_from_error_with_backtrace(err)
-        } else {
-            exception_from_error(err)
+    // Gather reportable_source()'s for their backtraces, etc
+    loop {
+        exceptions.push(exception_from_reportable_error(reportable_err));
+        for (k, v) in reportable_err.tags() {
+            // NOTE: potentially overwrites other tags/extras from this chain
+            tags.insert(k.to_owned(), v);
+        }
+        for (k, v) in reportable_err.extras() {
+            extra.insert(k.to_owned(), v.into());
+        }
+        reportable_err = match reportable_err.reportable_source() {
+            Some(reportable_err) => reportable_err,
+            None => break,
         };
-        exceptions.push(exception);
-        source = err.source();
+    }
+
+    // Then fallback to source() for remaining Errors
+    let mut source = reportable_err.reportable_source();
+    while let Some(err) = source {
+        exceptions.push(exception_from_reportable_error(err));
+        source = err.reportable_source();
     }
 
     exceptions.reverse();
-    Event {
+    sentry::protocol::Event {
         exception: exceptions.into(),
         level: sentry::protocol::Level::Error,
+        tags,
+        extra,
         ..Default::default()
     }
 }
 
 /// Custom `exception_from_error` support function for `ReportableError`
 ///
-/// Based moreso on sentry_failure's `exception_from_single_fail`.
-fn exception_from_error_with_backtrace<E>(err: &E) -> sentry::protocol::Exception
-where
-    E: ReportableError + StdError,
-{
-    let mut exception = exception_from_error(err);
-    exception.stacktrace = parse_stacktrace(&format!("{:?}", &err.backtrace()));
-    exception
-}
-
-/// Exact copy of sentry's unfortunately private `exception_from_error`
-fn exception_from_error<E: StdError + ?Sized>(err: &E) -> sentry::protocol::Exception {
-    let dbg = format!("{:?}", err);
+/// Based moreso on sentry_failure's `exception_from_single_fail`. Includes a
+/// stacktrace if available.
+fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::protocol::Exception {
+    let dbg = format!("{:?}", &err.to_string());
     sentry::protocol::Exception {
         ty: sentry::parse_type_from_debug(&dbg).to_owned(),
-        value: Some(err.to_string()),
+        value: Some(dbg),
+        stacktrace: err
+            .backtrace()
+            .map(sentry_backtrace::backtrace_to_stacktrace)
+            .unwrap_or_default(),
         ..Default::default()
-    }
-}
-
-/// Adds HTTP-related tags to be included in every syncstorage or tokenserver request.
-fn add_initial_tags<T>(msg: &T, method: String)
-where
-    T: Taggable + HttpMessage,
-{
-    msg.add_tag("uri.method".to_owned(), method);
-}
-
-/// Adds HTTP-related extras to be included in every syncstorage or tokenserver request.
-fn add_initial_extras<T>(msg: &T, uri: String)
-where
-    T: Taggable + HttpMessage,
-{
-    if let Some(ua) = msg.headers().get(USER_AGENT) {
-        if let Ok(uas) = ua.to_str() {
-            let (ua_result, metrics_os, metrics_browser) = user_agent::parse_user_agent(uas);
-            msg.add_extra("ua.os.family".to_owned(), metrics_os.to_owned());
-            msg.add_extra("ua.browser.family".to_owned(), metrics_browser.to_owned());
-            msg.add_extra("ua.name".to_owned(), ua_result.name.to_owned());
-            msg.add_extra("ua.os.ver".to_owned(), ua_result.os_version.to_string());
-            msg.add_extra("ua.browser.ver".to_owned(), ua_result.version.to_owned());
-            msg.add_extra("ua".to_owned(), uas.to_string());
-        }
-    }
-
-    msg.add_extra("uri.path".to_owned(), uri);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tags() {
-        use actix_web::{http::header, test::TestRequest};
-        use std::collections::HashMap;
-
-        let uri = "/1.5/42/storage/meta/global".to_owned();
-        let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0";
-        let req = TestRequest::default()
-            .uri(&uri)
-            .insert_header((header::USER_AGENT, header::HeaderValue::from_static(ua)))
-            .to_http_request();
-
-        add_initial_tags(&req, "GET".to_owned());
-        add_initial_extras(&req, uri.clone());
-
-        let mut tags = HashMap::<String, String>::new();
-        tags.insert("uri.method".to_owned(), "GET".to_owned());
-
-        for tag in tags.clone() {
-            req.add_tag(tag.0.clone(), tag.1.clone());
-        }
-
-        let mut extras = HashMap::<String, String>::new();
-        extras.insert("ua.os.ver".to_owned(), "NT 10.0".to_owned());
-        extras.insert("ua.os.family".to_owned(), "Windows".to_owned());
-        extras.insert("ua.browser.ver".to_owned(), "72.0".to_owned());
-        extras.insert("ua.name".to_owned(), "Firefox".to_owned());
-        extras.insert("ua.browser.family".to_owned(), "Firefox".to_owned());
-        extras.insert("ua".to_owned(), ua.to_owned());
-        extras.insert("uri.path".to_owned(), uri);
-
-        for extra in extras.clone() {
-            req.add_extra(extra.0.clone(), extra.1.clone())
-        }
-
-        assert_eq!(req.get_tags(), tags);
-        assert_eq!(req.get_extras(), extras);
-    }
-
-    #[test]
-    fn no_empty_tags() {
-        use actix_web::{http::header, test::TestRequest};
-
-        let uri = "/1.5/42/storage/meta/global".to_owned();
-        let req = TestRequest::default()
-            .uri(&uri)
-            .insert_header((
-                header::USER_AGENT,
-                header::HeaderValue::from_static("Mozilla/5.0 (curl) Gecko/20100101 curl"),
-            ))
-            .to_http_request();
-        add_initial_tags(&req, "GET".to_owned());
-        add_initial_extras(&req, uri);
-
-        assert!(!req.get_tags().contains_key("ua.os.ver"));
     }
 }

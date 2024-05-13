@@ -11,6 +11,7 @@ use std::{
 use actix_web::web;
 use backtrace::Backtrace;
 use hkdf::Hkdf;
+use serde_json::Value;
 use sha2::Sha256;
 
 pub use metrics::{metrics_from_opts, MetricError, Metrics};
@@ -59,7 +60,7 @@ macro_rules! impl_fmt_display {
     };
 }
 
-pub trait ReportableError {
+pub trait ReportableError: std::fmt::Display {
     /// Like [Error::source] but returns the source (if any) of this error as a
     /// [ReportableError] if it implements the trait. Otherwise callers of this
     /// method will likely subsequently call [Error::source] to return the
@@ -85,7 +86,7 @@ pub trait ReportableError {
 
     /// Experimental: return key value pairs for Sentry Event's extra data
     /// TODO: should probably return Vec<(&str, Value)> or Vec<(String, Value)>
-    fn extras(&self) -> Vec<(&str, String)> {
+    fn extras(&self) -> Vec<(&str, Value)> {
         vec![]
     }
 }
