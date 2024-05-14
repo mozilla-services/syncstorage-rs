@@ -40,12 +40,6 @@ impl From<MysqlErrorKind> for MysqlError {
 }
 
 impl ReportableError for MysqlError {
-    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
-        // There are no further local errors, therefore no need to
-        // look deeper
-        None
-    }
-
     fn is_sentry_event(&self) -> bool {
         true
     }

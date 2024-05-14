@@ -263,10 +263,6 @@ impl From<TokenserverError> for HttpResponse {
 }
 
 impl ReportableError for TokenserverError {
-    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
-        None
-    }
-
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
     }

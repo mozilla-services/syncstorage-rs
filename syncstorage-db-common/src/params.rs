@@ -70,7 +70,7 @@ pub struct Offset {
 impl Display for Offset {
     fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
         // issue559: Disable ':' support for now.
-        write!(fmt, "{:?}", self.offset)
+        write!(fmt, "{}", self.offset)
         /*
         match self.timestamp {
             None => self.offset.to_string(),
