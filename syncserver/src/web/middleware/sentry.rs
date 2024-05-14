@@ -220,7 +220,7 @@ pub fn event_from_error(
             tags.insert(k.to_owned(), v);
         }
         for (k, v) in reportable_err.extras() {
-            extra.insert(k.to_owned(), v.into());
+            extra.insert(k.to_owned(), v);
         }
         reportable_err = match reportable_err.reportable_source() {
             Some(reportable_err) => reportable_err,
