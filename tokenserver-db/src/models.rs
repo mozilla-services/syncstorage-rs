@@ -213,8 +213,13 @@ impl TokenserverDb {
 
     fn check_sync(&self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
-        let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.inner.conn)?;
-        Ok(result as u64 > 0)
+        // NOTE: We have had a few incidents wheree asking the mysql server
+        // complex queries (e.g. return the Uptime) has caused possible resource
+        // contention in the database, which leads to service outages.
+        //
+        // We may have to disable health checks if this problem persists.
+        diesel::sql_query("select 1").execute(&self.inner.conn)?;
+        Ok(true)
     }
 
     /// Gets the least-loaded node that has available slots.
