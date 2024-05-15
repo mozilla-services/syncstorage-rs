@@ -45,6 +45,12 @@ impl PartialEq for TokenserverError {
     }
 }
 
+impl From<tokio::time::error::Elapsed> for TokenserverError {
+    fn from(_: tokio::time::error::Elapsed) -> Self {
+        TokenserverError::elapsed()
+    }
+}
+
 impl fmt::Display for TokenserverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.context)
@@ -121,6 +127,17 @@ impl TokenserverError {
             description: "Server error".to_owned(),
             http_status: StatusCode::INTERNAL_SERVER_ERROR,
             context: "Internal error".to_owned(),
+            ..Self::default()
+        }
+    }
+
+    pub fn elapsed() -> Self {
+        Self {
+            status: "elapsed",
+            location: ErrorLocation::Body,
+            description: "Elapsed".to_owned(),
+            http_status: StatusCode::GATEWAY_TIMEOUT,
+            context: "Elapsed".to_owned(),
             ..Self::default()
         }
     }

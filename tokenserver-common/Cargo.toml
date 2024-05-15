@@ -12,5 +12,6 @@ serde.workspace = true
 serde_json.workspace = true
 jsonwebtoken.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 
 syncserver-common = { path = "../syncserver-common" }
