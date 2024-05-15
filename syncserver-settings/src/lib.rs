@@ -38,6 +38,8 @@ pub struct Settings {
     pub cors_allowed_methods: Option<Vec<String>>,
     pub cors_allowed_headers: Option<Vec<String>>,
 
+    pub actix_threadpool: Option<usize>,
+
     // TOOD: Eventually, the below settings will be enabled or disabled via Cargo features
     pub syncstorage: SyncstorageSettings,
     pub tokenserver: TokenserverSettings,
@@ -205,6 +207,7 @@ impl Default for Settings {
                 .collect(),
             ),
             cors_max_age: Some(1728000),
+            actix_threadpool: Some(512),
             syncstorage: SyncstorageSettings::default(),
             tokenserver: TokenserverSettings::default(),
         }

@@ -318,6 +318,12 @@ impl Server {
         }
 
         let server = server
+            .worker_max_blocking_threads(settings.actix_threadpool.unwrap_or_else(|| {
+                env::var("ACTIX_THREADPOOL")
+                    .unwrap_or("512".to_owned())
+                    .parse()
+                    .unwrap_or(512)
+            }))
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
@@ -358,6 +364,12 @@ impl Server {
         });
 
         let server = server
+            .worker_max_blocking_threads(settings.actix_threadpool.unwrap_or_else(|| {
+                env::var("ACTIX_THREADPOOL")
+                    .unwrap_or("512".to_owned())
+                    .parse()
+                    .unwrap_or(512)
+            }))
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
