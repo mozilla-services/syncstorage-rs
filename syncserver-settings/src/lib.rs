@@ -38,7 +38,11 @@ pub struct Settings {
     pub cors_allowed_methods: Option<Vec<String>>,
     pub cors_allowed_headers: Option<Vec<String>>,
 
-    pub worker_max_blocking_threads: Option<usize>,
+    /// The maximum number of blocking threads that can be used by the worker.
+    /// Note, we don't want "None" here because we use this as part of the
+    /// metric periodic reporter. The default value is 512. Setting the value to
+    /// `0` will
+    pub worker_max_blocking_threads: usize,
 
     // TOOD: Eventually, the below settings will be enabled or disabled via Cargo features
     pub syncstorage: SyncstorageSettings,
@@ -66,8 +70,7 @@ impl Settings {
         match s.try_into::<Self>() {
             Ok(mut s) => {
                 s.syncstorage.normalize();
-
-                if matches!(env::var("ACTIX_THREADPOOL"), Err(VarError::NotPresent)) {
+                if s.worker_max_blocking_threads == 0 {
                     // Db backends w/ blocking calls block via
                     // actix-threadpool: grow its size to accommodate the
                     // full number of connections
@@ -107,13 +110,8 @@ impl Settings {
                     } else {
                         0
                     };
-
-                    env::set_var(
-                        "ACTIX_THREADPOOL",
-                        ((total_db_pool_size + fxa_threads) as usize)
-                            .max(num_cpus::get() * 5)
-                            .to_string(),
-                    );
+                    s.worker_max_blocking_threads =
+                        (total_db_pool_size + fxa_threads).max(num_cpus::get() as u32 * 5) as usize;
                 }
                 Ok(s)
             }
@@ -207,7 +205,7 @@ impl Default for Settings {
                 .collect(),
             ),
             cors_max_age: Some(1728000),
-            worker_max_blocking_threads: Some(512),
+            worker_max_blocking_threads: 512,
             syncstorage: SyncstorageSettings::default(),
             tokenserver: TokenserverSettings::default(),
         }
