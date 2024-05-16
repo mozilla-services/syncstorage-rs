@@ -206,6 +206,7 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
 
 #[cfg(test)]
 mod tests {
+
     use super::{HawkPayload, Secrets};
 
     #[test]
@@ -532,9 +533,10 @@ mod tests {
         }
     }
 
-    impl ToString for HawkHeader {
-        fn to_string(&self) -> String {
-            format!(
+    impl std::fmt::Display for HawkHeader {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            write!(
+                f,
                 "Hawk id=\"{}\", mac=\"{}\", nonce=\"{}\", ts=\"{}\"",
                 self.id, self.mac, self.nonce, self.ts
             )

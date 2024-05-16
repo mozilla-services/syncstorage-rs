@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate slog_scope;
 
-use std::env::{self, VarError};
-
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Deserializer};
 use syncserver_common::{
