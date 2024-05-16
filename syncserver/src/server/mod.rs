@@ -1,6 +1,6 @@
 //! Main application server
 
-use std::{convert::Infallible, env, sync::Arc, time::Duration};
+use std::{convert::Infallible, env, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -261,6 +261,7 @@ impl Server {
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
         )?;
+        let worker_max_blocking_threads = calculate_worker_max_blocking_threads(&settings);
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -318,12 +319,7 @@ impl Server {
         }
 
         let server = server
-            .worker_max_blocking_threads(settings.actix_threadpool.unwrap_or_else(|| {
-                env::var("ACTIX_THREADPOOL")
-                    .unwrap_or("512".to_owned())
-                    .parse()
-                    .unwrap_or(512)
-            }))
+            .worker_max_blocking_threads(worker_max_blocking_threads)
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
@@ -364,17 +360,25 @@ impl Server {
         });
 
         let server = server
-            .worker_max_blocking_threads(settings.actix_threadpool.unwrap_or_else(|| {
-                env::var("ACTIX_THREADPOOL")
-                    .unwrap_or("512".to_owned())
-                    .parse()
-                    .unwrap_or(512)
-            }))
+            .worker_max_blocking_threads(calculate_worker_max_blocking_threads(&settings))
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
         Ok(server)
     }
+}
+
+fn calculate_worker_max_blocking_threads(settings: &Settings) -> usize {
+    let parallelism = std::thread::available_parallelism().map_or(2, NonZeroUsize::get);
+    std::cmp::max(
+        settings.worker_max_blocking_threads.unwrap_or_else(|| {
+            env::var("ACTIX_THREADPOOL")
+                .unwrap_or("512".to_owned())
+                .parse()
+                .unwrap_or(512)
+        }) / parallelism,
+        1,
+    )
 }
 
 fn build_cors(settings: &Settings) -> Cors {
