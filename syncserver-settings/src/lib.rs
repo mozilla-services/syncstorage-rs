@@ -37,9 +37,8 @@ pub struct Settings {
     pub cors_allowed_headers: Option<Vec<String>>,
 
     /// The maximum number of blocking threads that can be used by the worker.
-    /// Note, we don't want "None" here because we use this as part of the
-    /// metric periodic reporter. The default value is 512. Setting the value to
-    /// `0` will
+    /// Note, we don't want "Option" here because we use this as part of the
+    /// metric periodic reporter. The default value is 512.
     pub worker_max_blocking_threads: usize,
 
     // TOOD: Eventually, the below settings will be enabled or disabled via Cargo features
