@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use sha2::Sha256;
 use tokenserver_common::TokenserverError;
 pub const SHA256_OUTPUT_LEN: usize = 32;
-/// A triat representing all the required cryptographic operations by the token server
+/// A trait representing all the required cryptographic operations by the token server
 pub trait Crypto {
     type Error;
     /// HKDF key derivation

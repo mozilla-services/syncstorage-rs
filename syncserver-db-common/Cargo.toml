@@ -1,15 +1,15 @@
 [package]
 name = "syncserver-db-common"
-version.workspace=true
-license.workspace=true
-authors.workspace=true
-edition.workspace=true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-backtrace.workspace=true
-futures.workspace=true
-http.workspace=true
-thiserror.workspace=true
+backtrace.workspace = true
+futures.workspace = true
+http.workspace = true
+thiserror.workspace = true
 
 deadpool = { git = "https://github.com/mozilla-services/deadpool", tag = "deadpool-v0.7.0" }
 diesel = { version = "1.4", features = ["mysql", "r2d2"] }

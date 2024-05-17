@@ -1,6 +1,6 @@
 //! Main application server
 
-use std::{convert::Infallible, env, sync::Arc, time::Duration};
+use std::{convert::Infallible, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{
@@ -270,6 +270,10 @@ impl Server {
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
         )?;
+        let worker_thread_count =
+            calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
+        // This is used as part of the metric reporter, which is only run when tokenserver is not
+        let total_thread_count = settings.worker_max_blocking_threads;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -297,6 +301,7 @@ impl Server {
                 metrics.clone(),
                 db_pool.clone(),
                 blocking_threadpool,
+                total_thread_count,
             )?;
 
             None
@@ -328,6 +333,7 @@ impl Server {
         }
 
         let server = server
+            .worker_max_blocking_threads(worker_thread_count)
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
@@ -338,10 +344,18 @@ impl Server {
         settings: Settings,
     ) -> Result<dev::Server, ApiError> {
         let settings_copy = settings.clone();
+
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
         let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+        // Adjust the thread count to include FxA blocking threads.
+        let thread_count = settings.worker_max_blocking_threads
+            + settings
+                .tokenserver
+                .additional_blocking_threads_for_fxa_requests
+                .unwrap_or(0) as usize;
+        let worker_thread_count = calculate_worker_max_blocking_threads(thread_count);
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
             syncserver_common::metrics_from_opts(
@@ -357,6 +371,7 @@ impl Server {
             tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
             blocking_threadpool,
+            thread_count,
         )?;
 
         let server = HttpServer::new(move || {
@@ -369,11 +384,17 @@ impl Server {
         });
 
         let server = server
+            .worker_max_blocking_threads(worker_thread_count)
             .bind(format!("{}:{}", host, port))
             .expect("Could not get Server in Server::with_settings")
             .run();
         Ok(server)
     }
+}
+
+fn calculate_worker_max_blocking_threads(count: usize) -> usize {
+    let parallelism = std::thread::available_parallelism().map_or(2, NonZeroUsize::get);
+    std::cmp::max(count / parallelism, 1)
 }
 
 fn build_cors(settings: &Settings) -> Cors {
@@ -449,13 +470,12 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     metrics: Arc<StatsdClient>,
     pool: T,
     blocking_threadpool: Arc<BlockingThreadpool>,
+    thread_count: usize,
 ) -> Result<(), DbError> {
     let hostname = hostname::get()
         .expect("Couldn't get hostname")
         .into_string()
         .expect("Couldn't get hostname");
-    let blocking_threadpool_size =
-        str::parse::<u64>(&env::var("ACTIX_THREADPOOL").unwrap()).unwrap();
     tokio::spawn(async move {
         loop {
             let PoolState {
@@ -475,7 +495,7 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
                 .send();
 
             let active_threads = blocking_threadpool.active_threads();
-            let idle_threads = blocking_threadpool_size - active_threads;
+            let idle_threads = thread_count as u64 - active_threads;
             metrics
                 .gauge_with_tags("blocking_threadpool.active", active_threads)
                 .with_tag("hostname", &hostname)

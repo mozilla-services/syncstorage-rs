@@ -44,7 +44,7 @@ impl DbTransactionPool {
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
     /// action has succeeded (ex. check HTTP response for internal error).
-    async fn transaction_internal<'a, A, R, F>(
+    async fn transaction_internal<A, R, F>(
         &self,
         request: HttpRequest,
         action: A,
