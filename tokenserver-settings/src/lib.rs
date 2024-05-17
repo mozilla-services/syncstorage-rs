@@ -63,7 +63,8 @@ pub struct Settings {
     /// The database ID of the Spanner node.
     pub spanner_node_id: Option<i32>,
     /// The number of additional blocking threads to add to the blocking threadpool to handle
-    /// OAuth verification requests to FxA. This value is added to the `ACTIX_THREADPOOL` env var.
+    /// OAuth verification requests to FxA. This value is added to the worker_max_blocking_threads
+    /// config var.
     /// Note that this setting only applies if the OAuth public JWK is not cached, since OAuth
     /// verifications do not require requests to FXA if the JWK is set on Tokenserver. The server
     /// will return an error at startup if the JWK is not cached and this setting is `None`.

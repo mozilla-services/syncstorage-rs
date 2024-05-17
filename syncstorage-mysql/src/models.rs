@@ -167,8 +167,7 @@ impl MysqlDb {
             .session
             .borrow()
             .coll_locks
-            .get(&(user_id as u32, collection_id))
-            .is_some()
+            .contains_key(&(user_id as u32, collection_id))
         {
             return Ok(());
         }

@@ -61,10 +61,10 @@ pub struct Offset {
     pub offset: u64,
 }
 
-impl ToString for Offset {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Offset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         // issue559: Disable ':' support for now.
-        self.offset.to_string()
+        write!(f, "{}", self.offset)
         /*
         match self.timestamp {
             None => self.offset.to_string(),

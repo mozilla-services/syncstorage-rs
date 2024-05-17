@@ -255,7 +255,7 @@ async fn create_session(
     settings: &SpannerSessionSettings,
 ) -> Result<Session, grpcio::Error> {
     let mut req = CreateSessionRequest::new();
-    req.database = settings.database.clone();
+    req.database.clone_from(&settings.database);
     let meta = settings
         .metadata_builder()
         .routing_param("database", &settings.database)

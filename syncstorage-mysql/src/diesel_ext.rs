@@ -38,6 +38,8 @@ impl QueryFragment<Mysql> for LockInShareMode {
     }
 }
 
+// May be used for certain legacy MySQL versions
+#[allow(dead_code)]
 /// Emit 'ON DUPLICATE KEY UPDATE'
 pub trait IntoDuplicateValueClause {
     type ValueClause;
@@ -45,6 +47,7 @@ pub trait IntoDuplicateValueClause {
     fn into_value_clause(self) -> Self::ValueClause;
 }
 
+#[allow(dead_code)]
 pub trait OnDuplicateKeyUpdateDsl<T, U, Op, Ret> {
     fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
     where

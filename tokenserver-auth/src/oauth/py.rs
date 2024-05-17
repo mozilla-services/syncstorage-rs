@@ -68,7 +68,7 @@ impl Verifier {
                         ("alg", &alg),
                         ("kid", kid),
                         ("use", "sig"),
-                        ("n", &n),
+                        ("n", n),
                         ("e", e),
                     ]
                     .into_py_dict(py);
