@@ -468,6 +468,9 @@ where
     }
 }
 
+// this is legacy, but may be used by the Stand Alone MySQL server. Allow it
+// as dead code for now.
+#[allow(dead_code)]
 pub trait MapAndThenTrait {
     /// Return an iterator adaptor that applies the provided closure to every
     /// DbResult::Ok value. DbResult::Err values are unchanged.
@@ -485,4 +488,5 @@ pub trait MapAndThenTrait {
     }
 }
 
+#[allow(dead_code)]
 impl<I, T, E> MapAndThenTrait for I where I: Sized + Iterator<Item = Result<T, E>> {}
