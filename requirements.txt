@@ -6,4 +6,3 @@
 cryptography==41.0
 pyfxa==0.7.7
 tokenlib==2.0.0
-datadog

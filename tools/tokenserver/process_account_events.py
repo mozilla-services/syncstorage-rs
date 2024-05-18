@@ -130,8 +130,8 @@ def process_account_event(database, body, metrics=None):
                     record_metric = False
                     logger.warning("Dropping unknown event type %r",
                                    event_type)
-            if record_metric:
-                metrics and metrics.incr(event_type)
+            if record_metric and metrics:
+                metrics.incr(event_type)
 
 
 def update_generation_number(database, email, generation, metrics=None):
@@ -158,7 +158,8 @@ def update_generation_number(database, email, generation, metrics=None):
     user = database.get_user(email)
     if user is not None:
         database.update_user(user, generation - 1)
-        metrics and metrics.incr("decr_generation")
+        if metrics:
+            metrics.incr("decr_generation")
 
 
 def main(args=None):
@@ -175,7 +176,7 @@ def main(args=None):
                       help="Number of seconds to wait for jobs on the queue")
     parser.add_option("-v", "--verbose", action="count", dest="verbosity",
                       help="Control verbosity of log messages")
-    parser.add_option("", "--human", action="store_true",
+    parser.add_option("", "--human_logs", action="store_true",
                       help="Human readable logs")
     parser.add_option(
         "",
@@ -189,18 +190,12 @@ def main(args=None):
         default=None,
         help="Metric host port"
     )
-    parser.add_option(
-        "",
-        "--metric_path",
-        default=None,
-        help="Metric host socket path"
-    )
 
     opts, args = parser.parse_args(args)
     # set up logging
     if not getattr(opts, "app_label", None):
         setattr(opts, "app_label", APP_LABEL)
-    if opts.human:
+    if opts.human_logs:
         util.configure_script_logging(opts)
     else:
         util.configure_gcp_logging(opts)

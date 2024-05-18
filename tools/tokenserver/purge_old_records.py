@@ -15,6 +15,7 @@ overheads, improve performance etc if run regularly.
 
 """
 
+import backoff
 import binascii
 import hawkauthlib
 import logging
@@ -33,6 +34,12 @@ LOGGER = "tokenserver.scripts.purge_old_records"
 logger = logging.getLogger(LOGGER)
 
 PATTERN = "{node}/1.5/{uid}"
+
+
+class Retry(requests.HTTPError):
+
+    def is_retryable(self):
+        self.response.status_code in [502, 503, 504]
 
 
 def purge_old_records(
@@ -103,7 +110,7 @@ def purge_old_records(
                         metrics and metrics.incr(
                             "delete_user",
                             tags={"type": "nodeless"})
-                        database.delete_user_record(row.uid)
+                        retryable(database.delete_user_record, row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
                 elif not row.downed:
@@ -112,49 +119,24 @@ def purge_old_records(
                         row.uid,
                         row.node)
                     if not dryrun:
-                        for loop in range(0, 10):
-                            try:
-                                loop -= 1
-                                delete_service_data(
-                                    row,
-                                    secret,
-                                    timeout=request_timeout,
-                                    dryrun=dryrun,
-                                    metrics=metrics,
-                                )
-                                metrics and metrics.incr(
-                                    "delete_data"
-                                )
-                                break
-                            except requests.HTTPError as ex:
-                                if ex.response.status_code not in \
-                                        [502, 503, 504]:
-                                    nap = random.randint(5, 20)
-                                    logger.info(
-                                        f"retry delete_data in "
-                                        f"{row.uid} on {row.node}"
-                                        f" in {nap}s")
-                                    time.sleep(nap)
-                                    continue
-                                raise
-                        for loop in range(0, 10):
-                            try:
-                                database.delete_user_record(row.uid)
-                                metrics and metrics.incr(
-                                    "delete_user",
-                                    tags={"type": "not_down"}
-                                )
-                                break
-                            except requests.HTTPError as ex:
-                                if ex.response.status_code not in \
-                                        [502, 503, 504]:
-                                    nap = random.randint(5, 20)
-                                    logger.info(
-                                        f"retry delete_user for "
-                                        f"{row.uid} in {nap}s")
-                                    time.sleep(nap)
-                                    continue
-                                raise
+                        retryable(
+                            delete_service_data,
+                            row,
+                            secret,
+                            timeout=request_timeout,
+                            dryrun=dryrun,
+                            metrics=metrics,
+                        )
+                        if metrics:
+                            metrics.incr("delete_data")
+                        retryable(
+                            database.delete_user_record,
+                            row.uid)
+                        if metrics:
+                            metrics.incr(
+                                "delete_user",
+                                tags={"type": "not_down"}
+                            )
                     counter += 1
                 elif force:
                     delete_sd = not points_to_active(
@@ -173,42 +155,31 @@ def purge_old_records(
                             # request refers to a node not contained by
                             # the existing data set.
                             # (The call mimics a user DELETE request.)
-                            for loop in range(0, 10):
-                                try:
-                                    delete_service_data(
-                                        row,
-                                        secret,
-                                        timeout=request_timeout,
-                                        dryrun=dryrun,
-                                        # if an override was specifed,
-                                        # use that node ID
-                                        override_node=override_node,
-                                        metrics=metrics,
-                                    )
-                                    metrics and metrics(
+                            retryable(
+                                    delete_service_data,
+                                    row,
+                                    secret,
+                                    timeout=request_timeout,
+                                    dryrun=dryrun,
+                                    # if an override was specifed,
+                                    # use that node ID
+                                    override_node=override_node,
+                                    metrics=metrics,
+                                )
+                            if metrics:
+                                metrics(
                                         "delete_data",
                                         tags={"type": "force"}
                                     )
-                                    break
-                                except requests.HTTPError as ex:
-                                    if ex.response.status_code not in \
-                                            [502, 503, 504]:
-                                        time.sleep(random.randint(5, 20))
-                                        continue
-                                    logger.warn(
-                                        "Delete failed for user "
-                                        f"{row.uid} [{row.node}]"
-                                    )
-                                    if override_node:
-                                        # Assume the override_node should be
-                                        # reachable
-                                        raise
 
-                        database.delete_user_record(row.uid)
-                        metrics and metrics.incr(
-                            "delete_data",
-                            tags={"type": "force"}
-                        )
+                        retryable(
+                            database.delete_user_record,
+                            row.uid)
+                        if metrics:
+                            metrics.incr(
+                                "delete_data",
+                                tags={"type": "force"}
+                            )
                     counter += 1
                 if max_records and counter >= max_records:
                     logger.info("Reached max_records, exiting")
@@ -258,6 +229,19 @@ def delete_service_data(
     if resp.status_code >= 400 and resp.status_code != 404:
         metrics and metrics.incr("error.gone")
         resp.raise_for_status()
+
+
+def retry_giveup(e):
+    return 500 <= e.response.status_code < 505
+
+
+@backoff.on_exception(
+        backoff.expo,
+        requests.HTTPError,
+        giveup=retry_giveup
+    )
+def retryable(fn, *args, **kwargs):
+    fn(*args, **kwargs)
 
 
 def points_to_active(database, replaced_at_row, override_node, metrics=None):
@@ -399,7 +383,7 @@ def main(args=None):
     )
     parser.add_option(
         "",
-        "--human",
+        "--human_logs",
         action="store_true",
         help="Human readable logs"
     )
@@ -427,10 +411,7 @@ def main(args=None):
     # set up logging
     if not getattr(opts, "app_label", None):
         setattr(opts, "app_label", LOGGER)
-    if opts.human:
-        util.configure_script_logging(opts)
-    else:
-        util.configure_gcp_logging(opts)
+    util.configure_script_logging(opts)
 
     # set up metrics:
     metrics = util.Metrics(opts)

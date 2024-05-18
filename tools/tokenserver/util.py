@@ -35,19 +35,36 @@ def configure_script_logging(opts=None):
     formatting that's more for human readability than machine parsing.
     It also takes care of the --verbosity command-line option.
     """
-    if not opts or not opts.verbosity:
-        loglevel = logging.WARNING
-    elif opts.verbosity == 1:
-        loglevel = logging.INFO
-    else:
-        loglevel = logging.DEBUG
 
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    handler.setLevel(loglevel)
+    verbosity = (
+        opts and getattr(
+            opts, "verbosity", logging.NOTSET)) or logging.NOTSET
+    logger = logging.getLogger(getattr(opts, "app_label", ""))
+    level = os.environ.get("PYTHON_LOG", "").upper() or \
+        max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
+        logger.getEffectiveLevel()
+
+    # if we've already written a log message, the handler may already
+    # be defined. We don't want to duplicate messages if possible, so
+    # check and potentially adjust the existing logger's handler.
+    if logger.hasHandlers():
+        handler = logger.handlers[0]
+    else:
+        handler = logging.StreamHandler()
+
+    formatter = GCP_JSON_Formatter()
+    # if we've opted for "human_logs", specify a simpler message.
+    if opts:
+        if getattr(opts, "human_logs", None):
+            formatter = logging.Formatter(
+                "{levelname:<8s}: {message}",
+                style="{")
+
+    handler.setFormatter(formatter)
+    handler.setLevel(level)
     logger = logging.getLogger("")
     logger.addHandler(handler)
-    logger.setLevel(loglevel)
+    logger.setLevel(level)
 
 
 # We need to reformat a few things to get the record to display correctly
@@ -61,29 +78,9 @@ class GCP_JSON_Formatter(logging.Formatter):
             "message": record.getMessage(),
             "timestamp": datetime.fromtimestamp(
                 record.created).strftime(
-                    "%Y-%m-%dT%H:%M:%SZ%z"  # RFC3339
+                    "%Y-%m-%dT%H:%M:%SZ"  # RFC3339
                 ),
         })
-
-
-def configure_gcp_logging(opts=None):
-    """Add or override the default handler to write a GCP logging compatible
-    error message.
-    """
-    verbosity = (opts and getattr(opts, "verbosity", 0)) or 0
-    logger = logging.getLogger(getattr(opts, "app_label", ""))
-    level = os.environ.get("PYTHON_LOG", "").upper() or \
-        max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
-        logger.getEffectiveLevel()
-
-    if logger.hasHandlers():
-        handler = logger.handlers[0]
-    else:
-        handler = logging.StreamHandler()
-        handler.setLevel(level)
-        logger.addHandler(handler)
-    handler.setFormatter(GCP_JSON_Formatter())
-    logger.setLevel(level)
 
 
 def format_key_id(keys_changed_at, key_hash):
@@ -100,10 +97,8 @@ def get_timestamp():
 
 
 class Metrics():
-    prefix = ""
-    client = None
 
-    def __init__(cls, opts):
+    def __init__(self, opts):
         options = dict(
             namespace=getattr(opts, "app_label", ""),
             statsd_namespace=getattr(opts, "app_label", ""),
@@ -111,10 +106,8 @@ class Metrics():
                 opts, "metric_host", os.environ.get("METRIC_HOST")),
             statsd_port=getattr(
                 opts, "metric_port", os.environ.get("METRIC_PORT")),
-            statsd_socket_path=getattr(
-                opts, "metric_path", os.environ.get("METRIC_PATH")),
         )
-        cls.prefix = options.get("namespace")
+        self.prefix = options.get("namespace")
         initialize(**options)
 
     def incr(self, label, tags=None):
