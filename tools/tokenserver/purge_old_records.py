@@ -399,19 +399,13 @@ def main(args=None):
         default=None,
         help="Metric host port"
     )
-    parser.add_option(
-        "",
-        "--metric_path",
-        default=None,
-        help="Metric host socket path"
-    )
 
     opts, args = parser.parse_args(args)
 
     # set up logging
     if not getattr(opts, "app_label", None):
         setattr(opts, "app_label", LOGGER)
-    util.configure_script_logging(opts)
+    util.configure_script_logging(opts, logger_name=LOGGER)
 
     # set up metrics:
     metrics = util.Metrics(opts)

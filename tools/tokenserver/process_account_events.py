@@ -195,10 +195,7 @@ def main(args=None):
     # set up logging
     if not getattr(opts, "app_label", None):
         setattr(opts, "app_label", APP_LABEL)
-    if opts.human_logs:
-        util.configure_script_logging(opts)
-    else:
-        util.configure_gcp_logging(opts)
+    util.configure_script_logging(opts, logger_name=APP_LABEL)
 
     logger = logging.getLogger(APP_LABEL)
     logger.info("Starting up..")

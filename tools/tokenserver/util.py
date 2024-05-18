@@ -28,7 +28,7 @@ def run_script(main):
     sys.exit(exitcode)
 
 
-def configure_script_logging(opts=None):
+def configure_script_logging(opts=None, logger_name=""):
     """Configure stdlib logging to produce output from the script.
 
     This basically configures logging to send messages to stderr, with
@@ -39,7 +39,7 @@ def configure_script_logging(opts=None):
     verbosity = (
         opts and getattr(
             opts, "verbosity", logging.NOTSET)) or logging.NOTSET
-    logger = logging.getLogger(getattr(opts, "app_label", ""))
+    logger = logging.getLogger(logger_name)
     level = os.environ.get("PYTHON_LOG", "").upper() or \
         max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
         logger.getEffectiveLevel()
