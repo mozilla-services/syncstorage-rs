@@ -107,9 +107,10 @@ def purge_old_records(
                         row.node
                     )
                     if not dryrun:
-                        metrics and metrics.incr(
-                            "delete_user",
-                            tags={"type": "nodeless"})
+                        if metrics:
+                            metrics.incr(
+                                "delete_user",
+                                tags={"type": "nodeless"})
                         retryable(database.delete_user_record, row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
@@ -183,7 +184,8 @@ def purge_old_records(
                     counter += 1
                 if max_records and counter >= max_records:
                     logger.info("Reached max_records, exiting")
-                    metrics and metrics.incr("max_records")
+                    if metrics:
+                        metrics.incr("max_records")
                     return True
             if len(rows) < max_per_loop:
                 break
@@ -227,7 +229,8 @@ def delete_service_data(
         return
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
-        metrics and metrics.incr("error.gone")
+        if metrics:
+            metrics.incr("error.gone")
         resp.raise_for_status()
 
 
