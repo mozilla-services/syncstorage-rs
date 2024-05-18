@@ -168,7 +168,7 @@ def purge_old_records(
                                     metrics=metrics,
                                 )
                             if metrics:
-                                metrics(
+                                metrics.incr(
                                         "delete_data",
                                         tags={"type": "force"}
                                     )
@@ -406,12 +406,10 @@ def main(args=None):
     opts, args = parser.parse_args(args)
 
     # set up logging
-    if not getattr(opts, "app_label", None):
-        setattr(opts, "app_label", LOGGER)
     util.configure_script_logging(opts, logger_name=LOGGER)
 
     # set up metrics:
-    metrics = util.Metrics(opts)
+    metrics = util.Metrics(opts, namespace="tokenserver")
 
     if len(args) == 0:
         parser.print_usage()

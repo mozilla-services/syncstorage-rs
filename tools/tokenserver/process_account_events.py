@@ -193,15 +193,13 @@ def main(args=None):
 
     opts, args = parser.parse_args(args)
     # set up logging
-    if not getattr(opts, "app_label", None):
-        setattr(opts, "app_label", APP_LABEL)
     util.configure_script_logging(opts, logger_name=APP_LABEL)
 
     logger = logging.getLogger(APP_LABEL)
     logger.info("Starting up..")
 
     # set up metrics:
-    metrics = util.Metrics(opts)
+    metrics = util.Metrics(opts, namespace="tokenserver")
 
     if len(args) != 1:
         parser.print_usage()

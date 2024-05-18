@@ -98,10 +98,10 @@ def get_timestamp():
 
 class Metrics():
 
-    def __init__(self, opts):
+    def __init__(self, opts, namespace=""):
         options = dict(
-            namespace=getattr(opts, "app_label", ""),
-            statsd_namespace=getattr(opts, "app_label", ""),
+            namespace=namespace,
+            statsd_namespace=namespace,
             statsd_host=getattr(
                 opts, "metric_host", os.environ.get("METRIC_HOST")),
             statsd_port=getattr(
