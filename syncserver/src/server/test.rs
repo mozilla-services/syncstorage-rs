@@ -114,12 +114,14 @@ macro_rules! init_app {
             crate::logging::init_logging(false).unwrap();
             let limits = Arc::new($settings.syncstorage.limits.clone());
             let state = get_test_state(&$settings).await;
+            let metrics = state.metrics.clone();
             test::init_service(build_app!(
                 state,
                 None::<tokenserver::ServerState>,
                 Arc::clone(&SECRETS),
                 limits,
-                build_cors(&$settings)
+                build_cors(&$settings),
+                metrics
             ))
             .await
         }
@@ -232,12 +234,14 @@ where
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
     let state = get_test_state(&settings).await;
+    let metrics = state.metrics.clone();
     let app = test::init_service(build_app!(
         state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,
-        build_cors(&settings)
+        build_cors(&settings),
+        metrics
     ))
     .await;
 
@@ -274,12 +278,14 @@ async fn test_endpoint_with_body(
     let settings = get_test_settings();
     let limits = Arc::new(settings.syncstorage.limits.clone());
     let state = get_test_state(&settings).await;
+    let metrics = state.metrics.clone();
     let app = test::init_service(build_app!(
         state,
         None::<tokenserver::ServerState>,
         Arc::clone(&SECRETS),
         limits,
-        build_cors(&settings)
+        build_cors(&settings),
+        metrics
     ))
     .await;
     let req = create_request(method, path, None, Some(body)).to_request();

@@ -206,6 +206,7 @@ fn verify_hmac(info: &[u8], key: &[u8], expected: &[u8]) -> ApiResult<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::{self, Display, Formatter};
 
     use super::{HawkPayload, Secrets};
 
@@ -533,10 +534,10 @@ mod tests {
         }
     }
 
-    impl std::fmt::Display for HawkHeader {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+    impl Display for HawkHeader {
+        fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), fmt::Error> {
             write!(
-                f,
+                fmt,
                 "Hawk id=\"{}\", mac=\"{}\", nonce=\"{}\", ts=\"{}\"",
                 self.id, self.mac, self.nonce, self.ts
             )

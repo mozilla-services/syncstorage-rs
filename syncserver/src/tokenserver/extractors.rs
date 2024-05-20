@@ -103,7 +103,7 @@ impl TokenserverRequest {
         // always include a client state.
         if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
             let error_message = "Unacceptable client-state value empty string".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError::invalid_client_state(error_message, None));
         }
 
         // The client state on the request must not have been used in the past.
@@ -114,7 +114,10 @@ impl TokenserverRequest {
         {
             let error_message = "Unacceptable client-state value stale value".to_owned();
             warn!("Client attempted stale value"; "uid"=> self.user.uid, "client_state"=> self.user.client_state.clone());
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError::invalid_client_state(
+                error_message,
+                Some(Box::new(vec![("is_stale", "true".to_owned())])),
+            ));
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
@@ -124,7 +127,7 @@ impl TokenserverRequest {
         {
             let error_message =
                 "Unacceptable client-state value new value with no generation change".to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError::invalid_client_state(error_message, None));
         }
 
         // If the client state on the request differs from the most recently-used client state, it must
@@ -135,7 +138,7 @@ impl TokenserverRequest {
             let error_message =
                 "Unacceptable client-state value new value with no keys_changed_at change"
                     .to_owned();
-            return Err(TokenserverError::invalid_client_state(error_message));
+            return Err(TokenserverError::invalid_client_state(error_message, None));
         }
 
         // The generation on the request cannot be earlier than the generation stored on the user
@@ -1237,7 +1240,13 @@ mod tests {
 
         let error = tokenserver_request.validate().unwrap_err();
         let error_message = "Unacceptable client-state value stale value".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError::invalid_client_state(
+                error_message,
+                Some(Box::new(vec![("is_stale", "true".to_owned())]))
+            )
+        );
     }
 
     #[actix_rt::test]
@@ -1275,7 +1284,10 @@ mod tests {
         let error = tokenserver_request.validate().unwrap_err();
         let error_message =
             "Unacceptable client-state value new value with no generation change".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError::invalid_client_state(error_message, None),
+        );
     }
 
     #[actix_rt::test]
@@ -1313,7 +1325,10 @@ mod tests {
         let error = tokenserver_request.validate().unwrap_err();
         let error_message =
             "Unacceptable client-state value new value with no keys_changed_at change".to_owned();
-        assert_eq!(error, TokenserverError::invalid_client_state(error_message));
+        assert_eq!(
+            error,
+            TokenserverError::invalid_client_state(error_message, None)
+        );
     }
 
     fn extract_body_as_str(sresponse: ServiceResponse) -> String {

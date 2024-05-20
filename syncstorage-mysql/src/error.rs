@@ -92,23 +92,39 @@ impl DbErrorIntrospect for DbError {
 }
 
 impl ReportableError for DbError {
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        Some(match &self.kind {
+            DbErrorKind::Common(e) => e,
+            DbErrorKind::Mysql(e) => e,
+        })
+    }
+
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
-            _ => true,
+            DbErrorKind::Mysql(e) => e.is_sentry_event(),
         }
     }
 
     fn metric_label(&self) -> Option<String> {
-        if let DbErrorKind::Common(e) = &self.kind {
-            e.metric_label()
-        } else {
-            None
+        match &self.kind {
+            DbErrorKind::Common(e) => e.metric_label(),
+            DbErrorKind::Mysql(e) => e.metric_label(),
         }
     }
 
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn backtrace(&self) -> Option<&Backtrace> {
+        match &self.kind {
+            DbErrorKind::Common(e) => e.backtrace(),
+            DbErrorKind::Mysql(e) => e.backtrace(),
+        }
+    }
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        match &self.kind {
+            DbErrorKind::Common(e) => e.tags(),
+            DbErrorKind::Mysql(e) => e.tags(),
+        }
     }
 }
 
