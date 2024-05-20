@@ -10,7 +10,7 @@ stdenv.mkDerivation {
     rustc
     cargo
     libmysqlclient
-    pkgconfig
+    pkg-config
     openssl
     cmake
     protobuf
