@@ -112,6 +112,13 @@ impl DbErrorIntrospect for DbError {
 }
 
 impl ReportableError for DbError {
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        match &self.kind {
+            DbErrorKind::Common(e) => Some(e),
+            _ => None,
+        }
+    }
+
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
@@ -127,8 +134,8 @@ impl ReportableError for DbError {
         }
     }
 
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 }
 
