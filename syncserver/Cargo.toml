@@ -14,6 +14,7 @@ cadence.workspace = true
 chrono.workspace = true
 docopt.workspace = true
 futures.workspace = true
+futures-util.workspace = true
 hex.workspace = true
 hostname.workspace = true
 http.workspace = true

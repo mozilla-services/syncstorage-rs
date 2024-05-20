@@ -18,7 +18,7 @@ members = [
 default-members = ["syncserver"]
 
 [workspace.package]
-version = "0.15.7"
+version = "0.15.8"
 authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
@@ -37,6 +37,12 @@ chrono = "0.4"
 docopt = "1.1"
 env_logger = "0.11"
 futures = { version = "0.3", features = ["compat"] }
+futures-util = { version = "0.3", features = [
+  "async-await",
+  "compat",
+  "sink",
+  "io",
+] }
 hex = "0.4"
 hostname = "0.4"
 hkdf = "0.12"
