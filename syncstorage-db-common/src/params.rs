@@ -1,5 +1,11 @@
 //! Parameter types for database methods.
-use std::{collections::HashMap, num::ParseIntError, str::FromStr};
+use core::fmt;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    num::ParseIntError,
+    str::FromStr,
+};
 
 use diesel::Queryable;
 use serde::{Deserialize, Serialize};
@@ -61,10 +67,10 @@ pub struct Offset {
     pub offset: u64,
 }
 
-impl std::fmt::Display for Offset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+impl Display for Offset {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), fmt::Error> {
         // issue559: Disable ':' support for now.
-        write!(f, "{}", self.offset)
+        write!(fmt, "{}", self.offset)
         /*
         match self.timestamp {
             None => self.offset.to_string(),
