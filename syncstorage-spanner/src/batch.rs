@@ -283,8 +283,6 @@ pub async fn do_append_async(
 
     //prefetch the existing batch_bsos for this user's batch.
     let mut existing = HashSet::new();
-    let mut collisions = HashSet::new();
-    let mut count_collisions = 0;
     let mut tags = HashMap::new();
     tags.insert(
         "collection".to_owned(),
@@ -351,13 +349,6 @@ pub async fn do_append_async(
                 payload: bso.payload,
                 ttl: bso.ttl,
             });
-            // BSOs should only update records that were in previous batches.
-            // There is the potential that some may update records in their own batch.
-            // This will attempt to record such incidents.
-            // TODO: If we consistently see no results for this, it can be safely dropped.
-            if collisions.contains(&exist_idx) {
-                count_collisions += 1;
-            }
         } else {
             let sortindex = bso
                 .sortindex
@@ -389,16 +380,7 @@ pub async fn do_append_async(
             value.set_list_value(row);
             insert.push(value);
             existing.insert(exist_idx.clone());
-            collisions.insert(exist_idx);
         };
-    }
-
-    if count_collisions > 0 {
-        db.metrics.count_with_tags(
-            "storage.spanner.batch.collisions",
-            count_collisions,
-            tags.clone(),
-        );
     }
 
     if db.quota.enabled {
