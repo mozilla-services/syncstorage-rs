@@ -40,6 +40,9 @@ import util
 from database import Database
 
 
+# Logging is initialized in `main` by `util.configure_script_logging()`
+# Please do not call `logging.basicConfig()` before then, since this may
+# cause duplicate error messages to be generated.
 APP_LABEL = "tokenserver.scripts.process_account_events"
 
 
@@ -193,9 +196,8 @@ def main(args=None):
 
     opts, args = parser.parse_args(args)
     # set up logging
-    util.configure_script_logging(opts, logger_name=APP_LABEL)
+    logger = util.configure_script_logging(opts, logger_name=APP_LABEL)
 
-    logger = logging.getLogger(APP_LABEL)
     logger.info("Starting up..")
 
     # set up metrics:

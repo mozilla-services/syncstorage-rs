@@ -65,6 +65,7 @@ def configure_script_logging(opts=None, logger_name=""):
     logger = logging.getLogger("")
     logger.addHandler(handler)
     logger.setLevel(level)
+    return logger
 
 
 # We need to reformat a few things to get the record to display correctly

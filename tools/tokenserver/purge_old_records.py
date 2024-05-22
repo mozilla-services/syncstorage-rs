@@ -29,17 +29,13 @@ import util
 from database import Database
 from util import format_key_id
 
+
+# Logging is initialized in `main` by `util.configure_script_logging()`
+# Please do not call `logging.basicConfig()` before then, since this may
+# cause duplicate error messages to be generated.
 LOGGER = "tokenserver.scripts.purge_old_records"
 
-logger = logging.getLogger(LOGGER)
-
 PATTERN = "{node}/1.5/{uid}"
-
-
-class Retry(requests.HTTPError):
-
-    def is_retryable(self):
-        self.response.status_code in [502, 503, 504]
 
 
 def purge_old_records(
@@ -67,6 +63,7 @@ def purge_old_records(
     a (likely) different set of records to work on. A cheap, imperfect
     randomization.
     """
+    logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
     try:
         database = Database()
@@ -299,7 +296,6 @@ def main(args=None):
     This function parses command-line arguments and passes them on
     to the purge_old_records() function.
     """
-    logger = logging.getLogger(LOGGER)
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -406,7 +402,7 @@ def main(args=None):
     opts, args = parser.parse_args(args)
 
     # set up logging
-    util.configure_script_logging(opts, logger_name=LOGGER)
+    logger = util.configure_script_logging(opts, logger_name=LOGGER)
 
     # set up metrics:
     metrics = util.Metrics(opts, namespace="tokenserver")
