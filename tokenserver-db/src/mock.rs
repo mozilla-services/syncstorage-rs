@@ -96,10 +96,6 @@ impl Db for MockDb {
         Box::pin(future::ok(results::GetServiceId::default()))
     }
 
-    fn timeout(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(30)
-    }
-
     #[cfg(test)]
     fn set_user_created_at(
         &self,

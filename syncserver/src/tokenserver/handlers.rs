@@ -121,6 +121,24 @@ struct UserUpdates {
     uid: i64,
 }
 
+/// Optionally apply a timeout when running a future
+async fn apply_timeout<O, E>(
+    duration: Option<Duration>,
+    fut: impl std::future::Future<Output = Result<O, E>>,
+) -> Result<O, TokenserverError>
+where
+    E: Into<TokenserverError>,
+{
+    match duration {
+        Some(duration) => match timeout(duration, fut).await {
+            Ok(Ok(result)) => Ok(result),
+            Ok(Err(e)) => Err(e.into()),
+            Err(_) => Err(TokenserverError::elapsed()),
+        },
+        None => fut.await.map_err(Into::into),
+    }
+}
+
 async fn update_user(
     req: &TokenserverRequest,
     db: Box<dyn Db>,
@@ -198,25 +216,25 @@ async fn update_user(
             email: req.auth_data.email.clone(),
             generation,
             client_state: req.auth_data.client_state.clone(),
-            node_id: timeout(
+            node_id: apply_timeout(
                 db.timeout(),
                 db.get_node_id(GetNodeId {
                     service_id: req.service_id,
                     node: req.user.node.clone(),
                 }),
             )
-            .await??
+            .await?
             .id,
             keys_changed_at,
             created_at: timestamp,
         };
-        let uid = timeout(db.timeout(), db.post_user(post_user_params))
-            .await??
+        let uid = apply_timeout(db.timeout(), db.post_user(post_user_params))
+            .await?
             .id;
 
         // Make sure each old row is marked as replaced (they might not be, due to races in row
         // creation)
-        let _ = timeout(
+        apply_timeout(
             db.timeout(),
             db.replace_users(ReplaceUsers {
                 email: req.auth_data.email.clone(),
@@ -240,7 +258,7 @@ async fn update_user(
                 keys_changed_at,
             };
 
-            let _ = timeout(db.timeout(), db.put_user(params)).await?;
+            apply_timeout(db.timeout(), db.put_user(params)).await?;
         }
 
         Ok(UserUpdates {
@@ -258,9 +276,9 @@ pub async fn heartbeat(DbWrapper(db): DbWrapper) -> Result<HttpResponse, Error> 
         Value::String(env!("CARGO_PKG_VERSION").to_owned()),
     );
 
-    match timeout(db.timeout(), db.check())
+    match apply_timeout(db.timeout(), db.check())
         .await
-        .map_err(|_| TokenserverError::elapsed())?
+        .map_err(|_| TokenserverError::elapsed())
     {
         Ok(result) => {
             if result {

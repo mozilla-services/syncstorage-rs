@@ -40,7 +40,7 @@ pub struct TokenserverDb {
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
     blocking_threadpool: Arc<BlockingThreadpool>,
-    pub timeout: Duration,
+    pub timeout: Option<Duration>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -69,7 +69,7 @@ impl TokenserverDb {
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
         blocking_threadpool: Arc<BlockingThreadpool>,
-        timeout: Duration,
+        timeout: Option<Duration>,
     ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
@@ -686,7 +686,7 @@ impl Db for TokenserverDb {
     sync_db_method!(get_or_create_user, get_or_create_user_sync, GetOrCreateUser);
     sync_db_method!(get_service_id, get_service_id_sync, GetServiceId);
 
-    fn timeout(&self) -> Duration {
+    fn timeout(&self) -> Option<Duration> {
         self.timeout
     }
 
@@ -729,7 +729,9 @@ impl Db for TokenserverDb {
 }
 
 pub trait Db {
-    fn timeout(&self) -> Duration;
+    fn timeout(&self) -> Option<Duration> {
+        None
+    }
 
     fn replace_user(
         &self,
