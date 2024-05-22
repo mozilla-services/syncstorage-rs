@@ -22,6 +22,7 @@ pub struct TokenserverError {
     pub context: String,
     pub backtrace: Box<Backtrace>,
     pub token_type: TokenType,
+    pub tags: Option<Box<Vec<(&'static str, String)>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -68,6 +69,7 @@ impl Default for TokenserverError {
             context: "Unauthorized".to_owned(),
             backtrace: Box::new(Backtrace::new()),
             token_type: TokenType::Oauth,
+            tags: None,
         }
     }
 }
@@ -110,12 +112,16 @@ impl TokenserverError {
         }
     }
 
-    pub fn invalid_client_state(description: String) -> Self {
+    pub fn invalid_client_state(
+        description: String,
+        tags: Option<Box<Vec<(&'static str, String)>>>,
+    ) -> Self {
         Self {
             status: "invalid-client-state",
             context: description.clone(),
             description,
             name: "X-Client-State".to_owned(),
+            tags,
             ..Self::default()
         }
     }
@@ -274,8 +280,8 @@ impl From<TokenserverError> for HttpResponse {
 }
 
 impl ReportableError for TokenserverError {
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 
     fn is_sentry_event(&self) -> bool {
@@ -299,6 +305,10 @@ impl ReportableError for TokenserverError {
         } else {
             None
         }
+    }
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        *self.tags.clone().unwrap_or_default()
     }
 }
 

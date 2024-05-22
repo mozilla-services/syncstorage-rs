@@ -37,6 +37,12 @@ chrono = "0.4"
 docopt = "1.1"
 env_logger = "0.10"
 futures = { version = "0.3", features = ["compat"] }
+futures-util = { version = "0.3", features = [
+  "async-await",
+  "compat",
+  "sink",
+  "io",
+] }
 hex = "0.4"
 hkdf = "0.12"
 hmac = "0.12"
