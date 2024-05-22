@@ -23,6 +23,7 @@ use tokio::{sync::RwLock, time};
 use crate::error::ApiError;
 use crate::server::tags::Taggable;
 use crate::tokenserver;
+use crate::web::middleware::sentry::SentryWrapper;
 use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -72,7 +73,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr) => {
+    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr, $metrics: expr) => {
         App::new()
             .configure(|cfg| {
                 cfg.app_data(Data::new($syncstorage_state));
@@ -87,9 +88,12 @@ macro_rules! build_app {
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
+            .wrap(SentryWrapper::<ApiError>::new(
+                $metrics.clone(),
+                "api_error".to_owned(),
+            ))
             .wrap_fn(middleware::weave::set_weave_timestamp)
             .wrap_fn(tokenserver::logging::handle_request_log_line)
-            .wrap_fn(middleware::sentry::report_error)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             .wrap($cors)
             .wrap_fn(middleware::emit_http_status_with_tokenserver_origin)
@@ -186,15 +190,18 @@ macro_rules! build_app {
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr, $cors: expr) => {
+    ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {
         App::new()
             .app_data(Data::new($state))
             .app_data(Data::new($secrets))
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
+            .wrap(SentryWrapper::<ApiError>::new(
+                $metrics.clone(),
+                "api_error".to_owned(),
+            ))
             // These are our wrappers
-            .wrap_fn(middleware::sentry::report_error)
             .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
             // Followed by the "official middleware" so they run first.
@@ -314,7 +321,8 @@ impl Server {
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
                 limits,
-                build_cors(&settings_copy)
+                build_cors(&settings_copy),
+                metrics.clone()
             )
         });
 
@@ -368,7 +376,8 @@ impl Server {
             build_app_without_syncstorage!(
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
-                build_cors(&settings_copy)
+                build_cors(&settings_copy),
+                tokenserver_state.metrics.clone()
             )
         });
 

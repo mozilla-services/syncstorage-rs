@@ -270,8 +270,8 @@ from_error!(HawkError, ApiError, ApiErrorKind::Hawk);
 from_error!(ValidationError, ApiError, ApiErrorKind::Validation);
 
 impl ReportableError for ApiError {
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 
     fn is_sentry_event(&self) -> bool {

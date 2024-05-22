@@ -2588,6 +2588,7 @@ dependencies = [
  "docopt",
  "dyn-clone",
  "futures 0.3.30",
+ "futures-util",
  "hawk",
  "hex",
  "hmac",
@@ -2632,6 +2633,7 @@ name = "syncserver-common"
 version = "0.15.8"
 dependencies = [
  "actix-web",
+ "backtrace",
  "cadence",
  "futures 0.3.30",
  "hkdf",

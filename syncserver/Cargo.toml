@@ -14,6 +14,7 @@ cadence.workspace = true
 chrono.workspace = true
 docopt.workspace = true
 futures.workspace = true
+futures-util.workspace = true
 hex.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
@@ -49,7 +50,7 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-tokenserver-auth = { path = "../tokenserver-auth", default-features = false}
+tokenserver-auth = { path = "../tokenserver-auth", default-features = false }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }

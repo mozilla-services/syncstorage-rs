@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use actix_web::HttpMessage;
+use serde_json::Value;
 
 pub trait Taggable {
     /// Adds a tag to be included in any metric or Sentry error emitted from this point in the
@@ -16,8 +17,10 @@ pub trait Taggable {
     /// cardinality that is too high for tags. Note that extras will not be included with metrics.
     fn add_extra(&self, key: String, value: String);
 
-    /// Gets all the extras associated with `Self`.
-    fn get_extras(&self) -> HashMap<String, String>;
+    /// Gets all the extras associated with `Self`. This converts the values to `serde_json::Value`
+    /// because the only caller / consumer for this function is the Sentry middleware, which uses
+    /// `Value` for extras.
+    fn get_extras(&self) -> HashMap<String, Value>;
 }
 
 impl<T> Taggable for T
@@ -61,10 +64,17 @@ where
         }
     }
 
-    fn get_extras(&self) -> HashMap<String, String> {
+    fn get_extras(&self) -> HashMap<String, Value> {
         self.extensions()
             .get::<Extras>()
-            .map(|extras_ref| extras_ref.0.clone())
+            .map(|extras_ref| {
+                extras_ref
+                    .0
+                    .clone()
+                    .into_iter()
+                    .map(|(k, v)| (k, Value::from(v)))
+                    .collect()
+            })
             .unwrap_or_default()
     }
 }

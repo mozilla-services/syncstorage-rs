@@ -93,19 +93,23 @@ impl DbErrorIntrospect for SyncstorageDbError {
 }
 
 impl ReportableError for SyncstorageDbError {
+    fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
+        None
+    }
+
     fn is_sentry_event(&self) -> bool {
         !matches!(&self.kind, SyncstorageDbErrorKind::Conflict)
     }
 
     fn metric_label(&self) -> Option<String> {
-        match &self.kind {
+        match self.kind {
             SyncstorageDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
             _ => None,
         }
     }
 
-    fn error_backtrace(&self) -> String {
-        format!("{:#?}", self.backtrace)
+    fn backtrace(&self) -> Option<&Backtrace> {
+        Some(&self.backtrace)
     }
 }
 
