@@ -44,9 +44,7 @@ def configure_script_logging(opts=None, logger_name=""):
         max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
         logger.getEffectiveLevel()
 
-    # if we've already written a log message, the handler may already
-    # be defined. We don't want to duplicate messages if possible, so
-    # check and potentially adjust the existing logger's handler.
+    # if we've previously setup a handler, adjust it instead
     if logger.hasHandlers():
         handler = logger.handlers[0]
     else:
