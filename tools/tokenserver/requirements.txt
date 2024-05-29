@@ -6,3 +6,6 @@ sqlalchemy==1.4.46
 testfixtures
 tokenlib==2.0.0
 PyBrowserID==0.14.0
+datadog
+backoff
+
