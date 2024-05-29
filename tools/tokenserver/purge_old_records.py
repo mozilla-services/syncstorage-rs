@@ -15,11 +15,11 @@ overheads, improve performance etc if run regularly.
 
 """
 
+import backoff
 import binascii
 import hawkauthlib
 import logging
 import optparse
-import os
 import random
 import requests
 import time
@@ -29,12 +29,11 @@ import util
 from database import Database
 from util import format_key_id
 
-LOGGER = "tokenserver.scripts.purge_old_records"
 
-logger = logging.getLogger(LOGGER)
-log_level = os.environ.get("PYTHON_LOG", "INFO").upper()
-logger.setLevel(log_level)
-logger.debug(f"Setting level to {log_level}")
+# Logging is initialized in `main` by `util.configure_script_logging()`
+# Please do not call `logging.basicConfig()` before then, since this may
+# cause duplicate error messages to be generated.
+LOGGER = "tokenserver.scripts.purge_old_records"
 
 PATTERN = "{node}/1.5/{uid}"
 
@@ -50,6 +49,7 @@ def purge_old_records(
     force=False,
     override_node=None,
     uid_range=None,
+    metrics=None,
 ):
     """Purge old records from the database.
 
@@ -63,6 +63,7 @@ def purge_old_records(
     a (likely) different set of records to work on. A cheap, imperfect
     randomization.
     """
+    logger = logging.getLogger(LOGGER)
     logger.info("Purging old user records")
     try:
         database = Database()
@@ -103,7 +104,11 @@ def purge_old_records(
                         row.node
                     )
                     if not dryrun:
-                        database.delete_user_record(row.uid)
+                        if metrics:
+                            metrics.incr(
+                                "delete_user",
+                                tags={"type": "nodeless"})
+                        retryable(database.delete_user_record, row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
                 elif not row.downed:
@@ -112,17 +117,28 @@ def purge_old_records(
                         row.uid,
                         row.node)
                     if not dryrun:
-                        delete_service_data(
+                        retryable(
+                            delete_service_data,
                             row,
                             secret,
                             timeout=request_timeout,
-                            dryrun=dryrun
+                            dryrun=dryrun,
+                            metrics=metrics,
                         )
-                        database.delete_user_record(row.uid)
+                        if metrics:
+                            metrics.incr("delete_data")
+                        retryable(
+                            database.delete_user_record,
+                            row.uid)
+                        if metrics:
+                            metrics.incr(
+                                "delete_user",
+                                tags={"type": "not_down"}
+                            )
                     counter += 1
                 elif force:
                     delete_sd = not points_to_active(
-                        database, row, override_node)
+                        database, row, override_node, metrics=metrics)
                     logger.info(
                         "Forcing tokenserver record delete: "
                         f"{row.uid} on {row.node} "
@@ -137,29 +153,36 @@ def purge_old_records(
                             # request refers to a node not contained by
                             # the existing data set.
                             # (The call mimics a user DELETE request.)
-                            try:
-                                delete_service_data(
+                            retryable(
+                                    delete_service_data,
                                     row,
                                     secret,
                                     timeout=request_timeout,
                                     dryrun=dryrun,
                                     # if an override was specifed,
                                     # use that node ID
-                                    override_node=override_node
+                                    override_node=override_node,
+                                    metrics=metrics,
                                 )
-                            except requests.HTTPError:
-                                logger.warn(
-                                    "Delete failed for user "
-                                    f"{row.uid} [{row.node}]"
-                                )
-                                if override_node:
-                                    # Assume the override_node should be
-                                    # reachable
-                                    raise
-                        database.delete_user_record(row.uid)
+                            if metrics:
+                                metrics.incr(
+                                        "delete_data",
+                                        tags={"type": "force"}
+                                    )
+
+                        retryable(
+                            database.delete_user_record,
+                            row.uid)
+                        if metrics:
+                            metrics.incr(
+                                "delete_data",
+                                tags={"type": "force"}
+                            )
                     counter += 1
                 if max_records and counter >= max_records:
                     logger.info("Reached max_records, exiting")
+                    if metrics:
+                        metrics.incr("max_records")
                     return True
             if len(rows) < max_per_loop:
                 break
@@ -172,7 +195,8 @@ def purge_old_records(
 
 
 def delete_service_data(
-        user, secret, timeout=60, dryrun=False, override_node=None):
+        user, secret, timeout=60, dryrun=False, override_node=None,
+        metrics=None):
     """Send a data-deletion request to the user's service node.
 
     This is a little bit of hackery to cause the user's service node to
@@ -202,10 +226,25 @@ def delete_service_data(
         return
     resp = requests.delete(endpoint, auth=auth, timeout=timeout)
     if resp.status_code >= 400 and resp.status_code != 404:
+        if metrics:
+            metrics.incr("error.gone")
         resp.raise_for_status()
 
 
-def points_to_active(database, replaced_at_row, override_node):
+def retry_giveup(e):
+    return 500 <= e.response.status_code < 505
+
+
+@backoff.on_exception(
+        backoff.expo,
+        requests.HTTPError,
+        giveup=retry_giveup
+    )
+def retryable(fn, *args, **kwargs):
+    fn(*args, **kwargs)
+
+
+def points_to_active(database, replaced_at_row, override_node, metrics=None):
     """Determine if a `replaced_at` user record has the same
     generation/client_state as their active record.
 
@@ -232,7 +271,10 @@ def points_to_active(database, replaced_at_row, override_node):
             replaced_at_row_keys_changed_at or replaced_at_row.generation,
             binascii.unhexlify(replaced_at_row.client_state),
         )
-        return user_fxa_kid == replaced_at_row_fxa_kid
+        override = user_fxa_kid == replaced_at_row_fxa_kid
+        if override and metrics:
+            metrics.incr("override")
+        return override
     return False
 
 
@@ -254,7 +296,6 @@ def main(args=None):
     This function parses command-line arguments and passes them on
     to the purge_old_records() function.
     """
-    logger = logging.getLogger(LOGGER)
     usage = "usage: %prog [options] secret"
     parser = optparse.OptionParser(usage=usage)
     parser.add_option(
@@ -339,8 +380,32 @@ def main(args=None):
         default=None,
         help="End of UID range to check"
     )
+    parser.add_option(
+        "",
+        "--human_logs",
+        action="store_true",
+        help="Human readable logs"
+    )
+    parser.add_option(
+        "",
+        "--metric_host",
+        default=None,
+        help="Metric host name"
+    )
+    parser.add_option(
+        "",
+        "--metric_port",
+        default=None,
+        help="Metric host port"
+    )
 
     opts, args = parser.parse_args(args)
+
+    # set up logging
+    logger = util.configure_script_logging(opts, logger_name=LOGGER)
+
+    # set up metrics:
+    metrics = util.Metrics(opts, namespace="tokenserver")
 
     if len(args) == 0:
         parser.print_usage()
@@ -349,8 +414,6 @@ def main(args=None):
     # Secret is the last arg?
     secret = args[-1]
     logger.debug(f"Secret: {secret}")
-
-    util.configure_script_logging(opts)
 
     uid_range = None
     if opts.range_start or opts.range_end:
@@ -368,6 +431,7 @@ def main(args=None):
         force=opts.force,
         override_node=opts.override_node,
         uid_range=uid_range,
+        metrics=metrics,
     )
     if not opts.oneshot:
         while True:
@@ -388,6 +452,7 @@ def main(args=None):
                 force=opts.force,
                 override_node=opts.override_node,
                 uid_range=uid_range,
+                metrics=metrics,
             )
     return 0
 
