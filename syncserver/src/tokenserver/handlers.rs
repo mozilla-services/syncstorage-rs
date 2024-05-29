@@ -276,10 +276,7 @@ pub async fn heartbeat(DbWrapper(db): DbWrapper) -> Result<HttpResponse, Error> 
         Value::String(env!("CARGO_PKG_VERSION").to_owned()),
     );
 
-    match apply_timeout(db.timeout(), db.check())
-        .await
-        .map_err(|_| TokenserverError::elapsed())
-    {
+    match apply_timeout(db.timeout(), db.check()).await {
         Ok(result) => {
             if result {
                 checklist.insert("database".to_owned(), Value::from("Ok"));

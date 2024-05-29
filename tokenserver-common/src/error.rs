@@ -46,12 +46,6 @@ impl PartialEq for TokenserverError {
     }
 }
 
-impl From<tokio::time::error::Elapsed> for TokenserverError {
-    fn from(_: tokio::time::error::Elapsed) -> Self {
-        TokenserverError::elapsed()
-    }
-}
-
 impl fmt::Display for TokenserverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.context)
