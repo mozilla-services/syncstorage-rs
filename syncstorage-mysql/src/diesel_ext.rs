@@ -38,28 +38,6 @@ impl QueryFragment<Mysql> for LockInShareMode {
     }
 }
 
-/// Emit 'ON DUPLICATE KEY UPDATE'
-pub trait IntoDuplicateValueClause {
-    type ValueClause;
-
-    fn into_value_clause(self) -> Self::ValueClause;
-}
-
-pub trait OnDuplicateKeyUpdateDsl<T, U, Op, Ret> {
-    fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
-    where
-        X: Expression;
-}
-
-impl<T, U, Op, Ret> OnDuplicateKeyUpdateDsl<T, U, Op, Ret> for InsertStatement<T, U, Op, Ret> {
-    fn on_duplicate_key_update<X>(self, expression: X) -> OnDuplicateKeyUpdate<T, U, Op, Ret, X>
-    where
-        X: Expression,
-    {
-        OnDuplicateKeyUpdate(Box::new(self), expression)
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct OnDuplicateKeyUpdate<T, U, Op, Ret, X>(Box<InsertStatement<T, U, Op, Ret>>, X);
 

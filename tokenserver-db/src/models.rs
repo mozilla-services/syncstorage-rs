@@ -12,7 +12,7 @@ use syncserver_db_common::{sync_db_method, DbFuture};
 
 use std::{
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use super::{
@@ -40,6 +40,7 @@ pub struct TokenserverDb {
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
     blocking_threadpool: Arc<BlockingThreadpool>,
+    pub timeout: Option<Duration>,
 }
 
 /// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
@@ -68,6 +69,7 @@ impl TokenserverDb {
         service_id: Option<i32>,
         spanner_node_id: Option<i32>,
         blocking_threadpool: Arc<BlockingThreadpool>,
+        timeout: Option<Duration>,
     ) -> Self {
         let inner = DbInner {
             #[cfg(not(test))]
@@ -84,6 +86,7 @@ impl TokenserverDb {
             service_id,
             spanner_node_id,
             blocking_threadpool,
+            timeout,
         }
     }
 
@@ -389,7 +392,7 @@ impl TokenserverDb {
             let raw_user = raw_users[0].clone();
 
             // Collect any old client states that differ from the current client state
-            let old_client_states = {
+            let old_client_states: Vec<String> = {
                 raw_users[1..]
                     .iter()
                     .map(|user| user.client_state.clone())
@@ -463,7 +466,11 @@ impl TokenserverDb {
                 // The most up-to-date user doesn't have a node and is retired. This is an internal
                 // service error for compatibility reasons (the legacy Tokenserver returned an
                 // internal service error in this situation).
-                (_, None) => Err(DbError::internal("Tokenserver user retired".to_owned())),
+                (_, None) => {
+                    let uid = raw_user.uid;
+                    warn!("Tokenserver user retired"; "uid" => &uid);
+                    Err(DbError::internal("Tokenserver user retired".to_owned()))
+                }
             }
         }
     }
@@ -679,6 +686,10 @@ impl Db for TokenserverDb {
     sync_db_method!(get_or_create_user, get_or_create_user_sync, GetOrCreateUser);
     sync_db_method!(get_service_id, get_service_id_sync, GetServiceId);
 
+    fn timeout(&self) -> Option<Duration> {
+        self.timeout
+    }
+
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
 
@@ -718,6 +729,10 @@ impl Db for TokenserverDb {
 }
 
 pub trait Db {
+    fn timeout(&self) -> Option<Duration> {
+        None
+    }
+
     fn replace_user(
         &self,
         params: params::ReplaceUser,

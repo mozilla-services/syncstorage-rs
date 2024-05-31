@@ -41,6 +41,7 @@ pub struct TokenserverPool {
     pub service_id: Option<i32>,
     spanner_node_id: Option<i32>,
     blocking_threadpool: Arc<BlockingThreadpool>,
+    pub timeout: Option<Duration>,
 }
 
 impl TokenserverPool {
@@ -68,6 +69,9 @@ impl TokenserverPool {
         } else {
             builder
         };
+        let timeout = settings
+            .database_request_timeout
+            .map(|v| Duration::from_secs(v as u64));
 
         Ok(Self {
             inner: builder.build(manager)?,
@@ -75,6 +79,7 @@ impl TokenserverPool {
             spanner_node_id: settings.spanner_node_id,
             service_id: None,
             blocking_threadpool,
+            timeout,
         })
     }
 
@@ -87,6 +92,7 @@ impl TokenserverPool {
             self.service_id,
             self.spanner_node_id,
             self.blocking_threadpool.clone(),
+            self.timeout,
         ))
     }
 
@@ -104,6 +110,7 @@ impl TokenserverPool {
             self.service_id,
             self.spanner_node_id,
             self.blocking_threadpool.clone(),
+            self.timeout,
         ))
     }
 }
@@ -126,6 +133,7 @@ impl DbPool for TokenserverPool {
             self.service_id,
             self.spanner_node_id,
             self.blocking_threadpool.clone(),
+            self.timeout,
         )) as Box<dyn Db>)
     }
 
