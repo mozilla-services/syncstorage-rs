@@ -1,3 +1,24 @@
+<a name="0.15.9"></a>
+## 0.15.9 (2024-05-31)
+
+
+#### Features
+
+*   Add timeouts for tokenserver database calls. (#1561) ([2584b977](https://github.com/mozilla-services/syncstorage-rs/commit/2584b977b8a315a571066c0a417e76401b14bdfd))
+*   Add metrics, gcp logging to tokenserver scripts (#1555) ([6537783a](https://github.com/mozilla-services/syncstorage-rs/commit/6537783a9c3781802fd16478867e912868f7f8d7))
+*   Add normalized ReportableError to errors (#1559) ([77181308](https://github.com/mozilla-services/syncstorage-rs/commit/771813087c8eccc448530cea2d323f8de8ee81a3))
+
+#### Bug Fixes
+
+*   nix-shell: update `pkgconfig` -> `pkg-config` build input (#1562) ([a55e3738](https://github.com/mozilla-services/syncstorage-rs/commit/a55e373823ac2c54280a9633f67143ff29ec828b))
+*   Allow threadpool size to be set. (#1560) ([ab7b4221](https://github.com/mozilla-services/syncstorage-rs/commit/ab7b4221fd664e23604a77041746f6f12a0a7d7e))
+
+#### Doc
+
+*   Remove commented code, unneeded TODO, unneeded collision tracking (#1563) ([5cdfd034](https://github.com/mozilla-services/syncstorage-rs/commit/5cdfd03498055865fc27a53e263303355ac5fdb0))
+
+
+
 <a name="0.15.8"></a>
 ## 0.15.8 (2024-05-08)
 
