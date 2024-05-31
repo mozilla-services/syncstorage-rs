@@ -2950,6 +2950,7 @@ dependencies = [
  "serde_json",
  "syncserver-common",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

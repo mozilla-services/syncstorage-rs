@@ -14,6 +14,8 @@ pub struct Settings {
     pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
+    /// Database request timeout, in seconds
+    pub database_request_timeout: Option<u32>,
     // XXX: This is a temporary setting used to enable Tokenserver-related features. In
     // the future, Tokenserver will always be enabled, and this setting will be
     // removed.
@@ -78,6 +80,7 @@ impl Default for Settings {
             database_pool_max_size: 10,
             database_pool_min_idle: None,
             database_pool_connection_timeout: Some(30),
+            database_request_timeout: None,
             enabled: false,
             fxa_email_domain: "api-accounts.stage.mozaws.net".to_owned(),
             fxa_metrics_hash_secret: "secret".to_owned(),
