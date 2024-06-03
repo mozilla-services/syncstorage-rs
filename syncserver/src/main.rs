@@ -58,6 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await
             .unwrap()
     } else {
+        eprintln!("ZZZZ {}", settings.worker_max_blocking_threads);
         server::Server::with_settings(settings).await.unwrap()
     };
     info!("Server running on {}", banner);

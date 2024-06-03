@@ -1,5 +1,5 @@
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM docker.io/lukemathwalker/cargo-chef:0.1.62-rust-1.75-bullseye as chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.62-rust-1.75-bookworm as chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -14,7 +14,7 @@ RUN \
     # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
     # which wants the mariadb
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
@@ -31,7 +31,7 @@ COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 RUN \
     # Fetch and load the MySQL public key
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
@@ -49,7 +49,7 @@ RUN \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app && \
     if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
-FROM docker.io/library/debian:bullseye-slim
+FROM docker.io/library/debian:bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
 # Due to a build error that occurs with the Python cryptography package, we
@@ -69,7 +69,7 @@ RUN \
     apt-get -q update && \
     # and ca-certificates needed for https://repo.mysql.com
     apt-get install -y gnupg ca-certificates wget && \
-    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
