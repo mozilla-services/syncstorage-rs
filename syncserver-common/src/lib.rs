@@ -85,7 +85,6 @@ pub trait ReportableError: std::fmt::Display {
     }
 
     /// Experimental: return key value pairs for Sentry Event's extra data
-    /// TODO: should probably return Vec<(&str, Value)> or Vec<(String, Value)>
     fn extras(&self) -> Vec<(&str, Value)> {
         vec![]
     }

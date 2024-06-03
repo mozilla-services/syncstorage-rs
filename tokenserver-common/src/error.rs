@@ -131,6 +131,17 @@ impl TokenserverError {
         }
     }
 
+    pub fn elapsed() -> Self {
+        Self {
+            status: "elapsed",
+            location: ErrorLocation::Body,
+            description: "Elapsed".to_owned(),
+            http_status: StatusCode::GATEWAY_TIMEOUT,
+            context: "Elapsed".to_owned(),
+            ..Self::default()
+        }
+    }
+
     pub fn resource_unavailable() -> Self {
         Self {
             location: ErrorLocation::Body,

@@ -11,6 +11,11 @@ import sys
 import time
 import logging
 import base64
+import os
+import json
+from datetime import datetime
+
+from datadog import initialize, statsd
 
 
 def encode_bytes_b64(value):
@@ -26,26 +31,58 @@ def run_script(main):
     sys.exit(exitcode)
 
 
-def configure_script_logging(opts=None):
+def configure_script_logging(opts=None, logger_name=""):
     """Configure stdlib logging to produce output from the script.
 
     This basically configures logging to send messages to stderr, with
     formatting that's more for human readability than machine parsing.
     It also takes care of the --verbosity command-line option.
     """
-    if not opts or not opts.verbosity:
-        loglevel = logging.WARNING
-    elif opts.verbosity == 1:
-        loglevel = logging.INFO
-    else:
-        loglevel = logging.DEBUG
 
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    handler.setLevel(loglevel)
+    verbosity = (
+        opts and getattr(
+            opts, "verbosity", logging.NOTSET)) or logging.NOTSET
+    logger = logging.getLogger(logger_name)
+    level = os.environ.get("PYTHON_LOG", "").upper() or \
+        max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
+        logger.getEffectiveLevel()
+
+    # if we've previously setup a handler, adjust it instead
+    if logger.hasHandlers():
+        handler = logger.handlers[0]
+    else:
+        handler = logging.StreamHandler()
+
+    formatter = GCP_JSON_Formatter()
+    # if we've opted for "human_logs", specify a simpler message.
+    if opts:
+        if getattr(opts, "human_logs", None):
+            formatter = logging.Formatter(
+                "{levelname:<8s}: {message}",
+                style="{")
+
+    handler.setFormatter(formatter)
+    handler.setLevel(level)
     logger = logging.getLogger("")
     logger.addHandler(handler)
-    logger.setLevel(loglevel)
+    logger.setLevel(level)
+    return logger
+
+
+# We need to reformat a few things to get the record to display correctly
+# This includes "escaping" the message as well as converting the timestamp
+# into a parsable format.
+class GCP_JSON_Formatter(logging.Formatter):
+
+    def format(self, record):
+        return json.dumps({
+            "severity": record.levelname,
+            "message": record.getMessage(),
+            "timestamp": datetime.fromtimestamp(
+                record.created).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"  # RFC3339
+                ),
+        })
 
 
 def format_key_id(keys_changed_at, key_hash):
@@ -59,3 +96,21 @@ def format_key_id(keys_changed_at, key_hash):
 def get_timestamp():
     """Get current timestamp in milliseconds."""
     return int(time.time() * 1000)
+
+
+class Metrics():
+
+    def __init__(self, opts, namespace=""):
+        options = dict(
+            namespace=namespace,
+            statsd_namespace=namespace,
+            statsd_host=getattr(
+                opts, "metric_host", os.environ.get("METRIC_HOST")),
+            statsd_port=getattr(
+                opts, "metric_port", os.environ.get("METRIC_PORT")),
+        )
+        self.prefix = options.get("namespace")
+        initialize(**options)
+
+    def incr(self, label, tags=None):
+        statsd.increment(label, tags=tags)
