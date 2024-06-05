@@ -165,7 +165,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.75.0
+      - image: cimg/rust:1.78.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -182,7 +182,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.75.0
+      - image: cimg/rust:1.78.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -218,7 +218,7 @@ jobs:
       #- save-sccache-cache
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.75.0
+      - image: cimg/rust:1.78.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -249,7 +249,7 @@ jobs:
 
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.75.0
+      - image: cimg/rust:1.78.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
