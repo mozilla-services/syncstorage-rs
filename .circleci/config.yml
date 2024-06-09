@@ -1,8 +1,10 @@
 # These environment variables must be set in CircleCI UI
 #
-# DOCKERHUB_REPO - docker hub repo, format: <username>/<repo>
+# DOCKERHUB_REPO_SPANNER - docker hub repo, format: <username>/<repo>
+# DOCKERHUB_REPO_MYSQL - docker hub repo, format: <username>/<repo>
 # DOCKER_USER    - login info for docker hub
 # DOCKER_PASS
+# DOCKERHUB_REPO_UTILS=mozilla/sync-spanner-py-utils
 #
 version: 2.1
 commands:
@@ -10,8 +12,7 @@ commands:
     steps:
       - run:
           name: Display Rust Version
-          command:
-            rustc --version
+          command: rustc --version
   setup-rust-check:
     steps:
       - run:
@@ -95,45 +96,45 @@ commands:
           name: quota test
           command: cargo test --workspace --verbose
           environment:
-              SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+            SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
   run-e2e-mysql-tests:
     steps:
       - run:
           name: e2e tests (syncstorage mysql)
           command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.mysql.yaml
-               -f docker-compose.e2e.mysql.yaml
-               up
-               --exit-code-from mysql-e2e-tests
-               --abort-on-container-exit
+            /usr/local/bin/docker-compose
+            -f docker-compose.mysql.yaml
+            -f docker-compose.e2e.mysql.yaml
+            up
+            --exit-code-from mysql-e2e-tests
+            --abort-on-container-exit
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            SYNCSTORAGE_RS_IMAGE: app:build
 
   run-tokenserver-scripts-tests:
     steps:
       - run:
           name: Tokenserver scripts tests
           command: >
-               pip3 install -r tools/tokenserver/requirements.txt &&
-               python3 tools/tokenserver/run_tests.py
+            pip3 install -r tools/tokenserver/requirements.txt &&
+            python3 tools/tokenserver/run_tests.py
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            SYNCSTORAGE_RS_IMAGE: app:build
 
   run-e2e-spanner-tests:
     steps:
       - run:
           name: e2e tests (syncstorage spanner)
           command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.spanner.yaml
-               -f docker-compose.e2e.spanner.yaml
-               up
-               --exit-code-from spanner-e2e-tests
-               --abort-on-container-exit
+            /usr/local/bin/docker-compose
+            -f docker-compose.spanner.yaml
+            -f docker-compose.e2e.spanner.yaml
+            up
+            --exit-code-from spanner-e2e-tests
+            --abort-on-container-exit
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            SYNCSTORAGE_RS_IMAGE: app:build
 
   setup-sccache:
     steps:
@@ -158,6 +159,39 @@ commands:
           key: sccache-cache-stable-{{ .Branch }}-{{ .Environment.CIRCLE_JOB }}-{{ epoch }}
           paths:
             - "~/.cache/sccache"
+  deploy:
+    parameters:
+      repo-env-name:
+        type: env_var_name
+    steps:
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Deploy to Dockerhub
+          command: |
+            export DOCKERHUB_REPO=${<< parameters.repo-env-name >>}
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              DOCKER_TAG="${CIRCLE_SHA1}"
+            fi
+
+            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+              DOCKER_TAG="${CIRCLE_BRANCH}"
+            fi
+
+            if [ -n "${CIRCLE_TAG}" ]; then
+              DOCKER_TAG="$CIRCLE_TAG"
+            fi
+
+            if [ -n "${DOCKER_TAG}" ]; then
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
+              docker images
+              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
+            else
+              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+            fi
 jobs:
   checks:
     docker:
@@ -183,20 +217,20 @@ jobs:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
-            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
-            RUST_BACKTRACE: 1
-            # XXX: begin_test_transaction doesn't play nice over threaded tests
-            RUST_TEST_THREADS: 1
+          SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
       - image: circleci/mysql:5.7-ram
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            MYSQL_ROOT_PASSWORD: password
-            MYSQL_USER: test
-            MYSQL_PASSWORD: test
-            MYSQL_DATABASE: syncstorage
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: syncstorage
     resource_class: large
     steps:
       - checkout
@@ -310,7 +344,20 @@ jobs:
           command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-spanner-tests
 
-  deploy:
+  deploy-mysql:
+    docker:
+      - image: docker:18.02.0-ce
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - restore_cache:
+          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - deploy:
+          repo-env-name: DOCKERHUB_REPO_MYSQL
+
+  deploy-spanner:
     docker:
       - image: docker:18.02.0-ce
         auth:
@@ -320,33 +367,8 @@ jobs:
       - setup_remote_docker
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Deploy to Dockerhub
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="${CIRCLE_SHA1}"
-            fi
-
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              DOCKER_TAG="${CIRCLE_BRANCH}"
-            fi
-
-            if [ -n "${CIRCLE_TAG}" ]; then
-              DOCKER_TAG="$CIRCLE_TAG"
-            fi
-
-            if [ -n "${DOCKER_TAG}" ]; then
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker images
-              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
-            else
-              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
+      - deploy:
+          repo-env-name: DOCKERHUB_REPO_SPANNER
 
   deploy-python-utils:
     docker:
@@ -361,7 +383,6 @@ jobs:
       - run:
           name: Build and deploy to Dockerhub
           command: |
-            export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
               DOCKER_TAG="latest"
             fi
@@ -376,11 +397,11 @@ jobs:
 
             if [ -n "${DOCKER_TAG}" ]; then
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
+              echo ${DOCKERHUB_REPO_UTILS}:${DOCKER_TAG}
               cd tools/spanner
-              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
+              docker build -t ${DOCKERHUB_REPO_UTILS}:${DOCKER_TAG} .
               docker images
-              docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
+              docker push "${DOCKERHUB_REPO_UTILS}:${DOCKER_TAG}"
             else
               echo "Not building or pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
@@ -421,7 +442,7 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - deploy:
+      - deploy-mysql:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
@@ -430,7 +451,15 @@ workflows:
               only: /.*/
             branches:
               only: master
-              # touch: 1676417203
+      - deploy-spanner:
+          requires:
+            - mysql-e2e-tests
+            - spanner-e2e-tests
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests
