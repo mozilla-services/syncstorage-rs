@@ -1,4 +1,4 @@
-FROM python:3.11-bullseye
+FROM python:3.12-bookworm
 
 COPY purge_ttl.py count_expired_rows.py count_users.py requirements.txt /app/
 
