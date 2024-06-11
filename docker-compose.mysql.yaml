@@ -17,6 +17,7 @@ services:
     restart: always
     ports:
       - "3306"
+    command: --explicit_defaults_for_timestamp
     environment:
       #MYSQL_RANDOM_ROOT_PASSWORD: yes
       MYSQL_ROOT_PASSWORD: random
@@ -31,6 +32,7 @@ services:
     restart: always
     ports:
       - "3306"
+    command: --explicit_defaults_for_timestamp
     environment:
       #MYSQL_RANDOM_ROOT_PASSWORD: yes
       MYSQL_ROOT_PASSWORD: random
@@ -41,7 +43,7 @@ services:
   mock-fxa-server:
     image: app:build
     restart: "no"
-    entrypoint: python3 /app/tools/integration_tests/tokenserver/mock_fxa_server.py
+    entrypoint: "sh scripts/start_mock_fxa_server.sh"
     environment:
       MOCK_FXA_SERVER_HOST: 0.0.0.0
       MOCK_FXA_SERVER_PORT: 6000
