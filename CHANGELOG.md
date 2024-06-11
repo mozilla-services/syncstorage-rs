@@ -1,3 +1,13 @@
+<a name="0.16.0"></a>
+## 0.16.0 (2024-06-11)
+
+
+#### Chore
+
+*   Update to debian bookworm / Python 3.12 (#1567) ([8f9e1c27](https://github.com/mozilla-services/syncstorage-rs/commit/8f9e1c27cf8dc9e6bc176a98cc049e9735330e43))
+
+
+
 <a name="0.15.9"></a>
 ## 0.15.9 (2024-05-31)
 
