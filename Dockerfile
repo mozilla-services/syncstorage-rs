@@ -37,7 +37,7 @@ RUN \
     # related:
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go pkg-config python3-dev python3-pip python3-setuptools python3-wheel python3-venv && \
+    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go pkg-config python3-dev python3-pip python3-setuptools python3-wheel && \
     pip3 install --break-system-packages -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
@@ -74,7 +74,7 @@ RUN \
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
-    apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 pkg-config python3-dev python3-pip python3-setuptools python3-wheel python3-venv cargo curl jq && \
+    apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 pkg-config python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
