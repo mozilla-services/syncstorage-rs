@@ -10,7 +10,7 @@ commands:
     steps:
       - run:
           name: Display Versions
-          command: | 
+          command: |
             rustc --version
             python --version
   setup-rust-check:
