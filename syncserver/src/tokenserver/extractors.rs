@@ -98,6 +98,12 @@ impl TokenserverRequest {
             });
         }
 
+        // If the caller reports new client state, but the auth doesn't, flag
+        // it as an error.
+        if !self.user.client_state.is_empty() && self.auth_data.client_state.is_empty() {
+            let error_message = "Unacceptable client-state value empty string".to_owned();
+            return Err(TokenserverError::invalid_client_state(error_message, None));
+        }
         // The client state on the request must not have been used in the past.
         if self
             .user
@@ -151,6 +157,22 @@ impl TokenserverRequest {
             });
         }
 
+        // Oauth requests must always include a `keys_changed_at` header. The Python Tokenserver
+        // converts a NULL `keys_changed_at` to 0 in memory, which means that NULL `keys_changed_at`s
+        // are treated equivalenty to 0 `keys_changed_at`s. This would allow users with a 0 `keys_changed_at`
+        // on their user record to hold off on sending a `keys_changed_at` in requests even though the
+        // value in the database is non-NULL. To be thorough, we handle this case here.
+        if auth_keys_changed_at.is_none()
+            && matches!(user_keys_changed_at, Some(inner) if inner != 0)
+        {
+            let context =
+                "No keys_changed_at sent for a user for whom we've already seen a keys_changed_at"
+                    .to_owned();
+            return Err(TokenserverError {
+                context,
+                ..TokenserverError::invalid_keys_changed_at()
+            });
+        }
         Ok(())
     }
 }
@@ -182,7 +204,7 @@ impl FromRequest for TokenserverRequest {
 
             // To preserve anonymity, compute a hash of the FxA device ID to be used for reporting
             // metrics. Use "none" as a placeholder for "device" with OAuth requests.
-            let hashed_device_id = hash_device_id(&hashed_fxa_uid, "none", fxa_metrics_hash_secret);
+            let hashed_device_id = hash_device_id(&hashed_fxa_uid, fxa_metrics_hash_secret);
 
             let DbWrapper(db) = DbWrapper::extract(&req).await?;
             let service_id = {
@@ -618,9 +640,14 @@ fn fxa_metrics_hash(fxa_uid: &str, hmac_key: &[u8]) -> String {
     hex::encode(result)
 }
 
-fn hash_device_id(fxa_uid: &str, device: &str, hmac_key: &[u8]) -> String {
+fn hash_device_id(fxa_uid: &str, hmac_key: &[u8]) -> String {
     let mut to_hash = String::from(fxa_uid);
-    to_hash.push_str(device);
+    // TODO: This value originally was the deviceID from BrowserID.
+    // When support was dropped for BrowserID, the device string
+    // defaulted to "none". Append it here for now as a hard coded
+    // value until we can figure out if it's something we need to
+    // preserve for the UA or not.
+    to_hash.push_str("none");
     let fxa_metrics_hash = fxa_metrics_hash(&to_hash, hmac_key);
 
     String::from(&fxa_metrics_hash[0..32])
