@@ -6,13 +6,15 @@
 #
 version: 2.1
 commands:
-  display-rust:
+  display-versions:
     steps:
       - run:
-          name: Display Versions
+          name: Display Version Info
           command: |
             rustc --version
             python --version
+            uname -a
+            cat /etc/os-release
   setup-rust-check:
     steps:
       - run:
@@ -173,7 +175,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - display-rust
+      - display-versions
       - setup-rust-check
       - rust-check
       - rust-clippy-spanner
@@ -205,7 +207,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - display-rust
+      - display-versions
       - setup-python
       - setup-mysql
       - create-tokenserver-database
@@ -228,6 +230,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build MySQL Docker image
@@ -259,6 +262,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build Spanner Docker image
@@ -287,6 +291,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -305,6 +310,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -323,6 +329,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -362,6 +369,7 @@ jobs:
     steps:
       - setup_remote_docker
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build and deploy to Dockerhub
