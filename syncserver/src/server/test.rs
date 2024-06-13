@@ -172,7 +172,7 @@ fn create_hawk_header(method: &str, port: u16, path: &str) -> String {
         user_id: 42,
         fxa_uid: format!("xxx_test_uid_{}", *RAND_UID),
         fxa_kid: format!("xxx_test_kid_{}", *RAND_UID),
-        device_id: "xxx_test".to_owned(),
+        hashed_device_id: "xxx_test".to_owned(),
         tokenserver_origin: Default::default(),
     };
     let payload =

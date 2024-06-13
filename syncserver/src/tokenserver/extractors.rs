@@ -386,7 +386,6 @@ impl FromRequest for Token {
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct AuthData {
     pub client_state: String,
-    pub device_id: Option<String>,
     pub email: String,
     pub fxa_uid: String,
     pub generation: Option<i64>,
@@ -437,7 +436,6 @@ impl FromRequest for AuthData {
                     Ok(AuthData {
                         client_state: key_id.client_state,
                         email,
-                        device_id: None,
                         fxa_uid,
                         generation: convert_zero_to_none(verify_output.generation),
                         keys_changed_at: convert_zero_to_none(Some(key_id.keys_changed_at)),
@@ -695,7 +693,6 @@ mod tests {
         let expected_tokenserver_request = TokenserverRequest {
             user: results::GetOrCreateUser::default(),
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: fxa_uid.to_owned(),
                 email: "test123@test.com".to_owned(),
                 generation: Some(1234),
@@ -1029,7 +1026,6 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1233),
@@ -1072,7 +1068,6 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1114,7 +1109,6 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1157,7 +1151,6 @@ mod tests {
                 old_client_states: vec!["bbbb".to_owned()],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1200,7 +1193,6 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1234),
@@ -1241,7 +1233,6 @@ mod tests {
                 old_client_states: vec![],
             },
             auth_data: AuthData {
-                device_id: None,
                 fxa_uid: "test".to_owned(),
                 email: "test@test.com".to_owned(),
                 generation: Some(1235),
