@@ -6,12 +6,15 @@
 #
 version: 2.1
 commands:
-  display-rust:
+  display-versions:
     steps:
       - run:
-          name: Display Rust Version
-          command:
-            rustc --version
+          name: Display Version Info
+          command: |
+            if [ "$(which rustc)" != "" ]; then rustc --version; fi
+            if [ "$(which python)" != "" ]; then python --version; fi
+            uname -a
+            cat /etc/os-release
   setup-rust-check:
     steps:
       - run:
@@ -25,10 +28,10 @@ commands:
       - run:
           name: Setup python
           command: |
-            sudo apt-get update && sudo apt-get install -y python3-dev python3-pip python3-venv
-            python3 -mvenv venv
-            . venv/bin/activate
+            sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
             pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2
+            # NOTE: Python3.12 requires `--break-system-packages`.
+            # This command is run on the cimg/rust image, which is running python 3.10
             pip3 install -r requirements.txt
   rust-check:
     steps:
@@ -42,7 +45,6 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            . venv/bin/activate
             flake8 syncserver/src/tokenserver
             flake8 tools/integration_tests
             flake8 tools/tokenserver
@@ -118,9 +120,10 @@ commands:
     steps:
       - run:
           name: Tokenserver scripts tests
-          command: >
-               . venv/bin/activate && 
-               pip3 install -r tools/tokenserver/requirements.txt &&
+          command: |
+              # NOTE: Python3.12 requires `--break-system-packages`.
+              # This command is run on the circleci/rust image, which is running python 3.10
+               pip3 install -r tools/tokenserver/requirements.txt
                python3 tools/tokenserver/run_tests.py
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -172,7 +175,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - display-rust
+      - display-versions
       - setup-rust-check
       - rust-check
       - rust-clippy-spanner
@@ -204,7 +207,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - display-rust
+      - display-versions
       - setup-python
       - setup-mysql
       - create-tokenserver-database
@@ -227,6 +230,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build MySQL Docker image
@@ -258,6 +262,7 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build Spanner Docker image
@@ -286,6 +291,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -304,6 +310,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -322,6 +329,7 @@ jobs:
           password: $DOCKER_PASS
     steps:
       - setup_remote_docker
+      - display-versions
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
@@ -361,6 +369,7 @@ jobs:
     steps:
       - setup_remote_docker
       - checkout
+      - display-versions
       - write-version
       - run:
           name: Build and deploy to Dockerhub
