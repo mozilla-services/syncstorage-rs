@@ -2,12 +2,13 @@
 #![allow(clippy::single_match)]
 use std::fmt;
 
-use actix_web::http::{header::ToStrError, StatusCode};
+use actix_web::http::header::ToStrError;
 use actix_web::Error as ActixError;
 use base64::DecodeError;
 
 use hawk::Error as ParseError;
 use hmac::digest::{InvalidLength, MacError};
+use http::StatusCode;
 use serde::{
     ser::{SerializeSeq, Serializer},
     Serialize,

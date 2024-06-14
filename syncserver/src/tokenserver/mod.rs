@@ -11,7 +11,7 @@ use serde::{
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(not(feature = "py_verifier"))]
 use tokenserver_auth::JWTVerifierImpl;
-use tokenserver_auth::{browserid, oauth, VerifyToken};
+use tokenserver_auth::{oauth, VerifyToken};
 use tokenserver_common::NodeType;
 use tokenserver_db::{params, DbPool, TokenserverPool};
 use tokenserver_settings::Settings;
@@ -21,7 +21,7 @@ use crate::{
     server::user_agent,
 };
 
-use std::{collections::HashMap, convert::TryFrom, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 #[derive(Clone)]
 pub struct ServerState {
@@ -29,7 +29,6 @@ pub struct ServerState {
     pub fxa_email_domain: String,
     pub fxa_metrics_hash_secret: String,
     pub oauth_verifier: Box<dyn VerifyToken<Output = oauth::VerifyOutput>>,
-    pub browserid_verifier: Box<dyn VerifyToken<Output = browserid::VerifyOutput>>,
     pub node_capacity_release_rate: Option<f32>,
     pub node_type: NodeType,
     pub metrics: Arc<StatsdClient>,
@@ -72,10 +71,6 @@ impl ServerState {
             oauth::Verifier::new(settings, blocking_threadpool.clone())
                 .expect("failed to create Tokenserver OAuth verifier"),
         );
-        let browserid_verifier = Box::new(
-            browserid::Verifier::try_from(settings)
-                .expect("failed to create Tokenserver BrowserID verifier"),
-        );
         let use_test_transactions = false;
 
         TokenserverPool::new(
@@ -102,7 +97,6 @@ impl ServerState {
                 fxa_email_domain: settings.fxa_email_domain.clone(),
                 fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
                 oauth_verifier,
-                browserid_verifier,
                 db_pool: Box::new(db_pool),
                 node_capacity_release_rate: settings.node_capacity_release_rate,
                 node_type: settings.node_type,

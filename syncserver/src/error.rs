@@ -9,10 +9,10 @@ use std::convert::From;
 use std::fmt;
 
 use actix_web::{
-    dev::ServiceResponse, error::ResponseError, http::StatusCode, middleware::ErrorHandlerResponse,
-    HttpResponse, HttpResponseBuilder, Result,
+    dev::ServiceResponse, error::ResponseError, middleware::ErrorHandlerResponse, HttpResponse,
+    HttpResponseBuilder, Result,
 };
-
+use http::StatusCode;
 use serde::{
     ser::{SerializeMap, SerializeSeq, Serializer},
     Serialize,
@@ -117,7 +117,7 @@ impl ApiError {
             Ok(ErrorHandlerResponse::Response(res.map_into_left_body()))
         } else {
             // Replace the outbound error message with our own for Sync requests.
-            let resp = HttpResponseBuilder::new(StatusCode::NOT_FOUND)
+            let resp = HttpResponseBuilder::new(actix_web::http::StatusCode::NOT_FOUND)
                 .json(WeaveError::UnknownError as u32);
             Ok(ErrorHandlerResponse::Response(ServiceResponse::new(
                 res.request().clone(),
@@ -194,7 +194,9 @@ impl ResponseError for ApiError {
         // HttpResponse::build(self.status).json(self)
         //
         // So instead we translate our error to a backwards compatible one
-        let mut resp = HttpResponse::build(self.status);
+        let mut resp = HttpResponse::build(
+            actix_web::http::StatusCode::from_u16(self.status.as_u16()).unwrap(),
+        );
         if self.is_conflict() {
             resp.insert_header(("Retry-After", RETRY_AFTER.to_string()));
         };

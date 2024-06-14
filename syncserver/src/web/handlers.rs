@@ -1,6 +1,7 @@
 //! API Handlers
 use std::collections::HashMap;
 use std::convert::Into;
+use std::time::{Duration, Instant};
 
 use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
 use serde::Serialize;
@@ -11,7 +12,6 @@ use syncstorage_db::{
     results::{CreateBatch, Paginated},
     Db, DbError, DbErrorIntrospect,
 };
-use time;
 
 use crate::{
     error::{ApiError, ApiErrorKind},
@@ -585,7 +585,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
 
     let deadarc = state.deadman.clone();
     let mut deadman = *deadarc.read().await;
-    if matches!(deadman.expiry, Some(expiry) if expiry <= time::Instant::now()) {
+    if matches!(deadman.expiry, Some(expiry) if expiry <= Instant::now()) {
         // We're set to report a failed health check after a certain time (to
         // evict this instance and start a fresh one)
         return Ok(HttpResponseBuilder::new(StatusCode::INTERNAL_SERVER_ERROR).json(resp));
@@ -625,7 +625,7 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
 
     if active >= deadman.max_size && db_state.idle_connections == 0 {
         if deadman.clock_start.is_none() {
-            deadman.clock_start = Some(time::Instant::now());
+            deadman.clock_start = Some(Instant::now());
         }
         status_code = StatusCode::INTERNAL_SERVER_ERROR;
     } else if deadman.clock_start.is_some() {
@@ -641,11 +641,8 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
         Value::from(db_state.idle_connections),
     );
     if let Some(clock) = deadman.clock_start {
-        let duration: time::Duration = time::Instant::now() - clock;
-        resp.insert(
-            "duration_ms".to_string(),
-            Value::from(duration.whole_milliseconds()),
-        );
+        let duration: Duration = Instant::now() - clock;
+        resp.insert("duration_ms".to_string(), Value::from(duration.as_millis()));
     };
 
     Ok(HttpResponseBuilder::new(status_code).json(json!(resp)))
