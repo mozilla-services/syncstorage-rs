@@ -10,13 +10,16 @@ Admin/managment scripts for TokenServer.
 import sys
 import time
 import logging
+import base64
 import os
 import json
 from datetime import datetime
 
 from datadog import initialize, statsd
 
-from browserid.utils import encode_bytes as encode_bytes_b64
+
+def encode_bytes_b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
 
 
 def run_script(main):

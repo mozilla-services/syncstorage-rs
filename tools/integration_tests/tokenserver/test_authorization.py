@@ -45,26 +45,26 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_key_id(self):
-        if self.auth_method == "oauth":
-            additional_headers = {
-                'X-KeyID': "1234-state!"
-            }
-            headers = self._build_auth_headers(keys_changed_at=1234,
-                                               client_state='aaaa',
-                                               **additional_headers)
-            res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        additional_headers = {
+            'X-KeyID': "1234-state!"
+        }
+        headers = self._build_auth_headers(
+            keys_changed_at=1234,
+            client_state='aaaa',
+            **additional_headers)
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
 
-            expected_error_response = {
-                'status': 'invalid-credentials',
-                'errors': [
-                    {
-                        'location': 'body',
-                        'name': '',
-                        'description': 'Unauthorized'
-                    }
-                ]
-            }
-            self.assertEqual(res.json, expected_error_response)
+        expected_error_response = {
+            'status': 'invalid-credentials',
+            'errors': [
+                {
+                    'location': 'body',
+                    'name': '',
+                    'description': 'Unauthorized'
+                }
+            ]
+        }
+        self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_x_client_state(self):
         additional_headers = {'X-Client-State': 'state!'}
@@ -304,18 +304,6 @@ class TestAuthorization(TestCase, unittest.TestCase):
         uid = self._add_user(generation=0, keys_changed_at=None,
                              client_state='aaaa')
 
-        # Only BrowserID requests can omit keys_changed_at
-        if self.auth_method == 'browserid':
-            # Send a request without a generation that doesn't update
-            # keys_changed_at
-            headers = self._build_auth_headers(generation=None,
-                                               keys_changed_at=None,
-                                               client_state='aaaa')
-            self.app.get('/1.0/sync/1.5', headers=headers)
-            user = self._get_user(uid)
-            # This should not have set the user's generation
-            self.assertEqual(user['generation'], 0)
-
         # Send a request without a generation that updates keys_changed_at
         headers = self._build_auth_headers(generation=None,
                                            keys_changed_at=1234,
@@ -534,29 +522,29 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user['keys_changed_at'], 1234)
 
     def test_x_client_state_must_have_same_client_state_as_key_id(self):
-        if self.auth_method == "oauth":
-            self._add_user(client_state='aaaa')
-            additional_headers = {'X-Client-State': 'bbbb'}
-            headers = self._build_auth_headers(generation=1234,
-                                               keys_changed_at=1234,
-                                               client_state='aaaa',
-                                               **additional_headers)
-            # If present, the X-Client-State header must have the same client
-            # state as the X-KeyID header
-            res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
-            expected_error_response = {
-                'errors': [
-                    {
-                        'description': 'Unauthorized',
-                        'location': 'body',
-                        'name': ''
-                    }
-                ],
-                'status': 'invalid-client-state'
-            }
-            self.assertEqual(res.json, expected_error_response)
-            headers['X-Client-State'] = 'aaaa'
-            res = self.app.get('/1.0/sync/1.5', headers=headers)
+        self._add_user(client_state='aaaa')
+        additional_headers = {'X-Client-State': 'bbbb'}
+        headers = self._build_auth_headers(
+            generation=1234,
+            keys_changed_at=1234,
+            client_state='aaaa',
+            **additional_headers)
+        # If present, the X-Client-State header must have the same client
+        # state as the X-KeyID header
+        res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+        expected_error_response = {
+            'errors': [
+                {
+                    'description': 'Unauthorized',
+                    'location': 'body',
+                    'name': ''
+                }
+            ],
+            'status': 'invalid-client-state'
+        }
+        self.assertEqual(res.json, expected_error_response)
+        headers['X-Client-State'] = 'aaaa'
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
 
     def test_zero_generation_treated_as_null(self):
         # Add a user that has a generation set

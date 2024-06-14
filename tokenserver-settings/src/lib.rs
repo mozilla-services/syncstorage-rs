@@ -38,19 +38,6 @@ pub struct Settings {
     /// A secondary JWK to be used to verify OAuth tokens. This is intended to be used to enable
     /// seamless key rotations on FxA.
     pub fxa_oauth_secondary_jwk: Option<Jwk>,
-    /// The issuer expected in the BrowserID verification response.
-    pub fxa_browserid_issuer: String,
-    /// The audience to be sent to the FxA BrowserID verification server.
-    pub fxa_browserid_audience: String,
-    /// The URL of the FxA server used for verifying BrowserID assertions.
-    pub fxa_browserid_server_url: String,
-    /// The timeout to be used when making requests to the FxA BrowserID verification server. This
-    /// timeout applies to the duration of the entire request lifecycle, from when the client
-    /// begins connecting to when the response body has been received.
-    pub fxa_browserid_request_timeout: u64,
-    /// The timeout to be used when connecting to the FxA BrowserID verification server. This
-    /// timeout applies only to the connect portion of the request lifecycle.
-    pub fxa_browserid_connect_timeout: u64,
     /// The rate at which capacity should be released from nodes that are at capacity.
     pub node_capacity_release_rate: Option<f32>,
     /// The type of the storage nodes used by this instance of Tokenserver.
@@ -88,11 +75,6 @@ impl Default for Settings {
             fxa_oauth_request_timeout: 10,
             fxa_oauth_primary_jwk: None,
             fxa_oauth_secondary_jwk: None,
-            fxa_browserid_audience: "https://token.stage.mozaws.net".to_owned(),
-            fxa_browserid_issuer: "api-accounts.stage.mozaws.net".to_owned(),
-            fxa_browserid_server_url: "https://verifier.stage.mozaws.net/v2".to_owned(),
-            fxa_browserid_request_timeout: 10,
-            fxa_browserid_connect_timeout: 5,
             node_capacity_release_rate: None,
             node_type: NodeType::Spanner,
             statsd_label: "syncstorage.tokenserver".to_owned(),

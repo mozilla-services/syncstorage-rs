@@ -17,22 +17,16 @@ DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
 
 class TestCase:
-    BROWSERID_ISSUER = os.environ['SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER']
     FXA_EMAIL_DOMAIN = 'api-accounts.stage.mozaws.net'
-    FXA_METRICS_HASH_SECRET = 'secret0'
+    FXA_METRICS_HASH_SECRET = os.environ.get("SYNC_MASTER_SECRET", 'secret0')
     NODE_ID = 800
     NODE_URL = 'https://example.com'
-    TOKEN_SIGNING_SECRET = 'secret0'
+    TOKEN_SIGNING_SECRET = os.environ.get("SYNC_MASTER_SECRET", 'secret0')
     TOKENSERVER_HOST = os.environ['TOKENSERVER_HOST']
 
     @classmethod
     def setUpClass(cls):
-        cls.auth_method = os.environ['TOKENSERVER_AUTH_METHOD']
-
-        if cls.auth_method == 'browserid':
-            cls._build_auth_headers = cls._build_browserid_headers
-        else:
-            cls._build_auth_headers = cls._build_oauth_headers
+        cls._build_auth_headers = cls._build_oauth_headers
 
     def setUp(self):
         engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
@@ -97,51 +91,6 @@ class TestCase:
         client_state = binascii.unhexlify(client_state)
         client_state = b64encode(client_state).strip(b'=').decode('utf-8')
         headers['X-KeyID'] = '%s-%s' % (keys_changed_at, client_state)
-        headers.update(additional_headers)
-
-        return headers
-
-    def _build_browserid_headers(self, generation=None, user='test',
-                                 keys_changed_at=None, client_state=None,
-                                 issuer=BROWSERID_ISSUER, device_id=None,
-                                 token_verified=None, status=200,
-                                 **additional_headers):
-        claims = {
-            'status': 'okay',
-            'email': '%s@%s' % (user, self.FXA_EMAIL_DOMAIN),
-            'issuer': issuer
-        }
-
-        if device_id or generation is not None or \
-                keys_changed_at is not None or token_verified is not None:
-            idp_claims = {}
-
-            if device_id:
-                idp_claims['fxa-deviceId'] = device_id
-
-            if generation:
-                idp_claims['fxa-generation'] = generation
-
-            if keys_changed_at:
-                idp_claims['fxa-keysChangedAt'] = keys_changed_at
-
-            if token_verified is not None:
-                idp_claims['fxa-tokenVerified'] = token_verified
-
-            claims['idpClaims'] = idp_claims
-
-        body = {
-            'body': claims,
-            'status': status,
-        }
-
-        headers = {
-            'Authorization': 'BrowserID %s' % json.dumps(body),
-        }
-
-        if client_state:
-            headers['X-Client-State'] = client_state
-
         headers.update(additional_headers)
 
         return headers

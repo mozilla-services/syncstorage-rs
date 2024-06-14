@@ -22,27 +22,6 @@ def _mock_oauth_jwk(request):
     return {'keys': [{'fake': 'RSA key'}]}
 
 
-@view_config(route_name='mock_verify', renderer='json')
-def _mock_browserid_verify(request):
-    body = json.loads(request.json_body['assertion'])
-
-    return Response(json=body['body'], content_type='application/json',
-                    status=body['status'])
-
-
-# This endpoint is used by the legacy Tokenserver during startup. We mock it
-# here so the unit tests can be run against the legacy Tokenserver.
-@view_config(route_name='mock_config', renderer='json')
-def _mock_config(request):
-    return {
-        "browserid": {
-            "issuer": "api-accounts.stage.mozaws.net",
-            "verificationUrl": "https://verifier.stage.mozaws.net/v2"
-        },
-        "contentUrl": "https://accounts.stage.mozaws.net"
-    }
-
-
 def make_server(host, port):
     with Configurator() as config:
         config.add_route('mock_oauth_verify', '/v1/verify')
@@ -51,15 +30,6 @@ def make_server(host, port):
 
         config.add_route('mock_oauth_jwk', '/v1/jwks')
         config.add_view(_mock_oauth_jwk, route_name='mock_oauth_jwk',
-                        renderer='json')
-
-        config.add_route('mock_browserid_verify', '/v2')
-        config.add_view(_mock_browserid_verify,
-                        route_name='mock_browserid_verify',
-                        renderer='json')
-
-        config.add_route('mock_config', '/config')
-        config.add_view(_mock_config, route_name='mock_config',
                         renderer='json')
         app = config.make_wsgi_app()
 

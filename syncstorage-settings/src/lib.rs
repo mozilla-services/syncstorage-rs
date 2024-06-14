@@ -1,6 +1,9 @@
 //! Application settings objects and initialization
 
-use std::cmp::min;
+use std::{
+    cmp::min,
+    time::{Duration, Instant},
+};
 
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
@@ -40,8 +43,8 @@ pub struct Quota {
 pub struct Deadman {
     pub max_size: u32,
     pub previous_count: usize,
-    pub clock_start: Option<time::Instant>,
-    pub expiry: Option<time::Instant>,
+    pub clock_start: Option<Instant>,
+    pub expiry: Option<Instant>,
 }
 
 impl From<&Settings> for Deadman {
@@ -52,7 +55,7 @@ impl From<&Settings> for Deadman {
             let ttl = lbheartbeat_ttl as f32;
             let max_jitter = ttl * (settings.lbheartbeat_ttl_jitter as f32 * 0.01);
             let ttl = thread_rng().gen_range(ttl..ttl + max_jitter);
-            time::Instant::now() + time::Duration::seconds(ttl as i64)
+            Instant::now() + Duration::from_secs(ttl as u64)
         });
         Deadman {
             max_size: settings.database_pool_max_size,

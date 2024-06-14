@@ -794,10 +794,12 @@ class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
             user["hashed_device_id"] = data["hashed_device_id"]
             if not VALID_FXA_ID_REGEX.match(user["hashed_device_id"]):
                 raise ValueError("invalid hashed_device_id in token data")
+        """
         elif "device_id" in data:
             user["hashed_device_id"] = data.get("device_id")
             if not VALID_FXA_ID_REGEX.match(user["hashed_device_id"]):
                 raise ValueError("invalid device_id in token data")
+        """
         return user
 
 
