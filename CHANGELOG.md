@@ -1,3 +1,21 @@
+<a name="0.17.0"></a>
+## 0.17.0 (2024-06-15)
+
+
+#### Chore
+
+*   bump crytography/pyramid to quiet a number of security alerts (#1574) ([6c9b771b](https://github.com/mozilla-services/syncstorage-rs/commit/6c9b771bc576207d642f91bf69c4fce21a98e4c3))
+
+#### Bug Fixes
+
+*   Revert the venv configuration for python (#1571) ([0f86587e](https://github.com/mozilla-services/syncstorage-rs/commit/0f86587edd5cf35263558e7e72e808e11f2612fd))
+
+#### Features
+
+*   Remove support for BrowserID (#1531) ([dbbdd1df](https://github.com/mozilla-services/syncstorage-rs/commit/dbbdd1dfc3a130be46d4586133daa36c67378e7a))
+
+
+
 <a name="0.16.0"></a>
 ## 0.16.0 (2024-06-11)
 
