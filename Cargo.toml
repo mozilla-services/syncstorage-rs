@@ -56,13 +56,13 @@ regex = "1.4"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ] }
-sentry = { version = "0.32", default-features = false, features = [
+sentry = { version = "0.34", default-features = false, features = [
   "curl",
   "backtrace",
   "contexts",
   "debug-images",
 ] }
-sentry-backtrace = "0.32"
+sentry-backtrace = "0.34"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
