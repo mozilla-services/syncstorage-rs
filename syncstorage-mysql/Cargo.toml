@@ -14,9 +14,10 @@ slog-scope.workspace = true
 thiserror.workspace = true
 
 async-trait = "0.1.40"
-diesel = { version = "1.4", features = ["mysql", "r2d2"] }
-diesel_logger = "0.1.1"
-diesel_migrations = { version = "1.4.0", features = ["mysql"] }
+# There appears to be a compilation error with diesel
+diesel = { workspace = true, features = ["mysql", "r2d2"] }
+diesel_logger = { workspace = true }
+diesel_migrations = { workspace = true, features = ["mysql"] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
