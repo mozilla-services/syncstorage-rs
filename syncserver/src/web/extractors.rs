@@ -82,12 +82,12 @@ fn urldecode(s: &str) -> Result<String, ApiError> {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {
-    #[validate(custom = "validate_body_bso_id")]
+    #[validate(custom(function = "validate_body_bso_id"))]
     pub id: String,
-    #[validate(custom = "validate_body_bso_sortindex")]
+    #[validate(custom(function = "validate_body_bso_sortindex"))]
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
-    #[validate(custom = "validate_body_bso_ttl")]
+    #[validate(custom(function = "validate_body_bso_ttl"))]
     pub ttl: Option<u32>,
 }
 
@@ -354,12 +354,12 @@ impl FromRequest for BsoBodies {
 #[derive(Default, Debug, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]
 pub struct BsoBody {
-    #[validate(custom = "validate_body_bso_id")]
+    #[validate(custom(function = "validate_body_bso_id"))]
     pub id: Option<String>,
-    #[validate(custom = "validate_body_bso_sortindex")]
+    #[validate(custom(function = "validate_body_bso_sortindex"))]
     pub sortindex: Option<i32>,
     pub payload: Option<String>,
-    #[validate(custom = "validate_body_bso_ttl")]
+    #[validate(custom(function = "validate_body_bso_ttl"))]
     pub ttl: Option<u32>,
     /// Any client-supplied value for these fields are ignored
     #[serde(rename(deserialize = "modified"), skip_serializing)]
@@ -467,7 +467,7 @@ impl FromRequest for BsoBody {
 /// Bso id parameter extractor
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct BsoParam {
-    #[validate(regex = "VALID_ID_REGEX")]
+    #[validate(regex(path = *VALID_ID_REGEX))]
     pub bso: String,
 }
 
@@ -542,7 +542,7 @@ impl FromRequest for BsoParam {
 /// Collection parameter Extractor
 #[derive(Clone, Debug, Deserialize, Validate)]
 pub struct CollectionParam {
-    #[validate(regex = "VALID_COLLECTION_ID_REGEX")]
+    #[validate(regex(path = *VALID_COLLECTION_ID_REGEX))]
     pub collection: String,
 }
 
@@ -1238,7 +1238,7 @@ pub struct BsoQueryParams {
 
     /// a comma-separated list of BSO ids (list of strings)
     #[serde(deserialize_with = "deserialize_comma_sep_string", default)]
-    #[validate(custom = "validate_qs_ids")]
+    #[validate(custom(function = "validate_qs_ids"))]
     pub ids: Vec<String>,
 
     // flag, whether to include full bodies (bool)
@@ -1312,7 +1312,7 @@ impl FromRequest for BsoQueryParams {
 #[serde(default)]
 pub struct BatchParams {
     pub batch: Option<String>,
-    #[validate(custom = "validate_qs_commit")]
+    #[validate(custom(function = "validate_qs_commit"))]
     pub commit: Option<String>,
 }
 

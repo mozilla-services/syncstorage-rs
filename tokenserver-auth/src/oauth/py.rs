@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, PublicKeyUse, RSAKeyParameters};
 use pyo3::{
     prelude::{Py, PyAny, PyErr, PyModule, Python},
-    types::{IntoPyDict, PyString},
+    types::{IntoPyDict, PyAnyMethods, PyDictMethods, PyString},
+    Bound,
 };
 use serde_json;
 use syncserver_common::{BlockingThreadpool, Metrics};
@@ -34,10 +35,10 @@ impl Verifier {
     ) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, TokenserverError>>(|py| {
             let code = include_str!("verify.py");
-            let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)
+            let module = PyModule::from_code_bound(py, code, Self::FILENAME, Self::FILENAME)
                 .map_err(pyerr_to_tokenserver_error)?;
             let kwargs = {
-                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
+                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict_bound(py);
                 let parse_jwk = |jwk: &Jwk| {
                     let (n, e) = match &jwk.algorithm {
                         AlgorithmParameters::RSA(RSAKeyParameters { key_type: _, n, e }) => (n, e),
@@ -71,7 +72,7 @@ impl Verifier {
                         ("n", n),
                         ("e", e),
                     ]
-                    .into_py_dict(py);
+                    .into_py_dict_bound(py);
                     Ok(dict)
                 };
 
@@ -91,7 +92,7 @@ impl Verifier {
             let object: Py<PyAny> = module
                 .getattr("FxaOAuthClient")
                 .map_err(pyerr_to_tokenserver_error)?
-                .call((), Some(kwargs))
+                .call((), Some(&kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     pyerr_to_tokenserver_error(e)
@@ -126,9 +127,9 @@ impl VerifyToken for Verifier {
         // gives us the flexibility to clone only when necessary.
         let verify_inner = |verifier: &Self| {
             let maybe_verify_output_string = Python::with_gil(|py| {
-                let client = verifier.inner.as_ref(py);
+                let client = verifier.inner.bind(py);
                 // `client.verify_token(token)`
-                let result: &PyAny = client
+                let result: Bound<PyAny> = client
                     .getattr("verify_token")?
                     .call((token,), None)
                     .map_err(|e| {

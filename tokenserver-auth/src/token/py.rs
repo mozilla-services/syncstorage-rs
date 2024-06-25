@@ -1,7 +1,7 @@
 use crate::{MakeTokenPlaintext, TokenserverError};
 use pyo3::{
     prelude::{IntoPy, PyErr, PyModule, PyObject, Python},
-    types::IntoPyDict,
+    types::{IntoPyDict, PyAnyMethods, PyDictMethods},
 };
 
 pub struct PyTokenlib {}
@@ -15,7 +15,7 @@ impl IntoPy<PyObject> for MakeTokenPlaintext {
             ("hashed_fxa_uid", self.hashed_fxa_uid),
             ("tokenserver_origin", self.tokenserver_origin.to_string()),
         ]
-        .into_py_dict(py);
+        .into_py_dict_bound(py);
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
@@ -32,16 +32,16 @@ impl PyTokenlib {
     ) -> Result<(String, String), TokenserverError> {
         Python::with_gil(|py| {
             // `import tokenlib`
-            let module = PyModule::import(py, "tokenlib").map_err(|e| {
+            let module = PyModule::import_bound(py, "tokenlib").map_err(|e| {
                 e.print_and_set_sys_last_vars(py);
                 e
             })?;
             // `kwargs = { 'secret': shared_secret }`
-            let kwargs = [("secret", shared_secret)].into_py_dict(py);
+            let kwargs = [("secret", shared_secret)].into_py_dict_bound(py);
             // `token = tokenlib.make_token(plaintext, **kwargs)`
             let token = module
                 .getattr("make_token")?
-                .call((plaintext,), Some(kwargs))
+                .call((plaintext,), Some(&kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e
@@ -50,7 +50,7 @@ impl PyTokenlib {
             // `derived_secret = tokenlib.get_derived_secret(token, **kwargs)`
             let derived_secret = module
                 .getattr("get_derived_secret")?
-                .call((&token,), Some(kwargs))
+                .call((&token,), Some(&kwargs))
                 .map_err(|e| {
                     e.print_and_set_sys_last_vars(py);
                     e

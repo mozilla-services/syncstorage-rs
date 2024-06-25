@@ -28,12 +28,13 @@ syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true }
-pyo3 = { version = "0.20", features = ["auto-initialize"], optional = true}
+pyo3 = { version = "0.21", features = ["auto-initialize"], optional = true }
 
 
 [dev-dependencies]
-mockito = "0.30.0"
-tokio = { workspace = true, features = ["macros"]}
+# mockito = "0.30"
+mockito = "1.4.0"
+tokio = { workspace = true, features = ["macros"] }
 
 [features]
 default = ["py"]
