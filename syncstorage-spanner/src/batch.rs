@@ -195,6 +195,8 @@ pub async fn commit_async(
             "timestamp" => as_rfc3339.clone(),
         };
         sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
+        // NOTE: This write treats existing but expired bsos as existing (and
+        // not expired), see the note in SpannerDb::post_bsos_with_mutations
         db.sql(include_str!("batch_commit_update.sql"))?
             .params(sqlparams)
             .param_types(sqlparam_types)
@@ -216,6 +218,8 @@ pub async fn commit_async(
         sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
         let mut timer3 = db.metrics.clone();
         timer3.start_timer("storage.spanner.apply_batch_insert", None);
+        // NOTE: This write treats existing but expired bsos as existing (and
+        // not expired), see the note in SpannerDb::post_bsos_with_mutations
         db.sql(include_str!("batch_commit_insert.sql"))?
             .params(sqlparams)
             .param_types(sqlparam_types)

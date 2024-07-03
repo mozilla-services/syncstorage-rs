@@ -1575,6 +1575,16 @@ impl SpannerDb {
                 .map(|pbso| pbso.id.clone())
                 .collect::<Vec<String>>(),
         };
+        // Determine what bsos already exist (need to be inserted vs updated)
+        // NOTE: Here and in batch commit we match the original Python
+        // syncstorage's behavior: not specifying "AND expiry >
+        // CURRENT_TIMESTAMP()", treating existing but expired bsos as existing
+        // (and not expired). This simplifies the writes, avoiding the need to
+        // delete those expired bsos before inserting new ones with the same
+        // id. Unfortunately this means updates may resurrect expired bsos (or
+        // at least a subset of their fields), or possibly even write new data
+        // without an associated ttl to an expired record that will be
+        // deleted. This in practice should be a very rare occurence
         let mut streaming = self
             .sql(
                 "SELECT bso_id
