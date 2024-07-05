@@ -2993,6 +2993,7 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
+ "syncstorage-sql-db-common",
  "thiserror",
  "url 2.5.2",
 ]
@@ -3035,6 +3036,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "syncstorage-sql-db-common"
+version = "0.17.0"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "base64 0.22.1",
+ "diesel",
+ "diesel_logger",
+ "diesel_migrations",
+ "env_logger 0.11.3",
+ "futures 0.3.30",
+ "http 1.1.0",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncserver-settings",
+ "syncstorage-db-common",
+ "syncstorage-settings",
+ "thiserror",
+ "url 2.5.2",
+]
+
+[[package]]
 name = "syncstorage-sqlite"
 version = "0.17.0"
 dependencies = [
@@ -3053,6 +3077,7 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
+ "syncstorage-sql-db-common",
  "thiserror",
  "url 2.5.2",
 ]
