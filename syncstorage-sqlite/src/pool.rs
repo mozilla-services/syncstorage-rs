@@ -20,8 +20,9 @@ use syncserver_db_common::test::TestTransactionCustomizer;
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
+use syncstorage_sql_db_common::error::DbError;
 
-use super::{error::DbError, models::SqliteDb, DbResult};
+use super::{models::SqliteDb, DbResult};
 
 embed_migrations!();
 
