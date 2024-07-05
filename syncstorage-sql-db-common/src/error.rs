@@ -4,7 +4,7 @@ use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncserver_db_common::error::SqlError;
-use syncstorage_db_common::error::{SyncstorageDbError, DbErrorIntrospect};
+use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
 /// An error type that represents any MySQL-related errors that may occur while processing a
@@ -145,9 +145,7 @@ from_error!(
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Sql(SqlError::from(
-        error
-    )))
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
 );
 from_error!(
     diesel::r2d2::PoolError,
@@ -157,7 +155,7 @@ from_error!(
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
-    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Sql(
-        SqlError::from(error)
-    ))
+    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Sql(SqlError::from(
+        error
+    )))
 );
