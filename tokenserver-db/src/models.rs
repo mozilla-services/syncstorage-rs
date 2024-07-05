@@ -14,10 +14,7 @@ use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
 use tokenserver_db_common::error::{DbError, DbResult};
 
-use super::{
-    params, results,
-    PooledConn
-};
+use super::{params, results, PooledConn};
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.

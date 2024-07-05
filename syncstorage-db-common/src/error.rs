@@ -32,7 +32,7 @@ enum SyncstorageDbErrorKind {
     #[error("Unexpected error: {}", _0)]
     Internal(String),
 
-#[error("User over quota")]
+    #[error("User over quota")]
     Quota,
 }
 
