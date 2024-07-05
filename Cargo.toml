@@ -17,7 +17,7 @@ members = [
   "tokenserver-db-mysql",
   "tokenserver-db-sqlite",
   "tokenserver-settings",
-  "syncserver",
+  "syncserver", "syncstorage-sql-db-common",
 ]
 default-members = ["syncserver"]
 

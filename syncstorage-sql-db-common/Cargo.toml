@@ -1,9 +1,9 @@
 [package]
-name = "syncstorage-sqlite"
-version.workspace=true
-license.workspace=true
-authors.workspace=true
-edition.workspace=true
+name = "syncstorage-sql-db-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 backtrace.workspace=true
@@ -20,7 +20,6 @@ syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-syncstorage-sql-db-common = { path = "../syncstorage-sql-db-common" }
 thiserror = "1.0.26"
 url = "2.1"
 
