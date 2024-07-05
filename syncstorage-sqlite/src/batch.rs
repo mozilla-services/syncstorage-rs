@@ -11,9 +11,9 @@ use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
 };
 use syncstorage_db_common::{params, results, UserIdentifier, BATCH_LIFETIME};
+use syncstorage_sql_db_common::error::DbError;
 
 use super::{
-    error::DbError,
     models::SqliteDb,
     schema::{batch_upload_items, batch_uploads},
     DbResult,
