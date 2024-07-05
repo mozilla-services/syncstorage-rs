@@ -14,8 +14,8 @@ mod schema;
 #[cfg(test)]
 mod test;
 
-pub use syncstorage_sql_db_common::error::DbError;
 pub use models::MysqlDb;
 pub use pool::MysqlDbPool;
+pub use syncstorage_sql_db_common::error::DbError;
 
 pub(crate) type DbResult<T> = Result<T, DbError>;
