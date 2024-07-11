@@ -1,3 +1,17 @@
+<a name="0.17.1"></a>
+## 0.17.1 (2024-07-11)
+
+
+#### Doc
+
+*   clarify the handling of existing expired bsos in writes (#1581) ([250ac943](https://github.com/mozilla-services/syncstorage-rs/commit/250ac94353d0fdd0c387bb69f5ab90aa28a4689d), closes [#619](https://github.com/mozilla-services/syncstorage-rs/issues/619))
+
+#### Bug Fixes
+
+*   don't hide TokenserverPool initialization errors on startup (#1584) ([1edce041](https://github.com/mozilla-services/syncstorage-rs/commit/1edce04154d354e78994621a0b88ddf42fb7ff66))
+
+
+
 <a name="0.17.0"></a>
 ## 0.17.0 (2024-06-15)
 
