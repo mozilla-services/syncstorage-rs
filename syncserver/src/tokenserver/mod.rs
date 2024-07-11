@@ -16,10 +16,7 @@ use tokenserver_common::NodeType;
 use tokenserver_db::{params, DbPool, TokenserverPool};
 use tokenserver_settings::Settings;
 
-use crate::{
-    error::{ApiError, ApiErrorKind},
-    server::user_agent,
-};
+use crate::{error::ApiError, server::user_agent};
 
 use std::{collections::HashMap, fmt, sync::Arc};
 
@@ -73,38 +70,35 @@ impl ServerState {
         );
         let use_test_transactions = false;
 
-        TokenserverPool::new(
+        let mut db_pool = TokenserverPool::new(
             settings,
             &Metrics::from(&metrics),
             blocking_threadpool,
             use_test_transactions,
         )
-        .map(|mut db_pool| {
-            // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
-            // unlikely for this query to fail outside of network failures or other random
-            // errors
-            db_pool.service_id = db_pool
-                .get_sync()
-                .and_then(|db| {
-                    db.get_service_id_sync(params::GetServiceId {
-                        service: "sync-1.5".to_owned(),
-                    })
+        .expect("Failed to create Tokenserver pool");
+        // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
+        // unlikely for this query to fail outside of network failures or other random errors
+        db_pool.service_id = db_pool
+            .get_sync()
+            .and_then(|db| {
+                db.get_service_id_sync(params::GetServiceId {
+                    service: "sync-1.5".to_owned(),
                 })
-                .ok()
-                .map(|result| result.id);
+            })
+            .ok()
+            .map(|result| result.id);
 
-            ServerState {
-                fxa_email_domain: settings.fxa_email_domain.clone(),
-                fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
-                oauth_verifier,
-                db_pool: Box::new(db_pool),
-                node_capacity_release_rate: settings.node_capacity_release_rate,
-                node_type: settings.node_type,
-                metrics,
-                token_duration: settings.token_duration,
-            }
+        Ok(ServerState {
+            fxa_email_domain: settings.fxa_email_domain.clone(),
+            fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
+            oauth_verifier,
+            db_pool: Box::new(db_pool),
+            node_capacity_release_rate: settings.node_capacity_release_rate,
+            node_type: settings.node_type,
+            metrics,
+            token_duration: settings.token_duration,
         })
-        .map_err(|_| ApiErrorKind::Internal("Failed to create Tokenserver pool".to_owned()).into())
     }
 }
 
