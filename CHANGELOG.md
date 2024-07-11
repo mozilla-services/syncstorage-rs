@@ -2,6 +2,10 @@
 ## 0.17.1 (2024-07-11)
 
 
+#### Chore
+
+*   Updates for Jun-2024 (#1576) ([1713962c](https://github.com/mozilla-services/syncstorage-rs/commit/1713962c6a48ca5d2a0efd4fac739482649b650c))
+
 #### Doc
 
 *   clarify the handling of existing expired bsos in writes (#1581) ([250ac943](https://github.com/mozilla-services/syncstorage-rs/commit/250ac94353d0fdd0c387bb69f5ab90aa28a4689d), closes [#619](https://github.com/mozilla-services/syncstorage-rs/issues/619))
