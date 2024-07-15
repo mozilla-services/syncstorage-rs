@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "syncstorage-rs"
+version = "0.1.0"
+description = "sync storage server in rust"
+authors = ["Taddes <tkorris@mozilla.com>"]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+packages = [{include = "syncstorage_rs"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+tokenlib = "2.0.0"
+pyfxa = "0.7.7"
+cryptography = "42.0.8"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+isort = "^5.13.2"
+flake8 = "^7.1.0"
+mypy = "^1.10.1"
+pydocstyle = "^6.3.0"
+bandit = "^1.7.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
