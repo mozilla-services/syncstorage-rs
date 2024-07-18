@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "hawk"
+version = "0.1.0"
+description = "Hawk Auth Header Generation Tool"
+authors = ["Mozilla Services Engineering <services-engineering+code@mozilla.com>"]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+hawkauthlib = "^2.0.0"
+tokenlib = "^2.0.0"
+WebOb = "^1.8.7"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
