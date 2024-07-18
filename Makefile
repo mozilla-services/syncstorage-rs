@@ -9,6 +9,8 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # Assumes you've cloned the server-syncstorage repo locally into a peer dir.
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
+INSTALL_STAMP := .install.stamp
+POETRY := $(shell command -v poetry 2> /dev/null)
 
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
@@ -26,6 +28,13 @@ SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/
 
 SRC_ROOT = $(shell pwd)
 PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+
+.PHONY: install
+install: $(INSTALL_STAMP)  ##  Install dependencies with poetry
+$(INSTALL_STAMP): pyproject.toml poetry.lock
+	@if [ -z $(POETRY) ]; then echo "Poetry could not be found. See https://python-poetry.org/docs/"; exit 2; fi
+	$(POETRY) install
+	touch $(INSTALL_STAMP)
 
 clippy_mysql:
 	# Matches what's run in circleci
