@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "integration-tests"
+version = "0.1.0"
+description = "Integration Test Suite for Sync and Tokenserver"
+authors = ["Mozilla Services Engineering <services-engineering+code@mozilla.com>"]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+packages = [{include = "integration_tests"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+cryptography = "42.0.8"
+hawkauthlib = "^2.0.0"
+konfig = "^1.1"
+mysqlclient = "^2.2.4"
+psutil = "^6.0.0"
+pyjwt = "^2.8.0"
+pyramid = "^2.0.2"
+pyramid-hawkauth = "^2.0.0"
+pyfxa = "^0.7.8"
+pytest = "^8.2.2"
+requests = "^2.32.3"
+simplejson = "^3.19.2"
+sqlalchemy = "^2.0.31"
+tokenlib = "^2.0.0"
+webtest = "^3.0.0"
+wsgiproxy2 = "^0.5.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

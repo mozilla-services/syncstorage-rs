@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "user-migration"
+version = "0.1.0"
+description = "Test suite for user migration from legacy databases."
+authors = ["Mozilla Services Engineering <services-engineering+code@mozilla.com>"]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+packages = [{include = "user_migration"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+wheel = "^0.43.0"
+google-cloud-spanner = "^3.47.0"
+mysql-connector = "^2.2.9"
+avro-python3 = "^1.10.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

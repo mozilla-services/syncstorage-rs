@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "spanner"
+version = "0.1.0"
+description = "Spanner Tools and Scripts to work with Google Cloud Platform."
+authors = ["Mozilla Services Engineering <services-engineering+code@mozilla.com>"]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+statsd = "^4.0.1"
+google-cloud-spanner = ">=1.16.0"
+
+
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
