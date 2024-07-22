@@ -5,7 +5,7 @@ description = "sync storage server in rust"
 authors = ["Taddes <tkorris@mozilla.com>"]
 license = "Mozilla Public License Version 2.0"
 readme = "README.md"
-packages = [{include = "syncstorage_rs"}]
+packages = [{include = "tools"}]
 
 [tool.poetry.dependencies]
 python = "^3.12"
