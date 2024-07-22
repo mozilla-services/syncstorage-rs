@@ -9,8 +9,17 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # Assumes you've cloned the server-syncstorage repo locally into a peer dir.
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
-INSTALL_STAMP := .install.stamp
+
 POETRY := $(shell command -v poetry 2> /dev/null)
+INSTALL_STAMP := .install.stamp
+TOOLS_DIR := tools
+ROOT_PYPROJECT_TOML := pyproject.toml
+HAWK_DIR := $(TOOLS_DIR)/hawk
+INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
+INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
+SPANNER_DIR := $(TOOLS_DIR)/spanner
+TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
+LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
 
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
@@ -35,6 +44,31 @@ $(INSTALL_STAMP): pyproject.toml poetry.lock
 	@if [ -z $(POETRY) ]; then echo "Poetry could not be found. See https://python-poetry.org/docs/"; exit 2; fi
 	$(POETRY) install
 	touch $(INSTALL_STAMP)
+
+hawk:
+	# install dependencies for hawk token utility.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(HAWK_DIR) --no-root
+
+integration-test:
+	# install dependencies for integration tests.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(INTEGRATION_TEST_DIR) --no-root
+
+spanner:
+	# install dependencies for spanner utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(SPANNER_DIR) --no-root
+
+tokenserver:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(TOKENSERVER_UTIL_DIR) --no-root
+
+tokenserver-load:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
 
 clippy_mysql:
 	# Matches what's run in circleci

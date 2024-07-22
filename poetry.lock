@@ -824,5 +824,5 @@ testing = ["coverage", "pytest (>=3.1.0)", "pytest-cov", "pytest-xdist"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = "^3.11"
-content-hash = "0b80d61c9be594adc12edbc3acce250611cedc90d212f228207b98c396450095"
+python-versions = "^3.12"
+content-hash = "ef8b23e7ccd8ee6a10ba526155b0a0a4337505f6343f95855bf417d349e74cce"
