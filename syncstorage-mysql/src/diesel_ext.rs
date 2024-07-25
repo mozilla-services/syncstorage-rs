@@ -38,6 +38,8 @@ impl QueryFragment<Mysql> for LockInShareMode {
     }
 }
 
+// Silence this until the mysql update is done.
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct OnDuplicateKeyUpdate<T, U, Op, Ret, X>(Box<InsertStatement<T, U, Op, Ret>>, X);
 
