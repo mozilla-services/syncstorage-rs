@@ -14,6 +14,7 @@ POETRY := $(shell command -v poetry 2> /dev/null)
 INSTALL_STAMP := .install.stamp
 TOOLS_DIR := tools
 FLAKE8_CONFIG := .flake8
+PROJECT_ROOT_DIR := ./
 ROOT_PYPROJECT_TOML := pyproject.toml
 HAWK_DIR := $(TOOLS_DIR)/hawk
 INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
@@ -156,29 +157,29 @@ run_token_server_integration_tests:
 
 .PHONY: isort
 isort: $(INSTALL_STAMP)  ##  Run isort
-	$(POETRY) run isort --check-only $(ROOT_PYPROJECT_TOML)
+	$(POETRY) run isort --check-only $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
 
 .PHONY: black
 black: $(INSTALL_STAMP)  ##  Run black
-	$(POETRY) run black --quiet --diff --check $(ROOT_PYPROJECT_TOML)
+	$(POETRY) run black --quiet --diff --check $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
 
 .PHONY: format
 format: $(INSTALL_STAMP)  ##  Sort imports and reformats code
-	$(POETRY) run isort $(ROOT_PYPROJECT_TOML)
-	$(POETRY) run black $(ROOT_PYPROJECT_TOML)
+	$(POETRY) run isort $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+	$(POETRY) run black $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
 
 .PHONY: flake8
 flake8: $(INSTALL_STAMP)  ##  Run flake8
-	$(POETRY) run flake8 --config $(FLAKE8_CONFIG)
-
+	$(POETRY) run flake8 --config $(FLAKE8_CONFIG) $(PROJECT_ROOT_DIR)
+ 
 .PHONY: bandit
 bandit: $(INSTALL_STAMP)  ##  Run bandit
-	$(POETRY) run bandit --quiet -r -c $(ROOT_PYPROJECT_TOML)
+	$(POETRY) run bandit --quiet -r -c $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
 
 .PHONY: mypy
 mypy: $(INSTALL_STAMP)  ##  Run mypy
-	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML)
-
+	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+ 
 .PHONY: pydocstyle
 pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
-	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML)
+	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
