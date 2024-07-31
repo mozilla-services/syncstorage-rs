@@ -8,18 +8,18 @@
 #
 
 import argparse
-import logging
 import base64
-
-import sys
+import logging
 import os
+import sys
 import time
 from datetime import datetime
 
+from google.api_core.exceptions import AlreadyExists
+from google.cloud import spanner
 from mysql import connector
 from mysql.connector.errors import IntegrityError
-from google.cloud import spanner
-from google.api_core.exceptions import AlreadyExists
+
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -27,6 +27,7 @@ except ImportError:
 
 SPANNER_NODE_ID = 800
 META_GLOBAL_COLLECTION_ID = 6
+
 
 class BadDSNException(Exception):
     pass
@@ -46,6 +47,7 @@ class Collections:
     truth regarding collection ids.
 
     """
+
     _by_name = {}
     databases = None
 
@@ -59,73 +61,53 @@ class Collections:
         """
         self.databases = databases
         logging.debug("Fetching collections...")
-        with self.databases['spanner'].snapshot() as cursor:
+        with self.databases["spanner"].snapshot() as cursor:
             rows = cursor.execute_sql(sql)
             for row in rows:
                 self._by_name[row[0]] = row[1]
 
     def get_id(self, name, cursor):
-        """ Get/Init the ID for a given collection """
+        """Get/Init the ID for a given collection"""
         if name in self._by_name:
             return self._by_name.get(name)
-        result = cursor.execute_sql("""
+        result = cursor.execute_sql(
+            """
             SELECT
                 COALESCE(MAX(collection_id), 1)
             FROM
-                collections""")
+                collections"""
+        )
         # preserve the "reserved" / < 100 ids.
         collection_id = max(result.one()[0] + 1, 101)
         cursor.insert(
-            table="collections",
-            columns=('collection_id', 'name'),
-            values=[
-                (collection_id, name)
-            ]
+            table="collections", columns=("collection_id", "name"), values=[(collection_id, name)]
         )
         self._by_name[name] = collection_id
         return collection_id
 
 
 def get_args():
-    parser = argparse.ArgumentParser(
-        description="move user from sql to spanner")
+    parser = argparse.ArgumentParser(description="move user from sql to spanner")
+    parser.add_argument("--dsns", default="move_dsns.lst", help="file of new line separated DSNs")
     parser.add_argument(
-        '--dsns', default="move_dsns.lst",
-        help="file of new line separated DSNs")
-    parser.add_argument(
-        '--users', default="move_users.lst",
-        help="file of new line separated users to move")
-    parser.add_argument(
-        '--token_dsn',
-        help="DSN to the token server database (optional)"
+        "--users", default="move_users.lst", help="file of new line separated users to move"
     )
-    parser.add_argument(
-        '--verbose',
-        action="store_true",
-        help="verbose logging"
-    )
-    parser.add_argument(
-        '--quiet',
-        action="store_true",
-        help="silence logging"
-    )
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="force a full reconcile"
-    )
+    parser.add_argument("--token_dsn", help="DSN to the token server database (optional)")
+    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument("--quiet", action="store_true", help="silence logging")
+    parser.add_argument("--full", action="store_true", help="force a full reconcile")
     return parser.parse_args()
 
 
 def conf_mysql(dsn):
-    """create a connection to the original storage system """
+    """create a connection to the original storage system"""
     logging.debug("Configuring MYSQL: {}".format(dsn))
     connection = connector.connect(
         user=dsn.username,
         password=dsn.password,
         host=dsn.hostname,
         port=dsn.port or 3306,
-        database=dsn.path[1:]
+        database=dsn.path[1:],
     )
     return connection
 
@@ -146,7 +128,7 @@ def conf_db(dsn):
     """read the list of storage definitions from the file and create
     a set of connetions.
 
-     """
+    """
     if dsn.scheme == "mysql":
         return conf_mysql(dsn)
     if dsn.scheme == "spanner":
@@ -159,13 +141,12 @@ def update_token(databases, user):
     is now on Spanner
 
     """
-    if 'token' not in databases:
-        logging.warn(
-            "Skipping token update for user {}...".format(user))
+    if "token" not in databases:
+        logging.warn("Skipping token update for user {}...".format(user))
         return
     logging.info("Updating token server for user: {}".format(user))
     try:
-        cursor = databases['token'].cursor()
+        cursor = databases["token"].cursor()
         cursor.execute(
             """
             UPDATE
@@ -176,18 +157,17 @@ def update_token(databases, user):
             WHERE
             uid = {uid}
             """.format(
-                timestamp=int(time.time() * 100),
-                nodeid=SPANNER_NODE_ID,
-                uid=user)
+                timestamp=int(time.time() * 100), nodeid=SPANNER_NODE_ID, uid=user
             )
-        databases['token'].commit()
+        )
+        databases["token"].commit()
     finally:
         cursor.close()
 
 
 # The following two functions are taken from browserid.utils
 def encode_bytes_b64(value):
-    return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
 def format_key_id(keys_changed_at, key_hash):
@@ -207,13 +187,14 @@ def get_fxa_id(databases, user):
             email, generation, keys_changed_at, client_state, node
         FROM users
             WHERE uid = {uid}
-    """.format(uid=user)
+    """.format(
+        uid=user
+    )
     try:
-        cursor = databases.get('token', databases['mysql']).cursor()
+        cursor = databases.get("token", databases["mysql"]).cursor()
         cursor.execute(sql)
-        (email, generation, keys_changed_at,
-         client_state, node) = cursor.next()
-        fxa_uid = email.split('@')[0]
+        (email, generation, keys_changed_at, client_state, node) = cursor.next()
+        fxa_uid = email.split("@")[0]
         fxa_kid = format_key_id(
             keys_changed_at or generation,
             bytes.fromhex(client_state),
@@ -242,14 +223,15 @@ def create_migration_table(database):
                     started_at BIGINT NOT NULL,
                     state SMALLINT
                 )
-            """)
+            """
+        )
         database.commit()
     finally:
         cursor.close()
 
 
 def dumper(columns, values):
-    """verbose column and data dumper. """
+    """verbose column and data dumper."""
     result = ""
     for row in values:
         for i in range(0, len(columns)):
@@ -258,27 +240,23 @@ def dumper(columns, values):
 
 
 def mark_user(databases, user, state=MigrationState.IN_PROGRESS):
-    """ mark a user in migration """
+    """mark a user in migration"""
     try:
-        mysql = databases['mysql'].cursor()
+        mysql = databases["mysql"].cursor()
         if state == MigrationState.IN_PROGRESS:
             try:
                 logging.info("Marking {} as migrating...".format(user))
                 mysql.execute(
-                    "INSERT INTO migration "
-                    "(fxa_uid, started, state) VALUES (%s, %s, %s)",
-                    (user, int(time.time()), state)
+                    "INSERT INTO migration " "(fxa_uid, started, state) VALUES (%s, %s, %s)",
+                    (user, int(time.time()), state),
                 )
-                databases['mysql'].commit()
+                databases["mysql"].commit()
             except IntegrityError:
                 return False
         if state == MigrationState.COMPLETE:
             logging.info("Marking {} as migrating...".format(user))
-            mysql.execute(
-                "UPDATE migration SET state = %s WHERE fxa_uid = %s",
-                (state, user)
-            )
-            databases['mysql'].commit()
+            mysql.execute("UPDATE migration SET state = %s WHERE fxa_uid = %s", (state, user))
+            databases["mysql"].commit()
     finally:
         mysql.close()
     return True
@@ -289,7 +267,7 @@ def finish_user(databases, user):
     # This is not wrapped into `start_user` so that I can reduce
     # the number of db IO, since an upsert would just work instead
     # of fail out with a dupe.
-    mysql = databases['mysql'].cursor()
+    mysql = databases["mysql"].cursor()
     try:
         logging.info("Marking {} as migrating...".format(user))
         mysql.execute(
@@ -301,17 +279,19 @@ def finish_user(databases, user):
             WHERE
                 fxa_uid = %s
             """,
-            (user,)
+            (user,),
         )
-        databases['mysql'].commit()
+        databases["mysql"].commit()
     except IntegrityError:
         return False
     finally:
         mysql.close()
     return True
 
+
 def newSyncID():
     base64.urlsafe_b64encode(os.urandom(9))
+
 
 def alter_syncids(pay):
     """Alter the syncIDs for the meta/global record, which will cause a sync
@@ -320,10 +300,11 @@ def alter_syncids(pay):
 
     """
     payload = json.loads(pay)
-    payload['syncID'] = newSyncID()
-    for item in payload['engines']:
-        payload['engines'][item]['syncID'] = newSyncID()
+    payload["syncID"] = newSyncID()
+    for item in payload["engines"]:
+        payload["engines"][item]["syncID"] = newSyncID()
     return json.dumps(payload)
+
 
 def move_user(databases, user, args):
     """copy user info from original storage to new storage."""
@@ -345,20 +326,20 @@ def move_user(databases, user, args):
     collections = Collections(databases)
 
     uc_columns = (
-        'fxa_kid',
-        'fxa_uid',
-        'collection_id',
-        'modified',
+        "fxa_kid",
+        "fxa_uid",
+        "collection_id",
+        "modified",
     )
     bso_columns = (
-            'collection_id',
-            'fxa_kid',
-            'fxa_uid',
-            'bso_id',
-            'expiry',
-            'modified',
-            'payload',
-            'sortindex',
+        "collection_id",
+        "fxa_kid",
+        "fxa_uid",
+        "bso_id",
+        "expiry",
+        "modified",
+        "payload",
+        "sortindex",
     )
 
     # Genereate the Spanner Keys we'll need.
@@ -384,11 +365,9 @@ def move_user(databases, user, args):
     def spanner_transact(transaction):
         collection_id = collections.get_id(col, transaction)
         if collection_id != cid:
-            logging.warn(
-                "Remapping collection '{}' from {} to {}".format(
-                    col, cid, collection_id))
+            logging.warn("Remapping collection '{}' from {} to {}".format(col, cid, collection_id))
         # columns from sync_schema3
-        mod_v = datetime.utcfromtimestamp(mod/1000.0)
+        mod_v = datetime.utcfromtimestamp(mod / 1000.0)
         exp_v = datetime.utcfromtimestamp(exp)
         # User_Collection can only have unique values. Filter
         # non-unique keys and take the most recent modified
@@ -396,23 +375,21 @@ def move_user(databases, user, args):
         uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, col)
         if uc_key not in unique_key_filter:
             unique_key_filter.add(uc_key)
-            uc_values = [(
-                fxa_kid,
-                fxa_uid,
-                collection_id,
-                mod_v,
-            )]
-            logging.debug(
-                "### uc: {}".format(uc_columns, uc_values))
-            transaction.insert(
-                'user_collections',
-                columns=uc_columns,
-                values=uc_values
-            )
+            uc_values = [
+                (
+                    fxa_kid,
+                    fxa_uid,
+                    collection_id,
+                    mod_v,
+                )
+            ]
+            logging.debug("### uc: {}".format(uc_columns, uc_values))
+            transaction.insert("user_collections", columns=uc_columns, values=uc_values)
         # add the BSO values.
         if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
             pay = alter_syncids(pay)
-        bso_values = [[
+        bso_values = [
+            [
                 collection_id,
                 fxa_kid,
                 fxa_uid,
@@ -421,31 +398,26 @@ def move_user(databases, user, args):
                 mod_v,
                 pay,
                 sid,
-        ]]
+            ]
+        ]
 
-        logging.debug(
-            "###bso: {}".format(dumper(bso_columns, bso_values)))
-        transaction.insert(
-            'bsos',
-            columns=bso_columns,
-            values=bso_values
-        )
-    mysql = databases['mysql'].cursor()
+        logging.debug("###bso: {}".format(dumper(bso_columns, bso_values)))
+        transaction.insert("bsos", columns=bso_columns, values=bso_values)
+
+    mysql = databases["mysql"].cursor()
     try:
         # Note: cursor() does not support __enter__()
         mysql.execute(sql, (user,))
-        logging.info("Processing... {} -> {}:{}".format(
-            user, fxa_uid, fxa_kid))
-        for (col, cid, bid, exp, mod, pay, sid) in mysql:
-            databases['spanner'].run_in_transaction(spanner_transact)
+        logging.info("Processing... {} -> {}:{}".format(user, fxa_uid, fxa_kid))
+        for col, cid, bid, exp, mod, pay, sid in mysql:
+            databases["spanner"].run_in_transaction(spanner_transact)
             update_token(databases, user)
             (ck_kid, ck_uid, ck_node) = get_fxa_id(databases, user)
             if ck_node != original_node:
                 logging.error(
-                    ("User's Node Changed! Aborting! "
-                    "fx_uid:{}, fx_kid:{}, node: {} => {}")
-                    .format(user, fxa_uid, fxa_kid,
-                            original_node, ck_node)
+                    (
+                        "User's Node Changed! Aborting! " "fx_uid:{}, fx_kid:{}, node: {} => {}"
+                    ).format(user, fxa_uid, fxa_kid, original_node, ck_node)
                 )
                 return
             finish_user(databases, user)
@@ -453,10 +425,7 @@ def move_user(databases, user, args):
             # Closing the with automatically calls `batch.commit()`
         mark_user(user, MigrationState.COMPLETE)
     except AlreadyExists:
-        logging.warn(
-            "User already imported fxa_uid:{} / fxa_kid:{}".format(
-                fxa_uid, fxa_kid
-            ))
+        logging.warn("User already imported fxa_uid:{} / fxa_kid:{}".format(fxa_uid, fxa_kid))
     except Exception as e:
         logging.error("### batch failure:", e)
     finally:
@@ -496,20 +465,18 @@ def main():
         databases[dsn.scheme] = conf_db(dsn)
     if args.token_dsn:
         dsn = urlparse(args.token_dsn)
-        databases['token'] = conf_db(dsn)
-    if not databases.get('mysql') or not databases.get('spanner'):
+        databases["token"] = conf_db(dsn)
+    if not databases.get("mysql") or not databases.get("spanner"):
         RuntimeError("Both mysql and spanner dsns must be specified")
 
     # create the migration table if it's not already present.
     # This table is used by the sync storage server to force a 500 return
     # for a user in migration.
-    create_migration_table(databases['mysql'])
+    create_migration_table(databases["mysql"])
 
     logging.info("Starting:")
     rows = move_data(databases, users, args)
-    logging.info(
-        "Moved: {} rows in {} seconds".format(
-            rows or 0, time.time() - start))
+    logging.info("Moved: {} rows in {} seconds".format(rows or 0, time.time() - start))
 
 
 if __name__ == "__main__":
