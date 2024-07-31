@@ -1,0 +1,7 @@
+[flake8]
+exclude =
+    .git,
+    __pycache__,
+# E203: Whitespace before ':'. Addresses a discrepancy with Black slice formatting.
+ignore = E203
+max-line-length = 99
