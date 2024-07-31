@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 
 import os.path
-import psutil
 import signal
 import subprocess
 import sys
+import time
+
+import psutil
 from test_storage import TestStorage
 from test_support import run_live_functional_tests
-import time
-from tokenserver.run import (run_end_to_end_tests, run_local_tests)
+from tokenserver.run import run_end_to_end_tests, run_local_tests
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
@@ -37,9 +38,7 @@ if __name__ == "__main__":
         )
 
     def start_server():
-        the_server_subprocess = subprocess.Popen(
-            target_binary, shell=True, env=os.environ
-        )
+        the_server_subprocess = subprocess.Popen(target_binary, shell=True, env=os.environ)
 
         # TODO we should change this to watch for a log message on startup
         # to know when to continue instead of sleeping for a fixed amount
@@ -62,8 +61,7 @@ if __name__ == "__main__":
     finally:
         terminate_process(the_server_subprocess)
 
-    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
-        "https://oauth.stage.mozaws.net"
+    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = "https://oauth.stage.mozaws.net"
     the_server_subprocess = start_server()
     try:
         res |= run_end_to_end_tests()
