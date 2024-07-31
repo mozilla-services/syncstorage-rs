@@ -9,6 +9,7 @@
 
 import argparse
 import base64
+import json
 import logging
 import os
 import sys
@@ -383,7 +384,7 @@ def move_user(databases, user, args):
                     mod_v,
                 )
             ]
-            logging.debug("### uc: {}".format(uc_columns, uc_values))
+            logging.debug(f"### uc: {uc_columns} {uc_values}")
             transaction.insert("user_collections", columns=uc_columns, values=uc_values)
         # add the BSO values.
         if args.full and collection_id == META_GLOBAL_COLLECTION_ID:

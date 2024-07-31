@@ -107,8 +107,8 @@ class BSO_Users:
         try:
             cursor = connection.cursor()
             sql = (
-                """select userid, count(*) as count from bso{}"""
-                """ group by userid order by userid""".format(bso_num)
+                f"""select userid, count(*) as count from bso{bso_num}"""
+                """ group by userid order by userid"""
             )
             if self.args.user_range:
                 (offset, limit) = self.args.user_range.split(":")

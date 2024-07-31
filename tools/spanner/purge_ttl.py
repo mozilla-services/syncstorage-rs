@@ -63,10 +63,7 @@ def deleter(
             )
         end = datetime.now()
         logging.info(
-            "{name}: removed {result} rows, {name}_duration: {time}, prefix: {prefix}".format(
-                name=name, result=result, time=end - start, prefix=prefix
-            )
-        )
+            f"{name}: removed {result} rows, {name}_duration: {end - start}, prefix: {prefix}")
 
 
 def add_conditions(args, query: str, prefix: Optional[str]):

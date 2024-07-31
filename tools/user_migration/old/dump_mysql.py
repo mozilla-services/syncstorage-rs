@@ -16,7 +16,6 @@ import binascii
 import csv
 import math
 import os
-import random
 import re
 import time
 
@@ -31,7 +30,7 @@ except:
     from urlparse import urlparse
 
 
-MAX_ROWS = 1500000
+MAX_ROWS = 1_500_000
 
 
 class BadDSNException(Exception):
@@ -67,7 +66,7 @@ def conf_db(dsn):
     dsn = urlparse(dsn)
     """
     if dsn.scheme != "mysql":
-        raise BadDSNException("Invalid MySQL dsn: {}".format(dsn))
+        raise BadDSNException(f"Invalid MySQL dsn: {dsn}")
     """
     connection = connector.connect(
         user=dsn.username,
@@ -139,7 +138,7 @@ def dump_user_collections(schema, dsn, args):
     db = conf_db(dsn)
     cursor = db.cursor()
     out_file = args.output.rsplit(".", 1)
-    out_file_name = "{}_user_collections.{}".format(out_file[0], out_file[1])
+    out_file_name = f"{out_file[0]}_user_collections.{out_file[1]}"
     writer = DataFileWriter(open(out_file_name, "wb"), DatumWriter(), schema)
     sql = """
     SELECT userid, collection, last_modified from user_collections
@@ -165,7 +164,7 @@ def dump_user_collections(schema, dsn, args):
                 pdb.set_trace()
                 print(ex)
             row += 1
-        print("Dumped {} user_collection rows in {} seconds".format(row, time.time() - start))
+        print(f"Dumped {row} user_collection rows in {time.time() - start} seconds")
     finally:
         writer.close()
         cursor.close()
@@ -182,13 +181,11 @@ def dump_rows(bso_number, chunk_offset, db, writer, args):
     # ttl => expiry
 
     ivre = re.compile(r'("IV": ?"[^"]+")')
-    print("Querying.... bso{} @{}".format(bso_number, chunk_offset))
-    sql = """
+    print(f"Querying.... bso{bso_number} @{chunk_offset}")
+    sql = f"""
     SELECT userid, collection, id,
     ttl, modified, payload,
-    sortindex from bso{} LIMIT {} OFFSET {}""".format(
-        bso_number, args.limit, chunk_offset
-    )
+    sortindex from bso{bso_number} LIMIT {args.limit} OFFSET {chunk_offset}"""
     cursor = db.cursor()
     user = None
     row_count = 0
@@ -216,11 +213,11 @@ def dump_rows(bso_number, chunk_offset, db, writer, args):
             )
             row_count += 1
             if (chunk_offset + row_count) % 1000 == 0:
-                print("BSO:{} Row: {}".format(bso_number, chunk_offset + row_count))
+                print(f"BSO:{bso_number} Row: {chunk_offset + row_count}")
             if row_count >= MAX_ROWS:
                 break
     except Exception as e:
-        print("Deadline hit at: {} ({})".format(chunk_offset + row_count, e))
+        print(f"Deadline hit at: {chunk_offset + row_count} ({e})")
     finally:
         cursor.close()
     return row_count
@@ -229,7 +226,7 @@ def dump_rows(bso_number, chunk_offset, db, writer, args):
 def count_rows(db, bso_num=0):
     cursor = db.cursor()
     try:
-        cursor.execute("SELECT Count(*) from bso{}".format(bso_num))
+        cursor.execute(f"SELECT Count(*) from bso{bso_num}")
         return cursor.fetchone()[0]
     finally:
         cursor.close()
@@ -243,8 +240,8 @@ def dump_data(bso_number, schema, dsn, args):
     out_file = args.output.rsplit(".", 1)
     row_count = count_rows(db, bso_number)
     for chunk in range(max(1, math.trunc(math.ceil(row_count / MAX_ROWS)))):
-        print("Dumping {} rows from bso#{} into chunk {}".format(row_count, bso_number, chunk))
-        out_file_name = "{}_{}_{}.{}".format(out_file[0], bso_number, hex(chunk), out_file[1])
+        print(f"Dumping {row_count} rows from bso#{bso_number} into chunk {chunk}")
+        out_file_name = f"{out_file[0]}_{bso_number}_{hex(chunk)}.{out_file[1]}"
         writer = DataFileWriter(open(out_file_name, "wb"), DatumWriter(), schema)
         rows = dump_rows(
             bso_number=bso_number, chunk_offset=offset, db=db, writer=writer, args=args
@@ -267,15 +264,15 @@ def main():
         read_in_token_file(args.token_file)
     start = time.time()
     for dsn in dsns:
-        print("Starting: {}".format(dsn))
+        print(f"Starting: {dsn}")
         try:
             if not args.skip_collections:
                 dump_user_collections(col_schema, dsn, args)
             for bso_num in range(args.start_bso, args.end_bso + 1):
                 rows = dump_data(bso_num, schema, dsn, args)
         except Exception as ex:
-            print("Could not process {}: {}".format(dsn, ex))
-    print("Dumped: {} rows in {} seconds".format(rows, time.time() - start))
+            print(f"Could not process {dsn}: {ex}")
+    print(f"Dumped: {rows} rows in {time.time() - start} seconds")
 
 
 if __name__ == "__main__":
