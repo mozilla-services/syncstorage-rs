@@ -16,7 +16,6 @@ import binascii
 import csv
 import math
 import os
-import random
 import re
 import time
 
@@ -31,7 +30,7 @@ except:
     from urlparse import urlparse
 
 
-MAX_ROWS = 1500000
+MAX_ROWS = 1_500_000
 
 
 class BadDSNException(Exception):
