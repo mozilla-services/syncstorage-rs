@@ -35,10 +35,8 @@ import boto.ec2
 import boto.sqs
 import boto.sqs.message
 import boto.utils
-
 import util
 from database import Database
-
 
 # Logging is initialized in `main` by `util.configure_script_logging()`
 # Please do not call `logging.basicConfig()` before then, since this may
@@ -46,11 +44,7 @@ from database import Database
 APP_LABEL = "tokenserver.scripts.process_account_events"
 
 
-def process_account_events(
-        queue_name,
-        aws_region=None,
-        queue_wait_time=20,
-        metrics=None):
+def process_account_events(queue_name, aws_region=None, queue_wait_time=20, metrics=None):
     """Process account events from an SQS queue.
 
     This function polls the specified SQS queue for account-realted events,
@@ -95,7 +89,7 @@ def process_account_event(database, body, metrics=None):
     generation = None
     try:
         body = json.loads(body)
-        event = json.loads(body['Message'])
+        event = json.loads(body["Message"])
         event_type = event["event"]
         uid = event["uid"]
         # Older versions of the fxa-auth-server would send an email-like
@@ -108,7 +102,10 @@ def process_account_event(database, body, metrics=None):
             if "@" not in uid:
                 raise ValueError("uid field does not contain issuer info")
             email = uid
-        if event_type in ("reset", "passwordChange",):
+        if event_type in (
+            "reset",
+            "passwordChange",
+        ):
             generation = event["generation"]
     except (ValueError, KeyError) as e:
         logger.exception("Invalid account message: %s", e)
@@ -196,11 +193,7 @@ def main(args=None):
 
     queue_name = args[0]
 
-    process_account_events(
-        queue_name,
-        opts.aws_region,
-        opts.queue_wait_time,
-        metrics=metrics)
+    process_account_events(queue_name, opts.aws_region, opts.queue_wait_time, metrics=metrics)
     return 0
 
 
