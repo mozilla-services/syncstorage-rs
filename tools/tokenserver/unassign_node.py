@@ -12,9 +12,8 @@ This script clears any assignments to the named node.
 import logging
 import optparse
 
-from database import Database
 import util
-
+from database import Database
 
 logger = logging.getLogger("tokenserver.scripts.unassign_node")
 
@@ -52,8 +51,13 @@ def main(args=None):
     usage = "usage: %prog [options] node_name"
     descr = "Clear all assignments to node in the tokenserver database"
     parser = optparse.OptionParser(usage=usage, description=descr)
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 1:
