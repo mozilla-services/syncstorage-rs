@@ -1,8 +1,9 @@
-from fxa.oauth import Client
-from fxa.errors import ClientError, TrustError
 import json
 
-DEFAULT_OAUTH_SCOPE = 'https://identity.mozilla.com/apps/oldsync'
+from fxa.errors import ClientError, TrustError
+from fxa.oauth import Client
+
+DEFAULT_OAUTH_SCOPE = "https://identity.mozilla.com/apps/oldsync"
 
 
 class FxaOAuthClient:
