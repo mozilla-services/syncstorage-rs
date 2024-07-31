@@ -12,8 +12,7 @@ from test_scripts import TestScripts
 
 if __name__ == "__main__":
     loader = unittest.TestLoader()
-    test_cases = [TestDatabase, TestPurgeOldRecords, TestProcessAccountEvents,
-                  TestScripts]
+    test_cases = [TestDatabase, TestPurgeOldRecords, TestProcessAccountEvents, TestScripts]
 
     res = 0
     for test_case in test_cases:
