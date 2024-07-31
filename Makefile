@@ -13,6 +13,7 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 POETRY := $(shell command -v poetry 2> /dev/null)
 INSTALL_STAMP := .install.stamp
 TOOLS_DIR := tools
+FLAKE8_CONFIG := .flake8
 ROOT_PYPROJECT_TOML := pyproject.toml
 HAWK_DIR := $(TOOLS_DIR)/hawk
 INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
@@ -148,3 +149,36 @@ merge_coverage_results:
 run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
+		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
+		RUST_TEST_THREADS=1 \
+		cargo test --workspace
+
+.PHONY: isort
+isort: $(INSTALL_STAMP)  ##  Run isort
+	$(POETRY) run isort --check-only $(ROOT_PYPROJECT_TOML)
+
+.PHONY: black
+black: $(INSTALL_STAMP)  ##  Run black
+	$(POETRY) run black --quiet --diff --check $(ROOT_PYPROJECT_TOML)
+
+.PHONY: format
+format: $(INSTALL_STAMP)  ##  Sort imports and reformats code
+	$(POETRY) run isort $(ROOT_PYPROJECT_TOML)
+	$(POETRY) run black $(ROOT_PYPROJECT_TOML)
+
+.PHONY: flake8
+flake8: $(INSTALL_STAMP)  ##  Run flake8
+	$(POETRY) run flake8 --config $(FLAKE8_CONFIG)
+
+.PHONY: bandit
+bandit: $(INSTALL_STAMP)  ##  Run bandit
+	$(POETRY) run bandit --quiet -r -c $(ROOT_PYPROJECT_TOML)
+
+.PHONY: mypy
+mypy: $(INSTALL_STAMP)  ##  Run mypy
+	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML)
+
+.PHONY: pydocstyle
+pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
+	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML)

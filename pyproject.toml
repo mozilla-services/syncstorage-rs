@@ -2,7 +2,7 @@
 name = "syncstorage-rs"
 version = "0.1.0"
 description = "sync storage server in rust"
-authors = ["Taddes <tkorris@mozilla.com>"]
+authors = ["Mozilla Services Engineering <services-engineering+code@mozilla.com>"]
 license = "Mozilla Public License Version 2.0"
 readme = "README.md"
 packages = [{include = "tools"}]
@@ -20,6 +20,49 @@ flake8 = "^7.1.0"
 mypy = "^1.10.1"
 pydocstyle = "^6.3.0"
 bandit = "^1.7.9"
+
+[tool.black]
+line-length = 99
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+
+[tool.bandit]
+# skips asserts
+# B101: https://bandit.readthedocs.io/en/latest/plugins/b101_assert_used.html#
+# B104: https://bandit.readthedocs.io/en/latest/plugins/b104_hardcoded_bind_all_interfaces.html
+# B311: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_calls.html#b311-random 
+# B404: https://bandit.readthedocs.io/en/latest/blacklists/blacklist_imports.html#b404-import-subprocess
+skips = ["B101", "B104", "B311", "B404"]
+
+[tool.mypy]
+python_version = "3.12"
+disable_error_code = "attr-defined"
+disallow_untyped_calls = false
+follow_imports = "normal"
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+strict_optional = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_unreachable = true
+
+[tool.pydocstyle]
+match = ".*\\.py"
+convention = "pep257"
+# Error Code Ref: https://www.pydocstyle.org/en/stable/error_codes.html
+# D212 Multi-line docstring summary should start at the first line
+add-select = ["D212"]
+# D105 Docstrings for magic methods
+# D107 Docstrings for __init__
+# D203 as it conflicts with D211 https://github.com/PyCQA/pydocstyle/issues/141
+# D205 1 blank line required between summary line and description, awkward spacing
+# D400 First line should end with a period, doesn't work when sentence spans 2 lines
+add-ignore = ["D105","D107","D203", "D205", "D400"]
 
 [build-system]
 requires = ["poetry-core"]
