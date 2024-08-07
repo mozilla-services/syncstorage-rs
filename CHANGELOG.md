@@ -1,3 +1,17 @@
+<a name="0.17.2"></a>
+## 0.17.2 (2024-08-07)
+
+
+#### Chore
+
+*   revert back to bullseye (for now) (#1589) ([4a503f8c](https://github.com/mozilla-services/syncstorage-rs/commit/4a503f8c36fe070e11df43a8ce0b3c71358e983c))
+
+#### Doc
+
+*   add missing changelog for dep updates ([68db54b5](https://github.com/mozilla-services/syncstorage-rs/commit/68db54b5ce226d96da449d501a08d15392a35122))
+
+
+
 <a name="0.17.1"></a>
 ## 0.17.1 (2024-07-11)
 
