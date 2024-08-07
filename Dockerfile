@@ -1,5 +1,5 @@
-# NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.67-rust-1.78-bookworm as chef
+# NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
+FROM docker.io/lukemathwalker/cargo-chef:0.1.67-rust-1.78-bullseye as chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -14,7 +14,7 @@ RUN \
     # Fetch and load the MySQL public key. We need to install libmysqlclient-dev to build syncstorage-rs
     # which wants the mariadb
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake
 
@@ -31,14 +31,14 @@ COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 RUN \
     # Fetch and load the MySQL public key
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     # mysql_pubkey.asc from:
     # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
     # related:
     # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go pkg-config python3-dev python3-pip python3-setuptools python3-wheel && \
-    pip3 install --break-system-packages -r /app/requirements.txt && \
+    apt-get -q install -y --no-install-recommends libmysqlclient-dev cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
+    pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 ENV PATH=$PATH:/root/.cargo/bin
@@ -49,7 +49,7 @@ RUN \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app && \
     if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
 
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:bullseye-slim
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
 # Due to a build error that occurs with the Python cryptography package, we
@@ -69,17 +69,17 @@ RUN \
     apt-get -q update && \
     # and ca-certificates needed for https://repo.mysql.com
     apt-get install -y gnupg ca-certificates wget && \
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
     # Fetch and load the MySQL public key
+    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
-    apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 pkg-config python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
+    apt-get -q install -y build-essential libmysqlclient-dev libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography && \
-    pip3 install --break-system-packages -r /app/requirements.txt && \
+    pip3 install -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/bin /app/bin
@@ -92,10 +92,8 @@ COPY --from=builder /app/scripts/start_mock_fxa_server.sh /app/scripts/start_moc
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
-RUN \
-    pip3 install --break-system-packages -r /app/tools/integration_tests/requirements.txt
-RUN \
-    pip3 install --break-system-packages -r /app/tools/tokenserver/requirements.txt
+RUN pip3 install -r /app/tools/integration_tests/requirements.txt
+RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
