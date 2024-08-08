@@ -1,41 +1,27 @@
 use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use diesel::{
-    mysql::MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-    Connection,
-};
-use diesel_logger::LoggingConnection;
+use diesel::r2d2::{ConnectionManager, Pool};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
 use syncserver_db_common::{GetPoolState, PoolState};
+use tokenserver_db_common::error::{DbError, DbResult};
+#[cfg(feature = "mysql")]
+use tokenserver_db_mysql::pool::run_embedded_migrations;
+#[cfg(feature = "sqlite")]
+use tokenserver_db_sqlite::pool::run_embedded_migrations;
 use tokenserver_settings::Settings;
 
 use super::{
-    error::{DbError, DbResult},
     models::{Db, TokenserverDb},
+    Conn,
 };
-
-embed_migrations!();
-
-/// Run the diesel embedded migrations
-///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = MysqlConnection::establish(database_url)?;
-
-    embedded_migrations::run(&LoggingConnection::new(conn))?;
-
-    Ok(())
-}
 
 #[derive(Clone)]
 pub struct TokenserverPool {
     /// Pool of db connections
-    inner: Pool<ConnectionManager<MysqlConnection>>,
+    inner: Pool<ConnectionManager<Conn>>,
     metrics: Metrics,
     // This field is public so the service ID can be set after the pool is created
     pub service_id: Option<i32>,
@@ -55,7 +41,7 @@ impl TokenserverPool {
             run_embedded_migrations(&settings.database_url)?;
         }
 
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
+        let manager = ConnectionManager::<Conn>::new(settings.database_url.clone());
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
             .connection_timeout(Duration::from_secs(
