@@ -3270,17 +3270,17 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-sql-db-common"
-version = "0.17.12"
+version = "0.18.2"
 dependencies = [
  "async-trait",
  "backtrace",
- "base64 0.22.1",
+ "base64",
  "diesel",
  "diesel_logger",
  "diesel_migrations",
- "env_logger 0.11.5",
+ "env_logger 0.11.8",
  "futures 0.3.31",
- "http 1.1.0",
+ "http 1.3.1",
  "slog-scope",
  "syncserver-common",
  "syncserver-db-common",
