@@ -4,6 +4,7 @@ CODE_OF_CONDUCT.md
 config/*.example.toml
 CONTRIBUTING.md
 Dockerfile
+Dockerfile.sqlite
 docs/
 Makefile
 PULL_REQUEST_TEMPLATE.md

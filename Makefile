@@ -85,10 +85,10 @@ test_mysql:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
 		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
 		RUST_TEST_THREADS=1 \
-		cargo test --workspace
+		cargo test --workspace --no-default-features --features=syncstorage-db/mysql,tokenserver-db/mysql --features=py_verifier
 
 test_sqlite:
 	SYNC_SYNCSTORAGE__DATABASE_URL=:memory: \
 		SYNC_TOKENSERVER__DATABASE_URL=:memory: \
 		RUST_TEST_THREADS=1 \
-		cargo test --workspace
+		cargo test --workspace --no-default-features --features=syncstorage-db/sqlite,tokenserver-db/sqlite --features=py_verifier
