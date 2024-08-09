@@ -235,7 +235,7 @@ Setting up the server with sqlite only requires a path to the database file,
 which will be created automatically:
 
 One for the syncserver data
-`sqlite://<path>/syncdb.sqlite`  
+`sqlite://<path>/syncdb.sqlite`
 And one for the tokenserver data
 `sqlite://<path>/tokendb.sqlite`
 
