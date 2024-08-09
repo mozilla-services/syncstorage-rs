@@ -11,7 +11,7 @@
 version: "3"
 services:
   mock-fxa-server:
-    image: app:build-sqlite
+    image: app:build
     restart: "no"
     entrypoint: "sh scripts/start_mock_fxa_server.sh"
     environment:
