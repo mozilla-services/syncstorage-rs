@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use url::Url;
 
 use std::{
     collections::HashMap,
@@ -31,7 +32,10 @@ embed_migrations!();
 /// Sqlite DDL statements implicitly commit which could disrupt SqlitePool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = SqliteConnection::establish(database_url)?;
+    let path = database_url
+        .strip_prefix("sqlite://")
+        .unwrap_or(database_url);
+    let conn = SqliteConnection::establish(path)?;
     #[cfg(debug_assertions)]
     // XXX: this doesn't show the DDL statements
     // https://github.com/shssoichiro/diesel-logger/issues/1
@@ -72,7 +76,11 @@ impl SqliteDbPool {
         metrics: &Metrics,
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> DbResult<Self> {
-        let manager = ConnectionManager::<SqliteConnection>::new(settings.database_url.clone());
+        let path = settings
+            .database_url
+            .strip_prefix("sqlite://")
+            .unwrap_or(&settings.database_url);
+        let manager = ConnectionManager::<SqliteConnection>::new(path);
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
             .connection_timeout(Duration::from_secs(

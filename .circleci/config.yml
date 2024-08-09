@@ -272,20 +272,20 @@ jobs:
       - write-version
       - run:
           name: Build SQLite Docker image
-          command: docker build -t app:build-sqlite -f Dockerfile.sqlite .
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=sqlite .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
-          name: docker save app:build-sqlite
+          name: docker save app:build
           command: |
             mkdir -p /home/circleci/cache
-            docker save -o /home/circleci/cache/docker.tar "app:build-sqlite"
+            docker save -o /home/circleci/cache/docker.tar "app:build"
       - run:
           name: Save docker-compose config
           command: cp docker-compose*sqlite.yaml /home/circleci/cache
       - save_cache:
-          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
 
