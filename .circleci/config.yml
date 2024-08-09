@@ -257,6 +257,38 @@ jobs:
           paths:
             - /home/circleci/cache
 
+  build-sqlite-image:
+    docker:
+      - image: cimg/rust:1.78.0  # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - display-versions
+      - write-version
+      - run:
+          name: Build SQLite Docker image
+          command: docker build -t app:build-sqlite -f Dockerfile.sqlite .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build-sqlite
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build-sqlite"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*sqlite.yaml /home/circleci/cache
+      - save_cache:
+          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
   build-spanner-image:
     docker:
       - image: cimg/rust:1.78.0  # RUST_VER
