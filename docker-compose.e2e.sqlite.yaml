@@ -1,0 +1,42 @@
+version: "3"
+services:
+  syncserver:
+    # TODO: either syncserver should retry the db connection
+    # itself a few times or should include a wait-for-it.sh script
+    # inside its docker that would do this for us.
+    entrypoint: >
+      /bin/sh -c "
+        sleep 15;
+        /app/bin/syncserver;
+      "
+  sqlite-e2e-tests:
+    depends_on:
+      - mock-fxa-server
+      - syncserver
+    image: app:build
+    privileged: true
+    user: root
+    environment:
+      MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
+      SYNC_HOST: 0.0.0.0
+      SYNC_MASTER_SECRET: secret0
+      SYNC_SYNCSTORAGE__DATABASE_URL: sqlite:///data/syncdb.sqlite
+      SYNC_TOKENSERVER__DATABASE_URL: sqlite:///data/tokenserverdb.sqlite
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
+      SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER: "api-accounts.stage.mozaws.net"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY: "RSA"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG: "RS256"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID: "20190730-15e473fd"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT: "1564502400"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE: "sig"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N: "15OpVGC7ws_SlU0gRbRh1Iwo8_gR8ElX2CDnbN5blKyXLg-ll0ogktoDXc-tDvTabRTxi7AXU0wWQ247odhHT47y5uz0GASYXdfPponynQ_xR9CpNn1eEL1gvDhQN9rfPIzfncl8FUi9V4WMd5f600QC81yDw9dX-Z8gdkru0aDaoEKF9-wU2TqrCNcQdiJCX9BISotjz_9cmGwKXFEekQNJWBeRQxH2bUmgwUK0HaqwW9WbYOs-zstNXXWFsgK9fbDQqQeGehXLZM4Cy5Mgl_iuSvnT3rLzPo2BmlxMLUvRqBx3_v8BTtwmNGA0v9O0FJS_mnDq0Iue0Dz8BssQCQ"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E: "AQAB"
+      TOKENSERVER_HOST: http://localhost:8000
+    entrypoint: >
+      /bin/sh -c "
+        sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+      "

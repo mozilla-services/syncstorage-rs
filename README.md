@@ -54,7 +54,7 @@ are missing `libcurl4-openssl-dev`.
 
 ## Local Setup
 
-1. Follow the instructions below to use either MySQL or Spanner as your DB.
+1. Follow the instructions below to use either MySQL, Spanner, or SQLite as your DB.
 2. Now `cp config/local.example.toml config/local.toml`.
 Open `config/local.toml` and make sure you have the desired settings configured.
 For a complete list of available configuration options, check out [docs/config.md](docs/config.md).
@@ -235,9 +235,9 @@ Setting up the server with sqlite only requires a path to the database file,
 which will be created automatically:
 
 One for the syncserver data
-`sqlite:path/syncdb.sqlite`  
+`sqlite://<path>/syncdb.sqlite`  
 And one for the tokenserver data
-`sqlite:path/tokendb.sqlite`
+`sqlite://<path>/tokendb.sqlite`
 
 Note that after database initialisation you will still need to run two SQL
 insert on the tokenserver database to announce the presence of your syncserver
