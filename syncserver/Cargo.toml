@@ -58,10 +58,11 @@ validator_derive = "0.19"
 woothee = "0.13"
 
 [features]
-default = ["mysql", "py_verifier"]
+default = ["py_verifier"]
 no_auth = []
 py_verifier = ["tokenserver-auth/py"]
-mysql = ["syncstorage-db/mysql"]
-spanner = ["syncstorage-db/spanner"]
+mysql = ["syncstorage-db/mysql", "tokenserver-db/mysql"]
+# Spanner backend rely on MySQL for token server database
+spanner = ["syncstorage-db/spanner", "tokenserver-db/mysql"]
+sqlite = ["syncstorage-db/sqlite", "tokenserver-db/sqlite"]
 actix-compress = ["actix-web/compress-brotli", "actix-web/compress-gzip", "actix-web/compress-zstd"]
-sqlite = ["syncstorage-db/sqlite"]

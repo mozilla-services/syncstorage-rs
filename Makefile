@@ -35,7 +35,7 @@ PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sys
 
 clippy_sqlite:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/sqlite,tokenserver-db/sqlite --features=py_verifier -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=sqlite,py_verifier -- -D warnings
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -104,7 +104,7 @@ run_mysql: python
 		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/mysql,tokenserver-db/mysql --features=py_verifier -- --config config/local.toml
+		cargo run --no-default-features --features=mysql,py_verifier -- --config config/local.toml
 
 run_sqlite: python
 	PATH="./venv/bin:$(PATH)" \
@@ -113,7 +113,7 @@ run_sqlite: python
 		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/sqlite,tokenserver-db/sqlite --features=py_verifier -- --config config/local.toml
+		cargo run --no-default-features --features=sqlite,py_verifier -- --config config/local.toml
 
 run_spanner: python
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
@@ -124,7 +124,7 @@ run_spanner: python
 		PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
-		cargo run --no-default-features --features=syncstorage-db/spanner,tokenserver-db/mysql --features=py_verifier -- --config config/local.toml
+		cargo run --no-default-features --features=spanner,py_verifier -- --config config/local.toml
 
 .ONESHELL:
 test:

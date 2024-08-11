@@ -61,7 +61,7 @@ For a complete list of available configuration options, check out [docs/config.m
 3. To start a local server in debug mode, run either:
     - `make run_mysql` if using MySQL or,
     - `make run_spanner` if using spanner or,
-    - `make run_sqlite` if using sqlite.
+    - `make run_sqlite` if using SQLite.
 
     The above starts the server in debug mode, using your new `local.toml` file for config options.
     Or, simply `cargo run` with your own config options provided as env vars.
@@ -229,9 +229,9 @@ To run an application server that points to the local Spanner emulator:
 SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST=localhost:9010 make run_spanner
 ```
 
-### Sqlite
+### SQLite
 
-Setting up the server with sqlite only requires a path to the database file,
+Setting up the server with SQLite only requires a path to the database file,
 which will be created automatically:
 
 One for the syncserver data
