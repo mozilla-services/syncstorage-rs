@@ -53,24 +53,25 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=mysql,py_verifier -- -D warnings
   rust-clippy-sqlite:
     steps:
       - run:
           name: Rust Clippy SQLite
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/sqlite --features=tokenserver-db/sqlite --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=sqlite,py_verifier -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=tokenserver-db/mysql --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=spanner,py_verifier -- -D warnings
   cargo-build:
     steps:
       - run:
           name: cargo build
-          command: cargo build
+          # This only builds the mysql version as it was the old default
+          command: cargo build --workspace --all-targets --no-default-features --features=mysql,py_verifier
   setup-mysql:
     steps:
       - run:
