@@ -64,13 +64,13 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=tokenserver-db/mysql --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=mysql,py_verifier -- -D warnings
   rust-clippy-sqlite:
     steps:
       - run:
           name: Rust Clippy SQLite
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/sqlite --features=tokenserver-db/sqlite --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=sqlite,py_verifier -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
