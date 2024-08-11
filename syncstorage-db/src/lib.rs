@@ -39,7 +39,7 @@ pub use syncstorage_db_common::{
 };
 
 #[cfg(all(feature = "mysql", feature = "spanner", feature = "sqlite"))]
-compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
+compile_error!("only one of the \"mysql\", \"spanner\" and \"sqlite\" features can be enabled at a time");
 
 #[cfg(not(any(feature = "mysql", feature = "spanner", feature = "sqlite")))]
-compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");
+compile_error!("exactly one of the \"mysql\", \"spanner\" and \"sqlite\" features must be enabled");
