@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-sql-db-common"
-version = "0.17.0"
+version = "0.17.8"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3051,8 +3051,8 @@ dependencies = [
  "diesel",
  "diesel_logger",
  "diesel_migrations",
- "env_logger 0.11.3",
- "futures 0.3.30",
+ "env_logger 0.11.5",
+ "futures 0.3.31",
  "http 1.1.0",
  "slog-scope",
  "syncserver-common",
