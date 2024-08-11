@@ -3037,7 +3037,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-sql-db-common"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3060,7 +3060,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-sqlite"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3271,7 +3271,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-common"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3296,7 +3296,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-mysql"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3322,7 +3322,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-sqlite"
-version = "0.17.0"
+version = "0.17.1"
 dependencies = [
  "async-trait",
  "backtrace",
