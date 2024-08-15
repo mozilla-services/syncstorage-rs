@@ -6,7 +6,11 @@ embed_migrations!();
 
 /// Run the diesel embedded migrations
 pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = SqliteConnection::establish(database_url)?;
+    let path = database_url
+        .strip_prefix("sqlite://")
+        .unwrap_or(database_url);
+
+    let conn = SqliteConnection::establish(path)?;
 
     #[cfg(debug_assertions)]
     // XXX: this doesn't show the DDL statements
