@@ -41,7 +41,12 @@ impl TokenserverPool {
             run_embedded_migrations(&settings.database_url)?;
         }
 
-        let manager = ConnectionManager::<Conn>::new(settings.database_url.clone());
+        // SQLite can't handle its uri prefix
+        let database_url = settings.database_url
+            .strip_prefix("sqlite://")
+            .unwrap_or(&settings.database_url);
+
+        let manager = ConnectionManager::<Conn>::new(database_url);
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
             .connection_timeout(Duration::from_secs(
