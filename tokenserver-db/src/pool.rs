@@ -42,7 +42,8 @@ impl TokenserverPool {
         }
 
         // SQLite can't handle its uri prefix
-        let database_url = settings.database_url
+        let database_url = settings
+            .database_url
             .strip_prefix("sqlite://")
             .unwrap_or(&settings.database_url);
 
