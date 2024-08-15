@@ -102,10 +102,10 @@ commands:
     steps:
       - run:
           name: cargo test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace --verbose --no-default-features --features mysql,py_verifier
       - run:
           name: quota test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace --verbose --no-default-features --features mysql,py_verifier
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
