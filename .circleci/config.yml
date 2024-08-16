@@ -533,6 +533,7 @@ workflows:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
