@@ -384,13 +384,13 @@ jobs:
       - setup_remote_docker
       - display-versions
       - restore_cache:
-        key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
-        name: Restore Docker image cache
-        command: docker load -i /home/circleci/cache/docker.tar
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
       - run:
-        name: Restore docker-compose config
-        command: cp /home/circleci/cache/docker-compose*.yaml .
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-sqlite-tests
 
   deploy:
