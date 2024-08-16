@@ -165,6 +165,19 @@ commands:
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
+  run-e2e-sqlite-tests:
+    steps:
+      - run:
+          name: e2e tests (syncstorage sqlite)
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.sqlite.yaml
+               -f docker-compose.e2e.sqlite.yaml
+               up
+               --exit-code-from sqlite-e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   run-e2e-spanner-tests:
     steps:
@@ -488,6 +501,25 @@ jobs:
           command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-spanner-tests
 
+  sqlite-e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+        key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+        name: Restore Docker image cache
+        command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+        name: Restore docker-compose config
+        command: cp /home/circleci/cache/docker-compose*.yaml .
+      - run-e2e-sqlite-tests
+
   deploy:
     docker:
       - image: docker:18.02.0-ce
@@ -589,6 +621,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - build-sqlite-image:
+        requires:
+          - build-and-test
+        filters:
+          tags:
+            only: /.*/
       - mysql-e2e-tests:
           requires:
             - build-mysql-image
@@ -601,10 +639,17 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - sqlite-e2e-tests:
+        requires:
+          - build-sqlite-image
+        filters:
+          tags:
+            only: /.*/
       - deploy:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
