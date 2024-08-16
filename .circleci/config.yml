@@ -686,11 +686,11 @@ workflows:
             tags:
               only: /.*/
       - build-sqlite-image:
-        requires:
-          - build-and-test
-        filters:
-          tags:
-            only: /.*/
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /.*/
       - mysql-e2e-tests:
           requires:
             - build-mysql-image
@@ -704,11 +704,11 @@ workflows:
             tags:
               only: /.*/
       - sqlite-e2e-tests:
-        requires:
-          - build-sqlite-image
-        filters:
-          tags:
-            only: /.*/
+          requires:
+            - build-sqlite-image
+          filters:
+            tags:
+              only: /.*/
       - deploy:
           requires:
             - mysql-e2e-tests
