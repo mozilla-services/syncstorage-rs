@@ -115,24 +115,22 @@ def process_account_event(database, body, metrics=None):
     else:
         if email is not None:
             record_metric = True
-            match event_type:
-                case "delete":
-                    # Mark the user as retired.
-                    # Actual cleanup is done by a separate process.
-                    logger.info("Processing account delete for %r", email)
-                    database.retire_user(email)
-                case "reset":
-                    logger.info("Processing account reset for %r", email)
-                    update_generation_number(
-                        database, email, generation, metrics=metrics)
-                case "passwordChange":
-                    logger.info("Processing password change for %r", email)
-                    update_generation_number(
-                        database, email, generation, metrics=metrics)
-                case _:
-                    record_metric = False
-                    logger.warning("Dropping unknown event type %r",
-                                   event_type)
+            if event_type == "delete":
+                # Mark the user as retired.
+                # Actual cleanup is done by a separate process.
+                logger.info("Processing account delete for %r", email)
+                database.retire_user(email)
+            elif event_type == "reset":
+                logger.info("Processing account reset for %r", email)
+                update_generation_number(
+                    database, email, generation, metrics=metrics)
+            elif event_type == "passwordChange":
+                logger.info("Processing password change for %r", email)
+                update_generation_number(
+                    database, email, generation, metrics=metrics)
+            else:
+                record_metric = False
+                logger.warning("Dropping unknown event type %r", event_type)
             if record_metric and metrics:
                 metrics.incr(event_type)
 
