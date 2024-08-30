@@ -1,3 +1,13 @@
+<a name="0.17.3"></a>
+## 0.17.3 (2024-08-30)
+
+
+#### Bug Fixes
+
+*   revert the python3.10 match statement (for now) (#1592) ([dc0d571c](https://github.com/mozilla-services/syncstorage-rs/commit/dc0d571c055741297a77dd47c70b7ef55b552530))
+
+
+
 <a name="0.17.2"></a>
 ## 0.17.2 (2024-08-07)
 
