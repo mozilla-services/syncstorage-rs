@@ -80,7 +80,7 @@ def load(instance, db, coll_id, name):
     spanner_client = spanner.Client()
     instance = spanner_client.instance(instance)
     db = instance.database(db)
-    print("{name} Db: {db}".format(name=name, db=db))
+    print(f"{name} Db: {db}")
     start = datetime.now()
 
     def create_user(txn):
@@ -102,21 +102,17 @@ def load(instance, db, coll_id, name):
     try:
         db.run_in_transaction(create_user)
         print(
-            "{name} Created user (fxa_uid: {uid}, fxa_kid: {kid})".format(
-                name=name, uid=fxa_uid, kid=fxa_kid
-            )
+            f"{name} Created user (fxa_uid: {fxa_uid}, fxa_kid: {fxa_kid})"
         )
     except AlreadyExists:
         print(
-            "{name} Existing user (fxa_uid: {uid}}, fxa_kid: {kid}})".format(
-                name=name, uid=fxa_uid, kid=fxa_kid
-            )
+            f"{name} Existing user (fxa_uid: {fxa_uid}), fxa_kid: {fxa_kid})"
         )
 
     # approximately 1892 bytes
     rlen = 0
 
-    print("{name} Loading..".format(name=name))
+    print(f"{name} Loading..")
     for j in range(BATCHES):
         records = []
         for i in range(BATCH_SIZE):
