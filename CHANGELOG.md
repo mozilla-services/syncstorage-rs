@@ -1,3 +1,13 @@
+<a name="0.17.4"></a>
+## 0.17.4 (2024-09-06)
+
+
+#### Features
+
+*   debug "Invalid OAuth token" (verifier returns None) error cases (#1595) ([1443b31e](https://github.com/mozilla-services/syncstorage-rs/commit/1443b31e5af1f10f8a52bf1bb91dc817ce0b75f2))
+
+
+
 <a name="0.17.3"></a>
 ## 0.17.3 (2024-08-30)
 
