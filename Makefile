@@ -82,13 +82,13 @@ run_spanner: python
 		cargo run --no-default-features --features=spanner,py_verifier -- --config config/local.toml
 
 test_mysql:
-	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://eragon:@localhost/syncstorage \
-		SYNC_TOKENSERVER__DATABASE_URL=mysql://eragon:@localhost/syncstorage \
+	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
+		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
 		RUST_TEST_THREADS=1 \
 		cargo test --workspace --no-default-features --features=mysql,py_verifier
 
 test_sqlite:
-	SYNC_SYNCSTORAGE__DATABASE_URL=sqlite:///tmp/syncstorage.db\
-		SYNC_TOKENSERVER__DATABASE_URL=sqlite:///tmp/tokenserver.db \
+	SYNC_SYNCSTORAGE__DATABASE_URL=sqlite://:memory: \
+		SYNC_TOKENSERVER__DATABASE_URL=sqlite://:memory: \
 		RUST_TEST_THREADS=1 \
 		cargo test --workspace --no-default-features --features=sqlite,py_verifier
