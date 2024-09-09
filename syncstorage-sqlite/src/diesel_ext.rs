@@ -1,3 +1,5 @@
+use core::fmt;
+
 use diesel::{
     backend::Backend,
     insertable::CanInsertInSingleQuery,
@@ -28,12 +30,13 @@ where
     U: QueryFragment<DB> + CanInsertInSingleQuery<DB>,
     Op: QueryFragment<DB>,
     Ret: QueryFragment<DB>,
-    X: Expression,
+    X: Expression + fmt::Debug,
 {
     fn walk_ast(&self, mut out: AstPass<'_, DB>) -> QueryResult<()> {
         self.0.walk_ast(out.reborrow())?;
-        out.push_sql(" ON DUPLICATE KEY UPDATE ");
+        out.push_sql(" ON CONFLICT({user_id}, {collection_id}) DO UPDATE SET ");
         //self.1.walk_ast(out.reborrow())?;
+        debug!("{:?}", self.1);
         Ok(())
     }
 }

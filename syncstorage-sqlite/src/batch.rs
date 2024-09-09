@@ -147,7 +147,6 @@ pub fn commit(db: &SqliteDb, params: params::CommitBatch) -> DbResult<results::C
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&db.conn)?;
 
     db.update_collection(user_id as u32, collection_id)?;
@@ -181,7 +180,7 @@ pub fn do_append(
     }
 
     // It's possible for the list of items to contain a duplicate key entry.
-    // This means that we can't really call `ON DUPLICATE` here, because that's
+    // This means that we can't really call `ON CONFLICT` here, because that's
     // more about inserting one item at a time. (e.g. it works great if the
     // values contain a key that's already in the database, less so if the
     // the duplicate is in the value set we're inserting.
@@ -242,7 +241,6 @@ pub fn do_append(
                     batch_upload_items::sortindex.eq(bso.sortindex),
                     batch_upload_items::payload.eq(bso.payload),
                     batch_upload_items::payload_size.eq(payload_size),
-                    batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
                 ))
                 .execute(&db.conn)?;
             // make sure to include the key into our table check.
