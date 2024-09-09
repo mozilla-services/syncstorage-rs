@@ -51,11 +51,16 @@ struct DbInner {
 
 impl TokenserverDb {
     // Note that this only works because an instance of `TokenserverDb` has *exclusive access* to
-    // a connection from the r2d2 pool for its lifetime. `LAST_INSERT_ID()` returns the ID of the
-    // most recently-inserted record *for a given connection*. If connections were shared across
-    // requests, using this function would introduce a race condition, as we could potentially
-    // get IDs from records created during other requests.
+    // a connection from the r2d2 pool for its lifetime. `LAST_INSERT_ID()`/`LAST_INSERT_ROWID()`
+    // returns the ID of the most recently-inserted record *for a given connection*.
+    // If connections were shared across requests, using this function would introduce a race condition,
+    // as we could potentially get IDs from records created during other requests.
+
+    // TODO: Move this in backend specific crates
+    #[cfg(feature = "mysql")]
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+    #[cfg(feature = "sqlite")]
+    const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ROWID() AS id";
 
     pub fn new(
         conn: PooledConn,
@@ -85,8 +90,16 @@ impl TokenserverDb {
     }
 
     fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
+        #[cfg(feature = "mysql")]
         const QUERY: &str = r#"
             SELECT id
+              FROM nodes
+             WHERE service = ?
+               AND node = ?
+        "#;
+    #[cfg(feature = "sqlite")]
+        const QUERY: &str = r#"
+            SELECT rowid as id
               FROM nodes
              WHERE service = ?
                AND node = ?
@@ -184,9 +197,15 @@ impl TokenserverDb {
 
     /// Create a new user.
     fn post_user_sync(&self, user: params::PostUser) -> DbResult<results::PostUser> {
+        #[cfg(feature = "mysql")]
         const QUERY: &str = r#"
             INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NULL);
+        "#;
+        #[cfg(feature = "sqlite")]
+        const QUERY: &str = r#"
+            INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         "#;
 
         let mut metrics = self.metrics.clone();
