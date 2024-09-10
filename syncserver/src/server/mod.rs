@@ -197,7 +197,7 @@ macro_rules! build_app_without_syncstorage {
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
-            .wrap(SentryWrapper::<ApiError>::new(
+            .wrap(SentryWrapper::<tokenserver_common::TokenserverError>::new(
                 $metrics.clone(),
                 "api_error".to_owned(),
             ))
