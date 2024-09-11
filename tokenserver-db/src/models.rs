@@ -97,7 +97,7 @@ impl TokenserverDb {
              WHERE service = ?
                AND node = ?
         "#;
-    #[cfg(feature = "sqlite")]
+        #[cfg(feature = "sqlite")]
         const QUERY: &str = r#"
             SELECT rowid as id
               FROM nodes
