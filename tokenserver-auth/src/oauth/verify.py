@@ -16,6 +16,4 @@ class FxaOAuthClient:
             # Serialize the data to make it easier to parse in Rust
             return json.dumps(token_data)
         except (ClientError, TrustError):
-            # XXX: debugging
-            #return None
-            raise
+            return None
