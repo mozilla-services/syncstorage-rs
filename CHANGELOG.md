@@ -1,3 +1,13 @@
+<a name="0.17.5"></a>
+## 0.17.5 (2024-09-12)
+
+
+#### Bug Fixes
+
+*   downcast to tokenserver's actual error type (#1596) ([2b8b1f5d](https://github.com/mozilla-services/syncstorage-rs/commit/2b8b1f5dde7fbb5717ad2d7c292f9dbf69b0d271))
+
+
+
 <a name="0.17.4"></a>
 ## 0.17.4 (2024-09-06)
 
