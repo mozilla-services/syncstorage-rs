@@ -1,3 +1,13 @@
+<a name="0.17.6"></a>
+## 0.17.6 (2024-09-17)
+
+
+#### Features
+
+*   pickup the syncserver metrics settings (#1598) ([b52e44ab](https://github.com/mozilla-services/syncstorage-rs/commit/b52e44ab52796b30bf94f39d7db54ae3981c6437))
+
+
+
 <a name="0.17.5"></a>
 ## 0.17.5 (2024-09-12)
 
