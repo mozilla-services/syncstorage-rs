@@ -63,7 +63,7 @@ macro_rules! impl_fmt_display {
     };
 }
 
-pub trait ReportableError: std::fmt::Display {
+pub trait ReportableError: std::fmt::Display + std::fmt::Debug {
     /// Like [Error::source] but returns the source (if any) of this error as a
     /// [ReportableError] if it implements the trait. Otherwise callers of this
     /// method will likely subsequently call [Error::source] to return the
