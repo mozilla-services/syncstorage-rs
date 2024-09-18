@@ -26,7 +26,7 @@ use serde::{
     Deserialize, Serialize,
 };
 use serde_json::Value;
-use syncserver_common::{Metrics, X_WEAVE_RECORDS};
+use syncserver_common::{Metrics, Taggable, X_WEAVE_RECORDS};
 use syncstorage_db::{
     params::{self, PostCollectionBso},
     DbError, DbPool, Sorting, SyncTimestamp, UserIdentifier,
@@ -36,9 +36,7 @@ use validator::{Validate, ValidationError};
 
 use crate::error::{ApiError, ApiErrorKind};
 use crate::label;
-use crate::server::{
-    tags::Taggable, MetricsWrapper, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX,
-};
+use crate::server::{MetricsWrapper, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::web::{
     auth::HawkPayload,
     error::{HawkErrorKind, ValidationErrorKind},

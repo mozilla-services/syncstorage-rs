@@ -21,12 +21,13 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use sha2::Sha256;
+use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
 use tokenserver_common::{ErrorLocation, NodeType, TokenserverError};
 use tokenserver_db::{params, results, Db, DbPool};
 
 use super::{LogItemsMutator, ServerState, TokenserverMetrics};
-use crate::server::{tags::Taggable, MetricsWrapper};
+use crate::server::MetricsWrapper;
 
 lazy_static! {
     static ref CLIENT_STATE_REGEX: Regex = Regex::new("^[a-zA-Z0-9._-]{1,32}$").unwrap();

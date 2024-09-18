@@ -9,8 +9,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use futures_util::future::{ok, Ready};
 use sentry::{protocol::Event, Hub};
 
-use crate::server::tags::Taggable;
-use syncserver_common::ReportableError;
+use crate::{ReportableError, Taggable};
 
 #[derive(Clone)]
 pub struct SentryWrapper<E> {
