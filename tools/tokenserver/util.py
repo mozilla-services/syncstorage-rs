@@ -103,15 +103,10 @@ class Metrics:
         options = dict(
             namespace=namespace,
             statsd_namespace=namespace,
-<<<<<<< HEAD
             statsd_host=getattr(
                 opts, "metric_host", os.environ.get("SYNC_STATSD_HOST")),
             statsd_port=getattr(
                 opts, "metric_port", os.environ.get("SYNC_STATSD_PORT")),
-=======
-            statsd_host=getattr(opts, "metric_host", os.environ.get("METRIC_HOST")),
-            statsd_port=getattr(opts, "metric_port", os.environ.get("METRIC_PORT")),
->>>>>>> 3f79e5f (reformat tokenserver tools files)
         )
         self.prefix = options.get("namespace")
         initialize(**options)
