@@ -9,8 +9,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 use futures_util::future::{ok, Ready};
 use sentry::{protocol::Event, Hub};
 
-use crate::server::tags::Taggable;
-use syncserver_common::ReportableError;
+use crate::{ReportableError, Taggable};
 
 #[derive(Clone)]
 pub struct SentryWrapper<E> {
@@ -249,11 +248,11 @@ pub fn event_from_error(
 ///
 /// Based moreso on sentry_failure's `exception_from_single_fail`. Includes a
 /// stacktrace if available.
-fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::protocol::Exception {
-    let dbg = format!("{:?}", &err.to_string());
+pub fn exception_from_reportable_error(err: &dyn ReportableError) -> sentry::protocol::Exception {
+    let dbg = format!("{:?}", &err);
     sentry::protocol::Exception {
         ty: sentry::parse_type_from_debug(&dbg).to_owned(),
-        value: Some(dbg),
+        value: Some(err.to_string()),
         stacktrace: err
             .backtrace()
             .map(sentry_backtrace::backtrace_to_stacktrace)

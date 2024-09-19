@@ -7,11 +7,10 @@ use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
-use syncserver_common::X_LAST_MODIFIED;
+use syncserver_common::{Taggable, X_LAST_MODIFIED};
 use syncstorage_db::{params, results::ConnectionInfo, Db, DbError, DbPool, UserIdentifier};
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::server::tags::Taggable;
 use crate::server::{MetricsWrapper, ServerState};
 use crate::web::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
