@@ -13,7 +13,7 @@ use actix_web::{
 };
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
-use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_common::{middleware::sentry::SentryWrapper, BlockingThreadpool, Metrics, Taggable};
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
@@ -21,9 +21,7 @@ use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
 
 use crate::error::ApiError;
-use crate::server::tags::Taggable;
 use crate::tokenserver;
-use crate::web::middleware::sentry::SentryWrapper;
 use crate::web::{handlers, middleware};
 
 pub const BSO_ID_REGEX: &str = r"[ -~]{1,64}";
@@ -33,7 +31,6 @@ pub const SYNC_DOCS_URL: &str =
 const MYSQL_UID_REGEX: &str = r"[0-9]{1,10}";
 const SYNC_VERSION_PATH: &str = "1.5";
 
-pub mod tags;
 #[cfg(test)]
 mod test;
 pub mod user_agent;
