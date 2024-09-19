@@ -1,3 +1,22 @@
+<a name="0.17.7"></a>
+## 0.17.7 (2024-09-19)
+
+
+#### Bug Fixes
+
+*   correct TokenserverError's sentry "type"/"value" fields ([bbd5abac](https://github.com/mozilla-services/syncstorage-rs/commit/bbd5abac8e060d0083aaec3c3d8f88c374d44828))
+
+#### Refactor
+
+*   move sentry middlware and Taggable to syncserver-common ([5d9d203c](https://github.com/mozilla-services/syncstorage-rs/commit/5d9d203c62aa1f4df7c627c37eb0bc6c47ddae0b))
+
+#### Features
+
+*   Revert "fix: revert the python3.10 match statement (for now) (#1592)" ([f3bdda91](https://github.com/mozilla-services/syncstorage-rs/commit/f3bdda91660a6777b715b59253234c4d7ba4a520))
+*   Revert "chore: revert back to bullseye (for now) (#1589)" ([bbdfb193](https://github.com/mozilla-services/syncstorage-rs/commit/bbdfb1933dc557ae23fabcb87eb5a22e4478a069))
+
+
+
 <a name="0.17.6"></a>
 ## 0.17.6 (2024-09-17)
 
