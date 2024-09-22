@@ -105,9 +105,9 @@ class Metrics():
             namespace=namespace,
             statsd_namespace=namespace,
             statsd_host=getattr(
-                opts, "metric_host", os.environ.get("METRIC_HOST")),
+                opts, "metric_host", os.environ.get("SYNC_STATSD_HOST")),
             statsd_port=getattr(
-                opts, "metric_port", os.environ.get("METRIC_PORT")),
+                opts, "metric_port", os.environ.get("SYNC_STATSD_PORT")),
         )
         self.prefix = options.get("namespace")
         initialize(**options)

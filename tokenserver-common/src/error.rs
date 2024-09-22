@@ -313,3 +313,20 @@ impl InternalError for TokenserverError {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::TokenserverError;
+    use syncserver_common::middleware::sentry::exception_from_reportable_error;
+
+    #[test]
+    fn sentry_event() {
+        let err = TokenserverError {
+            context: "OAuth verification timeout".to_owned(),
+            ..TokenserverError::resource_unavailable()
+        };
+        let exc = exception_from_reportable_error(&err);
+        assert_eq!(exc.ty, "TokenserverError");
+        assert_eq!(exc.value, Some(err.context));
+    }
+}

@@ -1,5 +1,4 @@
 pub mod rejectua;
-pub mod sentry;
 pub mod weave;
 
 // # Web Middleware
