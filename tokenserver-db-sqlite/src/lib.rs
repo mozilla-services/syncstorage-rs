@@ -3,3 +3,4 @@ extern crate diesel;
 extern crate diesel_migrations;
 
 pub mod pool;
+pub mod models;
