@@ -88,7 +88,7 @@ test_mysql:
 		cargo test --workspace --no-default-features --features=mysql,py_verifier
 
 test_sqlite:
-	SYNC_SYNCSTORAGE__DATABASE_URL=sqlite://:memory: \
-		SYNC_TOKENSERVER__DATABASE_URL=sqlite://:memory: \
+	SYNC_SYNCSTORAGE__DATABASE_URL=sqlite:///tmp/syncstorage.db\
+		SYNC_TOKENSERVER__DATABASE_URL=sqlite:///tmp/tokenserver.db \
 		RUST_TEST_THREADS=1 \
 		cargo test --workspace --no-default-features --features=sqlite,py_verifier
