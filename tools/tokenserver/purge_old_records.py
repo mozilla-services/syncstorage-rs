@@ -386,18 +386,7 @@ def main(args=None):
         action="store_true",
         help="Human readable logs"
     )
-    parser.add_option(
-        "",
-        "--metric_host",
-        default=None,
-        help="Metric host name"
-    )
-    parser.add_option(
-        "",
-        "--metric_port",
-        default=None,
-        help="Metric host port"
-    )
+    util.add_metric_options(parser)
 
     opts, args = parser.parse_args(args)
 
