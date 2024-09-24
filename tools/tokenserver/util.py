@@ -11,6 +11,7 @@ import sys
 import time
 import logging
 import base64
+import optparse
 import os
 import json
 from datetime import datetime
@@ -104,13 +105,27 @@ class Metrics():
         options = dict(
             namespace=namespace,
             statsd_namespace=namespace,
-            statsd_host=getattr(
-                opts, "metric_host", os.environ.get("SYNC_STATSD_HOST")),
-            statsd_port=getattr(
-                opts, "metric_port", os.environ.get("SYNC_STATSD_PORT")),
+            statsd_host=getattr(opts, "metric_host"),
+            statsd_port=getattr(opts, "metric_port"),
         )
         self.prefix = options.get("namespace")
         initialize(**options)
 
     def incr(self, label, tags=None):
         statsd.increment(label, tags=tags)
+
+
+def add_metric_options(parser: optparse.OptionParser):
+    """Add generic metric related options to an OptionParser"""
+    parser.add_option(
+        "",
+        "--metric_host",
+        default=os.environ.get("SYNC_STATSD_HOST"),
+        help="Metric host name"
+    )
+    parser.add_option(
+        "",
+        "--metric_port",
+        default=os.environ.get("SYNC_STATSD_PORT"),
+        help="Metric host port"
+    )
