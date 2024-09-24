@@ -1,3 +1,17 @@
+<a name="0.17.8"></a>
+## 0.17.8 (2024-09-24)
+
+
+#### Chore
+
+* **deps:**  bump cryptography in /tools/integration_tests (#1594) ([be23e391](https://github.com/mozilla-services/syncstorage-rs/commit/be23e39135d58ecaee917c49bf14aa52a406ccea))
+
+#### Bug Fixes
+
+*   correctly read the SYNC_STATSD_HOST/PORT settings (#1601) ([3675c938](https://github.com/mozilla-services/syncstorage-rs/commit/3675c9387b8418a1a67dd13d95b338e12ca5dae3))
+
+
+
 <a name="0.17.7"></a>
 ## 0.17.7 (2024-09-19)
 
