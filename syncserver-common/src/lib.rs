@@ -121,6 +121,8 @@ impl BlockingThreadpool {
         E: fmt::Debug + Send + InternalError + 'static,
     {
         self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
+        // Ensure the counter's always decremented (whether the task completed,
+        // was cancelled or panicked)
         scopeguard::defer! {
             self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
         }
