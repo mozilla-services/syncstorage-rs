@@ -2890,6 +2890,7 @@ dependencies = [
  "futures 0.3.30",
  "futures-util",
  "hkdf",
+ "scopeguard",
  "sentry",
  "sentry-backtrace",
  "serde 1.0.203",

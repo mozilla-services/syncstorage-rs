@@ -161,7 +161,16 @@ impl Settings {
         let db = Url::parse(&self.syncstorage.database_url)
             .map(|url| url.scheme().to_owned())
             .unwrap_or_else(|_| "<invalid db>".to_owned());
-        format!("http://{}:{} ({}) {}", self.host, self.port, db, quota)
+        let parallelism = format!(
+            "available_parallelism: {:?} num_cpus: {} num_cpus (phys): {}",
+            std::thread::available_parallelism(),
+            num_cpus::get(),
+            num_cpus::get_physical()
+        );
+        format!(
+            "http://{}:{} ({db}) ({parallelism}) {quota}",
+            self.host, self.port
+        )
     }
 }
 
