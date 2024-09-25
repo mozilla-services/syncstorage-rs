@@ -1,3 +1,90 @@
+<a name="0.17.8"></a>
+## 0.17.8 (2024-09-24)
+
+
+#### Chore
+
+* **deps:**  bump cryptography in /tools/integration_tests (#1594) ([be23e391](https://github.com/mozilla-services/syncstorage-rs/commit/be23e39135d58ecaee917c49bf14aa52a406ccea))
+
+#### Bug Fixes
+
+*   correctly read the SYNC_STATSD_HOST/PORT settings (#1601) ([3675c938](https://github.com/mozilla-services/syncstorage-rs/commit/3675c9387b8418a1a67dd13d95b338e12ca5dae3))
+
+
+
+<a name="0.17.7"></a>
+## 0.17.7 (2024-09-19)
+
+
+#### Bug Fixes
+
+*   correct TokenserverError's sentry "type"/"value" fields ([bbd5abac](https://github.com/mozilla-services/syncstorage-rs/commit/bbd5abac8e060d0083aaec3c3d8f88c374d44828))
+
+#### Refactor
+
+*   move sentry middlware and Taggable to syncserver-common ([5d9d203c](https://github.com/mozilla-services/syncstorage-rs/commit/5d9d203c62aa1f4df7c627c37eb0bc6c47ddae0b))
+
+#### Features
+
+*   Revert "fix: revert the python3.10 match statement (for now) (#1592)" ([f3bdda91](https://github.com/mozilla-services/syncstorage-rs/commit/f3bdda91660a6777b715b59253234c4d7ba4a520))
+*   Revert "chore: revert back to bullseye (for now) (#1589)" ([bbdfb193](https://github.com/mozilla-services/syncstorage-rs/commit/bbdfb1933dc557ae23fabcb87eb5a22e4478a069))
+
+
+
+<a name="0.17.6"></a>
+## 0.17.6 (2024-09-17)
+
+
+#### Features
+
+*   pickup the syncserver metrics settings (#1598) ([b52e44ab](https://github.com/mozilla-services/syncstorage-rs/commit/b52e44ab52796b30bf94f39d7db54ae3981c6437))
+
+
+
+<a name="0.17.5"></a>
+## 0.17.5 (2024-09-12)
+
+
+#### Bug Fixes
+
+*   downcast to tokenserver's actual error type (#1596) ([2b8b1f5d](https://github.com/mozilla-services/syncstorage-rs/commit/2b8b1f5dde7fbb5717ad2d7c292f9dbf69b0d271))
+
+
+
+<a name="0.17.4"></a>
+## 0.17.4 (2024-09-06)
+
+
+#### Features
+
+*   debug "Invalid OAuth token" (verifier returns None) error cases (#1595) ([1443b31e](https://github.com/mozilla-services/syncstorage-rs/commit/1443b31e5af1f10f8a52bf1bb91dc817ce0b75f2))
+
+
+
+<a name="0.17.3"></a>
+## 0.17.3 (2024-08-30)
+
+
+#### Bug Fixes
+
+*   revert the python3.10 match statement (for now) (#1592) ([dc0d571c](https://github.com/mozilla-services/syncstorage-rs/commit/dc0d571c055741297a77dd47c70b7ef55b552530))
+
+
+
+<a name="0.17.2"></a>
+## 0.17.2 (2024-08-07)
+
+
+#### Chore
+
+*   revert back to bullseye (for now) (#1589) ([4a503f8c](https://github.com/mozilla-services/syncstorage-rs/commit/4a503f8c36fe070e11df43a8ce0b3c71358e983c))
+
+#### Doc
+
+*   add missing changelog for dep updates ([68db54b5](https://github.com/mozilla-services/syncstorage-rs/commit/68db54b5ce226d96da449d501a08d15392a35122))
+
+
+
 <a name="0.17.1"></a>
 ## 0.17.1 (2024-07-11)
 
