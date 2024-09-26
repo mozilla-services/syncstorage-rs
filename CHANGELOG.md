@@ -1,3 +1,13 @@
+<a name="0.17.9"></a>
+## 0.17.9 (2024-09-26)
+
+
+#### Bug Fixes
+
+*   ensure the pool counter's always decremented via scopeguard (#1604) ([4259183a](https://github.com/mozilla-services/syncstorage-rs/commit/4259183ae4ef71efb7cd77db9b9d0e1637ca8dc2))
+
+
+
 <a name="0.17.8"></a>
 ## 0.17.8 (2024-09-24)
 
