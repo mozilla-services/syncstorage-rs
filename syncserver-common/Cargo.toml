@@ -19,3 +19,5 @@ serde_json.workspace = true
 slog.workspace = true
 slog-scope.workspace = true
 hkdf.workspace = true
+
+scopeguard = "1.2"

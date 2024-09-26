@@ -121,16 +121,17 @@ impl BlockingThreadpool {
         E: fmt::Debug + Send + InternalError + 'static,
     {
         self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
+        // Ensure the counter's always decremented (whether the task completed,
+        // was cancelled or panicked)
+        scopeguard::defer! {
+            self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
+        }
 
-        let result = web::block(f).await.unwrap_or_else(|_| {
+        web::block(f).await.unwrap_or_else(|_| {
             Err(E::internal_error(
                 "Blocking threadpool operation canceled".to_owned(),
             ))
-        });
-
-        self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
-
-        result
+        })
     }
 
     pub fn active_threads(&self) -> u64 {
