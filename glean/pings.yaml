@@ -1,0 +1,4 @@
+## Describes the pings being sent out to Glean.
+
+# Schema
+$schema: moz://mozilla.org/schemas/glean/pings/1-0-0

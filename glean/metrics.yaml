@@ -1,0 +1,13 @@
+## This file describes the syncserver daily active user (DAU) metrics.
+## This defines the various allowed metrics that are to be captured.
+## Each metric is written as a JSON blob to the default logger output.
+
+---
+# Schema
+$schema: moz://mozilla.org/schemas/glean/metrics/2-0-0
+
+# Category
+syncstorage:
+  #Event
+  dau:
+    type: "event"
