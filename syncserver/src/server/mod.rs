@@ -13,7 +13,10 @@ use actix_web::{
 };
 use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
-use syncserver_common::{middleware::sentry::SentryWrapper, BlockingThreadpool, Metrics, Taggable};
+use syncserver_common::{
+    middleware::sentry::SentryWrapper, BlockingThreadpool, BlockingThreadpoolMetrics, Metrics,
+    Taggable,
+};
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncserver_settings::Settings;
 use syncstorage_db::{DbError, DbPool, DbPoolImpl};
@@ -259,7 +262,9 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let deadman = Arc::new(RwLock::new(Deadman::from(&settings.syncstorage)));
-        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+        let blocking_threadpool = Arc::new(BlockingThreadpool::new(
+            settings.worker_max_blocking_threads,
+        ));
         let db_pool = DbPoolImpl::new(
             &settings.syncstorage,
             &Metrics::from(&metrics),
@@ -267,8 +272,6 @@ impl Server {
         )?;
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
-        // This is used as part of the metric reporter, which is only run when tokenserver is not
-        let total_thread_count = settings.worker_max_blocking_threads;
         let limits = Arc::new(settings.syncstorage.limits);
         let limits_json =
             serde_json::to_string(&*limits).expect("ServerLimits failed to serialize");
@@ -296,7 +299,6 @@ impl Server {
                 metrics.clone(),
                 db_pool.clone(),
                 blocking_threadpool,
-                total_thread_count,
             )?;
 
             None
@@ -343,13 +345,13 @@ impl Server {
         let host = settings.host.clone();
         let port = settings.port;
         let secrets = Arc::new(settings.master_secret.clone());
-        let blocking_threadpool = Arc::new(BlockingThreadpool::default());
         // Adjust the thread count to include FxA blocking threads.
         let thread_count = settings.worker_max_blocking_threads
             + settings
                 .tokenserver
                 .additional_blocking_threads_for_fxa_requests
                 .unwrap_or(0) as usize;
+        let blocking_threadpool = Arc::new(BlockingThreadpool::new(thread_count));
         let worker_thread_count = calculate_worker_max_blocking_threads(thread_count);
         let tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
@@ -366,7 +368,6 @@ impl Server {
             tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
             blocking_threadpool,
-            thread_count,
         )?;
 
         let server = HttpServer::new(move || {
@@ -465,7 +466,6 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     metrics: Arc<StatsdClient>,
     pool: T,
     blocking_threadpool: Arc<BlockingThreadpool>,
-    thread_count: usize,
 ) -> Result<(), DbError> {
     let hostname = hostname::get()
         .expect("Couldn't get hostname")
@@ -489,14 +489,21 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
                 .with_tag("hostname", &hostname)
                 .send();
 
-            let active_threads = blocking_threadpool.active_threads();
-            let idle_threads = thread_count as u64 - active_threads;
+            let BlockingThreadpoolMetrics {
+                queued_tasks,
+                active_threads,
+                max_idle_threads,
+            } = blocking_threadpool.metrics();
+            metrics
+                .gauge_with_tags("blocking_threadpool.queued", queued_tasks)
+                .with_tag("hostname", &hostname)
+                .send();
             metrics
                 .gauge_with_tags("blocking_threadpool.active", active_threads)
                 .with_tag("hostname", &hostname)
                 .send();
             metrics
-                .gauge_with_tags("blocking_threadpool.idle", idle_threads)
+                .gauge_with_tags("blocking_threadpool.max_idle", max_idle_threads)
                 .with_tag("hostname", &hostname)
                 .send();
 
