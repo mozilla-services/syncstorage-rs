@@ -20,7 +20,7 @@ pub fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
     let pool = MysqlDbPool::new(
         settings,
         &Metrics::noop(),
-        Arc::new(BlockingThreadpool::default()),
+        Arc::new(BlockingThreadpool::new(512)),
     )?;
     pool.get_sync()
 }

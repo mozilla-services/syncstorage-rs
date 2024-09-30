@@ -82,7 +82,9 @@ fn get_test_settings() -> Settings {
 
 async fn get_test_state(settings: &Settings) -> ServerState {
     let metrics = Arc::new(Metrics::sink());
-    let blocking_threadpool = Arc::new(BlockingThreadpool::default());
+    let blocking_threadpool = Arc::new(BlockingThreadpool::new(
+        settings.worker_max_blocking_threads,
+    ));
 
     ServerState {
         db_pool: Box::new(

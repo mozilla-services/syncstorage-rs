@@ -23,7 +23,7 @@ pub async fn db_pool(settings: Option<SyncstorageSettings>) -> Result<DbPoolImpl
     settings.database_use_test_transactions = use_test_transactions;
 
     let metrics = Metrics::noop();
-    let pool = DbPoolImpl::new(&settings, &metrics, Arc::new(BlockingThreadpool::default()))?;
+    let pool = DbPoolImpl::new(&settings, &metrics, Arc::new(BlockingThreadpool::new(512)))?;
     Ok(pool)
 }
 

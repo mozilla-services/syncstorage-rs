@@ -8,6 +8,7 @@ mod tags;
 use std::{
     fmt,
     sync::atomic::{AtomicU64, Ordering},
+    sync::Arc,
 };
 
 use actix_web::web;
@@ -103,12 +104,21 @@ pub trait InternalError {
 /// mostly useful for running I/O tasks). `BlockingThreadpool` intentionally does not implement
 /// `Clone`: `Arc`s are not used internally, so a `BlockingThreadpool` should be instantiated once
 /// and shared by passing around `Arc<BlockingThreadpool>`s.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct BlockingThreadpool {
     spawned_tasks: AtomicU64,
+    active_threads: Arc<AtomicU64>,
+    max_thread_count: usize,
 }
 
 impl BlockingThreadpool {
+    pub fn new(max_thread_count: usize) -> Self {
+        Self {
+            spawned_tasks: Default::default(),
+            active_threads: Default::default(),
+            max_thread_count,
+        }
+    }
     /// Runs a function as a task on the blocking threadpool.
     ///
     /// WARNING: Spawning a blocking task through means other than calling this method will
@@ -127,14 +137,43 @@ impl BlockingThreadpool {
             self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
         }
 
-        web::block(f).await.unwrap_or_else(|_| {
+        let active_threads = Arc::clone(&self.active_threads);
+        let f_with_metrics = move || {
+            active_threads.fetch_add(1, Ordering::Relaxed);
+            scopeguard::defer! {
+               active_threads.fetch_sub(1, Ordering::Relaxed);
+            }
+            f()
+        };
+        web::block(f_with_metrics).await.unwrap_or_else(|_| {
             Err(E::internal_error(
                 "Blocking threadpool operation canceled".to_owned(),
             ))
         })
     }
 
-    pub fn active_threads(&self) -> u64 {
-        self.spawned_tasks.load(Ordering::Relaxed)
+    /// Return the pool's current metrics
+    pub fn metrics(&self) -> BlockingThreadpoolMetrics {
+        let spawned_tasks = self.spawned_tasks.load(Ordering::Relaxed);
+        let active_threads = self.active_threads.load(Ordering::Relaxed);
+        BlockingThreadpoolMetrics {
+            queued_tasks: spawned_tasks - active_threads,
+            active_threads,
+            max_idle_threads: self.max_thread_count as u64 - active_threads,
+        }
     }
+}
+
+/// The thread pool's current metrics
+#[derive(Debug)]
+pub struct BlockingThreadpoolMetrics {
+    /// The number of tasks pending
+    pub queued_tasks: u64,
+    /// The active number of threads running blocking tasks
+    pub active_threads: u64,
+    /// The max number of idle threads: the actual number of idle threads may
+    /// be smaller as idle threads may exit when left idle for too long (this
+    /// is tokio's threadpool behavior, which is the underlying thread pool
+    /// used by actix-web's web::block)
+    pub max_idle_threads: u64,
 }
