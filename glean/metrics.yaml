@@ -8,6 +8,83 @@ $schema: moz://mozilla.org/schemas/glean/metrics/2-0-0
 
 # Category
 syncstorage:
-  #Event
-  dau:
-    type: "event"
+  sync_event:
+    type: event
+    description: |
+      Event to record an instance of sync backend activity initiated by client.
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      # TODO
+    expires: never
+
+  sync_user_id:
+    type: uuid
+    # yamllint disable
+    description: >
+      Sync user identifier. Used to determine which user has initiated sync
+      activity. A single user could make numerous sync actions in a given time
+      and this id is required to ensure only a single count of daily active use
+      is made given a number of actions.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      # TODO
+    expires: never
+
+  user_agent:
+    type: string
+    # yamllint disable
+    description: |
+      User Agent from which sync action was initiated.
+      Firefox Desktop, Fenix, or Firefox iOS.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      # TODO
+    expires: never
+
+  timestamp:
+    type: datetime
+    description: |
+      Timestamp of sync activity.
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      # TODO
+    expires: never
+
+  collection:
+    type: string
+    # yamllint disable
+    description: |
+      Related individual collection where sync activity took place.
+      Includes bookmarks, history, forms, prefs, tabs, and passwords.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      # TODO
+    expires: never
