@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 use woothee::parser::{Parser, WootheeResult};
 
 // List of valid user-agent attributes to keep, anything not in this
@@ -10,6 +13,25 @@ const VALID_UA_BROWSER: &[&str] = &["Chrome", "Firefox", "Safari", "Opera"];
 // full list (WootheeResult's 'os' field may fall back to its 'name'
 // field). Windows has many values and we only care that its Windows
 const VALID_UA_OS: &[&str] = &["Firefox OS", "Linux", "Mac OSX"];
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DeviceFamily {
+    Desktop,
+    Phone,
+    Tablet,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum OsFamily {
+    Windows,
+    MacOs,
+    Linux,
+    IOs,
+    Android,
+    ChromeOs,
+    Other,
+}
 
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
     let parser = Parser::new();
