@@ -34,7 +34,7 @@ pub enum OsFamily {
     Windows,
     MacOs,
     Linux,
-    IOs,
+    IOS,
     Android,
     ChromeOs,
     Other,
@@ -52,6 +52,23 @@ pub struct DeviceInfo {
     pub device_family: DeviceFamily,
     pub os_family: OsFamily,
     pub firefox_version: u32,
+}
+
+impl DeviceInfo {
+    pub fn is_desktop(&self) -> bool {
+        matches!(&self.device_family, DeviceFamily::Desktop)
+            || matches!(
+                &self.os_family,
+                OsFamily::MacOs | OsFamily::Windows | OsFamily::Linux
+            )
+    }
+
+    pub fn is_mobile(&self) -> bool {
+        matches!(
+            &self.device_family,
+            DeviceFamily::Phone | DeviceFamily::Tablet
+        ) || matches!(&self.os_family, OsFamily::Android | OsFamily::IOS)
+    }
 }
 
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
