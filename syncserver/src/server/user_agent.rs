@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use actix_http::header::ACCESS_CONTROL_REQUEST_HEADERS;
 use woothee::parser::{Parser, WootheeResult};
 
 // List of valid user-agent attributes to keep, anything not in this
@@ -55,6 +56,7 @@ pub struct DeviceInfo {
 }
 
 impl DeviceInfo {
+    /// Determine if the device is a desktop device based on either the form factor or OS.
     pub fn is_desktop(&self) -> bool {
         matches!(&self.device_family, DeviceFamily::Desktop)
             || matches!(
@@ -63,12 +65,66 @@ impl DeviceInfo {
             )
     }
 
+    /// Determine if the device is a mobile phone based on either the form factor or OS.
     pub fn is_mobile(&self) -> bool {
         matches!(
             &self.device_family,
             DeviceFamily::Phone | DeviceFamily::Tablet
         ) || matches!(&self.os_family, OsFamily::Android | OsFamily::IOS)
     }
+
+    /// Determine if the device is iOS based on either the form factor or OS.
+    pub fn is_ios(&self) -> bool {
+        matches!(
+            &self.device_family,
+            DeviceFamily::Phone | DeviceFamily::Tablet
+        ) || matches!(&self.os_family, OsFamily::Android | OsFamily::IOS)
+    }
+
+    /// Determine if the device is an android (Fenix) device based on either the form factor or OS.
+    pub fn is_fenix(&self) -> bool {
+        matches!(
+            &self.device_family,
+            DeviceFamily::Phone | DeviceFamily::Tablet
+        ) || matches!(&self.os_family, OsFamily::Android)
+    }
+}
+
+pub fn get_device_info(user_agent: &str) -> Result<DeviceInfo> {
+    let parser = Parser::new();
+    let wresult = parser.parse(user_agent).unwrap_or_else(|| WootheeResult {
+        name: "",
+        category: "",
+        os: "",
+        os_version: "".into(),
+        browser_type: "",
+        version: "",
+        vendor: "",
+    });
+
+    let firefox_version =
+        u32::from_str(wresult.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
+    let os = wresult.os.to_lowercase();
+    let os_family = match os.as_str() {
+        _ if os.starts_with("windows") => OsFamily::Windows,
+        "mac osx" => OsFamily::MacOs,
+        "linux" => OsFamily::Linux,
+        "iphone" => OsFamily::IOS,
+        "android" => OsFamily::Android,
+        "chromeos" => OsFamily::ChromeOs,
+        _ => OsFamily::Other,
+    };
+    let device_family = match wresult.category {
+        "pc" => DeviceFamily::Desktop,
+        "smartphone" if os.as_str() == "ipad" => DeviceFamily::Tablet,
+        "smartphone" => DeviceFamily::Phone,
+        _ => DeviceFamily::Other,
+    };
+    Ok(DeviceInfo {
+        device_family,
+        os_family,
+        firefox_version,
+    })
 }
 
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
