@@ -22,6 +22,13 @@ pub enum DeviceFamily {
     Other,
 }
 
+impl fmt::Display for DeviceFamily {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = format!("{:?}", self).to_lowercase();
+        write!(fmt, "{}", name)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum OsFamily {
     Windows,
@@ -31,6 +38,13 @@ pub enum OsFamily {
     Android,
     ChromeOs,
     Other,
+}
+
+impl fmt::Display for OsFamily {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = format!("{:?}", self).to_lowercase();
+        write!(fmt, "{}", name)
+    }
 }
 
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
