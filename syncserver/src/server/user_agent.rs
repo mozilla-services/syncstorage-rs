@@ -47,6 +47,13 @@ impl fmt::Display for OsFamily {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub struct DeviceInfo {
+    pub device_family: DeviceFamily,
+    pub os_family: OsFamily,
+    pub firefox_version: u32,
+}
+
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
     let parser = Parser::new();
     let wresult = parser.parse(agent).unwrap_or_else(|| WootheeResult {
