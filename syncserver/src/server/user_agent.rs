@@ -90,9 +90,9 @@ impl DeviceInfo {
     }
 }
 
-pub fn get_device_info(user_agent: &str) -> Result<DeviceInfo> {
+pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     let parser = Parser::new();
-    let wresult = parser.parse(user_agent).unwrap_or_else(|| WootheeResult {
+    let mut w_result = parser.parse(user_agent).unwrap_or_else(|| WootheeResult {
         name: "",
         category: "",
         os: "",
@@ -102,9 +102,20 @@ pub fn get_device_info(user_agent: &str) -> Result<DeviceInfo> {
         vendor: "",
     });
 
+    // NOTE: Firefox on iPads report back the Safari "desktop" UA
+    // (e.g. `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/605.1.15
+    //        (KHTML, like Gecko) Version/13.1 Safari/605.1.15)`
+    // therefore we have to accept that one. This does mean that we may presume
+    // that a mac safari UA is an iPad.
+    if w_result.name.to_lowercase() == "safari" && !user_agent.to_lowercase().contains("firefox/") {
+        w_result.name = "firefox";
+        w_result.category = "smartphone";
+        w_result.os = "ipad";
+    }
+
     let firefox_version =
-        u32::from_str(wresult.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
-    let os = wresult.os.to_lowercase();
+        u32::from_str(w_result.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
+    let os = w_result.os.to_lowercase();
     let os_family = match os.as_str() {
         _ if os.starts_with("windows") => OsFamily::Windows,
         "mac osx" => OsFamily::MacOs,
@@ -114,17 +125,17 @@ pub fn get_device_info(user_agent: &str) -> Result<DeviceInfo> {
         "chromeos" => OsFamily::ChromeOs,
         _ => OsFamily::Other,
     };
-    let device_family = match wresult.category {
+    let device_family = match w_result.category {
         "pc" => DeviceFamily::Desktop,
         "smartphone" if os.as_str() == "ipad" => DeviceFamily::Tablet,
         "smartphone" => DeviceFamily::Phone,
         _ => DeviceFamily::Other,
     };
-    Ok(DeviceInfo {
+    DeviceInfo {
         device_family,
         os_family,
         firefox_version,
-    })
+    }
 }
 
 pub fn parse_user_agent(agent: &str) -> (WootheeResult<'_>, &str, &str) {
