@@ -18,8 +18,8 @@ const VALID_UA_OS: &[&str] = &["Firefox OS", "Linux", "Mac OSX"];
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeviceFamily {
     Desktop,
-    Phone,
-    Tablet,
+    IOS,
+    Android,
     Other,
 }
 
@@ -69,24 +69,19 @@ impl DeviceInfo {
     pub fn is_mobile(&self) -> bool {
         matches!(
             &self.device_family,
-            DeviceFamily::Phone | DeviceFamily::Tablet
+            DeviceFamily::IOS | DeviceFamily::Android
         ) || matches!(&self.os_family, OsFamily::Android | OsFamily::IOS)
     }
 
     /// Determine if the device is iOS based on either the form factor or OS.
     pub fn is_ios(&self) -> bool {
-        matches!(
-            &self.device_family,
-            DeviceFamily::Phone | DeviceFamily::Tablet
-        ) || matches!(&self.os_family, OsFamily::Android | OsFamily::IOS)
+        matches!(&self.device_family, DeviceFamily::IOS) && matches!(&self.os_family, OsFamily::IOS)
     }
 
     /// Determine if the device is an android (Fenix) device based on either the form factor or OS.
     pub fn is_fenix(&self) -> bool {
-        matches!(
-            &self.device_family,
-            DeviceFamily::Phone | DeviceFamily::Tablet
-        ) || matches!(&self.os_family, OsFamily::Android)
+        matches!(&self.device_family, DeviceFamily::Android)
+            && matches!(&self.os_family, OsFamily::Android)
     }
 }
 
@@ -127,8 +122,8 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     };
     let device_family = match w_result.category {
         "pc" => DeviceFamily::Desktop,
-        "smartphone" if os.as_str() == "ipad" => DeviceFamily::Tablet,
-        "smartphone" => DeviceFamily::Phone,
+        "smartphone" if os.as_str() == "ipad" => DeviceFamily::IOS,
+        "smartphone" if os.as_str() == "android" => DeviceFamily::Android,
         _ => DeviceFamily::Other,
     };
     DeviceInfo {
