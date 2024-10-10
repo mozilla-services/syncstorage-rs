@@ -1,4 +1,4 @@
-## This file describes the syncserver daily active user (DAU) metrics.
+## This file describes the syncserver-rs daily active user (DAU) metrics.
 ## This defines the various allowed metrics that are to be captured.
 ## Each metric is written as a JSON blob to the default logger output.
 
@@ -22,14 +22,17 @@ syncstorage:
       # TODO
     expires: never
 
-  sync_user_id:
+  hashed_fxa_uid:
     type: uuid
     # yamllint disable
     description: >
-      Sync user identifier. Used to determine which user has initiated sync
-      activity. A single user could make numerous sync actions in a given time
+      User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
+      Used to determine which user has initiated sync activity.
+      A single user could make numerous sync actions in a given time
       and this id is required to ensure only a single count of daily active use
-      is made given a number of actions.
+      is made, given a number of actions. Sync_id is not used due to possibility
+      of new keys being generated during resets or timeouts, whenever encryption
+      keys change.
     # yamllint enable
     notification_emails:
       - jrconlin@mozilla.com
@@ -45,7 +48,7 @@ syncstorage:
     type: string
     # yamllint disable
     description: |
-      Pleatform from which sync action was initiated.
+      Platform from which sync action was initiated.
       Firefox Desktop, Fenix, or Firefox iOS.
     # yamllint enable
     notification_emails:
