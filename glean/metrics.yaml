@@ -19,7 +19,7 @@ syncstorage:
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
-      # TODO
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
 
   hashed_fxa_uid:
@@ -41,7 +41,7 @@ syncstorage:
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
-      # TODO
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
 
   platform:
@@ -58,7 +58,7 @@ syncstorage:
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
-      # TODO
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
 
   collection:
@@ -75,5 +75,5 @@ syncstorage:
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
-      # TODO
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never

@@ -15,6 +15,6 @@ syncstorage:
   bugs:
     - https://github.com/mozilla-services/syncstorage-rs/issues
   data_reviews:
-    # TODO
+    - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
   expires: never
   include_client_id: false
