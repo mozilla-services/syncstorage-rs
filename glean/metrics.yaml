@@ -61,6 +61,23 @@ syncstorage:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
 
+  device_family:
+    type: string
+    # yamllint disable
+    description: |
+      Device family from which sync action was initiated.
+      Desktop PC, Tablet, Mobile.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
+
   collection:
     type: string
     # yamllint disable
