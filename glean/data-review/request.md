@@ -61,13 +61,13 @@ The objective is to measure Daily Active Users for Sync.  This is to be an inter
   <tr>
     <td>collection</td>
     <td>Related individual collection where sync activity took place. Includes bookmarks, history, forms, prefs, tabs, and passwords.</td>
-    <td></td>
+    <td>Cat 2: Interaction Data</td>
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
     <tr>
     <td>submission_timestamp</td>
     <td>Glean internal submission timestamp of metric ping.</td>
-    <td></td>
+    <td>Cat 1: Technical Data</td>
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
 </table>
