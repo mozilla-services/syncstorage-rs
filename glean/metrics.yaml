@@ -66,7 +66,7 @@ syncstorage:
     # yamllint disable
     description: |
       Device family from which sync action was initiated.
-      Desktop PC, Tablet, Mobile.
+      Desktop PC, Tablet, Mobile, and Other.
     # yamllint enable
     notification_emails:
       - jrconlin@mozilla.com
