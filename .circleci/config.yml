@@ -53,18 +53,25 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=mysql,py_verifier -- -D warnings
+  rust-clippy-sqlite:
+    steps:
+      - run:
+          name: Rust Clippy SQLite
+          command: |
+            cargo clippy --workspace --all-targets --no-default-features --features=sqlite,py_verifier -- -D warnings
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
           command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
+            cargo clippy --workspace --all-targets --no-default-features --features=spanner,py_verifier -- -D warnings
   cargo-build:
     steps:
       - run:
           name: cargo build
-          command: cargo build
+          # This only builds the mysql version as it was the old default
+          command: cargo build --workspace --all-targets --no-default-features --features=mysql,py_verifier
   setup-mysql:
     steps:
       - run:
@@ -95,10 +102,10 @@ commands:
     steps:
       - run:
           name: cargo test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace --verbose --no-default-features --features mysql,py_verifier
       - run:
           name: quota test
-          command: cargo test --workspace --verbose
+          command: cargo test --workspace --verbose --no-default-features --features mysql,py_verifier
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
@@ -112,6 +119,20 @@ commands:
                -f docker-compose.e2e.mysql.yaml
                up
                --exit-code-from mysql-e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
+
+  run-e2e-sqlite-tests:
+    steps:
+      - run:
+          name: e2e tests (syncstorage sqlite)
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.sqlite.yaml
+               -f docker-compose.e2e.sqlite.yaml
+               up
+               --exit-code-from sqlite-e2e-tests
                --abort-on-container-exit
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
@@ -251,6 +272,38 @@ jobs:
           paths:
             - /home/circleci/cache
 
+  build-sqlite-image:
+    docker:
+      - image: cimg/rust:1.78.0  # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - display-versions
+      - write-version
+      - run:
+          name: Build SQLite Docker image
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=sqlite .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*sqlite.yaml /home/circleci/cache
+      - save_cache:
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
   build-spanner-image:
     docker:
       - image: cimg/rust:1.78.0  # RUST_VER
@@ -320,6 +373,25 @@ jobs:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
       - run-e2e-spanner-tests
+
+  sqlite-e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
+      - run-e2e-sqlite-tests
 
   deploy:
     docker:
@@ -422,6 +494,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - build-sqlite-image:
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /.*/
       - mysql-e2e-tests:
           requires:
             - build-mysql-image
@@ -434,10 +512,17 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - sqlite-e2e-tests:
+          requires:
+            - build-sqlite-image
+          filters:
+            tags:
+              only: /.*/
       - deploy:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
@@ -448,6 +533,7 @@ workflows:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
