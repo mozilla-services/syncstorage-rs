@@ -43,7 +43,7 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
   </tr>
   <tr>
     <td>hashed_fxa_uid</td>
-    <td>Sync user identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.</td>
+    <td>Sync user identifier. Uses `hashed_fxa_uid` for accurate count of sync actions. This is the Firefox Accounts (FxA) User Identifier (UID) value passed through a SHA-256 hash to render a value that is unique, but ensures the privacy of the original UID. A single user could make numerous sync actions in a given time and this id is required to ensure only a single count of daily active use is made, given a number of actions.</td>
     <td>Cat 2: Interaction Data</td>
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
@@ -94,7 +94,7 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
 10) Please provide a general description of how you will analyze this data.
 
 * Measurement of Daily Active Use:
-- Based on the individual unique user_id (`hashed_fxa_uid`), we will count a single active user when, during a 24-hour period, the user makes a request to any collection within their Sync account (including bookmarks, tabs, prefs, etc.).
+- Based on the individual unique user_id (`hashed_fxa_uid`), we will count a single active user when, during a 24-hour period, the user makes a request to any collection within their Sync account (including bookmarks, tabs, prefs, etc.). Note we are using a value derived from the `user_id`, not the `user_id` itself. This value is passed through a SHA-256 hash to render a value that is unique, but ensures the privacy of the original user_id.
 
 - A user that initiates multiple requests to the same collection or other collections will only be counted once. This is why the unique `hashed_fxa_uid` is required to derive uniqueness. Active use can also be across several devices, so an accompanying `platform` key defines whether the user initiated the action on Desktop, iOS or Android. Device family, whether desktop, tablet, or mobile will also be of interest.  Actions taken across multiple platforms for the same user should only count as an active user once, within a 24-hour period.
 
