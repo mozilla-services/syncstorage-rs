@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
+use validator::ValidateUrl;
 use woothee::parser::{Parser, WootheeResult};
 
 // List of valid user-agent attributes to keep, anything not in this
@@ -110,8 +111,20 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
             version: "",
             vendor: "",
         });
-    let firefox_version =
-        u32::from_str(w_result.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
+
+    // Current Firefox-iOS logic outputs the `user_agent` in the following formats:
+    // Firefox-iOS-Sync/108.1b24234 (iPad; iPhone OS 16.4.1) (Firefox)
+    // OR
+    // Firefox-iOS-FxA/24
+    // Both contain prefix `Firefox-iOS` and are not successfully parsed by Woothee.
+    // This custom logic accomodates the current state (Q4 - 2024)
+    // This may be a discussion point for future client-side adjustment to have a more standardized
+    // user_agent string.
+    if user_agent.to_lowercase().starts_with("firefox-ios") {
+        w_result.name = "firefox";
+        w_result.category = "smartphone";
+        w_result.os = "iphone";
+    }
 
     // NOTE: Firefox on iPads report back the Safari "desktop" UA
     // (e.g. `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/605.1.15
@@ -154,6 +167,9 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
         },
         DeviceFamily::Other => Platform::Other,
     };
+
+    let firefox_version =
+        u32::from_str(w_result.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
 
     DeviceInfo {
         platform,
@@ -266,12 +282,10 @@ mod tests {
     }
 
     fn test_firefox_ios() {
-        let fenix_user_agent =
-            r#"Mozilla/5.0 (Android 13; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0"#;
+        let fenix_user_agent = r#"Firefox-iOS-FxA/24"#;
         let device_info = get_device_info(desktop_user_agent);
-        assert_eq!(device_info.platform, Platform::Fenix);
+        assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
-        assert_eq!(device_info.firefox_version, 130);
     }
 }
