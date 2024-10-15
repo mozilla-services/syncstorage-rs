@@ -1,7 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use validator::ValidateUrl;
 use woothee::parser::{Parser, WootheeResult};
 
 // List of valid user-agent attributes to keep, anything not in this
@@ -169,7 +168,7 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     };
 
     let firefox_version =
-        u32::from_str(w_result.version.split(".").collect::<Vec<&str>>()[0]).unwrap_or_default();
+        u32::from_str(w_result.version.split('.').collect::<Vec<&str>>()[0]).unwrap_or_default();
 
     DeviceInfo {
         platform,
@@ -254,36 +253,48 @@ mod tests {
 
     #[test]
     fn test_windows_desktop() {
-        let desktop_user_agent = r#"Firefox/130.0.1 (Windows NT 10.0; Win64; x64) FxSync/1.132.0.20240913135723.desktop"#;
-        let device_info = get_device_info(desktop_user_agent);
+        let user_agent = r#"Firefox/130.0.1 (Windows NT 10.0; Win64; x64) FxSync/1.132.0.20240913135723.desktop"#;
+        let device_info = get_device_info(user_agent);
         assert_eq!(device_info.platform, Platform::FirefoxDesktop);
         assert_eq!(device_info.device_family, DeviceFamily::Desktop);
         assert_eq!(device_info.os_family, OsFamily::Windows);
         assert_eq!(device_info.firefox_version, 130);
     }
+
+    #[test]
     fn test_macos_desktop() {
-        let desktop_user_agent =
+        let user_agent =
             r#"Firefox/130.0.1 (Intel Mac OS X 10.15) FxSync/1.132.0.20240913135723.desktop"#;
-        let device_info = get_device_info(desktop_user_agent);
+        let device_info = get_device_info(user_agent);
         assert_eq!(device_info.platform, Platform::FirefoxDesktop);
         assert_eq!(device_info.device_family, DeviceFamily::Desktop);
         assert_eq!(device_info.os_family, OsFamily::MacOs);
-        assert_eq!(device_info.firefox_version, 132);
+        assert_eq!(device_info.firefox_version, 130);
     }
 
+    #[test]
     fn test_fenix() {
-        let fenix_user_agent =
-            r#"Mozilla/5.0 (Android 13; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0"#;
-        let device_info = get_device_info(desktop_user_agent);
+        let user_agent = r#"Mozilla/5.0 (Android 13; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0"#;
+        let device_info = get_device_info(user_agent);
         assert_eq!(device_info.platform, Platform::Fenix);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::Android);
         assert_eq!(device_info.firefox_version, 130);
     }
 
+    #[test]
     fn test_firefox_ios() {
-        let fenix_user_agent = r#"Firefox-iOS-FxA/24"#;
-        let device_info = get_device_info(desktop_user_agent);
+        let user_agent = r#"Firefox-iOS-FxA/24"#;
+        let device_info = get_device_info(user_agent);
+        assert_eq!(device_info.platform, Platform::FirefoxIOS);
+        assert_eq!(device_info.device_family, DeviceFamily::Mobile);
+        assert_eq!(device_info.os_family, OsFamily::IOS);
+    }
+
+    #[test]
+    fn test_firefox_ios_alternate_user_agent() {
+        let user_agent = r#"Firefox-iOS-Sync/115.0b32242 (iPhone; iPhone OS 17.7) (Firefox)"#;
+        let device_info = get_device_info(user_agent);
         assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
