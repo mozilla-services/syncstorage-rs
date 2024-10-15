@@ -320,6 +320,7 @@ impl FromRequest for DbWrapper {
                 .map(Self)
                 .map_err(|e| TokenserverError {
                     context: format!("Couldn't acquire a database connection: {}", e),
+                    source: Some(Box::new(e)),
                     ..TokenserverError::internal_error()
                 })
         })
