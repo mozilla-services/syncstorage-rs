@@ -1,7 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use actix_http::header::ACCESS_CONTROL_REQUEST_HEADERS;
 use woothee::parser::{Parser, WootheeResult};
 
 // List of valid user-agent attributes to keep, anything not in this
@@ -86,16 +85,17 @@ impl DeviceInfo {
 }
 
 pub fn get_device_info(user_agent: &str) -> DeviceInfo {
-    let parser = Parser::new();
-    let mut w_result = parser.parse(user_agent).unwrap_or_else(|| WootheeResult {
-        name: "",
-        category: "",
-        os: "",
-        os_version: "".into(),
-        browser_type: "",
-        version: "",
-        vendor: "",
-    });
+    let mut w_result = Parser::new()
+        .parse(user_agent)
+        .unwrap_or_else(|| WootheeResult {
+            name: "",
+            category: "",
+            os: "",
+            os_version: "".into(),
+            browser_type: "",
+            version: "",
+            vendor: "",
+        });
 
     // NOTE: Firefox on iPads report back the Safari "desktop" UA
     // (e.g. `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/605.1.15
