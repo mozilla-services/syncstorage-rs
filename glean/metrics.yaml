@@ -28,6 +28,8 @@ syncstorage:
     description: >
       User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
       Used to determine which user has initiated sync activity.
+      This is the Firefox Accounts (FxA) User Identifier (UID) value passed through
+      a SHA-256 hash to render a value that is unique, but ensures the privacy of the original UID.
       A single user could make numerous sync actions in a given time
       and this id is required to ensure only a single count of daily active use
       is made, given a number of actions. Sync_id is not used due to possibility
