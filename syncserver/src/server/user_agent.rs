@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(device_info.platform, Platform::FirefoxDesktop);
         assert_eq!(device_info.device_family, DeviceFamily::Desktop);
         assert_eq!(device_info.os_family, OsFamily::MacOs);
-        assert_eq!(device_info.firefox_version, 132);
+        assert_eq!(device_info.firefox_version, 130);
     }
 
     #[test]
