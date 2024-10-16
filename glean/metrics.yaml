@@ -77,20 +77,3 @@ syncstorage:
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
-
-  collection:
-    type: string
-    # yamllint disable
-    description: |
-      Related individual collection where sync activity took place.
-      Includes bookmarks, history, forms, prefs, tabs, and passwords.
-    # yamllint enable
-    notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
-    bugs:
-      - https://github.com/mozilla-services/syncstorage-rs/issues
-    data_reviews:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
-    expires: never

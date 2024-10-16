@@ -17,7 +17,6 @@ The goal is to measure DAU (and subsequently WAU & MAU) by emitting metrics from
 * User identifier (hashed_fxa_uid)
 * Timestamp
 * Platform (from UserAgent: Desktop, Fenix, iOS)
-* Collection updated
  
 In researching possible implementation methods, it became clear that many options did not offer us the ease and flexibility to reconcile the data after emission. This is why Glean is recommended as a clear frontrunner. This is not without some drawbacks, but they are minimal compared to other options that would, for example, require considerable data processing and querying difficulties. There is support for this implementation from the Glean team and active support in the process.
 
