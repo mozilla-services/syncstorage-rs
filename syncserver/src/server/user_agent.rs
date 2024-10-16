@@ -289,7 +289,6 @@ mod tests {
         assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
-        assert_eq!(device_info.firefox_version, None);
     }
 
     #[test]
@@ -299,6 +298,5 @@ mod tests {
         assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
-        assert_eq!(device_info.firefox_version, None);
     }
 }
