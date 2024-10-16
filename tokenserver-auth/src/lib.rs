@@ -3,7 +3,9 @@ mod crypto;
 
 #[cfg(not(feature = "py"))]
 pub use crypto::{JWTVerifier, JWTVerifierImpl};
+#[allow(clippy::result_large_err)]
 pub mod oauth;
+#[allow(clippy::result_large_err)]
 mod token;
 use syncserver_common::Metrics;
 pub use token::Tokenlib;
