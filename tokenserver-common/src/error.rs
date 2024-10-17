@@ -11,7 +11,7 @@ use syncserver_common::{InternalError, ReportableError};
 
 /// An error type that represents application-specific errors to Tokenserver. This error is not
 /// used to represent database-related errors; database-related errors have their own type.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TokenserverError {
     pub status: &'static str,
     pub location: ErrorLocation,
@@ -24,6 +24,10 @@ pub struct TokenserverError {
     pub backtrace: Box<Backtrace>,
     pub token_type: TokenType,
     pub tags: Option<Box<Vec<(&'static str, String)>>>,
+    /// TODO: refactor TokenserverError to include a TokenserverErrorKind, w/
+    /// variants for sources (currently just DbError). May require moving
+    /// TokenserverError out of common (into syncserver)
+    pub source: Option<Box<dyn ReportableError + Send>>,
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +68,7 @@ impl Default for TokenserverError {
             backtrace: Box::new(Backtrace::new()),
             token_type: TokenType::Oauth,
             tags: None,
+            source: None,
         }
     }
 }
@@ -275,14 +280,23 @@ impl From<TokenserverError> for HttpResponse {
 
 impl ReportableError for TokenserverError {
     fn backtrace(&self) -> Option<&Backtrace> {
+        if let Some(source) = &self.source {
+            return source.backtrace();
+        }
         Some(&self.backtrace)
     }
 
     fn is_sentry_event(&self) -> bool {
+        if let Some(source) = &self.source {
+            return source.is_sentry_event();
+        }
         self.http_status.is_server_error() && self.metric_label().is_none()
     }
 
     fn metric_label(&self) -> Option<String> {
+        if let Some(source) = &self.source {
+            return source.metric_label();
+        }
         if self.http_status.is_client_error() {
             match self.token_type {
                 TokenType::Oauth => Some("request.error.oauth".to_owned()),

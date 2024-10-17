@@ -1,4 +1,6 @@
+#[allow(clippy::result_large_err)]
 pub mod extractors;
+#[allow(clippy::result_large_err)]
 pub mod handlers;
 pub mod logging;
 

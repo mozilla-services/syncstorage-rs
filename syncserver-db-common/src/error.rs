@@ -41,7 +41,11 @@ impl From<MysqlErrorKind> for MysqlError {
 
 impl ReportableError for MysqlError {
     fn is_sentry_event(&self) -> bool {
-        true
+        #[allow(clippy::match_like_matches_macro)]
+        match &self.kind {
+            MysqlErrorKind::Pool(_) => false,
+            _ => true,
+        }
     }
 
     fn metric_label(&self) -> Option<String> {
