@@ -49,7 +49,7 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
   </tr>
   <tr>
     <td>platform</td>
-    <td>Platform from which sync action was initiated: Desktop, Android, or iOS.</td>
+    <td>Platform from which sync action was initiated: Firefox Desktop, Fenix (Android), or Firefox iOS. </td>
     <td>Cat 1: Technical Data</td>
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
@@ -57,12 +57,6 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
     <td>device_family</td>
     <td>Type of device being used to make Sync action. Desktop PC, Tablet, Mobile.</td>
     <td>Cat 1: Technical Data</td>
-    <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
-  </tr>
-  <tr>
-    <td>collection</td>
-    <td>Related individual collection where sync activity took place. Includes bookmarks, history, forms, prefs, tabs, and passwords.</td>
-    <td>Cat 2: Interaction Data</td>
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
     <tr>
