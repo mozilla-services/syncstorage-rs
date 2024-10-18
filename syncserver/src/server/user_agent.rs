@@ -157,8 +157,12 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
         DeviceFamily::Other => Platform::Other,
     };
 
-    let firefox_version =
-        u32::from_str(w_result.version.split('.').collect::<Vec<&str>>()[0]).unwrap_or_default();
+    let firefox_version = w_result
+        .version
+        .split('.')
+        .next()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(0);
 
     DeviceInfo {
         platform,
@@ -279,6 +283,7 @@ mod tests {
         assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
+        assert_eq!(device_info.firefox_version, 0);
     }
 
     #[test]
@@ -288,5 +293,6 @@ mod tests {
         assert_eq!(device_info.platform, Platform::FirefoxIOS);
         assert_eq!(device_info.device_family, DeviceFamily::Mobile);
         assert_eq!(device_info.os_family, OsFamily::IOS);
+        assert_eq!(device_info.firefox_version, 0);
     }
 }
