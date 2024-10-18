@@ -277,4 +277,5 @@ pub struct UserIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
+    pub hashed_fxa_uid: String,
 }
