@@ -130,5 +130,6 @@ pub fn hid(user_id: u32) -> UserIdentifier {
         legacy_id: u64::from(user_id),
         fxa_uid: format!("xxx_unit_tests_fxa_uid{}", user_id),
         fxa_kid: format!("xxx_unit_tests_fxa_kid{}", user_id),
+        hashed_fxa_uid: format!("xxx_unit_tests_hashed_fxa_uid{}", user_id),
     }
 }
