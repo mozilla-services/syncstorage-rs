@@ -99,17 +99,7 @@ impl DeviceInfo {
 }
 
 pub fn get_device_info(user_agent: &str) -> DeviceInfo {
-    let mut w_result = Parser::new()
-        .parse(user_agent)
-        .unwrap_or_else(|| WootheeResult {
-            name: "",
-            category: "",
-            os: "",
-            os_version: "".into(),
-            browser_type: "",
-            version: "",
-            vendor: "",
-        });
+    let mut w_result: WootheeResult<'_> = Parser::new().parse(user_agent).unwrap_or_default();
 
     // Current Firefox-iOS logic outputs the `user_agent` in the following formats:
     // Firefox-iOS-Sync/108.1b24234 (iPad; iPhone OS 16.4.1) (Firefox)
