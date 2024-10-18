@@ -54,6 +54,9 @@ pub struct HawkPayload {
     pub fxa_kid: String,
 
     #[serde(default)]
+    pub hashed_fxa_uid: String,
+
+    #[serde(default)]
     pub hashed_device_id: String,
 
     /// The Tokenserver that created this token.
@@ -156,6 +159,7 @@ impl HawkPayload {
             user_id,
             fxa_uid: "xxx_test".to_owned(),
             fxa_kid: "xxx_test".to_owned(),
+            hashed_fxa_uid: "xxx_test".to_owned(),
             hashed_device_id: "xxx_test".to_owned(),
             tokenserver_origin: Default::default(),
         }
@@ -508,6 +512,7 @@ mod tests {
                     user_id: 1,
                     fxa_uid: "319b98f9961ff1dbdd07313cd6ba925a".to_owned(),
                     fxa_kid: "de697ad66d845b2873c9d7e13b8971af".to_owned(),
+                    hashed_fxa_uid: "0e8df5d41398a389913bd8402435649518af46493da1d4a437a46dc1784c501a".to_owned(),
                     hashed_device_id: "2bcb92f4d4698c3d7b083a3c698a16ccd78bc2a8d20a96e4bb128ddceaf4e0b6".to_owned(),
                     tokenserver_origin: Default::default(),
                 },
