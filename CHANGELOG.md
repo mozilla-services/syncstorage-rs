@@ -1,3 +1,15 @@
+<a name="0.17.10"></a>
+## 0.17.10 (2024-10-19)
+
+
+#### Features
+
+*   wire MysqlError's ReportableError impl into TokenserverError (#1611) ([c535e5ae](https://github.com/mozilla-services/syncstorage-rs/commit/c535e5ae52d03ee1c2df287c3bbed6c2321f377b))
+*   create DAU glean schema and configs (#1606) ([d2313310](https://github.com/mozilla-services/syncstorage-rs/commit/d23133101f5367e2070a0cc5b711e756f36f5b72))
+*   track the pool's queued vs actually active tasks (#1605) ([1f0e28d7](https://github.com/mozilla-services/syncstorage-rs/commit/1f0e28d7af9c6f9aea38073a099699897464ceac))
+
+
+
 <a name="0.17.9"></a>
 ## 0.17.9 (2024-09-26)
 
