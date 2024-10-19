@@ -55,7 +55,7 @@ struct DbInner {
 
 impl TokenserverDb {
     // Note that this only works because an instance of `TokenserverDb` has *exclusive access* to
-    // a connection from the r2d2 pool for its lifetime. `LAST_INSERT_ID()`/`LAST_INSERT_ROWID()`
+    // a connection from the r2d2 pool for its lifetime. `LAST_INSERT_ID_QUERY`
     // returns the ID of the most recently-inserted record *for a given connection*.
     // If connections were shared across requests, using this function would introduce a race condition,
     // as we could potentially get IDs from records created during other requests.
@@ -163,7 +163,6 @@ impl TokenserverDb {
             .execute(&self.inner.conn)?;
 
         diesel::sql_query(LAST_INSERT_ID_QUERY)
-            .bind::<Text, _>(&user.email)
             .get_result::<results::PostUser>(&self.inner.conn)
             .map_err(Into::into)
     }
