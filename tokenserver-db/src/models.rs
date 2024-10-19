@@ -88,7 +88,6 @@ impl TokenserverDb {
     }
 
     fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
-
         if let Some(id) = self.spanner_node_id {
             Ok(results::GetNodeId { id: id as i64 })
         } else {
@@ -422,7 +421,6 @@ impl TokenserverDb {
         &self,
         params: params::GetServiceId,
     ) -> DbResult<results::GetServiceId> {
-
         if let Some(id) = self.service_id {
             Ok(results::GetServiceId { id })
         } else {
