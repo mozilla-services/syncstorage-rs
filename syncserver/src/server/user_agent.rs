@@ -97,6 +97,15 @@ impl DeviceInfo {
     }
 }
 
+/// Parses user agents from headers and returns a DeviceInfo struct containing
+/// DeviceFamily, OsFamily, Platform, and Firefox Version.
+///
+/// Intended to handle standard user agent strings but also accomodates the non-standard,
+/// Firefox-specific user agents for iOS and desktop.
+///
+/// Parsing logic for non-standard iOS strings are in the form Firefox-iOS-FxA/24 and
+/// manually modifies WootheeResult to match with correct enums for iOS platform and OS.
+/// FxSync/<...>.desktop result still parses natively with Woothee and doesn't require intervention.
 pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     let mut w_result: WootheeResult<'_> = Parser::new().parse(user_agent).unwrap_or_default();
 
