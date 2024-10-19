@@ -294,4 +294,14 @@ mod tests {
         assert_eq!(device_info.os_family, OsFamily::IOS);
         assert_eq!(device_info.firefox_version, 0);
     }
+
+    #[test]
+    fn test_platform_other() {
+        let user_agent = r#"Mozilla/5.0 (Linux; Android 9; SM-A920F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4216.0 Mobile Safari/537.36"#;
+        let device_info = get_device_info(user_agent);
+        assert_eq!(device_info.platform, Platform::Other);
+        assert_eq!(device_info.device_family, DeviceFamily::Mobile);
+        assert_eq!(device_info.os_family, OsFamily::Android);
+        assert_eq!(device_info.firefox_version, 86);
+    }
 }
