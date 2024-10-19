@@ -4,6 +4,7 @@ SELECT rowid as id
 FROM nodes
 WHERE service = ?
 AND node = ?"#;
+// FIXME: MySQL specific
 pub const REPLACE_USERS_SYNC_QUERY: &str = r#"
 UPDATE users
 SET replaced_at = ?
@@ -30,6 +31,7 @@ AND email = ?
 AND generation <= ?
 AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
 AND replaced_at IS NULL"#;
+// FIXME: MySQL specific
 pub const POST_USER_SYNC_QUERY: &str = r#"
 INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);"#;
@@ -51,6 +53,7 @@ WHERE service = ?
 AND available <= 0
 AND capacity > current_load
 AND downed = 0"#;
+// FIXME: MySQL specific
 pub const GET_BEST_NODE_SPANNER_QUERY: &str = r#"
 SELECT id, node
 FROM nodes
