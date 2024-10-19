@@ -2,5 +2,5 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-pub mod pool;
 pub mod models;
+pub mod pool;
