@@ -1,4 +1,4 @@
-use std::{convert::TryInto, u64};
+use std::convert::TryInto;
 
 use chrono::{
     offset::{FixedOffset, TimeZone, Utc},
