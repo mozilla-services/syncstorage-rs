@@ -2092,14 +2092,16 @@ mod tests {
     async fn db_pool() -> DbResult<TokenserverPool> {
         let _ = env_logger::try_init();
 
-        let mut settings = Settings::test_settings().tokenserver;
-        settings.run_migrations = true;
+        let mut settings = Settings::test_settings();
+        settings.tokenserver.run_migrations = true;
         let use_test_transactions = true;
 
         TokenserverPool::new(
-            &settings,
+            &settings.tokenserver,
             &Metrics::noop(),
-            Arc::new(BlockingThreadpool::default()),
+            Arc::new(BlockingThreadpool::new(
+                settings.worker_max_blocking_threads,
+            )),
             use_test_transactions,
         )
     }

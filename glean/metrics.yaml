@@ -1,0 +1,96 @@
+## This file describes the syncserver-rs daily active user (DAU) metrics.
+## This defines the various allowed metrics that are to be captured.
+## Each metric is written as a JSON blob to the default logger output.
+
+---
+# Schema
+$schema: moz://mozilla.org/schemas/glean/metrics/2-0-0
+
+# Category
+syncstorage:
+  sync_event:
+    type: event
+    description: |
+      Event to record an instance of sync backend activity initiated by client.
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
+
+  hashed_fxa_uid:
+    type: uuid
+    # yamllint disable
+    description: >
+      User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
+      Used to determine which user has initiated sync activity.
+      A single user could make numerous sync actions in a given time
+      and this id is required to ensure only a single count of daily active use
+      is made, given a number of actions. Sync_id is not used due to possibility
+      of new keys being generated during resets or timeouts, whenever encryption
+      keys change.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
+
+  platform:
+    type: string
+    # yamllint disable
+    description: |
+      Platform from which sync action was initiated.
+      Firefox Desktop, Fenix, or Firefox iOS.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
+
+  device_family:
+    type: string
+    # yamllint disable
+    description: |
+      Device family from which sync action was initiated.
+      Desktop PC, Tablet, Mobile, and Other.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
+
+  collection:
+    type: string
+    # yamllint disable
+    description: |
+      Related individual collection where sync activity took place.
+      Includes bookmarks, history, forms, prefs, tabs, and passwords.
+    # yamllint enable
+    notification_emails:
+      - jrconlin@mozilla.com
+      - pjenvey@mozilla.com
+      - tkorris@mozilla.com
+    bugs:
+      - https://github.com/mozilla-services/syncstorage-rs/issues
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
+    expires: never
