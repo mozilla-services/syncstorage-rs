@@ -13,11 +13,12 @@ const VALID_UA_BROWSER: &[&str] = &["Chrome", "Firefox", "Safari", "Opera"];
 // field). Windows has many values and we only care that its Windows
 const VALID_UA_OS: &[&str] = &["Firefox OS", "Linux", "Mac OSX"];
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum Platform {
     FirefoxDesktop,
     Fenix,
     FirefoxIOS,
+    #[default]
     Other,
 }
 
@@ -28,17 +29,12 @@ impl fmt::Display for Platform {
     }
 }
 
-impl Default for Platform {
-    fn default() -> Platform {
-        Platform::Other
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum DeviceFamily {
     Desktop,
     Mobile,
     Tablet,
+    #[default]
     Other,
 }
 
@@ -49,19 +45,14 @@ impl fmt::Display for DeviceFamily {
     }
 }
 
-impl Default for DeviceFamily {
-    fn default() -> DeviceFamily {
-        DeviceFamily::Other
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum OsFamily {
     Windows,
     MacOs,
     Linux,
     IOS,
     Android,
+    #[default]
     Other,
 }
 
@@ -69,12 +60,6 @@ impl fmt::Display for OsFamily {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = format!("{:?}", self).to_lowercase();
         write!(fmt, "{}", name)
-    }
-}
-
-impl Default for OsFamily {
-    fn default() -> OsFamily {
-        OsFamily::Other
     }
 }
 
