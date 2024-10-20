@@ -28,6 +28,12 @@ impl fmt::Display for Platform {
     }
 }
 
+impl Default for Platform {
+    fn default() -> Platform {
+        Platform::Other
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DeviceFamily {
     Desktop,
@@ -40,6 +46,12 @@ impl fmt::Display for DeviceFamily {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = format!("{:?}", self).to_lowercase();
         write!(fmt, "{}", name)
+    }
+}
+
+impl Default for DeviceFamily {
+    fn default() -> DeviceFamily {
+        DeviceFamily::Other
     }
 }
 
@@ -60,7 +72,13 @@ impl fmt::Display for OsFamily {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+impl Default for OsFamily {
+    fn default() -> OsFamily {
+        OsFamily::Other
+    }
+}
+
+#[derive(Debug, Default, Eq, PartialEq)]
 pub struct DeviceInfo {
     pub platform: Platform,
     pub device_family: DeviceFamily,
@@ -103,12 +121,20 @@ impl DeviceInfo {
 /// Intended to handle standard user agent strings but also accomodates the non-standard,
 /// Firefox-specific user agents for iOS and desktop.
 ///
+/// It is theoretically possible to have an invalid user agent that is non-Firefox in the
+/// case of an invalid UA, bot, or scraper.
+/// There is a check for this to return an empty result as opposed to failing.
+///
 /// Parsing logic for non-standard iOS strings are in the form Firefox-iOS-FxA/24 and
 /// manually modifies WootheeResult to match with correct enums for iOS platform and OS.
 /// FxSync/<...>.desktop result still parses natively with Woothee and doesn't require intervention.
 pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     let mut w_result: WootheeResult<'_> = Parser::new().parse(user_agent).unwrap_or_default();
 
+    // Check if the user agent is not Firefox and return empty.
+    if !["firefox"].contains(&w_result.name.to_lowercase().as_str()) {
+        return DeviceInfo::default();
+    }
     // Current Firefox-iOS logic outputs the `user_agent` in the following formats:
     // Firefox-iOS-Sync/108.1b24234 (iPad; iPhone OS 16.4.1) (Firefox)
     // OR
@@ -309,8 +335,18 @@ mod tests {
         let user_agent = r#"Mozilla/5.0 (Linux; Android 9; SM-A920F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4216.0 Mobile Safari/537.36"#;
         let device_info = get_device_info(user_agent);
         assert_eq!(device_info.platform, Platform::Other);
-        assert_eq!(device_info.device_family, DeviceFamily::Mobile);
-        assert_eq!(device_info.os_family, OsFamily::Android);
-        assert_eq!(device_info.firefox_version, 86);
+        assert_eq!(device_info.device_family, DeviceFamily::Other);
+        assert_eq!(device_info.os_family, OsFamily::Other);
+        assert_eq!(device_info.firefox_version, 0);
+    }
+
+    #[test]
+    fn test_non_firefox_platform_other() {
+        let user_agent = r#"Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1; Trident/4.0)"#;
+        let device_info = get_device_info(user_agent);
+        assert_eq!(device_info.platform, Platform::Other);
+        assert_eq!(device_info.device_family, DeviceFamily::Other);
+        assert_eq!(device_info.os_family, OsFamily::Other);
+        assert_eq!(device_info.firefox_version, 0);
     }
 }
