@@ -116,10 +116,6 @@ impl DeviceInfo {
 pub fn get_device_info(user_agent: &str) -> DeviceInfo {
     let mut w_result: WootheeResult<'_> = Parser::new().parse(user_agent).unwrap_or_default();
 
-    // Check if the user agent is not Firefox and return empty.
-    if !["firefox"].contains(&w_result.name.to_lowercase().as_str()) {
-        return DeviceInfo::default();
-    }
     // Current Firefox-iOS logic outputs the `user_agent` in the following formats:
     // Firefox-iOS-Sync/108.1b24234 (iPad; iPhone OS 16.4.1) (Firefox)
     // OR
@@ -143,6 +139,11 @@ pub fn get_device_info(user_agent: &str) -> DeviceInfo {
         w_result.name = "firefox";
         w_result.category = "smartphone";
         w_result.os = "ipad";
+    }
+
+    // Check if the user agent is not Firefox and return empty.
+    if !["firefox"].contains(&w_result.name.to_lowercase().as_str()) {
+        return DeviceInfo::default();
     }
 
     let os = w_result.os.to_lowercase();
