@@ -1125,6 +1125,7 @@ impl From<HawkIdentifier> for UserIdentifier {
             fxa_uid: hawk_id.fxa_uid,
             fxa_kid: hawk_id.fxa_kid,
             hashed_fxa_uid: hawk_id.hashed_fxa_uid,
+            hashed_device_id: hawk_id.hashed_device_id,
         }
     }
 }
