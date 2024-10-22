@@ -994,6 +994,7 @@ pub struct HawkIdentifier {
     /// For NoSQL database backends that require randomly distributed primary keys
     pub fxa_uid: String,
     pub fxa_kid: String,
+    pub hashed_fxa_uid: String,
     pub tokenserver_origin: TokenserverOrigin,
 }
 
@@ -1004,6 +1005,7 @@ impl HawkIdentifier {
             legacy_id: 0,
             fxa_uid: "cmd".to_owned(),
             fxa_kid: "cmd".to_owned(),
+            hashed_fxa_uid: "cmd".to_owned(),
             tokenserver_origin: TokenserverOrigin::default(),
         }
     }
@@ -1106,6 +1108,7 @@ impl HawkIdentifier {
             legacy_id: payload.user_id,
             fxa_uid: payload.fxa_uid,
             fxa_kid: payload.fxa_kid,
+            hashed_fxa_uid: payload.hashed_fxa_uid,
             tokenserver_origin: payload.tokenserver_origin,
         };
         Ok(user_id)
@@ -1118,6 +1121,7 @@ impl From<HawkIdentifier> for UserIdentifier {
             legacy_id: hawk_id.legacy_id,
             fxa_uid: hawk_id.fxa_uid,
             fxa_kid: hawk_id.fxa_kid,
+            hashed_fxa_uid: hawk_id.hashed_fxa_uid,
         }
     }
 }
