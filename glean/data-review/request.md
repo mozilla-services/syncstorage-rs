@@ -48,6 +48,12 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
     <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
   </tr>
   <tr>
+    <td>hashed_device_id</td>
+    <td>Hashed identifier of device. This is necessary to correlate postential users that do not want telemetry tracking of this sort. The "deletion-request" ping within clint-side sync is the most likely mechanism to ensure associative removal of data.</td>
+    <td>Cat 2: Interaction Data</td>
+    <td><a href="https://bugzilla.mozilla.org/show_bug.cgi?id=1923967">https://bugzilla.mozilla.org/show_bug.cgi?id=1923967</a></td>
+  </tr>
+  <tr>
     <td>platform</td>
     <td>Platform from which sync action was initiated: Firefox Desktop, Fenix (Android), or Firefox iOS. </td>
     <td>Cat 1: Technical Data</td>
@@ -83,7 +89,8 @@ The objective is to measure Daily Active Users for Sync (DAU).  This is to be an
 * We will measure all active use of Sync (attributed from the server-side). This includes all countries, locales and release channels which Sync is used.
 
 9) If this data collection is default on, what is the opt-out mechanism for users?
-* Opting out would involve a user not being signed into Sync as a service. Since there is no active attribution that could identify a user, especially since we are using a hash value and generalized collection representation, there is not an immediate user concern.
+* Our initial plan for opting out of collection would invovle the client side "deletion-request" ping. This uses the `hashed_device_id` value referenced above to remove entries that are liked to the user's Firefox Account.
+* Alternatively, opting out would involve a user not being signed into Sync as a service. Since there is no active attribution that could identify a user, especially since we are using a hash value and generalized collection representation, there is not an immediate user concern.
 
 10) Please provide a general description of how you will analyze this data.
 
