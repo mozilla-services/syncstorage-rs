@@ -278,4 +278,5 @@ pub struct UserIdentifier {
     pub fxa_uid: String,
     pub fxa_kid: String,
     pub hashed_fxa_uid: String,
+    pub hashed_device_id: String,
 }
