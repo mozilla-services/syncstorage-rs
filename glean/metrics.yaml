@@ -80,12 +80,13 @@ syncstorage:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
     expires: never
 
-  collection:
+  hashed_device_id:
     type: string
     # yamllint disable
     description: |
-      Related individual collection where sync activity took place.
-      Includes bookmarks, history, forms, prefs, tabs, and passwords.
+      Hashed device id that is associated with a given account. This is used
+      entirely to associate opt-out or removal requests, as they make use of 
+      the "deletion-request" ping associated with the client side of Sync.
     # yamllint enable
     notification_emails:
       - jrconlin@mozilla.com
