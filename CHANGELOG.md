@@ -1,3 +1,16 @@
+<a name="0.17.11"></a>
+## 0.17.11 (2024-10-22)
+
+
+#### Features
+
+*   Revert "feat: Revert "fix: revert the python3.10 match statement (for now) (#1592)"" ([1b13123a](https://github.com/mozilla-services/syncstorage-rs/commit/1b13123a2b9a61d53f03c7f89672c6fbb7568f2d))
+*   revert "feat: Revert "chore: revert back to bullseye (for now) (#1589)"" ([e170518c](https://github.com/mozilla-services/syncstorage-rs/commit/e170518c0f5696ed51478fecafc1a59eca176053))
+*   add hashed_fxa_uid to HawkPayload  (#1613) ([715cf950](https://github.com/mozilla-services/syncstorage-rs/commit/715cf950ba22d25d85264ecb6360305b29ec70eb))
+*   user agent parsing (#1607) ([7f2ef062](https://github.com/mozilla-services/syncstorage-rs/commit/7f2ef062fc71e749a00f4d960e70380c4fe44ea1))
+
+
+
 <a name="0.17.10"></a>
 ## 0.17.10 (2024-10-19)
 
