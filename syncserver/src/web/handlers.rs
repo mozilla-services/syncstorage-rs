@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::time::{Duration, Instant};
 
+use crate::server::user_agent::get_device_info;
 use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
+use http::header;
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -32,6 +34,15 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    let _hashed_fxa_uid = String::from(&meta.user_id.hashed_fxa_uid);
+    let _user_agent = request
+        .headers()
+        .get(actix_http::header::USER_AGENT)
+        .unwrap()
+        .to_str();
+
+    let _device_info = get_device_info(_user_agent?);
+
     db_pool
         .transaction_http(request, |db| async move {
             meta.emit_api_metric("request.get_collections");
