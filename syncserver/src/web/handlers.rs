@@ -4,7 +4,6 @@ use std::convert::Into;
 use std::time::{Duration, Instant};
 
 use crate::server::user_agent::get_device_info;
-use actix_http::header::HeaderValue;
 use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
 use serde::Serialize;
 use serde_json::{json, Value};
