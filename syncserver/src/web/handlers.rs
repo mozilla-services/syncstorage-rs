@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use crate::server::user_agent::get_device_info;
 use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
-use http::header;
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
