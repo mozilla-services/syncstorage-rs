@@ -21,7 +21,7 @@ use std::{sync::Arc, time::Duration};
 pub struct Verifier {
     // Note that we do not need to use an Arc here, since Py is already a reference-counted
     // pointer
-    inner: Py<PyAny>,
+    inner: Arc<Py<PyAny>>,
     timeout: u64,
     blocking_threadpool: Arc<BlockingThreadpool>,
 }
@@ -103,7 +103,7 @@ impl Verifier {
         })?;
 
         Ok(Self {
-            inner,
+            inner: Arc::new(inner),
             timeout: settings.fxa_oauth_request_timeout,
             blocking_threadpool,
         })
