@@ -995,6 +995,7 @@ pub struct HawkIdentifier {
     pub fxa_uid: String,
     pub fxa_kid: String,
     pub hashed_fxa_uid: String,
+    pub hashed_device_id: String,
     pub tokenserver_origin: TokenserverOrigin,
 }
 
@@ -1006,6 +1007,7 @@ impl HawkIdentifier {
             fxa_uid: "cmd".to_owned(),
             fxa_kid: "cmd".to_owned(),
             hashed_fxa_uid: "cmd".to_owned(),
+            hashed_device_id: "cmd".to_owned(),
             tokenserver_origin: TokenserverOrigin::default(),
         }
     }
@@ -1109,6 +1111,7 @@ impl HawkIdentifier {
             fxa_uid: payload.fxa_uid,
             fxa_kid: payload.fxa_kid,
             hashed_fxa_uid: payload.hashed_fxa_uid,
+            hashed_device_id: payload.hashed_device_id,
             tokenserver_origin: payload.tokenserver_origin,
         };
         Ok(user_id)
@@ -1122,6 +1125,7 @@ impl From<HawkIdentifier> for UserIdentifier {
             fxa_uid: hawk_id.fxa_uid,
             fxa_kid: hawk_id.fxa_kid,
             hashed_fxa_uid: hawk_id.hashed_fxa_uid,
+            hashed_device_id: hawk_id.hashed_device_id,
         }
     }
 }
