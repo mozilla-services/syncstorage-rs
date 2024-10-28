@@ -38,7 +38,7 @@ pub async fn get_collections(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     let _hashed_fxa_uid = meta.user_id.hashed_fxa_uid.clone();
-    let _hashed_device_id; // placeholder until PR with variable included
+    let _hashed_device_id = meta.user_id.hashed_device_id.clone();
     let user_agent = request
         .headers()
         .get(header::USER_AGENT)
