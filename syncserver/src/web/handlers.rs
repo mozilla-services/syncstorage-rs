@@ -4,7 +4,11 @@ use std::convert::Into;
 use std::time::{Duration, Instant};
 
 use crate::server::user_agent::get_device_info;
-use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
+use actix_web::{
+    http::{header, StatusCode},
+    web::Data,
+    HttpRequest, HttpResponse, HttpResponseBuilder,
+};
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -33,14 +37,14 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    let _hashed_fxa_uid = String::from(&meta.user_id.hashed_fxa_uid);
-    let _user_agent = request
+    let _hashed_fxa_uid = meta.user_id.hashed_fxa_uid.clone();
+    let _hashed_device_id; // placeholder until PR with variable included
+    let user_agent = request
         .headers()
-        .get("USER_AGENT")
-        .map(|header| header.to_str().unwrap_or("none"))
+        .get(header::USER_AGENT)
+        .and_then(|header| header.to_str().ok())
         .unwrap_or("none");
-
-    let _device_info = get_device_info(_user_agent);
+    let _device_info = get_device_info(user_agent);
 
     db_pool
         .transaction_http(request, |db| async move {
