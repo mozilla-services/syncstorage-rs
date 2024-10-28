@@ -19,7 +19,6 @@ use std::{sync::Arc, time::Duration};
 /// The verifier used to verify OAuth tokens.
 #[derive(Clone)]
 pub struct Verifier {
-    // Note that we do not need to use an Arc here, since Py is already a reference-counted
     // pointer
     inner: Arc<Py<PyAny>>,
     timeout: u64,
