@@ -7,12 +7,12 @@ use futures::stream::{StreamExt, StreamFuture};
 use google_cloud_rust_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     spanner::ExecuteSqlRequest,
-    type_pb::{StructType_Field, Type, TypeCode},
+    type_::{struct_type, Type, TypeCode},
 };
 use grpcio::ClientSStreamReceiver;
 use protobuf::{
-    well_known_types::{ListValue, NullValue, Struct, Value},
-    RepeatedField,
+    well_known_types::struct_::{ListValue, NullValue, Struct, Value},
+    MessageField,
 };
 use syncstorage_db_common::{
     params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
@@ -27,7 +27,7 @@ pub trait IntoSpannerValue {
 
     fn spanner_type(&self) -> Type {
         let mut t = Type::new();
-        t.set_code(Self::TYPE_CODE);
+        t.code = Self::TYPE_CODE.into();
         t
     }
 }
@@ -67,9 +67,7 @@ where
 
     fn into_spanner_value(self) -> Value {
         let mut list = ListValue::new();
-        list.set_values(RepeatedField::from_vec(
-            self.into_iter().map(|v| v.into_spanner_value()).collect(),
-        ));
+        list.values = self.into_iter().map(|v| v.into_spanner_value()).collect();
         let mut value = Value::new();
         value.set_list_value(list);
         value
@@ -77,8 +75,8 @@ where
 
     fn spanner_type(&self) -> Type {
         let mut t = Type::new();
-        t.set_code(Self::TYPE_CODE);
-        t.set_array_element_type(self.array_element_type());
+        t.code = Self::TYPE_CODE.into();
+        t.array_element_type = MessageField::from(Some(self.array_element_type()));
         t
     }
 }
@@ -88,7 +86,7 @@ pub trait SpannerArrayElementType {
 
     fn array_element_type(&self) -> Type {
         let mut t = Type::new();
-        t.set_code(Self::ARRAY_ELEMENT_TYPE_CODE);
+        t.code = Self::ARRAY_ELEMENT_TYPE_CODE.into();
         t
     }
 }
@@ -107,15 +105,19 @@ impl SpannerArrayElementType for Vec<u32> {
 
 pub fn as_type(v: TypeCode) -> Type {
     let mut t = Type::new();
-    t.set_code(v);
+    t.code = v.into();
     t
 }
 
-pub fn struct_type_field(name: &str, field_type: TypeCode) -> StructType_Field {
-    let mut field = StructType_Field::new();
-    field.set_name(name.to_owned());
-    field.set_field_type(as_type(field_type));
-    field
+pub fn struct_type_field(name: &str, field_type: TypeCode) -> struct_type::Field {
+    struct_type::Field {
+        name: name.to_owned(),
+        type_: MessageField::from(Some(Type {
+            code: field_type.into(),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
 }
 
 pub fn null_value() -> Value {
@@ -151,14 +153,14 @@ impl ExecuteSqlRequestBuilder {
 
     fn prepare_request(self, conn: &Conn) -> ExecuteSqlRequest {
         let mut request = self.execute_sql;
-        request.set_session(conn.session.get_name().to_owned());
+        request.session = conn.session.name.clone();
         if let Some(params) = self.params {
             let mut paramss = Struct::new();
-            paramss.set_fields(params);
-            request.set_params(paramss);
+            paramss.fields = params;
+            request.params = MessageField::from(Some(paramss));
         }
         if let Some(param_types) = self.param_types {
-            request.set_param_types(param_types);
+            request.param_types = param_types;
         }
         request
     }
@@ -177,7 +179,7 @@ impl ExecuteSqlRequestBuilder {
             .client
             .execute_sql_async_opt(&self.prepare_request(conn), conn.session_opt()?)?
             .await?;
-        Ok(rs.get_stats().get_row_count_exact())
+        Ok(rs.stats.map(|v| v.row_count_exact()).unwrap_or_default())
     }
 }
 
@@ -218,11 +220,14 @@ impl StreamedResultSetAsync {
         self.stats.as_ref()
     }
 
-    pub fn fields(&self) -> &[StructType_Field] {
-        match self.metadata {
-            Some(ref metadata) => metadata.get_row_type().get_fields(),
-            None => &[],
-        }
+    pub fn fields(&self) -> &[struct_type::Field] {
+        self.metadata
+            .as_ref()
+            .map(|v| v.row_type.as_ref().map(|v| &v.fields))
+            .unwrap_or_default()
+            .as_ref()
+            .map(|v| v.as_slice())
+            .unwrap_or_default()
     }
 
     pub async fn one(&mut self) -> DbResult<Vec<Value>> {
@@ -259,23 +264,23 @@ impl StreamedResultSetAsync {
             .await;
 
         self.stream = Some(stream.into_future());
-        let mut partial_rs = if let Some(result) = result {
+        let partial_rs = if let Some(result) = result {
             result?
         } else {
             // Stream finished
             return Ok(false);
         };
 
-        if self.metadata.is_none() && partial_rs.has_metadata() {
+        if self.metadata.is_none() && partial_rs.metadata.is_some() {
             // first response
-            self.metadata = Some(partial_rs.take_metadata());
+            self.metadata = Some(partial_rs.metadata.unwrap());
         }
-        if partial_rs.has_stats() {
+        if partial_rs.stats.is_some() {
             // last response
-            self.stats = Some(partial_rs.take_stats());
+            self.stats = Some(partial_rs.stats.unwrap());
         }
 
-        let mut values = partial_rs.take_values().into_vec();
+        let mut values = partial_rs.values;
         if values.is_empty() {
             // sanity check
             return Ok(true);
@@ -290,9 +295,13 @@ impl StreamedResultSetAsync {
                 ));
             }
             let field = &fields[current_row_i];
-            values[0] = merge_by_type(pending_chunk, &values[0], field.get_field_type())?;
+            values[0] = merge_by_type(
+                pending_chunk,
+                &values[0],
+                field.type_.as_ref().unwrap_or_default(),
+            )?;
         }
-        if partial_rs.get_chunked_value() {
+        if partial_rs.chunked_value {
             self.pending_chunk = values.pop();
         }
 
@@ -333,12 +342,14 @@ fn merge_by_type(lhs: Value, rhs: &Value, field_type: &Type) -> DbResult<Value> 
     // The python client also supports: float64, array, struct. The go client
     // only additionally supports array (claiming structs are only returned as
     // arrays anyway)
-    match field_type.get_code() {
-        TypeCode::BYTES
-        | TypeCode::DATE
-        | TypeCode::INT64
-        | TypeCode::STRING
-        | TypeCode::TIMESTAMP => merge_string(lhs, rhs),
+    match field_type.code.enum_value() {
+        Ok(
+            TypeCode::BYTES
+            | TypeCode::DATE
+            | TypeCode::INT64
+            | TypeCode::STRING
+            | TypeCode::TIMESTAMP,
+        ) => merge_string(lhs, rhs),
         _ => unsupported_merge(field_type),
     }
 }
@@ -357,12 +368,12 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> DbResult<Value> {
         ));
     }
     let mut merged = lhs.take_string_value();
-    merged.push_str(rhs.get_string_value());
+    merged.push_str(rhs.string_value());
     Ok(merged.into_spanner_value())
 }
 
 pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
-    let modified_string = &row[3].get_string_value();
+    let modified_string = &row[3].string_value();
     let modified = SyncTimestamp::from_rfc3339(modified_string)
         .map_err(|e| DbError::integrity(e.to_string()))?;
     Ok(results::GetBso {
@@ -372,14 +383,14 @@ pub fn bso_from_row(mut row: Vec<Value>) -> DbResult<results::GetBso> {
         } else {
             Some(
                 row[1]
-                    .get_string_value()
+                    .string_value()
                     .parse::<i32>()
                     .map_err(|e| DbError::integrity(e.to_string()))?,
             )
         },
         payload: row[2].take_string_value(),
         modified,
-        expiry: SyncTimestamp::from_rfc3339(row[4].get_string_value())
+        expiry: SyncTimestamp::from_rfc3339(row[4].string_value())
             .map_err(|e| DbError::integrity(e.to_string()))?
             .as_i64(),
     })
@@ -399,7 +410,7 @@ pub fn bso_to_insert_row(
     let expiry = to_rfc3339(now.as_i64() + (i64::from(ttl) * 1000))?;
 
     let mut row = ListValue::new();
-    row.set_values(RepeatedField::from_vec(vec![
+    row.values = vec![
         user_id.fxa_uid.clone().into_spanner_value(),
         user_id.fxa_kid.clone().into_spanner_value(),
         collection_id.into_spanner_value(),
@@ -408,7 +419,7 @@ pub fn bso_to_insert_row(
         bso.payload.unwrap_or_default().into_spanner_value(),
         now.as_rfc3339()?.into_spanner_value(),
         expiry.into_spanner_value(),
-    ]));
+    ];
     Ok(row)
 }
 
@@ -419,7 +430,7 @@ pub fn bso_to_update_row(
     now: SyncTimestamp,
 ) -> DbResult<(Vec<&'static str>, ListValue)> {
     let mut columns = vec!["fxa_uid", "fxa_kid", "collection_id", "bso_id"];
-    let mut values = vec![
+    let mut values: Vec<Value> = vec![
         user_id.fxa_uid.clone().into_spanner_value(),
         user_id.fxa_kid.clone().into_spanner_value(),
         collection_id.into_spanner_value(),
@@ -446,6 +457,6 @@ pub fn bso_to_update_row(
     }
 
     let mut row = ListValue::new();
-    row.set_values(RepeatedField::from_vec(values));
+    row.values = values;
     Ok((columns, row))
 }

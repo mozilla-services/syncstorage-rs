@@ -20,11 +20,9 @@ macro_rules! params {
 #[test]
 fn test_params_macro() {
     use super::support::IntoSpannerValue;
-    use google_cloud_rust_raw::spanner::v1::type_pb::{Type, TypeCode};
-    use protobuf::{
-        well_known_types::{ListValue, Value},
-        RepeatedField,
-    };
+    use google_cloud_rust_raw::spanner::v1::type_::{Type, TypeCode};
+    use protobuf::well_known_types::struct_::{ListValue, Value};
+    use protobuf::MessageField;
     use std::collections::HashMap;
 
     let (sqlparams, sqlparam_types) = params! {
@@ -60,7 +58,7 @@ fn test_params_macro() {
 
     let string_vec_value = {
         let mut list = ListValue::new();
-        list.set_values(RepeatedField::from_vec(vec![string_value]));
+        list.values = vec![string_value];
         let mut value = Value::new();
         value.set_list_value(list);
         value
@@ -69,7 +67,7 @@ fn test_params_macro() {
 
     let i32_vec_value = {
         let mut list = ListValue::new();
-        list.set_values(RepeatedField::from_vec(vec![i32_value]));
+        list.values = vec![i32_value];
         let mut value = Value::new();
         value.set_list_value(list);
         value
@@ -78,7 +76,7 @@ fn test_params_macro() {
 
     let u32_vec_value = {
         let mut list = ListValue::new();
-        list.set_values(RepeatedField::from_vec(vec![u32_value]));
+        list.values = vec![u32_value];
         let mut value = Value::new();
         value.set_list_value(list);
         value
@@ -89,32 +87,32 @@ fn test_params_macro() {
 
     let string_type = {
         let mut t = Type::new();
-        t.set_code(TypeCode::STRING);
+        t.code = TypeCode::STRING.into();
         t
     };
     expected_sqlparam_types.insert("String param".to_owned(), string_type);
 
     let i32_type = {
         let mut t = Type::new();
-        t.set_code(TypeCode::INT64);
+        t.code = TypeCode::INT64.into();
         t
     };
     expected_sqlparam_types.insert("i32 param".to_owned(), i32_type);
 
     let u32_type = {
         let mut t = Type::new();
-        t.set_code(TypeCode::INT64);
+        t.code = TypeCode::INT64.into();
         t
     };
     expected_sqlparam_types.insert("u32 param".to_owned(), u32_type);
 
     let string_vec_type = {
         let mut element_type = Type::new();
-        element_type.set_code(TypeCode::STRING);
+        element_type.code = TypeCode::STRING.into();
 
         let mut vec_type = Type::new();
-        vec_type.set_code(TypeCode::ARRAY);
-        vec_type.set_array_element_type(element_type);
+        vec_type.code = TypeCode::ARRAY.into();
+        vec_type.array_element_type = MessageField::from(Some(element_type));
 
         vec_type
     };
@@ -122,11 +120,11 @@ fn test_params_macro() {
 
     let i32_vec_type = {
         let mut element_type = Type::new();
-        element_type.set_code(TypeCode::INT64);
+        element_type.code = TypeCode::INT64.into();
 
         let mut vec_type = Type::new();
-        vec_type.set_code(TypeCode::ARRAY);
-        vec_type.set_array_element_type(element_type);
+        vec_type.code = TypeCode::ARRAY.into();
+        vec_type.array_element_type = MessageField::from(Some(element_type));
 
         vec_type
     };
@@ -134,11 +132,11 @@ fn test_params_macro() {
 
     let u32_vec_type = {
         let mut element_type = Type::new();
-        element_type.set_code(TypeCode::INT64);
+        element_type.code = TypeCode::INT64.into();
 
         let mut vec_type = Type::new();
-        vec_type.set_code(TypeCode::ARRAY);
-        vec_type.set_array_element_type(element_type);
+        vec_type.code = TypeCode::ARRAY.into();
+        vec_type.array_element_type = MessageField::from(Some(element_type));
 
         vec_type
     };

@@ -41,7 +41,7 @@ impl SpannerSession {
         let meta = self
             .settings
             .metadata_builder()
-            .routing_param("session", self.session.get_name())
+            .routing_param("session", &self.session.name)
             .build()?;
         Ok(CallOption::default().headers(meta))
     }
@@ -163,10 +163,10 @@ pub async fn recycle_spanner_session(
     metrics: &Metrics,
 ) -> Result<(), DbError> {
     let settings = &conn.settings;
-    let session = conn.session.get_name();
+    let session = &conn.session.name;
     let now = crate::now();
     let mut req = GetSessionRequest::new();
-    req.set_name(session.to_owned());
+    req.name = session.to_owned();
     let meta = settings
         .metadata_builder()
         .routing_param("name", session)
@@ -199,11 +199,10 @@ pub async fn recycle_spanner_session(
             // the SpannerSession.session, so you may need
             // to reflect changes if you want a more permanent
             // data reference.
-            if this_session.get_name() != session {
+            if &this_session.name != session {
                 warn!(
                     "This session may not be the session you want {} != {}",
-                    this_session.get_name(),
-                    conn.session.get_name()
+                    this_session.name, conn.session.name
                 );
             }
             if let Some(max_life) = settings.max_lifespan {

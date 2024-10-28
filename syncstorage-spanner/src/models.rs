@@ -9,18 +9,19 @@ use std::{
 
 use futures::future::TryFutureExt;
 use google_cloud_rust_raw::spanner::v1::{
-    mutation::{Mutation, Mutation_Write},
-    spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
-    transaction::{
-        TransactionOptions, TransactionOptions_ReadOnly, TransactionOptions_ReadWrite,
-        TransactionSelector,
+    mutation::{mutation, Mutation},
+    spanner::{
+        commit_request::Transaction, BeginTransactionRequest, CommitRequest, ExecuteSqlRequest,
+        RollbackRequest,
     },
-    type_pb::TypeCode,
+    transaction::{TransactionOptions, TransactionSelector},
+    type_::TypeCode,
 };
+use protobuf::MessageField;
 #[allow(unused_imports)]
 use protobuf::{
-    well_known_types::{ListValue, Value},
-    Message, RepeatedField,
+    well_known_types::struct_::{ListValue, Value},
+    Message,
 };
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncserver_db_common::DbFuture;
@@ -145,7 +146,7 @@ impl SpannerDb {
             .await?
             .ok_or_else(DbError::collection_not_found)?;
         let id = result[0]
-            .get_string_value()
+            .string_value()
             .parse::<i32>()
             .map_err(|e| DbError::integrity(e.to_string()))?;
         if !self.in_write_transaction() {
@@ -172,7 +173,7 @@ impl SpannerDb {
             .one()
             .await?;
         let max = result[0]
-            .get_string_value()
+            .string_value()
             .parse::<i32>()
             .map_err(|e| DbError::integrity(e.to_string()))?;
         let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
@@ -276,8 +277,8 @@ impl SpannerDb {
             .await?;
 
         let timestamp = if let Some(result) = result {
-            let modified = sync_timestamp_from_rfc3339(result[1].get_string_value())?;
-            let now = sync_timestamp_from_rfc3339(result[0].get_string_value())?;
+            let modified = sync_timestamp_from_rfc3339(result[1].string_value())?;
+            let now = sync_timestamp_from_rfc3339(result[0].string_value())?;
             // Forbid the write if it would not properly incr the modified
             // timestamp
             if modified >= now {
@@ -294,7 +295,7 @@ impl SpannerDb {
                 .execute_async(&self.conn)?
                 .one()
                 .await?;
-            sync_timestamp_from_rfc3339(result[0].get_string_value())?
+            sync_timestamp_from_rfc3339(result[0].string_value())?
         };
         self.set_timestamp(timestamp);
 
@@ -312,45 +313,45 @@ impl SpannerDb {
 
     pub(super) fn begin(&self, for_write: bool) -> DbResult<()> {
         let spanner = &self.conn;
-        let mut options = TransactionOptions::new();
+        let options = TransactionOptions::new();
         if for_write {
-            options.set_read_write(TransactionOptions_ReadWrite::new());
+            options.read_write();
             self.session.borrow_mut().in_write_transaction = true;
         } else {
-            options.set_read_only(TransactionOptions_ReadOnly::new());
+            options.read_only();
         }
         let mut req = BeginTransactionRequest::new();
-        req.set_session(spanner.session.get_name().to_owned());
-        req.set_options(options);
-        let mut transaction = spanner
+        req.session = spanner.session.name.clone();
+        req.options = MessageField::from(Some(options));
+        let transaction = spanner
             .client
             .begin_transaction_opt(&req, spanner.session_opt()?)?;
 
         let mut ts = TransactionSelector::new();
-        ts.set_id(transaction.take_id());
+        ts.set_id(transaction.id);
         self.session.borrow_mut().transaction = Some(ts);
         Ok(())
     }
 
     pub(super) async fn begin_async(&self, for_write: bool) -> DbResult<()> {
         let spanner = &self.conn;
-        let mut options = TransactionOptions::new();
+        let options = TransactionOptions::new();
         if for_write {
-            options.set_read_write(TransactionOptions_ReadWrite::new());
+            options.read_write();
             self.session.borrow_mut().in_write_transaction = true;
         } else {
-            options.set_read_only(TransactionOptions_ReadOnly::new());
+            options.read_only();
         }
         let mut req = BeginTransactionRequest::new();
-        req.set_session(spanner.session.get_name().to_owned());
-        req.set_options(options);
-        let mut transaction = spanner
+        req.session = spanner.session.name.clone();
+        req.options = MessageField::from(Some(options));
+        let transaction = spanner
             .client
             .begin_transaction_async_opt(&req, spanner.session_opt()?)?
             .await?;
 
         let mut ts = TransactionSelector::new();
-        ts.set_id(transaction.take_id());
+        ts.set_id(transaction.id);
         self.session.borrow_mut().transaction = Some(ts);
         Ok(())
     }
@@ -375,9 +376,9 @@ impl SpannerDb {
 
     fn sql_request(&self, sql: &str) -> DbResult<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::new();
-        sqlr.set_sql(sql.to_owned());
+        sqlr.sql = sql.to_owned();
         if let Some(transaction) = self.get_transaction()? {
-            sqlr.set_transaction(transaction);
+            sqlr.transaction = MessageField::from(Some(transaction));
             let mut session = self.session.borrow_mut();
             sqlr.seqno = session
                 .execute_sql_count
@@ -430,13 +431,11 @@ impl SpannerDb {
         table: &str,
         columns: &[&str],
         values: Vec<ListValue>,
-    ) -> Mutation_Write {
-        let mut write = Mutation_Write::new();
-        write.set_table(table.to_owned());
-        write.set_columns(RepeatedField::from_vec(
-            columns.iter().map(|&column| column.to_owned()).collect(),
-        ));
-        write.set_values(RepeatedField::from_vec(values));
+    ) -> mutation::Write {
+        let mut write = mutation::Write::new();
+        write.table = table.to_owned();
+        write.columns = columns.iter().map(|&column| column.to_owned()).collect();
+        write.values = values;
         write
     }
 
@@ -459,10 +458,10 @@ impl SpannerDb {
 
         if let Some(transaction) = self.get_transaction()? {
             let mut req = CommitRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
+            req.session = spanner.session.name.clone();
+            req.transaction = Some(Transaction::TransactionId(transaction.id().to_vec()));
             if let Some(mutations) = self.session.borrow_mut().mutations.take() {
-                req.set_mutations(RepeatedField::from_vec(mutations));
+                req.mutations = mutations;
             }
             spanner.client.commit_opt(&req, spanner.session_opt()?)?;
             Ok(())
@@ -486,10 +485,10 @@ impl SpannerDb {
 
         if let Some(transaction) = self.get_transaction_async().await? {
             let mut req = CommitRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
+            req.session = spanner.session.name.clone();
+            req.transaction = Some(Transaction::TransactionId(transaction.id().to_vec()));
             if let Some(mutations) = self.session.borrow_mut().mutations.take() {
-                req.set_mutations(RepeatedField::from_vec(mutations));
+                req.mutations = mutations;
             }
             spanner
                 .client
@@ -510,8 +509,8 @@ impl SpannerDb {
         if let Some(transaction) = self.get_transaction()? {
             let spanner = &self.conn;
             let mut req = RollbackRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
+            req.session = spanner.session.name.clone();
+            req.transaction_id = transaction.id().to_owned();
             spanner.client.rollback_opt(&req, spanner.session_opt()?)?;
             Ok(())
         } else {
@@ -528,8 +527,8 @@ impl SpannerDb {
         if let Some(transaction) = self.get_transaction_async().await? {
             let spanner = &self.conn;
             let mut req = RollbackRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
+            req.session = spanner.session.name.clone();
+            req.transaction_id = transaction.id().to_owned();
             spanner
                 .client
                 .rollback_async_opt(&req, spanner.session_opt()?)?
@@ -576,7 +575,7 @@ impl SpannerDb {
             .one_or_none()
             .await?
             .ok_or_else(DbError::collection_not_found)?;
-        let modified = sync_timestamp_from_rfc3339(result[0].get_string_value())?;
+        let modified = sync_timestamp_from_rfc3339(result[0].string_value())?;
         Ok(modified)
     }
 
@@ -607,10 +606,10 @@ impl SpannerDb {
         while let Some(row) = streaming.next_async().await {
             let row = row?;
             let collection_id = row[0]
-                .get_string_value()
+                .string_value()
                 .parse::<i32>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
-            let modified = sync_timestamp_from_rfc3339(row[1].get_string_value())?;
+            let modified = sync_timestamp_from_rfc3339(row[1].string_value())?;
             results.insert(collection_id, modified);
         }
         self.map_collection_names(results).await
@@ -662,7 +661,7 @@ impl SpannerDb {
             while let Some(row) = rs.next_async().await {
                 let mut row = row?;
                 let id = row[0]
-                    .get_string_value()
+                    .string_value()
                     .parse::<i32>()
                     .map_err(|e| DbError::integrity(e.to_string()))?;
                 let name = row[1].take_string_value();
@@ -700,11 +699,11 @@ impl SpannerDb {
         while let Some(row) = streaming.next_async().await {
             let row = row?;
             let collection_id = row[0]
-                .get_string_value()
+                .string_value()
                 .parse::<i32>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             let count = row[1]
-                .get_string_value()
+                .string_value()
                 .parse::<i64>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             counts.insert(collection_id, count);
@@ -736,11 +735,11 @@ impl SpannerDb {
         while let Some(row) = streaming.next_async().await {
             let row = row?;
             let collection_id = row[0]
-                .get_string_value()
+                .string_value()
                 .parse::<i32>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             let usage = row[1]
-                .get_string_value()
+                .string_value()
                 .parse::<i64>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             usages.insert(collection_id, usage);
@@ -774,7 +773,7 @@ impl SpannerDb {
         if row[0].has_null_value() {
             SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
         } else {
-            sync_timestamp_from_rfc3339(row[0].get_string_value())
+            sync_timestamp_from_rfc3339(row[0].string_value())
         }
         .map_err(Into::into)
     }
@@ -803,7 +802,7 @@ impl SpannerDb {
             .await?;
         if let Some(result) = result {
             let usage = result[0]
-                .get_string_value()
+                .string_value()
                 .parse::<i64>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             Ok(usage as u64)
@@ -839,14 +838,14 @@ impl SpannerDb {
         if let Some(result) = result {
             let total_bytes = if self.quota.enabled {
                 result[0]
-                    .get_string_value()
+                    .string_value()
                     .parse::<usize>()
                     .map_err(|e| DbError::integrity(e.to_string()))?
             } else {
                 0
             };
             let count = result[1]
-                .get_string_value()
+                .string_value()
                 .parse::<i32>()
                 .map_err(|e| DbError::integrity(e.to_string()))?;
             Ok(results::GetQuotaUsage { total_bytes, count })
@@ -1292,11 +1291,7 @@ impl SpannerDb {
             // most databases) so we specify a max value with offset subtracted
             // to avoid overflow errors (that only occur w/ a FORCE_INDEX=
             // directive) OutOfRange: 400 int64 overflow: <INT64_MAX> + offset
-            query = format!(
-                "{} LIMIT {}",
-                query,
-                i64::max_value() - offset.offset as i64
-            );
+            query = format!("{} LIMIT {}", query, i64::MAX - offset.offset as i64);
         };
 
         if let Some(offset) = params.offset {
@@ -1425,7 +1420,7 @@ impl SpannerDb {
         while let Some(row) = stream.next_async().await {
             let mut row = row?;
             ids.push(row[0].take_string_value());
-            modifieds.push(sync_timestamp_from_rfc3339(row[1].get_string_value())?.as_i64());
+            modifieds.push(sync_timestamp_from_rfc3339(row[1].string_value())?.as_i64());
         }
         // NOTE: when bsos.len() == 0, server-syncstorage (the Python impl)
         // makes an additional call to get_collection_timestamp to potentially
@@ -1502,7 +1497,7 @@ impl SpannerDb {
             .one_or_none()
             .await?;
         if let Some(result) = result {
-            sync_timestamp_from_rfc3339(result[0].get_string_value())
+            sync_timestamp_from_rfc3339(result[0].string_value())
         } else {
             SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
         }

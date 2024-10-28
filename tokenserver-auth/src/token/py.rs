@@ -32,7 +32,7 @@ impl PyTokenlib {
     ) -> Result<(String, String), TokenserverError> {
         Python::with_gil(|py| {
             // `import tokenlib`
-            let module = PyModule::import_bound(py, "tokenlib").map_err(|e| {
+            let module = PyModule::import_bound(py, "tokenlib").inspect_err(|e| {
                 e.print_and_set_sys_last_vars(py);
                 e
             })?;
@@ -42,18 +42,16 @@ impl PyTokenlib {
             let token = module
                 .getattr("make_token")?
                 .call((plaintext,), Some(&kwargs))
-                .map_err(|e| {
+                .inspect_err(|e| {
                     e.print_and_set_sys_last_vars(py);
-                    e
                 })
                 .and_then(|x| x.extract())?;
             // `derived_secret = tokenlib.get_derived_secret(token, **kwargs)`
             let derived_secret = module
                 .getattr("get_derived_secret")?
                 .call((&token,), Some(&kwargs))
-                .map_err(|e| {
+                .inspect_err(|e| {
                     e.print_and_set_sys_last_vars(py);
-                    e
                 })
                 .and_then(|x| x.extract())?;
             // `return (token, derived_secret)`

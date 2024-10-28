@@ -13,20 +13,18 @@ use google_cloud_rust_raw::spanner::v1::{
         BeginTransactionRequest, CommitRequest, CreateSessionRequest, ExecuteSqlRequest, Session,
     },
     spanner_grpc::SpannerClient,
-    transaction::{
-        TransactionOptions, TransactionOptions_PartitionedDml, TransactionOptions_ReadOnly,
-        TransactionOptions_ReadWrite, TransactionSelector,
-    },
+    transaction::{transaction_options, TransactionOptions, TransactionSelector},
 };
 use grpcio::{CallOption, ChannelBuilder, ChannelCredentials, EnvBuilder, MetadataBuilder};
 use log::{info, trace, warn};
+use protobuf::MessageField;
 use url::{Host, Url};
 
 const SPANNER_ADDRESS: &str = "spanner.googleapis.com:443";
 const RETRY_ENV_VAR: &str = "PURGE_TTL_RETRY_COUNT"; // Default value = 10
 const SLEEP_ENV_VAR: &str = "PURGE_TTL_RETRY_SLEEP_MILLIS"; // Default value = 0
 
-use protobuf::well_known_types::Value;
+use protobuf::well_known_types::struct_::Value;
 
 pub struct MetricTimer {
     pub client: Arc<StatsdClient>,
@@ -95,28 +93,28 @@ fn begin_transaction(
     let mut opt = TransactionOptions::new();
     match request_type {
         RequestType::ReadWrite => {
-            opt.set_read_write(TransactionOptions_ReadWrite::new());
+            opt.set_read_write(transaction_options::ReadWrite::new());
         }
         RequestType::ReadOnly => {
-            opt.set_read_only(TransactionOptions_ReadOnly::new());
+            opt.set_read_only(transaction_options::ReadOnly::new());
         }
         RequestType::PartitionedDml => {
-            opt.set_partitioned_dml(TransactionOptions_PartitionedDml::new());
+            opt.set_partitioned_dml(transaction_options::PartitionedDml::new());
         }
     }
 
     let mut req = BeginTransactionRequest::new();
-    req.set_session(session.get_name().to_owned());
-    req.set_options(opt);
-    let mut txn = client.begin_transaction(&req)?;
+    req.session = session.name.clone();
+    req.options = MessageField::from(Some(opt));
+    let txn = client.begin_transaction(&req)?;
 
-    let id = txn.take_id();
+    let id = txn.id;
     let mut ts = TransactionSelector::new();
     ts.set_id(id.clone());
 
     let mut req = ExecuteSqlRequest::new();
-    req.set_session(session.get_name().to_string());
-    req.set_transaction(ts);
+    req.session = session.name.clone();
+    req.transaction = MessageField::from(Some(ts));
 
     Ok((req, id))
 }
@@ -125,8 +123,8 @@ fn continue_transaction(session: &Session, transaction_id: Vec<u8>) -> ExecuteSq
     let mut ts = TransactionSelector::new();
     ts.set_id(transaction_id);
     let mut req = ExecuteSqlRequest::new();
-    req.set_session(session.get_name().to_string());
-    req.set_transaction(ts);
+    req.session = session.name.clone();
+    req.transaction = MessageField::from(Some(ts));
     req
 }
 
@@ -136,7 +134,7 @@ fn commit_transaction(
     txn: Vec<u8>,
 ) -> Result<(), Box<grpcio::Error>> {
     let mut req = CommitRequest::new();
-    req.set_session(session.get_name().to_owned());
+    req.session = session.name.clone();
     req.set_transaction_id(txn);
     client.commit(&req)?;
     Ok(())
@@ -155,7 +153,7 @@ impl Iterator for SyncResultSet {
             None
         } else {
             let row = rows.remove(0);
-            Some(row.get_values().to_vec())
+            Some(row.values)
         }
     }
 }
@@ -176,7 +174,7 @@ fn delete_incremental(
             "Delete: Selecting incremental rows to delete: {}",
             select_sql
         );
-        req.set_sql(select_sql.clone());
+        req.sql = select_sql.clone();
         let mut result = SyncResultSet {
             result: client.execute_sql(&req)?,
         };
@@ -191,10 +189,10 @@ fn delete_incremental(
         );
         for row in &mut result {
             // Count starting at 1 so that i % chunk_size is false when on the first row
-            let fxa_uid = row[0].get_string_value().to_owned();
-            let fxa_kid = row[1].get_string_value().to_owned();
-            let collection_id = row[2].get_string_value().parse::<i32>().unwrap();
-            let id = row[3].get_string_value().to_owned();
+            let fxa_uid = row[0].string_value().to_owned();
+            let fxa_kid = row[1].string_value().to_owned();
+            let collection_id = row[2].string_value().parse::<i32>().unwrap();
+            let id = row[3].string_value().to_owned();
             trace!(
                 "Delete: Selected row for delete: i={} fxa_uid={} fxa_kid={} collection_id={} {}={}",
                 total,
@@ -214,7 +212,7 @@ fn delete_incremental(
         delete_sql = format!("{})", delete_sql.trim_end_matches(&", ".to_string()));
         trace!("Deleting chunk with: {}", delete_sql);
         let mut delete_req = continue_transaction(session, txn.clone());
-        delete_req.set_sql(delete_sql);
+        delete_req.sql = delete_sql;
         client.execute_sql(&delete_req)?;
         info!("{}: removed {} rows", table, total);
         commit_transaction(client, session, txn.clone())?;
@@ -232,15 +230,15 @@ fn delete_all(
     table: String,
 ) -> Result<(), Box<grpcio::Error>> {
     let (mut req, _txn) = begin_transaction(client, session, RequestType::PartitionedDml)?;
-    req.set_sql(format!(
-        "DELETE FROM {} WHERE expiry < CURRENT_TIMESTAMP()",
-        table
-    ));
+    req.sql = format!("DELETE FROM {} WHERE expiry < CURRENT_TIMESTAMP()", table);
     let result = client.execute_sql(&req)?;
     info!(
         "DeleteAll: {}: removed {} rows",
         table,
-        result.get_stats().get_row_count_lower_bound()
+        result
+            .stats
+            .map(|v| v.row_count_lower_bound())
+            .unwrap_or_default()
     );
     Ok(())
 }
@@ -311,7 +309,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Create a session
     let mut req = CreateSessionRequest::new();
-    req.set_database(database.to_string());
+    req.database = database.to_string();
     let mut meta = MetadataBuilder::new();
     meta.add_str("google-cloud-resource-prefix", &database)?;
     meta.add_str("x-goog-api-client", "googleapis-rs")?;

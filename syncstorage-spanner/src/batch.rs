@@ -3,11 +3,9 @@ use std::{
     str::FromStr,
 };
 
-use google_cloud_rust_raw::spanner::v1::type_pb::{StructType, Type, TypeCode};
-use protobuf::{
-    well_known_types::{ListValue, Value},
-    RepeatedField,
-};
+use google_cloud_rust_raw::spanner::v1::type_::{StructType, Type, TypeCode};
+use protobuf::well_known_types::struct_::{ListValue, Value};
+use protobuf::MessageField;
 use syncstorage_db_common::{
     params, results, util::to_rfc3339, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
@@ -324,7 +322,7 @@ pub async fn do_append_async(
         existing.insert(exist_idx(
             &collection_id.to_string(),
             &batch.id,
-            row[0].get_string_value(),
+            row[0].string_value(),
         ));
     }
 
@@ -370,7 +368,7 @@ pub async fn do_append_async(
             // convert to a protobuf structure for direct insertion to
             // avoid some mutation limits.
             let mut row = ListValue::new();
-            row.set_values(RepeatedField::from_vec(vec![
+            row.values = vec![
                 user_id.fxa_uid.clone().into_spanner_value(),
                 user_id.fxa_kid.clone().into_spanner_value(),
                 collection_id.into_spanner_value(),
@@ -379,7 +377,7 @@ pub async fn do_append_async(
                 sortindex,
                 payload,
                 ttl,
-            ]));
+            ];
             let mut value = Value::new();
             value.set_list_value(row);
             insert.push(value);
@@ -416,21 +414,21 @@ pub async fn do_append_async(
     if !insert.is_empty() {
         let mut list_values = ListValue::new();
         let count_inserts = insert.len();
-        list_values.set_values(RepeatedField::from_vec(insert));
+        list_values.values = insert;
         let mut values = Value::new();
         values.set_list_value(list_values);
 
         // values' type is an ARRAY of STRUCTs
         let mut param_type = Type::new();
-        param_type.set_code(TypeCode::ARRAY);
+        param_type.code = TypeCode::ARRAY.into();
         let mut array_type = Type::new();
-        array_type.set_code(TypeCode::STRUCT);
+        array_type.code = TypeCode::STRUCT.into();
 
         // STRUCT requires definition of all its field types
         let mut struct_type = StructType::new();
-        struct_type.set_fields(RepeatedField::from_vec(fields));
-        array_type.set_struct_type(struct_type);
-        param_type.set_array_element_type(array_type);
+        struct_type.fields = fields;
+        array_type.struct_type = MessageField::from(Some(struct_type));
+        param_type.array_element_type = MessageField::from(Some(array_type));
 
         let mut sqlparams = HashMap::new();
         sqlparams.insert("values".to_owned(), values);
