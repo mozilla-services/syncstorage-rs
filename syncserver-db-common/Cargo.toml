@@ -15,3 +15,6 @@ thiserror.workspace = true
 diesel = { workspace = true, features = ["mysql", "sqlite","r2d2"] }
 diesel_migrations = { workspace = true, features = ["mysql", "sqlite"] }
 syncserver-common = { path = "../syncserver-common" }
+
+[features]
+sql = []

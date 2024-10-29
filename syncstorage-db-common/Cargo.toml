@@ -19,4 +19,4 @@ async-trait = "0.1.40"
 diesel = { workspace = true, features = ["mysql", "r2d2"] }
 diesel_migrations = { workspace = true, features = ["mysql"] }
 syncserver-common = { path = "../syncserver-common" }
-syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-db-common = { path = "../syncserver-db-common", features = ["sql"] }

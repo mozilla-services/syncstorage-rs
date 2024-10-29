@@ -20,7 +20,7 @@ log = { version = "0.4", features = [
     "release_max_level_info",
 ] }
 syncserver-common = { path = "../syncserver-common" }
-syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-db-common = { path = "../syncserver-db-common", features = ["sql"] }
 syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-mysql = { path = "../syncstorage-mysql", optional = true }

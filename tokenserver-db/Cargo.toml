@@ -21,7 +21,7 @@ diesel = { workspace = true, features = ["mysql", "r2d2"] }
 diesel_logger = { workspace = true }
 diesel_migrations = { workspace = true, features = ["mysql"] }
 syncserver-common = { path = "../syncserver-common" }
-syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-db-common = { path = "../syncserver-db-common", features = ["sql"] }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
