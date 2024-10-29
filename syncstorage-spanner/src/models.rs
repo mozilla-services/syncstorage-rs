@@ -1295,7 +1295,7 @@ impl SpannerDb {
             query = format!(
                 "{} LIMIT {}",
                 query,
-                i64::max_value() - offset.offset as i64
+                i64::MAX - offset.offset as i64
             );
         };
 
