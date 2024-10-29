@@ -1,3 +1,18 @@
+<a name="0.17.12"></a>
+## 0.17.12 (2024-10-29)
+
+
+#### Bug Fixes
+
+*   upgrade sentry w/ a fix for the blocking curl Transport (#1621) ([b8641a6c](https://github.com/mozilla-services/syncstorage-rs/commit/b8641a6cabd8ad043956fa8cb478dd6db25ca58a))
+
+#### Features
+
+*   glean metrics data review (#1609) ([c8ec7cab](https://github.com/mozilla-services/syncstorage-rs/commit/c8ec7cab68d132a8d2a3230c49627db5da62db63))
+*   add hashed_device_id to HawkIdentifier (#1615) ([cc6dd137](https://github.com/mozilla-services/syncstorage-rs/commit/cc6dd13749a61793a715ab4775074090588c75a1))
+
+
+
 <a name="0.17.11"></a>
 ## 0.17.11 (2024-10-22)
 
