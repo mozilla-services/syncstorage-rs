@@ -37,8 +37,8 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
-    let _hashed_fxa_uid = meta.user_id.hashed_fxa_uid.clone();
-    let _hashed_device_id = meta.user_id.hashed_device_id.clone();
+    let _hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
+    let _hashed_device_id: String = meta.user_id.hashed_device_id.clone();
     let user_agent = request
         .headers()
         .get(header::USER_AGENT)
