@@ -1,3 +1,4 @@
+#[cfg(feature = "sql")]
 pub mod error;
 pub mod test;
 
