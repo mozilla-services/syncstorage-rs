@@ -1,3 +1,13 @@
+<a name="0.17.13"></a>
+## 0.17.13 (2024-10-30)
+
+
+#### Features
+
+*   namespace the db error labels (#1625) ([bab5e1fe](https://github.com/mozilla-services/syncstorage-rs/commit/bab5e1fe51ef13fb36810cde93347d61372ae57c))
+
+
+
 <a name="0.17.12"></a>
 ## 0.17.12 (2024-10-29)
 
