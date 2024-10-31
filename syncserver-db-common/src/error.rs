@@ -51,10 +51,10 @@ impl ReportableError for MysqlError {
     fn metric_label(&self) -> Option<String> {
         Some(
             match self.kind {
-                MysqlErrorKind::DieselQuery(_) => "diesel_query",
-                MysqlErrorKind::DieselConnection(_) => "diesel_connection",
-                MysqlErrorKind::Pool(_) => "pool",
-                MysqlErrorKind::Migration(_) => "migration",
+                MysqlErrorKind::DieselQuery(_) => "storage.mysql.error.diesel_query",
+                MysqlErrorKind::DieselConnection(_) => "storage.mysql.error.diesel_connection",
+                MysqlErrorKind::Pool(_) => "storage.mysql.error.pool",
+                MysqlErrorKind::Migration(_) => "storage.mysql.error.migration",
             }
             .to_string(),
         )

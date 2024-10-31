@@ -1,3 +1,53 @@
+<a name="0.17.12"></a>
+## 0.17.12 (2024-10-29)
+
+
+#### Bug Fixes
+
+*   upgrade sentry w/ a fix for the blocking curl Transport (#1621) ([b8641a6c](https://github.com/mozilla-services/syncstorage-rs/commit/b8641a6cabd8ad043956fa8cb478dd6db25ca58a))
+
+#### Features
+
+*   glean metrics data review (#1609) ([c8ec7cab](https://github.com/mozilla-services/syncstorage-rs/commit/c8ec7cab68d132a8d2a3230c49627db5da62db63))
+*   add hashed_device_id to HawkIdentifier (#1615) ([cc6dd137](https://github.com/mozilla-services/syncstorage-rs/commit/cc6dd13749a61793a715ab4775074090588c75a1))
+
+
+
+<a name="0.17.11"></a>
+## 0.17.11 (2024-10-22)
+
+
+#### Features
+
+*   Revert "feat: Revert "fix: revert the python3.10 match statement (for now) (#1592)"" ([1b13123a](https://github.com/mozilla-services/syncstorage-rs/commit/1b13123a2b9a61d53f03c7f89672c6fbb7568f2d))
+*   revert "feat: Revert "chore: revert back to bullseye (for now) (#1589)"" ([e170518c](https://github.com/mozilla-services/syncstorage-rs/commit/e170518c0f5696ed51478fecafc1a59eca176053))
+*   add hashed_fxa_uid to HawkPayload  (#1613) ([715cf950](https://github.com/mozilla-services/syncstorage-rs/commit/715cf950ba22d25d85264ecb6360305b29ec70eb))
+*   user agent parsing (#1607) ([7f2ef062](https://github.com/mozilla-services/syncstorage-rs/commit/7f2ef062fc71e749a00f4d960e70380c4fe44ea1))
+
+
+
+<a name="0.17.10"></a>
+## 0.17.10 (2024-10-19)
+
+
+#### Features
+
+*   wire MysqlError's ReportableError impl into TokenserverError (#1611) ([c535e5ae](https://github.com/mozilla-services/syncstorage-rs/commit/c535e5ae52d03ee1c2df287c3bbed6c2321f377b))
+*   create DAU glean schema and configs (#1606) ([d2313310](https://github.com/mozilla-services/syncstorage-rs/commit/d23133101f5367e2070a0cc5b711e756f36f5b72))
+*   track the pool's queued vs actually active tasks (#1605) ([1f0e28d7](https://github.com/mozilla-services/syncstorage-rs/commit/1f0e28d7af9c6f9aea38073a099699897464ceac))
+
+
+
+<a name="0.17.9"></a>
+## 0.17.9 (2024-09-26)
+
+
+#### Bug Fixes
+
+*   ensure the pool counter's always decremented via scopeguard (#1604) ([4259183a](https://github.com/mozilla-services/syncstorage-rs/commit/4259183ae4ef71efb7cd77db9b9d0e1637ca8dc2))
+
+
+
 <a name="0.17.8"></a>
 ## 0.17.8 (2024-09-24)
 
