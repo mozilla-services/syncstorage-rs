@@ -1,4 +1,4 @@
-pub const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+pub const LAST_INSERT_ID_QUERY: &str = "SELECT LAST_INSERT_ID() AS id";
 
 pub const GET_NODE_ID_SYNC_QUERY: &str = r#"
 SELECT id
