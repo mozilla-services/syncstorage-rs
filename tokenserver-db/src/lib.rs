@@ -23,3 +23,9 @@ type Conn = MysqlConnection;
 #[cfg(feature = "sqlite")]
 type Conn = SqliteConnection;
 type PooledConn = PooledConnection<ConnectionManager<Conn>>;
+
+#[cfg(all(feature = "mysql", feature = "sqlite"))]
+compile_error!("only one of the \"mysql\" and \"sqlite\" features can be enabled at a time");
+
+#[cfg(not(any(feature = "mysql", feature = "sqlite")))]
+compile_error!("exactly one of the \"mysql\", \"spanner\" and \"sqlite\" features must be enabled");
