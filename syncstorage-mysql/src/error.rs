@@ -49,7 +49,7 @@ enum DbErrorKind {
     Common(SyncstorageDbError),
 
     #[error("{}", _0)]
-    Sql(SqlError),
+    Mysql(SqlError),
 }
 
 impl From<DbErrorKind> for DbError {
@@ -95,35 +95,35 @@ impl ReportableError for DbError {
     fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
         Some(match &self.kind {
             DbErrorKind::Common(e) => e,
-            DbErrorKind::Sql(e) => e,
+            DbErrorKind::Mysql(e) => e,
         })
     }
 
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
-            DbErrorKind::Sql(e) => e.is_sentry_event(),
+            DbErrorKind::Mysql(e) => e.is_sentry_event(),
         }
     }
 
     fn metric_label(&self) -> Option<String> {
         match &self.kind {
             DbErrorKind::Common(e) => e.metric_label(),
-            DbErrorKind::Sql(e) => e.metric_label(),
+            DbErrorKind::Mysql(e) => e.metric_label(),
         }
     }
 
     fn backtrace(&self) -> Option<&Backtrace> {
         match &self.kind {
             DbErrorKind::Common(e) => e.backtrace(),
-            DbErrorKind::Sql(e) => e.backtrace(),
+            DbErrorKind::Mysql(e) => e.backtrace(),
         }
     }
 
     fn tags(&self) -> Vec<(&str, String)> {
         match &self.kind {
             DbErrorKind::Common(e) => e.tags(),
-            DbErrorKind::Sql(e) => e.tags(),
+            DbErrorKind::Mysql(e) => e.tags(),
         }
     }
 }
@@ -140,22 +140,24 @@ from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);
 from_error!(
     diesel::result::Error,
     DbError,
-    |error: diesel::result::Error| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
+    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
 );
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(SqlError::from(
+        error
+    )))
 );
 from_error!(
     diesel::r2d2::PoolError,
     DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
+    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
 );
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
-    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Sql(SqlError::from(
-        error
-    )))
+    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Mysql(
+        SqlError::from(error)
+    ))
 );
