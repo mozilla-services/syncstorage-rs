@@ -120,3 +120,150 @@ struct LogEnvelope {
     log_type: String,
     fields: Ping,
 }
+
+impl PingInfo {
+    /// Creates a default PingInfo struct.
+    fn create_ping_info() -> PingInfo {
+        // Times are ISO-8601 strings, e.g. "2023-12-19T22:09:17.440Z"
+        let now = Utc::now().to_rfc3339();
+        PingInfo {
+            seq: 0,
+            start_time: now.clone(),
+            end_time: now,
+        }
+    }
+}
+impl GleanEventsLogger {
+    /// Create a default ClientInfo struct for sending a Glean ping.
+    fn create_client_info(&self) -> ClientInfo {
+        // Fields with default values are required in the Glean schema, but not used in server context
+        ClientInfo {
+            telemetry_sdk_build: "glean_parser v15.0.2.dev17+g81fec69a".to_string(),
+            fist_run_date: "Unknown".to_string(),
+            os: "Unknown".to_string(),
+            os_version: "Unknown".to_string(),
+            architecture: "Unknown".to_string(),
+            app_build: "Unknown".to_string(),
+            app_display_version: self.app_display_version.clone(),
+            app_channel: self.app_channel.clone(),
+        }
+    }
+
+    fn create_ping_info() -> PingInfo {
+        // times are ISO-8601 strings, e.g. "2023-12-19T22:09:17.440Z"
+        let now = Utc::now().to_rfc3339();
+        PingInfo {
+            seq: 0,
+            start_time: now.clone(),
+            end_time: now,
+        }
+    }
+
+    fn create_ping(
+        &self,
+        document_type: &str,
+        config: &RequestInfo,
+        payload: &PingPayload,
+    ) -> Ping {
+        let payload_json =
+            serde_json::to_string(payload).expect("unable to marshal payload to json.");
+        let document_id = Uuid::new_v4().to_string();
+        Ping {
+            document_namespace: self.app_id.clone(),
+            document_type: document_type.to_string(),
+            document_version: "1".to_string(),
+            document_id,
+            user_agent: Some(config.user_agent.clone()),
+            ip_address: Some(config.ip_address.clone()),
+            payload: payload_json,
+        }
+    }
+
+    /// Method called by each ping-specific record method.
+    /// The goal is to construct the ping, wrap it in the envelope
+    /// and print to stdout.
+    fn record(
+        &self,
+        document_type: &str,
+        request_info: &RequestInfo,
+        metrics: Metrics,
+        events: Vec<GleanEvent>,
+    ) {
+        let telemetry_payload: PingPayload = PingPayload {
+            client_info: self.create_client_info(),
+            ping_info: GleanEventsLogger::create_ping_info(),
+            metrics,
+            events,
+        };
+
+        let ping: Ping = self.create_ping(document_type, request_info, &telemetry_payload);
+
+        let envelope: LogEnvelope = LogEnvelope {
+            timestamp: Utc::now().timestamp().to_string(),
+            logger: "glean".to_string(),
+            log_type: GLEAN_EVENT_MOZLOG_TYPE.to_string(),
+            fields: ping,
+        };
+        let envelope_json =
+            serde_json::to_string(&envelope).expect("unable to marshal payload to json.");
+        println!("{}", envelope_json);
+    }
+}
+
+// Code below is generated based on the provided `metrics.yaml` file:
+
+pub struct EventsPing {
+    pub identifiers_fxa_account_id: String,
+    pub event: Option<Box<dyn EventsPingEvent>>,
+}
+
+/// Marker trait for events per ping
+pub trait EventsPingEvent {
+    fn glean_event(&self) -> GleanEvent;
+}
+
+/// Specific events
+pub struct BackendObjectUpdateEvent {
+    // A simple name to describe the object whose state changed. For example, `api_request`.
+    pub object_type: String,
+    // A JSON representation of the latest state of the object.
+    pub object_state: String,
+    // Indicates the initial linking of the Mozilla account and the third-party account.
+    pub linking: bool,
+}
+
+impl EventsPingEvent for BackendObjectUpdateEvent {
+    fn glean_event(&self) -> GleanEvent {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("object_type".to_string(), self.object_type.clone());
+        extra.insert("object_state".to_string(), self.object_state.clone());
+        extra.insert("linking".to_string(), self.linking.to_string());
+
+        new_glean_event("backend", "object_update", extra)
+    }
+}
+
+/// Logger, with specific record method for each ping
+/// Record and submit events ping
+impl GleanEventsLogger {
+    pub fn record_events_ping(&self, request_info: &RequestInfo, params: &EventsPing) {
+        let mut metrics = Metrics::new();
+        let mut string_map: HashMap<String, serde_json::Value> = std::collections::HashMap::new();
+        string_map.insert(
+            "identifiers.fxa_account_id".to_string(),
+            serde_json::Value::String(params.identifiers_fxa_account_id.clone()),
+        );
+        metrics.insert("string".to_string(), string_map);
+
+        let mut events = Vec::new();
+        if let Some(event) = &params.event {
+            events.push(event.glean_event());
+        }
+        self.record("events", request_info, metrics, events);
+    }
+
+    /// Record and submit `events` ping omitting user request info
+    pub fn record_events_ping_without_user_info(&self, params: &EventsPing) {
+        self.record_events_ping(&RequestInfo::default(), params)
+    }
+}
