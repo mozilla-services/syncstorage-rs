@@ -23,7 +23,7 @@ syncstorage:
     expires: never
 
   hashed_fxa_uid:
-    type: uuid
+    type: string
     # yamllint disable
     description: >
       User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
