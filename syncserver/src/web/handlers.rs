@@ -37,6 +37,9 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // The values below, prefixed by `_`, are temporarily and intentionally ignored at present.
+    // They will be passed to the Glean logic we will implement to emit metrics.
+    // We'd like for the data to be ready and in place to pass to that logic.
     let _hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
     let _hashed_device_id: String = meta.user_id.hashed_device_id.clone();
     let user_agent = request
