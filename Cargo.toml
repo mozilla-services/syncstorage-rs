@@ -26,6 +26,9 @@ authors = [
 ]
 edition = "2021"
 license = "MPL-2.0"
+# minimum version of rust that should be used to compile this. You can use
+# cargo msrv
+rust-version = "1.76.0" # RUST_VER
 
 [workspace.dependencies]
 actix-web = "4"
