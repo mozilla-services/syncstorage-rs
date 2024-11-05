@@ -34,7 +34,6 @@ impl PyTokenlib {
             // `import tokenlib`
             let module = PyModule::import_bound(py, "tokenlib").inspect_err(|e| {
                 e.print_and_set_sys_last_vars(py);
-                e
             })?;
             // `kwargs = { 'secret': shared_secret }`
             let kwargs = [("secret", shared_secret)].into_py_dict_bound(py);

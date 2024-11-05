@@ -1162,6 +1162,8 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 [[package]]
 name = "google-cloud-rust-raw"
 version = "0.17.1-beta.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dfd9ff14cd73fdf4c0e695d47874a46ddf2c8735b867d7476b56c8822b71b03"
 dependencies = [
  "futures 0.3.30",
  "grpcio",

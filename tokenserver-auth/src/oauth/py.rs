@@ -134,7 +134,6 @@ impl VerifyToken for Verifier {
                     .call((token,), None)
                     .inspect_err(|e| {
                         e.print_and_set_sys_last_vars(py);
-                        e
                     })?;
 
                 if result.is_none() {
