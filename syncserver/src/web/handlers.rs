@@ -30,7 +30,7 @@ use crate::{
     },
 };
 
-use glean::server_events;
+use glean::server_events::{BackendObjectUpdateEvent, EventsPing, GleanEventsLogger, RequestInfo};
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -51,12 +51,30 @@ pub async fn get_collections(
         .unwrap_or("none");
     let _device_info = get_device_info(user_agent);
 
-    let logger = server_events::GleanEventsLogger {
+    let logger = GleanEventsLogger {
         // app id will be supplied when added to probe-scraper
         app_id: "test-rust-logger".to_string(),
         app_display_version: "1.0.0".to_string(),
         app_channel: "production".to_string(),
     };
+
+    logger.record_events_ping(
+        &RequestInfo {
+            user_agent: "Mozilla/5.0".to_string(),
+            ip_address: "192.168.1.1".to_string(),
+        },
+        &EventsPing {
+            syncstorage_device_family: "".to_string(),
+            syncstorage_hashed_device_id: "".to_string(),
+            syncstorage_hashed_fxa_uid: "e30a3".to_string(),
+            syncstorage_platform: "".to_string(),
+            event: Some(Box::new(BackendObjectUpdateEvent {
+                object_type: "your_object_type".to_string(),
+                object_state: "your_object_state".to_string(),
+                linking: true,
+            })),
+        },
+    );
 
     db_pool
         .transaction_http(request, |db| async move {
