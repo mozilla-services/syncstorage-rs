@@ -1,0 +1,17 @@
+[package]
+name = "glean"
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+chrono.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+uuid = { version = "1.6", features = ["serde", "v4"] }
+
+[lib]
+name = "glean"
+path = "src/lib.rs"
