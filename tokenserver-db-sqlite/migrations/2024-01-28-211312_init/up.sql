@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS `services` (
-  `id` int PRIMARY KEY,
+  `id` INTEGER PRIMARY KEY,
   `service` varchar(30) DEFAULT NULL UNIQUE,
   `pattern` varchar(128) DEFAULT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `nodes` (
-  `id` bigint PRIMARY KEY,
+  `id` INTEGER PRIMARY KEY,
   `service` int NOT NULL,
   `node` varchar(64) NOT NULL,
   `available` int NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS `nodes` (
 CREATE UNIQUE INDEX `unique_idx` ON `nodes` (`service`, `node`);
 
 CREATE TABLE IF NOT EXISTS `users` (
-  `uid` PRIMARY KEY,
+  `uid` INTEGER PRIMARY KEY,
   `service` int NOT NULL,
   `email` varchar(255) NOT NULL,
   `generation` bigint NOT NULL,
