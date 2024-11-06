@@ -6,7 +6,6 @@ FROM nodes
 WHERE service = ?
 AND node = ?"#;
 
-// FIXME: MySQL specific
 pub const REPLACE_USERS_SYNC_QUERY: &str = r#"
 UPDATE users
 SET replaced_at = ?
@@ -36,10 +35,9 @@ AND generation <= ?
 AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
 AND replaced_at IS NULL"#;
 
-// FIXME: MySQL specific
 pub const POST_USER_SYNC_QUERY: &str = r#"
 INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);"#;
+VALUES (?, ?, ?, ?, ?, ?, ?, NULL);"#;
 
 pub const CHECK_SYNC_QUERY: &str = "SHOW STATUS LIKE \"Uptime\"";
 
@@ -56,7 +54,7 @@ LIMIT 1"#;
 
 pub const GET_BEST_NODE_RELEASE_CAPACITY_QUERY: &str = r#"
 UPDATE nodes
-SET available = LEAST(capacity * ?, capacity - current_load)
+SET available = MIN(capacity * ?, capacity - current_load)
 WHERE service = ?
 AND available <= 0
 AND capacity > current_load
