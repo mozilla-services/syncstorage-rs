@@ -30,6 +30,8 @@ use crate::{
     },
 };
 
+use glean;
+
 pub const ONE_KB: f64 = 1024.0;
 
 pub async fn get_collections(

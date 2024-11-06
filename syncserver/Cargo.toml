@@ -40,6 +40,7 @@ actix-rt = "2"
 actix-cors = "0.7"
 async-trait = "0.1.40"
 dyn-clone = "1.0.4"
+glean = { path = "../glean" }
 hawk = "5.0"
 mime = "0.3"
 # pin to 0.19: https://github.com/getsentry/sentry-rust/issues/277
