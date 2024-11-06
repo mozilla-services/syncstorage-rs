@@ -30,7 +30,7 @@ use crate::{
     },
 };
 
-use glean;
+use glean::server_events;
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -50,6 +50,13 @@ pub async fn get_collections(
         .and_then(|header| header.to_str().ok())
         .unwrap_or("none");
     let _device_info = get_device_info(user_agent);
+
+    let logger = server_events::GleanEventsLogger {
+        // app id will be supplied when added to probe-scraper
+        app_id: "test-rust-logger".to_string(),
+        app_display_version: "1.0.0".to_string(),
+        app_channel: "production".to_string(),
+    };
 
     db_pool
         .transaction_http(request, |db| async move {
