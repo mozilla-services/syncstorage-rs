@@ -8,7 +8,7 @@ $schema: moz://mozilla.org/schemas/glean/metrics/2-0-0
 
 # Category
 syncstorage:
-  sync_event:
+  get_collections:
     type: event
     description: |
       Event to record an instance of sync backend activity initiated by client.
@@ -36,6 +36,10 @@ syncstorage:
       of new keys being generated during resets or timeouts, whenever encryption
       keys change.
     # yamllint enable
+    lifetime: application
+    send_in_pings:
+      - sync-dau
+      - events
     notification_emails:
       - jrconlin@mozilla.com
       - pjenvey@mozilla.com
@@ -53,6 +57,10 @@ syncstorage:
       Platform from which sync action was initiated.
       Firefox Desktop, Fenix, or Firefox iOS.
     # yamllint enable
+    lifetime: application
+    send_in_pings:
+      - sync-dau
+      - events
     notification_emails:
       - jrconlin@mozilla.com
       - pjenvey@mozilla.com
@@ -70,6 +78,10 @@ syncstorage:
       Device family from which sync action was initiated.
       Desktop PC, Tablet, Mobile, and Other.
     # yamllint enable
+    lifetime: application
+    send_in_pings:
+      - sync-dau
+      - events
     notification_emails:
       - jrconlin@mozilla.com
       - pjenvey@mozilla.com
@@ -88,6 +100,10 @@ syncstorage:
       entirely to associate opt-out or removal requests, as they make use of 
       the "deletion-request" ping associated with the client side of Sync.
     # yamllint enable
+    lifetime: application
+    send_in_pings:
+      - sync-dau
+      - events
     notification_emails:
       - jrconlin@mozilla.com
       - pjenvey@mozilla.com
