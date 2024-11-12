@@ -70,7 +70,7 @@ LIMIT 1"#;
 pub const ADD_USER_TO_NODE_SYNC_QUERY: &str = r#"
 UPDATE nodes
 SET current_load = current_load + 1,
-available = GREATEST(available - 1, 0)
+available = MAX(available - 1, 0)
 WHERE service = ?
 AND node = ?"#;
 
