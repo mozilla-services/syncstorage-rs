@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::time::{Duration, Instant};
 
-use crate::server::user_agent::get_device_info;
+use crate::server::user_agent::{get_device_info, DeviceInfo};
 use actix_web::{
     http::{header, StatusCode},
     web::Data,
@@ -30,7 +30,9 @@ use crate::{
     },
 };
 
-use glean::server_events::{BackendObjectUpdateEvent, EventsPing, GleanEventsLogger, RequestInfo};
+use glean::server_events::{
+    EventsPing, GleanEventsLogger, RequestInfo, SyncstorageGetCollectionsEvent,
+};
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -42,16 +44,16 @@ pub async fn get_collections(
     // The values below, prefixed by `_`, are temporarily and intentionally ignored at present.
     // They will be passed to the Glean logic we will implement to emit metrics.
     // We'd like for the data to be ready and in place to pass to that logic.
-    let _hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
-    let _hashed_device_id: String = meta.user_id.hashed_device_id.clone();
+    let hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
+    let hashed_device_id: String = meta.user_id.hashed_device_id.clone();
     let user_agent = request
         .headers()
         .get(header::USER_AGENT)
         .and_then(|header| header.to_str().ok())
         .unwrap_or("none");
-    let _device_info = get_device_info(user_agent);
+    let device_info: DeviceInfo = get_device_info(user_agent);
 
-    let logger = GleanEventsLogger {
+    let logger: GleanEventsLogger = GleanEventsLogger {
         // app id will be supplied when added to probe-scraper
         app_id: "test-rust-logger".to_string(),
         app_display_version: "1.0.0".to_string(),
@@ -64,15 +66,11 @@ pub async fn get_collections(
             ip_address: "192.168.1.1".to_string(),
         },
         &EventsPing {
-            syncstorage_device_family: "".to_string(),
-            syncstorage_hashed_device_id: "".to_string(),
-            syncstorage_hashed_fxa_uid: "e30a3".to_string(),
-            syncstorage_platform: "".to_string(),
-            event: Some(Box::new(BackendObjectUpdateEvent {
-                object_type: "your_object_type".to_string(),
-                object_state: "your_object_state".to_string(),
-                linking: true,
-            })),
+            syncstorage_device_family: device_info.device_family.to_string(),
+            syncstorage_hashed_device_id: hashed_device_id.to_string(),
+            syncstorage_hashed_fxa_uid: hashed_fxa_uid.to_string(),
+            syncstorage_platform: device_info.platform.to_string(),
+            event: Some(Box::new(SyncstorageGetCollectionsEvent {})),
         },
     );
 
