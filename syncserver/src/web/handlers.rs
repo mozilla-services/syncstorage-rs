@@ -62,7 +62,7 @@ pub async fn get_collections(
 
     logger.record_events_ping(
         &RequestInfo {
-            user_agent: "Mozilla/5.0".to_string(),
+            user_agent: user_agent.to_string(),
             ip_address: "192.168.1.1".to_string(),
         },
         &EventsPing {
