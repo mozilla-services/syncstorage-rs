@@ -14,15 +14,13 @@ use crate::{ReportableError, Taggable};
 #[derive(Clone)]
 pub struct SentryWrapper<E> {
     metrics: Arc<StatsdClient>,
-    metric_label: String,
     phantom: PhantomData<E>,
 }
 
 impl<E> SentryWrapper<E> {
-    pub fn new(metrics: Arc<StatsdClient>, metric_label: String) -> Self {
+    pub fn new(metrics: Arc<StatsdClient>) -> Self {
         Self {
             metrics,
-            metric_label,
             phantom: PhantomData,
         }
     }
@@ -44,7 +42,6 @@ where
         ok(SentryWrapperMiddleware {
             service: Rc::new(RefCell::new(service)),
             metrics: self.metrics.clone(),
-            metric_label: self.metric_label.clone(),
             phantom: PhantomData,
         })
     }
@@ -54,7 +51,6 @@ where
 pub struct SentryWrapperMiddleware<S, E> {
     service: Rc<RefCell<S>>,
     metrics: Arc<StatsdClient>,
-    metric_label: String,
     phantom: PhantomData<E>,
 }
 
@@ -81,7 +77,6 @@ where
 
         // get the tag information
         let metrics = self.metrics.clone();
-        let metric_label = self.metric_label.clone();
         let tags = sreq.get_tags();
         let extras = sreq.get_extras();
 
@@ -100,7 +95,7 @@ where
                             // capture it, and then turn it off before we run out of money.
                             if let Some(label) = reportable_err.metric_label() {
                                 debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                                let _ = metrics.incr(&format!("{}.{}", metric_label, label));
+                                let _ = metrics.incr(&label);
                             }
                             debug!("Sentry: Not reporting error (service error): {:?}", error);
                             return Err(error);
@@ -122,7 +117,7 @@ where
                     if !reportable_err.is_sentry_event() {
                         if let Some(label) = reportable_err.metric_label() {
                             debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                            let _ = metrics.incr(&format!("{}.{}", metric_label, label));
+                            let _ = metrics.incr(&label);
                         }
                         debug!("Not reporting error (service error): {:?}", error);
                         return Ok(response);
