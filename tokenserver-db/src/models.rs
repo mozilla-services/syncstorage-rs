@@ -507,7 +507,7 @@ impl TokenserverDb {
 
     #[cfg(test)]
     fn remove_node_sync(&self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
-        diesel::sql_query(UNASSIGNED_NODE_SYNC_QUERY)
+        diesel::sql_query(REMOVE_NODE_SYNC_QUERY)
             .bind::<Bigint, _>(params.node_id)
             .execute(&self.inner.conn)
             .map(|_| ())
