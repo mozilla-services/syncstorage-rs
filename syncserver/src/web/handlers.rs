@@ -55,9 +55,9 @@ pub async fn get_collections(
 
     let logger: GleanEventsLogger = GleanEventsLogger {
         // app id will be supplied when added to probe-scraper
-        app_id: "test-rust-logger".to_string(),
+        app_id: "syncstorage".to_string(),
         app_display_version: "1.0.0".to_string(),
-        app_channel: "production".to_string(),
+        app_channel: "prod".to_string(),
     };
 
     logger.record_events_ping(
