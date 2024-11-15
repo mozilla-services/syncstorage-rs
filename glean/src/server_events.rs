@@ -93,10 +93,11 @@ struct PingPayload {
 
 #[derive(Serialize, Deserialize)]
 struct LogEnvelope {
-    timestamp: String,
-    logger: String,
-    #[serde(rename = "type")]
+    // MozLog compliant format. https://wiki.mozilla.org/Firefox/Services/Logging
+    #[serde(rename = "Type")]
     log_type: String,
+    // MozLog compliant format. https://wiki.mozilla.org/Firefox/Services/Logging
+    #[serde(rename = "Fields")]
     fields: Ping,
 }
 
@@ -165,8 +166,6 @@ impl GleanEventsLogger {
         let ping: Ping = self.create_ping(document_type, request_info, &telemetry_payload);
 
         let envelope: LogEnvelope = LogEnvelope {
-            timestamp: Utc::now().timestamp().to_string(),
-            logger: "glean".to_string(),
             log_type: GLEAN_EVENT_MOZLOG_TYPE.to_string(),
             fields: ping,
         };
