@@ -34,7 +34,7 @@ pub struct RequestInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ClientInfo {
     telemetry_sdk_build: String,
-    fist_run_date: String,
+    first_run_date: String,
     os: String,
     os_version: String,
     architecture: String,
@@ -105,7 +105,7 @@ impl GleanEventsLogger {
         // Fields with default values are required in the Glean schema, but not used in server context
         ClientInfo {
             telemetry_sdk_build: "glean_parser v15.0.2.dev17+g81fec69a".to_string(),
-            fist_run_date: "Unknown".to_string(),
+            first_run_date: "Unknown".to_string(),
             os: "Unknown".to_string(),
             os_version: "Unknown".to_string(),
             architecture: "Unknown".to_string(),
@@ -205,10 +205,10 @@ pub trait EventsPingEvent {
 
 pub struct EventsPing {
     pub syncstorage_device_family: String, // Device family from which sync action was initiated. Desktop PC, Tablet, Mobile, and Other.
-    pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account. This is used entirely to associate opt-out or removal requests, as they make use of  the "deletion-request" ping associated with the client side of Sync.
-    pub syncstorage_hashed_fxa_uid: String, // User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions. Used to determine which user has initiated sync activity. This is the Firefox Accounts (FxA) User Identifier (UID) value passed through a SHA-256 hash to render a value that is unique, but ensures the privacy of the original UID. A single user could make numerous sync actions in a given time and this id is required to ensure only a single count of daily active use is made, given a number of actions. Sync_id is not used due to possibility of new keys being generated during resets or timeouts, whenever encryption keys change.
+    pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account.
+    pub syncstorage_hashed_fxa_uid: String, // User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
     pub syncstorage_platform: String, // Platform from which sync action was initiated. Firefox Desktop, Fenix, or Firefox iOS.
-    pub event: Option<Box<dyn EventsPingEvent>>, // valid event of  `EventsPingEvent` for this ping
+    pub event: Option<Box<dyn EventsPingEvent>>, // valid event of `EventsPingEvent` for this ping.
 }
 
 // Record and submit `events` ping
@@ -217,28 +217,26 @@ impl GleanEventsLogger {
     pub fn record_events_ping(&self, request_info: &RequestInfo, params: &EventsPing) {
         // Define the outer `Metrics` map that holds the metric type.
         let mut metrics = Metrics::new();
-        // Define the inner map to insert into `Metrics`
+        // Create the inner metric value map to insert into `Metrics`.
+        // Create corresponding metric value maps to insert into `Metrics`.
         let mut string_map: HashMap<String, serde_json::Value> = std::collections::HashMap::new();
         string_map.insert(
             "syncstorage.device_family".to_string(),
-            serde_json::Value::String(params.syncstorage_device_family.to_string().clone()),
+            serde_json::Value::String(params.syncstorage_device_family.to_string()),
         );
-        metrics.insert("string".to_string(), string_map.clone());
         string_map.insert(
             "syncstorage.hashed_device_id".to_string(),
-            serde_json::Value::String(params.syncstorage_hashed_device_id.to_string().clone()),
+            serde_json::Value::String(params.syncstorage_hashed_device_id.to_string()),
         );
-        metrics.insert("string".to_string(), string_map.clone());
         string_map.insert(
             "syncstorage.hashed_fxa_uid".to_string(),
-            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string().clone()),
+            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string()),
         );
-        metrics.insert("string".to_string(), string_map.clone());
         string_map.insert(
             "syncstorage.platform".to_string(),
-            serde_json::Value::String(params.syncstorage_platform.to_string().clone()),
+            serde_json::Value::String(params.syncstorage_platform.to_string()),
         );
-        metrics.insert("string".to_string(), string_map.clone());
+        metrics.insert("string".to_string(), string_map);
 
         let mut events: Vec<GleanEvent> = Vec::new();
         if let Some(event) = &params.event {
@@ -258,8 +256,8 @@ impl GleanEventsLogger {
 
 pub struct SyncDauPing {
     pub syncstorage_device_family: String, // Device family from which sync action was initiated. Desktop PC, Tablet, Mobile, and Other.
-    pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account. This is used entirely to associate opt-out or removal requests, as they make use of  the "deletion-request" ping associated with the client side of Sync.
-    pub syncstorage_hashed_fxa_uid: String, // User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions. Used to determine which user has initiated sync activity. This is the Firefox Accounts (FxA) User Identifier (UID) value passed through a SHA-256 hash to render a value that is unique, but ensures the privacy of the original UID. A single user could make numerous sync actions in a given time and this id is required to ensure only a single count of daily active use is made, given a number of actions. Sync_id is not used due to possibility of new keys being generated during resets or timeouts, whenever encryption keys change.
+    pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account.
+    pub syncstorage_hashed_fxa_uid: String, // User identifier. Uses `hashed_fxa_uid` for accurate count of sync actions.
     pub syncstorage_platform: String, // Platform from which sync action was initiated. Firefox Desktop, Fenix, or Firefox iOS.
 }
 
@@ -269,28 +267,35 @@ impl GleanEventsLogger {
     pub fn record_sync_dau_ping(&self, request_info: &RequestInfo, params: &SyncDauPing) {
         // Define the outer `Metrics` map that holds the metric type.
         let mut metrics = Metrics::new();
-        // Define the inner map to insert into `Metrics`
-        let mut string_map: HashMap<String, serde_json::Value> = std::collections::HashMap::new();
-        string_map.insert(
-            "syncstorage.device_family".to_string(),
-            serde_json::Value::String(params.syncstorage_device_family.to_string().clone()),
+        // Create the inner metric value map to insert into `Metrics`.
+        metrics.insert(
+            "string".to_string(),
+            HashMap::from([(
+                "syncstorage.device_family".to_string(),
+                serde_json::Value::String(params.syncstorage_device_family.to_string().clone()),
+            )]),
         );
-        metrics.insert("string".to_string(), string_map.clone());
-        string_map.insert(
-            "syncstorage.hashed_device_id".to_string(),
-            serde_json::Value::String(params.syncstorage_hashed_device_id.to_string().clone()),
+        metrics.insert(
+            "string".to_string(),
+            HashMap::from([(
+                "syncstorage.hashed_device_id".to_string(),
+                serde_json::Value::String(params.syncstorage_hashed_device_id.to_string().clone()),
+            )]),
         );
-        metrics.insert("string".to_string(), string_map.clone());
-        string_map.insert(
-            "syncstorage.hashed_fxa_uid".to_string(),
-            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string().clone()),
+        metrics.insert(
+            "string".to_string(),
+            HashMap::from([(
+                "syncstorage.hashed_fxa_uid".to_string(),
+                serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string().clone()),
+            )]),
         );
-        metrics.insert("string".to_string(), string_map.clone());
-        string_map.insert(
-            "syncstorage.platform".to_string(),
-            serde_json::Value::String(params.syncstorage_platform.to_string().clone()),
+        metrics.insert(
+            "string".to_string(),
+            HashMap::from([(
+                "syncstorage.platform".to_string(),
+                serde_json::Value::String(params.syncstorage_platform.to_string().clone()),
+            )]),
         );
-        metrics.insert("string".to_string(), string_map.clone());
 
         let events: Vec<GleanEvent> = Vec::new();
         self.record("sync-dau", request_info, metrics, events);
