@@ -134,17 +134,14 @@ impl GleanEventsLogger {
         config: &RequestInfo,
         payload: &PingPayload,
     ) -> Ping {
-        let payload_json =
-            serde_json::to_string(payload).expect("unable to marshal payload to json.");
-        let document_id = Uuid::new_v4().to_string();
         Ping {
             document_namespace: self.app_id.clone(),
             document_type: document_type.to_owned(),
             document_version: "1".to_owned(),
-            document_id,
+            document_id: Uuid::new_v4().to_string(),
             user_agent: Some(config.user_agent.clone()),
             ip_address: Some(config.ip_address.clone()),
-            payload: payload_json,
+            payload: serde_json::to_string(payload).expect("unable to marshal payload to json."),
         }
     }
 
