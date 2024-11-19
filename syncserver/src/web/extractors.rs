@@ -18,6 +18,7 @@ use actix_web::{
 use futures::future::{self, FutureExt, LocalBoxFuture, Ready, TryFutureExt};
 use syncserver_settings::Secrets;
 
+use glean::server_events::GleanEventsLogger;
 use lazy_static::lazy_static;
 use mime::STAR_STAR;
 use regex::Regex;
@@ -1795,7 +1796,7 @@ mod tests {
             .unwrap(),
             quota_enabled: syncstorage_settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
-            glean_logger: glean_logger,
+            glean_logger,
             glean_enabled: syncstorage_settings.glean_enabled,
         }
     }
