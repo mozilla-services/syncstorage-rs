@@ -1788,6 +1788,8 @@ mod tests {
             .unwrap(),
             quota_enabled: syncstorage_settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
+            glean_logger: Arc::new(glean_logger),
+            glean_enabled: syncstorage_settings.glean_enabled,
         }
     }
 
