@@ -13,9 +13,7 @@ syncstorage:
     description: |
       Event to record an instance of sync backend activity initiated by client.
     notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
+      - sync-backend@mozilla.com
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
@@ -41,9 +39,7 @@ syncstorage:
       - sync-dau
       - events
     notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
+      - sync-backend@mozilla.com
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
@@ -62,9 +58,7 @@ syncstorage:
       - sync-dau
       - events
     notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
+      - sync-backend@mozilla.com
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
@@ -83,9 +77,7 @@ syncstorage:
       - sync-dau
       - events
     notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
+      - sync-backend@mozilla.com
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:
@@ -105,9 +97,7 @@ syncstorage:
       - sync-dau
       - events
     notification_emails:
-      - jrconlin@mozilla.com
-      - pjenvey@mozilla.com
-      - tkorris@mozilla.com
+      - sync-backend@mozilla.com
     bugs:
       - https://github.com/mozilla-services/syncstorage-rs/issues
     data_reviews:

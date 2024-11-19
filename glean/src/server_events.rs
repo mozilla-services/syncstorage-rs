@@ -9,10 +9,11 @@ use serde_json;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-// log type string used to identify logs to process in the Moz Data Pipeline
+/// log type string used to identify logs to process in the Moz Data Pipeline
 const GLEAN_EVENT_MOZLOG_TYPE: &str = "glean-server-event";
 
 // Code below is static, regardless of what is defined in `metrics.yaml`:
+
 pub struct GleanEventsLogger {
     // Application Id to identify application per Glean standards
     pub app_id: String,
@@ -209,7 +210,7 @@ pub struct EventsPing {
     pub event: Option<Box<dyn EventsPingEvent>>, // valid event of `EventsPingEvent` for this ping.
 }
 
-// Record and submit `events` ping
+/// Record and submit `events` ping
 impl GleanEventsLogger {
     /// General `record_events_ping` function
     pub fn record_events_ping(&self, request_info: &RequestInfo, params: &EventsPing) {
