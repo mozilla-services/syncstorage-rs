@@ -50,6 +50,18 @@ pub struct PingInfo {
     end_time: String,
 }
 
+impl Default for PingInfo {
+    fn default() -> Self {
+        // times are ISO-8601 strings, e.g. "2023-12-19T22:09:17.440Z"
+        let now = Utc::now().to_rfc3339();
+        PingInfo {
+            seq: 0,
+            start_time: now.clone(),
+            end_time: now,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Ping {
     document_namespace: String,
@@ -116,16 +128,6 @@ impl GleanEventsLogger {
         }
     }
 
-    fn create_ping_info() -> PingInfo {
-        // times are ISO-8601 strings, e.g. "2023-12-19T22:09:17.440Z"
-        let now = Utc::now().to_rfc3339();
-        PingInfo {
-            seq: 0,
-            start_time: now.clone(),
-            end_time: now,
-        }
-    }
-
     fn create_ping(
         &self,
         document_type: &str,
@@ -158,7 +160,7 @@ impl GleanEventsLogger {
     ) {
         let telemetry_payload: PingPayload = PingPayload {
             client_info: self.create_client_info(),
-            ping_info: GleanEventsLogger::create_ping_info(),
+            ping_info: PingInfo::default(),
             metrics,
             events,
         };
@@ -221,19 +223,19 @@ impl GleanEventsLogger {
         let mut string_map: HashMap<String, serde_json::Value> = std::collections::HashMap::new();
         string_map.insert(
             "syncstorage.device_family".to_owned(),
-            serde_json::Value::String(params.syncstorage_device_family.to_owned()),
+            serde_json::Value::String(params.syncstorage_device_family.to_string()),
         );
         string_map.insert(
             "syncstorage.hashed_device_id".to_owned(),
-            serde_json::Value::String(params.syncstorage_hashed_device_id.to_owned()),
+            serde_json::Value::String(params.syncstorage_hashed_device_id.to_string()),
         );
         string_map.insert(
             "syncstorage.hashed_fxa_uid".to_owned(),
-            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_owned()),
+            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string()),
         );
         string_map.insert(
             "syncstorage.platform".to_owned(),
-            serde_json::Value::String(params.syncstorage_platform.to_owned()),
+            serde_json::Value::String(params.syncstorage_platform.to_string()),
         );
         metrics.insert("string".to_owned(), string_map);
 
