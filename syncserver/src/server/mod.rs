@@ -88,10 +88,7 @@ macro_rules! build_app {
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             // These are our wrappers
-            .wrap(SentryWrapper::<ApiError>::new(
-                $metrics.clone(),
-                "api_error".to_owned(),
-            ))
+            .wrap(SentryWrapper::<ApiError>::new($metrics.clone()))
             .wrap_fn(middleware::weave::set_weave_timestamp)
             .wrap_fn(tokenserver::logging::handle_request_log_line)
             .wrap_fn(middleware::rejectua::reject_user_agent)
@@ -199,7 +196,6 @@ macro_rules! build_app_without_syncstorage {
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
             .wrap(SentryWrapper::<tokenserver_common::TokenserverError>::new(
                 $metrics.clone(),
-                "api_error".to_owned(),
             ))
             // These are our wrappers
             .wrap_fn(tokenserver::logging::handle_request_log_line)

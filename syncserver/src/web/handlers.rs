@@ -3,7 +3,12 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::time::{Duration, Instant};
 
-use actix_web::{http::StatusCode, web::Data, HttpRequest, HttpResponse, HttpResponseBuilder};
+use crate::server::user_agent::get_device_info;
+use actix_web::{
+    http::{header, StatusCode},
+    web::Data,
+    HttpRequest, HttpResponse, HttpResponseBuilder,
+};
 use serde::Serialize;
 use serde_json::{json, Value};
 use syncserver_common::{X_LAST_MODIFIED, X_WEAVE_NEXT_OFFSET, X_WEAVE_RECORDS};
@@ -32,6 +37,18 @@ pub async fn get_collections(
     db_pool: DbTransactionPool,
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
+    // The values below, prefixed by `_`, are temporarily and intentionally ignored at present.
+    // They will be passed to the Glean logic we will implement to emit metrics.
+    // We'd like for the data to be ready and in place to pass to that logic.
+    let _hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
+    let _hashed_device_id: String = meta.user_id.hashed_device_id.clone();
+    let user_agent = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or("none");
+    let _device_info = get_device_info(user_agent);
+
     db_pool
         .transaction_http(request, |db| async move {
             meta.emit_api_metric("request.get_collections");
