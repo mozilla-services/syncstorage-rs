@@ -1750,6 +1750,7 @@ mod tests {
     use tokio::sync::RwLock;
 
     use crate::server::ServerState;
+    use glean::server_events::GleanEventsLogger;
     use syncstorage_db::mock::{MockDb, MockDbPool};
 
     use crate::web::auth::HawkPayload;
