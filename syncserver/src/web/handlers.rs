@@ -54,16 +54,17 @@ pub async fn get_collections(
     let device_info: DeviceInfo = get_device_info(user_agent);
 
     let logger: GleanEventsLogger = GleanEventsLogger {
-        // app id will be supplied when added to probe-scraper
-        app_id: "syncstorage".to_string(),
-        app_display_version: "1.0.0".to_string(),
-        app_channel: "prod".to_string(),
+        // app_id corresponds to probe-scraper entry.
+        // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
+        app_id: "syncstorage".to_owned(),
+        app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
+        app_channel: "prod".to_owned(),
     };
 
     logger.record_events_ping(
         &RequestInfo {
-            user_agent: user_agent.to_string(),
-            ip_address: "".to_string(),
+            user_agent: user_agent.to_owned(),
+            ip_address: "".to_owned(),
         },
         &EventsPing {
             syncstorage_device_family: device_info.device_family.to_string(),
