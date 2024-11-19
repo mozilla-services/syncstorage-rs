@@ -30,9 +30,7 @@ use crate::{
     },
 };
 
-use glean::server_events::{
-    EventsPing, GleanEventsLogger, RequestInfo, SyncstorageGetCollectionsEvent,
-};
+use glean::server_events::{EventsPing, RequestInfo, SyncstorageGetCollectionsEvent};
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -40,6 +38,7 @@ pub async fn get_collections(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
     request: HttpRequest,
+    state: Data<ServerState>,
 ) -> Result<HttpResponse, ApiError> {
     // The values below, prefixed by `_`, are temporarily and intentionally ignored at present.
     // They will be passed to the Glean logic we will implement to emit metrics.
@@ -53,15 +52,7 @@ pub async fn get_collections(
         .unwrap_or("none");
     let device_info: DeviceInfo = get_device_info(user_agent);
 
-    let logger: GleanEventsLogger = GleanEventsLogger {
-        // app_id corresponds to probe-scraper entry.
-        // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
-        app_id: "syncstorage".to_owned(),
-        app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
-        app_channel: "prod".to_owned(),
-    };
-
-    logger.record_events_ping(
+    state.glean_logger.record_events_ping(
         &RequestInfo {
             user_agent: user_agent.to_owned(),
             ip_address: "".to_owned(),
