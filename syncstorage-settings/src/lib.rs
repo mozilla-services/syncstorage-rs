@@ -93,6 +93,9 @@ pub struct Settings {
     pub enable_quota: bool,
     pub enforce_quota: bool,
 
+    /// Whether Glean telemetry metric emission is enabled.
+    pub glean_enabled: bool,
+
     pub spanner_emulator_host: Option<String>,
     pub enabled: bool,
 
@@ -122,6 +125,7 @@ impl Default for Settings {
             statsd_label: "syncstorage".to_string(),
             enable_quota: false,
             enforce_quota: false,
+            glean_enabled: true,
             spanner_emulator_host: None,
             enabled: true,
             lbheartbeat_ttl: None,

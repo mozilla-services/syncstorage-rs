@@ -62,6 +62,8 @@ pub struct ServerState {
 
     /// Glean metrics logger.
     pub glean_logger: Arc<GleanEventsLogger>,
+
+    pub glean_enabled: bool,
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -278,6 +280,7 @@ impl Server {
             app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
             app_channel: "prod".to_owned(),
         });
+        let glean_enabled = settings.syncstorage.glean_enabled;
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
         let limits = Arc::new(settings.syncstorage.limits);
@@ -322,6 +325,7 @@ impl Server {
                 quota_enabled,
                 deadman: Arc::clone(&deadman),
                 glean_logger: Arc::clone(&glean_logger),
+                glean_enabled,
             };
 
             build_app!(
