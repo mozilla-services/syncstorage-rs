@@ -109,6 +109,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         quota_enabled: settings.syncstorage.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
         glean_logger: Arc::new(glean_logger),
+        glean_enabled: settings.syncstorage.glean_enabled,
     }
 }
 
