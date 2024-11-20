@@ -18,3 +18,5 @@ syncserver-common = { path = "../syncserver-common" }
 
 [features]
 sql = []
+mysql = ["sql"]
+sqlite = ["sql"]
