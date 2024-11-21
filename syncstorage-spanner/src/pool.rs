@@ -53,6 +53,7 @@ impl SpannerDbPool {
         };
         let pool = deadpool::managed::Pool::builder(manager)
             .config(config)
+            .runtime(deadpool::Runtime::Tokio1)
             .build()
             .map_err(|e| DbError::internal(format!("Couldn't build Db Pool: {}", e)))?;
 
