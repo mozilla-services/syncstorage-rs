@@ -1,37 +1,42 @@
+//! This Server Events crate encapsulates the core functionality related to
+//! emitting Glean server metrics.
+
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Required imports
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use serde_json;
+use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// log type string used to identify logs to process in the Moz Data Pipeline
+/// log type string used to identify logs to process in the Moz Data Pipeline.
 const GLEAN_EVENT_MOZLOG_TYPE: &str = "glean-server-event";
 
 // Code below is static, regardless of what is defined in `metrics.yaml`:
 
+/// The GleanEventsLogger produces output in the required format for Glean to ingest.
+/// Glean ingestion requires the output to be written to stdout. Writing to a different
+/// output will require the consumer to handle any closing as appropriate for the Writer.
 pub struct GleanEventsLogger {
-    // Application Id to identify application per Glean standards
+    /// Application Id to identify application per Glean standards
     pub app_id: String,
-    // Version of application emitting the event
+    /// Version of application emitting the event
     pub app_display_version: String,
-    // Channel to differentiate logs from prod/beta/staging/devel
+    /// Channel to differentiate logs from prod/beta/staging/development
     pub app_channel: String,
 }
 
-// Exported type for public method parameters
-// Default impl empty values will be omitted in json from ping struct definition
+/// Struct containing request metadata. Record calls can be made with this being left empty.
+/// Default impl empty values will be omitted in json from ping struct definition.
 #[derive(Default, Serialize, Deserialize)]
 pub struct RequestInfo {
     pub user_agent: String,
     pub ip_address: String,
 }
 
-// Struct to construct the glean ping
+/// Struct encapsulating client application data to construct Glean ping.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ClientInfo {
     telemetry_sdk_build: String,
@@ -45,6 +50,7 @@ pub struct ClientInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+/// Ping metadata struct.
 pub struct PingInfo {
     seq: u32,
     start_time: String,
@@ -52,6 +58,7 @@ pub struct PingInfo {
 }
 
 impl Default for PingInfo {
+    /// Default impl to create PingInfo.
     fn default() -> Self {
         // times are ISO-8601 strings, e.g. "2023-12-19T22:09:17.440Z"
         let now = Utc::now().to_rfc3339();
@@ -64,6 +71,7 @@ impl Default for PingInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+/// Struct containing ping metadata.
 pub struct Ping {
     document_namespace: String,
     document_type: String,
@@ -74,8 +82,13 @@ pub struct Ping {
     payload: String,
 }
 
+/// Glean Metrics type expressed by a String key of the supported metric types
+/// ("string", "quantity", "event", "datetime", "boolean") and a HashMap
+/// of each metric (defined in `metrics.yaml`) corresponding to its
+/// serialized value.
 type Metrics = HashMap<String, HashMap<String, serde_json::Value>>;
 
+/// Struct defining the `Event` metric type.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GleanEvent {
     category: String,
@@ -84,11 +97,8 @@ pub struct GleanEvent {
     extra: HashMap<String, String>,
 }
 
-pub fn new_glean_event(
-    category: &str,
-    name: &str,
-    extra: std::collections::HashMap<String, String>,
-) -> GleanEvent {
+/// Create a new Glean event given the supplied parameters.
+pub fn new_glean_event(category: &str, name: &str, extra: HashMap<String, String>) -> GleanEvent {
     GleanEvent {
         category: category.to_owned(),
         name: name.to_owned(),
@@ -96,7 +106,10 @@ pub fn new_glean_event(
         extra,
     }
 }
+
 #[derive(Serialize, Deserialize, Debug)]
+/// Struct encapsulating the telemetry payload, including the metrics and events,
+/// in addition to client and ping metadata.
 struct PingPayload {
     client_info: ClientInfo,
     ping_info: PingInfo,
@@ -105,6 +118,7 @@ struct PingPayload {
 }
 
 #[derive(Serialize, Deserialize)]
+/// Logging envelope that is serialized for emission to stdout.
 struct LogEnvelope {
     // MozLog compliant format. https://wiki.mozilla.org/Firefox/Services/Logging
     #[serde(rename = "Type")]
@@ -115,8 +129,9 @@ struct LogEnvelope {
 }
 
 impl GleanEventsLogger {
+    /// Create ClientInfo struct from values defined in GleanEventsLogger.
     fn create_client_info(&self) -> ClientInfo {
-        // Fields with default values are required in the Glean schema, but not used in server context
+        // Fields with default values are required in the Glean schema, but not used in server context.
         ClientInfo {
             telemetry_sdk_build: "glean_parser v15.0.2.dev17+g81fec69a".to_owned(),
             first_run_date: "Unknown".to_owned(),
@@ -129,6 +144,7 @@ impl GleanEventsLogger {
         }
     }
 
+    /// Method used to encapsulate ping metadata and PingPayload
     fn create_ping(
         &self,
         document_type: &str,
@@ -147,8 +163,7 @@ impl GleanEventsLogger {
     }
 
     /// Method called by each ping-specific record method.
-    /// The goal is to construct the ping, wrap it in the envelope
-    /// and print to stdout.
+    /// The goal is to construct the ping, wrap it in the envelope and print to stdout.
     fn record(
         &self,
         document_type: &str,
@@ -180,8 +195,9 @@ impl GleanEventsLogger {
 // Metrics of the `event` type. Anything defined in `extra_keys` has it's own struct field.
 // The appended `Event` term to any metric of the event type implies the ping event.
 
+/// Struct containing metadata defined in `extra_keys` if they are defined. Otherwise empty.
 pub struct SyncstorageGetCollectionsEvent {
-    // metadata for event in `extra_keys`
+    // metadata for event in `extra_keys`.
 }
 
 // Implementing the EventsPingEvent trait for the generated struct SyncstorageGetCollectionsEvent
@@ -197,11 +213,13 @@ impl EventsPingEvent for SyncstorageGetCollectionsEvent {
     }
 }
 
-/// Marker trait for events per ping
+/// Marker trait for events per ping.
 pub trait EventsPingEvent {
-    fn glean_event(&self) -> GleanEvent; // Returns an instance of GleanEvent
+    fn glean_event(&self) -> GleanEvent;
 }
 
+/// Struct containing defined metrics and event(s) from `metrics.yaml`.
+/// Encompasses the core Glean Ping Event and its data.
 pub struct EventsPing {
     pub syncstorage_device_family: String, // Device family from which sync action was initiated. Desktop PC, Tablet, Mobile, and Other.
     pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account.
@@ -210,30 +228,30 @@ pub struct EventsPing {
     pub event: Option<Box<dyn EventsPingEvent>>, // valid event of `EventsPingEvent` for this ping.
 }
 
-/// Record and submit `events` ping
 impl GleanEventsLogger {
-    /// General `record_events_ping` function
+    /// General `record_events_ping` function for core Glean Ping Event - Record and submit `events` ping.
+    /// Collects a HashMap of parametrized key value pairs and events to be recorded.
     pub fn record_events_ping(&self, request_info: &RequestInfo, params: &EventsPing) {
         // Define the outer `Metrics` map that holds the metric type.
         let mut metrics = Metrics::new();
         // Create the inner metric value map to insert into `Metrics`.
+        let mut string_map: HashMap<String, Value> = HashMap::new();
         // Create corresponding metric value maps to insert into `Metrics`.
-        let mut string_map: HashMap<String, serde_json::Value> = std::collections::HashMap::new();
         string_map.insert(
             "syncstorage.device_family".to_owned(),
-            serde_json::Value::String(params.syncstorage_device_family.to_string()),
+            Value::String(params.syncstorage_device_family.to_string()),
         );
         string_map.insert(
             "syncstorage.hashed_device_id".to_owned(),
-            serde_json::Value::String(params.syncstorage_hashed_device_id.to_string()),
+            Value::String(params.syncstorage_hashed_device_id.to_string()),
         );
         string_map.insert(
             "syncstorage.hashed_fxa_uid".to_owned(),
-            serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_string()),
+            Value::String(params.syncstorage_hashed_fxa_uid.to_string()),
         );
         string_map.insert(
             "syncstorage.platform".to_owned(),
-            serde_json::Value::String(params.syncstorage_platform.to_string()),
+            Value::String(params.syncstorage_platform.to_string()),
         );
         metrics.insert("string".to_owned(), string_map);
 
@@ -246,13 +264,14 @@ impl GleanEventsLogger {
     }
 }
 
-// Record and submit `events` ping omitting user request info
 impl GleanEventsLogger {
+    /// Record and submit `events` ping while omitting user request info.
     pub fn record_events_ping_without_user_info(&self, params: &EventsPing) {
         self.record_events_ping(&RequestInfo::default(), params)
     }
 }
 
+/// Core struct defining metric fields for the `sync-dau-ping` (Daily Active Users).
 pub struct SyncDauPing {
     pub syncstorage_device_family: String, // Device family from which sync action was initiated. Desktop PC, Tablet, Mobile, and Other.
     pub syncstorage_hashed_device_id: String, // Hashed device id that is associated with a given account.
@@ -260,9 +279,8 @@ pub struct SyncDauPing {
     pub syncstorage_platform: String, // Platform from which sync action was initiated. Firefox Desktop, Fenix, or Firefox iOS.
 }
 
-// Record and submit `sync-dau` ping
 impl GleanEventsLogger {
-    /// General `record_events_ping` function
+    /// General `record_events_ping` - record and submit `sync-dau` ping
     pub fn record_sync_dau_ping(&self, request_info: &RequestInfo, params: &SyncDauPing) {
         // Define the outer `Metrics` map that holds the metric type.
         let mut metrics = Metrics::new();
@@ -271,28 +289,28 @@ impl GleanEventsLogger {
             "string".to_owned(),
             HashMap::from([(
                 "syncstorage.device_family".to_owned(),
-                serde_json::Value::String(params.syncstorage_device_family.to_owned().clone()),
+                Value::String(params.syncstorage_device_family.to_owned().clone()),
             )]),
         );
         metrics.insert(
             "string".to_owned(),
             HashMap::from([(
                 "syncstorage.hashed_device_id".to_owned(),
-                serde_json::Value::String(params.syncstorage_hashed_device_id.to_owned().clone()),
+                Value::String(params.syncstorage_hashed_device_id.to_owned().clone()),
             )]),
         );
         metrics.insert(
             "string".to_owned(),
             HashMap::from([(
                 "syncstorage.hashed_fxa_uid".to_owned(),
-                serde_json::Value::String(params.syncstorage_hashed_fxa_uid.to_owned().clone()),
+                Value::String(params.syncstorage_hashed_fxa_uid.to_owned().clone()),
             )]),
         );
         metrics.insert(
             "string".to_owned(),
             HashMap::from([(
                 "syncstorage.platform".to_owned(),
-                serde_json::Value::String(params.syncstorage_platform.to_owned().clone()),
+                Value::String(params.syncstorage_platform.to_owned().clone()),
             )]),
         );
 
@@ -301,8 +319,8 @@ impl GleanEventsLogger {
     }
 }
 
-// Record and submit `sync-dau` ping omitting user request info
 impl GleanEventsLogger {
+    /// Record and submit `sync-dau` ping while omitting user request info.
     pub fn record_sync_dau_ping_without_user_info(&self, params: &SyncDauPing) {
         self.record_sync_dau_ping(&RequestInfo::default(), params)
     }
