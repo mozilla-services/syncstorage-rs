@@ -1,3 +1,13 @@
+<a name="0.17.15"></a>
+## 0.17.15 (2024-11-21)
+
+
+#### Bug Fixes
+
+*   upgrade to latest deadpool (#1631) ([9a97b6ce](https://github.com/mozilla-services/syncstorage-rs/commit/9a97b6ce1ae8295ea45ba017d8b0ef81ec1cf694))
+
+
+
 <a name="0.17.14"></a>
 ## 0.17.14 (2024-11-19)
 
