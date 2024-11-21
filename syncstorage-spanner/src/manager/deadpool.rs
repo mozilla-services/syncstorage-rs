@@ -1,6 +1,5 @@
 use std::{fmt, sync::Arc};
 
-use async_trait::async_trait;
 use deadpool::managed::{Manager, RecycleError, RecycleResult};
 use grpcio::{EnvBuilder, Environment};
 use syncserver_common::{BlockingThreadpool, Metrics};
@@ -11,7 +10,7 @@ use super::session::{
 };
 use crate::error::DbError;
 
-pub(crate) type Conn = deadpool::managed::Object<SpannerSession, DbError>;
+pub(crate) type Conn = deadpool::managed::Object<SpannerSessionManager>;
 
 pub(crate) struct SpannerSessionManager {
     settings: SpannerSessionSettings,
@@ -45,8 +44,10 @@ impl SpannerSessionManager {
     }
 }
 
-#[async_trait]
-impl Manager<SpannerSession, DbError> for SpannerSessionManager {
+impl Manager for SpannerSessionManager {
+    type Type = SpannerSession;
+    type Error = DbError;
+
     async fn create(&self) -> Result<SpannerSession, DbError> {
         let session = create_spanner_session(
             &self.settings,
@@ -58,7 +59,11 @@ impl Manager<SpannerSession, DbError> for SpannerSessionManager {
         Ok(session)
     }
 
-    async fn recycle(&self, conn: &mut SpannerSession) -> RecycleResult<DbError> {
+    async fn recycle(
+        &self,
+        conn: &mut SpannerSession,
+        _: &deadpool::managed::Metrics,
+    ) -> RecycleResult<DbError> {
         recycle_spanner_session(conn, &self.metrics)
             .await
             .map_err(RecycleError::Backend)
