@@ -41,15 +41,17 @@ Chosen option:
 
 In researching possible implementation methods, it became clear that many options did not offer us the ease and flexibility to reconcile the data after emission. This is why Glean is recommended as a clear frontrunner, due to its rich tooling in aggregating, querying, and visualizing data.
 
-However, this left an addition decision to either implement our own custom Glean code to emit "Glean-compliant" output, or to contribute to the Glean team's `glean_parser` repository for server-side metrics. The `glean_parser` is used for all server implementations of Glean, since the SDK is only available for client-side applications. Currently, Rust is not supported.
+However, this left an additional decision to either 1. implement our own custom Glean implementation to emit "Glean-compliant" output, or 2. to contribute to the Glean team's `glean_parser` repository for server-side metrics. The `glean_parser` is used for all server implementations of Glean, since the SDK is only available for client-side applications. Currently, Rust is not supported in the server-side.
 
-The Glean team does/did not have capacity to implemented the Rust `glean_parser` feature, so we had to decide what is the best solution not only for this use case, but to consider possible future use cases. In consultation with the Glean team, it became clear avoiding our custom implementation and opting for the general-purpose `glean_parser` for Rust was the ideal solution.
+In consultation with the Glean team, we determined that avoiding our custom implementation and opting for the general-purpose `glean_parser` for Rust was the ideal solution. The Glean team does/did not have capacity to implement the Rust `glean_parser` feature, so we had to decide if we were willing to take on the effort. 
+
+Agreeing to implement this feature gave us the benefits of a general purpose solution that solved our immediate challenge but also solved for future possible challenges, all while making this feature available to other Mozilla teams.
 
 ## Pros and Cons of the Options
 
 ### A. Glean Parser for Rust
 
-Glean is a widely used tool at Mozilla and provides us with a solution to the given issue and possible extensibility in the future. Not without some challenges in initial implementation, related to coordination with Glean team and upfront development effort. However, the potential for positive impact within our team and the organization is significant: all Rust server applications will be able to use Glean with full server support, our possible intention to integrate Glean into Push is made easier, and this is done in partnership with the Glean team.
+Glean is a widely used tool at Mozilla and provides us with a solution to the given issue with possible extensibility in the future. There would be some challenges related to the required development effort and coordination with the Glean team. However, the potential for positive impact within our team and the organization is significant: all Rust server applications will be able to use Glean with full server support, our possible intention to integrate Glean into Push is made easier, and this is done in partnership with the Glean team.
 
 #### Pros
 
@@ -59,36 +61,31 @@ Glean is a widely used tool at Mozilla and provides us with a solution to the gi
 * A collection of metrics, emitted as a single "Ping Event" make querying of related data simpler.
 * Core of Glean's purpose is to measure user interactions and the rich metadata that accompanies it.
 * Capacity for future expansion of application metrics within Sync, beyond DAU.
-* Prepares for implementation of same measurements in autopush, also using Glean.
 * Easier to query, have data team support to set up queries.
 * Use of standardized Mozilla tooling.
 * Establishment of team knowledge of using Glean.
 * Establishment of server-side Rust best practices, leading to easier development for backend Rust applications.
-* Transparency in data review process with consideration made to minimum collection of data.
+* Transparency in data review process with consideration made to minimum collection of data. This is as a result of defining `metrics.yaml` files that require data steward review to implement.
 
 #### Cons
 
-* The `glean_parser` tool used by other Glean applications is currently not supported for Rust. Furthermore, client applications can use the Glean SDK and this is also not an option for us.
-* Server side metrics have not yet been implemented for a Rust server application of this kind, so this is new territory.
-* There is added complexity of data review process and registration of the application to Glean's probe scraper, PubSub topics, ingestion pipeline etc.
-* May require more uptfront development effort to get up to speed with new code and process.
-* Some concerns exist around volume of data emitted from the service and if it is feasible, but we won't know until we try.
+* We have to write the Rust-compatible code. The `glean_parser` tool used by other server-side Glean applications is currently not supported for Rust.
 
 ### B. Custom Glean Implementation 
 
-This was originally appearing to be the desired approach to measuring DAU via Glean.  This was predicated on the ease of prototyping a custom implementation that imitated the Glean team's logic to create "Glean-compliant" output that could be configured to be ingested.  However, in consulting with the Glean team and evaluating the pros and cons of this approach, it became clear this approach had considerably more drawbacks than implementing the `glean_parser` for Rust. These drawbacks were a lack of testing, validation, less support from the Glean team, and the potential problems with maintenance and adding Glean metrics in the future.
+This was originally the desired approach to measuring DAU via Glean.  It was predicated on the ease of prototyping a custom implementation that imitated the Glean team's logic to create "Glean-compliant" output.  However, in consulting with the Glean team and evaluating the pros and cons of this approach, it became clear this approach had considerably more drawbacks than implementing the `glean_parser` for Rust. These drawbacks were a lack of testing, validation, less support from the Glean team, and the potential problems with maintenance and adding Glean metrics in the future.
 
 #### Pros
 * Gives team control over implementation and allows us to customize the Glean logging as we see fit.
-* Does not require contribution to Glean team's repos, which potentially limits the scope understanding a new codebase.
+* Effort is smaller because it doesn't involve our integrating with an existing repo we are not familiar with. Ex. the templating logic and libraries in the `glean_parser`.
 * Easy to prototype and make changes.
-* Doesn't require understanding the templating logic and libraries in the `glean_parser`
+
 
 #### Cons
 * There is no built-in testing suite or validation, so this would put a larger development burden on us and require the Glean team's review.
 * Lack of testing and validation means higher likelihood of bugs.
 * If we decide to add new Glean metrics in the future, this may break the custom implementation and impose a greater maintenance overhead.
-* Time required to understand the Glean team's implementations anyways, in order to replicate behavior and data structures.
+* Time required to understand the Glean team's implementations in order to replicate behavior and data structures.
 * Likely won't have same support from Glean team as it is not related to their implementation.
 
 ### C. StatsD, Grafana, InfluxDB
