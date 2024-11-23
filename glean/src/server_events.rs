@@ -4,7 +4,6 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -49,8 +48,8 @@ pub struct ClientInfo {
     app_channel: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Ping metadata struct.
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PingInfo {
     seq: u32,
     start_time: String,
@@ -70,8 +69,8 @@ impl Default for PingInfo {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Struct containing ping metadata.
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Ping {
     document_namespace: String,
     document_type: String,
@@ -97,7 +96,6 @@ pub struct GleanEvent {
     extra: HashMap<String, String>,
 }
 
-/// Create a new Glean event given the supplied parameters.
 pub fn new_glean_event(category: &str, name: &str, extra: HashMap<String, String>) -> GleanEvent {
     GleanEvent {
         category: category.to_owned(),
@@ -107,9 +105,9 @@ pub fn new_glean_event(category: &str, name: &str, extra: HashMap<String, String
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Struct encapsulating the telemetry payload, including the metrics and events,
 /// in addition to client and ping metadata.
+#[derive(Serialize, Deserialize, Debug)]
 struct PingPayload {
     client_info: ClientInfo,
     ping_info: PingInfo,
@@ -117,13 +115,12 @@ struct PingPayload {
     events: Vec<GleanEvent>,
 }
 
-#[derive(Serialize, Deserialize)]
 /// Logging envelope that is serialized for emission to stdout.
+#[derive(Serialize, Deserialize)]
 struct LogEnvelope {
     // MozLog compliant format. https://wiki.mozilla.org/Firefox/Services/Logging
     #[serde(rename = "Type")]
     log_type: String,
-    // MozLog compliant format. https://wiki.mozilla.org/Firefox/Services/Logging
     #[serde(rename = "Fields")]
     fields: Ping,
 }
@@ -144,7 +141,7 @@ impl GleanEventsLogger {
         }
     }
 
-    /// Method used to encapsulate ping metadata and PingPayload
+    /// Method used to encapsulate ping metadata and PingPayload.
     fn create_ping(
         &self,
         document_type: &str,
@@ -197,7 +194,7 @@ impl GleanEventsLogger {
 
 /// Struct containing metadata defined in `extra_keys` if they are defined. Otherwise empty.
 pub struct SyncstorageGetCollectionsEvent {
-    // metadata for event in `extra_keys`.
+    // Metadata for event in `extra_keys`.
 }
 
 // Implementing the EventsPingEvent trait for the generated struct SyncstorageGetCollectionsEvent
