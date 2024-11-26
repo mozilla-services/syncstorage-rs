@@ -90,7 +90,7 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
         app_id: "syncstorage".to_owned(),
         app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
-        app_channel: settings.environment,
+        app_channel: settings.sync_environment,
     });
 
     ServerState {
