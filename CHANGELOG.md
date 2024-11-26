@@ -1,3 +1,17 @@
+<a name="0.18.0"></a>
+## 0.18.0 (2024-11-26)
+
+
+#### Doc
+
+*   sync DAU server side metrics adr (#1608) ([7e211542](https://github.com/mozilla-services/syncstorage-rs/commit/7e21154203411e98200e7af60e2e7199050e9fb7))
+
+#### Features
+
+*   glean metrics logic (#1626) ([9e9869ee](https://github.com/mozilla-services/syncstorage-rs/commit/9e9869ee0605d0610d6c94bf6185eb1eabd6b6a2))
+
+
+
 <a name="0.17.15"></a>
 ## 0.17.15 (2024-11-21)
 
