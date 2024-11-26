@@ -4,14 +4,12 @@
 $schema: moz://mozilla.org/schemas/glean/pings/2-0-0
 
 # Name
-syncstorage:
+sync-dau:
   # Ping parameters
   description: |
     Ping record for sync active use metrics.
   notification_emails:
-    - jrconlin@mozilla.com
-    - pjenvey@mozilla.com
-    - tkorris@mozilla.com
+    - sync-backend@mozilla.com
   bugs:
     - https://github.com/mozilla-services/syncstorage-rs/issues
   data_reviews:
