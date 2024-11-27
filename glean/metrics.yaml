@@ -36,7 +36,6 @@ syncstorage:
     # yamllint enable
     lifetime: application
     send_in_pings:
-      - sync-dau
       - events
     notification_emails:
       - sync-backend@mozilla.com
@@ -55,7 +54,6 @@ syncstorage:
     # yamllint enable
     lifetime: application
     send_in_pings:
-      - sync-dau
       - events
     notification_emails:
       - sync-backend@mozilla.com
@@ -74,7 +72,6 @@ syncstorage:
     # yamllint enable
     lifetime: application
     send_in_pings:
-      - sync-dau
       - events
     notification_emails:
       - sync-backend@mozilla.com
@@ -94,7 +91,6 @@ syncstorage:
     # yamllint enable
     lifetime: application
     send_in_pings:
-      - sync-dau
       - events
     notification_emails:
       - sync-backend@mozilla.com
