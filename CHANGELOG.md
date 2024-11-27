@@ -1,3 +1,13 @@
+<a name="0.18.1"></a>
+## 0.18.1 (2024-11-27)
+
+
+#### Features
+
+*    Enable Glean probe-scraper task (#1636) ([8363f82d](https://github.com/mozilla-services/syncstorage-rs/commit/8363f82d4197923e8ee1062de849d2c61e467db4))
+
+
+
 <a name="0.18.0"></a>
 ## 0.18.0 (2024-11-26)
 
