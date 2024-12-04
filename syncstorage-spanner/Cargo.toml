@@ -14,6 +14,7 @@ futures.workspace = true
 http.workspace = true
 slog-scope.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
 
 async-trait = "0.1.40"
 google-cloud-rust-raw = { version = "0.16.1", features = ["spanner"] }
@@ -36,7 +37,6 @@ tokio = { workspace = true, features = [
   "sync",
 ] }
 url = "2.1"
-uuid = { version = "1.6", features = ["serde", "v4"] }
 
 [[bin]]
 name = "purge_ttl"

@@ -85,6 +85,13 @@ async fn get_test_state(settings: &Settings) -> ServerState {
     let blocking_threadpool = Arc::new(BlockingThreadpool::new(
         settings.worker_max_blocking_threads,
     ));
+    let glean_logger = Arc::new(GleanEventsLogger {
+        // app_id corresponds to probe-scraper entry.
+        // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
+        app_id: "syncstorage".to_owned(),
+        app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
+        app_channel: settings.environment.clone(),
+    });
 
     ServerState {
         db_pool: Box::new(
@@ -101,6 +108,8 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         port: settings.port,
         quota_enabled: settings.syncstorage.enable_quota,
         deadman: Arc::new(RwLock::new(Deadman::from(&settings.syncstorage))),
+        glean_logger,
+        glean_enabled: settings.syncstorage.glean_enabled,
     }
 }
 
