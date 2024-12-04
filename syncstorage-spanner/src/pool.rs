@@ -86,6 +86,14 @@ impl SpannerDbPool {
     }
 }
 
+/// Sweeper to retain only the objects specified within the closure.
+/// In this context, if a Spanner connection is unutilized, we want it
+/// to release the given connections.
+/// See: https://docs.rs/deadpool/latest/deadpool/managed/struct.Pool.html#method.retain
+fn sweeper(pool: &deadpool::managed::Pool<SpannerSessionManager>, max_idle: Duration) {
+    pool.retain(|_, metrics| metrics.last_used() < max_idle);
+}
+
 #[async_trait]
 impl DbPool for SpannerDbPool {
     type Error = DbError;
