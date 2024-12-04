@@ -8,17 +8,12 @@ use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
 pub(super) use super::manager::Conn;
-use super::{
-    error::DbError,
-    manager::{SpannerSession, SpannerSessionManager},
-    models::SpannerDb,
-    DbResult,
-};
+use super::{error::DbError, manager::SpannerSessionManager, models::SpannerDb, DbResult};
 
 #[derive(Clone)]
 pub struct SpannerDbPool {
     /// Pool of db connections
-    pool: deadpool::managed::Pool<SpannerSession, DbError>,
+    pool: deadpool::managed::Pool<SpannerSessionManager>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
@@ -51,8 +46,16 @@ impl SpannerDbPool {
             wait,
             ..Default::default()
         };
-        let config = deadpool::managed::PoolConfig { max_size, timeouts };
-        let pool = deadpool::managed::Pool::from_config(manager, config);
+        let config = deadpool::managed::PoolConfig {
+            max_size,
+            timeouts,
+            ..Default::default()
+        };
+        let pool = deadpool::managed::Pool::builder(manager)
+            .config(config)
+            .runtime(deadpool::Runtime::Tokio1)
+            .build()
+            .map_err(|e| DbError::internal(format!("Couldn't build Db Pool: {}", e)))?;
 
         Ok(Self {
             pool,
@@ -72,6 +75,7 @@ impl SpannerDbPool {
             deadpool::managed::PoolError::Timeout(timeout_type) => {
                 DbError::internal(format!("deadpool Timeout: {:?}", timeout_type))
             }
+            _ => DbError::internal(format!("deadpool PoolError: {}", e)),
         })?;
         Ok(SpannerDb::new(
             conn,

@@ -18,7 +18,7 @@ members = [
 default-members = ["syncserver"]
 
 [workspace.package]
-version = "0.17.12"
+version = "0.17.15"
 authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
@@ -43,6 +43,7 @@ diesel_logger = "0.1"
 cadence = "1.3"
 backtrace = "0.3"
 chrono = "0.4"
+deadpool = { version = "0.12", features = ["rt_tokio_1"] }
 env_logger = "0.11"
 futures = { version = "0.3", features = ["compat"] }
 futures-util = { version = "0.3", features = [
@@ -90,6 +91,7 @@ slog-stdlog = "4.1"
 slog-term = "2.6"
 tokio = "1"
 thiserror = "1.0.26"
+uuid = { version = "1.11", features = ["serde", "v4"] }
 
 [profile.release]
 # Enables line numbers in Sentry reporting
