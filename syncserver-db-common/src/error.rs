@@ -5,17 +5,17 @@ use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, ReportableError};
 use thiserror::Error;
 
-/// Error specific to any MySQL database backend. These errors are not related to the syncstorage
+/// Error specific to any SQL database backend. These errors are not related to the syncstorage
 /// or tokenserver application logic; rather, they are lower-level errors arising from diesel.
 #[derive(Debug)]
-pub struct MysqlError {
-    kind: MysqlErrorKind,
+pub struct SqlError {
+    kind: SqlErrorKind,
     pub status: StatusCode,
     pub backtrace: Backtrace,
 }
 
 #[derive(Debug, Error)]
-enum MysqlErrorKind {
+enum SqlErrorKind {
     #[error("A database error occurred: {}", _0)]
     DieselQuery(#[from] diesel::result::Error),
 
@@ -29,8 +29,8 @@ enum MysqlErrorKind {
     Migration(diesel_migrations::RunMigrationsError),
 }
 
-impl From<MysqlErrorKind> for MysqlError {
-    fn from(kind: MysqlErrorKind) -> Self {
+impl From<SqlErrorKind> for SqlError {
+    fn from(kind: SqlErrorKind) -> Self {
         Self {
             kind,
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -39,11 +39,11 @@ impl From<MysqlErrorKind> for MysqlError {
     }
 }
 
-impl ReportableError for MysqlError {
+impl ReportableError for SqlError {
     fn is_sentry_event(&self) -> bool {
         #[allow(clippy::match_like_matches_macro)]
         match &self.kind {
-            MysqlErrorKind::Pool(_) => false,
+            SqlErrorKind::Pool(_) => false,
             _ => true,
         }
     }
@@ -51,10 +51,10 @@ impl ReportableError for MysqlError {
     fn metric_label(&self) -> Option<String> {
         Some(
             match self.kind {
-                MysqlErrorKind::DieselQuery(_) => "storage.mysql.error.diesel_query",
-                MysqlErrorKind::DieselConnection(_) => "storage.mysql.error.diesel_connection",
-                MysqlErrorKind::Pool(_) => "storage.mysql.error.pool",
-                MysqlErrorKind::Migration(_) => "storage.mysql.error.migration",
+                SqlErrorKind::DieselQuery(_) => "storage.sql.error.diesel_query",
+                SqlErrorKind::DieselConnection(_) => "storage.sql.error.diesel_connection",
+                SqlErrorKind::Pool(_) => "storage.sql.error.pool",
+                SqlErrorKind::Migration(_) => "storage.sql.error.migration",
             }
             .to_string(),
         )
@@ -65,21 +65,17 @@ impl ReportableError for MysqlError {
     }
 }
 
-impl_fmt_display!(MysqlError, MysqlErrorKind);
+impl_fmt_display!(SqlError, SqlErrorKind);
 
-from_error!(
-    diesel::result::Error,
-    MysqlError,
-    MysqlErrorKind::DieselQuery
-);
+from_error!(diesel::result::Error, SqlError, SqlErrorKind::DieselQuery);
 from_error!(
     diesel::result::ConnectionError,
-    MysqlError,
-    MysqlErrorKind::DieselConnection
+    SqlError,
+    SqlErrorKind::DieselConnection
 );
-from_error!(diesel::r2d2::PoolError, MysqlError, MysqlErrorKind::Pool);
+from_error!(diesel::r2d2::PoolError, SqlError, SqlErrorKind::Pool);
 from_error!(
     diesel_migrations::RunMigrationsError,
-    MysqlError,
-    MysqlErrorKind::Migration
+    SqlError,
+    SqlErrorKind::Migration
 );

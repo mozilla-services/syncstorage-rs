@@ -3,7 +3,7 @@ use std::fmt;
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
-use syncserver_db_common::error::MysqlError;
+use syncserver_db_common::error::SqlError;
 use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
@@ -49,7 +49,7 @@ enum DbErrorKind {
     Common(SyncstorageDbError),
 
     #[error("{}", _0)]
-    Mysql(MysqlError),
+    Mysql(SqlError),
 }
 
 impl From<DbErrorKind> for DbError {
@@ -140,24 +140,24 @@ from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);
 from_error!(
     diesel::result::Error,
     DbError,
-    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(MysqlError::from(error)))
+    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
 );
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(MysqlError::from(
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(SqlError::from(
         error
     )))
 );
 from_error!(
     diesel::r2d2::PoolError,
     DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(MysqlError::from(error)))
+    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
 );
 from_error!(
     diesel_migrations::RunMigrationsError,
     DbError,
     |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Mysql(
-        MysqlError::from(error)
+        SqlError::from(error)
     ))
 );

@@ -65,15 +65,13 @@ regex = "1.4"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ] }
-# rev 1b65b5c includes https://github.com/getsentry/sentry-rust/pull/701
-# TODO: bump to 0.35 as soon as it's available
-sentry = { version = "0.34", git = "https://github.com/getsentry/sentry-rust", rev = "1b65b5c", default-features = false, features = [
+sentry = { version = "0.35", default-features = false, features = [
   "curl",
   "backtrace",
   "contexts",
   "debug-images",
 ] }
-sentry-backtrace = { version = "0.34", git = "https://github.com/getsentry/sentry-rust", rev = "1b65b5c" }
+sentry-backtrace = "0.35"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
