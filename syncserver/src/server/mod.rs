@@ -273,6 +273,13 @@ impl Server {
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
         )?;
+        // Spawns sweeper that calls Deadpool `retain` method, clearing unused connections.
+        db_pool.spawn_sweeper(Duration::from_secs(
+            settings
+                .syncstorage
+                .database_pool_sweeper_task_interval
+                .into(),
+        ));
         let glean_logger = Arc::new(GleanEventsLogger {
             // app_id corresponds to probe-scraper entry.
             // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml

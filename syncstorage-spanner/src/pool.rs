@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
+use actix_web::rt;
 use async_trait::async_trait;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{GetPoolState, PoolState};
@@ -49,7 +50,9 @@ impl SpannerDbPool {
         let config = deadpool::managed::PoolConfig {
             max_size,
             timeouts,
-            ..Default::default()
+            // Prefer LIFO to allow the sweeper task to evict least frequently
+            // used connections.
+            queue_mode: deadpool::managed::QueueMode::Lifo,
         };
         let pool = deadpool::managed::Pool::builder(manager)
             .config(config)
@@ -84,6 +87,30 @@ impl SpannerDbPool {
             self.quota,
         ))
     }
+
+    /// Spawn a task to periodically evict idle connections. Calls wrapper sweeper fn
+    ///  to use pool.retain, retaining objects only if they are shorter in duration than
+    ///  defined max_idle.
+    pub fn spawn_sweeper(&self, interval: Duration) {
+        let Some(max_idle) = self.pool.manager().settings.max_idle else {
+            return;
+        };
+        let pool = self.pool.clone();
+        rt::spawn(async move {
+            loop {
+                sweeper(&pool, Duration::from_secs(max_idle.into()));
+                rt::time::sleep(interval).await;
+            }
+        });
+    }
+}
+
+/// Sweeper to retain only the objects specified within the closure.
+/// In this context, if a Spanner connection is unutilized, we want it
+/// to release the given connection.
+/// See: https://docs.rs/deadpool/latest/deadpool/managed/struct.Pool.html#method.retain
+fn sweeper(pool: &deadpool::managed::Pool<SpannerSessionManager>, max_idle: Duration) {
+    pool.retain(|_, metrics| metrics.last_used() < max_idle);
 }
 
 #[async_trait]
