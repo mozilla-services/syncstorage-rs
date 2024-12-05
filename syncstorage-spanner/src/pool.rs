@@ -50,7 +50,9 @@ impl SpannerDbPool {
         let config = deadpool::managed::PoolConfig {
             max_size,
             timeouts,
-            ..Default::default()
+            // Prefer LIFO to allow the sweeper task to evict least frequently
+            // used connections.
+            queue_mode: deadpool::managed::QueueMode::Lifo,
         };
         let pool = deadpool::managed::Pool::builder(manager)
             .config(config)
