@@ -96,7 +96,7 @@ impl SpannerDbPool {
         let pool = self.pool.clone();
         rt::spawn(async move {
             loop {
-                sweeper(&pool, max_idle);
+                sweeper(&pool, Duration::from_secs(max_idle.into()));
                 rt::time::sleep(interval).await;
             }
         });
