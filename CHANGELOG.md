@@ -1,3 +1,13 @@
+<a name="0.18.2"></a>
+## 0.18.2 (2024-12-05)
+
+
+#### Chore
+
+*   bump to latest sentry (#1639) ([bc79ccb9](https://github.com/mozilla-services/syncstorage-rs/commit/bc79ccb97243f946c1abb436f07a1be8b63f6ba6))
+
+
+
 <a name="0.18.1"></a>
 ## 0.18.1 (2024-11-27)
 
