@@ -13,7 +13,7 @@ use crate::error::DbError;
 pub(crate) type Conn = deadpool::managed::Object<SpannerSessionManager>;
 
 pub(crate) struct SpannerSessionManager {
-    settings: SpannerSessionSettings,
+    pub settings: SpannerSessionSettings,
     /// The gRPC environment
     env: Arc<Environment>,
     metrics: Metrics,
