@@ -278,7 +278,6 @@ impl Server {
             settings
                 .syncstorage
                 .database_pool_sweeper_task_interval
-                .unwrap()
                 .into(),
         ));
         let glean_logger = Arc::new(GleanEventsLogger {

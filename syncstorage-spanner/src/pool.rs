@@ -90,7 +90,7 @@ impl SpannerDbPool {
     ///  to use pool.retain, retaining objects only if they are shorter in duration than
     ///  defined max_idle.
     pub fn spawn_sweeper(&self, interval: Duration) {
-        let Some(max_idle) = self.pool.manager().settings.pool_max_idle else {
+        let Some(max_idle) = self.pool.manager().settings.max_idle else {
             return;
         };
         let pool = self.pool.clone();

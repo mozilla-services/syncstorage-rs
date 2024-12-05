@@ -64,8 +64,6 @@ pub struct SpannerSessionSettings {
     pub max_lifespan: Option<u32>,
     /// Max idle time of a Session
     pub max_idle: Option<u32>,
-    /// Interval for sweeper task releasing unused connections.
-    pub pool_max_idle: Option<u32>,
 
     /// For tests: disables transactions from committing
     pub(crate) use_test_transactions: bool,
@@ -96,7 +94,6 @@ impl SpannerSessionSettings {
             route_to_leader: settings.database_spanner_route_to_leader,
             max_lifespan: settings.database_pool_connection_lifespan,
             max_idle: settings.database_pool_connection_max_idle,
-            pool_max_idle: settings.database_pool_connection_max_idle,
             use_test_transactions,
             emulator_host: settings.spanner_emulator_host.clone(),
         })
