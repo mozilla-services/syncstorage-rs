@@ -78,6 +78,8 @@ pub struct Settings {
     pub database_pool_connection_lifespan: Option<u32>,
     /// Max time a connection should sit idle before being dropped.
     pub database_pool_connection_max_idle: Option<u32>,
+    /// Interval for sweeper task releasing unused connections.
+    pub database_pool_sweeper_task_interval: Option<u32>,
     #[cfg(debug_assertions)]
     pub database_use_test_transactions: bool,
     #[cfg(debug_assertions)]
@@ -115,6 +117,7 @@ impl Default for Settings {
             database_pool_min_idle: None,
             database_pool_connection_lifespan: None,
             database_pool_connection_max_idle: None,
+            database_pool_sweeper_task_interval: Some(30),
             database_pool_connection_timeout: Some(30),
             #[cfg(debug_assertions)]
             database_use_test_transactions: false,
