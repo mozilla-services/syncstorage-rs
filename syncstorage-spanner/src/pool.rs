@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt, sync::Arc, time::Duration};
 
+use actix_web::rt;
 use async_trait::async_trait;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{GetPoolState, PoolState};
@@ -83,6 +84,22 @@ impl SpannerDbPool {
             &self.metrics,
             self.quota,
         ))
+    }
+
+    /// Spawn a task to periodically evict idle connections. Calls wrapper sweeper fn
+    ///  to use pool.retain, retaining objects only if they are shorter in duration than
+    ///  defined max_idle.
+    pub fn spawn_sweeper(&self, interval: Duration) {
+        let Some(max_idle) = self.pool.manager().settings.max_lifespan else {
+            return;
+        };
+        let pool = self.pool.clone();
+        rt::spawn(async move {
+            loop {
+                sweeper(&pool, max_idle);
+                rt::time::sleep(interval).await;
+            }
+        });
     }
 }
 
