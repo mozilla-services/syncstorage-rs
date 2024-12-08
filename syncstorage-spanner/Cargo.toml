@@ -6,6 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+actix-web.workspace = true
 backtrace.workspace = true
 cadence.workspace = true
 deadpool.workspace = true

@@ -3006,6 +3006,7 @@ dependencies = [
 name = "syncstorage-spanner"
 version = "0.17.15"
 dependencies = [
+ "actix-web",
  "async-trait",
  "backtrace",
  "cadence",
