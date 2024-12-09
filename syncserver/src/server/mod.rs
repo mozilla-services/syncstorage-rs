@@ -24,6 +24,8 @@ use syncstorage_settings::{Deadman, ServerLimits};
 use tokio::{sync::RwLock, time};
 
 use crate::error::ApiError;
+use glean::server_events::GleanEventsLogger;
+
 use crate::tokenserver;
 use crate::web::{handlers, middleware};
 
@@ -57,6 +59,11 @@ pub struct ServerState {
     pub quota_enabled: bool,
 
     pub deadman: Arc<RwLock<Deadman>>,
+
+    /// Glean metrics logger.
+    pub glean_logger: Arc<GleanEventsLogger>,
+
+    pub glean_enabled: bool,
 }
 
 pub fn cfg_path(path: &str) -> String {
@@ -266,6 +273,21 @@ impl Server {
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
         )?;
+        // Spawns sweeper that calls Deadpool `retain` method, clearing unused connections.
+        db_pool.spawn_sweeper(Duration::from_secs(
+            settings
+                .syncstorage
+                .database_pool_sweeper_task_interval
+                .into(),
+        ));
+        let glean_logger = Arc::new(GleanEventsLogger {
+            // app_id corresponds to probe-scraper entry.
+            // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
+            app_id: "syncstorage".to_owned(),
+            app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
+            app_channel: settings.environment.clone(),
+        });
+        let glean_enabled = settings.syncstorage.glean_enabled;
         let worker_thread_count =
             calculate_worker_max_blocking_threads(settings.worker_max_blocking_threads);
         let limits = Arc::new(settings.syncstorage.limits);
@@ -309,6 +331,8 @@ impl Server {
                 port,
                 quota_enabled,
                 deadman: Arc::clone(&deadman),
+                glean_logger: Arc::clone(&glean_logger),
+                glean_enabled,
             };
 
             build_app!(

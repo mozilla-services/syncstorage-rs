@@ -1,3 +1,38 @@
+<a name="0.17.15"></a>
+## 0.17.15 (2024-11-21)
+
+
+#### Bug Fixes
+
+*   upgrade to latest deadpool (#1631) ([9a97b6ce](https://github.com/mozilla-services/syncstorage-rs/commit/9a97b6ce1ae8295ea45ba017d8b0ef81ec1cf694))
+
+
+
+<a name="0.17.14"></a>
+## 0.17.14 (2024-11-19)
+
+
+#### Bug Fixes
+
+*   don't add extra prefixes to middleware emitted metrics (#1630) ([9b033edc](https://github.com/mozilla-services/syncstorage-rs/commit/9b033edcb0a6479bdb7fe02e50602f85bf41cf8f))
+*   avoid underflow of the queued_tasks metric (#1628) ([3ed6d607](https://github.com/mozilla-services/syncstorage-rs/commit/3ed6d6077cf987f31d35e3ff772cfbb5f81f5b73))
+
+#### Features
+
+*   add metric values to get_collections (#1616) ([98ccc954](https://github.com/mozilla-services/syncstorage-rs/commit/98ccc95482e79ed038abcdb87f6ef5cacaee0bf2))
+
+
+
+<a name="0.17.13"></a>
+## 0.17.13 (2024-10-30)
+
+
+#### Features
+
+*   namespace the db error labels (#1625) ([bab5e1fe](https://github.com/mozilla-services/syncstorage-rs/commit/bab5e1fe51ef13fb36810cde93347d61372ae57c))
+
+
+
 <a name="0.17.12"></a>
 ## 0.17.12 (2024-10-29)
 

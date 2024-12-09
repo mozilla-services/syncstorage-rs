@@ -78,6 +78,8 @@ pub struct Settings {
     pub database_pool_connection_lifespan: Option<u32>,
     /// Max time a connection should sit idle before being dropped.
     pub database_pool_connection_max_idle: Option<u32>,
+    /// Interval for sweeper task releasing unused connections.
+    pub database_pool_sweeper_task_interval: u32,
     #[cfg(debug_assertions)]
     pub database_use_test_transactions: bool,
     #[cfg(debug_assertions)]
@@ -92,6 +94,9 @@ pub struct Settings {
 
     pub enable_quota: bool,
     pub enforce_quota: bool,
+
+    /// Whether Glean telemetry metric emission is enabled.
+    pub glean_enabled: bool,
 
     pub spanner_emulator_host: Option<String>,
     pub enabled: bool,
@@ -112,6 +117,7 @@ impl Default for Settings {
             database_pool_min_idle: None,
             database_pool_connection_lifespan: None,
             database_pool_connection_max_idle: None,
+            database_pool_sweeper_task_interval: 30,
             database_pool_connection_timeout: Some(30),
             #[cfg(debug_assertions)]
             database_use_test_transactions: false,
@@ -122,6 +128,7 @@ impl Default for Settings {
             statsd_label: "syncstorage".to_string(),
             enable_quota: false,
             enforce_quota: false,
+            glean_enabled: true,
             spanner_emulator_host: None,
             enabled: true,
             lbheartbeat_ttl: None,

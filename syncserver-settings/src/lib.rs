@@ -30,6 +30,9 @@ pub struct Settings {
     pub statsd_host: Option<String>,
     pub statsd_port: u16,
 
+    /// Environment of Sync application (Stage, Prod, Dev, etc).
+    pub environment: String,
+
     /// Cors Settings
     pub cors_allowed_origin: Option<String>,
     pub cors_max_age: Option<usize>,
@@ -183,6 +186,7 @@ impl Default for Settings {
             master_secret: Secrets::default(),
             statsd_host: Some("localhost".to_owned()),
             statsd_port: 8125,
+            environment: "dev".to_owned(),
             human_logs: false,
             cors_allowed_origin: Some("*".to_owned()),
             cors_allowed_methods: Some(

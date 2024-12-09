@@ -1,20 +1,9 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+---
 ## Describes the pings being sent out to Glean.
 
 # Schema
 $schema: moz://mozilla.org/schemas/glean/pings/2-0-0
-
-# Name
-syncstorage:
-  # Ping parameters
-  description: |
-    Ping record for sync active use metrics.
-  notification_emails:
-    - jrconlin@mozilla.com
-    - pjenvey@mozilla.com
-    - tkorris@mozilla.com
-  bugs:
-    - https://github.com/mozilla-services/syncstorage-rs/issues
-  data_reviews:
-    - https://bugzilla.mozilla.org/show_bug.cgi?id=1923967
-  expires: never
-  include_client_id: false

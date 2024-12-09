@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::convert::Into;
 use std::time::{Duration, Instant};
 
-use crate::server::user_agent::get_device_info;
+use crate::server::user_agent::{get_device_info, DeviceInfo};
 use actix_web::{
     http::{header, StatusCode},
     web::Data,
@@ -30,28 +30,43 @@ use crate::{
     },
 };
 
+use glean::server_events::{EventsPing, RequestInfo, SyncstorageGetCollectionsEvent};
+
 pub const ONE_KB: f64 = 1024.0;
 
 pub async fn get_collections(
     meta: MetaRequest,
     db_pool: DbTransactionPool,
     request: HttpRequest,
+    state: Data<ServerState>,
 ) -> Result<HttpResponse, ApiError> {
-    // The values below, prefixed by `_`, are temporarily and intentionally ignored at present.
-    // They will be passed to the Glean logic we will implement to emit metrics.
-    // We'd like for the data to be ready and in place to pass to that logic.
-    let _hashed_fxa_uid: String = meta.user_id.hashed_fxa_uid.clone();
-    let _hashed_device_id: String = meta.user_id.hashed_device_id.clone();
-    let user_agent = request
-        .headers()
-        .get(header::USER_AGENT)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or("none");
-    let _device_info = get_device_info(user_agent);
-
     db_pool
-        .transaction_http(request, |db| async move {
+        .transaction_http(request.clone(), |db| async move {
             meta.emit_api_metric("request.get_collections");
+            if state.glean_enabled {
+                // Values below are be passed to the Glean logic to emit metrics.
+                // This is used to measure DAU (Daily Active Use) of Sync.
+                let user_agent = request
+                    .headers()
+                    .get(header::USER_AGENT)
+                    .and_then(|header| header.to_str().ok())
+                    .unwrap_or("");
+                let device_info: DeviceInfo = get_device_info(user_agent);
+
+                state.glean_logger.record_events_ping(
+                    &RequestInfo {
+                        user_agent: user_agent.to_owned(),
+                        ip_address: "".to_owned(),
+                    },
+                    &EventsPing {
+                        syncstorage_device_family: device_info.device_family.to_string(),
+                        syncstorage_hashed_device_id: meta.user_id.hashed_device_id.clone(),
+                        syncstorage_hashed_fxa_uid: meta.user_id.hashed_fxa_uid.clone(),
+                        syncstorage_platform: device_info.platform.to_string(),
+                        event: Some(Box::new(SyncstorageGetCollectionsEvent {})),
+                    },
+                );
+            }
             let result = db.get_collection_timestamps(meta.user_id).await?;
 
             Ok(HttpResponse::build(StatusCode::OK)

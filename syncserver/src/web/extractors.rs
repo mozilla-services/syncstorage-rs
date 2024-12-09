@@ -1750,6 +1750,7 @@ mod tests {
     use tokio::sync::RwLock;
 
     use crate::server::ServerState;
+    use glean::server_events::GleanEventsLogger;
     use syncstorage_db::mock::{MockDb, MockDbPool};
 
     use crate::web::auth::HawkPayload;
@@ -1775,6 +1776,13 @@ mod tests {
     fn make_state() -> ServerState {
         let syncserver_settings = GlobalSettings::default();
         let syncstorage_settings = SyncstorageSettings::default();
+        let glean_logger = Arc::new(GleanEventsLogger {
+            // app_id corresponds to probe-scraper entry.
+            // https://github.com/mozilla/probe-scraper/blob/main/repositories.yaml
+            app_id: "syncstorage".to_owned(),
+            app_display_version: env!("CARGO_PKG_VERSION").to_owned(),
+            app_channel: "prod".to_owned(),
+        });
         ServerState {
             db_pool: Box::new(MockDbPool::new()),
             limits: Arc::clone(&SERVER_LIMITS),
@@ -1788,6 +1796,8 @@ mod tests {
             .unwrap(),
             quota_enabled: syncstorage_settings.enable_quota,
             deadman: Arc::new(RwLock::new(Deadman::default())),
+            glean_logger,
+            glean_enabled: syncstorage_settings.glean_enabled,
         }
     }
 
