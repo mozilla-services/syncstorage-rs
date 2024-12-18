@@ -29,10 +29,7 @@ class TestCase:
         cls._build_auth_headers = cls._build_oauth_headers
 
     def setUp(self):
-        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
-        self.database = engine. \
-            execution_options(isolation_level='AUTOCOMMIT'). \
-            connect()
+        self._db_connect()
 
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
         self.app = TestApp(self.TOKENSERVER_HOST, extra_environ={
@@ -54,8 +51,11 @@ class TestCase:
 
         # Ensure we have a node with enough capacity to run the tests.
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
+        self.database.close()
 
     def tearDown(self):
+        self._db_connect()
+
         # And clean up at the end, for good measure.
         cursor = self._execute_sql(('DELETE FROM users'), ())
         cursor.close()
@@ -97,6 +97,7 @@ class TestCase:
 
     def _add_node(self, capacity=100, available=100, node=NODE_URL, id=None,
                   current_load=0, backoff=0, downed=0):
+        self._db_connect()
         query = 'INSERT INTO nodes (service, node, available, capacity, \
             current_load, backoff, downed'
         data = (self.service_id, node, available, capacity, current_load,
@@ -110,15 +111,18 @@ class TestCase:
 
         cursor = self._execute_sql(query, data)
         cursor.close()
+        self.database.close()
 
         return self._last_insert_id()
 
     def _get_node(self, id):
+        self._db_connect()
         query = 'SELECT * FROM nodes WHERE id=%s'
         cursor = self._execute_sql(query, (id,))
         (id, service, node, available, current_load, capacity, downed,
          backoff) = cursor.fetchone()
         cursor.close()
+        self.database.close()
 
         return {
             'id': id,
@@ -132,23 +136,28 @@ class TestCase:
         }
 
     def _last_insert_id(self):
+        self._db_connect()
         cursor = self._execute_sql('SELECT LAST_INSERT_ID()', ())
         (id,) = cursor.fetchone()
         cursor.close()
+        self.database.close()
 
         return id
 
     def _add_service(self, service_name, pattern):
+        self._db_connect()
         query = 'INSERT INTO services (service, pattern) \
             VALUES(%s, %s)'
         cursor = self._execute_sql(query, (service_name, pattern))
         cursor.close()
+        self.database.close()
 
         return self._last_insert_id()
 
     def _add_user(self, email=None, generation=1234, client_state='aaaa',
                   created_at=None, nodeid=NODE_ID, keys_changed_at=1234,
                   replaced_at=None):
+        self._db_connect()
         query = '''
             INSERT INTO users (service, email, generation, client_state, \
                 created_at, nodeid, keys_changed_at, replaced_at)
@@ -162,16 +171,19 @@ class TestCase:
                                     created_at, nodeid, keys_changed_at,
                                     replaced_at))
         cursor.close()
+        self.database.close()
 
         return self._last_insert_id()
 
     def _get_user(self, uid):
+        self._db_connect()
         query = 'SELECT * FROM users WHERE uid = %s'
         cursor = self._execute_sql(query, (uid,))
 
         (uid, service, email, generation, client_state, created_at,
          replaced_at, nodeid, keys_changed_at) = cursor.fetchone()
         cursor.close()
+        self.database.close()
 
         return {
             'uid': uid,
@@ -186,6 +198,7 @@ class TestCase:
         }
 
     def _get_replaced_users(self, service_id, email):
+        self._db_connect()
         query = 'SELECT * FROM users WHERE service = %s AND email = %s AND \
             replaced_at IS NOT NULL'
         cursor = self._execute_sql(query, (service_id, email))
@@ -209,21 +222,26 @@ class TestCase:
             users.append(user_dict)
 
         cursor.close()
+        self.database.close()
         return users
 
     def _get_service_id(self, service):
+        self._db_connect()
         query = 'SELECT id FROM services WHERE service = %s'
         cursor = self._execute_sql(query, (service,))
         (service_id,) = cursor.fetchone()
         cursor.close()
+        self.database.close()
 
         return service_id
 
     def _count_users(self):
+        self._db_connect()
         query = 'SELECT COUNT(DISTINCT(uid)) FROM users'
         cursor = self._execute_sql(query, ())
         (count,) = cursor.fetchone()
         cursor.close()
+        self.database.close()
 
         return count
 
@@ -231,6 +249,12 @@ class TestCase:
         cursor = self.database.execute(query, args)
 
         return cursor
+
+    def _db_connect(self):
+        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
+        self.database = engine. \
+            execution_options(isolation_level='AUTOCOMMIT'). \
+            connect()
 
     def unsafelyParseToken(self, token):
         # For testing purposes, don't check HMAC or anything...
