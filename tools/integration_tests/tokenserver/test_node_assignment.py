@@ -45,9 +45,11 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(self._count_users(), 1)
 
     def test_new_user_allocation(self):
+        self._db_connect()
         # Start with a clean database
         cursor = self._execute_sql('DELETE FROM nodes', ())
         cursor.close()
+        self.database.close()
 
         self._add_node(available=100, current_load=0, capacity=100, backoff=1,
                        node='https://node1')
@@ -75,9 +77,11 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(node['available'], 98)
 
     def test_successfully_releasing_node_capacity(self):
+        self._db_connect()
         # Start with a clean database
         cursor = self._execute_sql('DELETE FROM nodes', ())
         cursor.close()
+        self.database.close()
 
         node_id1 = self._add_node(available=0, current_load=99, capacity=100,
                                   node='https://node1')
@@ -118,9 +122,12 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.assertEqual(node5['available'], 0)
 
     def test_unsuccessfully_releasing_node_capacity(self):
+        self._db_connect()
+
         # Start with a clean database
         cursor = self._execute_sql('DELETE FROM nodes', ())
         cursor.close()
+        self.database.close()
 
         self._add_node(available=0, current_load=100, capacity=100,
                        node='https://node1')
