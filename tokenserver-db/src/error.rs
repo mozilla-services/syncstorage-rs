@@ -118,9 +118,14 @@ from_error!(
     |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
 );
 from_error!(
-    diesel_migrations::RunMigrationsError,
+    diesel_migrations::MigrationError,
     DbError,
-    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Sql(SqlError::from(
+    |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Sql(SqlError::from(
         error
     )))
+);
+from_error!(
+    std::boxed::Box<dyn std::error::Error + std::marker::Send + Sync>,
+    DbError,
+    |error: std::boxed::Box<dyn std::error::Error>| DbError::internal_error(error.to_string())
 );
