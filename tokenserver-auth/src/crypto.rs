@@ -24,7 +24,7 @@ pub trait Crypto {
 
     #[allow(dead_code)]
     /// Verify an HMAC signature on a payload given a shared key
-    #[test]
+    #[cfg(test)]
     fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error>;
 
     /// Generates random bytes using a cryptographic random number generator
@@ -54,7 +54,7 @@ impl Crypto for CryptoImpl {
         Ok(mac.finalize().into_bytes().to_vec())
     }
 
-    #[test]
+    #[cfg(test)]
     fn hmac_verify(&self, key: &[u8], payload: &[u8], signature: &[u8]) -> Result<(), Self::Error> {
         let mut mac: Hmac<Sha256> =
             Hmac::new_from_slice(key).map_err(|_| TokenserverError::internal_error())?;
