@@ -7,6 +7,7 @@ use diesel::{
     Connection,
 };
 use diesel_logger::LoggingConnection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
@@ -18,7 +19,7 @@ use super::{
     models::{Db, TokenserverDb},
 };
 
-embed_migrations!();
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 /// Run the diesel embedded migrations
 ///
@@ -27,7 +28,7 @@ embed_migrations!();
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = MysqlConnection::establish(database_url)?;
 
-    embedded_migrations::run(&LoggingConnection::new(conn))?;
+    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
 
     Ok(())
 }

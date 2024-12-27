@@ -14,6 +14,7 @@ use diesel::{
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::TestTransactionCustomizer;
@@ -23,7 +24,7 @@ use syncstorage_settings::{Quota, Settings};
 
 use super::{error::DbError, models::MysqlDb, DbResult};
 
-embed_migrations!();
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 /// Run the diesel embedded migrations
 ///
@@ -31,12 +32,14 @@ embed_migrations!();
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = MysqlConnection::establish(database_url)?;
+
+    // This conn2 charade is to make mut-ness the same for both cases.
     #[cfg(debug_assertions)]
-    // XXX: this doesn't show the DDL statements
-    // https://github.com/shssoichiro/diesel-logger/issues/1
-    embedded_migrations::run(&LoggingConnection::new(conn))?;
+    let mut conn2 = LoggingConnection::new(conn);
     #[cfg(not(debug_assertions))]
-    embedded_migrations::run(&conn)?;
+    let mut conn2 = conn;
+
+    conn2.run_pending_migrations(MIGRATIONS)?;
     Ok(())
 }
 
