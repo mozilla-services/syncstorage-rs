@@ -213,9 +213,10 @@ impl MysqlDb {
 
         // Lock the db
         self.begin(true)?;
+        // SyncTimestamp only has 10 ms resolution.
         let result = user_collections::table
             .select((
-                sql::<BigInt>("UNIX_TIMESTAMP(NOW(2))*1000"),
+                sql::<BigInt>("UNIX_TIMESTAMP(UTC_TIMESTAMP(2))*1000"),
                 user_collections::modified,
             ))
             .filter(user_collections::user_id.eq(user_id))
@@ -236,7 +237,7 @@ impl MysqlDb {
                 .insert((user_id as u32, collection_id), modified);
             now
         } else {
-            let result = sql_query("SELECT UNIX_TIMESTAMP(NOW(2))*1000 AS timestamp")
+            let result = sql_query("SELECT UNIX_TIMESTAMP(UTC_TIMESTAMP(2))*1000 AS timestamp")
                 .get_result::<TimestampResult>(&mut *self.conn.write().unwrap())
                 .unwrap();
             SyncTimestamp::from_i64(result.timestamp)?

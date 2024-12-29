@@ -1,5 +1,8 @@
 use base64::Engine;
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 use diesel::{
     self,
@@ -21,6 +24,8 @@ use super::{
 
 const MAXTTL: i32 = 2_100_000_000;
 
+static COUNTER: AtomicU32 = AtomicU32::new(0);
+
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -32,11 +37,9 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
     // sharding writes via (batchid % num_tables), and leaving it as zero would
     // skew the sharding distribution.
     //
-    // So we mix in the lowest digit of the uid to improve the distribution
-    // while still letting us treat these ids as millisecond timestamps.  It's
-    // yuck, but it works and it keeps the weirdness contained to this single
-    // line of code.
-    let batch_id = db.timestamp().as_i64() + (user_id % 10);
+    // We mix in a per-process counter to make batch IDs (more) unique within
+    // a timestamp.
+    let batch_id = db.timestamp().as_i64() + COUNTER.fetch_add(1, Ordering::Relaxed) as i64 % 10;
     insert_into(batch_uploads::table)
         .values((
             batch_uploads::batch_id.eq(&batch_id),
