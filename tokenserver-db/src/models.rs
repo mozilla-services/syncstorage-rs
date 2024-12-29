@@ -4,14 +4,14 @@ use diesel::{
     sql_types::{Bigint, Float, Integer, Nullable, Text},
     OptionalExtension, RunQueryDsl,
 };
-#[cfg(test)]
+#[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_db_common::{sync_db_method, DbFuture};
 
 use std::{
-    sync::Arc,
+    sync::{Arc, RwLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -25,6 +25,11 @@ use super::{
 const MAX_GENERATION: i64 = i64::MAX;
 
 type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
+
+#[cfg(not(debug_assertions))]
+type InternalConn = Conn;
+#[cfg(debug_assertions)]
+type InternalConn = LoggingConnection<Conn>; // display SQL when RUST_LOG="diesel_logger=trace"
 
 #[derive(Clone)]
 pub struct TokenserverDb {
@@ -49,10 +54,7 @@ pub struct TokenserverDb {
 unsafe impl Send for TokenserverDb {}
 
 struct DbInner {
-    #[cfg(not(test))]
-    pub(super) conn: Conn,
-    #[cfg(test)]
-    pub(super) conn: LoggingConnection<Conn>, // display SQL when RUST_LOG="diesel_logger=trace"
+    pub(super) conn: RwLock<InternalConn>,
 }
 
 impl TokenserverDb {
@@ -72,10 +74,10 @@ impl TokenserverDb {
         timeout: Option<Duration>,
     ) -> Self {
         let inner = DbInner {
-            #[cfg(not(test))]
-            conn,
-            #[cfg(test)]
-            conn: LoggingConnection::new(conn),
+            #[cfg(not(debug_assertions))]
+            conn: RwLock::new(conn),
+            #[cfg(debug_assertions)]
+            conn: RwLock::new(LoggingConnection::new(conn)),
         };
 
         // https://github.com/mozilla-services/syncstorage-rs/issues/1480
@@ -107,7 +109,7 @@ impl TokenserverDb {
             diesel::sql_query(QUERY)
                 .bind::<Integer, _>(params.service_id)
                 .bind::<Text, _>(&params.node)
-                .get_result(&self.inner.conn)
+                .get_result(&mut *self.inner.conn.write().unwrap())
                 .map_err(Into::into)
         }
     }
@@ -131,7 +133,7 @@ impl TokenserverDb {
             .bind::<Integer, _>(&params.service_id)
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.replaced_at)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -149,7 +151,7 @@ impl TokenserverDb {
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Integer, _>(params.service_id)
             .bind::<Bigint, _>(params.uid)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -183,7 +185,7 @@ impl TokenserverDb {
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.generation)
             .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -206,17 +208,18 @@ impl TokenserverDb {
             .bind::<Bigint, _>(user.created_at)
             .bind::<Bigint, _>(user.node_id)
             .bind::<Nullable<Bigint>, _>(user.keys_changed_at)
-            .execute(&self.inner.conn)?;
+            .execute(&mut *self.inner.conn.write().unwrap())?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
             .bind::<Text, _>(&user.email)
-            .get_result::<results::PostUser>(&self.inner.conn)
+            .get_result::<results::PostUser>(&mut *self.inner.conn.write().unwrap())
             .map_err(Into::into)
     }
 
     fn check_sync(&self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
-        let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&self.inner.conn)?;
+        let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"")
+            .execute(&mut *self.inner.conn.write().unwrap())?;
         Ok(result as u64 > 0)
     }
 
@@ -255,7 +258,7 @@ impl TokenserverDb {
         if let Some(spanner_node_id) = self.spanner_node_id {
             diesel::sql_query(SPANNER_QUERY)
                 .bind::<Integer, _>(spanner_node_id)
-                .get_result::<results::GetBestNode>(&self.inner.conn)
+                .get_result::<results::GetBestNode>(&mut *self.inner.conn.write().unwrap())
                 .map_err(|e| {
                     let mut db_error =
                         DbError::internal(format!("unable to get Spanner node: {}", e));
@@ -268,7 +271,7 @@ impl TokenserverDb {
             for _ in 0..5 {
                 let maybe_result = diesel::sql_query(GET_BEST_NODE_QUERY)
                     .bind::<Integer, _>(params.service_id)
-                    .get_result::<results::GetBestNode>(&self.inner.conn)
+                    .get_result::<results::GetBestNode>(&mut *self.inner.conn.write().unwrap())
                     .optional()?;
 
                 if let Some(result) = maybe_result {
@@ -284,7 +287,7 @@ impl TokenserverDb {
                             .unwrap_or(DEFAULT_CAPACITY_RELEASE_RATE),
                     )
                     .bind::<Integer, _>(params.service_id)
-                    .execute(&self.inner.conn)?;
+                    .execute(&mut *self.inner.conn.write().unwrap())?;
 
                 // If no nodes were affected by the last query, give up.
                 if affected_rows == 0 {
@@ -328,7 +331,7 @@ impl TokenserverDb {
         diesel::sql_query(query)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(&params.node)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -351,7 +354,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Text, _>(&params.email)
             .bind::<Integer, _>(params.service_id)
-            .load::<results::GetRawUser>(&self.inner.conn)
+            .load::<results::GetRawUser>(&mut *self.inner.conn.write().unwrap())
             .map_err(Into::into)
     }
 
@@ -530,7 +533,7 @@ impl TokenserverDb {
         } else {
             diesel::sql_query(QUERY)
                 .bind::<Text, _>(params.service)
-                .get_result::<results::GetServiceId>(&self.inner.conn)
+                .get_result::<results::GetServiceId>(&mut *self.inner.conn.write().unwrap())
                 .map_err(Into::into)
         }
     }
@@ -548,7 +551,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.created_at)
             .bind::<Bigint, _>(&params.uid)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -566,7 +569,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Bigint, _>(&params.uid)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -581,7 +584,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
-            .get_result::<results::GetUser>(&self.inner.conn)
+            .get_result::<results::GetUser>(&mut *self.inner.conn.write().unwrap())
             .map_err(Into::into)
     }
 
@@ -599,10 +602,10 @@ impl TokenserverDb {
             .bind::<Integer, _>(params.capacity)
             .bind::<Integer, _>(params.downed)
             .bind::<Integer, _>(params.backoff)
-            .execute(&self.inner.conn)?;
+            .execute(&mut *self.inner.conn.write().unwrap())?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::PostNode>(&self.inner.conn)
+            .get_result::<results::PostNode>(&mut *self.inner.conn.write().unwrap())
             .map_err(Into::into)
     }
 
@@ -616,7 +619,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
-            .get_result::<results::GetNode>(&self.inner.conn)
+            .get_result::<results::GetNode>(&mut *self.inner.conn.write().unwrap())
             .map_err(Into::into)
     }
 
@@ -636,7 +639,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(current_time)
             .bind::<Bigint, _>(params.node_id)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -647,7 +650,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.node_id)
-            .execute(&self.inner.conn)
+            .execute(&mut *self.inner.conn.write().unwrap())
             .map(|_| ())
             .map_err(Into::into)
     }
@@ -662,10 +665,10 @@ impl TokenserverDb {
         diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
-            .execute(&self.inner.conn)?;
+            .execute(&mut *self.inner.conn.write().unwrap())?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::LastInsertId>(&self.inner.conn)
+            .get_result::<results::LastInsertId>(&mut *self.inner.conn.write().unwrap())
             .map(|result| results::PostService {
                 id: result.id as i32,
             })

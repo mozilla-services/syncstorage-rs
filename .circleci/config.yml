@@ -251,6 +251,38 @@ jobs:
           paths:
             - /home/circleci/cache
 
+  build-mysql-libmariadb-image:
+    docker:
+      - image: cimg/rust:1.78.0  # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - display-versions
+      - write-version
+      - run:
+          name: Build MySQL Docker image with libmariadb
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=mysql --build-arg MYSQLCLIENTPKG=libmariadb-dev .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*mysql.yaml /home/circleci/cache
+      - save_cache:
+          key: mysql-libmariadb-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
   build-spanner-image:
     docker:
       - image: cimg/rust:1.78.0  # RUST_VER
@@ -294,6 +326,25 @@ jobs:
       - display-versions
       - restore_cache:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
+      - run-e2e-mysql-tests
+
+  mysql-libmariadb-e2e-tests:
+    docker:
+      - image: docker/compose:1.24.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+          key: mysql-libmariadb-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -416,6 +467,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - build-mysql-libmariadb-image:
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /.*/
       - build-spanner-image:
           requires:
             - build-and-test
@@ -428,6 +485,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - mysql-libmariadb-e2e-tests:
+          requires:
+            - build-mysql-libmariadb-image
+          filters:
+            tags:
+              only: /.*/
       - spanner-e2e-tests:
           requires:
             - build-spanner-image
@@ -437,6 +500,7 @@ workflows:
       - deploy:
           requires:
             - mysql-e2e-tests
+            - mysql-libmariadb-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
@@ -447,6 +511,7 @@ workflows:
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests
+            - mysql-libmariadb-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
