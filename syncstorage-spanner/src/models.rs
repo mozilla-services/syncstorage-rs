@@ -1011,8 +1011,8 @@ impl SpannerDb {
         // Also deletes child bsos/batch rows (INTERLEAVE IN PARENT
         // user_collections ON DELETE CASCADE)
         let (sqlparams, sqlparam_types) = params! {
-            "fxa_uid" => user_id.fxa_uid,
-            "fxa_kid" => user_id.fxa_kid
+            "fxa_uid" => user_id.fxa_uid.clone(),
+            "fxa_kid" => user_id.fxa_kid.clone()
         };
         self.sql(
             "DELETE FROM user_collections
@@ -1023,6 +1023,7 @@ impl SpannerDb {
         .param_types(sqlparam_types)
         .execute_dml_async(&self.conn)
         .await?;
+        batch::delete_for_user_async(self, user_id).await?;
         Ok(())
     }
 
