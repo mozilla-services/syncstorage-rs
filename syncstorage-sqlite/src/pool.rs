@@ -85,6 +85,7 @@ impl SqliteDbPool {
             .connection_timeout(Duration::from_secs(
                 settings.database_pool_connection_timeout.unwrap_or(30) as u64,
             ))
+            .idle_timeout(Some(Duration::from_secs(1))) // FIXME: This one should only be enabled in testing sqlite
             .min_idle(settings.database_pool_min_idle);
 
         #[cfg(debug_assertions)]
