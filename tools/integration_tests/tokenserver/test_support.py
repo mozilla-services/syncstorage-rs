@@ -10,6 +10,7 @@ import time
 import urllib.parse as urlparse
 
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
 
@@ -251,7 +252,8 @@ class TestCase:
         return cursor
 
     def _db_connect(self):
-        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
+        time.sleep(2)  # FIXME: Don't waste time like that
+        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'], poolclass=NullPool)
         self.database = engine. \
             execution_options(isolation_level='AUTOCOMMIT'). \
             connect()
