@@ -13,6 +13,13 @@ See [FxA Auth Server Docs](https://github.com/mozilla/fxa-auth-server/blob/maste
 
 ---
 
+## Status
+    - Running as Kubernetes Workload as part of deployment in `sync-prod` as: `tokenserver-prod-sync-app-1-process-account-events`.
+    - See YAML configuration when editing configuration.
+    - See Kubernetes Engine Workload Panel in [`sync-prod`](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
+
+---
+
 ## Supported Event Types
 
 The script processes the following event types:
