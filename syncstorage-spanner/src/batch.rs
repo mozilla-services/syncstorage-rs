@@ -167,25 +167,6 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> DbResu
     Ok(())
 }
 
-pub async fn delete_for_user_async(db: &SpannerDb, user_id: UserIdentifier) -> DbResult<()> {
-    let (sqlparams, sqlparam_types) = params! {
-        "fxa_uid" => user_id.fxa_uid.clone(),
-        "fxa_kid" => user_id.fxa_kid.clone(),
-    };
-    // Also deletes child batch_bsos rows (INTERLEAVE IN PARENT batches ON
-    // DELETE CASCADE)
-    db.sql(
-        "DELETE FROM batches
-          WHERE fxa_uid = @fxa_uid
-            AND fxa_kid = @fxa_kid",
-    )?
-    .params(sqlparams)
-    .param_types(sqlparam_types)
-    .execute_dml_async(&db.conn)
-    .await?;
-    Ok(())
-}
-
 pub async fn commit_async(
     db: &SpannerDb,
     params: params::CommitBatch,

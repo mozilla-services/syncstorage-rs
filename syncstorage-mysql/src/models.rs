@@ -302,16 +302,15 @@ impl MysqlDb {
     }
 
     fn delete_storage_sync(&self, user_id: UserIdentifier) -> DbResult<()> {
-        let user_id_i64 = user_id.legacy_id as i64;
+        let user_id = user_id.legacy_id as i64;
         // Delete user data.
         delete(bso::table)
-            .filter(bso::user_id.eq(user_id_i64))
+            .filter(bso::user_id.eq(user_id))
             .execute(&mut *self.conn.write().unwrap())?;
         // Delete user collections.
         delete(user_collections::table)
-            .filter(user_collections::user_id.eq(user_id_i64))
+            .filter(user_collections::user_id.eq(user_id))
             .execute(&mut *self.conn.write().unwrap())?;
-        batch::delete_for_user(self, user_id)?;
         Ok(())
     }
 

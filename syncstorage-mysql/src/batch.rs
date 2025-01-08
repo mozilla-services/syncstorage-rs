@@ -135,18 +135,6 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
     Ok(())
 }
 
-/// Cleans up uncommitted batch data for the user
-pub fn delete_for_user(db: &MysqlDb, user_id: UserIdentifier) -> DbResult<()> {
-    let user_id = user_id.legacy_id as i64;
-    diesel::delete(batch_uploads::table)
-        .filter(batch_uploads::user_id.eq(&user_id))
-        .execute(&mut *db.conn.write().unwrap())?;
-    diesel::delete(batch_upload_items::table)
-        .filter(batch_upload_items::user_id.eq(&user_id))
-        .execute(&mut *db.conn.write().unwrap())?;
-    Ok(())
-}
-
 /// Commits a batch to the bsos table, deleting the batch when succesful
 pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
