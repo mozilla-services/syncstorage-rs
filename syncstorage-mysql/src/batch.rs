@@ -46,7 +46,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
             batch_uploads::user_id.eq(&user_id),
             batch_uploads::collection_id.eq(&collection_id),
         ))
-        .execute(&mut *db.conn.write().unwrap())
+        .execute(&mut *db.conn.write()?)
         .map_err(|e| -> DbError {
             match e {
                 // The user tried to create two batches with the same timestamp
@@ -77,7 +77,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .get_result::<i32>(&mut *db.conn.write().unwrap())
+        .get_result::<i32>(&mut *db.conn.write()?)
         .optional()?;
     Ok(exists.is_some())
 }
@@ -127,11 +127,11 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .execute(&mut *db.conn.write().unwrap())?;
+        .execute(&mut *db.conn.write()?)?;
     diesel::delete(batch_upload_items::table)
         .filter(batch_upload_items::batch_id.eq(&batch_id))
         .filter(batch_upload_items::user_id.eq(&user_id))
-        .execute(&mut *db.conn.write().unwrap())?;
+        .execute(&mut *db.conn.write()?)?;
     Ok(())
 }
 
@@ -151,7 +151,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::Co
         .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .execute(&mut *db.conn.write().unwrap())?;
+        .execute(&mut *db.conn.write()?)?;
 
     db.update_collection(user_id as u32, collection_id, None)?;
 
@@ -211,7 +211,7 @@ pub fn do_append(
     )
     .bind::<BigInt, _>(user_id.legacy_id as i64)
     .bind::<BigInt, _>(batch_id)
-    .get_results::<ExistsResult>(&mut *db.conn.write().unwrap())?
+    .get_results::<ExistsResult>(&mut *db.conn.write()?)?
     {
         existing.insert(exist_idx(
             user_id.legacy_id,
@@ -235,7 +235,7 @@ pub fn do_append(
                 payload_size,
                 ttl_offset: bso.ttl.map(|ttl| ttl as i32),
             })
-            .execute(&mut *db.conn.write().unwrap())?;
+            .execute(&mut *db.conn.write()?)?;
         } else {
             diesel::insert_into(batch_upload_items::table)
                 .values((
@@ -247,7 +247,7 @@ pub fn do_append(
                     batch_upload_items::payload_size.eq(payload_size),
                     batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
                 ))
-                .execute(&mut *db.conn.write().unwrap())?;
+                .execute(&mut *db.conn.write()?)?;
             // make sure to include the key into our table check.
             existing.insert(exist_idx);
         }

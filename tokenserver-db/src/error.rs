@@ -129,3 +129,9 @@ from_error!(
     DbError,
     |error: std::boxed::Box<dyn std::error::Error>| DbError::internal_error(error.to_string())
 );
+
+impl<Guard> From<std::sync::PoisonError<Guard>> for DbError {
+    fn from(inner: std::sync::PoisonError<Guard>) -> DbError {
+        DbError::internal_error(inner.to_string())
+    }
+}

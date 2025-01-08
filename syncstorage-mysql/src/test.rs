@@ -58,7 +58,7 @@ fn static_collection_id() -> DbResult<()> {
         .filter(collections::name.ne(""))
         .filter(collections::name.ne("xxx_col2")) // from server::test
         .filter(collections::name.ne("col2")) // from older intergration tests
-        .load(&mut *db.inner.conn.write().unwrap())?
+        .load(&mut *db.inner.conn.write()?)?
         .into_iter()
         .collect();
     assert_eq!(results.len(), cols.len(), "mismatched columns");
