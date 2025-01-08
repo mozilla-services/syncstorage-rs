@@ -84,35 +84,14 @@ class TestStorage(StorageFunctionalTestCase):
     def setUp(self):
         super(TestStorage, self).setUp()
         self.root = "/1.5/%d" % (self.user_id,)
-        self.dirty_users = {(self.user_id, self.auth_token, self.auth_secret)}
-
-    def tearDown(self):
         # Reset the storage to a known state, aka "empty".
-        orig_user_id = self.user_id
-        orig_auth_token = self.auth_token
-        orig_auth_secret = self.auth_secret
-
-        try:
-            for (user_id, auth_token, auth_secret) in self.dirty_users:
-                self.user_id = user_id
-                self.auth_token = auth_token
-                self.auth_secret = auth_secret
-
-                root = "/1.5/%d" % (self.user_id,)
-                self.retry_delete(root)
-        finally:
-            self.user_id = orig_user_id
-            self.auth_token = orig_auth_token
-            self.auth_secret = orig_auth_secret
+        self.retry_delete(self.root)
 
     @contextlib.contextmanager
     def _switch_user(self):
         orig_root = self.root
         try:
             with super(TestStorage, self)._switch_user():
-                self.dirty_users.add(
-                    (self.user_id, self.auth_token, self.auth_secret),
-                )
                 self.root = "/1.5/%d" % (self.user_id,)
                 yield
         finally:
