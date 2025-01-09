@@ -26,7 +26,7 @@ enum SqlErrorKind {
     Pool(diesel::r2d2::PoolError),
 
     #[error("Error migrating the database: {}", _0)]
-    Migration(diesel_migrations::RunMigrationsError),
+    Migration(diesel_migrations::MigrationError),
 }
 
 impl From<SqlErrorKind> for SqlError {
@@ -75,7 +75,7 @@ from_error!(
 );
 from_error!(diesel::r2d2::PoolError, SqlError, SqlErrorKind::Pool);
 from_error!(
-    diesel_migrations::RunMigrationsError,
+    diesel_migrations::MigrationError,
     SqlError,
     SqlErrorKind::Migration
 );

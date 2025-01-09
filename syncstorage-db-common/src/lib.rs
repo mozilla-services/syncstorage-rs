@@ -230,7 +230,6 @@ pub trait Db: Debug {
     }
 
     /// Internal methods used by the db tests
-
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error>;
 
     fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error>;

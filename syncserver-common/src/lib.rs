@@ -69,7 +69,6 @@ pub trait ReportableError: std::fmt::Display + std::fmt::Debug {
     /// [ReportableError] if it implements the trait. Otherwise callers of this
     /// method will likely subsequently call [Error::source] to return the
     /// source (if any) as the parent [Error] trait.
-
     fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
         None
     }
