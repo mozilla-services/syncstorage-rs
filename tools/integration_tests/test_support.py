@@ -4,33 +4,34 @@
 """ Base test class, with an instanciated app.
 """
 
+import binascii
 import contextlib
+import csv
 import functools
-from konfig import Config, SettingsDict
-import hawkauthlib
-import os
 import optparse
+import os
+import random
+import re
+import sys
+import time
+
+# unittest imported by pytest requirement
+import unittest
+import urllib.parse as urlparse
+import uuid
+from collections import defaultdict
+
+import hawkauthlib
+import tokenlib
+from konfig import Config, SettingsDict
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.config import Configurator
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.request import Request
 from pyramid.util import DottedNameResolver
 from pyramid_hawkauth import HawkAuthenticationPolicy
-import random
-import re
-import csv
-import binascii
-from collections import defaultdict
-import sys
-import time
-import tokenlib
-import urllib.parse as urlparse
-# unittest imported by pytest requirement
-import unittest
-import uuid
 from webtest import TestApp
 from zope.interface import implementer
-
 
 global_secret = None
 VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
@@ -80,10 +81,7 @@ class Secrets(object):
         with open(filename, "wb") as f:
             writer = csv.writer(f, delimiter=",")
             for node, secrets in self._secrets.items():
-                secrets = [
-                    "%s:%s" % (timestamp, secret)
-                    for timestamp, secret in secrets
-                ]
+                secrets = ["%s:%s" % (timestamp, secret) for timestamp, secret in secrets]
                 secrets.insert(0, node)
                 writer.writerow(secrets)
 
@@ -182,9 +180,7 @@ def get_test_configurator(root, ini_file="tests.ini"):
     config = get_configurator({"__file__": ini_path})
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
-    authn_policy = TokenServerAuthenticationPolicy.from_settings(
-        config.get_settings()
-    )
+    authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
     config.set_authentication_policy(authn_policy)
     return config
 
@@ -255,9 +251,7 @@ class TestCase(unittest.TestCase):
                 self.ini_file = self.TEST_INI_FILE
             else:
                 # The file to use may be specified in the environment.
-                self.ini_file = os.environ.get(
-                    "MOZSVC_TEST_INI_FILE", "tests.ini"
-                )
+                self.ini_file = os.environ.get("MOZSVC_TEST_INI_FILE", "tests.ini")
         __file__ = sys.modules[self.__class__.__module__].__file__
         config = get_test_configurator(__file__, self.ini_file)
         config.begin()
@@ -546,7 +540,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
-                secrets[name[len(secrets_prefix):]] = settings.pop(name)
+                secrets[name[len(secrets_prefix) :]] = settings.pop(name)
         kwds["secrets"] = secrets
         return kwds
 
@@ -831,9 +825,7 @@ def run_live_functional_tests(TestCaseClass, argv=None):
         action="store_true",
         help="the given URL is a tokenserver, not an endpoint",
     )
-    parser.add_option(
-        "", "--email", help="email address to use for tokenserver tests"
-    )
+    parser.add_option("", "--email", help="email address to use for tokenserver tests")
     parser.add_option(
         "",
         "--audience",

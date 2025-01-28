@@ -2,12 +2,12 @@
 #
 
 import argparse
-import logging
 import base64
 import binascii
 import csv
-import sys
+import logging
 import os
+import sys
 from datetime import datetime
 
 
@@ -19,7 +19,7 @@ def tick(count):
         mark = "."
     level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
-        print(mark, end='', flush=True)
+        print(mark, end="", flush=True)
 
 
 class Report:
@@ -55,14 +55,17 @@ class FxA_Generate:
     ``mysql -e "select uid, email, generation, keys_changed_at, \
        client_state from users;" > users.csv`
     """
+
     users = []
     anon = False
 
     def __init__(self, args, report):
-        logging.info("Processing token file: {} into {}".format(
-            args.users_file,
-            args.output_file,
-        ))
+        logging.info(
+            "Processing token file: {} into {}".format(
+                args.users_file,
+                args.output_file,
+            )
+        )
         output_file = open(args.output_file, "w")
         output_file.write("uid\tfxa_uid\tfxa_kid\n")
         if not os.path.isfile(args.users_file):
@@ -71,16 +74,16 @@ class FxA_Generate:
             try:
                 line = 0
                 success = 0
-                for (uid, email, generation,
-                     keys_changed_at, client_state) in csv.reader(
-                        csv_file, delimiter="\t"):
+                for uid, email, generation, keys_changed_at, client_state in csv.reader(
+                    csv_file, delimiter="\t"
+                ):
                     line += 1
-                    if uid == 'uid':
+                    if uid == "uid":
                         # skip the header row.
                         continue
                     tick(line)
                     try:
-                        fxa_uid = email.split('@')[0]
+                        fxa_uid = email.split("@")[0]
                         try:
                             keys_changed_at = int(keys_changed_at)
                         except ValueError:
@@ -92,17 +95,11 @@ class FxA_Generate:
                             generation = 0
 
                         if (keys_changed_at or generation) == 0:
-                            logging.warn(
-                                "user {} has no k_c_a or "
-                                "generation value".format(
-                                    uid))
+                            logging.warn("user {} has no k_c_a or " "generation value".format(uid))
                         # trap for actually blank values
-                        if client_state is None or client_state == '':
+                        if client_state is None or client_state == "":
                             logging.error(
-                                "User {} "
-                                "has an invalid, empty client state".format(
-                                    uid
-                                )
+                                "User {} " "has an invalid, empty client state".format(uid)
                             )
                             report.fail(uid, "invalid client state")
                             continue
@@ -110,37 +107,27 @@ class FxA_Generate:
                             client_state = binascii.unhexlify(client_state)
                         except binascii.Error:
                             logging.error(
-                                "User {} has "
-                                "invalid client state: {}".format(
-                                    uid, client_state
-                                ))
+                                "User {} has " "invalid client state: {}".format(uid, client_state)
+                            )
                             report.fail(uid, "bad client state")
                             continue
                         fxa_kid = self.format_key_id(
-                            int(keys_changed_at or generation),
-                            client_state
-                            )
-                        logging.debug("Adding user {} => {} , {}".format(
-                            uid, fxa_uid, fxa_kid
-                        ))
-                        output_file.write(
-                            "{}\t{}\t{}\n".format(
-                                uid, fxa_uid, fxa_kid))
+                            int(keys_changed_at or generation), client_state
+                        )
+                        logging.debug("Adding user {} => {} , {}".format(uid, fxa_uid, fxa_kid))
+                        output_file.write("{}\t{}\t{}\n".format(uid, fxa_uid, fxa_kid))
                         success += 1
                     except Exception as ex:
-                        logging.error(
-                            "User {} Unexpected error".format(uid),
-                            exc_info=ex)
+                        logging.error("User {} Unexpected error".format(uid), exc_info=ex)
                         report.fail(uid, "unexpected error")
             except Exception as ex:
-                logging.critical("Error in fxa file around line {}".format(
-                    line), exc_info=ex)
+                logging.critical("Error in fxa file around line {}".format(line), exc_info=ex)
         print("")
         logging.info("Processed {} users, {} successful".format(line, success))
 
     # The following two functions are taken from browserid.utils
     def encode_bytes_b64(self, value):
-        return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
+        return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
     def format_key_id(self, keys_changed_at, key_hash):
         return "{:013d}-{}".format(
@@ -151,35 +138,26 @@ class FxA_Generate:
 
 def get_args():
     pid = os.getpid()
-    parser = argparse.ArgumentParser(
-        description="Generate FxA user id info")
+    parser = argparse.ArgumentParser(description="Generate FxA user id info")
     parser.add_argument(
-        '--users_file',
-        default="users.csv",
-        help="FXA User info in CSV format (default users.csv)"
+        "--users_file", default="users.csv", help="FXA User info in CSV format (default users.csv)"
     )
     parser.add_argument(
-        '--output_file',
+        "--output_file",
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
-        help="List of FxA users."
+        help="List of FxA users.",
+    )
+    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument("--quiet", action="store_true", help="silence logging")
+    parser.add_argument(
+        "--success_file",
+        default="success_fxa_user.log".format(pid),
+        help="File of successfully migrated userids",
     )
     parser.add_argument(
-        '--verbose',
-        action="store_true",
-        help="verbose logging"
-    )
-    parser.add_argument(
-        '--quiet',
-        action="store_true",
-        help="silence logging"
-    )
-    parser.add_argument(
-        '--success_file', default="success_fxa_user.log".format(pid),
-        help="File of successfully migrated userids"
-    )
-    parser.add_argument(
-        '--failure_file', default="failure_fxa_user.log".format(pid),
-        help="File of unsuccessfully migrated userids"
+        "--failure_file",
+        default="failure_fxa_user.log".format(pid),
+        help="File of unsuccessfully migrated userids",
     )
     return parser.parse_args()
 
