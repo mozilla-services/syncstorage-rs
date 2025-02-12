@@ -9,11 +9,10 @@ import math
 import time
 import urllib.parse as urlparse
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, test, event
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import close_all_sessions
-from sqlalchemy import event
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
 
@@ -260,7 +259,7 @@ class TestCase:
 
     def _execute_sql(self, query, args):
         cursor = self.database.cursor()
-        cursor.execute(query, args)
+        cursor.execute(text(query), args)
         return cursor
 
 
