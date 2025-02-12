@@ -32,7 +32,9 @@ def get_args():
         "--schema", default="sync.avsc", help="Database schema description"
     )
     parser.add_argument("--output", default="output.avso", help="Output file")
-    parser.add_argument("--limit", type=int, default=1500000, help="Limit to n rows")
+    parser.add_argument(
+        "--limit", type=int, default=1500000, help="Limit to n rows"
+    )
     return parser.parse_args()
 
 

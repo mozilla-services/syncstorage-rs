@@ -74,9 +74,13 @@ class FxA_Generate:
             try:
                 line = 0
                 success = 0
-                for uid, email, generation, keys_changed_at, client_state in csv.reader(
-                    csv_file, delimiter="\t"
-                ):
+                for (
+                    uid,
+                    email,
+                    generation,
+                    keys_changed_at,
+                    client_state,
+                ) in csv.reader(csv_file, delimiter="\t"):
                     line += 1
                     if uid == "uid":
                         # skip the header row.
@@ -103,7 +107,9 @@ class FxA_Generate:
                         if client_state is None or client_state == "":
                             logging.error(
                                 "User {} "
-                                "has an invalid, empty client state".format(uid)
+                                "has an invalid, empty client state".format(
+                                    uid
+                                )
                             )
                             report.fail(uid, "invalid client state")
                             continue
@@ -112,7 +118,9 @@ class FxA_Generate:
                         except binascii.Error:
                             logging.error(
                                 "User {} has "
-                                "invalid client state: {}".format(uid, client_state)
+                                "invalid client state: {}".format(
+                                    uid, client_state
+                                )
                             )
                             report.fail(uid, "bad client state")
                             continue
@@ -120,9 +128,13 @@ class FxA_Generate:
                             int(keys_changed_at or generation), client_state
                         )
                         logging.debug(
-                            "Adding user {} => {} , {}".format(uid, fxa_uid, fxa_kid)
+                            "Adding user {} => {} , {}".format(
+                                uid, fxa_uid, fxa_kid
+                            )
                         )
-                        output_file.write("{}\t{}\t{}\n".format(uid, fxa_uid, fxa_kid))
+                        output_file.write(
+                            "{}\t{}\t{}\n".format(uid, fxa_uid, fxa_kid)
+                        )
                         success += 1
                     except Exception as ex:
                         logging.error(
@@ -131,7 +143,8 @@ class FxA_Generate:
                         report.fail(uid, "unexpected error")
             except Exception as ex:
                 logging.critical(
-                    "Error in fxa file around line {}".format(line), exc_info=ex
+                    "Error in fxa file around line {}".format(line),
+                    exc_info=ex,
                 )
         print("")
         logging.info("Processed {} users, {} successful".format(line, success))
@@ -160,7 +173,9 @@ def get_args():
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
         help="List of FxA users.",
     )
-    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument(
+        "--verbose", action="store_true", help="verbose logging"
+    )
     parser.add_argument("--quiet", action="store_true", help="silence logging")
     parser.add_argument(
         "--success_file",

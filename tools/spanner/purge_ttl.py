@@ -127,7 +127,9 @@ def spanner_purge(args):
 
     for prefix in prefixes:
         logging.info(
-            "For {}:{}, prefix = {}".format(args.instance_id, args.database_id, prefix)
+            "For {}:{}, prefix = {}".format(
+                args.instance_id, args.database_id, prefix
+            )
         )
 
         if args.mode in ["batches", "both"]:
@@ -151,7 +153,9 @@ def spanner_purge(args):
         if args.mode in ["bsos", "both"]:
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
-                args, "DELETE FROM bsos WHERE {}".format(expiry_condition), prefix
+                args,
+                "DELETE FROM bsos WHERE {}".format(expiry_condition),
+                prefix,
             )
             deleter(
                 database,
@@ -222,7 +226,9 @@ def get_args():
         help="Choose the timestamp used to check if an entry is expired",
     )
     parser.add_argument(
-        "--dryrun", action="store_true", help="Do not purge user records from spanner"
+        "--dryrun",
+        action="store_true",
+        help="Do not purge user records from spanner",
     )
     args = parser.parse_args()
 
@@ -257,4 +263,6 @@ if __name__ == "__main__":
 
         end_time = datetime.now()
         duration = end_time - start_time
-        logging.info("Completed purge_ttl.py, total_duration: {}".format(duration))
+        logging.info(
+            "Completed purge_ttl.py, total_duration: {}".format(duration)
+        )

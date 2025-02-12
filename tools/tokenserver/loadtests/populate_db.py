@@ -57,7 +57,9 @@ _SERVICE_NAME = "sync-1.5"
 class PopulateDatabase:
     def __init__(self, sqluri, nodes, user_range, host="loadtest.local"):
         engine = create_engine(sqluri)
-        self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
+        self.database = engine.execution_options(
+            isolation_level="AUTOCOMMIT"
+        ).connect()
 
         self.service_id = self._get_service_id()
         self.node_ids = [self._get_node_id(node) for node in nodes]

@@ -60,7 +60,9 @@ class TokenserverTestUser(HttpUser):
 
     @task(100)
     def test_invalid_oauth(self):
-        token = self._make_oauth_token(self.email, key=INVALID_OAUTH_PRIVATE_KEY)
+        token = self._make_oauth_token(
+            self.email, key=INVALID_OAUTH_PRIVATE_KEY
+        )
 
         self._do_token_exchange_via_oauth(token, status=401)
 

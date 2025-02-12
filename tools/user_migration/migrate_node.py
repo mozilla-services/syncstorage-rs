@@ -109,7 +109,9 @@ class FXA_info:
         with open(users_file) as csv_file:
             try:
                 line = 0
-                for uid, fxa_uid, fxa_kid in csv.reader(csv_file, delimiter="\t"):
+                for uid, fxa_uid, fxa_kid in csv.reader(
+                    csv_file, delimiter="\t"
+                ):
                     line += 1
                     tick(line)
                     if uid == "uid":
@@ -127,15 +129,20 @@ class FXA_info:
                         report.fail(uid, "unexpected error")
             except Exception as ex:
                 logging.critical(
-                    "Error in fxa file around line {}".format(line), exc_info=ex
+                    "Error in fxa file around line {}".format(line),
+                    exc_info=ex,
                 )
 
     def get(self, userid):
         if userid in self.users:
             return self.users[userid]
         if self.anon:
-            fxa_uid = "fake_" + binascii.hexlify(os.urandom(11)).decode("utf-8")
-            fxa_kid = "fake_" + binascii.hexlify(os.urandom(11)).decode("utf-8")
+            fxa_uid = "fake_" + binascii.hexlify(os.urandom(11)).decode(
+                "utf-8"
+            )
+            fxa_kid = "fake_" + binascii.hexlify(os.urandom(11)).decode(
+                "utf-8"
+            )
             self.users[userid] = (fxa_kid, fxa_uid)
             return (fxa_kid, fxa_uid)
 
@@ -195,14 +202,18 @@ class Collections:
                 )
                 for collection_id, name in rows:
                     logging.debug(
-                        "Loading collection: {} => {}".format(name, collection_id)
+                        "Loading collection: {} => {}".format(
+                            name, collection_id
+                        )
                     )
                     self._by_name[name] = collection_id
             cursor.execute(sql)
             for collection_id, name in cursor:
                 if name not in self._by_name:
                     logging.debug(
-                        "Adding collection: {} => {}".format(name, collection_id)
+                        "Adding collection: {} => {}".format(
+                            name, collection_id
+                        )
                     )
                     values = [(collection_id, name)]
                     self._by_name[name] = collection_id
@@ -211,7 +222,9 @@ class Collections:
                         self.spanner.run_in_transaction(transact, values)
                     except AlreadyExists:
                         logging.info(
-                            "Skipping already present collection {}".format(values)
+                            "Skipping already present collection {}".format(
+                                values
+                            )
                         )
                         pass
         finally:
@@ -223,7 +236,9 @@ class Collections:
         id = self._by_name.get(name)
         if id is None:
             logging.warn(
-                "Unknown collection {}:{} encountered!".format(name, collection_id)
+                "Unknown collection {}:{} encountered!".format(
+                    name, collection_id
+                )
             )
             # it would be swell to add these to the collection table,
             # but that would mean
@@ -372,7 +387,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         AND uc.fxa_kid = @fxa_kid
             """,
             params=dict(fxa_uid=fxa_uid, fxa_kid=fxa_kid),
-            param_types=dict(fxa_uid=param_types.STRING, fxa_kid=param_types.STRING),
+            param_types=dict(
+                fxa_uid=param_types.STRING, fxa_kid=param_types.STRING
+            ),
         )
         cols = [(row[0], row[1]) for row in result]
         if not args.dryrun:
@@ -418,10 +435,14 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                 ]
                 if not args.dryrun:
                     transaction.insert(
-                        "user_collections", columns=uc_columns, values=uc_values
+                        "user_collections",
+                        columns=uc_columns,
+                        values=uc_values,
                     )
                 else:
-                    logging.debug("not writing {} => {}".format(uc_columns, uc_values))
+                    logging.debug(
+                        "not writing {} => {}".format(uc_columns, uc_values)
+                    )
                 unique_key_filter.add(uc_key)
 
     def spanner_transact_bso(transaction, data, fxa_uid, fxa_kid, args):
@@ -464,15 +485,20 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             )
             for i in range(0, 5):
                 try:
-                    transaction.insert("bsos", columns=bso_columns, values=bso_values)
+                    transaction.insert(
+                        "bsos", columns=bso_columns, values=bso_values
+                    )
                     break
                 except grpc._channel_._InactiveRpcError as ex:
                     logging.warn(
-                        "Could not write record (attempt {})".format(i), exc_info=ex
+                        "Could not write record (attempt {})".format(i),
+                        exc_info=ex,
                     )
                     time.sleep(0.5)
         else:
-            logging.debug("not writing {} => {}".format(bso_columns, bso_values))
+            logging.debug(
+                "not writing {} => {}".format(bso_columns, bso_values)
+            )
         return count
 
     cursor = databases["mysql"].cursor()
@@ -503,7 +529,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             data.append(row)
         if args.abort:
             logging.info(
-                "Skipped {} of {} rows for {}".format(abort_count, col_count, abort_col)
+                "Skipped {} of {} rows for {}".format(
+                    abort_count, col_count, abort_col
+                )
             )
         logging.info(
             "Moving {} items for user {} => {}:{}".format(
@@ -540,7 +568,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                 args,
             )
             if args.ms_delay > 0:
-                logging.debug("Sleeping for {} seconds".format(args.ms_delay * 0.01))
+                logging.debug(
+                    "Sleeping for {} seconds".format(args.ms_delay * 0.01)
+                )
                 time.sleep(args.ms_delay * 0.01)
 
     except AlreadyExists:
@@ -565,7 +595,8 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     except Exception as ex:
         report.fail(uid, "unexpected batch error")
         logging.error(
-            "Unexpected Batch failure: {}:{}".format(fxa_uid, fxa_kid), exc_info=ex
+            "Unexpected Batch failure: {}:{}".format(fxa_uid, fxa_kid),
+            exc_info=ex,
         )
     finally:
         # cursor may complain about unread data, this should prevent
@@ -658,17 +689,27 @@ def move_database(databases, collections, bso_num, fxa, args, report):
 def get_args():
     pid = os.getpid()
     today = datetime.now().strftime("%Y_%m_%d")
-    parser = argparse.ArgumentParser(description="move user from sql to spanner")
-    parser.add_argument(
-        "--dsns", default="move_dsns.lst", help="file of new line separated DSNs"
+    parser = argparse.ArgumentParser(
+        description="move user from sql to spanner"
     )
-    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument(
+        "--dsns",
+        default="move_dsns.lst",
+        help="file of new line separated DSNs",
+    )
+    parser.add_argument(
+        "--verbose", action="store_true", help="verbose logging"
+    )
     parser.add_argument("--quiet", action="store_true", help="silence logging")
     parser.add_argument(
         "--offset", type=int, default=0, help="UID to start at (default 0)"
     )
-    parser.add_argument("--full", action="store_true", help="force a full reconcile")
-    parser.add_argument("--anon", action="store_true", help="Anonymize the user data")
+    parser.add_argument(
+        "--full", action="store_true", help="force a full reconcile"
+    )
+    parser.add_argument(
+        "--anon", action="store_true", help="Anonymize the user data"
+    )
     parser.add_argument(
         "--start_bso",
         default=0,
@@ -692,9 +733,13 @@ def get_args():
         default=1666,
         help="how many rows per transaction for spanner (default: 1666)",
     )
-    parser.add_argument("--user", type=str, help="BSO#:userId[,userid,...] to move.")
     parser.add_argument(
-        "--retry_file", type=str, help="Copy of failure file to read user IDs to retry."
+        "--user", type=str, help="BSO#:userId[,userid,...] to move."
+    )
+    parser.add_argument(
+        "--retry_file",
+        type=str,
+        help="Copy of failure file to read user IDs to retry.",
     )
     parser.add_argument(
         "--wipe_user",
@@ -715,10 +760,14 @@ def get_args():
         " the `--user` option; default: fxa_users_{}.lst)".format(today),
     )
     parser.add_argument(
-        "--dryrun", action="store_true", help="Do not write user records to spanner"
+        "--dryrun",
+        action="store_true",
+        help="Do not write user records to spanner",
     )
     parser.add_argument(
-        "--abort", type=str, help="abort data in col after #rows (e.g. history:10)"
+        "--abort",
+        type=str,
+        help="abort data in col after #rows (e.g. history:10)",
     )
     parser.add_argument(
         "--user_percent",
@@ -777,7 +826,9 @@ def main():
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
     if args.retry_file:
-        (args.start_bso, args.end_bso, args.user) = report.read_failure(args.retry_file)
+        (args.start_bso, args.end_bso, args.user) = report.read_failure(
+            args.retry_file
+        )
     if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
@@ -797,8 +848,12 @@ def main():
     for bso_num in range(args.start_bso, args.end_bso + 1):
         logging.info("Moving users in bso # {}".format(bso_num))
         report.bso = bso_num
-        rows += move_database(databases, collections, bso_num, fxa_info, args, report)
-    logging.info("Moved: {} rows in {} seconds".format(rows or 0, time.time() - start))
+        rows += move_database(
+            databases, collections, bso_num, fxa_info, args, report
+        )
+    logging.info(
+        "Moved: {} rows in {} seconds".format(rows or 0, time.time() - start)
+    )
 
 
 if __name__ == "__main__":

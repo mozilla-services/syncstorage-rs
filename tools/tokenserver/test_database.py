@@ -216,7 +216,10 @@ class TestDatabase(unittest.TestCase):
 
     def test_node_reassignment_when_records_are_replaced(self):
         self.database.allocate_user(
-            "test@mozilla.com", generation=42, keys_changed_at=12, client_state="aaaa"
+            "test@mozilla.com",
+            generation=42,
+            keys_changed_at=12,
+            client_state="aaaa",
         )
         user1 = self.database.get_user("test@mozilla.com")
         self.database.replace_user_records("test@mozilla.com")
@@ -242,8 +245,12 @@ class TestDatabase(unittest.TestCase):
     def test_recovery_from_racy_record_creation(self):
         timestamp = get_timestamp()
         # Simulate race for forcing creation of two rows with same timestamp.
-        user1 = self.database.allocate_user("test@mozilla.com", timestamp=timestamp)
-        user2 = self.database.allocate_user("test@mozilla.com", timestamp=timestamp)
+        user1 = self.database.allocate_user(
+            "test@mozilla.com", timestamp=timestamp
+        )
+        user2 = self.database.allocate_user(
+            "test@mozilla.com", timestamp=timestamp
+        )
         self.assertNotEqual(user1["uid"], user2["uid"])
         # Neither is marked replaced initially.
         old_records = list(self.database.get_old_user_records(0))
@@ -326,7 +333,9 @@ class TestDatabase(unittest.TestCase):
         )
         self.assertNotEqual(user1["uid"], user2["uid"])
         # Force node re-assignment by marking all records as replaced.
-        self.database.replace_user_records("test@mozilla.com", timestamp=timestamp + 1)
+        self.database.replace_user_records(
+            "test@mozilla.com", timestamp=timestamp + 1
+        )
         # The next client to show up should get a new assignment, marked
         # with the correct generation number.
         user = self.database.get_user("test@mozilla.com")
@@ -375,7 +384,9 @@ class TestDatabase(unittest.TestCase):
 
     def test_that_record_cleanup_frees_slots_on_the_node(self):
         node = "https://phx12"
-        self.database.update_node(node, capacity=10, available=1, current_load=9)
+        self.database.update_node(
+            node, capacity=10, available=1, current_load=9
+        )
         # We should only be able to allocate one more user to that node.
         user = self.database.allocate_user("test1@mozilla.com")
         self.assertEqual(user["node"], node)
@@ -389,7 +400,9 @@ class TestDatabase(unittest.TestCase):
 
     def test_gradual_release_of_node_capacity(self):
         node1 = "https://phx12"
-        self.database.update_node(node1, capacity=8, available=1, current_load=4)
+        self.database.update_node(
+            node1, capacity=8, available=1, current_load=4
+        )
         node2 = "https://phx13"
         self.database.add_node(node2, capacity=6, available=1, current_load=4)
         # Two allocations should succeed without update, one on each node.

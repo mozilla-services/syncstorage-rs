@@ -151,7 +151,12 @@ class TestScripts(unittest.TestCase):
 
         filename = "/tmp/" + str(uuid.uuid4())
         try:
-            args = ["--output", filename, "--timestamp", str(timestamp - 10000)]
+            args = [
+                "--output",
+                filename,
+                "--timestamp",
+                str(timestamp - 10000),
+            ]
             count_users_script(args=args)
 
             with open(filename) as f:
