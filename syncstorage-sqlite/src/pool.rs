@@ -22,7 +22,7 @@ use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use syncstorage_sql_db_common::error::DbError;
 
-use super::{models::SqliteDb, DbResult};
+use super::{wal::WALTransactionCustomizer, models::SqliteDb, DbResult};
 
 embed_migrations!();
 
@@ -85,11 +85,15 @@ impl SqliteDbPool {
             .connection_timeout(Duration::from_secs(
                 settings.database_pool_connection_timeout.unwrap_or(30) as u64,
             ))
-            .idle_timeout(Some(Duration::from_secs(1))) // FIXME: This one should only be enabled in testing sqlite
-            .min_idle(settings.database_pool_min_idle);
+            // NOTE: Even with WAL we don't want more than one connection
+            // This ignores settings.database_pool_min_idle
+            .min_idle(Some(0))
+            .connection_customizer(Box::new(WALTransactionCustomizer));
 
         #[cfg(debug_assertions)]
         let builder = if settings.database_use_test_transactions {
+            // NOTE: E2E tests might not be able to run with test transactions
+            // This is untested
             builder.connection_customizer(Box::new(TestTransactionCustomizer))
         } else {
             builder
@@ -108,6 +112,13 @@ impl SqliteDbPool {
         })
     }
 
+    /// Spawn a task to periodically evict idle connections. Calls wrapper sweeper fn
+    ///  to use pool.retain, retaining objects only if they are shorter in duration than
+    ///  defined max_idle. Noop for mysql impl.
+    pub fn spawn_sweeper(&self, _interval: Duration) {
+        sweeper()
+    }
+
     pub fn get_sync(&self) -> DbResult<SqliteDb> {
         Ok(SqliteDb::new(
             self.pool.get()?,
@@ -118,6 +129,13 @@ impl SqliteDbPool {
         ))
     }
 }
+
+/// Sweeper to retain only the objects specified within the closure.
+/// In this context, if a Spanner connection is unutilized, we want it
+/// to release the given connections.
+/// See: https://docs.rs/deadpool/latest/deadpool/managed/struct.Pool.html#method.retain
+/// Noop for sql impl
+fn sweeper() {}
 
 #[async_trait]
 impl DbPool for SqliteDbPool {

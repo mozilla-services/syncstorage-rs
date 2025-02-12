@@ -11,6 +11,7 @@ mod diesel_ext;
 mod models;
 mod pool;
 mod schema;
+mod wal;
 #[cfg(test)]
 mod test;
 
