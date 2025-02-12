@@ -869,12 +869,11 @@ def run_live_functional_tests(TestCaseClass, argv=None):
     os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
 
     # Now use the unittest2 runner to execute them.
-    suite = unittest.TestSuite()
     import test_storage
 
     test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
-    suite.addTest(unittest.findTestCases(test_storage, test_prefix))
-    # suite.addTest(unittest.makeSuite(LiveTestCases, prefix=test_prefix))
+    unittest.defaultTestLoader.loadTestsFromName(test_prefix, module=test_storage)
+    suite = unittest.defaultTestLoader.suiteClass()
     runner = unittest.TextTestRunner(
         stream=sys.stderr,
         failfast=opts.failfast,
