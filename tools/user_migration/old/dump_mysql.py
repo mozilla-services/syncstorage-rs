@@ -53,11 +53,19 @@ def get_args():
     )
     parser.add_argument("--output", default="output.avso", help="Output file")
     parser.add_argument(
-        "--limit", type=int, default=1500000, help="Limit each read chunk to n rows"
+        "--limit",
+        type=int,
+        default=1500000,
+        help="Limit each read chunk to n rows",
     )
-    parser.add_argument("--offset", type=int, default=0, help="UID to start at")
     parser.add_argument(
-        "--deanon", action="store_false", dest="anon", help="Anonymize the user data"
+        "--offset", type=int, default=0, help="UID to start at"
+    )
+    parser.add_argument(
+        "--deanon",
+        action="store_false",
+        dest="anon",
+        help="Anonymize the user data",
     )
     parser.add_argument(
         "--start_bso", default=0, type=int, help="start dumping BSO database"
@@ -66,10 +74,14 @@ def get_args():
         "--end_bso", type=int, default=19, help="last BSO database to dump"
     )
     parser.add_argument(
-        "--token_file", default="users.csv", help="token user database dump CSV"
+        "--token_file",
+        default="users.csv",
+        help="token user database dump CSV",
     )
     parser.add_argument(
-        "--skip_collections", action="store_false", help="skip user_collections table"
+        "--skip_collections",
+        action="store_false",
+        help="skip user_collections table",
     )
 
     return parser.parse_args()
@@ -116,9 +128,13 @@ def read_in_token_file(filename):
     # or static files.
     print("Processing token file...")
     with open(filename) as csv_file:
-        for uid, email, generation, keys_changed_at, client_state in csv.reader(
-            csv_file, delimiter="\t"
-        ):
+        for (
+            uid,
+            email,
+            generation,
+            keys_changed_at,
+            client_state,
+        ) in csv.reader(csv_file, delimiter="\t"):
             if uid == "uid":
                 # skip the header row.
                 continue
@@ -232,7 +248,11 @@ def dump_rows(bso_number, chunk_offset, db, writer, args):
             )
             row_count += 1
             if (chunk_offset + row_count) % 1000 == 0:
-                print("BSO:{} Row: {}".format(bso_number, chunk_offset + row_count))
+                print(
+                    "BSO:{} Row: {}".format(
+                        bso_number, chunk_offset + row_count
+                    )
+                )
             if row_count >= MAX_ROWS:
                 break
     except Exception as e:
@@ -267,9 +287,15 @@ def dump_data(bso_number, schema, dsn, args):
         out_file_name = "{}_{}_{}.{}".format(
             out_file[0], bso_number, hex(chunk), out_file[1]
         )
-        writer = DataFileWriter(open(out_file_name, "wb"), DatumWriter(), schema)
+        writer = DataFileWriter(
+            open(out_file_name, "wb"), DatumWriter(), schema
+        )
         rows = dump_rows(
-            bso_number=bso_number, chunk_offset=offset, db=db, writer=writer, args=args
+            bso_number=bso_number,
+            chunk_offset=offset,
+            db=db,
+            writer=writer,
+            args=args,
         )
         writer.close()
         if rows == 0:

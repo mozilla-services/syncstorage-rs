@@ -81,11 +81,15 @@ class BSO_Users:
             logging.info("Reading fxa_user data.")
             with open(args.fxa_users_file) as csv_file:
                 line = 0
-                for uid, fxa_uid, fxa_kid in csv.reader(csv_file, delimiter="\t"):
+                for uid, fxa_uid, fxa_kid in csv.reader(
+                    csv_file, delimiter="\t"
+                ):
                     if uid == "uid":
                         continue
                     tick(line)
-                    logging.debug("Read: {} {}:{}".format(uid, fxa_uid, fxa_kid))
+                    logging.debug(
+                        "Read: {} {}:{}".format(uid, fxa_uid, fxa_kid)
+                    )
                     self.users[int(uid)] = (fxa_uid, fxa_kid)
                     line += 1
             print("")
@@ -120,7 +124,9 @@ class BSO_Users:
                     if self.args.hoard_limit and count > self.args.hoard_limit:
                         logging.warn(
                             "User {} => {}:{} has too "
-                            "many items: {} ".format(uid, fxa_uid, fxa_kid, count)
+                            "many items: {} ".format(
+                                uid, fxa_uid, fxa_kid, count
+                            )
                         )
                         self.report.fail(uid, "hoarder {}".format(count))
                         continue
@@ -128,7 +134,10 @@ class BSO_Users:
                 except TypeError:
                     self.report.fail(uid, "not found")
                     logging.error(
-                        ("User {} not found in " "tokenserver data".format(uid))
+                        (
+                            "User {} not found in "
+                            "tokenserver data".format(uid)
+                        )
                     )
             if self.args.sort_users:
                 logging.info("Sorting users...")
@@ -170,30 +179,45 @@ def get_args():
     pid = os.getpid()
     parser = argparse.ArgumentParser(description="Generate BSO user list")
     parser.add_argument(
-        "--dsns", default="move_dsns.lst", help="file of new line separated DSNs"
+        "--dsns",
+        default="move_dsns.lst",
+        help="file of new line separated DSNs",
     )
-    parser.add_argument("--start_bso", default=0, help="Start of BSO range (default 0)")
+    parser.add_argument(
+        "--start_bso", default=0, help="Start of BSO range (default 0)"
+    )
     parser.add_argument(
         "--end_bso", default=19, help="End of BSO range inclusive (default 19)"
     )
     parser.add_argument(
-        "--bso_num", type=int, default=0, help="Only read from this bso (default num)"
+        "--bso_num",
+        type=int,
+        default=0,
+        help="Only read from this bso (default num)",
     )
     parser.add_argument(
         "--output_file",
-        default="bso_users_#_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
+        default="bso_users_#_{}.lst".format(
+            datetime.now().strftime("%Y_%m_%d")
+        ),
         help="List of BSO users.",
     )
-    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument(
+        "--verbose", action="store_true", help="verbose logging"
+    )
     parser.add_argument("--quiet", action="store_true", help="silence logging")
-    parser.add_argument("--user_range", help="Range of users to extract (offset:limit)")
+    parser.add_argument(
+        "--user_range", help="Range of users to extract (offset:limit)"
+    )
     parser.add_argument(
         "--hoard_limit",
         type=int,
         default=0,
         help="reject any user with more than this count of records",
     )
-    parser.add_argument("--sort_users", action="store_true", help="Sort the user")
+    parser.add_argument(
+        "--sort_users", action="store_true", help="Sort the user"
+    )
     parser.add_argument(
         "--success_file",
         default="success_bso_user.log".format(pid),
@@ -209,7 +233,9 @@ def get_args():
         default="fxa_users_{}.lst".format(datetime.now().strftime("%Y_%m_%d")),
         help="List of pre-generated FxA users.",
     )
-    parser.add_argument("--threading", action="store_true", help="use threading")
+    parser.add_argument(
+        "--threading", action="store_true", help="use threading"
+    )
     return parser.parse_args()
 
 

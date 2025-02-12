@@ -90,9 +90,13 @@ class Collections:
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description="move user from sql to spanner")
+    parser = argparse.ArgumentParser(
+        description="move user from sql to spanner"
+    )
     parser.add_argument(
-        "--dsns", default="move_dsns.lst", help="file of new line separated DSNs"
+        "--dsns",
+        default="move_dsns.lst",
+        help="file of new line separated DSNs",
     )
     parser.add_argument(
         "--users",
@@ -102,9 +106,13 @@ def get_args():
     parser.add_argument(
         "--token_dsn", help="DSN to the token server database (optional)"
     )
-    parser.add_argument("--verbose", action="store_true", help="verbose logging")
+    parser.add_argument(
+        "--verbose", action="store_true", help="verbose logging"
+    )
     parser.add_argument("--quiet", action="store_true", help="silence logging")
-    parser.add_argument("--full", action="store_true", help="force a full reconcile")
+    parser.add_argument(
+        "--full", action="store_true", help="force a full reconcile"
+    )
     return parser.parse_args()
 
 
@@ -166,7 +174,9 @@ def update_token(databases, user):
             WHERE
             uid = {uid}
             """.format(
-                timestamp=int(time.time() * 100), nodeid=SPANNER_NODE_ID, uid=user
+                timestamp=int(time.time() * 100),
+                nodeid=SPANNER_NODE_ID,
+                uid=user,
             )
         )
         databases["token"].commit()
@@ -202,7 +212,9 @@ def get_fxa_id(databases, user):
     try:
         cursor = databases.get("token", databases["mysql"]).cursor()
         cursor.execute(sql)
-        (email, generation, keys_changed_at, client_state, node) = cursor.next()
+        (email, generation, keys_changed_at, client_state, node) = (
+            cursor.next()
+        )
         fxa_uid = email.split("@")[0]
         fxa_kid = format_key_id(
             keys_changed_at or generation,
@@ -266,7 +278,8 @@ def mark_user(databases, user, state=MigrationState.IN_PROGRESS):
         if state == MigrationState.COMPLETE:
             logging.info("Marking {} as migrating...".format(user))
             mysql.execute(
-                "UPDATE migration SET state = %s WHERE fxa_uid = %s", (state, user)
+                "UPDATE migration SET state = %s WHERE fxa_uid = %s",
+                (state, user),
             )
             databases["mysql"].commit()
     finally:
@@ -400,7 +413,9 @@ def move_user(databases, user, args):
                 )
             ]
             logging.debug("### uc: {}".format(uc_columns, uc_values))
-            transaction.insert("user_collections", columns=uc_columns, values=uc_values)
+            transaction.insert(
+                "user_collections", columns=uc_columns, values=uc_values
+            )
         # add the BSO values.
         if args.full and collection_id == META_GLOBAL_COLLECTION_ID:
             pay = alter_syncids(pay)
@@ -424,7 +439,9 @@ def move_user(databases, user, args):
     try:
         # Note: cursor() does not support __enter__()
         mysql.execute(sql, (user,))
-        logging.info("Processing... {} -> {}:{}".format(user, fxa_uid, fxa_kid))
+        logging.info(
+            "Processing... {} -> {}:{}".format(user, fxa_uid, fxa_kid)
+        )
         for col, cid, bid, exp, mod, pay, sid in mysql:
             databases["spanner"].run_in_transaction(spanner_transact)
             update_token(databases, user)
@@ -443,7 +460,9 @@ def move_user(databases, user, args):
         mark_user(user, MigrationState.COMPLETE)
     except AlreadyExists:
         logging.warn(
-            "User already imported fxa_uid:{} / fxa_kid:{}".format(fxa_uid, fxa_kid)
+            "User already imported fxa_uid:{} / fxa_kid:{}".format(
+                fxa_uid, fxa_kid
+            )
         )
     except Exception as e:
         logging.error("### batch failure:", e)
@@ -495,7 +514,9 @@ def main():
 
     logging.info("Starting:")
     rows = move_data(databases, users, args)
-    logging.info("Moved: {} rows in {} seconds".format(rows or 0, time.time() - start))
+    logging.info(
+        "Moved: {} rows in {} seconds".format(rows or 0, time.time() - start)
+    )
 
 
 if __name__ == "__main__":

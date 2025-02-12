@@ -42,7 +42,10 @@ def main(args=None):
     descr = "Add a new node to the tokenserver database"
     parser = optparse.OptionParser(usage=usage, description=descr)
     parser.add_option(
-        "", "--available", type="int", help="How many user slots the node has available"
+        "",
+        "--available",
+        type="int",
+        help="How many user slots the node has available",
     )
     parser.add_option(
         "",
@@ -51,7 +54,10 @@ def main(args=None):
         help="How many user slots the node has occupied",
     )
     parser.add_option(
-        "", "--downed", action="store_true", help="Mark the node as down in the db"
+        "",
+        "--downed",
+        action="store_true",
+        help="Mark the node as down in the db",
     )
     parser.add_option(
         "",
