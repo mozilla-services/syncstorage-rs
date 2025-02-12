@@ -56,7 +56,7 @@ def count_users(outfile, timestamp=None):
         "op": "sync_count_users",
         "total_users": count,
         "time": datetime.fromtimestamp(ts_sec, utc).isoformat(),
-        "v": 0
+        "v": 0,
     }
     json.dump(output, outfile)
     outfile.write("\n")
@@ -71,12 +71,20 @@ def main(args=None):
     usage = "usage: %prog [options]"
     descr = "Count total users in the tokenserver database"
     parser = optparse.OptionParser(usage=usage, description=descr)
-    parser.add_option("-t", "--timestamp", type="int",
-                      help="Max creation timestamp; default previous midnight")
-    parser.add_option("-o", "--output",
-                      help="Output file; default stderr")
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
+    parser.add_option(
+        "-t",
+        "--timestamp",
+        type="int",
+        help="Max creation timestamp; default previous midnight",
+    )
+    parser.add_option("-o", "--output", help="Output file; default stderr")
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 0:

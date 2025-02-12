@@ -23,7 +23,8 @@ from utils import ids_from_env, Mode
 logging.basicConfig(
     format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
     stream=sys.stdout,
-    level=logging.INFO)
+    level=logging.INFO,
+)
 
 # Change these to match your install.
 client = spanner.Client()
@@ -40,10 +41,13 @@ def deleter(database: Database,
         start = datetime.now()
         result = 0
         if not dryrun:
-            result = database.execute_partitioned_dml(query, params=params, param_types=param_types)
+            result = database.execute_partitioned_dml(
+                query, params=params, param_types=param_types
+            )
         end = datetime.now()
         logging.info(
-            f"{name}: removed {result} rows, {name}_duration: {end - start}, prefix: {prefix}")
+            f"{name}: removed {result} rows, {name}_duration: {end - start}, prefix: {prefix}"
+        )
 
 def add_conditions(args, query: str, prefix: Optional[str]):
     """
@@ -61,19 +65,18 @@ def add_conditions(args, query: str, prefix: Optional[str]):
             query += " AND collection_id"
             if len(ids) == 1:
                 query += " = @collection_id".format(ids[0])
-                params['collection_id'] = ids[0]
-                types['collection_id'] = param_types.INT64
+                params["collection_id"] = ids[0]
+                types["collection_id"] = param_types.INT64
             else:
-                for count,id in enumerate(ids):
-                    name = f'collection_id_{count}'
+                for count, id in enumerate(ids):
+                    name = "collection_id_{}".format(count)
                     params[name] = id
                     types[name] = param_types.INT64
-                query += " in (@{})".format(
-                    ', @'.join(params.keys()))
+                query += " in (@{})".format(", @".join(params.keys()))
     if prefix:
-        query += ' AND STARTS_WITH(fxa_uid, @prefix)'.format(prefix)
-        params['prefix'] = prefix
-        types['prefix'] = param_types.STRING
+        query += " AND STARTS_WITH(fxa_uid, @prefix)".format(prefix)
+        params["prefix"] = prefix
+        types["prefix"] = param_types.STRING
     return (query, params, types)
 
 
@@ -84,7 +87,7 @@ def get_expiry_condition(args):
     :return: A SQL snippet to use in the WHERE clause
     """
     if args.expiry_mode == "now":
-        return 'expiry < CURRENT_TIMESTAMP()'
+        return "expiry < CURRENT_TIMESTAMP()"
     elif args.expiry_mode == "midnight":
         return 'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
     else:
@@ -112,19 +115,22 @@ def spanner_purge(args) -> None:
     expiry_condition = get_expiry_condition(args)
     if args.auto_split:
         args.uid_prefixes = [
-            hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
-                0, 16 ** args.auto_split)]
+            hex(i).lstrip("0x").zfill(args.auto_split)
+            for i in range(0, 16**args.auto_split)
+        ]
     prefixes = args.uid_prefixes if args.uid_prefixes else [None]
 
     for prefix in prefixes:
-        logging.info(f"For {args.instance_id}:{args.database_id}, prefix = {prefix}")
+        logging.info(
+            "For {}:{}, prefix = {}".format(args.instance_id, args.database_id, prefix)
+        )
 
         if args.mode in ["batches", "both"]:
             # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
             # IN PARENT batches ON DELETE CASCADE)
             (batch_query, params, types) = add_conditions(
                 args,
-                f'DELETE FROM batches WHERE {expiry_condition}',
+                "DELETE FROM batches WHERE {}".format(expiry_condition),
                 prefix,
             )
             deleter(
@@ -180,13 +186,13 @@ def get_args():
         "-i",
         "--instance_id",
         default=os.environ.get("INSTANCE_ID", "spanner-test"),
-        help="Spanner instance ID"
+        help="Spanner instance ID",
     )
     parser.add_argument(
         "-d",
         "--database_id",
         default=os.environ.get("DATABASE_ID", "sync_schema3"),
-        help="Spanner Database ID"
+        help="Spanner Database ID",
     )
     parser.add_argument(
         "-p",
@@ -198,14 +204,14 @@ def get_args():
         "-u",
         "--sync_database_url",
         default=os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL"),
-        help="Spanner Database DSN"
+        help="Spanner Database DSN",
     )
     parser.add_argument(
         "--collection_ids",
         "--ids",
         type=parse_args_list,
         default=os.environ.get("COLLECTION_IDS", "[]"),
-        help="Array of collection IDs to purge"
+        help="Array of collection IDs to purge",
     )
     parser.add_argument(
         "--uid_prefixes",
@@ -213,34 +219,32 @@ def get_args():
         type=parse_args_list,
         default=os.environ.get("PURGE_UID_PREFIXES", "[]"),
         help="Array of strings used to limit purges based on UID. "
-             "Each entry is a separate purge run."
+        "Each entry is a separate purge run.",
     )
     parser.add_argument(
         "--auto_split",
         type=int,
         default=os.environ.get("PURGE_AUTO_SPLIT"),
         help="""Automatically generate `uid_prefixes` for this many digits, """
-          """(e.g. `3` would produce """
-          """`uid_prefixes=["000","001","002",...,"fff"])"""
+        """(e.g. `3` would produce """
+        """`uid_prefixes=["000","001","002",...,"fff"])""",
     )
     parser.add_argument(
         "--mode",
         type=str,
         choices=["batches", "bsos", "both"],
         default=os.environ.get("PURGE_MODE", "both"),
-        help="Purge TTLs in batches, bsos, or both"
+        help="Purge TTLs in batches, bsos, or both",
     )
     parser.add_argument(
         "--expiry_mode",
         type=str,
         choices=["now", "midnight"],
         default=os.environ.get("PURGE_EXPIRY_MODE", "midnight"),
-        help="Choose the timestamp used to check if an entry is expired"
+        help="Choose the timestamp used to check if an entry is expired",
     )
     parser.add_argument(
-        '--dryrun',
-        action="store_true",
-        help="Do not purge user records from spanner"
+        "--dryrun", action="store_true", help="Do not purge user records from spanner"
     )
     args = parser.parse_args()
 
