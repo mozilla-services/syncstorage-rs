@@ -56,8 +56,8 @@ tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
-validator = "0.18"
-validator_derive = "0.18"
+validator = "0.19"
+validator_derive = "0.19"
 woothee = "0.13"
 
 [features]
