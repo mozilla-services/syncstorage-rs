@@ -22,7 +22,7 @@ use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use syncstorage_sql_db_common::error::DbError;
 
-use super::{wal::WALTransactionCustomizer, models::SqliteDb, DbResult};
+use super::{models::SqliteDb, wal::WALTransactionCustomizer, DbResult};
 
 embed_migrations!();
 
