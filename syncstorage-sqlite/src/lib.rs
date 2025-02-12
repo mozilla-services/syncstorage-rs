@@ -11,9 +11,9 @@ mod diesel_ext;
 mod models;
 mod pool;
 mod schema;
-mod wal;
 #[cfg(test)]
 mod test;
+mod wal;
 
 pub use models::SqliteDb;
 pub use pool::SqliteDbPool;
