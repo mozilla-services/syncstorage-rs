@@ -9,7 +9,7 @@ import math
 import time
 import urllib.parse as urlparse
 
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, event
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import close_all_sessions
@@ -47,13 +47,13 @@ class TestCase:
         )
 
         # Start each test with a blank slate.
-        cursor = self._execute_sql(("DELETE FROM users"), {})
+        cursor = self._execute_sql("DELETE FROM users", {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM nodes"), {})
+        cursor = self._execute_sql("DELETE FROM nodes", {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM services"), {})
+        cursor = self._execute_sql("DELETE FROM services", {})
         cursor.close()
 
         self.service_id = self._add_service("sync-1.5", r"{node}/1.5/{uid}")
@@ -66,13 +66,13 @@ class TestCase:
 
     def tearDown(self):
         # And clean up at the end, for good measure.
-        cursor = self._execute_sql(("DELETE FROM users"), {})
+        cursor = self._execute_sql("DELETE FROM users", {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM nodes"), {})
+        cursor = self._execute_sql("DELETE FROM nodes", {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM services"), {})
+        cursor = self._execute_sql("DELETE FROM services", {})
         cursor.close()
 
         # Ensure that everything is saved in db
@@ -134,10 +134,10 @@ class TestCase:
         }
 
         if id:
-            query += ", id) VALUES(:service_id, :node, :available, :capacity, :current_load, :backoff, :downed, :id)"
+            query += ", id) VALUES(@service_id, @node, @available, @capacity, @current_load, @backoff, @downed, @id)"
             data["id"] = id
         else:
-            query += ") VALUES(:service_id, :node, :available, :capacity, :current_load, :backoff, :downed)"
+            query += ") VALUES(@service_id, @node, @available, @capacity, @current_load, @backoff, @downed)"
 
         cursor = self._execute_sql(query, data)
         cursor.close()
@@ -146,7 +146,7 @@ class TestCase:
         return self._last_insert_id()
 
     def _get_node(self, id):
-        query = "SELECT * FROM nodes WHERE id=:id"
+        query = "SELECT * FROM nodes WHERE id = @id"
         cursor = self._execute_sql(query, {"id": id})
         (id, service, node, available, current_load, capacity, downed, backoff) = (
             cursor.fetchone()
@@ -178,7 +178,7 @@ class TestCase:
 
     def _add_service(self, service_name, pattern):
         query = "INSERT INTO services (service, pattern) \
-            VALUES(:service_name, :pattern)"
+            VALUES(@service_name, @pattern)"
         cursor = self._execute_sql(
             query, {"service_name": service_name, "pattern": pattern}
         )
@@ -200,7 +200,7 @@ class TestCase:
         query = """
             INSERT INTO users (service, email, generation, client_state, \
                 created_at, nodeid, keys_changed_at, replaced_at)
-            VALUES (:service_id, :email, :generation, :client_state, :created_at, :nodeid, :keys_changed_at, :replaced_at);
+            VALUES (@service_id, @email, @generation, @client_state, @created_at, @nodeid, @keys_changed_at, @replaced_at);
         """
         created_at = created_at or math.trunc(time.time() * 1000)
         cursor = self._execute_sql(
@@ -222,7 +222,7 @@ class TestCase:
         return self._last_insert_id()
 
     def _get_user(self, uid):
-        query = "SELECT * FROM users WHERE uid = :uid"
+        query = "SELECT * FROM users WHERE uid = @uid"
         cursor = self._execute_sql(query, {"uid": uid})
 
         (
@@ -252,7 +252,7 @@ class TestCase:
         }
 
     def _get_replaced_users(self, service_id, email):
-        query = "SELECT * FROM users WHERE service = :service_id AND email = :email AND \
+        query = "SELECT * FROM users WHERE service = @service_id AND email = @email AND \
             replaced_at IS NOT NULL"
         cursor = self._execute_sql(query, {"service_id": service_id, "email": email})
 
@@ -288,7 +288,7 @@ class TestCase:
         return users
 
     def _get_service_id(self, service):
-        query = "SELECT id FROM services WHERE service = :service"
+        query = "SELECT id FROM services WHERE service = @service"
         cursor = self._execute_sql(query, {"service": service})
         (service_id,) = cursor.fetchone()
         cursor.close()
@@ -307,7 +307,7 @@ class TestCase:
 
     def _execute_sql(self, query, args):
         cursor = self.database.cursor()
-        cursor.execute(text(query), args)
+        cursor.execute(query, args)
         return cursor
 
     def _db_connect(self):
