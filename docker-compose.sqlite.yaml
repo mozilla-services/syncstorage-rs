@@ -28,13 +28,13 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - sqlite_data:/data/
+      - sqlite_data:
     environment:
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_SYNCSTORAGE__DATABASE_URL: sqlite:////data/syncserverdb.sqlite
+      SYNC_SYNCSTORAGE__DATABASE_URL: sqlite:///syncserverdb.sqlite
       SYNC_SYNCSTORAGE__DATABASE_POOL_MIN_IDLE: 0
-      SYNC_TOKENSERVER__DATABASE_URL: sqlite:////data/tokenserverdb.sqlite
+      SYNC_TOKENSERVER__DATABASE_URL: sqlite:///tokenserverdb.sqlite
       SYNC_TOKENSERVER__DATABASE_POOL_MIN_IDLE: 0
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
 
