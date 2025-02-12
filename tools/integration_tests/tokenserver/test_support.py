@@ -9,7 +9,7 @@ import math
 import time
 import urllib.parse as urlparse
 
-from sqlalchemy import create_engine, test, event
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import close_all_sessions
