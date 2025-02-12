@@ -123,10 +123,14 @@ def process_account_event(database, body, metrics=None):
                 database.retire_user(email)
             elif event_type == "reset":
                 logger.info("Processing account reset for %r", email)
-                update_generation_number(database, email, generation, metrics=metrics)
+                update_generation_number(
+                    database, email, generation, metrics=metrics
+                )
             elif event_type == "passwordChange":
                 logger.info("Processing password change for %r", email)
-                update_generation_number(database, email, generation, metrics=metrics)
+                update_generation_number(
+                    database, email, generation, metrics=metrics
+                )
             else:
                 record_metric = False
                 logger.warning("Dropping unknown event type %r", event_type)

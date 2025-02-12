@@ -44,7 +44,10 @@ def get_args():
         description="Create a hawk header for use in testing"
     )
     parser.add_argument(
-        "--uid", type=int, default=LEGACY_UID, help="Legacy UID ({})".format(LEGACY_UID)
+        "--uid",
+        type=int,
+        default=LEGACY_UID,
+        help="Legacy UID ({})".format(LEGACY_UID),
     )
     parser.add_argument("--uri", default=URI, help="URI path ({})".format(URI))
     parser.add_argument(
@@ -57,19 +60,28 @@ def get_args():
         "--fxa_kid", default=FXA_KID, help="FxA K ID ({})".format(FXA_KID)
     )
     parser.add_argument(
-        "--device_id", default=DEVICE_ID, help="FxA Device ID ({})".format(DEVICE_ID)
+        "--device_id",
+        default=DEVICE_ID,
+        help="FxA Device ID ({})".format(DEVICE_ID),
     )
     parser.add_argument(
         "--node", default=NODE, help="HTTP Host URI for node ({})".format(NODE)
     )
     parser.add_argument(
-        "--duration", type=int, default=DURATION, help="Hawk TTL ({})".format(DURATION)
+        "--duration",
+        type=int,
+        default=DURATION,
+        help="Hawk TTL ({})".format(DURATION),
     )
     parser.add_argument(
-        "--secret", default=SECRET, help="Shared HAWK secret ({})".format(SECRET)
+        "--secret",
+        default=SECRET,
+        help="Shared HAWK secret ({})".format(SECRET),
     )
     parser.add_argument(
-        "--hmac_key", default=HMAC_KEY, help="HAWK HMAC key ({})".format(HMAC_KEY)
+        "--hmac_key",
+        default=HMAC_KEY,
+        help="HAWK HMAC key ({})".format(HMAC_KEY),
     )
     parser.add_argument(
         "--as_header",

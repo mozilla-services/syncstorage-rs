@@ -109,7 +109,9 @@ class TestProcessAccountEvents(ProcessAccountEventsTestCase):
         records = list(self.database.get_user_records(EMAIL))
         self.assertEqual(len(records), 0)
 
-        self.process_account_event(message_body(event="delete", uid=UID, iss=ISS))
+        self.process_account_event(
+            message_body(event="delete", uid=UID, iss=ISS)
+        )
 
         records = list(self.database.get_user_records(EMAIL))
         self.assertEqual(len(records), 0)
@@ -273,7 +275,9 @@ class TestProcessAccountEvents(ProcessAccountEventsTestCase):
         self.clearLogs()
 
     def test_update_with_no_keys_changed_at(self):
-        user = self.database.allocate_user(EMAIL, generation=12, keys_changed_at=None)
+        user = self.database.allocate_user(
+            EMAIL, generation=12, keys_changed_at=None
+        )
 
         # These update_user calls previously failed (SYNC-3633)
         self.database.update_user(user, generation=13)
@@ -294,7 +298,9 @@ class TestProcessAccountEvents(ProcessAccountEventsTestCase):
         self.assertEqual(user["generation"], 42)
 
     def test_update_with_no_keys_changed_at2(self):
-        user = self.database.allocate_user(EMAIL, generation=12, keys_changed_at=None)
+        user = self.database.allocate_user(
+            EMAIL, generation=12, keys_changed_at=None
+        )
         # Mark the current record as replaced. This can probably only occur
         # during a race condition in row creation
         self.database.replace_user_record(user["uid"])
@@ -316,7 +322,9 @@ class TestProcessAccountEventsForceSpanner(ProcessAccountEventsTestCase):
 
     def setUp(self):
         super().setUp()
-        self.database.spanner_node_id = self.database.get_node_id("https://phx12")
+        self.database.spanner_node_id = self.database.get_node_id(
+            "https://phx12"
+        )
 
     def test_delete_user_force_spanner(self):
         self.database.allocate_user(EMAIL)

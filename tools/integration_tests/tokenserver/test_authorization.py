@@ -20,7 +20,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
 
         expected_error_response = {
-            "errors": [{"description": "Unsupported", "location": "body", "name": ""}],
+            "errors": [
+                {"description": "Unsupported", "location": "body", "name": ""}
+            ],
             "status": "error",
         }
         self.assertEqual(res.json, expected_error_response)
@@ -30,7 +32,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
         expected_error_response = {
             "status": "error",
-            "errors": [{"location": "body", "name": "", "description": "Unauthorized"}],
+            "errors": [
+                {"location": "body", "name": "", "description": "Unauthorized"}
+            ],
         }
         self.assertEqual(res.json, expected_error_response)
 
@@ -43,7 +47,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
         expected_error_response = {
             "status": "invalid-credentials",
-            "errors": [{"location": "body", "name": "", "description": "Unauthorized"}],
+            "errors": [
+                {"location": "body", "name": "", "description": "Unauthorized"}
+            ],
         }
         self.assertEqual(res.json, expected_error_response)
 
@@ -80,7 +86,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
             "status": "invalid-keysChangedAt",
-            "errors": [{"location": "body", "name": "", "description": "Unauthorized"}],
+            "errors": [
+                {"location": "body", "name": "", "description": "Unauthorized"}
+            ],
         }
         self.assertEqual(res.json, expected_error_response)
         # If the keys_changed_at on the request matches that currently stored
@@ -118,7 +126,8 @@ class TestAuthorization(TestCase, unittest.TestCase):
                 {
                     "location": "header",
                     "name": "X-Client-State",
-                    "description": "Unacceptable client-state value stale " "value",
+                    "description": "Unacceptable client-state value stale "
+                    "value",
                 }
             ],
         }
@@ -188,7 +197,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_keys_changed_at_change_must_accompany_client_state_change(self):
-        self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
+        self._add_user(
+            generation=1234, keys_changed_at=1234, client_state="aaaa"
+        )
         # A request with a new client state must also contain a new
         # keys_changed_at
         headers = self._build_auth_headers(
@@ -254,7 +265,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_set_generation_unchanged_without_keys_changed_at_update(self):
         # Add a user who has never sent us a generation
-        uid = self._add_user(generation=0, keys_changed_at=1234, client_state="aaaa")
+        uid = self._add_user(
+            generation=0, keys_changed_at=1234, client_state="aaaa"
+        )
         # Send a request without a generation that doesn't update
         # keys_changed_at
         headers = self._build_auth_headers(
@@ -275,7 +288,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_set_generation_with_keys_changed_at_initialization(self):
         # Add a user who has never sent us a generation or a keys_changed_at
-        uid = self._add_user(generation=0, keys_changed_at=None, client_state="aaaa")
+        uid = self._add_user(
+            generation=0, keys_changed_at=None, client_state="aaaa"
+        )
 
         # Send a request without a generation that updates keys_changed_at
         headers = self._build_auth_headers(
@@ -287,7 +302,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user["generation"], 1234)
 
     def test_fxa_kid_change(self):
-        self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
+        self._add_user(
+            generation=1234, keys_changed_at=None, client_state="aaaa"
+        )
         # An OAuth client shows up, setting keys_changed_at.
         # (The value matches generation number above, beause in this scenario
         # FxA hasn't been updated to track and report keysChangedAt yet).
@@ -335,7 +352,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(token["node"], token0["node"])
 
     def test_client_specified_duration(self):
-        self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
+        self._add_user(
+            generation=1234, keys_changed_at=1234, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -356,7 +375,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
     # https://github.com/mozilla-services/tokenserver/pull/176
     def test_kid_change_during_gradual_tokenserver_rollout(self):
         # Let's start with a user already in the db, with no keys_changed_at.
-        uid = self._add_user(generation=1234, client_state="aaaa", keys_changed_at=None)
+        uid = self._add_user(
+            generation=1234, client_state="aaaa", keys_changed_at=None
+        )
         user1 = self._get_user(uid)
         # User hits updated tokenserver node, writing keys_changed_at to db.
         headers = self._build_auth_headers(
@@ -379,7 +400,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         # by adding a new user. We set keys_changed_at to be the last-used
         # value, since we are simulating a server that doesn't pay attention
         # to keys_changed_at.
-        uid = self._add_user(generation=2345, keys_changed_at=1200, client_state="bbbb")
+        uid = self._add_user(
+            generation=2345, keys_changed_at=1200, client_state="bbbb"
+        )
         user2 = self._get_user(uid)
         self.assertNotEqual(user1["uid"], user2["uid"])
         self.assertEqual(user1["nodeid"], user2["nodeid"])
@@ -394,7 +417,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(user2["nodeid"], user1["nodeid"])
 
     def test_update_client_state(self):
-        uid = self._add_user(generation=0, keys_changed_at=None, client_state="")
+        uid = self._add_user(
+            generation=0, keys_changed_at=None, client_state=""
+        )
         user1 = self._get_user(uid)
         # The user starts out with no client_state
         self.assertEqual(user1["generation"], 0)
@@ -456,7 +481,8 @@ class TestAuthorization(TestCase, unittest.TestCase):
                 {
                     "location": "header",
                     "name": "X-Client-State",
-                    "description": "Unacceptable client-state value stale " "value",
+                    "description": "Unacceptable client-state value stale "
+                    "value",
                 }
             ],
         }
@@ -464,7 +490,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_set_generation_from_no_generation(self):
         # Add a user that has no generation set
-        uid = self._add_user(generation=0, keys_changed_at=None, client_state="aaaa")
+        uid = self._add_user(
+            generation=0, keys_changed_at=None, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -476,7 +504,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_set_keys_changed_at_from_no_keys_changed_at(self):
         # Add a user that has no keys_changed_at set
-        uid = self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
+        uid = self._add_user(
+            generation=1234, keys_changed_at=None, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -499,7 +529,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         # state as the X-KeyID header
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
-            "errors": [{"description": "Unauthorized", "location": "body", "name": ""}],
+            "errors": [
+                {"description": "Unauthorized", "location": "body", "name": ""}
+            ],
             "status": "invalid-client-state",
         }
         self.assertEqual(res.json, expected_error_response)
@@ -508,7 +540,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_zero_generation_treated_as_null(self):
         # Add a user that has a generation set
-        uid = self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
+        uid = self._add_user(
+            generation=1234, keys_changed_at=1234, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=0, keys_changed_at=1234, client_state="aaaa"
         )
@@ -521,7 +555,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
 
     def test_zero_keys_changed_at_treated_as_null(self):
         # Add a user that has no keys_changed_at set
-        uid = self._add_user(generation=1234, keys_changed_at=None, client_state="aaaa")
+        uid = self._add_user(
+            generation=1234, keys_changed_at=None, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=0, client_state="aaaa"
         )

@@ -51,16 +51,28 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self.database.commit()
 
         self._add_node(
-            available=100, current_load=0, capacity=100, backoff=1, node="https://node1"
+            available=100,
+            current_load=0,
+            capacity=100,
+            backoff=1,
+            node="https://node1",
         )
         self._add_node(
-            available=100, current_load=0, capacity=100, downed=1, node="https://node2"
+            available=100,
+            current_load=0,
+            capacity=100,
+            downed=1,
+            node="https://node2",
         )
         node_id = self._add_node(
             available=99, current_load=1, capacity=100, node="https://node3"
         )
-        self._add_node(available=98, current_load=2, capacity=100, node="https://node4")
-        self._add_node(available=97, current_load=3, capacity=100, node="https://node5")
+        self._add_node(
+            available=98, current_load=2, capacity=100, node="https://node4"
+        )
+        self._add_node(
+            available=97, current_load=3, capacity=100, node="https://node5"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -92,10 +104,18 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
             available=0, current_load=80, capacity=81, node="https://node3"
         )
         node_id4 = self._add_node(
-            available=0, current_load=70, capacity=71, node="https://node4", backoff=1
+            available=0,
+            current_load=70,
+            capacity=71,
+            node="https://node4",
+            backoff=1,
         )
         node_id5 = self._add_node(
-            available=0, current_load=60, capacity=61, node="https://node5", downed=1
+            available=0,
+            current_load=60,
+            capacity=61,
+            node="https://node5",
+            downed=1,
         )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
@@ -134,8 +154,12 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
         self._add_node(
             available=0, current_load=100, capacity=100, node="https://node1"
         )
-        self._add_node(available=0, current_load=90, capacity=90, node="https://node2")
-        self._add_node(available=0, current_load=80, capacity=80, node="https://node3")
+        self._add_node(
+            available=0, current_load=90, capacity=90, node="https://node2"
+        )
+        self._add_node(
+            available=0, current_load=80, capacity=80, node="https://node3"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )

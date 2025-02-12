@@ -90,7 +90,9 @@ def purge_old_records(
                     f" within range {uid_range[0] or 'Start'}"
                     f" to {uid_range[1] or 'End'}"
                 )
-            logger.info(f"Fetched {len(rows)} rows at offset {offset}{range_msg}")
+            logger.info(
+                f"Fetched {len(rows)} rows at offset {offset}{range_msg}"
+            )
             counter = 0
             for row in rows:
                 # Don't attempt to purge data from downed nodes.
@@ -98,11 +100,15 @@ def purge_old_records(
                 # completely removed from service.
                 if row.node is None:
                     logger.info(
-                        "Deleting user record for uid %s on %s", row.uid, row.node
+                        "Deleting user record for uid %s on %s",
+                        row.uid,
+                        row.node,
                     )
                     if not dryrun:
                         if metrics:
-                            metrics.incr("delete_user", tags={"type": "nodeless"})
+                            metrics.incr(
+                                "delete_user", tags={"type": "nodeless"}
+                            )
                         retryable(database.delete_user_record, row.uid)
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
@@ -121,7 +127,9 @@ def purge_old_records(
                             metrics.incr("delete_data")
                         retryable(database.delete_user_record, row.uid)
                         if metrics:
-                            metrics.incr("delete_user", tags={"type": "not_down"})
+                            metrics.incr(
+                                "delete_user", tags={"type": "not_down"}
+                            )
                     counter += 1
                 elif force:
                     delete_sd = not points_to_active(
@@ -153,7 +161,9 @@ def purge_old_records(
                                 metrics=metrics,
                             )
                             if metrics:
-                                metrics.incr("delete_data", tags={"type": "force"})
+                                metrics.incr(
+                                    "delete_data", tags={"type": "force"}
+                                )
 
                         retryable(database.delete_user_record, row.uid)
                         if metrics:
@@ -319,7 +329,10 @@ def main(args=None):
         help="Timeout in seconds for service deletion requests",
     )
     parser.add_option(
-        "", "--oneshot", action="store_true", help="Do a single purge run and then exit"
+        "",
+        "--oneshot",
+        action="store_true",
+        help="Do a single purge run and then exit",
     )
     parser.add_option(
         "-v",
@@ -339,12 +352,16 @@ def main(args=None):
         "if the user's node is marked as down",
     )
     parser.add_option(
-        "", "--override_node", help="Use this node when deleting (if data was copied)"
+        "",
+        "--override_node",
+        help="Use this node when deleting (if data was copied)",
     )
     parser.add_option(
         "", "--range_start", default=None, help="Start of UID range to check"
     )
-    parser.add_option("", "--range_end", default=None, help="End of UID range to check")
+    parser.add_option(
+        "", "--range_end", default=None, help="End of UID range to check"
+    )
     parser.add_option(
         "", "--human_logs", action="store_true", help="Human readable logs"
     )

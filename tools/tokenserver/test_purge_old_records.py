@@ -74,7 +74,9 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
     def test_purging_of_old_user_records(self):
         # Make some old user records.
         email = "test@mozilla.com"
-        user = self.database.allocate_user(email, client_state="aa", generation=123)
+        user = self.database.allocate_user(
+            email, client_state="aa", generation=123
+        )
         self.database.update_user(
             user, client_state="bb", generation=456, keys_changed_at=450
         )
@@ -154,7 +156,9 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         # With the node down, we should be able to purge any records.
         self.database.update_node(self.service_node, downed=1)
 
-        self.assertTrue(purge_old_records(node_secret, grace_period=0, force=True))
+        self.assertTrue(
+            purge_old_records(node_secret, grace_period=0, force=True)
+        )
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 1)
@@ -172,7 +176,9 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.database.update_node(self.service_node, downed=1)
 
         # Don't actually perform anything destructive.
-        self.assertTrue(purge_old_records(node_secret, grace_period=0, dryrun=True))
+        self.assertTrue(
+            purge_old_records(node_secret, grace_period=0, dryrun=True)
+        )
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 2)
@@ -191,7 +197,9 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         cls.spanner_service = make_server("localhost", 0, cls._service_app)
         host, port = cls.spanner_service.server_address
         cls.spanner_node = f"http://{host}:{port}"
-        cls.spanner_thread = threading.Thread(target=cls.spanner_service.serve_forever)
+        cls.spanner_thread = threading.Thread(
+            target=cls.spanner_service.serve_forever
+        )
         cls.spanner_thread.start()
         cls.downed_node = f"http://{host}:9999"
 
@@ -253,7 +261,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret, grace_period=0, force=True, override_node=self.spanner_node
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node,
             )
         )
         user_records = list(self.database.get_user_records(email))
@@ -284,7 +295,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret, grace_period=0, force=True, override_node=self.spanner_node
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node,
             )
         )
         user_records = list(self.database.get_user_records(email))
@@ -315,7 +329,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret, grace_period=0, force=True, override_node=self.spanner_node
+                node_secret,
+                grace_period=0,
+                force=True,
+                override_node=self.spanner_node,
             )
         )
         user_records = list(self.database.get_user_records(email))

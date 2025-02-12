@@ -98,7 +98,10 @@ def load(instance, db, coll_id, name):
             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)
             """,
             params=dict(
-                fxa_uid=fxa_uid, fxa_kid=fxa_kid, collection_id=coll_id, modified=start
+                fxa_uid=fxa_uid,
+                fxa_kid=fxa_kid,
+                collection_id=coll_id,
+                modified=start,
             ),
             param_types=dict(
                 fxa_uid=param_types.STRING,
@@ -157,7 +160,9 @@ def load(instance, db, coll_id, name):
                 values=records,
             )
         print(
-            ("{name} Wrote batch {b} of {bb}:" " {c} records {r} bytes, {t}").format(
+            (
+                "{name} Wrote batch {b} of {bb}:" " {c} records {r} bytes, {t}"
+            ).format(
                 name=name,
                 b=j + 1,
                 bb=BATCHES,

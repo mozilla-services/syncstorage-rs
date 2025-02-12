@@ -292,9 +292,15 @@ SERVICE_NAME = "sync-1.5"
 class Database:
     def __init__(self):
         engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
-        self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
-        self.capacity_release_rate = os.environ.get("NODE_CAPACITY_RELEASE_RATE", 0.1)
-        self.spanner_node_id = os.environ.get("SYNC_TOKENSERVER__SPANNER_NODE_ID")
+        self.database = engine.execution_options(
+            isolation_level="AUTOCOMMIT"
+        ).connect()
+        self.capacity_release_rate = os.environ.get(
+            "NODE_CAPACITY_RELEASE_RATE", 0.1
+        )
+        self.spanner_node_id = os.environ.get(
+            "SYNC_TOKENSERVER__SPANNER_NODE_ID"
+        )
         self.spanner_node = None
         if self.spanner_node_id:
             self.spanner_node = self.get_spanner_node(self.spanner_node_id)
@@ -306,7 +312,10 @@ class Database:
         self.database.close()
 
     def get_user(self, email):
-        params = {"service": self._get_service_id(SERVICE_NAME), "email": email}
+        params = {
+            "service": self._get_service_id(SERVICE_NAME),
+            "email": email,
+        }
         res = self._execute_sql(_GET_USER_RECORDS, **params)
         try:
             # The query fetches rows ordered by created_at, but we want
@@ -394,7 +403,12 @@ class Database:
         }
 
     def update_user(
-        self, user, generation=None, client_state=None, keys_changed_at=None, node=None
+        self,
+        user,
+        generation=None,
+        client_state=None,
+        keys_changed_at=None,
+        node=None,
     ):
         if client_state is None and node is None:
             # No need for a node-reassignment, just update the row in place.
@@ -412,7 +426,9 @@ class Database:
 
             if generation is not None:
                 user["generation"] = max(user["generation"], generation)
-            user["keys_changed_at"] = max_keys_changed_at(user, keys_changed_at)
+            user["keys_changed_at"] = max_keys_changed_at(
+                user, keys_changed_at
+            )
         else:
             # Reject previously-seen client-state strings.
             if client_state is None:
@@ -465,7 +481,11 @@ class Database:
 
     def retire_user(self, email):
         now = get_timestamp()
-        params = {"email": email, "timestamp": now, "generation": MAX_GENERATION}
+        params = {
+            "email": email,
+            "timestamp": now,
+            "generation": MAX_GENERATION,
+        }
         # Pass through explicit engine to help with sharded implementation,
         # since we can't shard by service name here.
         res = self._execute_sql(_RETIRE_USER_RECORDS, **params)
@@ -485,7 +505,10 @@ class Database:
 
     def get_user_records(self, email):
         """Get all the user's records, including the old ones."""
-        params = {"service": self._get_service_id(SERVICE_NAME), "email": email}
+        params = {
+            "service": self._get_service_id(SERVICE_NAME),
+            "email": email,
+        }
         res = self._execute_sql(_GET_ALL_USER_RECORDS_FOR_SERVICE, **params)
         try:
             for row in res:
@@ -508,7 +531,9 @@ class Database:
                 pass
             rrep = " and ".join(rstr)
             sql = sqltext(
-                _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE.replace("::RANGE::", rrep)
+                _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE.replace(
+                    "::RANGE::", rrep
+                )
             )
         else:
             sql = _GET_OLD_USER_RECORDS_FOR_SERVICE
@@ -764,7 +789,9 @@ class Database:
         # This is a little racy with concurrent assignments, but no big
         # deal.
         con = self._execute_sql(
-            _ADD_USER_TO_NODE, service=self._get_service_id(SERVICE_NAME), node=node
+            _ADD_USER_TO_NODE,
+            service=self._get_service_id(SERVICE_NAME),
+            node=node,
         )
         con.close()
 
@@ -799,5 +826,7 @@ def max_keys_changed_at(user, keys_changed_at):
     May return `None` as the column is nullable.
 
     """
-    it = (x for x in (keys_changed_at, user["keys_changed_at"]) if x is not None)
+    it = (
+        x for x in (keys_changed_at, user["keys_changed_at"]) if x is not None
+    )
     return max(it, default=None)

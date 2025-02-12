@@ -122,7 +122,9 @@ def spanner_purge(args) -> None:
 
     for prefix in prefixes:
         logging.info(
-            "For {}:{}, prefix = {}".format(args.instance_id, args.database_id, prefix)
+            "For {}:{}, prefix = {}".format(
+                args.instance_id, args.database_id, prefix
+            )
         )
 
         if args.mode in ["batches", "both"]:
@@ -244,7 +246,9 @@ def get_args():
         help="Choose the timestamp used to check if an entry is expired",
     )
     parser.add_argument(
-        "--dryrun", action="store_true", help="Do not purge user records from spanner"
+        "--dryrun",
+        action="store_true",
+        help="Do not purge user records from spanner",
     )
     args = parser.parse_args()
 

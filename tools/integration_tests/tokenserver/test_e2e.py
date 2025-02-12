@@ -48,7 +48,9 @@ class TestE2e(TestCase, unittest.TestCase):
         # Create an ephemeral email account to use to create an FxA account
         cls.acct = TestEmailAccount()
         cls.client = Client(FXA_ACCOUNT_STAGE_HOST)
-        cls.oauth_client = OAuthClient(CLIENT_ID, None, server_url=FXA_OAUTH_STAGE_HOST)
+        cls.oauth_client = OAuthClient(
+            CLIENT_ID, None, server_url=FXA_OAUTH_STAGE_HOST
+        )
         cls.fxa_password = cls._generate_password()
         # Create an FxA account for these end-to-end tests
         cls.session = cls.client.create_account(
@@ -127,7 +129,9 @@ class TestE2e(TestCase, unittest.TestCase):
     # Adapted from the original Tokenserver:
     # https://github.com/mozilla-services/tokenserver/blob/master/tokenserver/util.py#L24
     def _fxa_metrics_hash(self, value):
-        hasher = hmac.new(self.FXA_METRICS_HASH_SECRET.encode("utf-8"), b"", sha256)
+        hasher = hmac.new(
+            self.FXA_METRICS_HASH_SECRET.encode("utf-8"), b"", sha256
+        )
         hasher.update(value.encode("utf-8"))
         return hasher.hexdigest()
 
@@ -139,7 +143,9 @@ class TestE2e(TestCase, unittest.TestCase):
         }
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
-            "errors": [{"description": "Unsupported", "location": "body", "name": ""}],
+            "errors": [
+                {"description": "Unsupported", "location": "body", "name": ""}
+            ],
             "status": "error",
         }
         self.assertEqual(res.json, expected_error_response)
@@ -148,7 +154,9 @@ class TestE2e(TestCase, unittest.TestCase):
         # Bad token -> 'invalid-credentials'
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
-            "errors": [{"description": "Unauthorized", "location": "body", "name": ""}],
+            "errors": [
+                {"description": "Unauthorized", "location": "body", "name": ""}
+            ],
             "status": "invalid-credentials",
         }
         self.assertEqual(res.json, expected_error_response)
@@ -160,7 +168,10 @@ class TestE2e(TestCase, unittest.TestCase):
 
     def test_valid_oauth_request(self):
         oauth_token = self.oauth_token
-        headers = {"Authorization": "Bearer %s" % oauth_token, "X-KeyID": "1234-qqo"}
+        headers = {
+            "Authorization": "Bearer %s" % oauth_token,
+            "X-KeyID": "1234-qqo",
+        }
         # Send a valid request, allocating a new user
         res = self.app.get("/1.0/sync/1.5", headers=headers)
         fxa_uid = self.session.uid
@@ -193,7 +204,8 @@ class TestE2e(TestCase, unittest.TestCase):
         # Check to make sure the remainder of the fields are valid
         self.assertEqual(res.json["uid"], user["uid"])
         self.assertEqual(
-            res.json["api_endpoint"], "%s/1.5/%s" % (self.NODE_URL, user["uid"])
+            res.json["api_endpoint"],
+            "%s/1.5/%s" % (self.NODE_URL, user["uid"]),
         )
         self.assertEqual(res.json["duration"], DEFAULT_TOKEN_DURATION)
         self.assertEqual(res.json["hashalg"], "sha256")

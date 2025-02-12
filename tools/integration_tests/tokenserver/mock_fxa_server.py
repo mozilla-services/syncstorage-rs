@@ -11,7 +11,9 @@ def _mock_oauth_verify(request):
     body = json.loads(request.json_body["token"])
 
     return Response(
-        json=body["body"], content_type="application/json", status=body["status"]
+        json=body["body"],
+        content_type="application/json",
+        status=body["status"],
     )
 
 
@@ -31,7 +33,9 @@ def make_server(host, port):
         )
 
         config.add_route("mock_oauth_jwk", "/v1/jwks")
-        config.add_view(_mock_oauth_jwk, route_name="mock_oauth_jwk", renderer="json")
+        config.add_view(
+            _mock_oauth_jwk, route_name="mock_oauth_jwk", renderer="json"
+        )
         app = config.make_wsgi_app()
 
     return _make_server(host, port, app)

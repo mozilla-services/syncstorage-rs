@@ -40,7 +40,9 @@ def configure_script_logging(opts=None, logger_name=""):
     It also takes care of the --verbosity command-line option.
     """
 
-    verbosity = (opts and getattr(opts, "verbosity", logging.NOTSET)) or logging.NOTSET
+    verbosity = (
+        opts and getattr(opts, "verbosity", logging.NOTSET)
+    ) or logging.NOTSET
     logger = logging.getLogger(logger_name)
     level = (
         os.environ.get("PYTHON_LOG", "").upper()
@@ -58,7 +60,9 @@ def configure_script_logging(opts=None, logger_name=""):
     # if we've opted for "human_logs", specify a simpler message.
     if opts:
         if getattr(opts, "human_logs", None):
-            formatter = logging.Formatter("{levelname:<8s}: {message}", style="{")
+            formatter = logging.Formatter(
+                "{levelname:<8s}: {message}", style="{"
+            )
 
     handler.setFormatter(formatter)
     handler.setLevel(level)

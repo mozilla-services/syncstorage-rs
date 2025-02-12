@@ -79,7 +79,9 @@ class TestMisc(TestCase, unittest.TestCase):
         # Add some users
         uid1 = self._add_user(generation=1234, created_at=1234)
         uid2 = self._add_user(generation=1235, created_at=1235)
-        uid3 = self._add_user(generation=1236, created_at=1236, replaced_at=1237)
+        uid3 = self._add_user(
+            generation=1236, created_at=1236, replaced_at=1237
+        )
         seen_uids = [uid1, uid2, uid3]
         # Because the current user (the one with uid3) has been replaced, a new
         # user record is created
@@ -110,7 +112,9 @@ class TestMisc(TestCase, unittest.TestCase):
 
     def test_user_updates_with_new_client_state(self):
         # Start with a single user in the database
-        uid = self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
+        uid = self._add_user(
+            generation=1234, keys_changed_at=1234, client_state="aaaa"
+        )
         # Send a request, updating the generation, keys_changed_at, and
         # client_state
         headers = self._build_auth_headers(
@@ -171,13 +175,17 @@ class TestMisc(TestCase, unittest.TestCase):
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
             "status": "invalid-generation",
-            "errors": [{"location": "body", "name": "", "description": "Unauthorized"}],
+            "errors": [
+                {"location": "body", "name": "", "description": "Unauthorized"}
+            ],
         }
         self.assertEqual(res.json, expected_error_response)
         # Retired users can make requests with a generation number equal to
         # the max generation
         headers = self._build_auth_headers(
-            generation=MAX_GENERATION, keys_changed_at=1234, client_state="aaaa"
+            generation=MAX_GENERATION,
+            keys_changed_at=1234,
+            client_state="aaaa",
         )
         self.app.get("/1.0/sync/1.5", headers=headers)
 
@@ -196,14 +204,18 @@ class TestMisc(TestCase, unittest.TestCase):
         self._add_user(generation=MAX_GENERATION, nodeid=invalid_node_id)
         # Retired users without a node cannot make requests
         headers = self._build_auth_headers(
-            generation=MAX_GENERATION, keys_changed_at=1234, client_state="aaaa"
+            generation=MAX_GENERATION,
+            keys_changed_at=1234,
+            client_state="aaaa",
         )
         self.app.get("/1.0/sync/1.5", headers=headers, status=500)
 
     def test_replaced_users_with_no_node_can_make_requests(self):
         # Add a replaced user to the database
         invalid_node_id = self.NODE_ID + 1
-        self._add_user(created_at=1234, replaced_at=1234, nodeid=invalid_node_id)
+        self._add_user(
+            created_at=1234, replaced_at=1234, nodeid=invalid_node_id
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
@@ -214,7 +226,9 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user["nodeid"], self.NODE_ID)
 
     def test_x_content_type_options(self):
-        self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
+        self._add_user(
+            generation=1234, keys_changed_at=1234, client_state="aaaa"
+        )
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
         )
