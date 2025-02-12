@@ -17,8 +17,8 @@ services:
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_SYNCSTORAGE__DATABASE_URL: sqlite:///data/syncstoragedb.sqlite
-      SYNC_TOKENSERVER__DATABASE_URL: sqlite:///data/tokenserverdb.sqlite
+      SYNC_SYNCSTORAGE__DATABASE_URL: sqlite:////data/syncstoragedb.sqlite
+      SYNC_TOKENSERVER__DATABASE_URL: sqlite:////data/tokenserverdb.sqlite
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
       SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER: "api-accounts.stage.mozaws.net"
