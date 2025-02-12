@@ -15,6 +15,8 @@ html_coverage
 .hgignore
 .idea
 *.iml
+Pipfile
+Pipfile.lock
 site-packages/*
 lib-python/*
 bin/*
@@ -31,11 +33,12 @@ target
 service-account.json
 .sentryclirc
 .envrc
+.env
 
 config/local.toml
 tools/tokenserver/loadtests/*.pem
 tools/tokenserver/loadtests/*.pub
-venv
+venv/
 .vscode/settings.json
 
 # circleci
