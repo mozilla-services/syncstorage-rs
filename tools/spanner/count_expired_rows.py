@@ -18,7 +18,8 @@ from google.cloud import spanner
 logging.basicConfig(
     format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
     stream=sys.stdout,
-    level=logging.INFO)
+    level=logging.INFO,
+)
 
 # Change these to match your install.
 client = spanner.Client()
@@ -59,10 +60,10 @@ def spanner_read_data(query, table):
 
 
 if __name__ == "__main__":
-    logging.info('Starting count_expired_rows.py')
+    logging.info("Starting count_expired_rows.py")
 
-    for table in ['batches', 'bsos']:
-        query = f'SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()'
+    for table in ["batches", "bsos"]:
+        query = f"SELECT COUNT(*) FROM {table} WHERE expiry < CURRENT_TIMESTAMP()"
         spanner_read_data(query, table)
 
-    logging.info('Completed count_expired_rows.py')
+    logging.info("Completed count_expired_rows.py")

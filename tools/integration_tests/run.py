@@ -8,7 +8,7 @@ import sys
 from test_storage import TestStorage
 from test_support import run_live_functional_tests
 import time
-from tokenserver.run import (run_end_to_end_tests, run_local_tests)
+from tokenserver.run import run_end_to_end_tests, run_local_tests
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
@@ -62,8 +62,9 @@ if __name__ == "__main__":
     finally:
         terminate_process(the_server_subprocess)
 
-    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
+    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = (
         "https://oauth.stage.mozaws.net"
+    )
     the_server_subprocess = start_server()
     try:
         res |= run_end_to_end_tests()

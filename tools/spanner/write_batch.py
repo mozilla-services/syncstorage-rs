@@ -69,11 +69,12 @@ size or number of the writes, or use fewer indexes. (Maximum size: 104857600)
 PAYLOAD_SIZE = 25000
 # fake a base64 like payload. Not strictly neccessary, but may help ML
 # routines.
-PAYLOAD = ''.join(
+PAYLOAD = "".join(
     random.choice(
         string.digits + string.ascii_uppercase + string.ascii_lowercase + "-_="
     )
-    for _ in range(PAYLOAD_SIZE))
+    for _ in range(PAYLOAD_SIZE)
+)
 
 
 def load(instance, db, coll_id, name):
@@ -84,7 +85,7 @@ def load(instance, db, coll_id, name):
     spanner_client = spanner.Client()
     instance = spanner_client.instance(instance)
     db = instance.database(db)
-    print('{name} Db: {db}'.format(name=name, db=db))
+    print("{name} Db: {db}".format(name=name, db=db))
     start = datetime.now()
 
     def create_user(txn):
@@ -95,31 +96,34 @@ def load(instance, db, coll_id, name):
             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)
             """,
             params=dict(
-                fxa_uid=fxa_uid,
-                fxa_kid=fxa_kid,
-                collection_id=coll_id,
-                modified=start
+                fxa_uid=fxa_uid, fxa_kid=fxa_kid, collection_id=coll_id, modified=start
             ),
             param_types=dict(
                 fxa_uid=param_types.STRING,
                 fxa_kid=param_types.STRING,
                 collection_id=param_types.INT64,
-                modified=param_types.TIMESTAMP
-            )
+                modified=param_types.TIMESTAMP,
+            ),
         )
 
     try:
         db.run_in_transaction(create_user)
-        print('{name} Created user (fxa_uid: {uid}, fxa_kid: {kid})'.format(
-            name=name, uid=fxa_uid, kid=fxa_kid))
+        print(
+            "{name} Created user (fxa_uid: {uid}, fxa_kid: {kid})".format(
+                name=name, uid=fxa_uid, kid=fxa_kid
+            )
+        )
     except AlreadyExists:
-        print('{name} Existing user (fxa_uid: {uid}}, fxa_kid: {kid}})'.format(
-              name=name, uid=fxa_uid, kid=fxa_kid))
+        print(
+            "{name} Existing user (fxa_uid: {uid}}, fxa_kid: {kid}})".format(
+                name=name, uid=fxa_uid, kid=fxa_kid
+            )
+        )
 
     # approximately 1892 bytes
     rlen = 0
 
-    print('{name} Loading..'.format(name=name))
+    print("{name} Loading..".format(name=name))
     for j in range(BATCHES):
         records = []
         for i in range(BATCH_SIZE):
@@ -132,7 +136,7 @@ def load(instance, db, coll_id, name):
                 None,
                 PAYLOAD,
                 start,
-                start + timedelta(days=365 * 5)
+                start + timedelta(days=365 * 5),
             )
             # determine it's size.
             rlen = len(record[1]) * 4
@@ -145,35 +149,38 @@ def load(instance, db, coll_id, name):
             records.append(record)
         with db.batch() as batch:
             batch.insert(
-                table='bsos',
+                table="bsos",
                 columns=(
-                    'fxa_uid',
-                    'fxa_kid',
-                    'collection_id',
-                    'bso_id',
-                    'sortindex',
-                    'payload',
-                    'modified',
-                    'expiry'
+                    "fxa_uid",
+                    "fxa_kid",
+                    "collection_id",
+                    "bso_id",
+                    "sortindex",
+                    "payload",
+                    "modified",
+                    "expiry",
                 ),
-                values=records
+                values=records,
             )
         print(
-            ('{name} Wrote batch {b} of {bb}:'
-             ' {c} records {r} bytes, {t}').format(
+            ("{name} Wrote batch {b} of {bb}:" " {c} records {r} bytes, {t}").format(
                 name=name,
                 b=j + 1,
                 bb=BATCHES,
                 c=BATCH_SIZE,
                 r=rlen,
-                t=datetime.now() - start))
-    print('{name} Total: {t} (count: {c}, size: {s} in {sec})'.format(
-        name=name,
-        t=BATCHES,
-        c=BATCHES * BATCH_SIZE,
-        s=BATCHES * BATCH_SIZE * rlen,
-        sec=datetime.now() - start
-    ))
+                t=datetime.now() - start,
+            )
+        )
+    print(
+        "{name} Total: {t} (count: {c}, size: {s} in {sec})".format(
+            name=name,
+            t=BATCHES,
+            c=BATCHES * BATCH_SIZE,
+            s=BATCHES * BATCH_SIZE * rlen,
+            sec=datetime.now() - start,
+        )
+    )
 
 
 def from_env():
@@ -207,11 +214,9 @@ def loader():
 def main():
     for c in range(THREAD_COUNT):
         print("Starting thread {}".format(c))
-        t = threading.Thread(
-            name="loader_{}".format(c),
-            target=loader)
+        t = threading.Thread(name="loader_{}".format(c), target=loader)
         t.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
