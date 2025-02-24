@@ -72,4 +72,10 @@ test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
 		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
 		RUST_TEST_THREADS=1 \
-		cargo test --workspace
+		cargo test
+
+nextest:
+	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
+		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
+		RUST_TEST_THREADS=1 \
+		cargo nextest run
