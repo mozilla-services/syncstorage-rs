@@ -77,5 +77,5 @@ test:
 nextest:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
 		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
-		RUST_TEST_THREADS=1 \
-		cargo nextest run
+		# ARGS is a variable that can be set to pass additional arguments to the test runner, like targeting a specific test
+		cargo nextest run --test-threads=1 $(ARGS)
