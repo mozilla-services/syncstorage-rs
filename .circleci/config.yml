@@ -94,6 +94,12 @@ commands:
   run-tests:
     steps:
       - run:
+          name: Install cargo-nextest
+          command: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      - run:
+          name: Install cargo-llvm-cov
+          command: cargo install cargo-llvm-cov
+      - run:
           name: nextest with code coverage
           command: make test_with_coverage
       - run:
