@@ -13,7 +13,7 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
 # TODO: update workflow name appropriately
-WORKFLOW := build-test-deploy
+WORKFLOW := run-tests
 EPOCH_TIME := $(shell date +"%s")
 TEST_RESULTS_DIR ?= test-results
 TEST_PROFILE := $(if $(CIRCLECI),ci,default)

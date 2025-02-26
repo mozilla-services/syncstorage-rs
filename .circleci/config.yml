@@ -96,15 +96,13 @@ commands:
       - run:
           name: nextest with code coverage
           command: make test_with_coverage
-      - store_test_results:
-        path: test-results
       - run:
           name: nextest with code coverage (quota enforced)
           command: make test_with_coverage
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
       - store_test_results:
-        path: test-results
+          path: test-results
 
   run-e2e-mysql-tests:
     steps:
