@@ -91,14 +91,17 @@ commands:
             "$CIRCLE_PROJECT_REPONAME" \
             "$CIRCLE_BUILD_URL" > syncserver/version.json
 
+  install-test-deps:
+    setps:
+      - run: 
+        name: Install cargo-nextest
+        command: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      - run:
+        name: install cargo-llvm-cov
+        command: cargo install cargo-llvm-cov    
+
   run-tests:
     steps:
-      - run:
-          name: Install cargo-nextest
-          command: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-      - run:
-          name: Install cargo-llvm-cov
-          command: cargo install cargo-llvm-cov
       - run:
           name: nextest with code coverage
           command: make test_with_coverage
@@ -193,7 +196,9 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.78.0  # RUST_VER
+      # nextest is required for testing to get junit output
+      # however, it requires >1.81.0, so we use a different version here
+      - image: cimg/rust:1.81.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -224,6 +229,7 @@ jobs:
       #- restore-sccache-cache
       - write-version
       - cargo-build
+      - install-test-deps
       - run-tests
       - run-tokenserver-scripts-tests
       #- save-sccache-cache

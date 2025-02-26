@@ -1,5 +1,8 @@
 [profile.default]
 test-threads = 1
 
+[profile.ci.junit]
+path = "junit.xml"
+
 [profile.default.junit]
 path = "junit.xml"
