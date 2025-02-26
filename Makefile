@@ -10,6 +10,18 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+# In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
+# convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
+# TODO: update workflow name appropriately
+WORKFLOW := build-test-deploy
+EPOCH_TIME := $(shell date +"%s")
+TEST_RESULTS_DIR ?= test-results
+TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
+UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
+UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
+INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__results.xml
+INTEGRATION_JUNIT_XML_LEGACY := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__legacy-results.xml
+
 SRC_ROOT = $(shell pwd)
 PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
@@ -74,8 +86,11 @@ test:
 		RUST_TEST_THREADS=1 \
 		cargo test
 
+
+.ONESHELL:
 nextest:
 	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
 		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
-		# ARGS is a variable that can be set to pass additional arguments to the test runner, like targeting a specific test
-		cargo nextest run --test-threads=1 $(ARGS)
+		RUST_TEST_THREADS=1 \
+		cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
+			nextest --test-threads=1
