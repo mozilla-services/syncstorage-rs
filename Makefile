@@ -16,11 +16,15 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 WORKFLOW := build-test-deploy
 EPOCH_TIME := $(shell date +"%s")
 TEST_RESULTS_DIR ?= test-results
+TEST_PROFILE := $(if $(CIRCLECI),ci,default)
 TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
 UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__results.xml
 INTEGRATION_JUNIT_XML_LEGACY := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__legacy-results.xml
+# These are defaulted here, but can be overrideen in CI for example.
+SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
+SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
 SRC_ROOT = $(shell pwd)
 PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
@@ -80,17 +84,29 @@ run_spanner: python
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
 
+.ONESHELL:
 test:
-	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
-		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
-		RUST_TEST_THREADS=1 \
-		cargo test
-
+	# --workspace is removed from the command below because it causes the build to fail.
+	# Once grpcio build is fixed then the `--workspace` flag can be added back in
+	# See:
+	# - https://github.com/rust-lang/cc-rs/issues/1276
+	# - https://github.com/rust-lang/cmake-rs/pull/235
+	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
+	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
+	RUST_TEST_THREADS=1 \
+	cargo nextest run --test-threads=1 --profile ${TEST_PROFILE}
 
 .ONESHELL:
-nextest:
-	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
-		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
-		RUST_TEST_THREADS=1 \
-		cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
-			nextest --test-threads=1
+test_with_coverage:
+	# --workspace is removed from the command below because it causes the build to fail.
+	# Once grpcio build is fixed then the `--workspace` flag can be added back in
+	# See:
+	# - https://github.com/rust-lang/cc-rs/issues/1276
+	# - https://github.com/rust-lang/cmake-rs/pull/235
+	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
+	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
+	RUST_TEST_THREADS=1 \
+	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
+		nextest --test-threads=1 --profile ${TEST_PROFILE}
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
+
