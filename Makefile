@@ -94,7 +94,7 @@ test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo nextest run --test-threads=1 --profile ${TEST_PROFILE}
+	cargo nextest run --test-threads=1 --profile ${TEST_PROFILE} $(ARGS)
 
 .ONESHELL:
 test_with_coverage:
