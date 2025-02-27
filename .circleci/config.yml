@@ -92,7 +92,7 @@ commands:
             "$CIRCLE_BUILD_URL" > syncserver/version.json
 
   install-test-deps:
-    setps:
+    steps:
       - run: 
         name: Install cargo-nextest
         command: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
