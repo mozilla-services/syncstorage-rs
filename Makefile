@@ -86,27 +86,17 @@ run_spanner: python
 
 .ONESHELL:
 test:
-	# --workspace is removed from the command below because it causes the build to fail.
-	# Once grpcio build is fixed then the `--workspace` flag can be added back in
-	# See:
-	# - https://github.com/rust-lang/cc-rs/issues/1276
-	# - https://github.com/rust-lang/cmake-rs/pull/235
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo nextest run --test-threads=1 --profile ${TEST_PROFILE} $(ARGS)
+	cargo nextest run --test-threads=1 --workspace --profile ${TEST_PROFILE} $(ARGS)
 
 .ONESHELL:
 test_with_coverage:
-	# --workspace is removed from the command below because it causes the build to fail.
-	# Once grpcio build is fixed then the `--workspace` flag can be added back in
-	# See:
-	# - https://github.com/rust-lang/cc-rs/issues/1276
-	# - https://github.com/rust-lang/cmake-rs/pull/235
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
 	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
-		nextest --test-threads=1 --profile ${TEST_PROFILE}
+		nextest --test-threads=1 --workspace --profile ${TEST_PROFILE}
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
 
