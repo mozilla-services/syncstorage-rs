@@ -13,16 +13,14 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
 # TODO: update workflow name appropriately
-WORKFLOW := run-tests
+WORKFLOW := build-deploy
 EPOCH_TIME := $(shell date +"%s")
-TEST_RESULTS_DIR ?= test-results
+TEST_RESULTS_DIR ?= workflow/test-results
+
 TEST_PROFILE := $(if $(CIRCLECI),ci,default)
 TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
 UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
-INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__results.xml
-INTEGRATION_JUNIT_XML_LEGACY := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__legacy-results.xml
-# These are defaulted here, but can be overrideen in CI for example.
 SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
 SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
@@ -89,7 +87,7 @@ test:
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo nextest run --test-threads=1 --workspace --profile ${TEST_PROFILE} $(ARGS)
+	cargo nextest run --workspace --profile ${TEST_PROFILE} $(ARGS)
 
 .ONESHELL:
 test_with_coverage:
@@ -97,6 +95,8 @@ test_with_coverage:
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
 	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
-		nextest --test-threads=1 --workspace --profile ${TEST_PROFILE}
+		nextest --workspace --profile ${TEST_PROFILE}
+	exit_code=$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
+	exit $$exit_code
 

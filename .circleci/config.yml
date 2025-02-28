@@ -94,7 +94,11 @@ commands:
       - run:
           name: install cargo-llvm-cov
           command: cargo install cargo-llvm-cov    
-
+  make-test-dir:
+    steps:
+      - run:
+          name: Create test-results directory
+          command: mkdir -p workflow/test-results
   run-tests:
     steps:
       - run:
@@ -106,7 +110,7 @@ commands:
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
       - store_test_results:
-          path: test-results
+          path: workflow/test-results
 
   run-e2e-mysql-tests:
     steps:
@@ -222,6 +226,7 @@ jobs:
       #- restore-sccache-cache
       - write-version
       - install-test-deps
+      - make-test-dir
       - run-tests
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
       # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
