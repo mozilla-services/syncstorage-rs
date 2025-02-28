@@ -244,7 +244,7 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 You'll need [`nextest`](https://nexte.st/docs/installation/from-source/) and [`llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov?tab=readme-ov-file#installation) installed for full unittest and test coverage.
 
     $ cargo install cargo-nextest --locked
-    $ cargo +stable install cargo-llvm-cov --locked
+    $ cargo install cargo-llvm-cov --locked
 
 - `make test` - Runs all tests
 - `make test_with_coverage` - This will use `llvm-cov` to run tests and generate [source-based code coverage](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html)
