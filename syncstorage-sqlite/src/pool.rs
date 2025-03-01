@@ -79,6 +79,7 @@ impl SqliteDbPool {
             .database_url
             .strip_prefix("sqlite://")
             .unwrap_or(&settings.database_url);
+        info!("Using SQLite database at: {}", path);
         let manager = ConnectionManager::<SqliteConnection>::new(path);
         let builder = Pool::builder()
             .max_size(settings.database_pool_max_size)
