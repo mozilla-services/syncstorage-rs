@@ -32,7 +32,7 @@ embed_migrations!();
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let path = database_url
-        .strip_prefix("sqlite://")
+        .strip_prefix("sqlite:///")
         .unwrap_or(database_url);
     let conn = SqliteConnection::establish(path)?;
     #[cfg(debug_assertions)]
@@ -77,7 +77,7 @@ impl SqliteDbPool {
     ) -> DbResult<Self> {
         let path = settings
             .database_url
-            .strip_prefix("sqlite://")
+            .strip_prefix("sqlite:///")
             .unwrap_or(&settings.database_url);
         info!("Using SQLite database at: {}", path);
         let manager = ConnectionManager::<SqliteConnection>::new(path);

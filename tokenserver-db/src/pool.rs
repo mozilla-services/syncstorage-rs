@@ -44,7 +44,7 @@ impl TokenserverPool {
         // SQLite can't handle its uri prefix
         let database_url = settings
             .database_url
-            .strip_prefix("sqlite://")
+            .strip_prefix("sqlite:///")
             .unwrap_or(&settings.database_url);
         #[cfg(feature = "sqlite")]
         info!("Using SQLite database at: {}", database_url);
