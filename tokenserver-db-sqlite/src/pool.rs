@@ -7,7 +7,7 @@ embed_migrations!();
 /// Run the diesel embedded migrations
 pub fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let path = database_url
-        .strip_prefix("sqlite://")
+        .strip_prefix("sqlite:///")
         .unwrap_or(database_url);
 
     let conn = SqliteConnection::establish(path)?;
