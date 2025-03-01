@@ -46,6 +46,8 @@ impl TokenserverPool {
             .database_url
             .strip_prefix("sqlite://")
             .unwrap_or(&settings.database_url);
+        #[cfg(feature = "sqlite")]
+        info!("Using SQLite database at: {}", database_url);
 
         let manager = ConnectionManager::<Conn>::new(database_url);
         let builder = Pool::builder()
