@@ -22,11 +22,11 @@ use syncstorage_db_common::{
     DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
+use syncstorage_sql_db_common::error::DbError;
 
 use super::{
     batch,
     diesel_ext::LockInShareModeDsl,
-    error::DbError,
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
     DbResult,
