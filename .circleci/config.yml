@@ -111,6 +111,8 @@ commands:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
       - store_test_results:
           path: workflow/test-results
+      - store_artifacts:
+          path: workflow/test-results
 
   run-e2e-mysql-tests:
     steps:
