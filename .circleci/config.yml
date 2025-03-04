@@ -89,11 +89,8 @@ commands:
   install-test-deps:
     steps:
       - run: 
-          name: Install cargo-nextest
-          command: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-      - run:
-          name: install cargo-llvm-cov
-          command: cargo install cargo-llvm-cov    
+          name: Install cargo-nextest cargo-llvm-cov
+          command: cargo install cargo-nextest cargo-llvm-cov
   make-test-dir:
     steps:
       - run:
