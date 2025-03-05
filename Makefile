@@ -47,6 +47,18 @@ python:
 	python3 -m venv venv
 	venv/bin/python -m pip install -r requirements.txt
 
+.ONESHELL:
+test_tokenserver:
+# I don't love the name here, need to revisit
+	pip3 install -r tools/tokenserver/requirements.txt
+#	pytest tools/tokenserver
+	python3 tools/tokenserver/run_tests.py
+
+.ONESHELL:
+test_tokenserver_pytest:
+	pip3 install -r tools/tokenserver/requirements.txt
+	pytest tools/tokenserver -s --verbose 
+
 
 run_mysql: python
 	PATH="./venv/bin:$(PATH)" \
