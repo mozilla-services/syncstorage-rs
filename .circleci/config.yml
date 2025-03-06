@@ -89,14 +89,16 @@ commands:
   install-test-deps:
     steps:
       - run: 
-          name: Install cargo-nextest cargo-llvm-cov
+          name: Install test dependencies
           command: cargo install cargo-nextest cargo-llvm-cov
+
   make-test-dir:
     steps:
       - run:
           name: Create test-results directory
           command: mkdir -p workflow/test-results
-  run-tests:
+
+  run-unit-tests:
     steps:
       - run:
           name: nextest with code coverage
@@ -106,6 +108,16 @@ commands:
           command: make test_with_coverage
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+  merge-unit-test-coverage:
+    steps:
+      - run:
+          name: Merge llvm-cov results
+          command: |
+            make merge_coverage_results
+
+  store-unit-test-results:
+    steps:
       - store_test_results:
           path: workflow/test-results
       - store_artifacts:
@@ -226,7 +238,9 @@ jobs:
       - write-version
       - install-test-deps
       - make-test-dir
-      - run-tests
+      - run-unit-tests
+      - merge-unit-test-coverage
+      - store-unit-test-results
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
       # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
       # configured already, and it appears unit-tests modify the db to the expected state

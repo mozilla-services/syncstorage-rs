@@ -94,9 +94,11 @@ test_with_coverage:
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo llvm-cov --summary-only --json --output-path ${UNIT_COVERAGE_JSON} \
+	cargo llvm-cov --no-report --summary-only \
 		nextest --workspace --profile ${TEST_PROFILE}
 	exit_code=$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
 	exit $$exit_code
 
+merge_coverage_results:
+	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
