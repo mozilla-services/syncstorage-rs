@@ -1084,6 +1084,7 @@ async fn lock_for_read() -> Result<(), DbError> {
     })
     .await?;
     let result = db.get_collection_id("NewCollection".to_owned()).await;
+    assert_eq!(false, true);
     assert!(result.unwrap_err().is_collection_not_found());
     db.commit().await?;
     Ok(())
