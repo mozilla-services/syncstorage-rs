@@ -15,7 +15,6 @@ commands:
             if [ "$(which python)" != "" ]; then python --version; fi
             uname -a
             cat /etc/os-release
-            make --version
   setup-rust-check:
     steps:
       - run:
