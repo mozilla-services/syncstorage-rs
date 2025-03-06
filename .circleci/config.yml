@@ -113,7 +113,7 @@ commands:
   merge-unit-test-coverage:
     steps:
       - run:
-          # when: always
+          when: always
           name: Merge llvm-cov results
           command: make merge_coverage_results
 
