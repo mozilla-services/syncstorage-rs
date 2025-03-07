@@ -1,0 +1,23 @@
+[store]
+dir = "target/nextest"
+
+[profile.default]
+retries = 0
+test-threads = 1
+threads-required = 1
+status-level = "pass"
+final-status-level = "flaky"
+failure-output = "immediate"
+success-output = "never"
+fail-fast = false
+slow-timeout = { period = "300s" }
+
+[profile.ci]
+fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"
+
+report-name = "syncstorage-unit-tests"
+store-success-output = false
+store-failure-output = true
