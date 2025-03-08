@@ -124,7 +124,7 @@ class TestCase:
         query = "INSERT INTO nodes (service, node, available, capacity, \
             current_load, backoff, downed"
         data = {
-            "service_id": self.service_id,
+            "service": self.service_id,
             "node": node,
             "available": available,
             "capacity": capacity,
@@ -134,11 +134,11 @@ class TestCase:
         }
 
         if id:
-            query += ''', id) VALUES(@service_id, @node, @available, @capacity,
+            query += ''', id) VALUES(@service, @node, @available, @capacity,
                                      @current_load, @backoff, @downed, @id)'''
             data["id"] = id
         else:
-            query += ''') VALUES(@service_id, @node, @available, @capacity,
+            query += ''') VALUES(@service, @node, @available, @capacity,
                                  @current_load, @backoff, @downed)'''
 
         cursor = self._execute_sql(query, data)
@@ -209,14 +209,14 @@ class TestCase:
         query = """
             INSERT INTO users (service, email, generation, client_state, \
                 created_at, nodeid, keys_changed_at, replaced_at)
-            VALUES (@service_id, @email, @generation, @client_state,
+            VALUES (@service, @email, @generation, @client_state,
                     @created_at, @nodeid, @keys_changed_at, @replaced_at);
         """
         created_at = created_at or math.trunc(time.time() * 1000)
         cursor = self._execute_sql(
             query,
             {
-                "service_id": self.service_id,
+                "service": self.service_id,
                 "email": email or "test@%s" % self.FXA_EMAIL_DOMAIN,
                 "generation": generation,
                 "client_state": client_state,
@@ -262,11 +262,11 @@ class TestCase:
         }
 
     def _get_replaced_users(self, service_id, email):
-        query = "SELECT * FROM users WHERE service = @service_id \
+        query = "SELECT * FROM users WHERE service = @service \
             AND email = @email AND \
             replaced_at IS NOT NULL"
         cursor = self._execute_sql(
-            query, {"service_id": service_id, "email": email}
+            query, {"service": service_id, "email": email}
         )
 
         users = []
