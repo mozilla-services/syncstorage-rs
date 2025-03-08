@@ -178,7 +178,7 @@ class TestCase:
         if self.engine.name == "sqlite":
             cursor = self._execute_sql("SELECT LAST_INSERT_ROWID() AS id", {})
         else:
-            cursor = self._execute_sql("SELECT LAST_INSERT_ID()", {})
+            cursor = self._execute_sql("SELECT LAST_INSERT_ID() AS id", {})
         (id,) = cursor.fetchone()
         cursor.close()
         self.database.commit()
