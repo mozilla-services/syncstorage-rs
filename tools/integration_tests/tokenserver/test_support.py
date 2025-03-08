@@ -182,6 +182,7 @@ class TestCase:
         (id,) = cursor.fetchone()
         cursor.close()
         self.database.commit()
+        print(id)
 
         return id
 
