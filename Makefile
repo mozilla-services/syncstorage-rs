@@ -10,6 +10,20 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+# In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
+# convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
+# TODO: update workflow name appropriately
+WORKFLOW := build-deploy
+EPOCH_TIME := $(shell date +"%s")
+TEST_RESULTS_DIR ?= workflow/test-results
+
+TEST_PROFILE := $(if $(CIRCLECI),ci,default)
+TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
+UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
+UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
+SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
+SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
+
 SRC_ROOT = $(shell pwd)
 PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
@@ -80,8 +94,22 @@ run_spanner: python
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
 
+.ONESHELL:
 test:
-	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
-		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
-		RUST_TEST_THREADS=1 \
-		cargo test --workspace
+	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
+	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
+	RUST_TEST_THREADS=1 \
+	cargo nextest run --workspace --profile ${TEST_PROFILE} $(ARGS)
+
+.ONESHELL:
+test_with_coverage:
+	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
+	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
+	RUST_TEST_THREADS=1 \
+	cargo llvm-cov --no-report --summary-only \
+		nextest --workspace --profile ${TEST_PROFILE}; exit_code=$$?
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
+	exit $$exit_code
+
+merge_coverage_results:
+	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}

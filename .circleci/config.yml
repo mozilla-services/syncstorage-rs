@@ -60,11 +60,6 @@ commands:
           name: Rust Clippy Spanner
           command: |
             cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
-  cargo-build:
-    steps:
-      - run:
-          name: cargo build
-          command: cargo build
   setup-mysql:
     steps:
       - run:
@@ -91,16 +86,42 @@ commands:
             "$CIRCLE_PROJECT_REPONAME" \
             "$CIRCLE_BUILD_URL" > syncserver/version.json
 
-  run-tests:
+  install-test-deps:
+    steps:
+      - run: 
+          name: Install test dependencies
+          command: cargo install cargo-nextest cargo-llvm-cov
+
+  make-test-dir:
     steps:
       - run:
-          name: cargo test
-          command: cargo test --workspace --verbose
+          name: Create test-results directory
+          command: mkdir -p workflow/test-results
+
+  run-unit-tests:
+    steps:
       - run:
-          name: quota test
-          command: cargo test --workspace --verbose
+          name: nextest with code coverage
+          command: make test_with_coverage
+      - run:
+          name: nextest with code coverage (quota enforced)
+          command: make test_with_coverage
           environment:
               SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+  merge-unit-test-coverage:
+    steps:
+      - run:
+          when: always
+          name: Merge llvm-cov results
+          command: make merge_coverage_results
+
+  store-unit-test-results:
+    steps:
+      - store_test_results:
+          path: workflow/test-results
+      - store_artifacts:
+          path: workflow/test-results
 
   run-e2e-mysql-tests:
     steps:
@@ -168,7 +189,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.78.0  # RUST_VER
+      - image: cimg/rust:1.81.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -185,7 +206,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.78.0  # RUST_VER
+      - image: cimg/rust:1.81.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -215,13 +236,19 @@ jobs:
       #- setup-sccache
       #- restore-sccache-cache
       - write-version
-      - cargo-build
-      - run-tests
+      - install-test-deps
+      - make-test-dir
+      - run-unit-tests
+      - merge-unit-test-coverage
+      - store-unit-test-results
+      # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
+      # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
+      # configured already, and it appears unit-tests modify the db to the expected state
       - run-tokenserver-scripts-tests
       #- save-sccache-cache
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.78.0  # RUST_VER
+      - image: cimg/rust:1.81.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -253,7 +280,7 @@ jobs:
 
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.78.0  # RUST_VER
+      - image: cimg/rust:1.81.0  # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
