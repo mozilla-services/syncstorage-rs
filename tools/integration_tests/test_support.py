@@ -1,8 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-""" Base test class, with an instanciated app.
-"""
+"""Base test class, with an instanciated app."""
 
 import contextlib
 import functools
@@ -25,6 +24,7 @@ import sys
 import time
 import tokenlib
 import urllib.parse as urlparse
+
 # unittest imported by pytest requirement
 import unittest
 import uuid
@@ -546,7 +546,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
-                secrets[name[len(secrets_prefix):]] = settings.pop(name)
+                secrets[name[len(secrets_prefix) :]] = settings.pop(name)
         kwds["secrets"] = secrets
         return kwds
 
@@ -869,12 +869,13 @@ def run_live_functional_tests(TestCaseClass, argv=None):
     os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
 
     # Now use the unittest2 runner to execute them.
-    suite = unittest.TestSuite()
     import test_storage
 
     test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
-    suite.addTest(unittest.findTestCases(test_storage, test_prefix))
-    # suite.addTest(unittest.makeSuite(LiveTestCases, prefix=test_prefix))
+    unittest.defaultTestLoader.loadTestsFromName(
+        test_prefix, module=test_storage
+    )
+    suite = unittest.defaultTestLoader.suiteClass()
     runner = unittest.TextTestRunner(
         stream=sys.stderr,
         failfast=opts.failfast,

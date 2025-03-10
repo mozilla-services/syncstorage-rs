@@ -1,0 +1,20 @@
+MYSQL
+
+ERROR: test_client_specified_duration (tokenserver.test_authorization.TestAuthorization)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/app/tools/integration_tests/tokenserver/test_authorization.py", line 10, in setUp
+    super(TestAuthorization, self).setUp()
+  File "/app/tools/integration_tests/tokenserver/test_support.py", line 62, in setUp
+    self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
+  File "/app/tools/integration_tests/tokenserver/test_support.py", line 144, in _add_node
+    cursor = self._execute_sql(query, data)
+  File "/app/tools/integration_tests/tokenserver/test_support.py", line 323, in _execute_sql
+    cursor.execute(query, args)
+  File "/usr/local/lib/python3.9/dist-packages/MySQLdb/cursors.py", line 206, in execute
+    res = self._query(query)
+  File "/usr/local/lib/python3.9/dist-packages/MySQLdb/cursors.py", line 319, in _query
+    db.query(q)
+  File "/usr/local/lib/python3.9/dist-packages/MySQLdb/connections.py", line 254, in query
+    _mysql.connection.query(self, query)
+MySQLdb.OperationalError: (1048, "Column 'service' cannot be null")
