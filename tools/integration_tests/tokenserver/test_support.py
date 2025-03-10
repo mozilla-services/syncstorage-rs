@@ -9,12 +9,23 @@ import math
 import time
 import urllib.parse as urlparse
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import (
+    create_engine,
+    event,
+    select,
+    delete,
+    insert,
+    and_,
+    func,
+    distinct,
+)
 from sqlalchemy.pool import NullPool
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import close_all_sessions
+from sqlalchemy.orm import close_all_sessions, Session
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
+
+from tokenserver.tables import Users, Nodes, Services
 
 DEFAULT_OAUTH_SCOPE = "https://identity.mozilla.com/apps/oldsync"
 
@@ -47,37 +58,24 @@ class TestCase:
         )
 
         # Start each test with a blank slate.
-        cursor = self._execute_sql("DELETE FROM users", {})
-        cursor.close()
-
-        cursor = self._execute_sql("DELETE FROM nodes", {})
-        cursor.close()
-
-        cursor = self._execute_sql("DELETE FROM services", {})
-        cursor.close()
+        with Session(self.engine) as session, session.begin():
+            session.execute(delete(Users))
+            session.execute(delete(Nodes))
+            session.execute(delete(Services))
 
         self.service_id = self._add_service("sync-1.5", r"{node}/1.5/{uid}")
 
         # Ensure we have a node with enough capacity to run the tests.
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
 
-        # Ensure that everything is saved in db
-        self.database.commit()
-
     def tearDown(self):
         # And clean up at the end, for good measure.
-        cursor = self._execute_sql("DELETE FROM users", {})
-        cursor.close()
-
-        cursor = self._execute_sql("DELETE FROM nodes", {})
-        cursor.close()
-
-        cursor = self._execute_sql("DELETE FROM services", {})
-        cursor.close()
+        with Session(self.engine) as session, session.begin():
+            session.execute(delete(Users))
+            session.execute(delete(Nodes))
+            session.execute(delete(Services))
 
         # Ensure that everything is saved in db
-        self.database.commit()
-        self.database.close()
         close_all_sessions()
         self.engine.dispose()
 
@@ -121,81 +119,50 @@ class TestCase:
         backoff=0,
         downed=0,
     ):
-        query = "INSERT INTO nodes (service, node, available, capacity, \
-            current_load, backoff, downed"
-        data = {
-            "service": self.service_id,
-            "node": node,
-            "available": available,
-            "capacity": capacity,
-            "current_load": current_load,
-            "backoff": backoff,
-            "downed": downed,
-        }
+        query = insert(Nodes).values(
+            service=self.service_id,
+            node=node,
+            available=available,
+            capacity=capacity,
+            current_load=current_load,
+            backoff=backoff,
+            downed=downed,
+        )
 
-        if id:
-            query += ''', id) VALUES(@service, @node, @available, @capacity,
-                                     @current_load, @backoff, @downed, @id)'''
-            data["id"] = id
-        else:
-            query += ''') VALUES(@service, @node, @available, @capacity,
-                                 @current_load, @backoff, @downed)'''
+        if id is not None:
+            query = insert(Nodes).values(
+                service=self.service_id,
+                node=node,
+                available=available,
+                capacity=capacity,
+                current_load=current_load,
+                backoff=backoff,
+                downed=downed,
+                id=id,
+            )
 
-        cursor = self._execute_sql(query, data)
-        cursor.close()
-        self.database.commit()
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(query)
+            lastrowid = result.lastrowid
 
-        return self._last_insert_id()
+        return lastrowid
 
     def _get_node(self, id):
-        query = "SELECT * FROM nodes WHERE id = @id"
-        cursor = self._execute_sql(query, {"id": id})
-        (
-            id,
-            service,
-            node,
-            available,
-            current_load,
-            capacity,
-            downed,
-            backoff,
-        ) = cursor.fetchone()
-        cursor.close()
-        self.database.commit()
+        query = select(Nodes).where(Nodes.id == id)
 
-        return {
-            "id": id,
-            "service": service,
-            "node": node,
-            "available": available,
-            "current_load": current_load,
-            "capacity": capacity,
-            "downed": downed,
-            "backoff": backoff,
-        }
+        with Session(self.engine) as session:
+            result = session.execute(query)
+            (node,) = result.fetchone()
 
-    def _last_insert_id(self):
-        if self.engine.name == "sqlite":
-            cursor = self._execute_sql("SELECT LAST_INSERT_ROWID() AS id", {})
-        else:
-            cursor = self._execute_sql("SELECT LAST_INSERT_ID() AS id", {})
-        (id,) = cursor.fetchone()
-        cursor.close()
-        self.database.commit()
-        print(id)
-
-        return id
+        return node._asdict()
 
     def _add_service(self, service_name, pattern):
-        query = "INSERT INTO services (service, pattern) \
-            VALUES(@service_name, @pattern)"
-        cursor = self._execute_sql(
-            query, {"service_name": service_name, "pattern": pattern}
-        )
-        cursor.close()
-        self.database.commit()
+        query = insert(Services).values(service=service_name, pattern=pattern)
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(query)
+            lastrowid = result.lastrowid
 
-        return self._last_insert_id()
+        return lastrowid
 
     def _add_user(
         self,
@@ -207,122 +174,67 @@ class TestCase:
         keys_changed_at=1234,
         replaced_at=None,
     ):
-        query = """
-            INSERT INTO users (service, email, generation, client_state, \
-                created_at, nodeid, keys_changed_at, replaced_at)
-            VALUES (@service, @email, @generation, @client_state,
-                    @created_at, @nodeid, @keys_changed_at, @replaced_at);
-        """
         created_at = created_at or math.trunc(time.time() * 1000)
-        cursor = self._execute_sql(
-            query,
-            {
-                "service": self.service_id,
-                "email": email or "test@%s" % self.FXA_EMAIL_DOMAIN,
-                "generation": generation,
-                "client_state": client_state,
-                "created_at": created_at,
-                "nodeid": nodeid,
-                "keys_changed_at": keys_changed_at,
-                "replaced_at": replaced_at,
-            },
+        query = insert(Users).values(
+            service=self.service_id,
+            email=email or "test:%s" % self.FXA_EMAIL_DOMAIN,
+            generation=generation,
+            client_state=client_state,
+            created_at=created_at,
+            nodeid=nodeid,
+            keys_changed_at=keys_changed_at,
+            replaced_at=replaced_at,
         )
-        cursor.close()
-        self.database.commit()
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(query)
+            lastrowid = result.lastrowid
 
-        return self._last_insert_id()
+        return lastrowid
 
     def _get_user(self, uid):
-        query = "SELECT * FROM users WHERE uid = @uid"
-        cursor = self._execute_sql(query, {"uid": uid})
+        query = select(Users).where(Users.uid == uid)
+        with Session(self.engine) as session:
+            result = session.execute(query)
+            (user,) = result.fetchone()
 
-        (
-            uid,
-            service,
-            email,
-            generation,
-            client_state,
-            created_at,
-            replaced_at,
-            nodeid,
-            keys_changed_at,
-        ) = cursor.fetchone()
-        cursor.close()
-        self.database.commit()
-
-        return {
-            "uid": uid,
-            "service": service,
-            "email": email,
-            "generation": generation,
-            "client_state": client_state,
-            "created_at": created_at,
-            "replaced_at": replaced_at,
-            "nodeid": nodeid,
-            "keys_changed_at": keys_changed_at,
-        }
+        return user._asdict()
 
     def _get_replaced_users(self, service_id, email):
-        query = "SELECT * FROM users WHERE service = @service \
-            AND email = @email AND \
-            replaced_at IS NOT NULL"
-        cursor = self._execute_sql(
-            query, {"service": service_id, "email": email}
+        query = select(Users).where(
+            and_(
+                Users.service == service_id,
+                and_(Users.email == email, Users.replaced_at is not None),
+            )
         )
+        with Session(self.engine) as session:
+            result = session.execute(query)
+            users = result.fetchall()
 
-        users = []
-        for user in cursor.fetchall():
-            (
-                uid,
-                service,
-                email,
-                generation,
-                client_state,
-                created_at,
-                replaced_at,
-                nodeid,
-                keys_changed_at,
-            ) = user
+        users_dicts = []
+        for user in users:
+            users_dicts.append(user._asdict())
 
-            user_dict = {
-                "uid": uid,
-                "service": service,
-                "email": email,
-                "generation": generation,
-                "client_state": client_state,
-                "created_at": created_at,
-                "replaced_at": replaced_at,
-                "nodeid": nodeid,
-                "keys_changed_at": keys_changed_at,
-            }
-            users.append(user_dict)
-
-        cursor.close()
-        self.database.commit()
-        return users
+        return users_dicts
 
     def _get_service_id(self, service):
-        query = "SELECT id FROM services WHERE service = @service"
-        cursor = self._execute_sql(query, {"service": service})
-        (service_id,) = cursor.fetchone()
-        cursor.close()
-        self.database.commit()
+        query = select(Services.id).where(Services.service == service)
+        with Session(self.engine) as session:
+            result = session.execute(query)
+            (service_id,) = result.fetchone()
 
         return service_id
 
     def _count_users(self):
-        query = "SELECT COUNT(DISTINCT(uid)) FROM users"
-        cursor = self._execute_sql(query, {})
-        (count,) = cursor.fetchone()
-        cursor.close()
-        self.database.commit()
+        query = select(func.count(distinct(Users.uid)))
+        with Session(self.engine) as session:
+            result = session.execute(query)
+            (count,) = result.fetchone()
 
         return count
 
-    def _execute_sql(self, query, args):
-        cursor = self.database.cursor()
-        cursor.execute(query, args)
-        return cursor
+    def _clear_nodes(self):
+        with Session(self.engine) as session, session.begin():
+            session.execute(delete(Nodes))
 
     def _db_connect(self):
         self.engine = create_engine(
@@ -339,8 +251,6 @@ class TestCase:
                 cursor.execute("PRAGMA busy_timeout = 10000")
                 cursor.close()
                 dbapi_connection.commit()
-
-        self.database = self.engine.connect().connection
 
     def unsafelyParseToken(self, token):
         # For testing purposes, don't check HMAC or anything...

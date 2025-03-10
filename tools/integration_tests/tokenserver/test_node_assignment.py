@@ -46,9 +46,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_new_user_allocation(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
-        cursor.close()
-        self.database.commit()
+        self._clear_nodes()
 
         self._add_node(
             available=100,
@@ -90,9 +88,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_successfully_releasing_node_capacity(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
-        cursor.close()
-        self.database.commit()
+        self._clear_nodes()
 
         node_id1 = self._add_node(
             available=0, current_load=99, capacity=100, node="https://node1"
@@ -147,9 +143,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_unsuccessfully_releasing_node_capacity(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
-        cursor.close()
-        self.database.commit()
+        self._clear_nodes()
 
         self._add_node(
             available=0, current_load=100, capacity=100, node="https://node1"
