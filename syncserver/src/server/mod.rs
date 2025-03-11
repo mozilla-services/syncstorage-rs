@@ -17,6 +17,7 @@ use cadence::{Gauged, StatsdClient};
 use futures::future::{self, Ready};
 use glean::server_events::GleanEventsLogger;
 use google_cloud_storage::client::{Storage, StorageControl};
+use http::Uri;
 use tokio::{sync::RwLock, time};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -132,6 +133,16 @@ impl ReverseProxyState {
     pub fn from_settings(settings: &Settings) -> ReverseProxyState {
         ReverseProxyState {
             public_url: settings.public_url.clone(),
+        }
+    }
+
+    pub fn get_webroot(&self) -> String {
+        match &self.public_url {
+            None => "".to_owned(),
+            Some(url) => match url.parse::<Uri>() {
+                Err(_) => "".to_owned(),
+                Ok(uri) => uri.path().to_owned(),
+            },
         }
     }
 }
