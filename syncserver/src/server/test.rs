@@ -147,17 +147,23 @@ macro_rules! init_app {
 }
 
 fn create_request(
-    method: http::Method,
+    method: &http::Method,
     path: &str,
     headers: Option<HashMap<&'static str, String>>,
     payload: Option<serde_json::Value>,
+    settings: Option<&Settings>,
 ) -> test::TestRequest {
-    let settings = get_test_settings();
+    let test_settings = get_test_settings();
+    let settings = settings.unwrap_or(&test_settings);
     let mut req = test::TestRequest::with_uri(path)
         .method(method.clone())
         .insert_header((
             "Authorization",
-            create_hawk_header(method.as_str(), settings.port, path),
+            create_hawk_header(
+                method.as_str(),
+                settings.port,
+                &(ReverseProxyState::from_settings(settings).get_webroot() + path),
+            ),
         ))
         .insert_header(("Accept", "application/json"))
         .insert_header((
@@ -229,20 +235,34 @@ async fn test_endpoint(
     status: Option<StatusCode>,
     expected_body: Option<&str>,
 ) {
-    let app = init_app!().await;
+    for prefix in [None, Some("/firefox-sync")] {
+        let settings = match prefix {
+            None => None,
+            Some(prefix) => {
+                let mut settings = get_test_settings();
+                settings.public_url = Some(format!("https://example.com{}", prefix).to_owned());
+                Some(settings)
+            }
+        };
 
-    let req = create_request(method, path, None, None).to_request();
-    let sresp = app
-        .call(req)
-        .await
-        .expect("Could not get sresp in test_endpoint");
-    match status {
-        None => assert!(sresp.response().status().is_success()),
-        Some(status) => assert!(sresp.response().status() == status),
-    };
-    if let Some(x_body) = expected_body {
-        let body = test::read_body(sresp).await;
-        assert_eq!(body, x_body.as_bytes());
+        let app = match settings.clone() {
+            None => init_app!().await,
+            Some(settings) => init_app!(settings).await,
+        };
+
+        let req = create_request(&method, path, None, None, settings.as_ref()).to_request();
+        let sresp = app
+            .call(req)
+            .await
+            .expect("Could not get sresp in test_endpoint");
+        match status {
+            None => assert!(sresp.response().status().is_success()),
+            Some(status) => assert!(sresp.response().status() == status),
+        };
+        if let Some(x_body) = expected_body {
+            let body = test::read_body(sresp).await;
+            assert_eq!(body, x_body.as_bytes());
+        }
     }
 }
 
@@ -265,7 +285,7 @@ where
     ))
     .await;
 
-    let req = create_request(method, path, None, None).to_request();
+    let req = create_request(&method, path, None, None, Some(&settings)).to_request();
     let sresponse = match app.call(req).await {
         Ok(v) => v,
         Err(e) => {
@@ -309,11 +329,12 @@ async fn test_endpoint_with_body(
         metrics
     ))
     .await;
-    let req = create_request(method, path, None, Some(body)).to_request();
+    let req = create_request(&method, path, None, Some(body), Some(&settings)).to_request();
     let sresponse = app
         .call(req)
         .await
         .expect("Could not get sresponse in test_endpoint_with_body");
+    println!("{sresponse:#?}");
     assert!(sresponse.response().status().is_success());
     test::read_body(sresponse).await
 }
@@ -530,7 +551,7 @@ async fn invalid_content_type() {
     let mut headers = HashMap::new();
     headers.insert("Content-Type", "application/javascript".to_owned());
     let req = create_request(
-        http::Method::PUT,
+        &http::Method::PUT,
         path,
         Some(headers.clone()),
         Some(json!(BsoBody {
@@ -540,6 +561,7 @@ async fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         })),
+        None,
     )
     .to_request();
 
@@ -553,7 +575,7 @@ async fn invalid_content_type() {
     let path = "/1.5/42/storage/bookmarks";
 
     let req = create_request(
-        http::Method::POST,
+        &http::Method::POST,
         path,
         Some(headers.clone()),
         Some(json!([BsoBody {
@@ -563,6 +585,7 @@ async fn invalid_content_type() {
             ttl: Some(31_536_000),
             ..Default::default()
         }])),
+        None,
     )
     .to_request();
 
@@ -580,13 +603,14 @@ async fn invalid_batch_post() {
     let mut headers = HashMap::new();
     headers.insert("accept", "application/json".to_owned());
     let req = create_request(
-        http::Method::POST,
+        &http::Method::POST,
         "/1.5/42/storage/tabs?batch=sammich",
         Some(headers),
         Some(json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
             {"id": "456", "payload": "xxxasdf", "sortindex": 23}
         ])),
+        None,
     )
     .to_request();
 
@@ -610,9 +634,10 @@ async fn accept_new_or_dev_ios() {
     );
 
     let req = create_request(
-        http::Method::GET,
+        &http::Method::GET,
         "/1.5/42/info/collections",
         Some(headers),
+        None,
         None,
     )
     .to_request();
@@ -626,9 +651,10 @@ async fn accept_new_or_dev_ios() {
     );
 
     let req = create_request(
-        http::Method::GET,
+        &http::Method::GET,
         "/1.5/42/info/collections",
         Some(headers),
+        None,
         None,
     )
     .to_request();
@@ -642,9 +668,10 @@ async fn accept_new_or_dev_ios() {
     );
 
     let req = create_request(
-        http::Method::GET,
+        &http::Method::GET,
         "/1.5/42/info/collections",
         Some(headers),
+        None,
         None,
     )
     .to_request();
@@ -662,9 +689,10 @@ async fn reject_old_ios() {
     );
 
     let req = create_request(
-        http::Method::GET,
+        &http::Method::GET,
         "/1.5/42/info/collections",
         Some(headers.clone()),
+        None,
         None,
     )
     .to_request();
@@ -672,12 +700,13 @@ async fn reject_old_ios() {
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 
     let req = create_request(
-        http::Method::POST,
+        &http::Method::POST,
         "/1.5/42/storage/tabs?batch=sammich",
         Some(headers),
         Some(json!([
             {"id": "123", "payload": "xxx", "sortindex": 23},
         ])),
+        None,
     )
     .to_request();
     let response = app.call(req).await.unwrap();
@@ -689,8 +718,14 @@ async fn reject_old_ios() {
 #[actix_rt::test]
 async fn info_configuration_xlm() {
     let app = init_app!().await;
-    let req =
-        create_request(http::Method::GET, "/1.5/42/info/configuration", None, None).to_request();
+    let req = create_request(
+        &http::Method::GET,
+        "/1.5/42/info/configuration",
+        None,
+        None,
+        None,
+    )
+    .to_request();
     let response = app.call(req).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let xlm = response.headers().get(X_LAST_MODIFIED);
@@ -714,18 +749,26 @@ async fn overquota() {
     let app = init_app!(settings).await;
 
     // Clear out any data that's already in the store.
-    let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
+    let req = create_request(
+        &http::Method::DELETE,
+        "/1.5/42/storage",
+        None,
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let resp = app.call(req).await.unwrap();
     assert!(resp.response().status().is_success());
 
     // Quota is enforced before the write, allowing one write to go over
     let req = create_request(
-        http::Method::PUT,
+        &http::Method::PUT,
         "/1.5/42/storage/xxx_col2/12345",
         None,
         Some(json!(
             {"payload": "*".repeat(500)}
         )),
+        Some(&settings),
     )
     .to_request();
     let response = app.call(req).await.unwrap();
@@ -736,12 +779,13 @@ async fn overquota() {
     actix_rt::time::sleep(Duration::from_millis(10)).await;
 
     let req = create_request(
-        http::Method::PUT,
+        &http::Method::PUT,
         "/1.5/42/storage/xxx_col2/12345",
         None,
         Some(json!(
             {"payload": "*".repeat(500)}
         )),
+        Some(&settings),
     )
     .to_request();
     let response = app.call(req).await.unwrap();
@@ -763,7 +807,14 @@ async fn overquota() {
 
     // XXX: this should run as cleanup regardless of test failure but it's
     // difficult. e.g. FutureExt::catch_unwind isn't compatible w/ actix-web
-    let req = create_request(http::Method::DELETE, "/1.5/42/storage", None, None).to_request();
+    let req = create_request(
+        &http::Method::DELETE,
+        "/1.5/42/storage",
+        None,
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let resp = app.call(req).await.unwrap();
     assert!(resp.response().status().is_success());
 }
@@ -776,7 +827,14 @@ async fn lbheartbeat_max_pool_size_check() {
     let app = init_app!(settings).await;
 
     // Test all is well.
-    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let lb_req = create_request(
+        &http::Method::GET,
+        "/__lbheartbeat__",
+        None,
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let sresp = app.call(lb_req).await.unwrap();
     let status = sresp.status();
     // Uncomment only for debugging purposes:
@@ -788,10 +846,11 @@ async fn lbheartbeat_max_pool_size_check() {
     headers.insert("TEST_CONNECTIONS", "10".to_owned());
     headers.insert("TEST_IDLES", "0".to_owned());
     let req = create_request(
-        http::Method::GET,
+        &http::Method::GET,
         "/__lbheartbeat__",
         Some(headers.clone()),
         None,
+        Some(&settings),
     )
     .to_request();
     let sresp = app.call(req).await.unwrap();
@@ -802,8 +861,14 @@ async fn lbheartbeat_max_pool_size_check() {
 
     // check duration for exhausted connections
     actix_rt::time::sleep(Duration::from_secs(1)).await;
-    let req =
-        create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
+    let req = create_request(
+        &http::Method::GET,
+        "/__lbheartbeat__",
+        Some(headers),
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let sresp = app.call(req).await.unwrap();
     let status = sresp.status();
     let body = test::read_body(sresp).await;
@@ -818,8 +883,14 @@ async fn lbheartbeat_max_pool_size_check() {
     let mut headers: HashMap<&str, String> = HashMap::new();
     headers.insert("TEST_CONNECTIONS", "5".to_owned());
     headers.insert("TEST_IDLES", "5".to_owned());
-    let req =
-        create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
+    let req = create_request(
+        &http::Method::GET,
+        "/__lbheartbeat__",
+        Some(headers),
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let sresp = app.call(req).await.unwrap();
     let status = sresp.status();
     // Uncomment only for debugging purposes:
@@ -835,13 +906,27 @@ async fn lbheartbeat_ttl_check() {
 
     let app = init_app!(settings).await;
 
-    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let lb_req = create_request(
+        &http::Method::GET,
+        "/__lbheartbeat__",
+        None,
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let sresp = app.call(lb_req).await.unwrap();
     assert!(sresp.status().is_success());
 
     actix_rt::time::sleep(Duration::from_secs(3)).await;
 
-    let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
+    let lb_req = create_request(
+        &http::Method::GET,
+        "/__lbheartbeat__",
+        None,
+        None,
+        Some(&settings),
+    )
+    .to_request();
     let sresp = app.call(lb_req).await.unwrap();
     assert_eq!(sresp.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

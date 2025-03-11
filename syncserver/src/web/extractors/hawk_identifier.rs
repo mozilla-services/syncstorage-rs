@@ -255,8 +255,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_state, SECRETS, TEST_HOST,
-            TEST_PORT, USER_ID, USER_ID_STR,
+            create_valid_hawk_header, extract_body_as_str, make_reverse_proxy_state, make_state,
+            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
         },
     };
 
@@ -265,6 +265,7 @@ mod tests {
         let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
@@ -273,6 +274,7 @@ mod tests {
             .method(Method::GET)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .param("uid", USER_ID_STR.as_str())
             .to_http_request();
         let mut payload = Payload::None;
@@ -288,12 +290,14 @@ mod tests {
         let mismatch_uid = "5";
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .method(Method::GET)
             .param("uid", mismatch_uid)

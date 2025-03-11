@@ -24,7 +24,10 @@ use syncstorage_db::mock::{MockDb, MockDbPool};
 use syncstorage_settings::{Deadman, ServerLimits, Settings as SyncstorageSettings};
 
 use super::CollectionPostRequest;
-use crate::{server::ServerState, web::auth::HawkPayload};
+use crate::{
+    server::{ReverseProxyState, ServerState},
+    web::auth::HawkPayload,
+};
 
 lazy_static! {
     static ref SERVER_LIMITS: Arc<ServerLimits> = Arc::new(ServerLimits::default());
@@ -72,6 +75,10 @@ pub fn make_state() -> ServerState {
     }
 }
 
+pub fn make_reverse_proxy_state() -> ReverseProxyState {
+    ReverseProxyState { public_url: None }
+}
+
 pub fn extract_body_as_str(sresponse: ServiceResponse) -> String {
     String::from_utf8(block_on(test::read_body(sresponse)).to_vec()).unwrap()
 }
@@ -116,6 +123,7 @@ pub async fn post_collection(
     let payload = HawkPayload::test_default(*USER_ID);
     let state = make_state();
     let secrets = Arc::clone(&SECRETS);
+    let reverse_proxy_state = make_reverse_proxy_state();
     let path = format!(
         "/1.5/{}/storage/tabs{}{}",
         *USER_ID,
@@ -127,6 +135,7 @@ pub async fn post_collection(
     let req = TestRequest::with_uri(&format!("http://{}:{}{}", TEST_HOST, TEST_PORT, path))
         .data(state)
         .data(secrets)
+        .data(reverse_proxy_state)
         .method(Method::POST)
         .insert_header(("authorization", header))
         .insert_header(("content-type", "application/json; charset=UTF-8"))
