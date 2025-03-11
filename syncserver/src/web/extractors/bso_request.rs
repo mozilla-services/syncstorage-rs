@@ -63,8 +63,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_db, make_state, INVALID_BSO_NAME,
-            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
+            create_valid_hawk_header, extract_body_as_str, make_db, make_reverse_proxy_state,
+            make_state, INVALID_BSO_NAME, SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
         },
     };
 
@@ -73,12 +73,14 @@ mod tests {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header =
             create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .method(Method::GET)
             .param("uid", USER_ID_STR.as_str())
@@ -98,12 +100,14 @@ mod tests {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/tabs/{}", *USER_ID, INVALID_BSO_NAME);
         let header =
             create_valid_hawk_header(&payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .method(Method::GET)
             // `param` sets the value that would be extracted from the tokenized URI, as if the router did it.
@@ -136,6 +140,7 @@ mod tests {
         let altered_bso = format!("\"{{{}}}\"", *USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!(
             "/1.5/{}/storage/tabs/{}",
             *USER_ID,
@@ -146,6 +151,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .insert_header(("accept", "application/json,text/plain:q=0.5"))
             .method(Method::GET)
