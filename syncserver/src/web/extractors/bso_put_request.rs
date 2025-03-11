@@ -89,8 +89,8 @@ mod tests {
         auth::HawkPayload,
         extractors::test_utils::{
             SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR, create_valid_hawk_header,
-            extract_body_as_str, limits_with_max_request_bytes, make_db, make_state,
-            make_state_with_limits,
+            extract_body_as_str, limits_with_max_request_bytes, make_db, make_reverse_proxy_state,
+            make_state, make_state_with_limits,
         },
     };
 
@@ -101,6 +101,7 @@ mod tests {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header =
             create_valid_hawk_header(&payload, &secrets, "POST", &uri, TEST_HOST, TEST_PORT);
@@ -110,6 +111,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .insert_header(("content-type", "application/json"))
             .method(Method::POST)
@@ -168,6 +170,7 @@ mod tests {
         let payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/tabs/asdf", *USER_ID);
         let header =
             create_valid_hawk_header(&payload, &secrets, "POST", &uri, TEST_HOST, TEST_PORT);
@@ -177,6 +180,7 @@ mod tests {
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .insert_header(("content-type", "application/json"))
             .method(Method::POST)
