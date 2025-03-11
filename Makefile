@@ -62,13 +62,6 @@ python:
 	venv/bin/python -m pip install -r requirements.txt
 
 .ONESHELL:
-test_tokenserver:
-# I don't love the name here, need to revisit
-	pip3 install -r tools/tokenserver/requirements.txt
-#	pytest tools/tokenserver
-	python3 tools/tokenserver/run_tests.py
-
-.ONESHELL:
 test_tokenserver_pytest:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver -s --verbose 
@@ -113,3 +106,8 @@ test_with_coverage:
 
 merge_coverage_results:
 	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
+
+.ONESHELL:
+run_token_server_e2e:
+	pip3 install -r tools/tokenserver/requirements.txt
+	pytest tools/tokenserver
