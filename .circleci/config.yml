@@ -499,12 +499,6 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - build-for-gar:
-          requires:
-            - build-and-test
-          filters:
-            tags:
-              only: /.*/
       - deploy:
           requires:
             - mysql-e2e-tests
@@ -519,7 +513,6 @@ workflows:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
-            - build-for-gar
           filters:
             tags:
               only: /.*/
