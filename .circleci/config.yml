@@ -314,39 +314,6 @@ jobs:
           paths:
             - /home/circleci/cache
 
-  build-for-gar:
-    executor: gcp-gcr/default
-    parameters:
-      image:
-        type: string
-        default: us-docker.pkg.dev/moz-fx-sync-prod/sync-prod/sync
-    steps:
-      - run:
-          name: Create version.json
-          command: |
-            # create a version.json per https://github.com/mozilla-services/Dockerflow/blob/master/docs/version_object.md
-            printf '{"commit":"%s","version":"%s","source":"https://github.com/%s/%s","build":"%s"}\n' \
-            "$CIRCLE_SHA1" \
-            "$CIRCLE_TAG" \
-            "$CIRCLE_PROJECT_USERNAME" \
-            "$CIRCLE_PROJECT_REPONAME" \
-            "$CIRCLE_BUILD_URL" > version.json
-      # Reference:
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-build-image
-      - gcp-gcr/build-image:
-          image: <<parameters.image>>
-          tag: app:build
-          extra_build_args: DATABASE_BACKEND=spanner
-      # Save the built docker container into CircleCI's workspace cache. This is
-      # required since Workflows do not have the same remote docker instance.
-      - run:
-          name: docker save <<parameters.image>>
-          command: mkdir -p /cache; docker save -o /cache/docker.tar "<<parameters.image>>"
-      - persist_to_workspace:
-          root: /cache
-          paths:
-            - docker.tar
-
   # Auth to GCR, tag and push image
   deploy-to-gar:
     executor: gcp-gcr/default
@@ -363,12 +330,11 @@ jobs:
       - gcp-gcr/gcr-auth:
           registry-url: us-docker.pkg.dev
           use_oidc: true
-      # Load image from CircleCI'/s workspace cache
-      - attach_workspace:
-          at: /tmp/cache
+      - restore_cache:
+          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
-          command: docker load -i /tmp/cache/docker.tar
+          command: docker load -i /home/circleci/cache/docker.tar
       # Tag image
       # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-tag-image
       - gcp-gcr/tag-image:
