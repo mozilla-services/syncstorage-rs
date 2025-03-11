@@ -69,6 +69,21 @@ pub struct ServerState {
     pub glean_enabled: bool,
 }
 
+/// This is a state holding data about the reverse proxy configuration.
+/// This state object will be made available to all HTTP API calls.
+pub struct ReverseProxyState {
+    /// public facing URL of the server
+    pub public_url: Option<String>,
+}
+
+impl ReverseProxyState {
+    pub fn from_settings(settings: &Settings) -> ReverseProxyState {
+        ReverseProxyState {
+            public_url: settings.public_url.clone(),
+        }
+    }
+}
+
 pub fn cfg_path(path: &str) -> String {
     let path = path
         .replace(
@@ -130,7 +145,7 @@ pub struct Server;
 
 #[macro_export]
 macro_rules! build_app {
-    ($syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr, $metrics: expr) => {
+    ($reverse_proxy_state: expr, $syncstorage_state: expr, $tokenserver_state: expr, $secrets: expr, $limits: expr, $cors: expr, $metrics: expr) => {
         App::new()
             .configure(|cfg| {
                 cfg.app_data(Data::new($syncstorage_state));
@@ -141,6 +156,7 @@ macro_rules! build_app {
                 }
             })
             .app_data(Data::new($secrets))
+            .app_data(Data::new($reverse_proxy_state))
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
@@ -264,11 +280,12 @@ macro_rules! build_app {
 
 #[macro_export]
 macro_rules! build_app_without_syncstorage {
-    ($state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {{
+    ($reverse_proxy_state: expr, $state: expr, $secrets: expr, $cors: expr, $metrics: expr) => {{
         let fxa_webhook_enabled = $state.fxa_webhook_enabled;
         App::new()
             .app_data(Data::new($state))
             .app_data(Data::new($secrets))
+            .app_data(Data::new($reverse_proxy_state))
             // Middleware is applied LIFO
             // These will wrap all outbound responses with matching status codes.
             .wrap(ErrorHandlers::new().handler(StatusCode::NOT_FOUND, ApiError::render_404))
@@ -427,6 +444,7 @@ impl Server {
             };
 
             build_app!(
+                ReverseProxyState::from_settings(&settings_copy),
                 syncstorage_state,
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
@@ -485,6 +503,7 @@ impl Server {
 
         let server = HttpServer::new(move || {
             build_app_without_syncstorage!(
+                ReverseProxyState::from_settings(&settings_copy),
                 tokenserver_state.clone(),
                 Arc::clone(&secrets),
                 build_cors(&settings_copy),
