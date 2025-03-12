@@ -108,6 +108,7 @@ merge_coverage_results:
 	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
 
 .ONESHELL:
-run_token_server_e2e:
-	poetry install --project tools/tokenserver
+run_token_server_integration_tests:
+	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+
