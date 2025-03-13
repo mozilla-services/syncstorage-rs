@@ -61,12 +61,6 @@ python:
 	python3 -m venv venv
 	venv/bin/python -m pip install -r requirements.txt
 
-.ONESHELL:
-test_tokenserver_pytest:
-	pip3 install -r tools/tokenserver/requirements.txt
-	pytest tools/tokenserver -s --verbose
-
-
 run_mysql: python
 	PATH="./venv/bin:$(PATH)" \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
@@ -111,4 +105,3 @@ merge_coverage_results:
 run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
-
