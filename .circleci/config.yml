@@ -116,13 +116,24 @@ commands:
           name: Merge llvm-cov results
           command: make merge_coverage_results
 
-  store-unit-test-results:
+  store-test-results:
     steps:
       - store_test_results:
           path: workflow/test-results
       - store_artifacts:
           path: workflow/test-results
 
+  run-tokenserver-integration-tests:
+    steps:
+      - run:
+          when: always
+          name: Tokenserver integration tests
+          command: |
+              # NOTE: Python3.12 requires `--break-system-packages`.
+              # This command is run on the circleci/rust image, which is running python 3.10
+               make run_token_server_integration_tests
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
   run-e2e-mysql-tests:
     steps:
       - run:
@@ -137,17 +148,6 @@ commands:
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
-  run-tokenserver-integration-tests:
-    steps:
-      - run:
-          when: always
-          name: Tokenserver integration tests
-          command: |
-              # NOTE: Python3.12 requires `--break-system-packages`.
-              # This command is run on the circleci/rust image, which is running python 3.10
-               make run_token_server_integration_tests
-          environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
 
   run-e2e-spanner-tests:
     steps:
@@ -240,11 +240,11 @@ jobs:
       - make-test-dir
       - run-unit-tests
       - merge-unit-test-coverage
-      - store-unit-test-results
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
       # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
       # configured already, and it appears unit-tests modify the db to the expected state
       - run-tokenserver-integration-tests
+      - store-test-results
       #- save-sccache-cache
   build-mysql-image:
     docker:
