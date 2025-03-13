@@ -5,6 +5,10 @@
 # DOCKER_PASS
 #
 version: 2.1
+
+orbs:
+  gcp-gcr: circleci/gcp-gcr@0.16.3
+
 commands:
   display-versions:
     steps:
@@ -310,6 +314,40 @@ jobs:
           paths:
             - /home/circleci/cache
 
+  # Auth to GCR, tag and push image
+  deploy-to-gar:
+    executor: gcp-gcr/default
+    parameters:
+      image:
+        type: string
+        default: us-docker.pkg.dev/my-gcp-project-id/my-gar-repo/my-image
+      tag:
+        type: string
+        default: latest
+    steps:
+      # Auth to GCR
+      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
+      - gcp-gcr/gcr-auth:
+          registry-url: us-docker.pkg.dev
+          use_oidc: true
+      - restore_cache:
+          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      # Tag image
+      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-tag-image
+      - gcp-gcr/tag-image:
+          image: <<parameters.image>>
+          source-tag: build
+          target-tag: <<parameters.tag>>
+      # Push image
+      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
+      - gcp-gcr/push-image:
+          image: <<parameters.image>>
+          registry-url: us-docker.pkg.dev
+          tag: <<parameters.tag>>
+
   mysql-e2e-tests:
     docker:
       - image: docker/compose:1.24.0
@@ -471,6 +509,15 @@ workflows:
             branches:
               only: master
               # touch: 1676417203
+      - deploy-to-gar:
+          requires:
+            - mysql-e2e-tests
+            - spanner-e2e-tests
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests
