@@ -181,7 +181,7 @@ commands:
           name: Upload << parameters.source >> << parameters.extension >> Files to GCS
           when: always  # Ensure the step runs even if previous steps, like test runs, fail
           command: |
-            if [ "$CIRCLE_BRANCH" = "master" ]; then
+            if [ "$CIRCLE_BRANCH" = "SYNC-4584-upload-test-artifacts-gcs" ]; then
               FILES=$(ls -1 << parameters.source>>/*.<< parameters.extension>> )
               if [ -z "$FILES" ]; then
                 echo "No << parameters.extension >> files found in << parameters.source >>/"
@@ -256,7 +256,9 @@ jobs:
             MYSQL_DATABASE: syncstorage
     resource_class: large
     steps:
-      - gcp-cli/setup
+      - gcp-cli/setup:
+          google_project_id: ETE_GOOGLE_PROJECT_ID
+          gcloud_service_key: ETE_GCLOUD_SERVICE_KEY
       - checkout
       - display-versions
       - setup-python
@@ -277,11 +279,11 @@ jobs:
       - store-test-results
       - upload-to-gcs:
           source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs-test/junit
           extension: xml
       - upload-to-gcs:
           source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs-test/coverage
           extension: json
       #- save-sccache-cache
   build-mysql-image:
