@@ -181,7 +181,7 @@ commands:
           name: Upload << parameters.source >> << parameters.extension >> Files to GCS
           when: always  # Ensure the step runs even if previous steps, like test runs, fail
           command: |
-            if [ "$CIRCLE_BRANCH" = "SYNC-4584-upload-test-artifacts-gcs" ]; then
+            if [ "$CIRCLE_BRANCH" = "master" ]; then
               FILES=$(ls -1 << parameters.source>>/*.<< parameters.extension>> )
               if [ -z "$FILES" ]; then
                 echo "No << parameters.extension >> files found in << parameters.source >>/"
@@ -280,11 +280,11 @@ jobs:
       - store-test-results
       - upload-to-gcs:
           source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs-test/junit
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
       - upload-to-gcs:
           source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs-test/coverage
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
           extension: json
       #- save-sccache-cache
   build-mysql-image:
