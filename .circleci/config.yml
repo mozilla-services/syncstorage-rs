@@ -259,7 +259,7 @@ jobs:
       - gcp-cli/setup:
           google_project_id: ETE_GOOGLE_PROJECT_ID
           gcloud_service_key: ETE_GCLOUD_SERVICE_KEY
-          google_project_number: ETE_GOOGLE_PROJECT_NUMBER # Circle has an existing number, so we override with an empty value
+          google_project_number: ETE_GOOGLE_PROJECT_NUMBER
       - checkout
       - display-versions
       - setup-python
