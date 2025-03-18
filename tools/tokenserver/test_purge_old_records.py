@@ -189,6 +189,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(user_records), 2)
         self.assertEqual(len(self.service_requests), 0)
 
+
 @pytest.mark.migration_records
 class TestMigrationRecords(PurgeOldRecordsTestCase):
     """Test user records that were migrated from the old MySQL cluster of
