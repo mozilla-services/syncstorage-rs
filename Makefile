@@ -16,11 +16,11 @@ PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc
 WORKFLOW := build-deploy
 EPOCH_TIME := $(shell date +"%s")
 TEST_RESULTS_DIR ?= workflow/test-results
-
 TEST_PROFILE := $(if $(CIRCLECI),ci,default)
 TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
 UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
+INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__results.xml
 SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
 SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
@@ -61,7 +61,6 @@ python:
 	python3 -m venv venv
 	venv/bin/python -m pip install -r requirements.txt
 
-
 run_mysql: python
 	PATH="./venv/bin:$(PATH)" \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
@@ -101,3 +100,8 @@ test_with_coverage:
 
 merge_coverage_results:
 	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
+
+.ONESHELL:
+run_token_server_integration_tests:
+	pip3 install -r tools/tokenserver/requirements.txt
+	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
