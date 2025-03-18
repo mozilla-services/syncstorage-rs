@@ -43,7 +43,7 @@ class TestDatabase(unittest.TestCase):
 
     def test_node_allocation(self):
         user = self.database.get_user('test1@example.com')
-        self.assertEquals(user, None)
+        self.assertEqual(user, None)
 
         user = self.database.allocate_user('test1@example.com')
         wanted = 'https://phx12'
