@@ -49,7 +49,7 @@ AND available > 0
 AND capacity > current_load
 AND downed = 0
 AND backoff = 0
-ORDER BY LOG(current_load) / LOG(capacity)
+ORDER BY LOG(current_load) / LOG(capacity) ASC,available DESC
 LIMIT 1"#;
 
 pub const GET_BEST_NODE_RELEASE_CAPACITY_QUERY: &str = r#"
