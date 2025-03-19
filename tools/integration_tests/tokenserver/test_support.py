@@ -177,7 +177,7 @@ class TestCase:
         created_at = created_at or math.trunc(time.time() * 1000)
         query = insert(Users).values(
             service=self.service_id,
-            email=email or "test:%s" % self.FXA_EMAIL_DOMAIN,
+            email=email or "test@%s" % self.FXA_EMAIL_DOMAIN,
             generation=generation,
             client_state=client_state,
             created_at=created_at,
