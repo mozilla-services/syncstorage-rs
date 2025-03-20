@@ -334,7 +334,7 @@ jobs:
       # Reference:
       # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-build-image
       - gcp-gcr/build-image:
-          dockerfile: .
+          dockerfile: Dockerfile
           image: <<parameters.image>>
           tag: build
       # Save the built docker container into CircleCI's workspace cache. This is
