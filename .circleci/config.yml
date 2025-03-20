@@ -324,9 +324,6 @@ jobs:
       registry-url:
         type: string
         default: us-docker.pkg.dev
-      gar-project:
-        type: string
-        default: moz-fx-sync-prod
       gar-repo:
         type: string
         default: sync-prod
@@ -358,7 +355,7 @@ jobs:
 
             if [ -n "${GAR_TAG}" ]; then
               echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
-              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/<<parameters.gar-project>>/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
+              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
               source $BASH_ENV
               docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
             else
@@ -369,7 +366,6 @@ jobs:
       - gcp-gcr/push-image:
           image: <<parameters.gar-repo>>/<<parameters.image>>
           registry-url: <<parameters.registry-url>>
-          google-project-id: <<parameters.gar-project>>
           tag: $GAR_TAG
 
   mysql-e2e-tests:
@@ -535,7 +531,6 @@ workflows:
               # touch: 1676417203
       - deploy-to-gar:
           registry-url: us-docker.pkg.dev
-          gar-project: moz-fx-sync-prod
           gar-repo: sync-prod
           image: syncstorage-rs
           requires:
