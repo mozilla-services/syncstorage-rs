@@ -4,6 +4,12 @@
 # DOCKER_USER    - login info for docker hub
 # DOCKER_PASS
 #
+# To avoid collision with other GCP connections we create specific vars for
+# the ETE Test Pipeline.
+# ETE_GOOGLE_PROJECT_ID     - GCP Project ID for ecosystem-test-eng
+# ETE_GCLOUD_SERVICE_KEY    - GCP syncstorage specific Service Account JSON Key 
+# ETE_GOOGLE_PROJECT_NUMBER - GCP Project Number for ecosystem-test-eng
+#
 version: 2.1
 
 orbs:
