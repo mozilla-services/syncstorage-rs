@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+import pytest
 
 import hawkauthlib
 import re
@@ -189,6 +190,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.assertEqual(len(self.service_requests), 0)
 
 
+@pytest.mark.migration_records
 class TestMigrationRecords(PurgeOldRecordsTestCase):
     """Test user records that were migrated from the old MySQL cluster of
     syncstorage nodes to a single Spanner node
