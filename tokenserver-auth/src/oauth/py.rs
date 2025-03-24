@@ -131,11 +131,7 @@ impl VerifyToken for Verifier {
                 let result: Bound<PyAny> = client
                     .getattr("verify_token")?
                     .call((token,), None)
-                    .map_err(|e| {
-                        e.print_and_set_sys_last_vars(py);
-                        e
-                    })?;
-
+                    .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
                 if result.is_none() {
                     Ok(None)
                 } else {

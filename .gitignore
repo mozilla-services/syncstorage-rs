@@ -37,3 +37,6 @@ tools/tokenserver/loadtests/*.pem
 tools/tokenserver/loadtests/*.pub
 venv
 .vscode/settings.json
+
+# circleci
+workspace
