@@ -302,7 +302,6 @@ class TestProcessAccountEvents(ProcessAccountEventsTestCase):
         self.assertEqual(user["generation"], 42)
 
 
-@pytest.mark.process_account_events_spanner
 class TestProcessAccountEventsForceSpanner(ProcessAccountEventsTestCase):
 
     def setUp(self):
