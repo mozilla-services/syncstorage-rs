@@ -1,12 +1,16 @@
 use crate::{MakeTokenPlaintext, TokenserverError};
 use pyo3::{
-    prelude::{IntoPy, PyErr, PyModule, PyObject, Python},
-    types::{IntoPyDict, PyAnyMethods, PyDictMethods},
+    prelude::{IntoPyObject, PyErr, PyModule, PyObject, Python},
+    types::{IntoPyDict, PyAnyMethods, PyDict, PyDictMethods},
 };
 
 pub struct PyTokenlib {}
-impl IntoPy<PyObject> for MakeTokenPlaintext {
-    fn into_py(self, py: Python<'_>) -> PyObject {
+impl IntoPyObject<PyObject> for MakeTokenPlaintext {
+    type Target = PyDict;
+    type Output = Bound<'py, Self::Target>;
+    type Error = TokenserverError;
+
+    fn into_pyobject(self, py: Python<'_>) -> PyObject {
         let dict = [
             ("node", self.node),
             ("fxa_kid", self.fxa_kid),
@@ -15,7 +19,7 @@ impl IntoPy<PyObject> for MakeTokenPlaintext {
             ("hashed_fxa_uid", self.hashed_fxa_uid),
             ("tokenserver_origin", self.tokenserver_origin.to_string()),
         ]
-        .into_py_dict_bound(py);
+        .into_py_dict(py);
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
@@ -32,10 +36,10 @@ impl PyTokenlib {
     ) -> Result<(String, String), TokenserverError> {
         Python::with_gil(|py| {
             // `import tokenlib`
-            let module = PyModule::import_bound(py, "tokenlib")
+            let module = PyModule::import(py, "tokenlib")
                 .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
             // `kwargs = { 'secret': shared_secret }`
-            let kwargs = [("secret", shared_secret)].into_py_dict_bound(py);
+            let kwargs = [("secret", shared_secret)].into_py_dict(py);
             // `token = tokenlib.make_token(plaintext, **kwargs)`
             let token = module
                 .getattr("make_token")?
