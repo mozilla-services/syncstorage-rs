@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+import pytest
 import unittest
 
 from tokenserver.test_support import TestCase
@@ -8,6 +9,8 @@ from tokenserver.test_support import TestCase
 MAX_GENERATION = 9223372036854775807
 
 
+@pytest.mark.local_integration
+@pytest.mark.usefixtures('setup_server_local_testing_with_oauth')
 class TestMisc(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestMisc, self).setUp()
@@ -57,7 +60,7 @@ class TestMisc(TestCase, unittest.TestCase):
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertIn('https://example.com/1.5', res.json['api_endpoint'])
         self.assertIn('duration', res.json)
-        self.assertEquals(res.json['duration'], 3600)
+        self.assertEqual(res.json['duration'], 3600)
 
     def test_current_user_is_the_most_up_to_date(self):
         # Add some users

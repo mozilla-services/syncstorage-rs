@@ -1,10 +1,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+import pytest
 import unittest
 from tokenserver.test_support import TestCase
 
 
+@pytest.mark.local_integration
+@pytest.mark.usefixtures('setup_server_local_testing_with_oauth')
 class TestAuthorization(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestAuthorization, self).setUp()
@@ -74,6 +77,8 @@ class TestAuthorization(TestCase, unittest.TestCase):
                                            **additional_headers)
 
         res = self.app.get('/1.0/sync/1.5', headers=headers, status=400)
+
+        print("Response: ", res.json)
 
         expected_error_response = {
             'status': 'error',
@@ -370,15 +375,15 @@ class TestAuthorization(TestCase, unittest.TestCase):
                                            client_state='aaaa')
         # It's ok to request a shorter-duration token.
         res = self.app.get('/1.0/sync/1.5?duration=12', headers=headers)
-        self.assertEquals(res.json['duration'], 12)
+        self.assertEqual(res.json['duration'], 12)
         # But you can't exceed the server's default value.
         res = self.app.get('/1.0/sync/1.5?duration=4000', headers=headers)
-        self.assertEquals(res.json['duration'], 3600)
+        self.assertEqual(res.json['duration'], 3600)
         # And nonsense values are ignored.
         res = self.app.get('/1.0/sync/1.5?duration=lolwut', headers=headers)
-        self.assertEquals(res.json['duration'], 3600)
+        self.assertEqual(res.json['duration'], 3600)
         res = self.app.get('/1.0/sync/1.5?duration=-1', headers=headers)
-        self.assertEquals(res.json['duration'], 3600)
+        self.assertEqual(res.json['duration'], 3600)
 
     # Although all servers are now writing keys_changed_at, we still need this
     # case to be handled. See this PR for more information:

@@ -25,7 +25,7 @@ def run_tests(test_cases, verbosity=1):
 
     for test_case in test_cases:
         suite = loader.loadTestsFromTestCase(test_case)
-        runner = unittest.TextTestRunner(verbosity=verbosity)
+        runner = unittest.TextTestRunner(verbosity=verbosity, buffer=False)
         res = runner.run(suite)
         success = success and res.wasSuccessful()
 

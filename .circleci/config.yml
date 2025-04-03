@@ -101,7 +101,7 @@ commands:
     steps:
       - run: 
           name: Install test dependencies
-          command: cargo install cargo-nextest cargo-llvm-cov
+          command: cargo install --locked cargo-nextest cargo-llvm-cov
 
   make-test-dir:
     steps:
@@ -145,34 +145,22 @@ commands:
                make run_token_server_integration_tests
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
-  run-e2e-mysql-tests:
+  run-e2e-tests:
+    parameters:
+      db:
+        type: enum
+        enum: ["mysql", "spanner"]
+      use_oauth:
+        type: boolean
+        default: true
     steps:
       - run:
-          name: e2e tests (syncstorage mysql)
+          name: e2e tests (syncstorage << parameters.db >>)
           command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.mysql.yaml
-               -f docker-compose.e2e.mysql.yaml
-               up
-               --exit-code-from mysql-e2e-tests
-               --abort-on-container-exit
+            make docker_run_<< parameters.db >>_e2e_tests
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
-
-
-  run-e2e-spanner-tests:
-    steps:
-      - run:
-          name: e2e tests (syncstorage spanner)
-          command: >
-               /usr/local/bin/docker-compose
-               -f docker-compose.spanner.yaml
-               -f docker-compose.e2e.spanner.yaml
-               up
-               --exit-code-from spanner-e2e-tests
-               --abort-on-container-exit
-          environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            SYNCSTORAGE_RS_IMAGE: app:build
+            USE_OAUTH: << parameters.use_oauth >>
 
   upload-to-gcs:
     parameters:
@@ -283,7 +271,6 @@ jobs:
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
       # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
       # configured already, and it appears unit-tests modify the db to the expected state
-      - run-tokenserver-integration-tests
       - store-test-results
       - upload-to-gcs:
           source: workflow/test-results
@@ -321,11 +308,13 @@ jobs:
       - run:
           name: Save docker-compose config
           command: cp docker-compose*mysql.yaml /home/circleci/cache
+      - run:
+          name: Save Makefile to cache
+          command: cp Makefile /home/circleci/cache
       - save_cache:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
-
   build-spanner-image:
     docker:
       - image: cimg/rust:1.81.0  # RUST_VER
@@ -353,6 +342,9 @@ jobs:
       - run:
           name: Save docker-compose config
           command: cp docker-compose*spanner.yaml /home/circleci/cache
+      - run:
+          name: Save Makefile to cache
+          command: cp Makefile /home/circleci/cache
       - save_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
@@ -414,7 +406,7 @@ jobs:
 
   mysql-e2e-tests:
     docker:
-      - image: docker/compose:1.24.0
+      - image: cimg/base:2025.04
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -427,13 +419,24 @@ jobs:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
       - run:
+          name: Restore Makefile from save_cache
+          command: cp /home/circleci/cache/Makefile .
+      - run:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-mysql-tests
+      - make-test-dir
+      - run-e2e-tests:
+          db: mysql
+          use_oauth: true
+      - store-test-results
+      - upload-to-gcs:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
 
   spanner-e2e-tests:
     docker:
-      - image: docker/compose:1.24.0
+      - image: cimg/base:2025.04
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -446,9 +449,20 @@ jobs:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
       - run:
+          name: Restore Makefile from save_cache
+          command: cp /home/circleci/cache/Makefile .
+      - run:
           name: Restore docker-compose config
           command: cp /home/circleci/cache/docker-compose*.yaml .
-      - run-e2e-spanner-tests
+      - make-test-dir
+      - run-e2e-tests:
+          db: spanner
+          use_oauth: true
+      - store-test-results
+      - upload-to-gcs:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
 
   deploy:
     docker:

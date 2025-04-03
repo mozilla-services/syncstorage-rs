@@ -14,9 +14,7 @@ consider it a bug.
 
 """
 
-# unittest imported by pytest requirement
-import unittest
-
+import pytest
 
 import re
 import json
@@ -74,6 +72,8 @@ def randtext(size=10):
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
+@pytest.mark.live_integration
+@pytest.mark.usefixtures('setup_server_local_testing')
 class TestStorage(StorageFunctionalTestCase):
     """Storage testcases that only use the web API.
 
@@ -84,7 +84,7 @@ class TestStorage(StorageFunctionalTestCase):
     def setUp(self):
         super(TestStorage, self).setUp()
         self.root = "/1.5/%d" % (self.user_id,)
-        # Reset the storage to a known state, aka "empty".
+
         self.retry_delete(self.root)
 
     @contextlib.contextmanager
@@ -127,9 +127,9 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(self.root + "/info/collections")
         res = resp.json
         keys = sorted(list(res.keys()))
-        self.assertEquals(keys, ["xxx_col1", "xxx_col2"])
-        self.assertEquals(res["xxx_col1"], ts1)
-        self.assertEquals(res["xxx_col2"], ts2)
+        self.assertEqual(keys, ["xxx_col1", "xxx_col2"])
+        self.assertEqual(res["xxx_col1"], ts1)
+        self.assertEqual(res["xxx_col2"], ts2)
         # Updating items in xxx_col2, check timestamps.
         bsos = [{"id": str(i).zfill(2), "payload": "yyy"} for i in range(2)]
         resp = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -138,9 +138,9 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(self.root + "/info/collections")
         res = resp.json
         keys = sorted(list(res.keys()))
-        self.assertEquals(keys, ["xxx_col1", "xxx_col2"])
-        self.assertEquals(res["xxx_col1"], ts1)
-        self.assertEquals(res["xxx_col2"], ts2)
+        self.assertEqual(keys, ["xxx_col1", "xxx_col2"])
+        self.assertEqual(res["xxx_col1"], ts1)
+        self.assertEqual(res["xxx_col2"], ts2)
 
     def test_get_collection_count(self):
         # xxx_col1 gets 3 items, xxx_col2 gets 5 items.
@@ -151,9 +151,9 @@ class TestStorage(StorageFunctionalTestCase):
         # those counts should be reflected back in query.
         resp = self.app.get(self.root + "/info/collection_counts")
         res = resp.json
-        self.assertEquals(len(res), 2)
-        self.assertEquals(res["xxx_col1"], 3)
-        self.assertEquals(res["xxx_col2"], 5)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res["xxx_col1"], 3)
+        self.assertEqual(res["xxx_col2"], 5)
 
     def test_bad_cache(self):
         # fixes #637332
@@ -171,7 +171,7 @@ class TestStorage(StorageFunctionalTestCase):
 
         # 3. get collection info again, should find the new ones
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(len(resp.json), numcols + 1)
+        self.assertEqual(len(resp.json), numcols + 1)
 
     def test_get_collection_only(self):
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
@@ -180,14 +180,14 @@ class TestStorage(StorageFunctionalTestCase):
         # non-existent collections appear as empty
         resp = self.app.get(self.root + "/storage/nonexistent")
         res = resp.json
-        self.assertEquals(res, [])
+        self.assertEqual(res, [])
 
         # try just getting all items at once.
         resp = self.app.get(self.root + "/storage/xxx_col2")
         res = resp.json
         res.sort()
-        self.assertEquals(res, ["00", "01", "02", "03", "04"])
-        self.assertEquals(int(resp.headers["X-Weave-Records"]), 5)
+        self.assertEqual(res, ["00", "01", "02", "03", "04"])
+        self.assertEqual(int(resp.headers["X-Weave-Records"]), 5)
 
         # trying various filters
 
@@ -197,7 +197,7 @@ class TestStorage(StorageFunctionalTestCase):
         res = self.app.get(self.root + "/storage/xxx_col2?ids=01,03,17")
         res = res.json
         res.sort()
-        self.assertEquals(res, ["01", "03"])
+        self.assertEqual(res, ["01", "03"])
 
         # "newer"
         # Returns only ids for objects in the collection that have been last
@@ -216,15 +216,15 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue(ts1 < ts2)
 
         res = self.app.get(self.root + "/storage/xxx_col2?newer=%s" % ts1)
-        self.assertEquals(res.json, ["129"])
+        self.assertEqual(res.json, ["129"])
 
         res = self.app.get(self.root + "/storage/xxx_col2?newer=%s" % ts2)
-        self.assertEquals(res.json, [])
+        self.assertEqual(res.json, [])
 
         res = self.app.get(
             self.root + "/storage/xxx_col2?newer=%s" % (ts1 - 1)
         )
-        self.assertEquals(sorted(res.json), ["128", "129"])
+        self.assertEqual(sorted(res.json), ["128", "129"])
 
         # "older"
         # Returns only ids for objects in the collection that have been last
@@ -243,19 +243,19 @@ class TestStorage(StorageFunctionalTestCase):
         self.assertTrue(ts1 < ts2)
 
         res = self.app.get(self.root + "/storage/xxx_col2?older=%s" % ts1)
-        self.assertEquals(res.json, [])
+        self.assertEqual(res.json, [])
 
         res = self.app.get(self.root + "/storage/xxx_col2?older=%s" % ts2)
-        self.assertEquals(res.json, ["128"])
+        self.assertEqual(res.json, ["128"])
 
         res = self.app.get(
             self.root + "/storage/xxx_col2?older=%s" % (ts2 + 1)
         )
-        self.assertEquals(sorted(res.json), ["128", "129"])
+        self.assertEqual(sorted(res.json), ["128", "129"])
 
         qs = "?older=%s&newer=%s" % (ts2 + 1, ts1)
         res = self.app.get(self.root + "/storage/xxx_col2" + qs)
-        self.assertEquals(sorted(res.json), ["129"])
+        self.assertEqual(sorted(res.json), ["129"])
 
         # "full"
         # If defined, returns the full BSO, rather than just the id.
@@ -263,7 +263,7 @@ class TestStorage(StorageFunctionalTestCase):
         keys = list(res.json[0].keys())
         keys.sort()
         wanted = ["id", "modified", "payload"]
-        self.assertEquals(keys, wanted)
+        self.assertEqual(keys, wanted)
 
         res = self.app.get(self.root + "/storage/xxx_col2")
         self.assertTrue(isinstance(res.json, list))
@@ -281,84 +281,84 @@ class TestStorage(StorageFunctionalTestCase):
         query_url = self.root + "/storage/xxx_col2?sort=index"
         res = self.app.get(query_url)
         all_items = res.json
-        self.assertEquals(len(all_items), 10)
+        self.assertEqual(len(all_items), 10)
 
         res = self.app.get(query_url + "&limit=2")
-        self.assertEquals(res.json, all_items[:2])
+        self.assertEqual(res.json, all_items[:2])
 
         # "offset"
         # Skips over items that have already been returned.
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&limit=3&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[2:5])
+        self.assertEqual(res.json, all_items[2:5])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(query_url + "&limit=10000&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         # "offset" again, this time ordering by descending timestamp.
         query_url = self.root + "/storage/xxx_col2?sort=newest"
         res = self.app.get(query_url)
         all_items = res.json
-        self.assertEquals(len(all_items), 10)
+        self.assertEqual(len(all_items), 10)
 
         res = self.app.get(query_url + "&limit=2")
-        self.assertEquals(res.json, all_items[:2])
+        self.assertEqual(res.json, all_items[:2])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&limit=3&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[2:5])
+        self.assertEqual(res.json, all_items[2:5])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(query_url + "&limit=10000&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
 
         # "offset" again, this time ordering by ascending timestamp.
         query_url = self.root + "/storage/xxx_col2?sort=oldest"
         res = self.app.get(query_url)
         all_items = res.json
-        self.assertEquals(len(all_items), 10)
+        self.assertEqual(len(all_items), 10)
 
         res = self.app.get(query_url + "&limit=2")
-        self.assertEquals(res.json, all_items[:2])
+        self.assertEqual(res.json, all_items[:2])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&limit=3&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[2:5])
+        self.assertEqual(res.json, all_items[2:5])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(query_url + "&limit=10000&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
 
         # "offset" once more, this time with no explicit ordering
         query_url = self.root + "/storage/xxx_col2?"
         res = self.app.get(query_url)
         all_items = res.json
-        self.assertEquals(len(all_items), 10)
+        self.assertEqual(len(all_items), 10)
 
         res = self.app.get(query_url + "&limit=2")
-        self.assertEquals(res.json, all_items[:2])
+        self.assertEqual(res.json, all_items[:2])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&limit=3&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[2:5])
+        self.assertEqual(res.json, all_items[2:5])
 
         next_offset = res.headers["X-Weave-Next-Offset"]
         res = self.app.get(query_url + "&offset=" + next_offset)
-        self.assertEquals(res.json, all_items[5:])
+        self.assertEqual(res.json, all_items[5:])
         self.assertTrue("X-Weave-Next-Offset" not in res.headers)
 
         res = self.app.get(query_url + "&limit=10000&offset=" + next_offset)
@@ -375,15 +375,15 @@ class TestStorage(StorageFunctionalTestCase):
 
         res = self.app.get(self.root + "/storage/xxx_col2?sort=newest")
         res = res.json
-        self.assertEquals(res, ["02", "01", "00"])
+        self.assertEqual(res, ["02", "01", "00"])
 
         res = self.app.get(self.root + "/storage/xxx_col2?sort=oldest")
         res = res.json
-        self.assertEquals(res, ["00", "01", "02"])
+        self.assertEqual(res, ["00", "01", "02"])
 
         res = self.app.get(self.root + "/storage/xxx_col2?sort=index")
         res = res.json
-        self.assertEquals(res, ["01", "02", "00"])
+        self.assertEqual(res, ["01", "02", "00"])
 
     def test_alternative_formats(self):
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
@@ -394,18 +394,18 @@ class TestStorage(StorageFunctionalTestCase):
             self.root + "/storage/xxx_col2",
             headers=[("Accept", "application/json")],
         )
-        self.assertEquals(res.content_type.split(";")[0], "application/json")
+        self.assertEqual(res.content_type.split(";")[0], "application/json")
 
         res = res.json
         res.sort()
-        self.assertEquals(res, ["00", "01", "02", "03", "04"])
+        self.assertEqual(res, ["00", "01", "02", "03", "04"])
 
         # application/newlines
         res = self.app.get(
             self.root + "/storage/xxx_col2",
             headers=[("Accept", "application/newlines")],
         )
-        self.assertEquals(res.content_type, "application/newlines")
+        self.assertEqual(res.content_type, "application/newlines")
 
         self.assertTrue(res.body.endswith(b"\n"))
         res = [
@@ -413,11 +413,11 @@ class TestStorage(StorageFunctionalTestCase):
             for line in res.body.decode("utf-8").strip().split("\n")
         ]
         res.sort()
-        self.assertEquals(res, ["00", "01", "02", "03", "04"])
+        self.assertEqual(res, ["00", "01", "02", "03", "04"])
 
         # unspecified format defaults to json
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(res.content_type.split(";")[0], "application/json")
+        self.assertEqual(res.content_type.split(";")[0], "application/json")
 
         # unkown format gets a 406
         self.app.get(
@@ -433,7 +433,7 @@ class TestStorage(StorageFunctionalTestCase):
             self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         # Get them all, along with their timestamps.
         res = self.app.get(self.root + "/storage/xxx_col2?full=true").json
-        self.assertEquals(len(res), 5)
+        self.assertEqual(len(res), 5)
         timestamps = sorted([r["modified"] for r in res])
         # The timestamp of the collection should be the max of all those.
         self.app.get(
@@ -456,8 +456,8 @@ class TestStorage(StorageFunctionalTestCase):
         res = res.json
         keys = list(res.keys())
         keys.sort()
-        self.assertEquals(keys, ["id", "modified", "payload"])
-        self.assertEquals(res["id"], "01")
+        self.assertEqual(keys, ["id", "modified", "payload"])
+        self.assertEqual(res["id"], "01")
 
         # unexisting object
         self.app.get(self.root + "/storage/xxx_col2/99", status=404)
@@ -477,7 +477,7 @@ class TestStorage(StorageFunctionalTestCase):
             self.root + "/storage/xxx_col2/01",
             headers={"X-If-Modified-Since": str(res["modified"] - 1)},
         )
-        self.assertEquals(res.json["id"], "01")
+        self.assertEqual(res.json["id"], "01")
 
     def test_set_item(self):
         # let's create an object
@@ -485,14 +485,14 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         res = self.app.get(self.root + "/storage/xxx_col2/12345")
         res = res.json
-        self.assertEquals(res["payload"], _PLD)
+        self.assertEqual(res["payload"], _PLD)
 
         # now let's update it
         bso = {"payload": "YYY"}
         self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         res = self.app.get(self.root + "/storage/xxx_col2/12345")
         res = res.json
-        self.assertEquals(res["payload"], "YYY")
+        self.assertEqual(res["payload"], "YYY")
 
     def test_set_collection(self):
         # sending two bsos
@@ -504,10 +504,10 @@ class TestStorage(StorageFunctionalTestCase):
         # checking what we did
         res = self.app.get(self.root + "/storage/xxx_col2/12")
         res = res.json
-        self.assertEquals(res["payload"], _PLD)
+        self.assertEqual(res["payload"], _PLD)
         res = self.app.get(self.root + "/storage/xxx_col2/13")
         res = res.json
-        self.assertEquals(res["payload"], _PLD)
+        self.assertEqual(res["payload"], _PLD)
 
         # one more time, with changes
         bso1 = {"id": "13", "payload": "XyX"}
@@ -518,10 +518,10 @@ class TestStorage(StorageFunctionalTestCase):
         # checking what we did
         res = self.app.get(self.root + "/storage/xxx_col2/14")
         res = res.json
-        self.assertEquals(res["payload"], _PLD)
+        self.assertEqual(res["payload"], _PLD)
         res = self.app.get(self.root + "/storage/xxx_col2/13")
         res = res.json
-        self.assertEquals(res["payload"], "XyX")
+        self.assertEqual(res["payload"], "XyX")
 
         # sending two bsos with one bad sortindex
         bso1 = {"id": "one", "payload": _PLD}
@@ -542,7 +542,7 @@ class TestStorage(StorageFunctionalTestCase):
             headers={"Content-Type": "application/newlines"},
         )
         items = self.app.get(self.root + "/storage/xxx_col2").json
-        self.assertEquals(len(items), 2)
+        self.assertEqual(len(items), 2)
         # If we send an unknown content type, we get an error.
         self.retry_delete(self.root + "/storage/xxx_col2")
         body = json_dumps(bsos)
@@ -553,7 +553,7 @@ class TestStorage(StorageFunctionalTestCase):
             status=415,
         )
         items = self.app.get(self.root + "/storage/xxx_col2").json
-        self.assertEquals(len(items), 0)
+        self.assertEqual(len(items), 0)
 
     def test_set_item_input_formats(self):
         # If we send with application/json it should work.
@@ -564,7 +564,7 @@ class TestStorage(StorageFunctionalTestCase):
             headers={"Content-Type": "application/json"},
         )
         item = self.app.get(self.root + "/storage/xxx_col2/TEST").json
-        self.assertEquals(item["payload"], _PLD)
+        self.assertEqual(item["payload"], _PLD)
         # If we send json with some other content type, it should fail
         self.retry_delete(self.root + "/storage/xxx_col2")
         self.app.put(
@@ -581,7 +581,7 @@ class TestStorage(StorageFunctionalTestCase):
             headers={"Content-Type": "text/plain"},
         )
         item = self.app.get(self.root + "/storage/xxx_col2/TEST").json
-        self.assertEquals(item["payload"], _PLD)
+        self.assertEqual(item["payload"], _PLD)
 
     def test_app_newlines_when_payloads_contain_newlines(self):
         # Send some application/newlines with embedded newline chars.
@@ -590,7 +590,7 @@ class TestStorage(StorageFunctionalTestCase):
             {"id": "02", "payload": "\nmarco\npolo\n"},
         ]
         body = "\n".join(json_dumps(bso) for bso in bsos)
-        self.assertEquals(len(body.split("\n")), 2)
+        self.assertEqual(len(body.split("\n")), 2)
         self.app.post(
             self.root + "/storage/xxx_col2",
             body,
@@ -598,10 +598,10 @@ class TestStorage(StorageFunctionalTestCase):
         )
         # Read them back as JSON list, check payloads.
         items = self.app.get(self.root + "/storage/xxx_col2?full=1").json
-        self.assertEquals(len(items), 2)
+        self.assertEqual(len(items), 2)
         items.sort(key=lambda bso: bso["id"])
-        self.assertEquals(items[0]["payload"], bsos[0]["payload"])
-        self.assertEquals(items[1]["payload"], bsos[1]["payload"])
+        self.assertEqual(items[0]["payload"], bsos[0]["payload"])
+        self.assertEqual(items[1]["payload"], bsos[1]["payload"])
         # Read them back as application/newlines, check payloads.
         res = self.app.get(
             self.root + "/storage/xxx_col2?full=1",
@@ -613,10 +613,10 @@ class TestStorage(StorageFunctionalTestCase):
             json_loads(line)
             for line in res.body.decode("utf-8").strip().split("\n")
         ]
-        self.assertEquals(len(items), 2)
+        self.assertEqual(len(items), 2)
         items.sort(key=lambda bso: bso["id"])
-        self.assertEquals(items[0]["payload"], bsos[0]["payload"])
-        self.assertEquals(items[1]["payload"], bsos[1]["payload"])
+        self.assertEqual(items[0]["payload"], bsos[0]["payload"])
+        self.assertEqual(items[1]["payload"], bsos[1]["payload"])
 
     def test_collection_usage(self):
         self.retry_delete(self.root + "/storage")
@@ -640,24 +640,24 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [bso1, bso2, bso3]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 3)
+        self.assertEqual(len(res.json), 3)
 
         # deleting all items
         self.retry_delete(self.root + "/storage/xxx_col2")
         items = self.app.get(self.root + "/storage/xxx_col2").json
-        self.assertEquals(len(items), 0)
+        self.assertEqual(len(items), 0)
 
         # Deletes the ids for objects in the collection that are in the
         # provided comma-separated list.
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 3)
+        self.assertEqual(len(res.json), 3)
         self.retry_delete(self.root + "/storage/xxx_col2?ids=12,14")
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 1)
+        self.assertEqual(len(res.json), 1)
         self.retry_delete(self.root + "/storage/xxx_col2?ids=13")
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 0)
+        self.assertEqual(len(res.json), 0)
 
     def test_delete_item(self):
         # creating a collection of three
@@ -667,13 +667,13 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [bso1, bso2, bso3]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 3)
+        self.assertEqual(len(res.json), 3)
         ts = float(res.headers["X-Last-Modified"])
 
         # deleting item 13
         self.retry_delete(self.root + "/storage/xxx_col2/13")
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 2)
+        self.assertEqual(len(res.json), 2)
 
         # unexisting item should return a 404
         self.retry_delete(self.root + "/storage/xxx_col2/12982", status=404)
@@ -690,19 +690,18 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [bso1, bso2, bso3]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 3)
+        self.assertEqual(len(res.json), 3)
 
         # deleting all
         self.retry_delete(self.root + "/storage")
         items = self.app.get(self.root + "/storage/xxx_col2").json
-        self.assertEquals(len(items), 0)
+        self.assertEqual(len(items), 0)
         self.retry_delete(self.root + "/storage/xxx_col2", status=200)
-        self.assertEquals(len(items), 0)
+        self.assertEqual(len(items), 0)
 
     def test_x_timestamp_header(self):
-        # This can't be run against a live server.
         if self.distant:
-            raise unittest.SkipTest
+            pytest.skip("Test cannot be run against a live server.")
 
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(5)]
         self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
@@ -788,8 +787,8 @@ class TestStorage(StorageFunctionalTestCase):
         ts = res2.headers["X-Last-Modified"]
         # All of those should have left the BSO unchanged
         res2 = self.app.get(self.root + "/storage/xxx_col2/12345")
-        self.assertEquals(res2.json["payload"], _PLD)
-        self.assertEquals(
+        self.assertEqual(res2.json["payload"], _PLD)
+        self.assertEqual(
             res2.headers["X-Last-Modified"], res.headers["X-Last-Modified"]
         )
         # Using an X-If-Unmodified-Since equal to
@@ -836,57 +835,30 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         res = self.app.get(self.root + "/info/quota")
         used = res.json[0]
-        self.assertEquals(used - old_used, len(_PLD) / 1024.0)
-
-    def test_overquota(self):
-        # This can't be run against a live server.
-        raise unittest.SkipTest
-        if self.distant:
-            raise unittest.SkipTest
-
-        # Clear out any data that's already in the store.
-        self.retry_delete(self.root + "/storage")
-
-        # Set a low quota for the storage.
-        self.config.registry.settings["storage.quota_size"] = 700
-
-        # Check the the remaining quota is correctly reported.
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
-        wanted = str(round(200 / 1024.0, 2))
-        self.assertEquals(res.headers["X-Weave-Quota-Remaining"], wanted)
-
-        # Set the quota so that they're over their limit.
-        self.config.registry.settings["storage.quota_size"] = 10
-        bso = {"payload": _PLD}
-        res = self.retry_put_json(
-            self.root + "/storage/xxx_col2/12345", bso, status=403
-        )
-        self.assertEquals(res.content_type.split(";")[0], "application/json")
-        self.assertEquals(res.json["status"], "quota-exceeded")
+        self.assertEqual(used - old_used, len(_PLD) / 1024.0)
 
     def test_get_collection_ttl(self):
         bso = {"payload": _PLD, "ttl": 0}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/12345", bso)
         time.sleep(1.1)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(res.json, [])
+        self.assertEqual(res.json, [])
 
         bso = {"payload": _PLD, "ttl": 2}
         res = self.retry_put_json(self.root + "/storage/xxx_col2/123456", bso)
 
         # it should exists now
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 1)
+        self.assertEqual(len(res.json), 1)
 
         # trying a second put again
         self.retry_put_json(self.root + "/storage/xxx_col2/123456", bso)
 
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 1)
+        self.assertEqual(len(res.json), 1)
         time.sleep(2.1)
         res = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(len(res.json), 0)
+        self.assertEqual(len(res.json), 0)
 
     def test_multi_item_post_limits(self):
         res = self.app.get(self.root + "/info/configuration")
@@ -898,7 +870,7 @@ class TestStorage(StorageFunctionalTestCase):
             # Can't run against live server if it doesn't
             # report the right config options.
             if self.distant:
-                raise unittest.SkipTest
+                pytest.skip("")
             max_bytes = get_limit_config(self.config, "max_post_bytes")
             max_count = get_limit_config(self.config, "max_post_records")
             max_req_bytes = get_limit_config(self.config, "max_request_bytes")
@@ -910,8 +882,8 @@ class TestStorage(StorageFunctionalTestCase):
         ]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), max_count - 5)
-        self.assertEquals(len(res["failed"]), 0)
+        self.assertEqual(len(res["success"]), max_count - 5)
+        self.assertEqual(len(res["failed"]), 0)
 
         # Uploading max_count+5 items should produce five failures.
         bsos = [
@@ -920,8 +892,8 @@ class TestStorage(StorageFunctionalTestCase):
         ]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), max_count)
-        self.assertEquals(len(res["failed"]), 5)
+        self.assertEqual(len(res["success"]), max_count)
+        self.assertEqual(len(res["failed"]), 5)
 
         # Uploading items such that the last item puts us over the
         # cumulative limit on payload size, should produce 1 failure.
@@ -940,8 +912,8 @@ class TestStorage(StorageFunctionalTestCase):
 
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), max_items)
-        self.assertEquals(len(res["failed"]), 1)
+        self.assertEqual(len(res["success"]), max_items)
+        self.assertEqual(len(res["failed"]), 1)
 
     def test_weird_args(self):
         # pushing some data in xxx_col2
@@ -963,7 +935,7 @@ class TestStorage(StorageFunctionalTestCase):
         # what about a crazy ids= string ?
         ids = ",".join([randtext(10) for i in range(100)])
         res = self.app.get(self.root + "/storage/xxx_col2?ids=%s" % ids)
-        self.assertEquals(res.json, [])
+        self.assertEqual(res.json, [])
 
         # trying unexpected args - they should not break
         self.app.get(self.root + "/storage/xxx_col2?blabla=1", status=200)
@@ -979,7 +951,7 @@ class TestStorage(StorageFunctionalTestCase):
         ]
         res = self.retry_post_json(self.root + "/storage/passwords", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), 5)
+        self.assertEqual(len(res["success"]), 5)
 
         # now deleting some of them
         ids = ",".join(
@@ -998,7 +970,7 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [{"id": "test-%d" % i, "payload": _PLD} for i in range(5)]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), 5)
+        self.assertEqual(len(res["success"]), 5)
         # now delete some of them
         ids = ",".join(["test-%d" % i for i in range(2)])
         ids = urllib.request.quote(ids)
@@ -1037,7 +1009,7 @@ class TestStorage(StorageFunctionalTestCase):
         res = self.app.get(self.root + "/storage/xxx_col2?newer=%s" % ts)
         res = res.json
         try:
-            self.assertEquals(sorted(res), ["03", "04"])
+            self.assertEqual(sorted(res), ["03", "04"])
         except AssertionError:
             # need to display the whole collection to understand the issue
             msg = "Timestamp used: %s" % ts
@@ -1066,7 +1038,7 @@ class TestStorage(StorageFunctionalTestCase):
         # of bso 1 and 2, should not return them
         res = self.app.get(self.root + "/storage/xxx_meh?newer=%s" % ts)
         res = res.json
-        self.assertEquals(sorted(res), ["03", "04"])
+        self.assertEqual(sorted(res), ["03", "04"])
 
     def test_strict_older(self):
         # send two bsos in the 'xxx_meh' collection
@@ -1086,7 +1058,7 @@ class TestStorage(StorageFunctionalTestCase):
         # of bso 3 and 4, should not return them
         res = self.app.get(self.root + "/storage/xxx_meh?older=%s" % ts)
         res = res.json
-        self.assertEquals(sorted(res), ["01", "02"])
+        self.assertEqual(sorted(res), ["01", "02"])
 
     def test_handling_of_invalid_json_in_bso_uploads(self):
         # Single upload with JSON that's not a BSO.
@@ -1094,32 +1066,32 @@ class TestStorage(StorageFunctionalTestCase):
         res = self.retry_put_json(
             self.root + "/storage/xxx_col2/invalid", bso, status=400
         )
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
         bso = 42
         res = self.retry_put_json(
             self.root + "/storage/xxx_col2/invalid", bso, status=400
         )
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
         bso = {"id": ["01", "02"], "payload": {"3": "4"}}
         res = self.retry_put_json(
             self.root + "/storage/xxx_col2/invalid", bso, status=400
         )
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
         # Batch upload with JSON that's not a list of BSOs
         bsos = "notalist"
         res = self.retry_post_json(
             self.root + "/storage/xxx_col2", bsos, status=400
         )
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
         bsos = 42
         res = self.retry_post_json(
             self.root + "/storage/xxx_col2", bsos, status=400
         )
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
         # Batch upload a list with something that's not a valid data dict.
         # It should fail out entirely, as the input is seriously broken.
@@ -1133,8 +1105,8 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [{"id": "01", "payload": "GOOD"}, {"id": "02", "invalid": "ya"}]
         res = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
         res = res.json
-        self.assertEquals(len(res["success"]), 1)
-        self.assertEquals(len(res["failed"]), 1)
+        self.assertEqual(len(res["success"]), 1)
+        self.assertEqual(len(res["failed"]), 1)
 
     def test_handling_of_invalid_bso_fields(self):
         coll_url = self.root + "/storage/xxx_col2"
@@ -1171,43 +1143,43 @@ class TestStorage(StorageFunctionalTestCase):
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid sortindex - not an integer
         bso = {"id": "TEST", "payload": "testing", "sortindex": "2.6"}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid sortindex - larger than max value
         bso = {"id": "TEST", "payload": "testing", "sortindex": "1" + "0" * 9}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid payload - not a string
         bso = {"id": "TEST", "payload": 42}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid ttl - not an integer
         bso = {"id": "TEST", "payload": "testing", "ttl": "eh?"}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid ttl - not an integer
         bso = {"id": "TEST", "payload": "testing", "ttl": "4.2"}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
         # Invalid BSO - unknown field
         bso = {"id": "TEST", "unexpected": "spanish-inquisition"}
         res = self.retry_post_json(coll_url, [bso])
         self.assertTrue(res.json["failed"] and not res.json["success"])
         res = self.retry_put_json(coll_url + "/" + bso["id"], bso, status=400)
-        self.assertEquals(res.json, WEAVE_INVALID_WBO)
+        self.assertEqual(res.json, WEAVE_INVALID_WBO)
 
     def test_that_batch_gets_are_limited_to_max_number_of_ids(self):
         bso = {"id": "01", "payload": "testing"}
@@ -1216,12 +1188,12 @@ class TestStorage(StorageFunctionalTestCase):
         # Getting with less than the limit works OK.
         ids = ",".join(str(i).zfill(2) for i in range(BATCH_MAX_IDS - 1))
         res = self.app.get(self.root + "/storage/xxx_col2?ids=" + ids)
-        self.assertEquals(res.json, ["01"])
+        self.assertEqual(res.json, ["01"])
 
         # Getting with equal to the limit works OK.
         ids = ",".join(str(i).zfill(2) for i in range(BATCH_MAX_IDS))
         res = self.app.get(self.root + "/storage/xxx_col2?ids=" + ids)
-        self.assertEquals(res.json, ["01"])
+        self.assertEqual(res.json, ["01"])
 
         # Getting with more than the limit fails.
         ids = ",".join(str(i).zfill(2) for i in range(BATCH_MAX_IDS + 1))
@@ -1335,11 +1307,11 @@ class TestStorage(StorageFunctionalTestCase):
         time.sleep(0.8)
         items = self.app.get(self.root + "/storage/xxx_col2?full=1").json
         items = dict((item["id"], item) for item in items)
-        self.assertEquals(sorted(list(items.keys())), ["TEST2", "TEST3"])
+        self.assertEqual(sorted(list(items.keys())), ["TEST2", "TEST3"])
         # The existing item should have retained its payload.
         # The new item should have got a default payload of empty string.
-        self.assertEquals(items["TEST2"]["payload"], "x")
-        self.assertEquals(items["TEST3"]["payload"], "")
+        self.assertEqual(items["TEST2"]["payload"], "x")
+        self.assertEqual(items["TEST3"]["payload"], "")
         ts2 = items["TEST2"]["modified"]
         ts3 = items["TEST3"]["modified"]
         self.assertTrue(ts2 < ts3)
@@ -1359,26 +1331,26 @@ class TestStorage(StorageFunctionalTestCase):
         bsos = [{"id": str(i).zfill(2), "ttl": 10} for i in range(3, 7)]
         bsos[0]["payload"] = "xx"
         r = self.retry_post_json(self.root + "/storage/xxx_col2", bsos)
-        self.assertEquals(len(r.json["success"]), 4)
+        self.assertEqual(len(r.json["success"]), 4)
         ts2 = float(r.headers["X-Last-Modified"])
         # If we wait then items 0, 1, 2 should have expired.
         # Items 3, 4, 5, 6 should still exist.
         time.sleep(0.8)
         items = self.app.get(self.root + "/storage/xxx_col2?full=1").json
         items = dict((item["id"], item) for item in items)
-        self.assertEquals(sorted(list(items.keys())), ["03", "04", "05", "06"])
+        self.assertEqual(sorted(list(items.keys())), ["03", "04", "05", "06"])
         # Items 3 and 4 should have the specified payloads.
         # Items 5 and 6 should have payload defaulted to empty string.
-        self.assertEquals(items["03"]["payload"], "xx")
-        self.assertEquals(items["04"]["payload"], "x")
-        self.assertEquals(items["05"]["payload"], "")
-        self.assertEquals(items["06"]["payload"], "")
+        self.assertEqual(items["03"]["payload"], "xx")
+        self.assertEqual(items["04"]["payload"], "x")
+        self.assertEqual(items["05"]["payload"], "")
+        self.assertEqual(items["06"]["payload"], "")
         # All items created or modified by the request should get their
         # timestamps update.  Just bumping the ttl should not bump timestamp.
-        self.assertEquals(items["03"]["modified"], ts2)
-        self.assertEquals(items["04"]["modified"], ts1)
-        self.assertEquals(items["05"]["modified"], ts2)
-        self.assertEquals(items["06"]["modified"], ts2)
+        self.assertEqual(items["03"]["modified"], ts2)
+        self.assertEqual(items["04"]["modified"], ts1)
+        self.assertEqual(items["05"]["modified"], ts2)
+        self.assertEqual(items["06"]["modified"], ts2)
 
     def test_that_negative_integer_fields_are_not_accepted(self):
         # ttls cannot be negative
@@ -1430,18 +1402,18 @@ class TestStorage(StorageFunctionalTestCase):
         # in the base tests because there's nothing memcached-specific here.
         self.app.get(self.root + "/storage/meta/global", status=404)
         res = self.app.get(self.root + "/storage/meta")
-        self.assertEquals(res.json, [])
+        self.assertEqual(res.json, [])
         self.retry_put_json(
             self.root + "/storage/meta/global", {"payload": "blob"}
         )
         res = self.app.get(self.root + "/storage/meta")
-        self.assertEquals(res.json, ["global"])
+        self.assertEqual(res.json, ["global"])
         res = self.app.get(self.root + "/storage/meta/global")
-        self.assertEquals(res.json["payload"], "blob")
+        self.assertEqual(res.json["payload"], "blob")
         # It should not have extra keys.
         keys = list(res.json.keys())
         keys.sort()
-        self.assertEquals(keys, ["id", "modified", "payload"])
+        self.assertEqual(keys, ["id", "modified", "payload"])
         # It should have a properly-formatted "modified" field.
         modified_re = r"['\"]modified['\"]:\s*[0-9]+\.[0-9][0-9]\s*[,}]"
         self.assertTrue(re.search(modified_re, res.body.decode("utf-8")))
@@ -1452,12 +1424,12 @@ class TestStorage(StorageFunctionalTestCase):
         )
         ts = float(res.headers["X-Weave-Timestamp"])
         res = self.app.get(self.root + "/storage/meta/global")
-        self.assertEquals(res.json["modified"], ts)
+        self.assertEqual(res.json["modified"], ts)
 
     def test_that_404_responses_have_a_json_body(self):
         res = self.app.get(self.root + "/nonexistent/url", status=404)
-        self.assertEquals(res.content_type, "application/json")
-        self.assertEquals(res.json, 0)
+        self.assertEqual(res.content_type, "application/json")
+        self.assertEqual(res.json, 0)
 
     def test_that_internal_server_fields_are_not_echoed(self):
         self.retry_post_json(
@@ -1467,7 +1439,7 @@ class TestStorage(StorageFunctionalTestCase):
             self.root + "/storage/xxx_col1/two", {"payload": "blub"}
         )
         res = self.app.get(self.root + "/storage/xxx_col1?full=1")
-        self.assertEquals(len(res.json), 2)
+        self.assertEqual(len(res.json), 2)
         for item in res.json:
             self.assertTrue("id" in item)
             self.assertTrue("payload" in item)
@@ -1484,7 +1456,7 @@ class TestStorage(StorageFunctionalTestCase):
         # This can't be run against a live server because we
         # have to forge an auth token to test things properly.
         if self.distant:
-            raise unittest.SkipTest
+            pytest.skip("Test cannot be run against a live server.")
 
         # Write some items while we've got a good token.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
@@ -1493,8 +1465,8 @@ class TestStorage(StorageFunctionalTestCase):
 
         # Check that we can read the info correctly.
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(list(resp.json.keys()), ["xxx_col1"])
-        self.assertEquals(resp.json["xxx_col1"], ts)
+        self.assertEqual(list(resp.json.keys()), ["xxx_col1"])
+        self.assertEqual(resp.json["xxx_col1"], ts)
 
         # Forge an expired token to use for the test.
         auth_policy = self.config.registry.getUtility(IAuthenticationPolicy)
@@ -1519,8 +1491,8 @@ class TestStorage(StorageFunctionalTestCase):
 
         # But it still allows access to /info/collections.
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(list(resp.json.keys()), ["xxx_col1"])
-        self.assertEquals(resp.json["xxx_col1"], ts)
+        self.assertEqual(list(resp.json.keys()), ["xxx_col1"])
+        self.assertEqual(resp.json["xxx_col1"], ts)
 
     def test_pagination_with_newer_and_sort_by_oldest(self):
         # Twelve bsos with three different modification times.
@@ -1564,7 +1536,7 @@ class TestStorage(StorageFunctionalTestCase):
 
                 # They should all be in order, starting from the item
                 # *after* the one that was used for the newer= timestamp.
-                self.assertEquals(
+                self.assertEqual(
                     sorted(int(item["id"]) for item in items),
                     list(range(start + 1, NUM_ITEMS)),
                 )
@@ -1611,7 +1583,7 @@ class TestStorage(StorageFunctionalTestCase):
 
                 # They should all be in order, up to the item *before*
                 # the one that was used for the older= timestamp.
-                self.assertEquals(
+                self.assertEqual(
                     sorted(int(item["id"]) for item in items),
                     list(range(0, start)),
                 )
@@ -1642,15 +1614,15 @@ class TestStorage(StorageFunctionalTestCase):
         batch = resp.json["batch"]
 
         # The collection should not be reported as modified.
-        self.assertEquals(orig_modified, resp.headers["X-Last-Modified"])
+        self.assertEqual(orig_modified, resp.headers["X-Last-Modified"])
 
         # And reading from it shouldn't show the new records yet.
         resp = self.app.get(endpoint)
         res = resp.json
         res.sort()
-        self.assertEquals(res, ["12", "13"])
-        self.assertEquals(int(resp.headers["X-Weave-Records"]), 2)
-        self.assertEquals(orig_modified, resp.headers["X-Last-Modified"])
+        self.assertEqual(res, ["12", "13"])
+        self.assertEqual(int(resp.headers["X-Weave-Records"]), 2)
+        self.assertEqual(orig_modified, resp.headers["X-Last-Modified"])
 
         bso5 = {"id": "c", "payload": "tinsel"}
         bso6 = {"id": "13", "payload": "portnoy"}
@@ -1658,31 +1630,31 @@ class TestStorage(StorageFunctionalTestCase):
         commit = "?batch={0}&commit=true".format(batch)
         resp = self.retry_post_json(endpoint + commit, [bso5, bso6, bso0])
         committed = resp.json["modified"]
-        self.assertEquals(
+        self.assertEqual(
             resp.json["modified"], float(resp.headers["X-Last-Modified"])
         )
 
         # make sure /info/collections got updated
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), committed)
-        self.assertEquals(resp.json["xxx_col2"], committed)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), committed)
+        self.assertEqual(resp.json["xxx_col2"], committed)
 
         # make sure the changes applied
         resp = self.app.get(endpoint)
         res = resp.json
         res.sort()
-        self.assertEquals(res, ["12", "13", "14", "a", "b", "c"])
-        self.assertEquals(int(resp.headers["X-Weave-Records"]), 6)
+        self.assertEqual(res, ["12", "13", "14", "a", "b", "c"])
+        self.assertEqual(int(resp.headers["X-Weave-Records"]), 6)
         resp = self.app.get(endpoint + "/13")
-        self.assertEquals(resp.json["payload"], "portnoy")
-        self.assertEquals(committed, float(resp.headers["X-Last-Modified"]))
-        self.assertEquals(committed, resp.json["modified"])
+        self.assertEqual(resp.json["payload"], "portnoy")
+        self.assertEqual(committed, float(resp.headers["X-Last-Modified"]))
+        self.assertEqual(committed, resp.json["modified"])
         resp = self.app.get(endpoint + "/c")
-        self.assertEquals(resp.json["payload"], "tinsel")
-        self.assertEquals(committed, resp.json["modified"])
+        self.assertEqual(resp.json["payload"], "tinsel")
+        self.assertEqual(committed, resp.json["modified"])
         resp = self.app.get(endpoint + "/14")
-        self.assertEquals(resp.json["payload"], "itsybitsy")
-        self.assertEquals(committed, resp.json["modified"])
+        self.assertEqual(resp.json["payload"], "itsybitsy")
+        self.assertEqual(committed, resp.json["modified"])
 
         # empty commit POST
         bso7 = {"id": "a", "payload": "burrito"}
@@ -1694,15 +1666,15 @@ class TestStorage(StorageFunctionalTestCase):
 
         resp1 = self.retry_post_json(endpoint + commit, [])
         committed = resp1.json["modified"]
-        self.assertEquals(committed, float(resp1.headers["X-Last-Modified"]))
+        self.assertEqual(committed, float(resp1.headers["X-Last-Modified"]))
 
         resp2 = self.app.get(endpoint + "/a")
-        self.assertEquals(committed, float(resp2.headers["X-Last-Modified"]))
-        self.assertEquals(committed, resp2.json["modified"])
-        self.assertEquals(resp2.json["payload"], "burrito")
+        self.assertEqual(committed, float(resp2.headers["X-Last-Modified"]))
+        self.assertEqual(committed, resp2.json["modified"])
+        self.assertEqual(resp2.json["payload"], "burrito")
 
         resp3 = self.app.get(endpoint + "/e")
-        self.assertEquals(committed, resp3.json["modified"])
+        self.assertEqual(committed, resp3.json["modified"])
 
     def test_aaa_batch_commit_collision(self):
         # It's possible that a batch contain a BSO inside a batch as well
@@ -1775,7 +1747,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Records': str(limits['max_post_records'] + 1)
 #         }, status=400)
-#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 #
 #         bsos = [{'id': str(x), 'payload': ''}
 #                 for x in range(limits['max_post_records'])]
@@ -1783,7 +1755,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         self.assertFalse(res.json['failed'])
 #         bsos.append({'id': 'toomany', 'payload': ''})
 #         res = self.retry_post_json(endpoint, bsos)
-#         self.assertEquals(res.json['failed']['toomany'], 'retry bso')
+#         self.assertEqual(res.json['failed']['toomany'], 'retry bso')
 #
 #         # `max_total_records` is an (inclusive) limit on the
 #         # total number of items in a batch.  We can only enforce
@@ -1795,7 +1767,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Total-Records': str(limits['max_total_records'] + 1)
 #         }, status=400)
-#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 #
 #         # `max_post_bytes` is an (inclusive) limit on the
 #         # total size of payloads in a single post.
@@ -1806,7 +1778,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Bytes': str(limits['max_post_bytes'] + 1)
 #         }, status=400)
-#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
         bsos = [
             {"id": "little", "payload": "XXX"},
             {"id": "big", "payload": "X" * (limits["max_post_bytes"] - 3)},
@@ -1835,7 +1807,7 @@ class TestStorage(StorageFunctionalTestCase):
             },
             status=400,
         )
-        self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+        self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 
     def test_batch_partial_update(self):
         collection = self.root + "/storage/xxx_col2"
@@ -1853,18 +1825,18 @@ class TestStorage(StorageFunctionalTestCase):
         ]
         resp = self.retry_post_json(collection + "?batch=true", bsos)
         batch = resp.json["batch"]
-        self.assertEquals(orig_ts, float(resp.headers["X-Last-Modified"]))
+        self.assertEqual(orig_ts, float(resp.headers["X-Last-Modified"]))
 
         # The updated item hasn't been written yet.
         resp = self.app.get(collection + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 2)
-        self.assertEquals(res[0]["payload"], "aai")
-        self.assertEquals(res[1]["payload"], "bee")
-        self.assertEquals(res[0]["modified"], orig_ts)
-        self.assertEquals(res[1]["modified"], orig_ts)
-        self.assertEquals(res[1]["sortindex"], 17)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0]["payload"], "aai")
+        self.assertEqual(res[1]["payload"], "bee")
+        self.assertEqual(res[0]["modified"], orig_ts)
+        self.assertEqual(res[1]["modified"], orig_ts)
+        self.assertEqual(res[1]["sortindex"], 17)
 
         endpoint = collection + "?batch={0}&commit=true".format(batch)
         resp = self.retry_post_json(endpoint, [])
@@ -1874,16 +1846,16 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(collection + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 3)
-        self.assertEquals(res[0]["payload"], "aai")
-        self.assertEquals(res[1]["payload"], "bii")
-        self.assertEquals(res[2]["payload"], "sea")
-        self.assertEquals(res[0]["modified"], orig_ts)
-        self.assertEquals(res[1]["modified"], commit_ts)
-        self.assertEquals(res[2]["modified"], commit_ts)
+        self.assertEqual(len(res), 3)
+        self.assertEqual(res[0]["payload"], "aai")
+        self.assertEqual(res[1]["payload"], "bii")
+        self.assertEqual(res[2]["payload"], "sea")
+        self.assertEqual(res[0]["modified"], orig_ts)
+        self.assertEqual(res[1]["modified"], commit_ts)
+        self.assertEqual(res[2]["modified"], commit_ts)
 
         # Fields not touched by the batch, should have been preserved.
-        self.assertEquals(res[1]["sortindex"], 17)
+        self.assertEqual(res[1]["sortindex"], 17)
 
     def test_batch_ttl_update(self):
         collection = self.root + "/storage/xxx_col2"
@@ -1903,28 +1875,28 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.retry_post_json(
             endpoint, [{"id": "a", "ttl": 2}], status=202
         )
-        self.assertEquals(orig_ts, float(resp.headers["X-Last-Modified"]))
+        self.assertEqual(orig_ts, float(resp.headers["X-Last-Modified"]))
         resp = self.retry_post_json(
             endpoint, [{"id": "b", "ttl": 2}], status=202
         )
-        self.assertEquals(orig_ts, float(resp.headers["X-Last-Modified"]))
+        self.assertEqual(orig_ts, float(resp.headers["X-Last-Modified"]))
         resp = self.retry_post_json(endpoint + "&commit=true", [], status=200)
 
         # The payloads should be unchanged
         resp = self.app.get(collection + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 3)
-        self.assertEquals(res[0]["payload"], "ayy")
-        self.assertEquals(res[1]["payload"], "bea")
-        self.assertEquals(res[2]["payload"], "see")
+        self.assertEqual(len(res), 3)
+        self.assertEqual(res[0]["payload"], "ayy")
+        self.assertEqual(res[1]["payload"], "bea")
+        self.assertEqual(res[2]["payload"], "see")
 
         # If we wait, the ttls should kick in
         time.sleep(2.1)
         resp = self.app.get(collection + "?full=1")
         res = resp.json
-        self.assertEquals(len(res), 1)
-        self.assertEquals(res[0]["payload"], "see")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0]["payload"], "see")
 
     def test_batch_ttl_is_based_on_commit_timestamp(self):
         collection = self.root + "/storage/xxx_col2"
@@ -1946,14 +1918,14 @@ class TestStorage(StorageFunctionalTestCase):
         time.sleep(1.6)
         resp = self.app.get(collection)
         res = resp.json
-        self.assertEquals(len(res), 1)
-        self.assertEquals(res[0], "a")
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0], "a")
 
         # Wait some more, and the ttl should kick in.
         time.sleep(1.6)
         resp = self.app.get(collection)
         res = resp.json
-        self.assertEquals(len(res), 0)
+        self.assertEqual(len(res), 0)
 
     def test_batch_with_immediate_commit(self):
         collection = self.root + "/storage/xxx_col2"
@@ -1971,17 +1943,17 @@ class TestStorage(StorageFunctionalTestCase):
         committed = resp.json["modified"]
 
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), committed)
-        self.assertEquals(resp.json["xxx_col2"], committed)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), committed)
+        self.assertEqual(resp.json["xxx_col2"], committed)
 
         resp = self.app.get(collection + "?full=1")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), committed)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), committed)
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 3)
-        self.assertEquals(res[0]["payload"], "aih")
-        self.assertEquals(res[1]["payload"], "bie")
-        self.assertEquals(res[2]["payload"], "cee")
+        self.assertEqual(len(res), 3)
+        self.assertEqual(res[0]["payload"], "aih")
+        self.assertEqual(res[1]["payload"], "bie")
+        self.assertEqual(res[2]["payload"], "cee")
 
     def test_batch_uploads_properly_update_info_collections(self):
         collection1 = self.root + "/storage/xxx_col1"
@@ -1999,9 +1971,9 @@ class TestStorage(StorageFunctionalTestCase):
         ts2 = resp.json["modified"]
 
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), ts2)
-        self.assertEquals(resp.json["xxx_col1"], ts1)
-        self.assertEquals(resp.json["xxx_col2"], ts2)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), ts2)
+        self.assertEqual(resp.json["xxx_col1"], ts1)
+        self.assertEqual(resp.json["xxx_col2"], ts2)
 
         # Overwrite in place, timestamp should change.
         resp = self.retry_post_json(
@@ -2011,9 +1983,9 @@ class TestStorage(StorageFunctionalTestCase):
         ts2 = resp.json["modified"]
 
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), ts2)
-        self.assertEquals(resp.json["xxx_col1"], ts1)
-        self.assertEquals(resp.json["xxx_col2"], ts2)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), ts2)
+        self.assertEqual(resp.json["xxx_col1"], ts1)
+        self.assertEqual(resp.json["xxx_col2"], ts2)
 
         # Add new items, timestamp should change
         resp = self.retry_post_json(
@@ -2025,9 +1997,9 @@ class TestStorage(StorageFunctionalTestCase):
         ts1 = resp.json["modified"]
 
         resp = self.app.get(self.root + "/info/collections")
-        self.assertEquals(float(resp.headers["X-Last-Modified"]), ts1)
-        self.assertEquals(resp.json["xxx_col1"], ts1)
-        self.assertEquals(resp.json["xxx_col2"], ts2)
+        self.assertEqual(float(resp.headers["X-Last-Modified"]), ts1)
+        self.assertEqual(resp.json["xxx_col1"], ts1)
+        self.assertEqual(resp.json["xxx_col2"], ts2)
 
     def test_batch_with_failing_bsos(self):
         collection = self.root + "/storage/xxx_col2"
@@ -2056,9 +2028,9 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(collection + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 2)
-        self.assertEquals(res[0]["payload"], "aai")
-        self.assertEquals(res[1]["payload"], "sea")
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0]["payload"], "aai")
+        self.assertEqual(res[1]["payload"], "sea")
 
     def test_batch_id_is_correctly_scoped_to_a_collection(self):
         collection1 = self.root + "/storage/xxx_col1"
@@ -2087,11 +2059,11 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(collection1 + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 4)
-        self.assertEquals(res[0]["payload"], "aih")
-        self.assertEquals(res[1]["payload"], "bie")
-        self.assertEquals(res[2]["payload"], "cee")
-        self.assertEquals(res[3]["payload"], "dii")
+        self.assertEqual(len(res), 4)
+        self.assertEqual(res[0]["payload"], "aih")
+        self.assertEqual(res[1]["payload"], "bie")
+        self.assertEqual(res[2]["payload"], "cee")
+        self.assertEqual(res[3]["payload"], "dii")
 
     def test_users_with_the_same_batch_id_get_separate_data(self):
         # Try to generate two users with the same batch-id.
@@ -2111,19 +2083,19 @@ class TestStorage(StorageFunctionalTestCase):
                 self.retry_post_json(self.root + req, [])
                 # It should only have a single item.
                 resp = self.app.get(self.root + "/storage/xxx_col1")
-                self.assertEquals(resp.json, ["b"])
+                self.assertEqual(resp.json, ["b"])
             # The first user's collection should still be empty.
             # Now have the  first user commit their batch.
             req = "/storage/xxx_col1?batch={0}&commit=true".format(batch1)
             self.retry_post_json(self.root + req, [])
             # It should only have a single item.
             resp = self.app.get(self.root + "/storage/xxx_col1")
-            self.assertEquals(resp.json, ["a"])
+            self.assertEqual(resp.json, ["a"])
             # If we didn't make a conflict, try again.
             if batch1 == batch2:
                 break
         else:
-            raise unittest.SkipTest("failed to generate conflicting batchid")
+            pytest.skip("failed to generate conflicting batchid")
 
     def test_that_we_dont_resurrect_committed_batches(self):
         # This retry loop tries to trigger a situation where we:
@@ -2147,11 +2119,12 @@ class TestStorage(StorageFunctionalTestCase):
             if batch1 == batch2:
                 break
         else:
-            raise unittest.SkipTest("failed to trigger re-use of batchid")
+            pytest.skip("failed to trigger re-use of batchid")
+
         # Despite having the same batchid, the second batch should
         # be completely independent of the first.
         resp = self.app.get(self.root + "/storage/xxx_col2")
-        self.assertEquals(resp.json, ["j"])
+        self.assertEqual(resp.json, ["j"])
 
     def test_batch_id_is_correctly_scoped_to_a_user(self):
         collection = self.root + "/storage/xxx_col1"
@@ -2183,11 +2156,11 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.app.get(collection + "?full=1")
         res = resp.json
         res.sort(key=lambda bso: bso["id"])
-        self.assertEquals(len(res), 4)
-        self.assertEquals(res[0]["payload"], "aih")
-        self.assertEquals(res[1]["payload"], "bie")
-        self.assertEquals(res[2]["payload"], "cee")
-        self.assertEquals(res[3]["payload"], "di")
+        self.assertEqual(len(res), 4)
+        self.assertEqual(res[0]["payload"], "aih")
+        self.assertEqual(res[1]["payload"], "bie")
+        self.assertEqual(res[2]["payload"], "cee")
+        self.assertEqual(res[3]["payload"], "di")
 
     # bug 1332552 make sure ttl:null use the default ttl
     def test_create_bso_with_null_ttl(self):
@@ -2195,7 +2168,7 @@ class TestStorage(StorageFunctionalTestCase):
         self.retry_put_json(self.root + "/storage/xxx_col2/TEST1", bso)
         time.sleep(0.1)
         res = self.app.get(self.root + "/storage/xxx_col2/TEST1?full=1")
-        self.assertEquals(res.json["payload"], "x")
+        self.assertEqual(res.json["payload"], "x")
 
     def test_rejection_of_known_bad_payloads(self):
         bso = {
@@ -2230,8 +2203,8 @@ class TestStorage(StorageFunctionalTestCase):
             res = self.retry_post_json(
                 self.root + "/storage/xxx_col?batch=true", bsos
             )
-            self.assertEquals(len(res.json["success"]), 5)
-            self.assertEquals(len(res.json["failed"]), 0)
+            self.assertEqual(len(res.json["success"]), 5)
+            self.assertEqual(len(res.json["failed"]), 0)
             batch = res.json["batch"]
             self.app.post(
                 self.root + "/storage/xxx_col?commit=true&batch=" + batch,
