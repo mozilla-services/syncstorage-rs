@@ -34,10 +34,10 @@ impl Verifier {
     ) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, TokenserverError>>(|py| {
             let code = include_str!("verify.py");
-            let module = PyModule::from_code_bound(py, code, Self::FILENAME, Self::FILENAME)
+            let module = PyModule::from_code(py, code, Self::FILENAME, Self::FILENAME)
                 .map_err(pyerr_to_tokenserver_error)?;
             let kwargs = {
-                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict_bound(py);
+                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
                 let parse_jwk = |jwk: &Jwk| {
                     let (n, e) = match &jwk.algorithm {
                         AlgorithmParameters::RSA(RSAKeyParameters { key_type: _, n, e }) => (n, e),
@@ -71,7 +71,7 @@ impl Verifier {
                         ("n", n),
                         ("e", e),
                     ]
-                    .into_py_dict_bound(py);
+                    .into_py_dict(py);
                     Ok(dict)
                 };
 
