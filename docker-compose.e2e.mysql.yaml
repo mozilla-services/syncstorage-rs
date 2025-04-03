@@ -1,27 +1,24 @@
 version: "3"
 services:
-  sync-db:
-  tokenserver-db:
-  syncserver:
-    depends_on:
-      - sync-db
-      - tokenserver-db
-    # TODO: either syncserver should retry the db connection
-    # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us.
-    entrypoint: >
-      /bin/sh -c "
-        sleep 15;
-        /app/bin/syncserver;
-      "
   mysql-e2e-tests:
+    container_name: mysql-e2e-tests
     depends_on:
-      - mock-fxa-server
-      - syncserver
+      sync-db:
+        condition: service_healthy
+      mock-fxa-server:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
+    # this depend is to avoid migration collisions.
+    # the syncserver isn't actually used for the tests,
+    # but collisions can happen particularly in CI.
+      syncserver:
+        condition: service_started
     image: app:build
     privileged: true
     user: root
     environment:
+      JWK_CACHE_DISABLED: false
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
@@ -43,5 +40,9 @@ services:
       TOKENSERVER_HOST: http://localhost:8000
     entrypoint: >
       /bin/sh -c "
-        sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+        exit_code=0;
+        pytest /app/tools/integration_tests/ --junit-xml=/mysql_integration_results.xml || exit_code=$$?;
+        export JWK_CACHE_DISABLED=true;
+        pytest /app/tools/integration_tests/ --junit-xml=/mysql_no_jwk_integration_results.xml || exit_code=$$?;
+        exit $$exit_code;
       "

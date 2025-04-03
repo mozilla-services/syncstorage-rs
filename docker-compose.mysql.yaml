@@ -24,6 +24,12 @@ services:
       MYSQL_DATABASE: syncstorage
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -uroot -p$${MYSQL_ROOT_PASSWORD} version"]
+      interval: 2s
+      retries: 10
+      start_period: 20s
+      timeout: 2s
 
   tokenserver-db:
     image: docker.io/library/mysql:5.7
@@ -39,6 +45,12 @@ services:
       MYSQL_DATABASE: tokenserver
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -uroot -p$${MYSQL_ROOT_PASSWORD} version"]
+      interval: 2s
+      retries: 10
+      start_period: 20s
+      timeout: 2s
 
   mock-fxa-server:
     image: app:build
@@ -58,8 +70,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - sync-db
-      - tokenserver-db
+      sync-db:
+        condition: service_healthy
+      tokenserver-db:
+        condition: service_healthy
     environment:
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
