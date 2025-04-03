@@ -11,10 +11,12 @@ services:
     # inside its docker that would do this for us.
     entrypoint: >
       /bin/sh -c "
-        sleep 15;
+        sleep 10;
         /app/bin/syncserver;
       "
   mysql-e2e-tests:
+    volumes:
+      - ./tools/integration_tests/tokenserver/:/app/tools/integration_tests/tokenserver/
     depends_on:
       - mock-fxa-server
       - syncserver
@@ -43,5 +45,5 @@ services:
       TOKENSERVER_HOST: http://localhost:8000
     entrypoint: >
       /bin/sh -c "
-        sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+        pytest /app/tools/integration_tests/tokenserver/ -s --verbose -m local_integration --junit-xml=/app/tools/integration_tests/tokenserver/local_integration_results.xml
       "

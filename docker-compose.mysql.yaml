@@ -12,6 +12,7 @@ version: "3"
 services:
   sync-db:
     image: docker.io/library/mysql:5.7
+    platform: linux/x86_64
     volumes:
       - sync_db_data:/var/lib/mysql
     restart: always
@@ -24,9 +25,15 @@ services:
       MYSQL_DATABASE: syncstorage
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    # healthcheck:
+    #   test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prandom"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
 
   tokenserver-db:
     image: docker.io/library/mysql:5.7
+    platform: linux/x86_64
     volumes:
       - tokenserver_db_data:/var/lib/mysql
     restart: always
@@ -39,6 +46,19 @@ services:
       MYSQL_DATABASE: tokenserver
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    # healthcheck:
+    #   test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prandom"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    # # This isn't a perfect solution to make sure the db is up.
+    # # It's possible that ping -h will return success but the db
+    # # is not yet accepting connections. But this gets us closer
+    # # to avoiding false starts
+    # # healthcheck:
+    # #   test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+    # #   timeout: 20s
+    # #   retries: 10
 
   mock-fxa-server:
     image: app:build

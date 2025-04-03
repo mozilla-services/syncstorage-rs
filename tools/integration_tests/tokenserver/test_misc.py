@@ -1,6 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
+import pytest
 import unittest
 
 from tokenserver.test_support import TestCase
@@ -8,6 +9,8 @@ from tokenserver.test_support import TestCase
 MAX_GENERATION = 9223372036854775807
 
 
+@pytest.mark.local_integration
+@pytest.mark.usefixtures('setup_server_local_testing_with_oauth')
 class TestMisc(TestCase, unittest.TestCase):
     def setUp(self):
         super(TestMisc, self).setUp()

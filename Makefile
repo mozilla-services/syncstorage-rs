@@ -21,6 +21,7 @@ TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCL
 UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)integration__results.xml
+LOCAL_INTEGRATION_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)local_integration__results.xml
 SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/syncstorage_rs
 SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
@@ -105,3 +106,24 @@ merge_coverage_results:
 run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+
+.ONESHELL:
+run_mysql_e2e_tests:
+	docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml up --exit-code-from mysql-e2e-tests --abort-on-container-exit
+	mv ./tools/integration_tests/tokenserver/local_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+# docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml exec mysql-e2e-tests sh -c "cat /path/to/your/file" > $(INTEGRATION_JUNIT_XML)
+
+.ONESHELL:
+run_mysql_e2e_tests_no_rebiuld:
+# docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml up --exit-code-from mysql-e2e-tests --abort-on-container-exit
+	mv ./tools/integration_tests/tokenserver/local_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+# docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml exec mysql-e2e-tests sh -c "cat /path/to/your/file" > $(INTEGRATION_JUNIT_XML)
+
+run_mysql_ete_tests_old:
+	docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
+	export SYNCSTORAGE_RS_IMAGE=app:build
+	docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql-old.yaml up --exit-code-from mysql-e2e-tests --abort-on-container-exit

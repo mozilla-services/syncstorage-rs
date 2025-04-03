@@ -14,6 +14,7 @@ consider it a bug.
 
 """
 
+import pytest
 # unittest imported by pytest requirement
 import unittest
 
@@ -74,6 +75,7 @@ def randtext(size=10):
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
+@pytest.mark.useFixture('setup_server_local_testing')
 class TestStorage(StorageFunctionalTestCase):
     """Storage testcases that only use the web API.
 

@@ -5,6 +5,7 @@ from base64 import urlsafe_b64decode
 import hmac
 import json
 import jwt
+import pytest
 import random
 import string
 import time
@@ -33,8 +34,11 @@ PASSWORD_LENGTH = 32
 SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 
 
-@unittest.skip("Pending PyFxA oauth fix: "
-               "https://github.com/mozilla/PyFxA/issues/101")
+@pytest.mark.useFixture('setup_server_end_to_end_testing')
+@pytest.mark.skip("Pending PyFxA oauth fix: "
+             "https://github.com/mozilla/PyFxA/issues/101")
+# @unittest.skip("Pending PyFxA oauth fix: "
+#                "https://github.com/mozilla/PyFxA/issues/101")
 class TestE2e(TestCase, unittest.TestCase):
 
     def setUp(self):
