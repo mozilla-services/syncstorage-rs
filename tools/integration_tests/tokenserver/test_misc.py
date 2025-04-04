@@ -60,7 +60,7 @@ class TestMisc(TestCase, unittest.TestCase):
         res = self.app.get('/1.0/sync/1.5', headers=headers)
         self.assertIn('https://example.com/1.5', res.json['api_endpoint'])
         self.assertIn('duration', res.json)
-        self.assertEquals(res.json['duration'], 3600)
+        self.assertEqual(res.json['duration'], 3600)
 
     def test_current_user_is_the_most_up_to_date(self):
         # Add some users

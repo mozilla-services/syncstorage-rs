@@ -75,7 +75,8 @@ def randtext(size=10):
     return "".join([random.choice(_ASCII) for i in range(size)])
 
 
-@pytest.mark.useFixture('setup_server_local_testing')
+@pytest.mark.live_integration
+@pytest.mark.usefixtures('setup_server_local_testing')
 class TestStorage(StorageFunctionalTestCase):
     """Storage testcases that only use the web API.
 
@@ -118,6 +119,7 @@ class TestStorage(StorageFunctionalTestCase):
             return func(*args, **kwargs)
 
     def test_get_info_collections(self):
+        print("Inside test_get_info_collections")
         # xxx_col1 gets 3 items, xxx_col2 gets 5 items.
         bsos = [{"id": str(i).zfill(2), "payload": "xxx"} for i in range(3)]
         resp = self.retry_post_json(self.root + "/storage/xxx_col1", bsos)
