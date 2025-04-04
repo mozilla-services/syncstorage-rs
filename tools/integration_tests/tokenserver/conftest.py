@@ -25,7 +25,6 @@ def _get_current_ports():
     """Gets a list of all active ports on the system."""
     ports = []
     for conn in psutil.net_connections(kind='inet'):
-        print("Connection: ", conn) 
         ports.append(conn.laddr.port)
     return set(ports)
 
@@ -43,16 +42,12 @@ def _start_server():
             "Neither target/debug/syncserver nor /app/bin/syncserver were found."
         )
 
-    starting_ports = _get_current_ports()
-    print("Starting ports: ", starting_ports)
     server_process = subprocess.Popen(
         target_binary, shell=True, env=os.environ
     )
     for _ in range(30):
         try:
-            print("Trying to connect to server...")
             req = requests.get("http://localhost:8000/__heartbeat__", timeout=2)
-            print("Server response: ", req.status_code)
             if req.status_code == 200:
                 print("Server started successfully.")
                 break

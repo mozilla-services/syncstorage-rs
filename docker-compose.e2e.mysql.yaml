@@ -11,7 +11,6 @@ services:
     # inside its docker that would do this for us.
     entrypoint: >
       /bin/sh -c "
-        sleep 10;
         /app/bin/syncserver;
       "
   mysql-e2e-tests:
@@ -23,6 +22,12 @@ services:
     image: app:build
     privileged: true
     user: root
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__", "||", "exit", "1"]
+      interval: 1s
+      timeout: 1s
+      retries: 30 # wait at most for 30 seconds for the server to start
+      start_period: 0s
     environment:
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
@@ -45,5 +50,5 @@ services:
       TOKENSERVER_HOST: http://localhost:8000
     entrypoint: >
       /bin/sh -c "
-        pytest /app/tools/integration_tests/tokenserver/ -s --verbose -m local_integration --junit-xml=/app/tools/integration_tests/tokenserver/local_integration_results.xml
+        pytest /app/tools/integration_tests/tokenserver/ -s --verbose -m live_integration --junit-xml=/app/tools/integration_tests/tokenserver/local_integration_results.xml
       "
