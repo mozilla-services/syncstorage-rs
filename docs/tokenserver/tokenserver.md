@@ -19,6 +19,8 @@ and [here](https://mozilla-services.readthedocs.io/en/latest/token/index.html).
 
 In practice today, it is only used for connecting to Sync.
 
+## Tokenserver API
+
 
 ## How Tokenserver Handles Failure Cases
 
@@ -33,3 +35,10 @@ When a user forgets and resets their password, their Sync keys change. The Token
 
 ### User Changes Their Password
 This is similar to the case where users revoke their access tokens. Any devices with a not-expired access token will continue to sync until expiry, but clients will likely disconnect those clients faster than the 1 hour - however, a malicious user might be able to sync upwards of 1 hour.
+
+## Utilities
+Tokenserver has two regular running utility scripts:
+1 - [Process Account Events](../tools/process_account_events.md)
+2 - [Purge Old Records](../tools/purge_old_records_tokenserver.md)
+
+For context on these processes, their purpose, and how to run them, please review their documentation pages.
