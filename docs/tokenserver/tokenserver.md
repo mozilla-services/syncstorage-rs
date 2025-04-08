@@ -19,9 +19,6 @@ and [here](https://mozilla-services.readthedocs.io/en/latest/token/index.html).
 
 In practice today, it is only used for connecting to Sync.
 
-## Tokenserver API
-
-
 ## How Tokenserver Handles Failure Cases
 
 ### Token Expiry
