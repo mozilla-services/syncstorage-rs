@@ -58,7 +58,26 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await
             .unwrap()
     } else {
-        server::Server::with_settings(settings).await.unwrap()
+
+        // If mysql isn't available yet this will throw a thread panic and kill
+        // the process. This let's us try a few times for mysql to come up before
+        // we panic. This is a bit of a hack, but it works for now. We may
+        // need to revisit.
+        let max_attempts = 10;
+        let mut attempt = 0;
+        loop {
+            match server::Server::with_settings(settings.clone()).await {
+                Ok(server) => break server,
+                Err(e) => {
+                    attempt += 1;
+                    warn!("Failed to initialize server on attempt {}: {}", attempt, e);
+                    if attempt >= max_attempts {
+                        panic!("Failed to initialize server after {} attempts: {}", max_attempts, e);
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
     };
     info!("Server running on {}", banner);
     server.await?;

@@ -18,6 +18,7 @@ import pytest
 # unittest imported by pytest requirement
 import unittest
 
+import os
 
 import re
 import json
@@ -36,6 +37,7 @@ from webtest.app import AppError
 from test_support import StorageFunctionalTestCase
 
 import tokenlib
+import psutil
 
 
 class ConflictError(Exception):
@@ -87,7 +89,7 @@ class TestStorage(StorageFunctionalTestCase):
     def setUp(self):
         super(TestStorage, self).setUp()
         self.root = "/1.5/%d" % (self.user_id,)
-        # Reset the storage to a known state, aka "empty".
+
         self.retry_delete(self.root)
 
     @contextlib.contextmanager

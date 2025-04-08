@@ -37,8 +37,6 @@ SCOPE = 'https://identity.mozilla.com/apps/oldsync'
 @pytest.mark.usefixtures('setup_server_end_to_end_testing')
 @pytest.mark.skip("Pending PyFxA oauth fix: "
              "https://github.com/mozilla/PyFxA/issues/101")
-# @unittest.skip("Pending PyFxA oauth fix: "
-#                "https://github.com/mozilla/PyFxA/issues/101")
 class TestE2e(TestCase, unittest.TestCase):
 
     def setUp(self):

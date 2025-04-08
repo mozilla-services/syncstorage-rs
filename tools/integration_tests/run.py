@@ -5,7 +5,7 @@ import psutil
 import signal
 import subprocess
 import sys
-from test_storage import TestStorage
+from tokenserver.test_storage import TestStorage
 from test_support import run_live_functional_tests
 import time
 from tokenserver.run import (run_end_to_end_tests, run_local_tests)

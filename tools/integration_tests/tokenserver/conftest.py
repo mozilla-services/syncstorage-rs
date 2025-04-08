@@ -1,3 +1,4 @@
+import sys
 import os
 import psutil
 import signal
@@ -5,9 +6,13 @@ import subprocess
 import time
 import pytest
 import requests
+from urllib.parse import urlparse
+import threading
+import logging
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
+SYNC_SERVER_STARTUP_TIMEOUT = 15  # seconds
 
 
 # Local setup for fixtures
@@ -21,16 +26,10 @@ def _terminate_process(process):
         os.kill(p.pid, signal.SIGTERM)
     process.wait()
 
-def _get_current_ports():
-    """Gets a list of all active ports on the system."""
-    ports = []
-    for conn in psutil.net_connections(kind='inet'):
-        ports.append(conn.laddr.port)
-    return set(ports)
-
 def _start_server():
     """
-    Starts the syncserver process and return the process handle.
+    Starts the syncserver process, waits for it to be running,
+    and return the process handle.
     """
     target_binary = None
     if os.path.exists(DEBUG_BUILD):
@@ -39,24 +38,47 @@ def _start_server():
         target_binary = RELEASE_BUILD
     else:
         raise RuntimeError(
-            "Neither target/debug/syncserver nor /app/bin/syncserver were found."
+            "Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found."
         )
 
     server_process = subprocess.Popen(
-        target_binary, shell=True, env=os.environ
+        target_binary,
+        shell=True,
+        env=os.environ,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True
     )
-    for _ in range(30):
+
+    # def stream_output(process):
+    #     for line in iter(process.stdout.readline, ''):
+    #         print(f"😭 {line}", end="")
+
+    # threading.Thread(target=stream_output, args=(server_process,), daemon=True).start()
+
+    # Wait for the server to start
+    itter = 0
+    for _ in range(SYNC_SERVER_STARTUP_TIMEOUT):
+        itter += 1
+        if itter > SYNC_SERVER_STARTUP_TIMEOUT - 1:
+            raise RuntimeError(
+                "Server failed to start within the timeout period."
+            )
         try:
             req = requests.get("http://localhost:8000/__heartbeat__", timeout=2)
             if req.status_code == 200:
-                print("Server started successfully.")
                 break
-            time.sleep(1)
         except requests.exceptions.RequestException as e:
-            print(f"Connection failed: {e}")
-            time.sleep(1)
-    # Wait for the server to start
-    # FIXME: see if there's a heartbeat or log message we can wait for instead of sleeping
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Connection failed: {e}")
+        time.sleep(1)
+
+
+    host_url = urlparse(os.environ.get("TOKENSERVER_HOST_WITH_FRAGMENT"))
+    if host_url.fragment:
+        os.environ.setdefault("global_secret", host_url.fragment)
+    os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
+
     return server_process
 
 
@@ -78,22 +100,22 @@ def _set_local_test_env_vars():
     os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
     os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
     os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "*")
-    mock_fxa_server_url = os.environ["MOCK_FXA_SERVER_URL"]
-    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = mock_fxa_server_url
+    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = os.environ["MOCK_FXA_SERVER_URL"]
 
 # Fixtures
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def setup_server_local_testing():
     """
     Fixture to set up the server for local testing.
     This fixture sets the necessary environment variables and starts the server.
     """
+    print("Using setup_server_local_testing fixture")
     _set_local_test_env_vars()
     yield from _server_manager()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def setup_server_local_testing_with_oauth():
     """
     Fixture to set up the server for local testing with OAuth.
@@ -107,7 +129,7 @@ def setup_server_local_testing_with_oauth():
     # Start the server
     yield from _server_manager()
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def setup_server_end_to_end_testing():
     """
     Fixture to set up the server for end-to-end testing.
@@ -160,8 +182,12 @@ def setup_server_end_to_end_testing():
 #       One option would be to set a env_var from the container to indicate which path, 
 #       then a single fixture could be used to set the env vars and then run the tests. 
 #       But that's messy Another option is to duplicate the tests, but that's also messy.
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def setup_server_without_oauth_vars():
+    """
+    Fixture that deletes OAuth-specific environment variables
+    and starts the server.
+    """
     del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY"]
     del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG"]
     del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID"]

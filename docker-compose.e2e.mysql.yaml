@@ -2,32 +2,14 @@ version: "3"
 services:
   sync-db:
   tokenserver-db:
-  syncserver:
-    depends_on:
-      - sync-db
-      - tokenserver-db
-    # TODO: either syncserver should retry the db connection
-    # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us.
-    entrypoint: >
-      /bin/sh -c "
-        /app/bin/syncserver;
-      "
   mysql-e2e-tests:
     volumes:
       - ./tools/integration_tests/tokenserver/:/app/tools/integration_tests/tokenserver/
     depends_on:
       - mock-fxa-server
-      - syncserver
     image: app:build
     privileged: true
     user: root
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/__heartbeat__", "||", "exit", "1"]
-      interval: 1s
-      timeout: 1s
-      retries: 30 # wait at most for 30 seconds for the server to start
-      start_period: 0s
     environment:
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
@@ -48,7 +30,8 @@ services:
       SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N: "15OpVGC7ws_SlU0gRbRh1Iwo8_gR8ElX2CDnbN5blKyXLg-ll0ogktoDXc-tDvTabRTxi7AXU0wWQ247odhHT47y5uz0GASYXdfPponynQ_xR9CpNn1eEL1gvDhQN9rfPIzfncl8FUi9V4WMd5f600QC81yDw9dX-Z8gdkru0aDaoEKF9-wU2TqrCNcQdiJCX9BISotjz_9cmGwKXFEekQNJWBeRQxH2bUmgwUK0HaqwW9WbYOs-zstNXXWFsgK9fbDQqQeGehXLZM4Cy5Mgl_iuSvnT3rLzPo2BmlxMLUvRqBx3_v8BTtwmNGA0v9O0FJS_mnDq0Iue0Dz8BssQCQ"
       SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E: "AQAB"
       TOKENSERVER_HOST: http://localhost:8000
+      TOKENSERVER_HOST_WITH_FRAGMENT: http://localhost:8000#secret0
     entrypoint: >
       /bin/sh -c "
-        pytest /app/tools/integration_tests/tokenserver/ -s --verbose -m live_integration --junit-xml=/app/tools/integration_tests/tokenserver/local_integration_results.xml
+        pytest /app/tools/integration_tests/tokenserver/ -s --verbose --junit-xml=/app/tools/integration_tests/tokenserver/local_integration_results.xml
       "
