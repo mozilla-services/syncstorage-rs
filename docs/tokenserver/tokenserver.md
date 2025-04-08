@@ -19,6 +19,29 @@ and [here](https://mozilla-services.readthedocs.io/en/latest/token/index.html).
 
 In practice today, it is only used for connecting to Sync.
 
+## Tokenserver Crates & Their Purpose
+
+### `tokenserver-auth`
+Handles authentication logic, including:
+- Token generation and validation.
+- Ensuring clients are authorized before accessing Sync services.
+
+### `tokenserver-common`
+Provides shared functionality and types used across the Tokenserver ecosystem:
+- Common utility functions.
+- Structs and traits reused in other Tokenserver modules.
+
+### `tokenserver-db`
+Responsible for persisting and retrieving authentication/session-related data securely and efficiently.
+Manages all database interactions for Tokenserver:
+- Database schema definitions.
+- Connection pooling and querying logic.
+
+### `tokenserver-settings`
+Handles configuration management:
+- Loads and validates settings for Tokenserver.
+- Supports integration with different deployment environments.
+
 ## How Tokenserver Handles Failure Cases
 
 ### Token Expiry
