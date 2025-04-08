@@ -7,13 +7,13 @@ import time
 import pytest
 import requests
 from urllib.parse import urlparse
-import threading
 import logging
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
 SYNC_SERVER_STARTUP_TIMEOUT = 15  # seconds
 
+logger = logging.getLogger("tokenserver.scripts.conftest")
 
 # Local setup for fixtures
 def _terminate_process(process):
@@ -25,6 +25,27 @@ def _terminate_process(process):
     for p in [proc] + child_proc:
         os.kill(p.pid, signal.SIGTERM)
     process.wait()
+
+def _wait_for_server_startup(timeout=SYNC_SERVER_STARTUP_TIMEOUT):
+    """
+    Waits for the __heartbeat__ endpoint to return a 200, pausing for 1 second
+    between attempts. Raises a RuntimeError if the server does not start within
+    the timeout period.
+    """
+    itter = 0
+    for _ in range(timeout):
+        if itter >= timeout:
+            raise RuntimeError(
+                "Server failed to start within the timeout period."
+            )
+        try:
+            req = requests.get("http://localhost:8000/__heartbeat__", timeout=2)
+            if req.status_code == 200:
+                break
+        except requests.exceptions.RequestException as e:
+            logger.warning("Connection failed: %s", e)
+        time.sleep(1)
+        itter += 1
 
 def _start_server():
     """
@@ -41,46 +62,21 @@ def _start_server():
             "Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found."
         )
 
-    server_process = subprocess.Popen(
+    server_proc = subprocess.Popen(
         target_binary,
         shell=True,
+        text=True,
         env=os.environ,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
     )
 
-    # def stream_output(process):
-    #     for line in iter(process.stdout.readline, ''):
-    #         print(f"😭 {line}", end="")
-
-    # threading.Thread(target=stream_output, args=(server_process,), daemon=True).start()
-
-    # Wait for the server to start
-    itter = 0
-    for _ in range(SYNC_SERVER_STARTUP_TIMEOUT):
-        itter += 1
-        if itter > SYNC_SERVER_STARTUP_TIMEOUT - 1:
-            raise RuntimeError(
-                "Server failed to start within the timeout period."
-            )
-        try:
-            req = requests.get("http://localhost:8000/__heartbeat__", timeout=2)
-            if req.status_code == 200:
-                break
-        except requests.exceptions.RequestException as e:
-            logger = logging.getLogger(__name__)
-            logger.warning(f"Connection failed: {e}")
-        time.sleep(1)
-
+    _wait_for_server_startup()
 
     host_url = urlparse(os.environ.get("TOKENSERVER_HOST_WITH_FRAGMENT"))
     if host_url.fragment:
         os.environ.setdefault("global_secret", host_url.fragment)
     os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
 
-    return server_process
-
+    return server_proc
 
 def _server_manager():
     """
@@ -144,33 +140,6 @@ def setup_server_end_to_end_testing():
     # Start the server
     yield from _server_manager()
 
-# ## Probably need to rename this to something like 'start_live_functional_server'
-# @pytest.fixture(scope="session")
-# def setup_server():
-
-#     # Set environment variables
-#     os.environ.setdefault("SYNC_MASTER_SECRET", "secret0")
-#     os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
-#     os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "*")
-#     os.environ.setdefault("MOZSVC_TEST_REMOTE", "localhost")
-
-#     os.environ["TOKENSERVER_AUTH_METHOD"] = "oauth"
-
-#     url = "http://localhost:8000#secret0"
-#     host_url = urllib.parse.urlparse(url)
-#     if host_url.fragment:
-#         global global_secret
-#         global_secret = host_url.fragment
-#         host_url = host_url._replace(fragment="")
-#     os.environ["MOZSVC_TEST_REMOTE"] = host_url.netloc
-
-
-#     # I think these are just for running `run_end_to_end_tests`, need to investigate 
-#     # mock_fxa_server_url = os.environ["MOCK_FXA_SERVER_URL"]
-#     # os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = mock_fxa_server_url
-
-#     # Start the server
-#     yield from manage_server()
 
 
 

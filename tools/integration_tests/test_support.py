@@ -395,7 +395,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
 
     def _authenticate(self):
         policy = self.config.registry.getUtility(IAuthenticationPolicy)
-        global_secret = os.environ.get("global_secret")
+        global_secret = os.environ.get("SYNC_MASTER_SECRET")
         if global_secret is not None:
             policy.secrets._secrets = [global_secret]
         self.user_id = random.randint(1, 100000)

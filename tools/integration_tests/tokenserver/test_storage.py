@@ -15,8 +15,6 @@ consider it a bug.
 """
 
 import pytest
-# unittest imported by pytest requirement
-import unittest
 
 import os
 
@@ -37,7 +35,6 @@ from webtest.app import AppError
 from test_support import StorageFunctionalTestCase
 
 import tokenlib
-import psutil
 
 
 class ConflictError(Exception):
