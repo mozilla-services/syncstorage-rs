@@ -1,11 +1,12 @@
 use crate::{MakeTokenPlaintext, TokenserverError};
 use pyo3::{
     prelude::{IntoPyObject, PyErr, PyModule, PyObject, Python},
-    types::{IntoPyDict, PyAnyMethods, PyDict, PyDictMethods},
+    types::{IntoPyDict, PyAnyMethods, PyDict},
+    Bound,
 };
 
 pub struct PyTokenlib {}
-impl IntoPyObject<PyObject> for MakeTokenPlaintext {
+impl<'py> IntoPyObject<'py> for MakeTokenPlaintext {
     type Target = PyDict;
     type Output = Bound<'py, Self::Target>;
     type Error = TokenserverError;
@@ -23,10 +24,10 @@ impl IntoPyObject<PyObject> for MakeTokenPlaintext {
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", self.expires).unwrap();
-        dict.set_item("uid", self.uid).unwrap();
+        dict?.set_item("expires", self.expires).unwrap();
+        dict?.set_item("uid", self.uid).unwrap();
 
-        dict.into()
+        dict?.into()
     }
 }
 impl PyTokenlib {
