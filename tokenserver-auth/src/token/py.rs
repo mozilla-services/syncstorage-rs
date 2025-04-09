@@ -20,12 +20,13 @@ impl<'py> IntoPyObject<'py> for MakeTokenPlaintext {
             ("hashed_fxa_uid", self.hashed_fxa_uid),
             ("tokenserver_origin", self.tokenserver_origin.to_string()),
         ]
-        .into_py_dict(py);
+        .into_py_dict(py)
+        .unwrap();
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
-        dict.unwrap().set_item("expires", self.expires);
-        dict.unwrap().set_item("uid", self.uid);
+        dict.set_item("expires", self.expires);
+        dict.set_item("uid", self.uid);
 
         dict.into()
     }
@@ -40,7 +41,7 @@ impl PyTokenlib {
             let module = PyModule::import(py, "tokenlib")
                 .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
             // `kwargs = { 'secret': shared_secret }`
-            let kwargs = [("secret", shared_secret)].into_py_dict(py);
+            let kwargs = [("secret", shared_secret)].into_py_dict(py).unwrap();
             // `token = tokenlib.make_token(plaintext, **kwargs)`
             let token = module
                 .getattr("make_token")?

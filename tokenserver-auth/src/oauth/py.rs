@@ -37,7 +37,9 @@ impl Verifier {
             let module = PyModule::from_code(py, code, c_str!("verify.py"), c_str!("verify.py"))
                 .map_err(pyerr_to_tokenserver_error)?;
             let kwargs = {
-                let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
+                let dict = [("server_url", &settings.fxa_oauth_server_url)]
+                    .into_py_dict(py)
+                    .unwrap();
                 let parse_jwk = |jwk: &Jwk| {
                     let (n, e) = match &jwk.algorithm {
                         AlgorithmParameters::RSA(RSAKeyParameters { key_type: _, n, e }) => (n, e),
@@ -71,7 +73,8 @@ impl Verifier {
                         ("n", n),
                         ("e", e),
                     ]
-                    .into_py_dict(py);
+                    .into_py_dict(py)
+                    .unwrap();
                     Ok(dict)
                 };
 
@@ -85,7 +88,7 @@ impl Verifier {
                     (Some(jwk), None) | (None, Some(jwk)) => Some(vec![parse_jwk(jwk)?]),
                     (None, None) => None,
                 };
-                dict.unwrap().set_item("jwks", jwks);
+                dict.set_item("jwks", jwks);
                 dict
             };
             let object: Py<PyAny> = module
