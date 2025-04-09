@@ -1,6 +1,6 @@
 use crate::{MakeTokenPlaintext, TokenserverError};
 use pyo3::{
-    prelude::{IntoPyObject, PyErr, PyModule, PyObject, Python},
+    prelude::{IntoPyObject, PyErr, PyModule, Python},
     types::{IntoPyDict, PyAnyMethods, PyDict},
     Bound,
 };
@@ -9,9 +9,9 @@ pub struct PyTokenlib {}
 impl<'py> IntoPyObject<'py> for MakeTokenPlaintext {
     type Target = PyDict;
     type Output = Bound<'py, Self::Target>;
-    type Error = TokenserverError;
+    type Error = PyErr;
 
-    fn into_pyobject(self, py: Python<'_>) -> PyObject {
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         let dict = [
             ("node", self.node),
             ("fxa_kid", self.fxa_kid),
@@ -20,15 +20,14 @@ impl<'py> IntoPyObject<'py> for MakeTokenPlaintext {
             ("hashed_fxa_uid", self.hashed_fxa_uid),
             ("tokenserver_origin", self.tokenserver_origin.to_string()),
         ]
-        .into_py_dict(py)
-        .unwrap();
+        .into_py_dict(py)?;
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", self.expires);
-        dict.set_item("uid", self.uid);
+        dict.set_item("expires", self.expires).unwrap();
+        dict.set_item("uid", self.uid).unwrap();
 
-        dict.into()
+        Ok(dict)
     }
 }
 impl PyTokenlib {
@@ -41,9 +40,9 @@ impl PyTokenlib {
             let module = PyModule::import(py, "tokenlib")
                 .inspect_err(|e| e.print_and_set_sys_last_vars(py))?;
             // `kwargs = { 'secret': shared_secret }`
-            let kwargs = [("secret", shared_secret)].into_py_dict(py).unwrap();
+            let kwargs = [("secret", shared_secret)].into_py_dict(py)?;
             // `token = tokenlib.make_token(plaintext, **kwargs)`
-            let token = module
+            let token: String = module
                 .getattr("make_token")?
                 .call((plaintext,), Some(&kwargs))
                 .inspect_err(|e| e.print_and_set_sys_last_vars(py))

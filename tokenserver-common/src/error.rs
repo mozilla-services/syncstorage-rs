@@ -1,5 +1,3 @@
-use std::{cmp::PartialEq, error::Error, fmt};
-
 use actix_web::{HttpResponse, ResponseError};
 use backtrace::Backtrace;
 use http::StatusCode;
@@ -7,6 +5,7 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
+use std::{cmp::PartialEq, error::Error, fmt};
 use syncserver_common::{InternalError, ReportableError};
 
 /// An error type that represents application-specific errors to Tokenserver. This error is not

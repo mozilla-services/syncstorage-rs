@@ -88,7 +88,7 @@ impl Verifier {
                     (Some(jwk), None) | (None, Some(jwk)) => Some(vec![parse_jwk(jwk)?]),
                     (None, None) => None,
                 };
-                dict.set_item("jwks", jwks);
+                dict.set_item("jwks", jwks).unwrap();
                 dict
             };
             let object: Py<PyAny> = module
