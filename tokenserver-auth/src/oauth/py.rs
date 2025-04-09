@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, PublicKeyUse, RSAKeyParameters};
 use pyo3::{
+    ffi::c_str,
     prelude::{Py, PyAny, PyErr, PyModule, Python},
     types::{IntoPyDict, PyAnyMethods, PyString},
     Bound,
 };
 use serde_json;
-use std::ffi::CString;
+use std::ffi::CStr;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use tokenserver_common::TokenserverError;
 use tokenserver_settings::Settings;
@@ -32,16 +33,9 @@ impl Verifier {
         blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, TokenserverError> {
         let inner: Py<PyAny> = Python::with_gil::<_, Result<Py<PyAny>, TokenserverError>>(|py| {
-            let verify_py: &'static str = "verify.py";
-            let verify_py_c: CString =
-                CString::new(verify_py).expect("CString::new conversion failed.");
-            let module = PyModule::from_code(
-                py,
-                verify_py_c.as_c_str(),
-                verify_py_c.as_c_str(),
-                verify_py_c.as_c_str(),
-            )
-            .map_err(pyerr_to_tokenserver_error)?;
+            let code: &CStr = c_str!(include_str!("verify.py"));
+            let module = PyModule::from_code(py, code, c_str!("verify.py"), c_str!("verify.py"))
+                .map_err(pyerr_to_tokenserver_error)?;
             let kwargs = {
                 let dict = [("server_url", &settings.fxa_oauth_server_url)].into_py_dict(py);
                 let parse_jwk = |jwk: &Jwk| {
@@ -91,7 +85,7 @@ impl Verifier {
                     (Some(jwk), None) | (None, Some(jwk)) => Some(vec![parse_jwk(jwk)?]),
                     (None, None) => None,
                 };
-                dict?.set_item("jwks", jwks).unwrap();
+                dict.unwrap().set_item("jwks", jwks);
                 dict
             };
             let object: Py<PyAny> = module
