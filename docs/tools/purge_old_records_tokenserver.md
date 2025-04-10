@@ -9,11 +9,9 @@ Obsolete records are those replaced by newer records for the same user or marked
 ---
 
 ## Status
-**DISABLED**:
-    - As of 2024-03-12, this script has not been running in an automated format. Requires a manual run to initiate.
+    - Running as Kubernetes Workload as part of deployment in `sync-prod` as: `tokenserver-prod-sync-app-1-purge-old-records-0`
     - See YAML configuration when editing each job.
     - See Kubernetes Engine Workload Panel in [`sync-prod`](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
-    - Each run is captured by an incrementing number after ` tokenserver-prod-sync-app-1-purge-old-records-<#>`
 
 ---
 

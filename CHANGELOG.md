@@ -1,3 +1,37 @@
+<a name="0.18.2"></a>
+## 0.18.2 (2024-12-05)
+
+
+#### Chore
+
+*   bump to latest sentry (#1639) ([bc79ccb9](https://github.com/mozilla-services/syncstorage-rs/commit/bc79ccb97243f946c1abb436f07a1be8b63f6ba6))
+
+
+
+<a name="0.18.1"></a>
+## 0.18.1 (2024-11-27)
+
+
+#### Features
+
+*    Enable Glean probe-scraper task (#1636) ([8363f82d](https://github.com/mozilla-services/syncstorage-rs/commit/8363f82d4197923e8ee1062de849d2c61e467db4))
+
+
+
+<a name="0.18.0"></a>
+## 0.18.0 (2024-11-26)
+
+
+#### Doc
+
+*   sync DAU server side metrics adr (#1608) ([7e211542](https://github.com/mozilla-services/syncstorage-rs/commit/7e21154203411e98200e7af60e2e7199050e9fb7))
+
+#### Features
+
+*   glean metrics logic (#1626) ([9e9869ee](https://github.com/mozilla-services/syncstorage-rs/commit/9e9869ee0605d0610d6c94bf6185eb1eabd6b6a2))
+
+
+
 <a name="0.17.15"></a>
 ## 0.17.15 (2024-11-21)
 

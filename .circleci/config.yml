@@ -4,10 +4,17 @@
 # DOCKER_USER    - login info for docker hub
 # DOCKER_PASS
 #
+# To avoid collision with other GCP connections we create specific vars for
+# the ETE Test Pipeline.
+# ETE_GOOGLE_PROJECT_ID     - GCP Project ID for ecosystem-test-eng
+# ETE_GCLOUD_SERVICE_KEY    - GCP syncstorage specific Service Account JSON Key 
+# ETE_GOOGLE_PROJECT_NUMBER - GCP Project Number for ecosystem-test-eng
+#
 version: 2.1
 
 orbs:
   gcp-gcr: circleci/gcp-gcr@0.16.3
+  gcp-cli: circleci/gcp-cli@3.3.1
 
 commands:
   display-versions:
@@ -167,6 +174,31 @@ commands:
           environment:
               SYNCSTORAGE_RS_IMAGE: app:build
 
+  upload-to-gcs:
+    parameters:
+      source:
+        type: string
+      destination:
+        type: string
+      extension:
+        type: enum
+        enum: ["xml", "json"]
+    steps:
+      - run:
+          name: Upload << parameters.source >> << parameters.extension >> Files to GCS
+          when: always  # Ensure the step runs even if previous steps, like test runs, fail
+          command: |
+            if [ "$CIRCLE_BRANCH" = "master" ]; then
+              FILES=$(ls -1 << parameters.source>>/*.<< parameters.extension>> )
+              if [ -z "$FILES" ]; then
+                echo "No << parameters.extension >> files found in << parameters.source >>/"
+                exit 1
+              fi
+              gsutil cp $FILES << parameters.destination >>
+            else
+              echo "Skipping artifact upload, not on 'master' branch."
+            fi
+
   setup-sccache:
     steps:
       - run:
@@ -231,6 +263,10 @@ jobs:
             MYSQL_DATABASE: syncstorage
     resource_class: large
     steps:
+      - gcp-cli/setup:
+          google_project_id: ETE_GOOGLE_PROJECT_ID
+          gcloud_service_key: ETE_GCLOUD_SERVICE_KEY
+          google_project_number: ETE_GOOGLE_PROJECT_NUMBER
       - checkout
       - display-versions
       - setup-python
@@ -249,6 +285,14 @@ jobs:
       # configured already, and it appears unit-tests modify the db to the expected state
       - run-tokenserver-integration-tests
       - store-test-results
+      - upload-to-gcs:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
+      - upload-to-gcs:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+          extension: json
       #- save-sccache-cache
   build-mysql-image:
     docker:
