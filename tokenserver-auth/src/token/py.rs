@@ -24,8 +24,8 @@ impl<'py> IntoPyObject<'py> for MakeTokenPlaintext {
 
         // These need to be set separately since they aren't strings, and
         // Rust doesn't support heterogeneous arrays
-        dict.set_item("expires", self.expires).unwrap();
-        dict.set_item("uid", self.uid).unwrap();
+        dict.set_item("expires", self.expires)?;
+        dict.set_item("uid", self.uid)?;
 
         Ok(dict)
     }
