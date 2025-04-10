@@ -3293,6 +3293,7 @@ dependencies = [
  "backtrace",
  "http 1.2.0",
  "jsonwebtoken",
+ "pyo3",
  "serde 1.0.218",
  "serde_json",
  "syncserver-common",

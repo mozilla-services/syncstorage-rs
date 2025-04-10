@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, ResponseError};
 use backtrace::Backtrace;
 use http::StatusCode;
+use pyo3::prelude::PyErr;
 use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
@@ -324,6 +325,12 @@ impl InternalError for TokenserverError {
             context: message,
             ..TokenserverError::internal_error()
         }
+    }
+}
+
+impl From<PyErr> for TokenserverError {
+    fn from(message: PyErr) -> Self {
+        TokenserverError::internal_error()
     }
 }
 
