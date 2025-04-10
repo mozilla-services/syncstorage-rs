@@ -42,6 +42,9 @@ impl PyTokenlib {
             // `kwargs = { 'secret': shared_secret }`
             let kwargs = [("secret", shared_secret)].into_py_dict(py)?;
             // `token = tokenlib.make_token(plaintext, **kwargs)`
+            // Adding a note, since not having explicit string type resulted in a very pesky and hard to find
+            // error, described https://github.com/PyO3/pyo3/issues/4702. To reproduce, remove type annotation
+            // from token.
             let token: String = module
                 .getattr("make_token")?
                 .call((plaintext,), Some(&kwargs))
