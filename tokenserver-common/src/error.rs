@@ -329,7 +329,7 @@ impl InternalError for TokenserverError {
 }
 
 impl From<PyErr> for TokenserverError {
-    fn from(message: PyErr) -> Self {
+    fn from(_message: PyErr) -> Self {
         TokenserverError::internal_error()
     }
 }
