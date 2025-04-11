@@ -15,4 +15,9 @@ jsonwebtoken.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 
+pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
 syncserver-common = { path = "../syncserver-common" }
+
+[features]
+default = ["py"]
+py = ["pyo3"]
