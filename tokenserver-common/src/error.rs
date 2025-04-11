@@ -1,3 +1,5 @@
+use std::{cmp::PartialEq, error::Error, fmt};
+
 use actix_web::{HttpResponse, ResponseError};
 use backtrace::Backtrace;
 use http::StatusCode;
@@ -6,7 +8,6 @@ use serde::{
     ser::{SerializeMap, Serializer},
     Serialize,
 };
-use std::{cmp::PartialEq, error::Error, fmt};
 use syncserver_common::{InternalError, ReportableError};
 
 /// An error type that represents application-specific errors to Tokenserver. This error is not
@@ -329,8 +330,8 @@ impl InternalError for TokenserverError {
 }
 
 impl From<PyErr> for TokenserverError {
-    fn from(_message: PyErr) -> Self {
-        TokenserverError::internal_error()
+    fn from(err: PyErr) -> Self {
+        InternalError::internal_error(err.to_string())
     }
 }
 
