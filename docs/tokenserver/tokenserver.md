@@ -50,11 +50,14 @@ When a Tokenserver token expires, Sync Storage returns a 401 code, requiring cli
 ### User revoking access token
 The user could revoke the access token by signing out using the Mozilla Account’s Manage Account settings. In that case, clients continue to sync up to the expiry time, which is one hour. To mitigate against this case, Firefox clients currently receive push notifications from FxA instructing them to disconnect. Additionally, any requests done against FxA itself (for example to get the user’s profile data, connected devices, etc) will also trigger the client to disconnect.
 
-### User Changes Their Password
+### User Changes Their Password 
 This is similar to the case where users revoke their access tokens. Any devices with a not-expired access token will continue to sync until expiry, but clients will likely disconnect those clients faster than the 1 hour - however, a malicious user might be able to sync upwards of 1 hour.
 
 ### User Forgetting Their Password (without a recovery key)
 When a user forgets and resets their password without a recovery key, their Sync keys change. The Tokenserver request includes the key ID (which is a hash of the sync key). Thus, on the next sync, Tokenserver recognizes that the password changed, and ensures that the tokens it issues point users to a new location on Sync Storage. In practice, it does that by including the Key ID itself in the Tokenserver token, which is then sent to Sync Storage.
+
+### User Forgetting Their Password (with a recovery key)
+When a user forgets and resets their password, but has their recovery key, the behavior is similar to the password change and user revoking token cases.
 
 
 ## Utilities
