@@ -28,7 +28,7 @@ log = { version = "0.4", features = [
   "max_level_debug",
   "release_max_level_info",
 ] }
-protobuf = { version = "2.28.0" } # must match what's used by googleapis-raw
+protobuf = { version = "3.7.2" } # must match what's used by googleapis-raw
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
