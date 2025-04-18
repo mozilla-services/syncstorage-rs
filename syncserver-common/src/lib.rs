@@ -130,18 +130,18 @@ impl BlockingThreadpool {
         T: Send + 'static,
         E: fmt::Debug + Send + InternalError + 'static,
     {
-        self.spawned_tasks.fetch_add(1, Ordering::SeqCst);
+        self.spawned_tasks.fetch_add(1, Ordering::Relaxed);
         // Ensure the counter's always decremented (whether the task completed,
         // was cancelled or panicked)
         scopeguard::defer! {
-            self.spawned_tasks.fetch_sub(1, Ordering::SeqCst);
+            self.spawned_tasks.fetch_sub(1, Ordering::Relaxed);
         }
 
         let active_threads = Arc::clone(&self.active_threads);
         let f_with_metrics = move || {
-            active_threads.fetch_add(1, Ordering::SeqCst);
+            active_threads.fetch_add(1, Ordering::Relaxed);
             scopeguard::defer! {
-               active_threads.fetch_sub(1, Ordering::SeqCst);
+               active_threads.fetch_sub(1, Ordering::Relaxed);
             }
             f()
         };
@@ -154,11 +154,14 @@ impl BlockingThreadpool {
 
     /// Return the pool's current metrics
     pub fn metrics(&self) -> BlockingThreadpoolMetrics {
-        // active_threads is decremented on a separate thread so we need a
-        // strong Ordering to ensure it's in sync w/ spawned_tasks (otherwise
-        // it could underflow queued_tasks)
-        let spawned_tasks = self.spawned_tasks.load(Ordering::SeqCst);
-        let active_threads = self.active_threads.load(Ordering::SeqCst);
+        let spawned_tasks = self.spawned_tasks.load(Ordering::Relaxed);
+        // active_threads is decremented on a separate thread so there's no
+        // Drop order guarantee of spawned_tasks decrementing before it does:
+        // catch the case where active_threads is larger
+        let active_threads = self
+            .active_threads
+            .load(Ordering::Relaxed)
+            .min(spawned_tasks);
         BlockingThreadpoolMetrics {
             queued_tasks: spawned_tasks - active_threads,
             active_threads,
