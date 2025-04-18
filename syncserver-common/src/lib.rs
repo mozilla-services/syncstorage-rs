@@ -155,7 +155,13 @@ impl BlockingThreadpool {
     /// Return the pool's current metrics
     pub fn metrics(&self) -> BlockingThreadpoolMetrics {
         let spawned_tasks = self.spawned_tasks.load(Ordering::Relaxed);
-        let active_threads = self.active_threads.load(Ordering::Relaxed);
+        // active_threads is decremented on a separate thread so there's no
+        // Drop order guarantee of spawned_tasks decrementing before it does:
+        // catch the case where active_threads is larger
+        let active_threads = self
+            .active_threads
+            .load(Ordering::Relaxed)
+            .min(spawned_tasks);
         BlockingThreadpoolMetrics {
             queued_tasks: spawned_tasks - active_threads,
             active_threads,
