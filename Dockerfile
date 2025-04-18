@@ -63,16 +63,9 @@ ARG MYSQLCLIENT_PKG
 
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
-# Due to a build error that occurs with the Python cryptography package, we
-# have to set this env var to prevent the cryptography package from building
-# with Rust. See this link for more information:
-# https://pythonshowcase.com/question/problem-installing-cryptography-on-raspberry-pi
-ENV CRYPTOGRAPHY_DONT_BUILD_RUST=1
 
 RUN \
     apt-get -q update && apt-get -qy install wget
-
-
 RUN \
     groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app && \
