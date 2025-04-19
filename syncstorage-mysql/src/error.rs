@@ -106,7 +106,7 @@ impl ReportableError for DbError {
         }
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         match &self.kind {
             DbErrorKind::Common(e) => e.metric_label(),
             DbErrorKind::Mysql(e) => e.metric_label(),

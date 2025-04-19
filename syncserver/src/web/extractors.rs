@@ -35,7 +35,6 @@ use tokenserver_auth::TokenserverOrigin;
 use validator::{Validate, ValidationError};
 
 use crate::error::{ApiError, ApiErrorKind};
-use crate::label;
 use crate::server::{MetricsWrapper, ServerState, BSO_ID_REGEX, COLLECTION_ID_REGEX};
 use crate::web::{
     auth::HawkPayload,
@@ -185,7 +184,7 @@ impl FromRequest for BsoBodies {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.error.invalid_content_type"),
+                        Some("request.error.invalid_content_type"),
                     )
                     .into(),
                 ))
@@ -200,7 +199,7 @@ impl FromRequest for BsoBodies {
                     format!("Invalid Content-Type {:?}", content_type),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.error.invalid_content_type"),
+                    Some("request.error.invalid_content_type"),
                 )
                 .into(),
             ));
@@ -224,7 +223,7 @@ impl FromRequest for BsoBodies {
                 "Invalid JSON in request body".to_owned(),
                 RequestErrorLocation::Body,
                 Some("bsos".to_owned()),
-                label!("request.validate.invalid_body_json"),
+                Some("request.validate.invalid_body_json"),
             )
             .into()
         }
@@ -302,7 +301,7 @@ impl FromRequest for BsoBodies {
                                 "Input BSO has duplicate ID".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                                label!("request.store.duplicate_bso_id"),
+                                Some("request.store.duplicate_bso_id"),
                             )
                             .into(),
                         );
@@ -316,7 +315,7 @@ impl FromRequest for BsoBodies {
                             "Input BSO has no ID".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                            label!("request.store.missing_bso_id"),
+                            Some("request.store.missing_bso_id"),
                         )
                         .into(),
                     );
@@ -387,7 +386,7 @@ impl FromRequest for BsoBody {
                         format!("Unreadable Content-Type: {:?}", e),
                         RequestErrorLocation::Header,
                         Some("Content-Type".to_owned()),
-                        label!("request.error.invalid_content_type"),
+                        Some("request.error.invalid_content_type"),
                     )
                     .into())
                 }
@@ -399,7 +398,7 @@ impl FromRequest for BsoBody {
                     "Invalid Content-Type".to_owned(),
                     RequestErrorLocation::Header,
                     Some("Content-Type".to_owned()),
-                    label!("request.error.invalid_content_type"),
+                    Some("request.error.invalid_content_type"),
                 )
                 .into());
             }
@@ -427,7 +426,7 @@ impl FromRequest for BsoBody {
                         e.to_string(),
                         RequestErrorLocation::Body,
                         Some("bso".to_owned()),
-                        label!("request.validate.bad_bso_body"),
+                        Some("request.validate.bad_bso_body"),
                     )
                     .into();
                     err
@@ -445,7 +444,7 @@ impl FromRequest for BsoBody {
                     "payload too large".to_owned(),
                     RequestErrorLocation::Body,
                     Some("bso".to_owned()),
-                    label!("request.validate.payload_too_large"),
+                    Some("request.validate.payload_too_large"),
                 )
                 .into());
             }
@@ -480,7 +479,7 @@ impl BsoParam {
                 "Invalid BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-                label!("request.process.invalid_bso"),
+                Some("request.process.invalid_bso"),
             ))?;
         }
         if let Some(v) = elements.get(5) {
@@ -490,7 +489,7 @@ impl BsoParam {
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
-                    label!("request.process.invalid_bso"),
+                    Some("request.process.invalid_bso"),
                 )
             })?)
             .map_err(|e| {
@@ -499,7 +498,7 @@ impl BsoParam {
                     "Invalid BSO".to_owned(),
                     RequestErrorLocation::Path,
                     Some("bso".to_owned()),
-                    label!("request.process.invalid_bso"),
+                    Some("request.process.invalid_bso"),
                 )
             })?;
             Ok(Self { bso: sv })
@@ -509,7 +508,7 @@ impl BsoParam {
                 "Missing BSO".to_owned(),
                 RequestErrorLocation::Path,
                 Some("bso".to_owned()),
-                label!("request.process.missing_bso"),
+                Some("request.process.missing_bso"),
             ))?
         }
     }
@@ -559,7 +558,7 @@ impl CollectionParam {
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    label!("request.process.missing_collection"),
+                    Some("request.process.missing_collection"),
                 )
             })?;
             sv = urldecode(&sv).map_err(|_e| {
@@ -567,7 +566,7 @@ impl CollectionParam {
                     "Invalid Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    label!("request.process.invalid_collection"),
+                    Some("request.process.invalid_collection"),
                 )
             })?;
             Ok(Some(Self { collection: sv }))
@@ -576,7 +575,7 @@ impl CollectionParam {
                 "Missing Collection".to_owned(),
                 RequestErrorLocation::Path,
                 Some("collection".to_owned()),
-                label!("request.process.missing_collection"),
+                Some("request.process.missing_collection"),
             ))?
         }
     }
@@ -615,7 +614,7 @@ impl FromRequest for CollectionParam {
                     "Missing Collection".to_owned(),
                     RequestErrorLocation::Path,
                     Some("collection".to_owned()),
-                    label!("request.process.missing_collection"),
+                    Some("request.process.missing_collection"),
                 ))?
             }
         })
@@ -697,7 +696,7 @@ impl FromRequest for CollectionRequest {
                         format!("Invalid Accept header specified: {:?}", accept),
                         RequestErrorLocation::Header,
                         Some("accept".to_string()),
-                        label!("request.validate.invalid_accept_header"),
+                        Some("request.validate.invalid_accept_header"),
                     )
                     .into());
                 }
@@ -779,7 +778,7 @@ impl FromRequest for CollectionPostRequest {
                                 "Known-bad BSO payload".to_owned(),
                                 RequestErrorLocation::Body,
                                 Some("bsos".to_owned()),
-                                label!("request.process.known_bad_bso"),
+                                Some("request.process.known_bad_bso"),
                             )
                             .into());
                         }
@@ -896,7 +895,7 @@ impl FromRequest for BsoPutRequest {
                             "Known-bad BSO payload".to_owned(),
                             RequestErrorLocation::Body,
                             Some("bsos".to_owned()),
-                            label!("request.process.known_bad_bso"),
+                            Some("request.process.known_bad_bso"),
                         )
                         .into());
                     }
@@ -1024,7 +1023,7 @@ impl HawkIdentifier {
                         "Invalid UID".to_owned(),
                         RequestErrorLocation::Path,
                         Some("uid".to_owned()),
-                        label!("request.validate.hawk.invalid_uid"),
+                        Some("request.validate.hawk.invalid_uid"),
                     )
                     .into());
                 }
@@ -1036,7 +1035,7 @@ impl HawkIdentifier {
                     "Invalid UID".to_owned(),
                     RequestErrorLocation::Path,
                     Some("uid".to_owned()),
-                    label!("request.validate.hawk.invalid_uid"),
+                    Some("request.validate.hawk.invalid_uid"),
                 )
                 .into()
             })
@@ -1046,7 +1045,7 @@ impl HawkIdentifier {
                 "Missing UID".to_owned(),
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
-                label!("request.validate.hawk.missing_uid"),
+                Some("request.validate.hawk.missing_uid"),
             ))?
         }
     }
@@ -1099,7 +1098,7 @@ impl HawkIdentifier {
                 "conflicts with payload".to_owned(),
                 RequestErrorLocation::Path,
                 Some("uid".to_owned()),
-                label!("request.validate.hawk.uri_missing_uid"),
+                Some("request.validate.hawk.uri_missing_uid"),
             ))?;
         }
 
@@ -1393,7 +1392,7 @@ impl FromRequest for BatchRequestOpt {
                         format!("Invalid integer value: {}", value),
                         RequestErrorLocation::Header,
                         Some((*header).to_owned()),
-                        label!("request.validate.batch.invalid_x_weave"),
+                        Some("request.validate.batch.invalid_x_weave"),
                     )
                     .into();
                     err
@@ -1403,7 +1402,7 @@ impl FromRequest for BatchRequestOpt {
                         "size-limit-exceeded".to_owned(),
                         RequestErrorLocation::Header,
                         None,
-                        label!("request.validate.batch.size_exceeded"),
+                        Some("request.validate.batch.size_exceeded"),
                     )
                     .into());
                 }
@@ -1418,7 +1417,7 @@ impl FromRequest for BatchRequestOpt {
                     "Commit with no batch specified".to_string(),
                     RequestErrorLocation::Path,
                     None,
-                    label!("request.validate.batch.missing_id"),
+                    Some("request.validate.batch.missing_id"),
                 )
                 .into());
             }
@@ -1445,7 +1444,7 @@ impl FromRequest for BatchRequestOpt {
                             format!(r#"Invalid batch ID: "{}""#, batch),
                             RequestErrorLocation::QueryString,
                             Some("batch".to_owned()),
-                            label!("request.validate.batch.invalid_id"),
+                            Some("request.validate.batch.invalid_id"),
                         )
                         .into());
                     }
@@ -1491,7 +1490,7 @@ impl PreConditionHeaderOpt {
                 "conflicts with X-If-Modified-Since".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Unmodified-Since".to_owned()),
-                label!("request.validate.mod_header.conflict"),
+                Some("request.validate.mod_header.conflict"),
             )
             .into());
         };
@@ -1514,7 +1513,7 @@ impl PreConditionHeaderOpt {
                 "value is negative".to_owned(),
                 RequestErrorLocation::Header,
                 Some("X-If-Modified-Since".to_owned()),
-                label!("request.validate.mod_header.negative"),
+                Some("request.validate.mod_header.negative"),
             )
             .into());
         }

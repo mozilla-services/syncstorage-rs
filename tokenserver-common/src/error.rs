@@ -294,13 +294,13 @@ impl ReportableError for TokenserverError {
         self.http_status.is_server_error() && self.metric_label().is_none()
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         if let Some(source) = &self.source {
             return source.metric_label();
         }
         if self.http_status.is_client_error() {
             match self.token_type {
-                TokenType::Oauth => Some("request.error.oauth".to_owned()),
+                TokenType::Oauth => Some("request.error.oauth"),
             }
         } else if matches!(
             self,
@@ -309,7 +309,7 @@ impl ReportableError for TokenserverError {
                 ..
             }
         ) {
-            Some("request.error.invalid_client_state".to_owned())
+            Some("request.error.invalid_client_state")
         } else {
             None
         }

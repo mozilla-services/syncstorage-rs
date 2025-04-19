@@ -95,7 +95,7 @@ where
                             // capture it, and then turn it off before we run out of money.
                             if let Some(label) = reportable_err.metric_label() {
                                 debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                                let _ = metrics.incr(&label);
+                                let _ = metrics.incr(label);
                             }
                             debug!("Sentry: Not reporting error (service error): {:?}", error);
                             return Err(error);
@@ -117,7 +117,7 @@ where
                     if !reportable_err.is_sentry_event() {
                         if let Some(label) = reportable_err.metric_label() {
                             debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                            let _ = metrics.incr(&label);
+                            let _ = metrics.incr(label);
                         }
                         debug!("Not reporting error (service error): {:?}", error);
                         return Ok(response);
