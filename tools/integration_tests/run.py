@@ -6,9 +6,9 @@ import signal
 import subprocess
 import sys
 from tokenserver.test_storage import TestStorage
+from tokenserver.run import run_local_tests, run_end_to_end_tests
 from test_support import run_live_functional_tests
 import time
-from tokenserver.run import (run_end_to_end_tests, run_local_tests)
 
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"

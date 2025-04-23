@@ -107,13 +107,47 @@ run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
 
+
+
+
+
 .ONESHELL:
 run_mysql_e2e_tests:
 	docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
 	export SYNCSTORAGE_RS_IMAGE=app:build 
 	docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml up --exit-code-from mysql-e2e-tests --abort-on-container-exit
-	mv ./tools/integration_tests/tokenserver/local_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+	mv ./tools/integration_tests/tokenserver/mysql_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
 # docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml exec mysql-e2e-tests sh -c "cat /path/to/your/file" > $(INTEGRATION_JUNIT_XML)
+
+.ONESHELL:
+run_spanner_e2e_tests:
+	docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.spanner.yaml -f docker-compose.e2e.spanner.yaml up --exit-code-from spanner-e2e-tests --abort-on-container-exit
+# mv ./tools/integration_tests/tokenserver/spanner_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+
+.ONESHELL:
+run_spanner_e2e_tests_no_rebuild:
+# docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.spanner.yaml -f docker-compose.e2e.spanner.yaml up --exit-code-from spanner-e2e-tests --abort-on-container-exit
+	mv ./tools/integration_tests/tokenserver/spanner_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+
+
+.ONESHELL:
+run_spanner_e2e_tests_old:
+	docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.spanner.yaml -f docker-compose.e2e.spanner-old.yaml up --exit-code-from spanner-e2e-tests --abort-on-container-exit
+	mv ./tools/integration_tests/tokenserver/spanner_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+
+.ONESHELL:
+run_spanner_e2e_tests_old_no_rebuild:
+# docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+	export SYNCSTORAGE_RS_IMAGE=app:build 
+	docker-compose -f docker-compose.spanner.yaml -f docker-compose.e2e.spanner-old.yaml up --build --exit-code-from spanner-e2e-tests --abort-on-container-exit
+# mv ./tools/integration_tests/tokenserver/spanner_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
+
 
 .ONESHELL:
 run_mysql_e2e_tests_no_rebiuld:
@@ -123,7 +157,8 @@ run_mysql_e2e_tests_no_rebiuld:
 	mv ./tools/integration_tests/tokenserver/local_integration_results.xml ${LOCAL_INTEGRATION_JUNIT_XML}
 # docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql.yaml exec mysql-e2e-tests sh -c "cat /path/to/your/file" > $(INTEGRATION_JUNIT_XML)
 
-run_mysql_ete_tests_old:
+.ONESHELL:
+run_mysql_e2e_tests_old:
 	docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
 	export SYNCSTORAGE_RS_IMAGE=app:build
 	docker-compose -f docker-compose.mysql.yaml -f docker-compose.e2e.mysql-old.yaml up --exit-code-from mysql-e2e-tests --abort-on-container-exit

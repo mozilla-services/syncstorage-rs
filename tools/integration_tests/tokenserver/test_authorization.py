@@ -4,12 +4,16 @@
 import pytest
 import unittest
 from tokenserver.test_support import TestCase
+import os
 
 
 @pytest.mark.local_integration
 @pytest.mark.usefixtures('setup_server_local_testing_with_oauth')
 class TestAuthorization(TestCase, unittest.TestCase):
     def setUp(self):
+        # print("Environment Variables in setup...:")
+        # for key, value in os.environ.items():
+        #     print(f"{key}: {value}")
         super(TestAuthorization, self).setUp()
 
     def tearDown(self):
@@ -70,13 +74,23 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
 
     def test_invalid_client_state_in_x_client_state(self):
+        # print("Environment Variables in test_invalid_client_state_in_x_client_state...:")
+        # for key, value in os.environ.items():
+        #     print(f"{key}: {value}")
         additional_headers = {'X-Client-State': 'state!'}
         headers = self._build_auth_headers(generation=1234,
                                            keys_changed_at=1234,
                                            client_state='aaaa',
                                            **additional_headers)
 
-        res = self.app.get('/1.0/sync/1.5', headers=headers, status=400)
+        # TODO: this is just for debugging, remove before merge
+        heartbeat = self.app.get('/__heartbeat__', headers=headers, status=502)
+        print("Heartbeat response: ", heartbeat)
+
+        # res = self.app.get('/1.0/sync/1.5', headers=headers, status=400)
+        res = self.app.get('/1.0/sync/1.5', headers=headers)
+
+        print("Response: ", res.json)
 
         expected_error_response = {
             'status': 'error',
@@ -128,7 +142,19 @@ class TestAuthorization(TestCase, unittest.TestCase):
                                            client_state='aaaa')
         self.app.get('/1.0/sync/1.5', headers=headers)
 
+
+    # In testing for the pytest migration, this test is flaky
+    # Both with the old style of runner and the new pytest style
+    # this test would occasionally fail at this line, getting a 200
+    #
+    #   -> res = self.app.get('/1.0/sync/1.5', headers=headers, status=401)
+    #
     def test_disallow_reusing_old_client_state(self):
+        print("Environment Variables in test_disallow_reusing_old_client_state...:")
+        for key, value in os.environ.items():
+            print(f"{key}: {value}")
+        print("Starting test_disallow_reusing_old_client_state test")
+        print("Foo!")
         # Add a user record that has already been replaced
         self._add_user(client_state='aaaa', replaced_at=1200)
         # Add the most up-to-date user record

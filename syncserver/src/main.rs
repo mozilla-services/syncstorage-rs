@@ -72,7 +72,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     attempt += 1;
                     warn!("Failed to initialize server on attempt {}: {}", attempt, e);
                     if attempt >= max_attempts {
-                        panic!("Failed to initialize server after {} attempts: {}", max_attempts, e);
+                        // let env_vars: String = std::env::vars()
+                        //     .map(|(key, value)| format!("{}={}", key, value))
+                        //     .collect::<Vec<String>>()
+                        //     .join("\n");
+                        panic!(
+                            // "Failed to initialize server after {} attempts: {}\nEnvironment Variables:\n{}",
+                            "Failed to initialize server after {} attempts: {}",
+                            max_attempts, e
+                        );
                     }
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }

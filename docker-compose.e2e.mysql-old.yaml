@@ -1,36 +1,31 @@
 version: "3"
 services:
   sync-db:
-  sync-db-setup:
   tokenserver-db:
-  syncserver:
-    depends_on:
-      - sync-db-setup
-    # TODO: either syncserver should retry the db connection
-    # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us.
-    entrypoint: >
-      /bin/sh -c "
-        /app/bin/syncserver;
-      "
-  spanner-e2e-tests:
+  # syncserver:
+  #   depends_on:
+  #     - sync-db
+  #     - tokenserver-db
+  #   # TODO: either syncserver should retry the db connection
+  #   # itself a few times or should include a wait-for-it.sh script
+  #   # inside its docker that would do this for us.
+  #   entrypoint: >
+  #     /bin/sh -c "
+  #       sleep 15;
+  #       /app/bin/syncserver;
+  #     "
+  mysql-e2e-tests:
     depends_on:
       - mock-fxa-server
-      - syncserver
+      # - syncserver
     image: app:build
     privileged: true
     user: root
     environment:
-      # Some tests can run without the `FXA_OAUTH...` vars.
-      # Setting this to false will delete any of those keys before starting
-      # the syncserver and startging the test. This can be set/passed
-      # in from CircleCI when calling `docker-compose -f docker-compose.e2e.spanner.yaml`
-      USE_OAUTH: ${USE_OAUTH:-true}
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@sync-db:3306/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@tokenserver-db:3306/tokenserver
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
@@ -48,6 +43,5 @@ services:
       TOKENSERVER_HOST: http://localhost:8000
     entrypoint: >
       /bin/sh -c "
-        env && \
-        pytest /app/tools/integration_tests/tokenserver/ -v -k test_invalid_client_state_in_x_client_state --junit-xml=/app/tools/integration_tests/tokenserver/spanner_integration_results.xml
+        sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
       "

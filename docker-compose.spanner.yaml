@@ -24,11 +24,13 @@ services:
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
   tokenserver-db:
     image: docker.io/library/mysql:5.7
+    platform: linux/x86_64
     volumes:
       - tokenserver_db_data:/var/lib/mysql
     restart: always
     ports:
       - "3306"
+    command: --explicit_defaults_for_timestamp
     environment:
       #MYSQL_RANDOM_ROOT_PASSWORD: yes
       MYSQL_ROOT_PASSWORD: random
@@ -53,7 +55,11 @@ services:
       - "8000:8000"
     depends_on:
       - sync-db-setup
+    volumes:
+      - ./tools:/app/tools
     environment:
+      # RUST_BACKTRACE: 1
+      RUST_LOG: syncserver=info,tokenserver=trace,warn
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
