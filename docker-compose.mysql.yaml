@@ -13,7 +13,7 @@ services:
   sync-db:
     image: docker.io/library/mysql:5.7
     # FIXME: remove the platform before merging! This was just for local testing
-    platform: linux/x86_64
+    # platform: linux/x86_64
     volumes:
       - sync_db_data:/var/lib/mysql
     restart: always
@@ -30,7 +30,7 @@ services:
   tokenserver-db:
     image: docker.io/library/mysql:5.7
     # FIXME: remove the platform before merging! This was just for local testing
-    platform: linux/x86_64
+    # platform: linux/x86_64
     volumes:
       - tokenserver_db_data:/var/lib/mysql
     restart: always
