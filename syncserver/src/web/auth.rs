@@ -27,7 +27,6 @@ use super::{
     extractors::RequestErrorLocation,
 };
 use crate::error::{ApiErrorKind, ApiResult};
-use crate::label;
 
 /// A parsed and authenticated JSON payload
 /// extracted from the signed `id` property
@@ -182,7 +181,7 @@ impl HawkPayload {
                     "Invalid port (hostname:port) specified".to_owned(),
                     RequestErrorLocation::Header,
                     None,
-                    label!("request.validate.hawk.invalid_port"),
+                    Some("request.validate.hawk.invalid_port"),
                 )
             })?
         } else if ci.scheme() == "https" {

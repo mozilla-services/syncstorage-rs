@@ -23,17 +23,11 @@ pub struct TokenserverError {
     /// distinguish between similar errors in Sentry.
     pub context: String,
     pub backtrace: Box<Backtrace>,
-    pub token_type: TokenType,
     pub tags: Option<Box<Vec<(&'static str, String)>>>,
     /// TODO: refactor TokenserverError to include a TokenserverErrorKind, w/
     /// variants for sources (currently just DbError). May require moving
     /// TokenserverError out of common (into syncserver)
     pub source: Option<Box<dyn ReportableError + Send>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum TokenType {
-    Oauth,
 }
 
 impl Error for TokenserverError {}
@@ -67,7 +61,6 @@ impl Default for TokenserverError {
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
             backtrace: Box::new(Backtrace::new()),
-            token_type: TokenType::Oauth,
             tags: None,
             source: None,
         }
@@ -294,22 +287,22 @@ impl ReportableError for TokenserverError {
         self.http_status.is_server_error() && self.metric_label().is_none()
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         if let Some(source) = &self.source {
             return source.metric_label();
         }
         if self.http_status.is_client_error() {
-            match self.token_type {
-                TokenType::Oauth => Some("request.error.oauth".to_owned()),
-            }
-        } else if matches!(
+            return Some("request.error.oauth");
+        }
+
+        if matches!(
             self,
             TokenserverError {
                 status: "invalid-client-state",
                 ..
             }
         ) {
-            Some("request.error.invalid_client_state".to_owned())
+            Some("request.error.invalid_client_state")
         } else {
             None
         }

@@ -40,7 +40,7 @@ impl ReportableError for DbError {
         }
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         match &self.kind {
             DbErrorKind::Sql(e) => e.metric_label(),
             _ => None,

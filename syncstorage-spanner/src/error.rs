@@ -126,7 +126,7 @@ impl ReportableError for DbError {
         }
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         if let DbErrorKind::Common(e) = &self.kind {
             e.metric_label()
         } else {

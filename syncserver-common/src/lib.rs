@@ -82,8 +82,11 @@ pub trait ReportableError: std::fmt::Display + std::fmt::Debug {
 
     /// Errors that don't emit Sentry events (!is_sentry_event()) emit an
     /// increment metric instead with this label
-    fn metric_label(&self) -> Option<String>;
+    fn metric_label(&self) -> Option<&str> {
+        None
+    }
 
+    /// Experimental: return tag key value pairs for metrics and Sentry
     fn tags(&self) -> Vec<(&str, String)> {
         vec![]
     }
