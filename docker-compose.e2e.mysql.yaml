@@ -6,7 +6,10 @@ services:
     volumes:
       - ./tools/integration_tests/tokenserver/:/app/tools/integration_tests/tokenserver/
     depends_on:
-      - mock-fxa-server
+      mock-fxa-server:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
     image: app:build
     privileged: true
     user: root
