@@ -33,7 +33,7 @@ def _wait_for_server_startup(timeout=SYNC_SERVER_STARTUP_TIMEOUT):
     the timeout period.
     """
     itter = 0
-    for _ in range(timeout):
+    while True:
         if itter >= timeout:
             raise RuntimeError(
                 "Server failed to start within the timeout period."
@@ -67,8 +67,8 @@ def _start_server():
         shell=True,
         text=True,
         env=os.environ,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
+        #stdout=subprocess.PIPE,
+        #stderr=subprocess.STDOUT
     )
 
     _wait_for_server_startup()
