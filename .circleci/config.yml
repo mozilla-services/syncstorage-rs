@@ -149,7 +149,7 @@ commands:
       - run:
           name: e2e tests (syncstorage mysql)
           command: >
-               /usr/local/bin/docker-compose
+               docker compose
                -f docker-compose.mysql.yaml
                -f docker-compose.e2e.mysql.yaml
                up
@@ -164,7 +164,7 @@ commands:
       - run:
           name: e2e tests (syncstorage spanner)
           command: >
-               /usr/local/bin/docker-compose
+               docker compose
                -f docker-compose.spanner.yaml
                -f docker-compose.e2e.spanner.yaml
                up
@@ -185,7 +185,7 @@ commands:
       - run:
           name: e2e tests (syncstorage << parameters.db >>)
           command: |
-              /usr/local/bin/docker-compose \
+              docker compose
               -f docker-compose.<< parameters.db >>.yaml \
               -f docker-compose.e2e.<< parameters.db >>.yaml \
               up \
@@ -381,7 +381,7 @@ jobs:
 
   mysql-e2e-tests:
     docker:
-      - image: docker/compose:1.24.0
+      - image: cimg/base:2025.04
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -400,7 +400,7 @@ jobs:
 
   spanner-e2e-tests:
     docker:
-      - image: docker/compose:1.24.0
+      - image: cimg/base:2025.04
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
