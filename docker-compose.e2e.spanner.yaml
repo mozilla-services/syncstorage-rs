@@ -15,8 +15,12 @@ services:
       "
   spanner-e2e-tests:
     depends_on:
-      - mock-fxa-server
-      - syncserver
+      mock-fxa-server:
+        condition: service_started
+      syncserver:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
     image: app:build
     privileged: true
     user: root
