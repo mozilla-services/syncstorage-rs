@@ -6,7 +6,7 @@ psutil
 pyjwt
 pyramid
 pyramid_hawkauth
-pyfxa==0.8.0
+pyfxa @ git+https://github.com/mozilla/PyFxA@1f784fd
 pytest
 requests
 simplejson
