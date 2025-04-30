@@ -6,11 +6,11 @@ psutil
 pyjwt
 pyramid
 pyramid_hawkauth
-pyfxa @ git+https://github.com/mozilla/PyFxA@fede769
+pyfxa @ git+https://github.com/mozilla/PyFxA@34695b3
 pytest
 requests
 simplejson
-sqlalchemy
+sqlalchemy==1.4.46
 tokenlib
 webtest
 wsgiproxy2
