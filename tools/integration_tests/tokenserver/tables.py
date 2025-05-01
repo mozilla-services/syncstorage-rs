@@ -14,7 +14,8 @@ class Services(Base):
     pattern: Mapped[str] = mapped_column(String(128), default=Null)
 
     def __repr__(self) -> str:
-        return f"Services(id={self.id!r}, service={self.service!r}, pattern={self.pattern!r})"
+        return f"""Services(id={self.id!r}, service={self.service!r},
+pattern={self.pattern!r})"""
 
     def _asdict(self):
         return {
@@ -39,7 +40,10 @@ class Nodes(Base):
     unique_idx = Index(service, node)
 
     def __repr__(self) -> str:
-        return f"Nodes(id={self.id!r}, service={self.service!r}, node={self.node!r}, available={self.available!r}, current_load={self.current_load!r}, capacity={self.capacity!r}, downed={self.downed!r}, backoff={self.backoff!r})"
+        return f"""Nodes(id={self.id!r}, service={self.service!r},
+node={self.node!r}, available={self.available!r},
+current_load={self.current_load!r}, capacity={self.capacity!r},
+downed={self.downed!r}, backoff={self.backoff!r})"""
 
     def _asdict(self):
         return {
@@ -72,7 +76,11 @@ class Users(Base):
     node_idx = Index(nodeid)
 
     def __repr__(self) -> str:
-        return f"Users(uid={self.uid!r}, service={self.service!r}, email={self.email!r}, generation={self.generation!r}, client_state={self.client_state!r}, created_at={self.created_at!r}, replaced_at={self.replaced_at!r}, nodeid={self.nodeid!r}, keys_changed_at={self.keys_changed_at!r})"
+        return f"""Users(uid={self.uid!r}, service={self.service!r},
+email={self.email!r}, generation={self.generation!r},
+client_state={self.client_state!r}, created_at={self.created_at!r},
+replaced_at={self.replaced_at!r}, nodeid={self.nodeid!r},
+keys_changed_at={self.keys_changed_at!r})"""
 
     def _asdict(self):
         return {

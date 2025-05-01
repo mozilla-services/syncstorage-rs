@@ -544,7 +544,7 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
-                secrets[name[len(secrets_prefix) :]] = settings.pop(name)
+                secrets[name[len(secrets_prefix):]] = settings.pop(name)
         kwds["secrets"] = secrets
         return kwds
 

@@ -42,7 +42,7 @@ class TestDatabase(unittest.TestCase):
         self.database.close()
 
     def test_node_allocation(self):
-        user = self.database.get_user('test1@example.com')
+        user = self.database.get_user("test1@example.com")
         self.assertEqual(user, None)
 
         user = self.database.allocate_user("test1@example.com")
