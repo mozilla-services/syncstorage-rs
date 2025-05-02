@@ -115,7 +115,7 @@ impl TokenserverRequest {
             warn!("Client attempted stale value"; "uid"=> self.user.uid, "client_state"=> self.user.client_state.clone());
             return Err(TokenserverError::invalid_client_state(
                 error_message,
-                Some(Box::new(vec![("is_stale", "true".to_owned())])),
+                Some(vec![("is_stale", "true".to_owned())]),
             ));
         }
 
@@ -1200,7 +1200,7 @@ mod tests {
             error,
             TokenserverError::invalid_client_state(
                 error_message,
-                Some(Box::new(vec![("is_stale", "true".to_owned())]))
+                Some(vec![("is_stale", "true".to_owned())])
             )
         );
     }
