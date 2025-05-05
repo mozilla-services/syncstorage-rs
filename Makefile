@@ -10,6 +10,19 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+POETRY := $(shell command -v poetry 2> /dev/null)
+INSTALL_STAMP := .install.stamp
+TOOLS_DIR := tools
+FLAKE8_CONFIG := .flake8
+PROJECT_ROOT_DIR := ./
+ROOT_PYPROJECT_TOML := pyproject.toml
+HAWK_DIR := $(TOOLS_DIR)/hawk
+INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
+INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
+SPANNER_DIR := $(TOOLS_DIR)/spanner
+TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
+LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
+
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
 # TODO: update workflow name appropriately
@@ -26,6 +39,38 @@ SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/
 
 SRC_ROOT = $(shell pwd)
 PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+
+.PHONY: install
+install: $(INSTALL_STAMP)  ##  Install dependencies with poetry
+$(INSTALL_STAMP): pyproject.toml poetry.lock
+	@if [ -z $(POETRY) ]; then echo "Poetry could not be found. See https://python-poetry.org/docs/"; exit 2; fi
+	$(POETRY) install
+	touch $(INSTALL_STAMP)
+
+hawk:
+	# install dependencies for hawk token utility.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(HAWK_DIR) --no-root
+
+integration-test:
+	# install dependencies for integration tests.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(INTEGRATION_TEST_DIR) --no-root
+
+spanner:
+	# install dependencies for spanner utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(SPANNER_DIR) --no-root
+
+tokenserver:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(TOKENSERVER_UTIL_DIR) --no-root
+
+tokenserver-load:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -105,3 +150,36 @@ merge_coverage_results:
 run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+	SYNC_SYNCSTORAGE__DATABASE_URL=mysql://sample_user:sample_password@localhost/syncstorage_rs \
+		SYNC_TOKENSERVER__DATABASE_URL=mysql://sample_user:sample_password@localhost/tokenserver_rs \
+		RUST_TEST_THREADS=1 \
+		cargo test --workspace
+
+.PHONY: isort
+isort: $(INSTALL_STAMP)  ##  Run isort
+	$(POETRY) run isort --check-only $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+
+.PHONY: black
+black: $(INSTALL_STAMP)  ##  Run black
+	$(POETRY) run black --quiet --diff --check $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+
+.PHONY: format
+format: $(INSTALL_STAMP)  ##  Sort imports and reformats code
+	$(POETRY) run isort $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+	$(POETRY) run black $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+
+.PHONY: flake8
+flake8: $(INSTALL_STAMP)  ##  Run flake8
+	$(POETRY) run flake8 --config $(FLAKE8_CONFIG) $(PROJECT_ROOT_DIR)
+ 
+.PHONY: bandit
+bandit: $(INSTALL_STAMP)  ##  Run bandit
+	$(POETRY) run bandit --quiet -r -c $(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+
+.PHONY: mypy
+mypy: $(INSTALL_STAMP)  ##  Run mypy
+	$(POETRY) run mypy --config-file=$(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)
+ 
+.PHONY: pydocstyle
+pydocstyle: $(INSTALL_STAMP)  ##  Run pydocstyle
+	$(POETRY) run pydocstyle -es --count --config=$(ROOT_PYPROJECT_TOML) $(PROJECT_ROOT_DIR)

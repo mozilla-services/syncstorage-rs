@@ -40,3 +40,5 @@ venv
 
 # circleci
 workspace
+# For poetry install
+.install.stamp

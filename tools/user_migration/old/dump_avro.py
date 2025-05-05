@@ -11,10 +11,10 @@
 # and have threads handle transporting records over.
 #
 
-import avro.schema
 import argparse
 import time
 
+import avro.schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
 from google.cloud import spanner
@@ -22,21 +22,11 @@ from google.cloud import spanner
 
 def get_args():
     parser = argparse.ArgumentParser(description="dump spanner to arvo files")
-    parser.add_argument(
-        '--instance_id', default="spanner-test",
-        help="Spanner instance name")
-    parser.add_argument(
-        '--database_id',  default="sync_schema3",
-        help="Spanner database name")
-    parser.add_argument(
-        '--schema', default="sync.avsc",
-        help="Database schema description")
-    parser.add_argument(
-        '--output', default="output.avso",
-        help="Output file")
-    parser.add_argument(
-        '--limit', type=int, default=1500000,
-        help="Limit to n rows")
+    parser.add_argument("--instance_id", default="spanner-test", help="Spanner instance name")
+    parser.add_argument("--database_id", default="sync_schema3", help="Spanner database name")
+    parser.add_argument("--schema", default="sync.avsc", help="Database schema description")
+    parser.add_argument("--output", default="output.avso", help="Output file")
+    parser.add_argument("--limit", type=int, default=1500000, help="Limit to n rows")
     return parser.parse_args()
 
 
@@ -52,21 +42,26 @@ def dump_rows(offset, db, writer, args):
     sql = """
     SELECT collection_id, fxa_kid, fxa_uid, bso_id,
     UNIX_MICROS(expiry), UNIX_MICROS(modified), payload,
-    sortindex from bsos LIMIT {} OFFSET {}""".format(args.limit, offset)
+    sortindex from bsos LIMIT {} OFFSET {}""".format(
+        args.limit, offset
+    )
     try:
         with db.snapshot() as snapshot:
             result = snapshot.execute_sql(sql)
             print("Dumping...")
             for row in result:
-                writer.append({
-                    "collection_id": row[0],
-                    "fxa_kid": row[1],
-                    "fxa_uid": row[2],
-                    "bso_id": row[3],
-                    "expiry": row[4],
-                    "modified": row[5],
-                    "payload": row[6],
-                    "sortindex": row[7]})
+                writer.append(
+                    {
+                        "collection_id": row[0],
+                        "fxa_kid": row[1],
+                        "fxa_uid": row[2],
+                        "bso_id": row[3],
+                        "expiry": row[4],
+                        "modified": row[5],
+                        "payload": row[6],
+                        "sortindex": row[7],
+                    }
+                )
                 offset += 1
                 if offset % 1000 == 0:
                     print("Row: {}".format(offset))
@@ -86,8 +81,7 @@ def dump_data(args, schema):
     offset = 0
     # things time out around 1_500_000 rows.
     db = conf_spanner(args)
-    writer = DataFileWriter(
-        open(args.output, "wb"), DatumWriter(), schema)
+    writer = DataFileWriter(open(args.output, "wb"), DatumWriter(), schema)
     row_count = count_rows(db)
     print("Dumping {} rows".format(row_count))
     while offset < row_count:
