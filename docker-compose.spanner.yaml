@@ -36,9 +36,7 @@ services:
       MYSQL_USER: test
       MYSQL_PASSWORD: test
     healthcheck:
-      # doesn't work despite compose docs pg_isready example?
-      #test: ["CMD-SHELL", "mysqladmin -uroot -p${MYSQL_ROOT_PASSWORD} version"]
-      test: ["CMD-SHELL", "mysqladmin -uroot -prandom version"]
+      test: ["CMD-SHELL", "mysqladmin -uroot -p$${MYSQL_ROOT_PASSWORD} version"]
       interval: 2s
       retries: 10
       start_period: 20s
