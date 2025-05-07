@@ -309,7 +309,10 @@ jobs:
       - write-version
       - run:
           name: Build MySQL Docker image
-          command: docker build -t app:build --build-arg DATABASE_BACKEND=mysql .
+          command: >
+              docker build -t app:build
+              --build-arg DATABASE_BACKEND=mysql
+              .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
@@ -341,7 +344,12 @@ jobs:
       - write-version
       - run:
           name: Build Spanner Docker image
-          command: docker build -t app:build --build-arg DATABASE_BACKEND=spanner .
+          # Build w/ the Oracle libmysqlclient-dev for TLS support
+          command: >
+              docker build -t app:build
+              --build-arg DATABASE_BACKEND=spanner
+              --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
+              .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
