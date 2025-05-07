@@ -776,7 +776,6 @@ impl SpannerDb {
         } else {
             sync_timestamp_from_rfc3339(row[0].get_string_value())
         }
-        .map_err(Into::into)
     }
 
     async fn get_storage_usage_async(
@@ -1502,7 +1501,6 @@ impl SpannerDb {
         } else {
             SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
         }
-        .map_err(Into::into)
     }
 
     async fn put_bso_async(&self, params: params::PutBso) -> DbResult<results::PutBso> {

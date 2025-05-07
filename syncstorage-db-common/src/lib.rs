@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)]
 pub mod error;
 pub mod params;
 pub mod results;
@@ -229,7 +230,7 @@ pub trait Db: Debug {
         )
     }
 
-    /// Internal methods used by the db tests
+    // Internal methods used by the db tests
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error>;
 

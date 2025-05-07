@@ -185,7 +185,6 @@ pub async fn delete_collection(
             Ok(resp.json(timestamp))
         })
         .await
-        .map_err(Into::into)
 }
 
 pub async fn get_collection(
