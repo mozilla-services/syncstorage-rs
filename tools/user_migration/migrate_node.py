@@ -23,6 +23,7 @@ from mysql import connector
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 from google.api_core.exceptions import AlreadyExists, InvalidArgument
+
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -44,7 +45,7 @@ def tick(count):
         mark = "|"
     level = logging.getLogger().getEffectiveLevel()
     if mark and level > logging.DEBUG:
-        print(mark, end='', flush=True)
+        print(mark, end="", flush=True)
 
 
 class Report:
@@ -86,6 +87,7 @@ class Report:
             users.append(user)
         return (int(start), int(end), users)
 
+
 class FXA_info:
     """User information from Tokenserver database.
 
@@ -93,6 +95,7 @@ class FXA_info:
     ``mysql -e "select uid, email, generation, keys_changed_at, \
        client_state from users;" > users.csv`
     """
+
     users = {}
     anon = False
 
@@ -106,11 +109,12 @@ class FXA_info:
         with open(users_file) as csv_file:
             try:
                 line = 0
-                for (uid, fxa_uid, fxa_kid) in csv.reader(
-                        csv_file, delimiter="\t"):
+                for uid, fxa_uid, fxa_kid in csv.reader(
+                    csv_file, delimiter="\t"
+                ):
                     line += 1
                     tick(line)
-                    if uid == 'uid':
+                    if uid == "uid":
                         # skip the header row.
                         continue
                     if args.user:
@@ -120,21 +124,25 @@ class FXA_info:
                         self.users[int(uid)] = (fxa_kid, fxa_uid)
                     except Exception as ex:
                         logging.error(
-                            "User {} Unexpected error".format(uid),
-                            exc_info=ex)
+                            "User {} Unexpected error".format(uid), exc_info=ex
+                        )
                         report.fail(uid, "unexpected error")
             except Exception as ex:
-                logging.critical("Error in fxa file around line {}".format(
-                    line), exc_info=ex)
+                logging.critical(
+                    "Error in fxa file around line {}".format(line),
+                    exc_info=ex,
+                )
 
     def get(self, userid):
         if userid in self.users:
             return self.users[userid]
         if self.anon:
-            fxa_uid = "fake_" + binascii.hexlify(
-                os.urandom(11)).decode('utf-8')
-            fxa_kid = "fake_" + binascii.hexlify(
-                os.urandom(11)).decode('utf-8')
+            fxa_uid = "fake_" + binascii.hexlify(os.urandom(11)).decode(
+                "utf-8"
+            )
+            fxa_kid = "fake_" + binascii.hexlify(os.urandom(11)).decode(
+                "utf-8"
+            )
             self.users[userid] = (fxa_kid, fxa_uid)
             return (fxa_kid, fxa_uid)
 
@@ -146,6 +154,7 @@ class Collections:
     truth regarding collection ids.
 
     """
+
     _by_name = {
         "clients": 1,
         "crypto": 2,
@@ -177,31 +186,35 @@ class Collections:
         ORDER BY
             uc.collection
         """
-        cursor = databases['mysql'].cursor()
+        cursor = databases["mysql"].cursor()
 
         def transact(transaction, values):
             transaction.insert(
-                'collections',
-                columns=('collection_id', 'name'),
-                values=values)
+                "collections", columns=("collection_id", "name"), values=values
+            )
 
-        self.spanner = databases['spanner']
+        self.spanner = databases["spanner"]
         try:
             # fetch existing:
             with self.spanner.snapshot() as scursor:
                 rows = scursor.execute_sql(
-                    "select collection_id, name from collections")
-                for (collection_id, name) in rows:
-                    logging.debug("Loading collection: {} => {}".format(
-                        name, collection_id
-                    ))
+                    "select collection_id, name from collections"
+                )
+                for collection_id, name in rows:
+                    logging.debug(
+                        "Loading collection: {} => {}".format(
+                            name, collection_id
+                        )
+                    )
                     self._by_name[name] = collection_id
             cursor.execute(sql)
-            for (collection_id, name) in cursor:
+            for collection_id, name in cursor:
                 if name not in self._by_name:
-                    logging.debug("Adding collection: {} => {}".format(
-                        name, collection_id
-                    ))
+                    logging.debug(
+                        "Adding collection: {} => {}".format(
+                            name, collection_id
+                        )
+                    )
                     values = [(collection_id, name)]
                     self._by_name[name] = collection_id
                     # Since a collection may collide, do these one at a time.
@@ -211,7 +224,8 @@ class Collections:
                         logging.info(
                             "Skipping already present collection {}".format(
                                 values
-                            ))
+                            )
+                        )
                         pass
         finally:
             cursor.close()
@@ -223,7 +237,9 @@ class Collections:
         if id is None:
             logging.warn(
                 "Unknown collection {}:{} encountered!".format(
-                    name, collection_id))
+                    name, collection_id
+                )
+            )
             # it would be swell to add these to the collection table,
             # but that would mean
             # an imbedded spanner transaction, and that's not allowed.
@@ -232,7 +248,7 @@ class Collections:
 
 
 def conf_mysql(dsn):
-    """create a connection to the original storage system """
+    """create a connection to the original storage system"""
     logging.debug("Configuring MYSQL: {}".format(dsn))
     connection = connector.connect(
         user=dsn.username,
@@ -240,7 +256,7 @@ def conf_mysql(dsn):
         host=dsn.hostname,
         port=dsn.port or 3306,
         database=dsn.path[1:],
-        auth_plugin="mysql_native_password"
+        auth_plugin="mysql_native_password",
     )
     return connection
 
@@ -261,7 +277,7 @@ def conf_db(dsn):
     """read the list of storage definitions from the file and create
     a set of connetions.
 
-     """
+    """
     if "mysql" in dsn.scheme:
         return conf_mysql(dsn)
     if "spanner" in dsn.scheme:
@@ -270,7 +286,7 @@ def conf_db(dsn):
 
 
 def dumper(columns, values):
-    """verbose column and data dumper. """
+    """verbose column and data dumper."""
     result = ""
     for row in values:
         for i in range(0, len(columns)):
@@ -288,9 +304,9 @@ def alter_syncids(pay):
 
     """
     payload = json.loads(pay)
-    payload['syncID'] = newSyncID()
-    for item in payload['engines']:
-        payload['engines'][item]['syncID'] = newSyncID()
+    payload["syncID"] = newSyncID()
+    for item in payload["engines"]:
+        payload["engines"][item]["syncID"] = newSyncID()
     return json.dumps(payload)
 
 
@@ -300,7 +316,7 @@ def divvy(biglist, count):
     biglen = len(biglist)
     start = 0
     while start < biglen:
-        lists.append(biglist[start:min(start+count, biglen)])
+        lists.append(biglist[start : min(start + count, biglen)])
         start += count
     return lists
 
@@ -317,20 +333,20 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
     # ttl => expiry
 
     uc_columns = (
-        'fxa_uid',
-        'fxa_kid',
-        'collection_id',
-        'modified',
+        "fxa_uid",
+        "fxa_kid",
+        "collection_id",
+        "modified",
     )
     bso_columns = (
-            'collection_id',
-            'fxa_uid',
-            'fxa_kid',
-            'bso_id',
-            'expiry',
-            'modified',
-            'payload',
-            'sortindex',
+        "collection_id",
+        "fxa_uid",
+        "fxa_kid",
+        "bso_id",
+        "expiry",
+        "modified",
+        "payload",
+        "sortindex",
     )
 
     (uid, fxa_uid, fxa_kid) = user_data
@@ -350,11 +366,12 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             and uc.userid = bso.userid
             and bso.ttl > unix_timestamp()
     ORDER BY
-        bso.collection, bso.id""".format(bso_num)
+        bso.collection, bso.id""".format(
+        bso_num
+    )
     unique_key_filter = set()
 
-    def spanner_transact_wipe_user(
-            transaction, fxa_uid, fxa_kid, args):
+    def spanner_transact_wipe_user(transaction, fxa_uid, fxa_kid, args):
         result = transaction.execute_sql(
             """
         SELECT
@@ -370,7 +387,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
         AND uc.fxa_kid = @fxa_kid
             """,
             params=dict(fxa_uid=fxa_uid, fxa_kid=fxa_kid),
-            param_types=dict(fxa_uid=param_types.STRING, fxa_kid=param_types.STRING),
+            param_types=dict(
+                fxa_uid=param_types.STRING, fxa_kid=param_types.STRING
+            ),
         )
         cols = [(row[0], row[1]) for row in result]
         if not args.dryrun:
@@ -384,63 +403,70 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             AND fxa_kid = @fxa_kid
             """,
                 params=dict(fxa_uid=fxa_uid, fxa_kid=fxa_kid),
-                param_types=dict(fxa_uid=param_types.STRING, fxa_kid=param_types.STRING),
+                param_types=dict(
+                    fxa_uid=param_types.STRING, fxa_kid=param_types.STRING
+                ),
             )
         else:
             logging.debug("Not wiping user, collections: {}".format(cols))
 
-    def spanner_transact_uc(
-            transaction, data, fxa_uid, fxa_kid, args):
+    def spanner_transact_uc(transaction, data, fxa_uid, fxa_kid, args):
         # user collections require a unique key.
-        for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
+        for col, cid, cmod, bid, exp, bmod, pay, sid in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
                 continue
             # columns from sync_schema3
             # user_collections modified should come directly from
             # mysql user_collections.last_modified
-            mod_v = datetime.utcfromtimestamp(cmod/1000.0)
+            mod_v = datetime.utcfromtimestamp(cmod / 1000.0)
             # User_Collection can only have unique values. Filter
             # non-unique keys and take the most recent modified
             # time. The join could be anything.
             uc_key = "{}_{}_{}".format(fxa_uid, fxa_kid, col)
             if uc_key not in unique_key_filter:
-                uc_values = [(
-                    fxa_uid,
-                    fxa_kid,
-                    collection_id,
-                    mod_v,
-                )]
+                uc_values = [
+                    (
+                        fxa_uid,
+                        fxa_kid,
+                        collection_id,
+                        mod_v,
+                    )
+                ]
                 if not args.dryrun:
                     transaction.insert(
-                        'user_collections',
+                        "user_collections",
                         columns=uc_columns,
-                        values=uc_values
+                        values=uc_values,
                     )
                 else:
-                    logging.debug("not writing {} => {}".format(
-                        uc_columns, uc_values))
+                    logging.debug(
+                        "not writing {} => {}".format(uc_columns, uc_values)
+                    )
                 unique_key_filter.add(uc_key)
 
     def spanner_transact_bso(transaction, data, fxa_uid, fxa_kid, args):
         count = 0
         bso_values = []
-        for (col, cid, cmod, bid, exp, bmod, pay, sid) in data:
+        for col, cid, cmod, bid, exp, bmod, pay, sid in data:
             collection_id = collections.get(col, cid)
             if collection_id is None:
                 continue
             if collection_id != cid:
                 logging.debug(
                     "Remapping collection '{}' from {} to {}".format(
-                        col, cid, collection_id))
+                        col, cid, collection_id
+                    )
+                )
             # columns from sync_schema3
-            mod_v = datetime.utcfromtimestamp(bmod/1000.0)
+            mod_v = datetime.utcfromtimestamp(bmod / 1000.0)
             exp_v = datetime.utcfromtimestamp(exp)
 
             # add the BSO values.
             if args.full and col == META_GLOBAL_COLLECTION_NAME:
                 pay = alter_syncids(pay)
-            bso_values.append([
+            bso_values.append(
+                [
                     collection_id,
                     fxa_uid,
                     fxa_kid,
@@ -449,40 +475,37 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
                     mod_v,
                     pay,
                     sid,
-            ])
+                ]
+            )
 
             count += 1
         if not args.dryrun:
             logging.debug(
-                "###bso{} {}".format(
-                    bso_num,
-                    dumper(bso_columns, bso_values)
-                )
+                "###bso{} {}".format(bso_num, dumper(bso_columns, bso_values))
             )
             for i in range(0, 5):
                 try:
                     transaction.insert(
-                        'bsos',
-                        columns=bso_columns,
-                        values=bso_values
+                        "bsos", columns=bso_columns, values=bso_values
                     )
                     break
                 except grpc._channel_._InactiveRpcError as ex:
                     logging.warn(
                         "Could not write record (attempt {})".format(i),
-                        exc_info=ex)
-                    time.sleep(.5)
+                        exc_info=ex,
+                    )
+                    time.sleep(0.5)
         else:
-            logging.debug("not writing {} => {}".format(
-                bso_columns, bso_values))
+            logging.debug(
+                "not writing {} => {}".format(bso_columns, bso_values)
+            )
         return count
 
-    cursor = databases['mysql'].cursor()
+    cursor = databases["mysql"].cursor()
     count = 0
     try:
         # Note: cursor() does not support __enter__()
-        logging.info("Processing... {} -> {}:{}".format(
-            uid, fxa_uid, fxa_kid))
+        logging.info("Processing... {} -> {}:{}".format(uid, fxa_uid, fxa_kid))
         cursor.execute(sql, (uid,))
         data = []
         abort_col = None
@@ -497,20 +520,27 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             if abort_col and int(row[1]) == int(abort_col):
                 col_count += 1
                 if col_count > abort_count:
-                    logging.debug("Skipping col: {}: {} of {}".format(
-                        row[0], col_count, abort_count))
+                    logging.debug(
+                        "Skipping col: {}: {} of {}".format(
+                            row[0], col_count, abort_count
+                        )
+                    )
                     continue
             data.append(row)
         if args.abort:
-            logging.info("Skipped {} of {} rows for {}".format(
-                abort_count, col_count, abort_col
-            ))
+            logging.info(
+                "Skipped {} of {} rows for {}".format(
+                    abort_count, col_count, abort_col
+                )
+            )
         logging.info(
             "Moving {} items for user {} => {}:{}".format(
-                len(data), uid, fxa_uid, fxa_kid))
+                len(data), uid, fxa_uid, fxa_kid
+            )
+        )
 
         if args.wipe_user:
-            databases['spanner'].run_in_transaction(
+            databases["spanner"].run_in_transaction(
                 spanner_transact_wipe_user,
                 fxa_uid,
                 fxa_kid,
@@ -523,14 +553,14 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             # to solve that, divide the UC updates from the
             # BSO updates.
             # Run through the list of UserCollection updates
-            databases['spanner'].run_in_transaction(
+            databases["spanner"].run_in_transaction(
                 spanner_transact_uc,
                 bunch,
                 fxa_uid,
                 fxa_kid,
                 args,
             )
-            count += databases['spanner'].run_in_transaction(
+            count += databases["spanner"].run_in_transaction(
                 spanner_transact_bso,
                 bunch,
                 fxa_uid,
@@ -539,14 +569,16 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             )
             if args.ms_delay > 0:
                 logging.debug(
-                    "Sleeping for {} seconds".format(args.ms_delay * .01))
-                time.sleep(args.ms_delay * .01)
+                    "Sleeping for {} seconds".format(args.ms_delay * 0.01)
+                )
+                time.sleep(args.ms_delay * 0.01)
 
     except AlreadyExists:
         logging.warn(
             "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
                 uid, fxa_uid, fxa_kid
-            ))
+            )
+        )
         report.fail(uid, "exists")
         return count
     except InvalidArgument as ex:
@@ -555,14 +587,17 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
             logging.warn(
                 "User {} already imported fxa_uid:{} / fxa_kid:{}".format(
                     uid, fxa_uid, fxa_kid
-                ))
+                )
+            )
             return count
         else:
             raise
     except Exception as ex:
         report.fail(uid, "unexpected batch error")
-        logging.error("Unexpected Batch failure: {}:{}".format(
-            fxa_uid, fxa_kid), exc_info=ex)
+        logging.error(
+            "Unexpected Batch failure: {}:{}".format(fxa_uid, fxa_kid),
+            exc_info=ex,
+        )
     finally:
         # cursor may complain about unread data, this should prevent
         # that warning.
@@ -574,12 +609,9 @@ def move_user(databases, user_data, collections, fxa, bso_num, args, report):
 
 
 def get_percentage_users(users, user_percent):
-    (block, percentage) = map(
-        int, user_percent.split(':'))
+    (block, percentage) = map(int, user_percent.split(":"))
     total_count = len(users)
-    chunk_size = max(
-        1, math.floor(
-            total_count * (int(percentage) * .01)))
+    chunk_size = max(1, math.floor(total_count * (int(percentage) * 0.01)))
     chunk_count = math.ceil(total_count / chunk_size)
     chunk_start = max(block - 1, 0) * chunk_size
     chunk_end = min(chunk_count, block) * chunk_size
@@ -587,14 +619,12 @@ def get_percentage_users(users, user_percent):
         if block >= chunk_count - 1:
             chunk_end = total_count
     users = users[chunk_start:chunk_end]
-    logging.debug(
-        "moving users: {} to {}".format(
-            chunk_start, chunk_end))
+    logging.debug("moving users: {} to {}".format(chunk_start, chunk_end))
     return users
 
 
 def get_users(args, databases, fxa, bso_num, report):
-    """Fetch the user information from the Tokenserver Dump """
+    """Fetch the user information from the Tokenserver Dump"""
     users = []
     try:
         if args.user:
@@ -604,17 +634,15 @@ def get_users(args, databases, fxa, bso_num, report):
                     users.append((uid, fxa_uid, fxa_kid))
                 except TypeError:
                     logging.error(
-                        "User {} not found in "
-                        "tokenserver data.".format(uid))
+                        "User {} not found in " "tokenserver data.".format(uid)
+                    )
                     report.fail(uid, "not found")
         else:
             try:
-                bso_users_file = args.bso_users_file.replace('#', str(bso_num))
+                bso_users_file = args.bso_users_file.replace("#", str(bso_num))
                 with open(bso_users_file) as bso_file:
                     line = 0
-                    for row in csv.reader(
-                        bso_file, delimiter="\t"
-                    ):
+                    for row in csv.reader(bso_file, delimiter="\t"):
                         if row[0] == "uid":
                             continue
                         users.append(row)
@@ -648,120 +676,123 @@ def move_database(databases, collections, bso_num, fxa, args, report):
             fxa=fxa,
             bso_num=bso_num,
             args=args,
-            report=report)
-    logging.info("Finished BSO #{} ({} rows) in {} seconds".format(
-        bso_num,
-        rows,
-        math.ceil(time.time() - start)
-    ))
+            report=report,
+        )
+    logging.info(
+        "Finished BSO #{} ({} rows) in {} seconds".format(
+            bso_num, rows, math.ceil(time.time() - start)
+        )
+    )
     return rows
+
 
 def get_args():
     pid = os.getpid()
     today = datetime.now().strftime("%Y_%m_%d")
     parser = argparse.ArgumentParser(
-        description="move user from sql to spanner")
-    parser.add_argument(
-        '--dsns', default="move_dsns.lst",
-        help="file of new line separated DSNs")
-    parser.add_argument(
-        '--verbose',
-        action="store_true",
-        help="verbose logging"
+        description="move user from sql to spanner"
     )
     parser.add_argument(
-        '--quiet',
-        action="store_true",
-        help="silence logging"
+        "--dsns",
+        default="move_dsns.lst",
+        help="file of new line separated DSNs",
     )
     parser.add_argument(
-        '--offset', type=int, default=0,
-        help="UID to start at (default 0)")
+        "--verbose", action="store_true", help="verbose logging"
+    )
+    parser.add_argument("--quiet", action="store_true", help="silence logging")
     parser.add_argument(
-        "--full",
-        action="store_true",
-        help="force a full reconcile"
+        "--offset", type=int, default=0, help="UID to start at (default 0)"
     )
     parser.add_argument(
-        '--anon', action='store_true',
-        help="Anonymize the user data"
+        "--full", action="store_true", help="force a full reconcile"
     )
     parser.add_argument(
-        '--start_bso', default=0,
+        "--anon", action="store_true", help="Anonymize the user data"
+    )
+    parser.add_argument(
+        "--start_bso",
+        default=0,
         type=int,
-        help="start dumping BSO database (default: 0)"
+        help="start dumping BSO database (default: 0)",
     )
     parser.add_argument(
-        '--end_bso',
-        type=int, default=19,
-        help="last BSO database to dump (default: 19)"
-    )
-    parser.add_argument(
-        '--bso_num',
+        "--end_bso",
         type=int,
-        help="only move this bso (equivalent to start_bso == end_bso)"
+        default=19,
+        help="last BSO database to dump (default: 19)",
     )
     parser.add_argument(
-        '--write_chunk',
+        "--bso_num",
+        type=int,
+        help="only move this bso (equivalent to start_bso == end_bso)",
+    )
+    parser.add_argument(
+        "--write_chunk",
         dest="chunk",
         default=1666,
-        help="how many rows per transaction for spanner (default: 1666)"
+        help="how many rows per transaction for spanner (default: 1666)",
     )
     parser.add_argument(
-        '--user',
+        "--user", type=str, help="BSO#:userId[,userid,...] to move."
+    )
+    parser.add_argument(
+        "--retry_file",
         type=str,
-        help="BSO#:userId[,userid,...] to move."
+        help="Copy of failure file to read user IDs to retry.",
     )
     parser.add_argument(
-        '--retry_file',
-        type=str,
-        help="Copy of failure file to read user IDs to retry."
-    )
-    parser.add_argument(
-        '--wipe_user',
+        "--wipe_user",
         action="store_true",
-        help="delete any pre-existing --user data on spanner before the migration"
+        help="delete any pre-existing --user data on spanner before the migration",
     )
     parser.add_argument(
-        '--bso_users_file',
+        "--bso_users_file",
         default="bso_users_#_{}.lst".format(today),
         help="name of the generated BSO user file. "
-            "(Will use bso number for `#` if present; "
-            "default: bso_users_#_{}.lst)".format(today),
+        "(Will use bso number for `#` if present; "
+        "default: bso_users_#_{}.lst)".format(today),
     )
     parser.add_argument(
-        '--fxa_users_file',
+        "--fxa_users_file",
         default="fxa_users_{}.lst".format(today),
         help="List of pre-generated FxA users. Only needed if specifying"
-            " the `--user` option; default: fxa_users_{}.lst)".format(today)
+        " the `--user` option; default: fxa_users_{}.lst)".format(today),
     )
     parser.add_argument(
-        '--dryrun',
+        "--dryrun",
         action="store_true",
-        help="Do not write user records to spanner"
+        help="Do not write user records to spanner",
     )
     parser.add_argument(
-        '--abort',
+        "--abort",
         type=str,
-        help="abort data in col after #rows (e.g. history:10)"
+        help="abort data in col after #rows (e.g. history:10)",
     )
     parser.add_argument(
-        "--user_percent", default="1:100",
-        help=("Offset and percent of users from this BSO"
-              "to move (e.g. 2:50 moves the second 50%%) "
-              "(default 1:100)")
+        "--user_percent",
+        default="1:100",
+        help=(
+            "Offset and percent of users from this BSO"
+            "to move (e.g. 2:50 moves the second 50%%) "
+            "(default 1:100)"
+        ),
     )
     parser.add_argument(
-        '--ms_delay', type=int, default=0,
-        help="inject a sleep between writes to spanner as a throttle"
+        "--ms_delay",
+        type=int,
+        default=0,
+        help="inject a sleep between writes to spanner as a throttle",
     )
     parser.add_argument(
-        '--success_file', default="success_{}.log".format(pid),
-        help="File of successfully migrated userids"
+        "--success_file",
+        default="success_{}.log".format(pid),
+        help="File of successfully migrated userids",
     )
     parser.add_argument(
-        '--failure_file', default="failure_{}.log".format(pid),
-        help="File of unsuccessfully migrated userids"
+        "--failure_file",
+        default="failure_{}.log".format(pid),
+        help="File of unsuccessfully migrated userids",
     )
 
     return parser.parse_args()
@@ -785,27 +816,28 @@ def main():
 
     if args.user:
         args.user_percent = "1:100"
-        (bso, userid) = args.user.split(':')
+        (bso, userid) = args.user.split(":")
         args.start_bso = int(bso)
         args.end_bso = int(bso)
         user_list = []
-        for id in userid.split(','):
+        for id in userid.split(","):
             user_list.append(int(id))
         args.user = user_list
     elif args.wipe_user:
         raise RuntimeError("--wipe_user requires --user")
     if args.retry_file:
         (args.start_bso, args.end_bso, args.user) = report.read_failure(
-            args.retry_file)
+            args.retry_file
+        )
     if args.bso_num is not None:
         args.start_bso = args.end_bso = args.bso_num
     for line in dsns:
         dsn = urlparse(line.strip())
         scheme = dsn.scheme
-        if 'mysql' in dsn.scheme:
-            scheme = 'mysql'
+        if "mysql" in dsn.scheme:
+            scheme = "mysql"
         databases[scheme] = conf_db(dsn)
-    if not databases.get('mysql') or not databases.get('spanner'):
+    if not databases.get("mysql") or not databases.get("spanner"):
         raise RuntimeError("Both mysql and spanner dsns must be specified")
     fxa_info = FXA_info(args.fxa_users_file, args, report)
     collections = Collections(databases)
@@ -813,14 +845,15 @@ def main():
     if args.dryrun:
         logging.info("=== DRY RUN MODE ===")
     start = time.time()
-    for bso_num in range(args.start_bso, args.end_bso+1):
+    for bso_num in range(args.start_bso, args.end_bso + 1):
         logging.info("Moving users in bso # {}".format(bso_num))
         report.bso = bso_num
         rows += move_database(
-            databases, collections, bso_num, fxa_info, args, report)
+            databases, collections, bso_num, fxa_info, args, report
+        )
     logging.info(
-        "Moved: {} rows in {} seconds".format(
-            rows or 0, time.time() - start))
+        "Moved: {} rows in {} seconds".format(rows or 0, time.time() - start)
+    )
 
 
 if __name__ == "__main__":
