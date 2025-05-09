@@ -60,7 +60,7 @@ impl TokenserverRequest {
     ///     `keys_changed_at` <= `generation` at all times.
     ///
     ///   * `client_state` is a key fingerprint and should never change back
-    ///      to a previously-seen value.
+    ///     to a previously-seen value.
     ///
     /// Callers who provide identity claims that violate any of these rules
     /// either have stale credetials (in which case they should re-authenticate)

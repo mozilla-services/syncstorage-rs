@@ -6,11 +6,11 @@ psutil
 pyjwt
 pyramid
 pyramid_hawkauth
-pyfxa
+pyfxa==0.8.1
 pytest
 requests
 simplejson
-sqlalchemy
+sqlalchemy==1.4.46
 tokenlib
 webtest
 wsgiproxy2

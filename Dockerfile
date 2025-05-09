@@ -3,7 +3,8 @@ ARG DATABASE_BACKEND=spanner
 ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM docker.io/lukemathwalker/cargo-chef:0.1.67-rust-1.81-bullseye AS chef
+# RUST_VER
+FROM docker.io/lukemathwalker/cargo-chef:0.1.71-rust-1.86-bullseye AS chef
 WORKDIR /app
 
 FROM chef AS planner

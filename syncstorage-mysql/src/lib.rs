@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)]
 #[macro_use]
 extern crate diesel;
 #[macro_use]
