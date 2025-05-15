@@ -1136,9 +1136,9 @@ impl FromRequest for HawkIdentifier {
     /// Use HawkPayload extraction and format as HawkIdentifier.
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         // Dummy token if a Docker Flow request is detected.
-        if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
-            return future::ready(Ok(HawkIdentifier::cmd_dummy()));
-        }
+        //if DOCKER_FLOW_ENDPOINTS.contains(&req.uri().path().to_lowercase().as_str()) {
+        //    return future::ready(Ok(HawkIdentifier::cmd_dummy()));
+        //}
         let req = req.clone();
         let uri = req.uri();
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
