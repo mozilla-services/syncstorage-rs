@@ -10,10 +10,6 @@ actix-web.workspace = true
 backtrace.workspace = true
 http.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-jsonwebtoken.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
 
 pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
 syncserver-common = { path = "../syncserver-common" }
