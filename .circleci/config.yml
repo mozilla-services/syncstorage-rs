@@ -63,14 +63,12 @@ commands:
     steps:
       - run:
           name: Rust Clippy MySQL
-          command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D clippy::dbg_macro -D warnings
+          command: make clippy_mysql
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
-          command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D clippy::dbg_macro -D warnings
+          command: make clippy_spanner
   setup-mysql:
     steps:
       - run:
