@@ -267,7 +267,7 @@ where
 
     if !sresponse.response().status().is_success() {
         trace!(
-            "⚠️ Warning: Returned error",
+            "⚠️ Warning: Returned error with status: {} and response: {:?}",
             sresponse.response().status(),
             sresponse.response()
         );
