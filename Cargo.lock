@@ -3192,15 +3192,12 @@ dependencies = [
  "actix-web",
  "async-trait",
  "backtrace",
- "cadence",
  "deadpool",
- "env_logger 0.11.6",
  "form_urlencoded",
  "futures 0.3.31",
  "google-cloud-rust-raw",
  "grpcio",
  "http 1.2.0",
- "log",
  "protobuf",
  "slog-scope",
  "syncserver-common",
@@ -3209,7 +3206,6 @@ dependencies = [
  "syncstorage-settings",
  "thiserror 1.0.69",
  "tokio",
- "url 2.5.4",
  "uuid",
 ]
 
