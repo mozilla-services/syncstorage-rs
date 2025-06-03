@@ -266,7 +266,7 @@ where
     };
 
     if !sresponse.response().status().is_success() {
-        dbg!(
+        trace!(
             "⚠️ Warning: Returned error",
             sresponse.response().status(),
             sresponse.response()
@@ -770,6 +770,7 @@ async fn lbheartbeat_max_pool_size_check() {
     let lb_req = create_request(http::Method::GET, "/__lbheartbeat__", None, None).to_request();
     let sresp = app.call(lb_req).await.unwrap();
     let status = sresp.status();
+    // Uncomment only for debugging purposes:
     // dbg!(status, test::read_body(sresp).await);
     assert!(status.is_success());
 
@@ -786,6 +787,7 @@ async fn lbheartbeat_max_pool_size_check() {
     .to_request();
     let sresp = app.call(req).await.unwrap();
     let status = sresp.status();
+    // Uncomment only for debugging purposes:
     // dbg!(status, test::read_body(sresp).await);
     assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
 
@@ -798,6 +800,7 @@ async fn lbheartbeat_max_pool_size_check() {
     let body = test::read_body(sresp).await;
     let resp: HashMap<String, serde_json::value::Value> =
         serde_json::de::from_str(std::str::from_utf8(body.as_ref()).unwrap()).unwrap();
+    // Uncomment only for debugging purposes:
     // dbg!(status, body, &resp);
     assert!(status == StatusCode::INTERNAL_SERVER_ERROR);
     assert!(resp.get("duration_ms").unwrap().as_u64().unwrap() > 1000);
@@ -810,6 +813,7 @@ async fn lbheartbeat_max_pool_size_check() {
         create_request(http::Method::GET, "/__lbheartbeat__", Some(headers), None).to_request();
     let sresp = app.call(req).await.unwrap();
     let status = sresp.status();
+    // Uncomment only for debugging purposes:
     // dbg!(status, test::read_body(sresp).await);
     assert!(status == StatusCode::OK);
 }
