@@ -56,8 +56,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app && \
-    if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app ; fi
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
 
 FROM docker.io/library/debian:bullseye-slim
 ARG MYSQLCLIENT_PKG
