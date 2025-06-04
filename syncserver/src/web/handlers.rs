@@ -645,7 +645,6 @@ pub async fn lbheartbeat(req: HttpRequest) -> Result<HttpResponse, ApiError> {
             )
             .unwrap_or_default(),
         };
-        // dbg!(&test_pool, deadman.max_size);
         test_pool
     } else {
         state.db_pool.clone().state()

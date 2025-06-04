@@ -35,11 +35,11 @@ PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sys
 
 clippy_mysql:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
 clippy_spanner:
 	# Matches what's run in circleci
-	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
 clean:
 	cargo clean
