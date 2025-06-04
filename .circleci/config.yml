@@ -7,7 +7,7 @@
 # To avoid collision with other GCP connections we create specific vars for
 # the ETE Test Pipeline.
 # ETE_GOOGLE_PROJECT_ID     - GCP Project ID for ecosystem-test-eng
-# ETE_GCLOUD_SERVICE_KEY    - GCP syncstorage specific Service Account JSON Key 
+# ETE_GCLOUD_SERVICE_KEY    - GCP syncstorage specific Service Account JSON Key
 # ETE_GOOGLE_PROJECT_NUMBER - GCP Project Number for ecosystem-test-eng
 #
 version: 2.1
@@ -63,14 +63,12 @@ commands:
     steps:
       - run:
           name: Rust Clippy MySQL
-          command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D warnings
+          command: make clippy_mysql
   rust-clippy-spanner:
     steps:
       - run:
           name: Rust Clippy Spanner
-          command: |
-            cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D warnings
+          command: make clippy_spanner
   setup-mysql:
     steps:
       - run:
@@ -99,7 +97,7 @@ commands:
 
   install-test-deps:
     steps:
-      - run: 
+      - run:
           name: Install test dependencies
           command: cargo install --locked cargo-nextest cargo-llvm-cov
 
@@ -118,7 +116,7 @@ commands:
           name: nextest with code coverage (quota enforced)
           command: make test_with_coverage
           environment:
-              SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+            SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
   merge-unit-test-coverage:
     steps:
@@ -140,11 +138,11 @@ commands:
           when: always
           name: Tokenserver integration tests
           command: |
-              # NOTE: Python3.12 requires `--break-system-packages`.
-              # This command is run on the circleci/rust image, which is running python 3.10
-               make run_token_server_integration_tests
+            # NOTE: Python3.12 requires `--break-system-packages`.
+            # This command is run on the circleci/rust image, which is running python 3.10
+             make run_token_server_integration_tests
           environment:
-              SYNCSTORAGE_RS_IMAGE: app:build
+            SYNCSTORAGE_RS_IMAGE: app:build
   run-e2e-tests:
     parameters:
       db:
@@ -174,7 +172,7 @@ commands:
           google_project_number: ETE_GOOGLE_PROJECT_NUMBER
       - run:
           name: Upload << parameters.source >> << parameters.extension >> Files to GCS
-          when: always  # Ensure the step runs even if previous steps, like test runs, fail
+          when: always # Ensure the step runs even if previous steps, like test runs, fail
           command: |
             if [ "$CIRCLE_BRANCH" = "master" ]; then
               FILES=$(ls -1 << parameters.source>>/*.<< parameters.extension>> )
@@ -213,7 +211,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.86  # RUST_VER
+      - image: cimg/rust:1.86 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -230,25 +228,25 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.86  # RUST_VER
+      - image: cimg/rust:1.86 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
-            SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
-            RUST_BACKTRACE: 1
-            # XXX: begin_test_transaction doesn't play nice over threaded tests
-            RUST_TEST_THREADS: 1
+          SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
       - image: cimg/mysql:5.7
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
         environment:
-            MYSQL_ROOT_PASSWORD: password
-            MYSQL_USER: test
-            MYSQL_PASSWORD: test
-            MYSQL_DATABASE: syncstorage
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+          MYSQL_DATABASE: syncstorage
     resource_class: large
     steps:
       - checkout
@@ -279,7 +277,7 @@ jobs:
       #- save-sccache-cache
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.86  # RUST_VER
+      - image: cimg/rust:1.86 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -293,9 +291,9 @@ jobs:
       - run:
           name: Build MySQL Docker image
           command: >
-              docker build -t app:build
-              --build-arg DATABASE_BACKEND=mysql
-              .
+            docker build -t app:build
+            --build-arg DATABASE_BACKEND=mysql
+            .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
@@ -316,7 +314,7 @@ jobs:
             - /home/circleci/cache
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.86  # RUST_VER
+      - image: cimg/rust:1.86 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -331,10 +329,10 @@ jobs:
           name: Build Spanner Docker image
           # Build w/ the Oracle libmysqlclient-dev for TLS support
           command: >
-              docker build -t app:build
-              --build-arg DATABASE_BACKEND=spanner
-              --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
-              .
+            docker build -t app:build
+            --build-arg DATABASE_BACKEND=spanner
+            --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
+            .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
