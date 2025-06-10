@@ -10,6 +10,18 @@ PATH_TO_SYNC_SPANNER_KEYS = `pwd`/service-account.json
 # https://github.com/mozilla-services/server-syncstorage
 PATH_TO_GRPC_CERT = ../server-syncstorage/local/lib/python2.7/site-packages/grpc/_cython/_credentials/roots.pem
 
+POETRY := $(shell command -v poetry 2> /dev/null)
+INSTALL_STAMP := .install.stamp
+TOOLS_DIR := tools
+PROJECT_ROOT_DIR := ./
+ROOT_PYPROJECT_TOML := pyproject.toml
+HAWK_DIR := $(TOOLS_DIR)/hawk
+INTEGRATION_TEST_DIR := $(TOOLS_DIR)/integration_tests
+INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
+SPANNER_DIR := $(TOOLS_DIR)/spanner
+TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
+LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
+
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
 # TODO: update workflow name appropriately
