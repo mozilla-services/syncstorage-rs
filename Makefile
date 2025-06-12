@@ -149,3 +149,36 @@ merge_coverage_results:
 run_token_server_integration_tests:
 	pip3 install -r tools/tokenserver/requirements.txt
 	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+
+.PHONY: install
+install: $(INSTALL_STAMP)  ##  Install dependencies with poetry
+$(INSTALL_STAMP): pyproject.toml poetry.lock
+	@if [ -z $(POETRY) ]; then echo "Poetry could not be found. See https://python-poetry.org/docs/"; exit 2; fi
+	$(POETRY) install
+	touch $(INSTALL_STAMP)
+
+hawk:
+	# install dependencies for hawk token utility.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(HAWK_DIR) --no-root
+
+integration-test:
+	# install dependencies for integration tests.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(INTEGRATION_TEST_DIR) --no-root
+
+spanner:
+	# install dependencies for spanner utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(SPANNER_DIR) --no-root
+
+tokenserver:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(TOKENSERVER_UTIL_DIR) --no-root
+
+tokenserver-load:
+	# install dependencies for tokenserver utilities.
+	$(POETRY) -V
+	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
+
