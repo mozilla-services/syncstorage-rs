@@ -1,0 +1,25 @@
+[project]
+name = "syncstorage-rs"
+version = "0.1.0"
+description = "Python dependencies for the root of the syncstorage-rs project"
+authors = [
+    {name = "Taddes",email = "tkorris@mozilla.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.poetry.dependencies]
+cryptography = "==44.0.2"
+pyfxa = "==0.8.1"
+tokenlib = "==2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.0"
+pydocstyle = "^6.3.0"
+ruff = "^0.11.13"
+black = "^25.1.0"
+bandit = "^1.8.3"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
