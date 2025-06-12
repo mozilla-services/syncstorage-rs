@@ -9,9 +9,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 
 [tool.poetry.dependencies]
-cryptography = "==44.0.2"
-pyfxa = "==0.8.1"
-tokenlib = "==2.0.0"
+cryptography = "=^4.0.2"
+pyfxa = "^0.8.1"
+tokenlib = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.16.0"
