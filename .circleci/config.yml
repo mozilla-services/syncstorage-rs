@@ -40,10 +40,10 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2
+            pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
             # NOTE: Python3.12 requires `--break-system-packages`.
             # This command is run on the cimg/rust image, which is running python 3.10
-            pip3 install -r requirements.txt
+            poetry install
   rust-check:
     steps:
       - run:
