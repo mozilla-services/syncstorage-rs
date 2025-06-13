@@ -5,6 +5,7 @@ description = "Python dependencies for the root of the syncstorage-rs project"
 authors = [
     {name = "Taddes",email = "tkorris@mozilla.com"}
 ]
+license = "Mozilla Public License Version 2.0"
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -19,6 +20,7 @@ pydocstyle = "^6.3.0"
 ruff = "^0.11.13"
 black = "^25.1.0"
 bandit = "^1.8.3"
+isort = "^6.0.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
