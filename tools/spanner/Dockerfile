@@ -1,8 +1,23 @@
 FROM python:3.12-bookworm
 
-COPY purge_ttl.py count_expired_rows.py count_users.py requirements.txt /app/
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    POETRY_VERSION=2.1.3 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_CACHE_DIR='/var/cache/pypoetry' \
+    POETRY_HOME='/usr/local' 
 
-RUN pip install -r /app/requirements.txt
+RUN curl -sSL https://install.python-poetry.org | python3 -
+
+WORKDIR /app/
+
+COPY purge_ttl.py count_expired_rows.py count_users.py poetry.lock pyproject.toml /app/
+
+RUN poetry install --no-interaction --no-ansi
 
 USER nobody
 
