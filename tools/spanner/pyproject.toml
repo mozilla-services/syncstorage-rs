@@ -13,6 +13,13 @@ requires-python = ">=3.10"
 google-cloud-spanner = ">=1.16.0"
 statsd = "^4.0.1"
 
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.0"
+pydocstyle = "^6.3.0"
+ruff = "^0.11.13"
+black = "^25.1.0"
+bandit = "^1.8.3"
+isort = "^6.0.1"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
