@@ -1,0 +1,34 @@
+[project]
+name = "tokenserver-load-tests"
+version = "0.1.0"
+description = "tokenserver load tests"
+authors = [
+    {name = "Taddes",email = "tkorris@mozilla.com"}
+]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+requires-python = ">=3.10"
+
+
+[tool.poetry]
+package-mode = false 
+
+[tool.poetry.dependencies]
+authlib = "^1.6.0"
+cryptography = "^45.0.4"
+locust = "^2.37.10"
+pybrowserid = "^0.14.0"
+pyjwt = "^2.10.1"
+sqlalchemy = "^2.0.41"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.0"
+pydocstyle = "^6.3.0"
+ruff = "^0.11.13"
+black = "^25.1.0"
+bandit = "^1.8.3"
+isort = "^6.0.1"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
