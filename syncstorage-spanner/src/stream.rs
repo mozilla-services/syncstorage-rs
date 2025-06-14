@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, mem};
 
-use futures::stream::{StreamExt, StreamFuture};
+use futures::{stream::StreamFuture, Stream, StreamExt};
 use google_cloud_rust_raw::spanner::v1::{
     result_set::{PartialResultSet, ResultSetMetadata, ResultSetStats},
     type_pb::{StructType_Field, Type, TypeCode},
@@ -10,9 +10,9 @@ use protobuf::well_known_types::Value;
 
 use crate::{error::DbError, support::IntoSpannerValue, DbResult};
 
-pub struct StreamedResultSetAsync {
+pub struct StreamedResultSetAsync<T = ClientSStreamReceiver<PartialResultSet>> {
     /// Stream from execute_streaming_sql
-    stream: Option<StreamFuture<ClientSStreamReceiver<PartialResultSet>>>,
+    stream: Option<StreamFuture<T>>,
 
     metadata: Option<ResultSetMetadata>,
     stats: Option<ResultSetStats>,
@@ -25,8 +25,11 @@ pub struct StreamedResultSetAsync {
     pending_chunk: Option<Value>,
 }
 
-impl StreamedResultSetAsync {
-    pub fn new(stream: ClientSStreamReceiver<PartialResultSet>) -> Self {
+impl<T> StreamedResultSetAsync<T>
+where
+    T: Stream<Item = grpcio::Result<PartialResultSet>> + Unpin,
+{
+    pub fn new(stream: T) -> Self {
         Self {
             stream: Some(stream.into_future()),
             metadata: None,
@@ -188,4 +191,71 @@ fn merge_string(mut lhs: Value, rhs: &Value) -> DbResult<Value> {
     let mut merged = lhs.take_string_value();
     merged.push_str(rhs.get_string_value());
     Ok(merged.into_spanner_value())
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::stream;
+    use google_cloud_rust_raw::spanner::v1::{
+        result_set::{PartialResultSet, ResultSetMetadata},
+        type_pb::{StructType, StructType_Field, Type, TypeCode},
+    };
+    use grpcio::Error::GoogleAuthenticationFailed;
+    use protobuf::well_known_types::Value;
+
+    use super::StreamedResultSetAsync;
+    use crate::error::DbErrorKind;
+
+    fn simple_part() -> PartialResultSet {
+        let mut field_type = Type::default();
+        field_type.set_code(TypeCode::INT64);
+
+        let mut field = StructType_Field::default();
+        field.set_name("foo".to_owned());
+        field.set_field_type(field_type);
+
+        let mut row_type = StructType::default();
+        row_type.set_fields(vec![field].into());
+
+        let mut metadata = ResultSetMetadata::default();
+        metadata.set_row_type(row_type);
+
+        let mut part = PartialResultSet::default();
+        part.set_metadata(metadata);
+
+        let mut value = Value::default();
+        value.set_string_value("22".to_owned());
+        part.set_values(vec![value].into());
+
+        part
+    }
+
+    #[actix_web::test]
+    async fn consume_next_err() {
+        let mut s = StreamedResultSetAsync::new(stream::iter([
+            Ok(simple_part()),
+            Err(GoogleAuthenticationFailed),
+        ]));
+        assert!(s.consume_next().await.unwrap());
+        let err = s.consume_next().await.unwrap_err();
+        assert!(matches!(
+            err.kind,
+            DbErrorKind::Grpc(GoogleAuthenticationFailed)
+        ));
+    }
+
+    #[actix_web::test]
+    async fn one_or_none_err_propagate() {
+        let mut s = StreamedResultSetAsync::new(stream::iter([
+            Ok(simple_part()),
+            Err(GoogleAuthenticationFailed),
+        ]));
+        let _err = s.one_or_none().await.unwrap_err();
+        // XXX: https://github.com/mozilla-services/syncstorage-rs/issues/1384
+        //dbg!(&err);
+        //assert!(matches!(
+        //    err.kind,
+        //    DbErrorKind::Grpc(GoogleAuthenticationFailed)
+        //));
+    }
 }
