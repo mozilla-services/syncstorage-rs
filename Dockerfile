@@ -7,6 +7,12 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 FROM docker.io/lukemathwalker/cargo-chef:0.1.71-rust-1.86-bullseye AS chef
 WORKDIR /app
 
+ENV POETRY_HOME="/opt/poetry" \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_NO_INTERACTION=1
+
+ENV PATH="$POETRY_HOME/bin:$PATH"
+
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
@@ -14,6 +20,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS cacher
 ARG DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
+
 
 # cmake is required to build grpcio-sys for Spanner builds
 RUN \
@@ -48,8 +55,14 @@ RUN \
     fi && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
-    pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSL https://install.python-poetry.org | python3 -
+WORKDIR /app
+ADD ./poetry.lock /app
+ADD ./pyproject.toml /app
+RUN poetry install --without dev
+
 
 ENV PATH=$PATH:/root/.cargo/bin
 
@@ -62,7 +75,7 @@ FROM docker.io/library/debian:bullseye-slim
 ARG MYSQLCLIENT_PKG
 
 WORKDIR /app
-COPY --from=builder /app/requirements.txt /app
+COPY --from=builder /app/pyproject.toml /app/poetry.lock /app/
 
 RUN \
     apt-get -q update && apt-get -qy install wget
@@ -85,7 +98,10 @@ RUN \
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography && \
-    pip3 install -r /app/requirements.txt && \
+    curl -sSL https://install.python-poetry.org | python3 - && \
+    ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+    poetry config virtualenvs.create false && \
+    poetry install --without dev --no-root && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/bin /app/bin
@@ -98,8 +114,10 @@ COPY --from=builder /app/scripts/start_mock_fxa_server.sh /app/scripts/start_moc
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
-RUN pip3 install -r /app/tools/integration_tests/requirements.txt
-RUN pip3 install -r /app/tools/tokenserver/requirements.txt
+WORKDIR /app/tools/integration_tests/
+RUN poetry install --without dev --no-root
+WORKDIR /app/tools/tokenserver/
+RUN poetry install --without dev --no-root
 
 USER app:app
 

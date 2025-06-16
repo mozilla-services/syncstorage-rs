@@ -178,7 +178,7 @@ tokenserver:
 	$(POETRY) install --directory=$(TOKENSERVER_UTIL_DIR) --no-root
 
 tokenserver-load:
-	# install dependencies for tokenserver utilities.
+	# install dependencies for tokenserver load tests.
 	$(POETRY) -V
 	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
 
