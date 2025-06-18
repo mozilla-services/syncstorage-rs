@@ -604,7 +604,7 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut results = HashMap::new();
-        while let Some(row) = streaming.next_async().await? {
+        while let Some(row) = streaming.try_next().await? {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
@@ -658,8 +658,7 @@ impl SpannerDb {
                 )?
                 .params(params)
                 .execute_async(&self.conn)?;
-            while let Some(row) = rs.next_async().await? {
-                let mut row = row;
+            while let Some(mut row) = rs.try_next().await? {
                 let id = row[0]
                     .get_string_value()
                     .parse::<i32>()
@@ -696,7 +695,7 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut counts = HashMap::new();
-        while let Some(row) = streaming.next_async().await? {
+        while let Some(row) = streaming.try_next().await? {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
@@ -731,7 +730,7 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut usages = HashMap::new();
-        while let Some(row) = streaming.next_async().await? {
+        while let Some(row) = streaming.try_next().await? {
             let collection_id = row[0]
                 .get_string_value()
                 .parse::<i32>()
@@ -1372,7 +1371,7 @@ impl SpannerDb {
 
         let mut streaming = self.bsos_query_async(query, params).await?;
         let mut bsos = vec![];
-        while let Some(row) = streaming.next_async().await? {
+        while let Some(row) = streaming.try_next().await? {
             bsos.push(bso_from_row(row)?);
         }
 
@@ -1413,7 +1412,7 @@ impl SpannerDb {
 
         let mut ids = vec![];
         let mut modifieds = vec![];
-        while let Some(row) = stream.next_async().await? {
+        while let Some(row) = stream.try_next().await? {
             let mut row = row;
             ids.push(row[0].take_string_value());
             modifieds.push(sync_timestamp_from_rfc3339(row[1].get_string_value())?.as_i64());
@@ -1590,7 +1589,7 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut existing = HashSet::new();
-        while let Some(row) = streaming.next_async().await? {
+        while let Some(row) = streaming.try_next().await? {
             let mut row = row;
             existing.insert(row[0].take_string_value());
         }

@@ -68,10 +68,10 @@ where
     }
 
     pub async fn one_or_none(&mut self) -> DbResult<Option<Vec<Value>>> {
-        let result = self.next_async().await?;
+        let result = self.try_next().await?;
         if result.is_none() {
             Ok(None)
-        } else if self.next_async().await?.is_some() {
+        } else if self.try_next().await?.is_some() {
             Err(DbError::internal(
                 "Expected one result; got more.".to_owned(),
             ))
@@ -145,15 +145,13 @@ where
 
     // We could implement Stream::poll_next instead of this, but
     // this is easier for now and we can refactor into the trait later.
-    pub async fn next_async(&mut self) -> DbResult<Option<Vec<Value>>> {
+    pub async fn try_next(&mut self) -> DbResult<Option<Vec<Value>>> {
         while self.rows.is_empty() {
-            match self.consume_next().await {
-                Ok(true) => {}
-                Ok(false) => return Ok(None),
-                // Note: Iteration may continue after an error. We may want to
-                // stop afterwards instead for safety sake (it's not really
-                // recoverable)
-                Err(e) => return Err(e),
+            // Note: Iteration may continue after an error. We may want to
+            // stop afterwards instead for safety sake (it's not really
+            // recoverable)
+            if !self.consume_next().await? {
+                return Ok(None);
             }
         }
         Ok(self.rows.pop_front())
@@ -251,11 +249,12 @@ mod tests {
             Err(GoogleAuthenticationFailed),
         ]));
         let _err = s.one_or_none().await.unwrap_err();
-        // XXX: https://github.com/mozilla-services/syncstorage-rs/issues/1384
+        // Note:resolves historic Sentry error. Uncomment dbg! for debugging only.
+        // See: https://github.com/mozilla-services/syncstorage-rs/issues/1384
         //dbg!(&err);
-        //assert!(matches!(
-        //    err.kind,
-        //    DbErrorKind::Grpc(GoogleAuthenticationFailed)
-        //));
+        assert!(matches!(
+            err.kind,
+            DbErrorKind::Grpc(GoogleAuthenticationFailed)
+        ));
     }
 }

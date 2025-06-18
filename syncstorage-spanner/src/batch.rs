@@ -319,7 +319,7 @@ pub async fn do_append_async(
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute_async(&db.conn)?;
-    while let Some(row) = existing_stream.next_async().await? {
+    while let Some(row) = existing_stream.try_next().await? {
         existing.insert(exist_idx(
             &collection_id.to_string(),
             &batch.id,
