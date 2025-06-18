@@ -68,15 +68,15 @@ where
     }
 
     pub async fn one_or_none(&mut self) -> DbResult<Option<Vec<Value>>> {
-        let result = self.next_async().await;
+        let result = self.next_async().await?;
         if result.is_none() {
             Ok(None)
-        } else if self.next_async().await.is_some() {
+        } else if self.next_async().await?.is_some() {
             Err(DbError::internal(
                 "Expected one result; got more.".to_owned(),
             ))
         } else {
-            result.transpose()
+            Ok(result)
         }
     }
 
@@ -144,19 +144,19 @@ where
     }
 
     // We could implement Stream::poll_next instead of this, but
-    // this is easier for now and we can refactor into the trait later
-    pub async fn next_async(&mut self) -> Option<DbResult<Vec<Value>>> {
+    // this is easier for now and we can refactor into the trait later.
+    pub async fn next_async(&mut self) -> DbResult<Option<Vec<Value>>> {
         while self.rows.is_empty() {
             match self.consume_next().await {
-                Ok(true) => (),
-                Ok(false) => return None,
+                Ok(true) => {}
+                Ok(false) => return Ok(None),
                 // Note: Iteration may continue after an error. We may want to
                 // stop afterwards instead for safety sake (it's not really
                 // recoverable)
-                Err(e) => return Some(Err(e)),
+                Err(e) => return Err(e),
             }
         }
-        Ok(self.rows.pop_front()).transpose()
+        Ok(self.rows.pop_front())
     }
 }
 
