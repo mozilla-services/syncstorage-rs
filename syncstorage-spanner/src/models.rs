@@ -1412,8 +1412,7 @@ impl SpannerDb {
 
         let mut ids = vec![];
         let mut modifieds = vec![];
-        while let Some(row) = stream.try_next().await? {
-            let mut row = row;
+        while let Some(mut row) = stream.try_next().await? {
             ids.push(row[0].take_string_value());
             modifieds.push(sync_timestamp_from_rfc3339(row[1].get_string_value())?.as_i64());
         }
@@ -1589,8 +1588,7 @@ impl SpannerDb {
             .param_types(sqlparam_types)
             .execute_async(&self.conn)?;
         let mut existing = HashSet::new();
-        while let Some(row) = streaming.try_next().await? {
-            let mut row = row;
+        while let Some(mut row) = streaming.try_next().await? {
             existing.insert(row[0].take_string_value());
         }
         let mut inserts = vec![];

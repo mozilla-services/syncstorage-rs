@@ -248,7 +248,7 @@ mod tests {
             Ok(simple_part()),
             Err(GoogleAuthenticationFailed),
         ]));
-        let _err = s.one_or_none().await.unwrap_err();
+        let err = s.one_or_none().await.unwrap_err();
         // Note:resolves historic Sentry error. Uncomment dbg! for debugging only.
         // See: https://github.com/mozilla-services/syncstorage-rs/issues/1384
         //dbg!(&err);
