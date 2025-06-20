@@ -156,6 +156,24 @@ commands:
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
 
+  run-spanner-tests:
+    steps:
+      - run:
+          name: cargo spanner build
+          command: cargo build --no-default-features --features=syncstorage-db/spanner
+      - run:
+          name: setup spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+          command: scripts/prepare-spanner.sh
+      - run:
+          name: cargo test spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner
+
   gcs-configure-and-upload:
     parameters:
       source:
@@ -247,6 +265,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_DATABASE: syncstorage
+      - image: gcr.io/cloud-spanner-emulator/emulator
     resource_class: large
     steps:
       - checkout
@@ -261,6 +280,7 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-unit-tests
+      - run-spanner-tests
       - merge-unit-test-coverage
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
       # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
