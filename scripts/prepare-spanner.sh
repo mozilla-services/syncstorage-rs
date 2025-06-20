@@ -27,7 +27,7 @@ INSTANCE_ID=test-instance
 DATABASE_ID=test-database
 
 DDL_STATEMENTS=$(
-  grep -v ^-- schema.ddl \
+  grep -v ^-- syncstorage-spanner/src/schema.ddl \
   | sed -n 's/ \+/ /gp' \
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
