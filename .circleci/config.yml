@@ -160,7 +160,7 @@ commands:
     steps:
       - run:
           name: cargo spanner build
-          command: cargo build --no-default-features --features=syncstorage-db/spanner
+          command: cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
       - run:
           name: Wait for Spanner Emulator
           command: |-
@@ -187,7 +187,7 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
-          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner
+          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
 
   gcs-configure-and-upload:
     parameters:
