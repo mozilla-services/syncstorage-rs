@@ -25,9 +25,21 @@ set -e
 PROJECT_ID=test-project
 INSTANCE_ID=test-instance
 DATABASE_ID=test-database
+DIR=$(pwd)
+
+if [ -f "schema.ddl" ]; then
+    echo "schema.ddl found in current directory: $DIR."
+    DDL_PATH="schema.ddl"
+elif [ -f "syncstorage-spanner/src/schema.ddl" ]; then
+    echo "schema.ddl found in syncstorage-spanner/src."
+    DDL_PATH="syncstorage-spanner/src/schema.ddl"
+else
+    echo "schema.ddl not found."
+    exit 1
+fi
 
 DDL_STATEMENTS=$(
-  grep -v ^-- schema.ddl \
+  grep -v ^-- $DDL_PATH \
   | sed -n 's/ \+/ /gp' \
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
@@ -45,3 +57,5 @@ curl -sS --request POST \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"
+
+sleep infinity
