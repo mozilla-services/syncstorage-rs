@@ -47,10 +47,8 @@ APP_LABEL = "tokenserver.scripts.process_account_events"
 
 
 def process_account_events(
-        queue_name,
-        aws_region=None,
-        queue_wait_time=20,
-        metrics=None):
+    queue_name, aws_region=None, queue_wait_time=20, metrics=None
+):
     """Process account events from an SQS queue.
 
     This function polls the specified SQS queue for account-realted events,
@@ -95,7 +93,7 @@ def process_account_event(database, body, metrics=None):
     generation = None
     try:
         body = json.loads(body)
-        event = json.loads(body['Message'])
+        event = json.loads(body["Message"])
         event_type = event["event"]
         uid = event["uid"]
         # Older versions of the fxa-auth-server would send an email-like
@@ -108,7 +106,10 @@ def process_account_event(database, body, metrics=None):
             if "@" not in uid:
                 raise ValueError("uid field does not contain issuer info")
             email = uid
-        if event_type in ("reset", "passwordChange",):
+        if event_type in (
+            "reset",
+            "passwordChange",
+        ):
             generation = event["generation"]
     except (ValueError, KeyError) as e:
         logger.exception("Invalid account message: %s", e)
@@ -123,11 +124,13 @@ def process_account_event(database, body, metrics=None):
             elif event_type == "reset":
                 logger.info("Processing account reset for %r", email)
                 update_generation_number(
-                    database, email, generation, metrics=metrics)
+                    database, email, generation, metrics=metrics
+                )
             elif event_type == "passwordChange":
                 logger.info("Processing password change for %r", email)
                 update_generation_number(
-                    database, email, generation, metrics=metrics)
+                    database, email, generation, metrics=metrics
+                )
             else:
                 record_metric = False
                 logger.warning("Dropping unknown event type %r", event_type)
@@ -171,14 +174,26 @@ def main(args=None):
     """
     usage = "usage: %prog [options] queue_name"
     parser = optparse.OptionParser(usage=usage)
-    parser.add_option("", "--aws-region",
-                      help="aws region in which the queue can be found")
-    parser.add_option("", "--queue-wait-time", type="int", default=20,
-                      help="Number of seconds to wait for jobs on the queue")
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
-    parser.add_option("", "--human_logs", action="store_true",
-                      help="Human readable logs")
+    parser.add_option(
+        "", "--aws-region", help="aws region in which the queue can be found"
+    )
+    parser.add_option(
+        "",
+        "--queue-wait-time",
+        type="int",
+        default=20,
+        help="Number of seconds to wait for jobs on the queue",
+    )
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
+    parser.add_option(
+        "", "--human_logs", action="store_true", help="Human readable logs"
+    )
     util.add_metric_options(parser)
 
     opts, args = parser.parse_args(args)
@@ -197,10 +212,8 @@ def main(args=None):
     queue_name = args[0]
 
     process_account_events(
-        queue_name,
-        opts.aws_region,
-        opts.queue_wait_time,
-        metrics=metrics)
+        queue_name, opts.aws_region, opts.queue_wait_time, metrics=metrics
+    )
     return 0
 
 

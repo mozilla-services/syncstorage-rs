@@ -1512,7 +1512,7 @@ class TestStorage(StorageFunctionalTestCase):
         # Try with several different pagination sizes,
         # to hit various boundary conditions.
         for limit in (2, 3, 4, 5, 6):
-            for (start, ts) in timestamps:
+            for start, ts in timestamps:
                 query_url = (
                     self.root + "/storage/xxx_col2?full=true&sort=oldest"
                 )
@@ -1559,7 +1559,7 @@ class TestStorage(StorageFunctionalTestCase):
         # Try with several different pagination sizes,
         # to hit various boundary conditions.
         for limit in (2, 3, 4, 5, 6):
-            for (start, ts) in timestamps:
+            for start, ts in timestamps:
                 query_url = (
                     self.root + "/storage/xxx_col2?full=true&sort=newest"
                 )
@@ -1746,7 +1746,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Records': str(limits['max_post_records'] + 1)
 #         }, status=400)
-#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 #
 #         bsos = [{'id': str(x), 'payload': ''}
 #                 for x in range(limits['max_post_records'])]
@@ -1754,7 +1754,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         self.assertFalse(res.json['failed'])
 #         bsos.append({'id': 'toomany', 'payload': ''})
 #         res = self.retry_post_json(endpoint, bsos)
-#         self.assertEqual(res.json['failed']['toomany'], 'retry bso')
+#         self.assertEquals(res.json['failed']['toomany'], 'retry bso')
 #
 #         # `max_total_records` is an (inclusive) limit on the
 #         # total number of items in a batch.  We can only enforce
@@ -1766,7 +1766,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Total-Records': str(limits['max_total_records'] + 1)
 #         }, status=400)
-#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 #
 #         # `max_post_bytes` is an (inclusive) limit on the
 #         # total size of payloads in a single post.
@@ -1777,7 +1777,7 @@ class TestStorage(StorageFunctionalTestCase):
 #         res = self.retry_post_json(endpoint, [], headers={
 #             'X-Weave-Bytes': str(limits['max_post_bytes'] + 1)
 #         }, status=400)
-#         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+#         self.assertEquals(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
         bsos = [
             {"id": "little", "payload": "XXX"},
             {"id": "big", "payload": "X" * (limits["max_post_bytes"] - 3)},
@@ -2232,9 +2232,7 @@ class TestStorage(StorageFunctionalTestCase):
             },
         )
 
-        self.assertEqual(
-            int(res.headers["access-control-max-age"]), 555
-        )
+        self.assertEqual(int(res.headers["access-control-max-age"]), 555)
         self.assertEqual(
             res.headers["access-control-allow-origin"], "localhost"
         )
@@ -2245,9 +2243,9 @@ class TestStorage(StorageFunctionalTestCase):
             headers={
                 "Access-Control-Request-Method": "GET",
                 "Origin": "http://test-website.com",
-                "Access-Control-Request-Headers": "Content-Type"
+                "Access-Control-Request-Headers": "Content-Type",
             },
-            status=200
+            status=200,
         )
 
     # PATCH is not a default allowed method, so request should return 405

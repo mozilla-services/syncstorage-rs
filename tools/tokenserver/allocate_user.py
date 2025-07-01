@@ -46,11 +46,18 @@ def main(args=None):
     to the allocate_user() function.
     """
     usage = "usage: %prog [options] email [node_name]"
-    descr = "Allocate a user to a node.  You may specify a particular node, "\
-            "or omit to use the best available node."
+    descr = (
+        "Allocate a user to a node.  You may specify a particular node, "
+        "or omit to use the best available node."
+    )
     parser = optparse.OptionParser(usage=usage, description=descr)
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
 
     opts, args = parser.parse_args(args)
     if not 1 <= len(args) <= 2:

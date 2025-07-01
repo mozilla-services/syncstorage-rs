@@ -1,8 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-""" Base test class, with an instanciated app.
-"""
+"""Base test class, with an instanciated app."""
 
 import contextlib
 import functools
@@ -24,6 +23,7 @@ import sys
 import time
 import tokenlib
 import urllib.parse as urlparse
+
 # unittest imported by pytest requirement
 import unittest
 import uuid

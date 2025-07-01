@@ -26,7 +26,7 @@ RUN \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
+RUN cargo chef cook --release --no-default-features --features=$DATABASE_BACKEND,py_verifier --recipe-path recipe.json
 
 FROM chef AS builder
 ARG DATABASE_BACKEND

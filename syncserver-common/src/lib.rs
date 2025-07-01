@@ -38,7 +38,7 @@ pub fn hkdf_expand_32(info: &[u8], salt: Option<&[u8]>, key: &[u8]) -> Result<[u
     let mut result = [0u8; 32];
     let hkdf = Hkdf::<Sha256>::new(salt, key);
     hkdf.expand(info, &mut result)
-        .map_err(|e| format!("HKDF Error: {:?}", e))?;
+        .map_err(|e| format!("HKDF Error: {e:?}"))?;
     Ok(result)
 }
 
