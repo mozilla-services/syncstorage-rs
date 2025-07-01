@@ -160,34 +160,34 @@ commands:
     steps:
       - run:
           name: cargo spanner build
-          command: cargo build --no-default-features --features=syncstorage-db/spanner
+          command: cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
       - run:
           name: Wait for Spanner Emulator
           command: |-
             for i in {1..10}; do
-              if nc -z 127.0.0.1 9010; then
-                echo "Spanner emulator running on port 9010."
+              if nc -z 127.0.0.1 9020; then
+                echo "Spanner emulator running on port 9020."
                 break
               fi
               echo "Waiting for Spanner emulator..."
               sleep 2
             done
-            if ! nc -z 127.0.0.1 9010; then
-              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9010. Terminating."
+            if ! nc -z 127.0.0.1 9020; then
+              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
               exit 1
             fi
       - run:
           name: setup spanner
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
           command: scripts/prepare-spanner.sh
       - run:
           name: cargo test spanner
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
-          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
 
   gcs-configure-and-upload:
     parameters:

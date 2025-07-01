@@ -27,7 +27,7 @@ INSTANCE_ID=test-instance
 DATABASE_ID=test-database
 
 DDL_STATEMENTS=$(
-  grep -v ^-- syncstorage-spanner/src/schema.ddl \
+  grep -v ^-- schema.ddl \
   | sed -n 's/ \+/ /gp' \
   | tr -d '\n' \
   | sed 's/\(.*\);/\1/' \
@@ -45,5 +45,3 @@ curl -sS --request POST \
   --header 'Accept: application/json' \
   --header 'Content-Type: application/json' \
   --data "{\"createStatement\":\"CREATE DATABASE \`$DATABASE_ID\`\",\"extraStatements\":$DDL_STATEMENTS}"
-
-sleep infinity
