@@ -176,10 +176,7 @@ impl VerifyToken for Verifier {
         // than the specified number of seconds.
         time::timeout(Duration::from_secs(self.timeout), fut)
             .await
-            .map_err(|_| TokenserverError {
-                context: "OAuth verification timeout".to_owned(),
-                ..TokenserverError::resource_unavailable()
-            })?
+            .map_err(|_| TokenserverError::oauth_timeout())?
     }
 }
 

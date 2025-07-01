@@ -1,27 +1,23 @@
 version: "3"
 services:
-  sync-db:
-  sync-db-setup:
-  tokenserver-db:
-  syncserver:
-    depends_on:
-      - sync-db-setup
-    # TODO: either syncserver should retry the db connection
-    # itself a few times or should include a wait-for-it.sh script
-    # inside its docker that would do this for us.
-    entrypoint: >
-      /bin/sh -c "
-        sleep 15;
-        /app/bin/syncserver;
-      "
   spanner-e2e-tests:
+    container_name: spanner-e2e-tests
     depends_on:
-      - mock-fxa-server
-      - syncserver
+      mock-fxa-server:
+        condition: service_started
+      syncserver:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
     image: app:build
     privileged: true
     user: root
     environment:
+      # Some tests can run without the `FXA_OAUTH...` vars.
+      # Setting this to false will delete any of those keys before starting
+      # the syncserver and startging the test. This can be set/passed
+      # in from CircleCI when calling `docker-compose -f docker-compose.e2e.spanner.yaml`
+      JWK_CACHE_DISABLED: false
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
@@ -44,5 +40,9 @@ services:
       TOKENSERVER_HOST: http://localhost:8000
     entrypoint: >
       /bin/sh -c "
-        sleep 28; python3 /app/tools/integration_tests/run.py 'http://localhost:8000#secret0'
+        exit_code=0;
+        pytest /app/tools/integration_tests/ --junit-xml=/spanner_integration_results.xml || exit_code=$$?;
+        export JWK_CACHE_DISABLED=true;
+        pytest /app/tools/integration_tests/ --junit-xml=/spanner_no_jwk_integration_results.xml || exit_code=$$?;
+        exit $$exit_code;
       "

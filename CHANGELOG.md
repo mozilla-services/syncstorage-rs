@@ -1,3 +1,47 @@
+<a name="0.18.3"></a>
+## 0.18.3 (2025-05-14)
+
+
+#### Chore
+
+*   bump to latest rust ([0148e04d](https://github.com/mozilla-services/syncstorage-rs/commit/0148e04dd2881869ffe52b6ebb93be6929f31a25))
+*   update python cryptography (#1690) ([e93bb882](https://github.com/mozilla-services/syncstorage-rs/commit/e93bb8821ccdf94e34c184f51ad86f0388333f3d))
+*   added build-and-push to GAR (#1654) ([cb37e2aa](https://github.com/mozilla-services/syncstorage-rs/commit/cb37e2aa4134d5e8e0c11178e267d3e7565da05d))
+*   upload test artifacts to gcs ([aeedcf1e](https://github.com/mozilla-services/syncstorage-rs/commit/aeedcf1e19e622b4f0d0e9c813ba4da3c712f125))
+*   switch back to libmariadb-dev (#1665) ([e0093a88](https://github.com/mozilla-services/syncstorage-rs/commit/e0093a88bfc059a891c1a5d3f74cef068b720861))
+*   migrate tokenserver tests to pytest with junit output ([15840c5e](https://github.com/mozilla-services/syncstorage-rs/commit/15840c5ecfd1e6fbcd239bed0f50cf3537631775))
+*   migrate unit tests to nextest and llvm-cov ([8c56cae8](https://github.com/mozilla-services/syncstorage-rs/commit/8c56cae8905325345972a4abe99c12c1fc1b012c))
+
+#### Features
+
+*   build docker w/ Oracle's libmysqlclient (#1695) ([569e5100](https://github.com/mozilla-services/syncstorage-rs/commit/569e5100839245cd5869bb12b655b7fe571fbbcf))
+*   emit oauth verification timeouts as metrics (not sentry) (#1694) ([624eced1](https://github.com/mozilla-services/syncstorage-rs/commit/624eced1e9cad6492a38397c9440b558d263cca0))
+
+#### Bug Fixes
+
+*   re-enable tokensever e2e tests ([d0336c88](https://github.com/mozilla-services/syncstorage-rs/commit/d0336c8869e52a48e49fed989b5ac9573a3b1e55))
+*   avoid underflow of the queued_tasks metric ([10daab06](https://github.com/mozilla-services/syncstorage-rs/commit/10daab06cf35cf5696aa6ed6b790d8115bfeb432))
+*   Revert "fix: avoid underflow of the queued_tasks metric (#1628)" ([31dda136](https://github.com/mozilla-services/syncstorage-rs/commit/31dda136809879b8e7f91f095bc378bb41b9f304))
+*   resolve pyo3 vuln deprecations (#1682) ([0675930a](https://github.com/mozilla-services/syncstorage-rs/commit/0675930a155d27bbf2eca2c0abf81d262a9cfb28))
+* **infra:**  configure gcp utils before upload (#1698) ([5dcfefe2](https://github.com/mozilla-services/syncstorage-rs/commit/5dcfefe2b6a8946f02c7bfac2fd641b0a6a3356b))
+
+#### Test
+
+* **e2e:**  run integration and e2e tests with pytest (#1697) ([6f15ad54](https://github.com/mozilla-services/syncstorage-rs/commit/6f15ad546d3c5234986db09fec485fb911624e5f))
+
+#### Doc
+
+*   add tokenserver documentation to sync (#1681) ([dadbcea3](https://github.com/mozilla-services/syncstorage-rs/commit/dadbcea3f7428ad7f0a5ae6f0c2ad966c331660a))
+*   update purge script's status now that it's running (#1679) ([6f0c7b28](https://github.com/mozilla-services/syncstorage-rs/commit/6f0c7b28db3f8a2701c4af4dfe7a2d691fc079ef))
+*   document pruning scripts (#1645) ([7c9bc008](https://github.com/mozilla-services/syncstorage-rs/commit/7c9bc0089dd73a9ecaba8b33e26634b2a69b5ff0))
+
+#### Refactor
+
+*   kill tokenserver's TokenType now that it's solely oauth ([a26ff490](https://github.com/mozilla-services/syncstorage-rs/commit/a26ff490b8086ce3c12b837ca00cc757caa54169))
+*   simplify metric_label to return a &str ([0ca435fb](https://github.com/mozilla-services/syncstorage-rs/commit/0ca435fb1a05f073d1e78ed420d953a00c8d0d53))
+
+
+
 <a name="0.18.2"></a>
 ## 0.18.2 (2024-12-05)
 

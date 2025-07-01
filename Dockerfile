@@ -3,7 +3,8 @@ ARG DATABASE_BACKEND=spanner
 ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
-FROM docker.io/lukemathwalker/cargo-chef:0.1.67-rust-1.81-bullseye AS chef
+# RUST_VER
+FROM docker.io/lukemathwalker/cargo-chef:0.1.71-rust-1.86-bullseye AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -55,8 +56,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=$DATABASE_BACKEND,py_verifier --locked --root /app && \
-    if [ "$DATABASE_BACKEND" = "spanner" ] ; then cargo install --path ./syncstorage-spanner --locked --root /app --bin purge_ttl ; fi
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
 
 FROM docker.io/library/debian:bullseye-slim
 ARG MYSQLCLIENT_PKG

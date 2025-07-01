@@ -1557,7 +1557,7 @@ impl FromRequest for PreConditionHeaderOpt {
     /// Extract and validate the precondition headers
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
-        Box::pin(async move { Self::extrude(req.headers()).map_err(Into::into) })
+        Box::pin(async move { Self::extrude(req.headers()) })
     }
 }
 

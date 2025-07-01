@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 chrono.workspace = true
 serde.workspace = true
-serde_derive.workspace = true
 serde_json.workspace = true
 uuid.workspace = true
 

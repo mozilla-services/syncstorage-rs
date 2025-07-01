@@ -12,6 +12,7 @@ mod manager;
 mod metadata;
 mod models;
 mod pool;
+mod stream;
 mod support;
 
 pub use error::DbError;

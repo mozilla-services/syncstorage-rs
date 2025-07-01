@@ -37,7 +37,7 @@ pub fn reject_user_agent<B>(
           + 'static),
 ) -> LocalBoxFuture<'static, Result<ServiceResponse<EitherBody<B>>, actix_web::Error>> {
     match request.headers().get(USER_AGENT).cloned() {
-        Some(header) if header.to_str().map_or(false, should_reject) => Box::pin(async move {
+        Some(header) if header.to_str().is_ok_and(should_reject) => Box::pin(async move {
             trace!("Rejecting User-Agent: {:?}", header);
             let (req, payload) = request.into_parts();
             MetricsWrapper::extract(&req)

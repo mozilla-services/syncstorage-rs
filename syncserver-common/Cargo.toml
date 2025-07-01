@@ -14,7 +14,6 @@ futures-util.workspace = true
 sha2.workspace = true
 sentry.workspace = true
 sentry-backtrace.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 slog.workspace = true
 slog-scope.workspace = true

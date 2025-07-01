@@ -6,10 +6,8 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-cadence.workspace = true
 env_logger.workspace = true
 futures.workspace = true
-hostname.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
 slog-scope.workspace = true

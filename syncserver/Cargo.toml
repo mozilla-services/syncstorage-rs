@@ -22,7 +22,6 @@ rand.workspace = true
 regex.workspace = true
 sentry.workspace = true
 serde.workspace = true
-serde_derive.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 slog.workspace = true
@@ -38,8 +37,6 @@ thiserror.workspace = true
 actix-http = "3"
 actix-rt = "2"
 actix-cors = "0.7"
-async-trait = "0.1.40"
-dyn-clone = "1.0.4"
 glean = { path = "../glean" }
 hawk = "5.0"
 mime = "0.3"

@@ -11,7 +11,7 @@ use thiserror::Error;
 /// from the database backend.
 #[derive(Debug)]
 pub struct DbError {
-    kind: DbErrorKind,
+    pub(crate) kind: DbErrorKind,
     pub status: StatusCode,
     pub backtrace: Box<Backtrace>,
 }
@@ -55,7 +55,7 @@ impl DbError {
 }
 
 #[derive(Debug, Error)]
-enum DbErrorKind {
+pub(crate) enum DbErrorKind {
     #[error("{}", _0)]
     Common(SyncstorageDbError),
 

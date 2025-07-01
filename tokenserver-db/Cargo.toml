@@ -10,8 +10,6 @@ backtrace.workspace = true
 futures.workspace = true
 http.workspace = true
 serde.workspace = true
-serde_derive.workspace = true
-serde_json.workspace = true
 slog-scope.workspace = true
 thiserror.workspace = true
 
