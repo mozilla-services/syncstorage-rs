@@ -7,7 +7,7 @@ authors = [
 ]
 readme = "README.md"
 # Odd <4.0 designation required for backoff dependency.
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.9.2,<4.0"
 license = "Mozilla Public License Version 2.0"
 
 [tool.poetry]
