@@ -54,13 +54,14 @@ RUN \
         echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list ; \
     fi && \
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel && \
+    apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 ADD ./poetry.lock /app
 ADD ./pyproject.toml /app
+RUN python3 --version
 RUN poetry install --without dev
 
 
@@ -93,7 +94,7 @@ RUN \
     fi && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
-    apt-get -q install -y build-essential $MYSQLCLIENT_PKG libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq && \
+    apt-get -q install -y build-essential $MYSQLCLIENT_PKG libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq pkg-config && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
@@ -115,6 +116,7 @@ COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 WORKDIR /app/tools/integration_tests/
+RUN python3 --version
 RUN poetry install --without dev --no-root
 WORKDIR /app/tools/tokenserver/
 RUN poetry install --without dev --no-root
