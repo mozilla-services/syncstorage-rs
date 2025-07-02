@@ -43,7 +43,8 @@ commands:
             pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
             # NOTE: Python3.12 requires `--break-system-packages`.
             # This command is run on the cimg/rust image, which is running python 3.10
-            poetry install
+            # pip3 install -r requirements.txt
+            poetry install --without dev --with tokenserver-unit-tests --no-interaction --no-ansi
   rust-check:
     steps:
       - run:

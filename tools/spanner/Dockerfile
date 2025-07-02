@@ -18,7 +18,8 @@ WORKDIR /app/
 COPY purge_ttl.py count_expired_rows.py count_users.py poetry.lock pyproject.toml /app/
 RUN python3 --version
 
-RUN poetry install --without dev --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false && \
+    poetry install --without dev --no-interaction --no-ansi
 
 USER nobody
 
