@@ -29,7 +29,7 @@ rust-version = "1.86"
 license = "MPL-2.0"
 
 [workspace.dependencies]
-actix-web = "4"
+actix-web = { version = "4", default-features = false, features = ["compat", "http2", "macros"] }
 
 docopt = "1.1"
 base64 = "0.22"
