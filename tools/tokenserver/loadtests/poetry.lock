@@ -571,28 +571,11 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "flask-cors"
-version = "5.0.0"
-description = "A Flask extension adding a decorator for CORS support"
-optional = false
-python-versions = "*"
-groups = ["main"]
-markers = "python_version > \"3.11\""
-files = [
-    {file = "Flask_Cors-5.0.0-py2.py3-none-any.whl", hash = "sha256:b9e307d082a9261c100d8fb0ba909eec6a228ed1b60a8315fd85f783d61910bc"},
-    {file = "flask_cors-5.0.0.tar.gz", hash = "sha256:5aadb4b950c4e93745034594d9f3ea6591f734bb3662e16e255ffbf5e89c88ef"},
-]
-
-[package.dependencies]
-Flask = ">=0.9"
-
-[[package]]
-name = "flask-cors"
 version = "6.0.1"
 description = "A Flask extension simplifying CORS support"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
-markers = "python_version <= \"3.11\""
 files = [
     {file = "flask_cors-6.0.1-py3-none-any.whl", hash = "sha256:c7b2cbfb1a31aa0d2e5341eea03a6805349f7a61647daee1a15c46bbe981494c"},
     {file = "flask_cors-6.0.1.tar.gz", hash = "sha256:d81bcb31f07b0985be7f48406247e9243aced229b7747219160a0559edd678db"},
@@ -792,7 +775,7 @@ description = "Lightweight in-process concurrent programming"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "python_version < \"3.14\" and (platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\") or platform_python_implementation == \"CPython\""
+markers = "platform_machine == \"aarch64\" or platform_machine == \"ppc64le\" or platform_machine == \"x86_64\" or platform_machine == \"amd64\" or platform_machine == \"AMD64\" or platform_machine == \"win32\" or platform_machine == \"WIN32\" or platform_python_implementation == \"CPython\""
 files = [
     {file = "greenlet-3.2.3-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:1afd685acd5597349ee6d7a88a8bec83ce13c106ac78c196ee9dde7c04fe87be"},
     {file = "greenlet-3.2.3-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:761917cac215c61e9dc7324b2606107b3b292a8349bdebb31503ab4de3f559ac"},
@@ -951,10 +934,7 @@ msgpack = ">=1.0.0"
 psutil = ">=5.9.1"
 pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
 pyzmq = ">=25.0.0"
-requests = [
-    {version = ">=2.26.0", markers = "python_version <= \"3.11\""},
-    {version = ">=2.32.2", markers = "python_version > \"3.11\""},
-]
+requests = {version = ">=2.26.0", markers = "python_version <= \"3.11\""}
 setuptools = ">=70.0.0"
 tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
 typing-extensions = {version = ">=4.6.0", markers = "python_version < \"3.11\""}
@@ -2040,5 +2020,5 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.10"
-content-hash = "bc4054bc788f7ca33c666e84ccfddcfaac7c66f96ffe4438a50230f661111dca"
+python-versions = ">=3.10,<3.12"
+content-hash = "6cafe8ea8ebe31ec6818a6c63d8b5670972019caf2972a39d602b90b38dad835"

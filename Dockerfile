@@ -61,6 +61,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app
 ADD ./poetry.lock /app
 ADD ./pyproject.toml /app
+RUN python3 --version
 RUN poetry install --without dev
 
 
@@ -115,6 +116,7 @@ COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
 WORKDIR /app/tools/integration_tests/
+RUN python3 --version
 RUN poetry install --without dev --no-root
 WORKDIR /app/tools/tokenserver/
 RUN poetry install --without dev --no-root

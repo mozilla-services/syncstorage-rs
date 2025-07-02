@@ -16,6 +16,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 WORKDIR /app/
 
 COPY purge_ttl.py count_expired_rows.py count_users.py poetry.lock pyproject.toml /app/
+RUN python3 --version
 
 RUN poetry install --without dev --no-interaction --no-ansi
 
