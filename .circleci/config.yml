@@ -181,7 +181,7 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
-          command: scripts/prepare-spanner-unit-tests.sh
+          command: scripts/prepare-spanner.sh
       - run:
           name: cargo test spanner
           environment:
