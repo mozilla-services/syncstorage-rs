@@ -2,16 +2,60 @@
 
 This directory contains everything needed to run the suite of load tests for Tokenserver.
 
+## Prerequisite Dependency and Environment Setup:
+To use the syncstorage-rs tokenserver load tests, you'll need a Python =>3.12 development environment with `Poetry` installed. This testing script can be run within a spun up GCP workflow where you can execute the locust commands from the UI. If you're running them ad-hoc, you'll need to follow these instructions. You can also directly call the script using `Poetry` as described in step 5.
+
+The easiest solution recommended to use `pyenv` and the `pyenv-virtualenv` plugin for your virtual environments
+as a way to isolate the dependencies from other directories.
+1. Install `pyenv` using the [latest documentation](https://github.com/pyenv/pyenv#installation) for your platform.
+2. Follow the instructions to install the `pyenv-virtualenv` plugin.
+See the [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv) documentation.
+3. Ensure you've added `pyenv` and `pyenv-virtualenv` to your PATH.
+
+    Ex:
+    ```shell
+    export PATH="$HOME/.pyenv/bin:$PATH"
+    eval "$(pyenv init -)"
+    eval "$(pyenv virtualenv-init -)"
+    ```
+4. Install version, create virtualenv, activate and install dependencies from inside the `loadtests/` directory.
+**Note** you can simply install dependencies, not create a virtual environment and invoke the script using `poetry run`.
+
+    ```shell
+    $ cd syncstorage-rs/tools/tokenserver/loadtests
+    # pyenv version install
+    $ pyenv install 3.10
+
+    # creates named, associated virtualenv
+    $ pyenv virtualenv 3.10 loadtests # or whatever project name you like.
+    $ pyenv local loadtests # activates virtual env whenever you enter this directory. 
+
+    # Install dependencies
+    $ pip install poetry
+    $ poetry install
+    ```
+
+5. In general, to run the script with the Poetry managed dependencies - once you're already in your virtual env - run the following (more details in #3):
+Ex. `poetry run python locustfile.py`
+
+
 ## Building and Running
 
-1. Install the load testing dependencies:
+1. Install the load testing dependencies as described above:
 
    ```sh
-   pip3 install -r requirements.txt
+   poetry install
    ```
 
-1. Run the `generate-keys.sh` script to generate an RSA keypair and derive the public JWK:
+2. Run the `generate-keys.sh` script to generate an RSA keypair and derive the public JWK.
+   Since this script calls `get_jwk.py` and it has a dependency on `autlib`, call the shell script using Poetry:
 
+      ```sh
+   poetry run ./generate-keys.sh 
+   ```
+
+   Otherwise, if in built virtual environment with installed Poetry dependencies:
+   
    ```sh
    ./generate-keys.sh
    ```
@@ -29,7 +73,7 @@ This directory contains everything needed to run the suite of load tests for Tok
      }
      ```
 
-1. Set the following environment variables/settings on Tokenserver:
+3. Set the following environment variables/settings on Tokenserver:
 
    ```sh
    # Should be set to the "n" component of the JWK
@@ -45,7 +89,7 @@ This directory contains everything needed to run the suite of load tests for Tok
    SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK_FXA_CREATED_AT=0
    ```
 
-1. Configure Tokenserver to verify BrowserID assertions through FxA stage. This is done by setting the following environment variables:
+4. Configure Tokenserver to verify BrowserID assertions through FxA stage. This is done by setting the following environment variables:
 
    ```sh
    # The exact value of this environment variable is not important as long as it matches the `BROWSERID_AUDIENCE` environment variable set on the machine running the load tests, as described below
@@ -57,29 +101,34 @@ This directory contains everything needed to run the suite of load tests for Tok
 
    Note that, because we have cached the JWK used to verify OAuth tokens, no verification requests will be made to FxA, so the value of `SYNC_TOKENSERVER__FXA_OAUTH_VERIFIER_URL` does not matter; however, Tokenserver expects it to be set, so setting it to something like `http://localhost` will suffice.
 
-1. Set the following environment variables on the machine that will be running the load tests:
+5. Set the following environment variables on the machine that will be running the load tests:
 
    - `OAUTH_PEM_FILE` should be set to the location of the private RSA key generated in a previous step
    - `BROWSERID_AUDIENCE` should be set to match the `SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE` environment variable on Tokenserver
 
-1. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
+6. Tokenserver uses [locust](https://locust.io/) for load testing. To run the load tests, simply run the following command in this directory:
 
    ```sh
    locust
    ```
 
-1. Navigate your browser to <http://localhost:8090>, where you'll find the locust GUI. Enter the following information:
+7. Navigate your browser to <http://localhost:8090>, where you'll find the locust GUI. Enter the following information:
 
    - Number of users: The peak number of Tokenserver users to be used during the load tests
    - Spawn rate: The rate at which new users are spawned
    - Host: The URL of the server to be load tested. Note that this URL must include the protocol (e.g. "http://")
 
-1. Click the "Start swarming" button to begin the load tests.
+8. Click the "Start swarming" button to begin the load tests.
 
 ## Populating the Database
 
 This directory includes an optional `populate_db.py` script that can be used to add test users to the database en masse. The script can be run like so:
 
+```sh
+poetry run python populate_db.py <sqlurl> <nodes> <number of users>
+```
+
+Or if in built virtualenv:
 ```sh
 python3 populate_db.py <sqlurl> <nodes> <number of users>
 ```
