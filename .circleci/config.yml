@@ -160,7 +160,7 @@ commands:
     steps:
       - run:
           name: cargo spanner build
-          command: cargo build --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+          command: cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
       - run:
           name: Wait for Spanner Emulator
           command: |-
