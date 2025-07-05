@@ -25,7 +25,6 @@ use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
     batch,
-    diesel_ext::LockInShareModeDsl,
     error::DbError,
     pool::CollectionCache,
     schema::{bso, collections, user_collections},
@@ -178,7 +177,7 @@ impl MysqlDb {
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
-            .lock_in_share_mode()
+            .for_share()
             .first(&self.conn)
             .optional()?;
         if let Some(modified) = modified {
