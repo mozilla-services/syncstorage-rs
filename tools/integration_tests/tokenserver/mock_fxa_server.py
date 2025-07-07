@@ -43,3 +43,4 @@ if __name__ == '__main__':
     with make_server(host, int(port)) as httpd:
         print("Running mock FxA server on %s:%s" % (host, port))
         httpd.serve_forever()
+
