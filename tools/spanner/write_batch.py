@@ -181,24 +181,26 @@ def from_env():
         url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
         if not url:
             raise Exception("no url")
-        purl = parse.urlparse(url)
-        if purl.scheme == "spanner":
-            path = purl.path.split("/")
+        parsed_url = parse.urlparse(url)
+        if parsed_url.scheme == "spanner":
+            path = parsed_url.path.split("/")
             instance_id = path[-3]
+            project_id = path[-5]
             database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
         print("Exception {}".format(e))
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
-    return (instance_id, database_id)
+        project_id = os.environ.get("PROJECT_ID", "test-project")
+    return (instance_id, database_id, project_id)
 
 
 def loader():
     # Prefix uaids for easy filtering later
     # Each loader thread gets it's own fake user to prevent some hotspot
     # issues.
-    (instance_id, database_id) = from_env()
+    (instance_id, database_id, project_id) = from_env()
     # switching uid/kid to per load because of weird google trimming
     name = threading.current_thread().getName()
     load(instance_id, database_id, COLL_ID, name)
