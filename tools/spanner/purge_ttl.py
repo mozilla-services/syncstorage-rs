@@ -185,7 +185,7 @@ def get_args():
     parser.add_argument(
         "-p",
         "--project_id",
-        default=os.environ.get("PROJECT_ID", "spanner-test"),
+        default=os.environ.get("GOOGLE_CLOUD_PROJECT", "spanner-test"),
         help="Spanner Project ID"
     )
     parser.add_argument(
