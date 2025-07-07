@@ -32,10 +32,11 @@ def use_dsn(args):
         if not args.sync_database_url:
             raise Exception("no url")
         url = args.sync_database_url
-        purl = parse.urlparse(url)
-        if purl.scheme == "spanner":
-            path = purl.path.split("/")
+        parsed_url = parse.urlparse(url)
+        if parsed_url.scheme == "spanner":
+            path = parsed_url.path.split("/")
             args.instance_id = path[-3]
+            args.project_id = path[-5]
             args.database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
@@ -172,6 +173,12 @@ def get_args():
         "--database_id",
         default=os.environ.get("DATABASE_ID", "sync_schema3"),
         help="Spanner Database ID"
+    )
+    parser.add_argument(
+        "-p",
+        "--project_id",
+        default=os.environ.get("PROJECT_ID", "spanner-test"),
+        help="Spanner Project ID"
     )
     parser.add_argument(
         "-u",
