@@ -79,12 +79,12 @@ PAYLOAD = ''.join(
 def load(instance, db, coll_id, name):
     fxa_uid = "DEADBEEF" + uuid.uuid4().hex[8:]
     fxa_kid = "{:013d}-{}".format(22, fxa_uid)
-    print("{} -> Loading {} {}".format(name, fxa_uid, fxa_kid))
+    print(f"{name} -> Loading {fxa_uid} {fxa_kid}")
     name = threading.current_thread().getName()
     spanner_client = spanner.Client()
     instance = spanner_client.instance(instance)
     db = instance.database(db)
-    print('{name} Db: {db}'.format(name=name, db=db))
+    print(f"{name} Db: {db}")
     start = datetime.now()
 
     def create_user(txn):
@@ -110,16 +110,14 @@ def load(instance, db, coll_id, name):
 
     try:
         db.run_in_transaction(create_user)
-        print('{name} Created user (fxa_uid: {uid}, fxa_kid: {kid})'.format(
-            name=name, uid=fxa_uid, kid=fxa_kid))
+        print(f"{name} Created user (fxa_uid: {fxa_uid}, fxa_kid: {fxa_kid})")
     except AlreadyExists:
-        print('{name} Existing user (fxa_uid: {uid}}, fxa_kid: {kid}})'.format(
-              name=name, uid=fxa_uid, kid=fxa_kid))
+        print(f"{name} Existing user (fxa_uid: {fxa_uid}, fxa_kid: {fxa_kid})")
 
     # approximately 1892 bytes
     rlen = 0
 
-    print('{name} Loading..'.format(name=name))
+    print(f"{name} Loading..")
     for j in range(BATCHES):
         records = []
         for i in range(BATCH_SIZE):
@@ -177,6 +175,16 @@ def load(instance, db, coll_id, name):
 
 
 def from_env():
+    """
+    Function that extracts the instance, project, and database ids from the DSN url.
+    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
+    The defined defaults are in webservices-infra/sync and can be configured there for
+    production runs. 
+
+    For reference, an example spanner url passed in is in the following format:
+    `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
+    database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
+    """
     try:
         url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
         if not url:
@@ -189,7 +197,7 @@ def from_env():
             database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
-        print("Exception {}".format(e))
+        print(f"Exception {e}")
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
         project_id = os.environ.get("PROJECT_ID", "test-project")
@@ -208,9 +216,9 @@ def loader():
 
 def main():
     for c in range(THREAD_COUNT):
-        print("Starting thread {}".format(c))
+        print(f"Starting thread {c}")
         t = threading.Thread(
-            name="loader_{}".format(c),
+            name=f"loader_{c}",
             target=loader)
         t.start()
 
