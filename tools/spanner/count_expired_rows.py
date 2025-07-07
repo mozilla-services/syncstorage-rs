@@ -29,25 +29,27 @@ def from_env():
         url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
         if not url:
             raise Exception("no url")
-        purl = parse.urlparse(url)
-        if purl.scheme == "spanner":
-            path = purl.path.split("/")
+        parsed_url = parse.urlparse(url)
+        if parsed_url.scheme == "spanner":
+            path = parsed_url.path.split("/")
             instance_id = path[-3]
+            project_id = path[-5]
             database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
         print("Exception {}".format(e))
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
-    return (instance_id, database_id)
+        project_id = os.environ.get("PROJECT_ID", "sync_stage")
+    return (instance_id, database_id, project_id)
 
 
 def spanner_read_data(query, table):
-    (instance_id, database_id) = from_env()
+    (instance_id, database_id, project_id) = from_env()
     instance = client.instance(instance_id)
     database = instance.database(database_id)
 
-    logging.info("For {}:{}".format(instance_id, database_id))
+    logging.info("For {}:{} {}".format(instance_id, database_id, project_id))
 
     # Count bsos expired rows
     with statsd.timer(f"syncstorage.count_expired_{table}_rows.duration"):
