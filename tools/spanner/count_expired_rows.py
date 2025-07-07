@@ -25,6 +25,16 @@ client = spanner.Client()
 
 
 def from_env():
+    """
+    Function that extracts the instance, project, and database ids from the DSN url.
+    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
+    The defined defaults are in webservices-infra/sync and can be configured there for
+    production runs. 
+
+    For reference, an example spanner url passed in is in the following format:
+    `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
+    database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
+    """
     try:
         url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
         if not url:
@@ -37,7 +47,7 @@ def from_env():
             database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
-        print("Exception {}".format(e))
+        print(f"Exception {e}")
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
         project_id = os.environ.get("PROJECT_ID", "test-project")
@@ -49,7 +59,7 @@ def spanner_read_data(query, table):
     instance = client.instance(instance_id)
     database = instance.database(database_id)
 
-    logging.info("For {}:{} {}".format(instance_id, database_id, project_id))
+    logging.info(f"For {instance_id}:{database_id} {project_id}")
 
     # Count bsos expired rows
     with statsd.timer(f"syncstorage.count_expired_{table}_rows.duration"):

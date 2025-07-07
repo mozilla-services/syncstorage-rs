@@ -28,6 +28,16 @@ client = spanner.Client()
 
 
 def use_dsn(args):
+    """
+    Function that extracts the instance, project, and database ids from the DSN url.
+    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
+    The defined defaults are in webservices-infra/sync and can be configured there for
+    production runs. 
+
+    For reference, an example spanner url passed in is in the following format:
+    `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
+    database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
+    """
     try:
         if not args.sync_database_url:
             raise Exception("no url")
@@ -40,7 +50,7 @@ def use_dsn(args):
             args.database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
-        print("Exception {}".format(e))
+        print(f"Exception {e}")
     return args
 
 
@@ -51,17 +61,15 @@ def deleter(database: Database,
         params: Optional[dict]=None,
         param_types: Optional[dict]=None,
         dryrun: Optional[bool]=False):
-    with statsd.timer("syncstorage.purge_ttl.{}_duration".format(name)):
-        logging.info("Running: {} :: {}".format(query, params))
+    with statsd.timer(f"syncstorage.purge_ttl.{name}_duration"):
+        logging.info(f"Running: {query} :: {params}")
         start = datetime.now()
         result = 0
         if not dryrun:
             result = database.execute_partitioned_dml(query, params=params, param_types=param_types)
         end = datetime.now()
         logging.info(
-            "{name}: removed {result} rows, {name}_duration: {time}, prefix: {prefix}".format(
-                name=name, result=result, time=end - start, prefix=prefix))
-
+            f"{name}: removed {result} rows, {name}_duration: {end - start}, prefix: {prefix}")
 
 def add_conditions(args, query: str, prefix: Optional[str]):
     """
@@ -83,7 +91,7 @@ def add_conditions(args, query: str, prefix: Optional[str]):
                 types['collection_id'] = param_types.INT64
             else:
                 for count,id in enumerate(ids):
-                    name = 'collection_id_{}'.format(count)
+                    name = f'collection_id_{count}'
                     params[name] = id
                     types[name] = param_types.INT64
                 query += " in (@{})".format(
@@ -106,7 +114,7 @@ def get_expiry_condition(args):
     elif args.expiry_mode == "midnight":
         return 'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
     else:
-        raise Exception("Invalid expiry mode: {}".format(args.expiry_mode))
+        raise Exception(f"Invalid expiry mode: {args.expiry_mode}")
 
 
 def spanner_purge(args):
@@ -120,14 +128,14 @@ def spanner_purge(args):
     prefixes = args.uid_prefixes if args.uid_prefixes else [None]
 
     for prefix in prefixes:
-        logging.info("For {}:{}, prefix = {}".format(args.instance_id, args.database_id, prefix))
+        logging.info(f"For {args.instance_id}:{args.database_id}, prefix = {prefix}")
 
         if args.mode in ["batches", "both"]:
             # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
             # IN PARENT batches ON DELETE CASCADE)
             (batch_query, params, types) = add_conditions(
                 args,
-                'DELETE FROM batches WHERE {}'.format(expiry_condition),
+                f'DELETE FROM batches WHERE {expiry_condition}',
                 prefix,
             )
             deleter(
@@ -144,7 +152,7 @@ def spanner_purge(args):
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
                 args,
-                'DELETE FROM bsos WHERE {}'.format(expiry_condition),
+                f'DELETE FROM bsos WHERE {expiry_condition}',
                 prefix
             )
             deleter(
@@ -255,11 +263,10 @@ if __name__ == "__main__":
     args = get_args()
     with statsd.timer("syncstorage.purge_ttl.total_duration"):
         start_time = datetime.now()
-        logging.info('Starting purge_ttl.py')
+        logging.info("Starting purge_ttl.py")
 
         spanner_purge(args)
 
         end_time = datetime.now()
         duration = end_time - start_time
-        logging.info(
-            'Completed purge_ttl.py, total_duration: {}'.format(duration))
+        logging.info(f"Completed purge_ttl.py, total_duration: {duration}")
