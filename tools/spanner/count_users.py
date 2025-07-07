@@ -50,7 +50,7 @@ def from_env():
         print(f"Exception {e}")
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
-        project_id = os.environ.get("PROJECT_ID", "test-project")
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project")
     return (instance_id, database_id, project_id)
 
 
