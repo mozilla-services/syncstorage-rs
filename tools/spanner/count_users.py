@@ -23,7 +23,7 @@ logging.basicConfig(
 
 # Change these to match your install.
 client = spanner.Client()
-
+DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 
 def from_env() -> Tuple[str, str, str]:
     """
@@ -37,7 +37,7 @@ def from_env() -> Tuple[str, str, str]:
     database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
     """
     try:
-        url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
+        url = os.environ.get(DSN_URL)
         if not url:
             raise Exception("no url")
         parsed_url = parse.urlparse(url)
