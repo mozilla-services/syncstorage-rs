@@ -117,14 +117,29 @@ def get_expiry_condition(args):
         raise Exception(f"Invalid expiry mode: {args.expiry_mode}")
 
 
-def spanner_purge(args):
+def spanner_purge(args) -> None:
+    """
+    Purges expired TTL records from Spanner based on the provided arguments.
+
+    This function connects to the specified Spanner instance and database,
+    determines the expiry condition, and deletes expired records from the
+    'batches' and/or 'bsos' tables according to the purge mode. Supports
+    filtering by collection IDs and UID prefixes, and can operate in dry-run mode.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments containing
+            Spanner connection info, purge options, and filters.
+
+    Returns:
+        None
+    """
     instance = client.instance(args.instance_id)
     database = instance.database(args.database_id)
     expiry_condition = get_expiry_condition(args)
     if args.auto_split:
         args.uid_prefixes = [
-                hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
-                    0, 16 ** args.auto_split)]
+            hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
+                0, 16 ** args.auto_split)]
     prefixes = args.uid_prefixes if args.uid_prefixes else [None]
 
     for prefix in prefixes:
@@ -167,6 +182,23 @@ def spanner_purge(args):
 
 
 def get_args():
+    """
+    Parses and returns command-line arguments for the Spanner TTL purge tool.
+    If a DSN URL is provided, usually `SYNC_SYNCSTORAGE__DATABASE_URL`, its values override the corresponding arguments.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments with the following attributes:
+            - instance_id (str): Spanner instance ID (default from INSTANCE_ID env or 'spanner-test').
+            - database_id (str): Spanner database ID (default from DATABASE_ID env or 'sync_schema3').
+            - project_id (str): Google Cloud project ID (default from GOOGLE_CLOUD_PROJECT env or 'spanner-test').
+            - sync_database_url (str): Spanner database DSN (default from SYNC_SYNCSTORAGE__DATABASE_URL env).
+            - collection_ids (list): List of collection IDs to purge (default from COLLECTION_IDS env or empty list).
+            - uid_prefixes (list): List of UID prefixes to limit purges (default from PURGE_UID_PREFIXES env or empty list).
+            - auto_split (int): Number of digits to auto-generate UID prefixes (default from PURGE_AUTO_SPLIT env).
+            - mode (str): Purge mode, one of 'batches', 'bsos', or 'both' (default from PURGE_MODE env or 'both').
+            - expiry_mode (str): Expiry mode, either 'now' or 'midnight' (default from PURGE_EXPIRY_MODE env or 'midnight').
+            - dryrun (bool): If True, do not actually purge records from Spanner.
+    """
     parser = argparse.ArgumentParser(
         description="Purge old TTLs"
     )
@@ -246,11 +278,15 @@ def get_args():
 
 
 def parse_args_list(args_list: str) -> List[str]:
+
     """
-    Parse a list of items (or a single string) into a list of strings.
-    Example input: [item1,item2,item3]
-    :param args_list: The list/string
-    :return: A list of strings
+    Parses a string representing a list of items into a list of strings.
+
+    Args:
+        args_list (str): String to parse, e.g., "[item1,item2,item3]" or "item1".
+
+    Returns:
+        List[str]: List of parsed string items.
     """
     if args_list[0] != "[" or args_list[-1] != "]":
         # Assume it's a single item

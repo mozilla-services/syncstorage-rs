@@ -13,6 +13,7 @@ from statsd.defaults.env import statsd
 from urllib import parse
 
 from google.cloud import spanner
+from typing import Tuple
 
 # set up logger
 logging.basicConfig(
@@ -24,7 +25,7 @@ logging.basicConfig(
 client = spanner.Client()
 
 
-def from_env():
+def from_env() -> Tuple[str, str, str]:
     """
     Function that extracts the instance, project, and database ids from the DSN url.
     It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
@@ -54,7 +55,20 @@ def from_env():
     return (instance_id, database_id, project_id)
 
 
-def spanner_read_data(request=None):
+def spanner_read_data() -> None:
+    """
+    Reads data from a Google Cloud Spanner database to count the number of distinct users.
+
+    This function connects to a Spanner instance and database using environment variables,
+    executes a SQL query to count the number of distinct `fxa_uid` entries in the `user_collections` table,
+    and logs the result. It also records the duration of the operation and the user count using statsd metrics.
+
+    Args:
+        None
+
+    Returns:
+        None
+    """
     (instance_id, database_id, project_id) = from_env()
     instance = client.instance(instance_id)
     database = instance.database(database_id)
