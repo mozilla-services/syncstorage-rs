@@ -46,6 +46,7 @@ Spanner. Please reduce the size or number of the writes, or use fewer
 indexes. (Maximum size: 104857600)
 
 """
+DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 # 1 Batch of 2K records with payload of 25K = 201_168_000B
 # so, ~300G would need 2_982_582 batches
 BATCH_SIZE = 2000
@@ -186,9 +187,13 @@ def from_env():
     database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
     """
     try:
-        url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
+        instance_id = None
+        database_id = None
+        project_id = None
+
+        url = os.environ.get(DSN_URL)
         if not url:
-            raise Exception("no url")
+            raise Exception(f"No URL DSN for provided URL: {DSN_URL}")
         parsed_url = parse.urlparse(url)
         if parsed_url.scheme == "spanner":
             path = parsed_url.path.split("/")
@@ -196,10 +201,14 @@ def from_env():
             project_id = path[-5]
             database_id = path[-1]
     except Exception as e:
+        print(f"Exception parsing url: {e}")
         # Change these to reflect your Spanner instance install
-        print(f"Exception {e}")
+    # Fallbacks if not set
+    if not instance_id:
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
+    if not database_id:
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
+    if not project_id:
         project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project")
     return (instance_id, database_id, project_id)
 
