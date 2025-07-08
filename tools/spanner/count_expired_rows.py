@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # Change these to match your install.
 client = spanner.Client()
-
+DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 
 def from_env():
     """
@@ -35,10 +35,14 @@ def from_env():
     `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
     database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
     """
+    instance_id = None
+    database_id = None
+    project_id = None
+
     try:
-        url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
+        url = os.environ.get(DSN_URL)
         if not url:
-            raise Exception("no url")
+            raise Exception(f"No URL DSN for provided URL: {DSN_URL}")
         parsed_url = parse.urlparse(url)
         if parsed_url.scheme == "spanner":
             path = parsed_url.path.split("/")
@@ -47,10 +51,15 @@ def from_env():
             database_id = path[-1]
     except Exception as e:
         # Change these to reflect your Spanner instance install
-        print(f"Exception {e}")
+        print(f"Exception parsing url: {e}")
+    # Fallbacks if not set
+    if not instance_id:
         instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
+    if not database_id:
         database_id = os.environ.get("DATABASE_ID", "sync_stage")
+    if not project_id:
         project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project")
+
     return (instance_id, database_id, project_id)
 
 
