@@ -25,7 +25,7 @@ logging.basicConfig(
 
 # Change these to match your install.
 client = spanner.Client()
-
+DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 
 def use_dsn(args):
     """
@@ -49,7 +49,6 @@ def use_dsn(args):
             args.project_id = path[-5]
             args.database_id = path[-1]
     except Exception as e:
-        # Change these to reflect your Spanner instance install
         print(f"Exception {e}")
     return args
 
