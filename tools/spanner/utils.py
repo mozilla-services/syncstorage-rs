@@ -8,7 +8,7 @@
 import os
 from urllib import parse
 from typing import Tuple
-
+from unittest.mock import MagicMock
 
 DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 """
