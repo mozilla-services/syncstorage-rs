@@ -14,6 +14,7 @@ from urllib import parse
 
 from google.cloud import spanner
 from typing import Tuple
+from utils import ids_from_env
 
 # set up logger
 logging.basicConfig(
@@ -23,37 +24,6 @@ logging.basicConfig(
 
 # Change these to match your install.
 client = spanner.Client()
-DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
-
-def from_env() -> Tuple[str, str, str]:
-    """
-    Function that extracts the instance, project, and database ids from the DSN url.
-    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
-    The defined defaults are in webservices-infra/sync and can be configured there for
-    production runs. 
-
-    For reference, an example spanner url passed in is in the following format:
-    `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
-    database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
-    """
-    try:
-        url = os.environ.get(DSN_URL)
-        if not url:
-            raise Exception("no url")
-        parsed_url = parse.urlparse(url)
-        if parsed_url.scheme == "spanner":
-            path = parsed_url.path.split("/")
-            instance_id = path[-3]
-            project_id = path[-5]
-            database_id = path[-1]
-    except Exception as e:
-        # Change these to reflect your Spanner instance install
-        print(f"Exception {e}")
-        instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
-        database_id = os.environ.get("DATABASE_ID", "sync_stage")
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project")
-    return (instance_id, database_id, project_id)
-
 
 def spanner_read_data() -> None:
     """
@@ -69,7 +39,7 @@ def spanner_read_data() -> None:
     Returns:
         None
     """
-    (instance_id, database_id, project_id) = from_env()
+    (instance_id, database_id, project_id) = ids_from_env()
     instance = client.instance(instance_id)
     database = instance.database(database_id)
     project = instance.database(database_id)

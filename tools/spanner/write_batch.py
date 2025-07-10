@@ -21,6 +21,8 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 
+from utils import ids_from_env
+
 
 # max batch size for this write is 2000, otherwise we run into:
 """google.api_core.exceptions.InvalidArgument: 400 The transaction
@@ -46,7 +48,6 @@ Spanner. Please reduce the size or number of the writes, or use fewer
 indexes. (Maximum size: 104857600)
 
 """
-DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 # 1 Batch of 2K records with payload of 25K = 201_168_000B
 # so, ~300G would need 2_982_582 batches
 BATCH_SIZE = 2000
@@ -175,49 +176,11 @@ def load(instance, db, coll_id, name):
     ))
 
 
-def from_env():
-    """
-    Function that extracts the instance, project, and database ids from the DSN url.
-    It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
-    The defined defaults are in webservices-infra/sync and can be configured there for
-    production runs. 
-
-    For reference, an example spanner url passed in is in the following format:
-    `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
-    database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
-    """
-    try:
-        instance_id = None
-        database_id = None
-        project_id = None
-
-        url = os.environ.get(DSN_URL)
-        if not url:
-            raise Exception(f"No URL DSN for provided URL: {DSN_URL}")
-        parsed_url = parse.urlparse(url)
-        if parsed_url.scheme == "spanner":
-            path = parsed_url.path.split("/")
-            instance_id = path[-3]
-            project_id = path[-5]
-            database_id = path[-1]
-    except Exception as e:
-        print(f"Exception parsing url: {e}")
-        # Change these to reflect your Spanner instance install
-    # Fallbacks if not set
-    if not instance_id:
-        instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
-    if not database_id:
-        database_id = os.environ.get("DATABASE_ID", "sync_stage")
-    if not project_id:
-        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "test-project")
-    return (instance_id, database_id, project_id)
-
-
 def loader():
     # Prefix uaids for easy filtering later
     # Each loader thread gets it's own fake user to prevent some hotspot
     # issues.
-    (instance_id, database_id, project_id) = from_env()
+    (instance_id, database_id, _) = ids_from_env()
     # switching uid/kid to per load because of weird google trimming
     name = threading.current_thread().getName()
     load(instance_id, database_id, COLL_ID, name)
