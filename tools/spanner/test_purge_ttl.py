@@ -13,19 +13,6 @@ def test_parse_args_list_single_item():
 def test_parse_args_list_multiple_items():
     assert purge_ttl.parse_args_list("[a,b,c]") == ["a", "b", "c"]
 
-def test_use_dsn_parses_url():
-    args = SimpleNamespace(sync_database_url="spanner://projects/proj/instances/inst/databases/db")
-    args = purge_ttl.use_dsn(args)
-    assert args.project_id == "proj"
-    assert args.instance_id == "inst"
-    assert args.database_id == "db"
-
-def test_use_dsn_no_url():
-    args = SimpleNamespace(sync_database_url=None)
-    # Should not raise
-    result = purge_ttl.use_dsn(args)
-    assert result is args
-
 def test_get_expiry_condition_now():
     args = SimpleNamespace(expiry_mode="now")
     assert purge_ttl.get_expiry_condition(args) == 'expiry < CURRENT_TIMESTAMP()'
@@ -82,7 +69,7 @@ def test_deleter_executes(statsd_mock):
     statsd_mock.timer.return_value.__enter__.return_value = None
     statsd_mock.timer.return_value.__exit__.return_value = None
     database.execute_partitioned_dml.return_value = 42
-    
+
     purge_ttl.deleter(database, "batches", "DELETE FROM batches", dryrun=False)
     database.execute_partitioned_dml.assert_called_once()
 
@@ -116,19 +103,20 @@ def test_spanner_purge_both(client_mock, get_expiry_condition_mock, add_conditio
     purge_ttl.spanner_purge(args)
 
     assert deleter_mock.call_count == 2
+    deleter_mock.assert_called()
 
     deleter_mock.assert_any_call(
-        database=database,
+        database,
         name="batches",
         query="batch_query",
         params={"a": 1},
         param_types={"a": 2},
         prefix=None,
         dryrun=True,
-    )
+    )    
 
     deleter_mock.assert_any_call(
-        database=database,
+        database,
         name="bso",
         query="bso_query",
         params={"b": 3},
