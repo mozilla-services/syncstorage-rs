@@ -17,7 +17,7 @@ from google.cloud.spanner_v1.database import Database
 from google.cloud.spanner_v1 import param_types
 from statsd.defaults.env import statsd
 
-from utils import ids_from_env
+from utils import ids_from_env, Mode
 
 # set up logger
 logging.basicConfig(
@@ -27,33 +27,6 @@ logging.basicConfig(
 
 # Change these to match your install.
 client = spanner.Client()
-# DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
-
-# def use_dsn(args):
-#     """
-#     Function that extracts the instance, project, and database ids from the DSN url.
-#     It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
-#     The defined defaults are in webservices-infra/sync and can be configured there for
-#     production runs. 
-
-#     For reference, an example spanner url passed in is in the following format:
-#     `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
-#     database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
-#     """
-#     try:
-#         if not args.sync_database_url:
-#             raise Exception("no url")
-#         url = args.sync_database_url
-#         parsed_url = parse.urlparse(url)
-#         if parsed_url.scheme == "spanner":
-#             path = parsed_url.path.split("/")
-#             args.instance_id = path[-3]
-#             args.project_id = path[-5]
-#             args.database_id = path[-1]
-#     except Exception as e:
-#         print(f"Exception {e}")
-#     return args
-
 
 def deleter(database: Database,
         name: str,
@@ -273,13 +246,10 @@ def get_args():
 
     # override using the DSN URL:
     if args.sync_database_url:
-        (instance_id, database_id, project_id) = ids_from_env(args.sync_database_url)
+        (instance_id, database_id, project_id) = ids_from_env(args.sync_database_url, mode=Mode.URL)
         args.instance_id = instance_id
         args.database_id = database_id
         args.project_id = project_id
-        import pdb
-        pdb.set_trace()
-
     return args
 
 

@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-
+from enum import auto, Enum
 import os
 from urllib import parse
 from typing import Tuple
@@ -17,7 +17,11 @@ Depending on deployment, can be MySQL or Spanner.
 In this context, should always point to spanner for these scripts.
 """
 
-def ids_from_env(dsn=DSN_URL) -> Tuple[str, str, str]:
+class Mode(Enum):
+    URL = auto()
+    ENV_VAR = auto()
+
+def ids_from_env(dsn=DSN_URL, mode=Mode.ENV_VAR) -> Tuple[str, str, str]:
     """
     Function that extracts the instance, project, and database ids from the DSN url.
     It is defined as the SYNC_SYNCSTORAGE__DATABASE_URL environment variable.
@@ -31,14 +35,20 @@ def ids_from_env(dsn=DSN_URL) -> Tuple[str, str, str]:
     `spanner://projects/moz-fx-sync-prod-xxxx/instances/sync/databases/syncdb`
     database_id = `syncdb`, instance_id = `sync`, project_id = `moz-fx-sync-prod-xxxx`
     """
+    # Change these to reflect your Spanner instance install
     instance_id = None
     database_id = None
     project_id = None
-
+    
     try:
-        url = os.environ.get(dsn)
-        if not url:
-            raise Exception(f"No URL DSN for provided URL: {DSN_URL}")
+        if mode == Mode.ENV_VAR:
+            url = os.environ.get(dsn)
+            if not url:
+                raise Exception(f"No env var found for provided DSN: {dsn}")
+        elif mode == Mode.URL:
+            url = dsn
+            if not url:
+                raise Exception(f"No valid url found: {url}")
         parsed_url = parse.urlparse(url)
         if parsed_url.scheme == "spanner":
             path = parsed_url.path.split("/")
@@ -46,7 +56,6 @@ def ids_from_env(dsn=DSN_URL) -> Tuple[str, str, str]:
             project_id = path[-5]
             database_id = path[-1]
     except Exception as e:
-        # Change these to reflect your Spanner instance install
         print(f"Exception parsing url: {e}")
     # Fallbacks if not set
     if not instance_id:

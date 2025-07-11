@@ -5,45 +5,7 @@ import pytest
 import logging
 
 import count_expired_rows
-
-@pytest.fixture(autouse=True)
-def reset_env(monkeypatch):
-    # Reset environment variables before each test
-    for var in [
-        "SYNC_SYNCSTORAGE__DATABASE_URL",
-        "INSTANCE_ID",
-        "DATABASE_ID",
-        "GOOGLE_CLOUD_PROJECT"
-    ]:
-        monkeypatch.delenv(var, raising=False)
-
-def test_from_env_with_valid_url(monkeypatch):
-    url = "spanner://projects/test-project/instances/test-instance/databases/test-db"
-    monkeypatch.setenv("SYNC_SYNCSTORAGE__DATABASE_URL", url)
-    instance_id, database_id, project_id = count_expired_rows.from_env()
-    assert instance_id == "test-instance"
-    assert database_id == "test-db"
-    assert project_id == "test-project"
-
-def test_from_env_with_missing_url(monkeypatch):
-    monkeypatch.setenv("INSTANCE_ID", "foo")
-    monkeypatch.setenv("DATABASE_ID", "bar")
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "baz")
-    instance_id, database_id, project_id = count_expired_rows.from_env()
-    assert instance_id == "foo"
-    assert database_id == "bar"
-    assert project_id == "baz"
-
-def test_from_env_with_invalid_url(monkeypatch):
-    monkeypatch.setenv("SYNC_SYNCSTORAGE__DATABASE_URL", "notaspanner://foo")
-    monkeypatch.setenv("INSTANCE_ID", "default")
-    monkeypatch.setenv("DATABASE_ID", "default-db")
-    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "default-proj")
-
-    instance_id, database_id, project_id = count_expired_rows.from_env()
-    assert instance_id == "default"
-    assert database_id == "default-db"
-    assert project_id == "default-proj"
+from utils import ids_from_env
 
 def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     # Prepare mocks
@@ -68,7 +30,7 @@ def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     mock_statsd.timer.return_value.__exit__.return_value = None
 
     # Patch from_env to return fixed values
-    monkeypatch.setattr(count_expired_rows, "from_env", lambda: ("inst", "db", "proj"))
+    monkeypatch.setattr(count_expired_rows, "ids_from_env", lambda: ("inst", "db", "proj"))
 
     # Run function
     with caplog.at_level(logging.INFO):
