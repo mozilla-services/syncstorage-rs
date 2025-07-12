@@ -7,7 +7,6 @@ pub mod util;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use futures::{future, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use syncserver_db_common::{DbFuture, GetPoolState};
@@ -193,41 +192,43 @@ pub trait Db: Debug {
         // If there's no collection, we return the overall storage timestamp
         let collection = match collection {
             Some(collection) => collection,
-            None => return Box::pin(self.get_storage_timestamp(user_id)),
+            None => return Box::pin(async move { self.get_storage_timestamp(user_id).await }),
         };
         // If there's no bso, return the collection
         let bso = match bso {
             Some(bso) => bso,
             None => {
-                return Box::pin(
+                return Box::pin(async move {
                     self.get_collection_timestamp(params::GetCollectionTimestamp {
                         user_id,
                         collection,
                     })
+                    .await
                     .or_else(|e| {
                         if e.is_collection_not_found() {
-                            future::ok(SyncTimestamp::from_seconds(0f64))
+                            Ok(SyncTimestamp::from_seconds(0f64))
                         } else {
-                            future::err(e)
+                            Err(e)
                         }
-                    }),
-                )
+                    })
+                })
             }
         };
-        Box::pin(
+        Box::pin(async move {
             self.get_bso_timestamp(params::GetBsoTimestamp {
                 user_id,
                 collection,
                 id: bso,
             })
+            .await
             .or_else(|e| {
                 if e.is_collection_not_found() {
-                    future::ok(SyncTimestamp::from_seconds(0f64))
+                    Ok(SyncTimestamp::from_seconds(0f64))
                 } else {
-                    future::err(e)
+                    Err(e)
                 }
-            }),
-        )
+            })
+        })
     }
 
     // Internal methods used by the db tests
