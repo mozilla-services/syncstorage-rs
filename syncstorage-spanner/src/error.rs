@@ -1,6 +1,7 @@
 use std::fmt;
 
 use backtrace::Backtrace;
+use grpcio::RpcStatusCode;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
@@ -122,15 +123,30 @@ impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
+            // Match against server/connection errors that we don't want reported to Sentry.
+            DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
+                match status.code() {
+                    RpcStatusCode::UNAVAILABLE => false, // Code 14 - UNAVAILABLE
+                    RpcStatusCode::INVALID_ARGUMENT => false, // Code 3 - INVALID_ARGUMENT
+                    _ => true,
+                }
+            }
             _ => true,
         }
     }
 
     fn metric_label(&self) -> Option<&str> {
-        if let DbErrorKind::Common(e) = &self.kind {
-            e.metric_label()
-        } else {
-            None
+        match &self.kind {
+            DbErrorKind::Common(e) => e.metric_label(),
+
+            DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
+                match status.code() {
+                    RpcStatusCode::UNAVAILABLE => Some("grpc.unavailable"), // Code 14 - UNAVAILABLE
+                    RpcStatusCode::INVALID_ARGUMENT => Some("grpc.invalid_argument"), // Code 3 - INVALID_ARGUMENT
+                    _ => None,
+                }
+            }
+            _ => None,
         }
     }
 
