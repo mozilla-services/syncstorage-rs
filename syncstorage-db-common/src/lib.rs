@@ -189,45 +189,42 @@ pub trait Db: Debug {
         collection: Option<String>,
         bso: Option<String>,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-        // If there's no collection, we return the overall storage timestamp
-        let collection = match collection {
-            Some(collection) => collection,
-            None => return Box::pin(async move { self.get_storage_timestamp(user_id).await }),
-        };
-        // If there's no bso, return the collection
-        let bso = match bso {
-            Some(bso) => bso,
-            None => {
-                return Box::pin(async move {
-                    self.get_collection_timestamp(params::GetCollectionTimestamp {
-                        user_id,
-                        collection,
-                    })
-                    .await
-                    .or_else(|e| {
-                        if e.is_collection_not_found() {
-                            Ok(SyncTimestamp::from_seconds(0f64))
-                        } else {
-                            Err(e)
-                        }
-                    })
-                })
-            }
-        };
         Box::pin(async move {
-            self.get_bso_timestamp(params::GetBsoTimestamp {
-                user_id,
-                collection,
-                id: bso,
-            })
-            .await
-            .or_else(|e| {
-                if e.is_collection_not_found() {
-                    Ok(SyncTimestamp::from_seconds(0f64))
-                } else {
-                    Err(e)
+            match collection {
+                None => {
+                    // No collection specified, return overall storage timestamp
+                    self.get_storage_timestamp(user_id).await
                 }
-            })
+                Some(collection) => match bso {
+                    None => self
+                        .get_collection_timestamp(params::GetCollectionTimestamp {
+                            user_id,
+                            collection,
+                        })
+                        .await
+                        .or_else(|e| {
+                            if e.is_collection_not_found() {
+                                Ok(SyncTimestamp::from_seconds(0f64))
+                            } else {
+                                Err(e)
+                            }
+                        }),
+                    Some(bso) => self
+                        .get_bso_timestamp(params::GetBsoTimestamp {
+                            user_id,
+                            collection,
+                            id: bso,
+                        })
+                        .await
+                        .or_else(|e| {
+                            if e.is_collection_not_found() {
+                                Ok(SyncTimestamp::from_seconds(0f64))
+                            } else {
+                                Err(e)
+                            }
+                        }),
+                },
+            }
         })
     }
 
