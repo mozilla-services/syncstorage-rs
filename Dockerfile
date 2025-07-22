@@ -56,9 +56,11 @@ RUN \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel pkg-config && \
     curl -sSL https://install.python-poetry.org | python3 - && \
     ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+    # Generating a requirements.txt from Poetry dependencies.
+    # [tool.poetry.dependencies]
+    poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
-
 
 
 ENV PATH=$PATH:/root/.cargo/bin
@@ -98,6 +100,9 @@ RUN \
     apt-get -q remove -y python3-cryptography && \
     curl -sSL https://install.python-poetry.org | python3 - && \
     ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+    # Generating a requirements.txt from Poetry dependencies:
+    # [tool.poetry.dependencies]
+    poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
 
@@ -111,6 +116,12 @@ COPY --from=builder /app/scripts/start_mock_fxa_server.sh /app/scripts/start_moc
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
 
 RUN chmod +x /app/scripts/prepare-spanner.sh
+
+WORKDIR /app/tools/integration_tests/
+RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes
+WORKDIR /app/tools/tokenserver/
+RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes
+WORKDIR /app
 RUN pip3 install -r /app/tools/integration_tests/requirements.txt
 RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
