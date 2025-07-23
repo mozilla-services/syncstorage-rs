@@ -17,6 +17,8 @@ from google.cloud.spanner_v1.database import Database
 from google.cloud.spanner_v1 import param_types
 from statsd.defaults.env import statsd
 
+from utils import ids_from_env, Mode
+
 # set up logger
 logging.basicConfig(
     format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
@@ -26,23 +28,6 @@ logging.basicConfig(
 # Change these to match your install.
 client = spanner.Client()
 
-
-def use_dsn(args):
-    try:
-        if not args.sync_database_url:
-            raise Exception("no url")
-        url = args.sync_database_url
-        purl = parse.urlparse(url)
-        if purl.scheme == "spanner":
-            path = purl.path.split("/")
-            args.instance_id = path[-3]
-            args.database_id = path[-1]
-    except Exception as e:
-        # Change these to reflect your Spanner instance install
-        print("Exception {}".format(e))
-    return args
-
-
 def deleter(database: Database,
         name: str,
         query: str,
@@ -50,17 +35,15 @@ def deleter(database: Database,
         params: Optional[dict]=None,
         param_types: Optional[dict]=None,
         dryrun: Optional[bool]=False):
-    with statsd.timer("syncstorage.purge_ttl.{}_duration".format(name)):
-        logging.info("Running: {} :: {}".format(query, params))
+    with statsd.timer(f"syncstorage.purge_ttl.{name}_duration"):
+        logging.info(f"Running: {query} :: {params}")
         start = datetime.now()
         result = 0
         if not dryrun:
             result = database.execute_partitioned_dml(query, params=params, param_types=param_types)
         end = datetime.now()
         logging.info(
-            "{name}: removed {result} rows, {name}_duration: {time}, prefix: {prefix}".format(
-                name=name, result=result, time=end - start, prefix=prefix))
-
+            f"{name}: removed {result} rows, {name}_duration: {end - start}, prefix: {prefix}")
 
 def add_conditions(args, query: str, prefix: Optional[str]):
     """
@@ -82,7 +65,7 @@ def add_conditions(args, query: str, prefix: Optional[str]):
                 types['collection_id'] = param_types.INT64
             else:
                 for count,id in enumerate(ids):
-                    name = 'collection_id_{}'.format(count)
+                    name = f'collection_id_{count}'
                     params[name] = id
                     types[name] = param_types.INT64
                 query += " in (@{})".format(
@@ -105,28 +88,43 @@ def get_expiry_condition(args):
     elif args.expiry_mode == "midnight":
         return 'expiry < TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), DAY, "UTC")'
     else:
-        raise Exception("Invalid expiry mode: {}".format(args.expiry_mode))
+        raise Exception(f"Invalid expiry mode: {args.expiry_mode}")
 
 
-def spanner_purge(args):
+def spanner_purge(args) -> None:
+    """
+    Purges expired TTL records from Spanner based on the provided arguments.
+
+    This function connects to the specified Spanner instance and database,
+    determines the expiry condition, and deletes expired records from the
+    'batches' and/or 'bsos' tables according to the purge mode. Supports
+    filtering by collection IDs and UID prefixes, and can operate in dry-run mode.
+
+    Args:
+        args (argparse.Namespace): Parsed command-line arguments containing
+            Spanner connection info, purge options, and filters.
+
+    Returns:
+        None
+    """
     instance = client.instance(args.instance_id)
     database = instance.database(args.database_id)
     expiry_condition = get_expiry_condition(args)
     if args.auto_split:
         args.uid_prefixes = [
-                hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
-                    0, 16 ** args.auto_split)]
+            hex(i).lstrip("0x").zfill(args.auto_split) for i in range(
+                0, 16 ** args.auto_split)]
     prefixes = args.uid_prefixes if args.uid_prefixes else [None]
 
     for prefix in prefixes:
-        logging.info("For {}:{}, prefix = {}".format(args.instance_id, args.database_id, prefix))
+        logging.info(f"For {args.instance_id}:{args.database_id}, prefix = {prefix}")
 
         if args.mode in ["batches", "both"]:
             # Delete Batches. Also deletes child batch_bsos rows (INTERLEAVE
             # IN PARENT batches ON DELETE CASCADE)
             (batch_query, params, types) = add_conditions(
                 args,
-                'DELETE FROM batches WHERE {}'.format(expiry_condition),
+                f'DELETE FROM batches WHERE {expiry_condition}',
                 prefix,
             )
             deleter(
@@ -143,7 +141,7 @@ def spanner_purge(args):
             # Delete BSOs
             (bso_query, params, types) = add_conditions(
                 args,
-                'DELETE FROM bsos WHERE {}'.format(expiry_condition),
+                f'DELETE FROM bsos WHERE {expiry_condition}',
                 prefix
             )
             deleter(
@@ -158,6 +156,23 @@ def spanner_purge(args):
 
 
 def get_args():
+    """
+    Parses and returns command-line arguments for the Spanner TTL purge tool.
+    If a DSN URL is provided, usually `SYNC_SYNCSTORAGE__DATABASE_URL`, its values override the corresponding arguments.
+
+    Returns:
+        argparse.Namespace: Parsed command-line arguments with the following attributes:
+            - instance_id (str): Spanner instance ID (default from INSTANCE_ID env or 'spanner-test').
+            - database_id (str): Spanner database ID (default from DATABASE_ID env or 'sync_schema3').
+            - project_id (str): Google Cloud project ID (default from GOOGLE_CLOUD_PROJECT env or 'spanner-test').
+            - sync_database_url (str): Spanner database DSN (default from SYNC_SYNCSTORAGE__DATABASE_URL env).
+            - collection_ids (list): List of collection IDs to purge (default from COLLECTION_IDS env or empty list).
+            - uid_prefixes (list): List of UID prefixes to limit purges (default from PURGE_UID_PREFIXES env or empty list).
+            - auto_split (int): Number of digits to auto-generate UID prefixes (default from PURGE_AUTO_SPLIT env).
+            - mode (str): Purge mode, one of 'batches', 'bsos', or 'both' (default from PURGE_MODE env or 'both').
+            - expiry_mode (str): Expiry mode, either 'now' or 'midnight' (default from PURGE_EXPIRY_MODE env or 'midnight').
+            - dryrun (bool): If True, do not actually purge records from Spanner.
+    """
     parser = argparse.ArgumentParser(
         description="Purge old TTLs"
     )
@@ -172,6 +187,12 @@ def get_args():
         "--database_id",
         default=os.environ.get("DATABASE_ID", "sync_schema3"),
         help="Spanner Database ID"
+    )
+    parser.add_argument(
+        "-p",
+        "--project_id",
+        default=os.environ.get("GOOGLE_CLOUD_PROJECT", "spanner-test"),
+        help="Spanner Project ID"
     )
     parser.add_argument(
         "-u",
@@ -225,17 +246,23 @@ def get_args():
 
     # override using the DSN URL:
     if args.sync_database_url:
-        args = use_dsn(args)
-
+        (instance_id, database_id, project_id) = ids_from_env(args.sync_database_url, mode=Mode.URL)
+        args.instance_id = instance_id
+        args.database_id = database_id
+        args.project_id = project_id
     return args
 
 
 def parse_args_list(args_list: str) -> List[str]:
+
     """
-    Parse a list of items (or a single string) into a list of strings.
-    Example input: [item1,item2,item3]
-    :param args_list: The list/string
-    :return: A list of strings
+    Parses a string representing a list of items into a list of strings.
+
+    Args:
+        args_list (str): String to parse, e.g., "[item1,item2,item3]" or "item1".
+
+    Returns:
+        List[str]: List of parsed string items.
     """
     if args_list[0] != "[" or args_list[-1] != "]":
         # Assume it's a single item
@@ -248,11 +275,10 @@ if __name__ == "__main__":
     args = get_args()
     with statsd.timer("syncstorage.purge_ttl.total_duration"):
         start_time = datetime.now()
-        logging.info('Starting purge_ttl.py')
+        logging.info("Starting purge_ttl.py")
 
         spanner_purge(args)
 
         end_time = datetime.now()
         duration = end_time - start_time
-        logging.info(
-            'Completed purge_ttl.py, total_duration: {}'.format(duration))
+        logging.info(f"Completed purge_ttl.py, total_duration: {duration}")

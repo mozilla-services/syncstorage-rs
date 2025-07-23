@@ -13,6 +13,8 @@ from statsd.defaults.env import statsd
 from urllib import parse
 
 from google.cloud import spanner
+from typing import Tuple
+from utils import ids_from_env
 
 # set up logger
 logging.basicConfig(
@@ -23,31 +25,26 @@ logging.basicConfig(
 # Change these to match your install.
 client = spanner.Client()
 
+def spanner_read_data() -> None:
+    """
+    Reads data from a Google Cloud Spanner database to count the number of distinct users.
 
-def from_env():
-    try:
-        url = os.environ.get("SYNC_SYNCSTORAGE__DATABASE_URL")
-        if not url:
-            raise Exception("no url")
-        purl = parse.urlparse(url)
-        if purl.scheme == "spanner":
-            path = purl.path.split("/")
-            instance_id = path[-3]
-            database_id = path[-1]
-    except Exception as e:
-        # Change these to reflect your Spanner instance install
-        print("Exception {}".format(e))
-        instance_id = os.environ.get("INSTANCE_ID", "spanner-test")
-        database_id = os.environ.get("DATABASE_ID", "sync_stage")
-    return (instance_id, database_id)
+    This function connects to a Spanner instance and database using environment variables,
+    executes a SQL query to count the number of distinct `fxa_uid` entries in the `user_collections` table,
+    and logs the result. It also records the duration of the operation and the user count using statsd metrics.
 
+    Args:
+        None
 
-def spanner_read_data(request=None):
-    (instance_id, database_id) = from_env()
+    Returns:
+        None
+    """
+    (instance_id, database_id, project_id) = ids_from_env()
     instance = client.instance(instance_id)
     database = instance.database(database_id)
+    project = instance.database(database_id)
 
-    logging.info("For {}:{}".format(instance_id, database_id))
+    logging.info(f"For {instance_id}:{database_id} {project}")
 
     # Count users
     with statsd.timer("syncstorage.count_users.duration"):
@@ -56,7 +53,7 @@ def spanner_read_data(request=None):
             result = snapshot.execute_sql(query)
             user_count = result.one()[0]
             statsd.gauge("syncstorage.distinct_fxa_uid", user_count)
-            logging.info("Count found {} distinct users".format(user_count))
+            logging.info(f"Count found {user_count} distinct users")
 
 
 if __name__ == "__main__":
