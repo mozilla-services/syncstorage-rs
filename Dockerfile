@@ -58,7 +58,7 @@ RUN \
     ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies.
     # [tool.poetry.dependencies]
-    pip3 install poetry-plugin-export && \
+    poetry self add poetry-plugin-export && \
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
@@ -103,7 +103,7 @@ RUN \
     ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies:
     # [tool.poetry.dependencies]
-    pip3 install poetry-plugin-export && \
+    poetry self add poetry-plugin-export && \
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
