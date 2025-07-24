@@ -55,7 +55,7 @@ RUN \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel pkg-config && \
     curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+    ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies.
     # [tool.poetry.dependencies]
     pip3 install poetry-plugin-export && \
@@ -100,7 +100,7 @@ RUN \
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography && \
     curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s /root/.local/bin/poetry /usr/local/bin/poetry && \
+    ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies:
     # [tool.poetry.dependencies]
     pip3 install poetry-plugin-export && \
