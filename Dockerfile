@@ -54,11 +54,12 @@ RUN \
     fi && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel pkg-config && \
-    curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
+    # curl -sSL https://install.python-poetry.org | python3 - && \
+    # ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies.
     # [tool.poetry.dependencies]
-    poetry self add poetry-plugin-export && \
+    # poetry self add poetry-plugin-export && \
+    pip install poetry===1.8 && \
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r requirements.txt && \
     rm -rf /var/lib/apt/lists/*
@@ -99,11 +100,12 @@ RUN \
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
     apt-get -q remove -y python3-cryptography && \
-    curl -sSL https://install.python-poetry.org | python3 - && \
-    ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
+    # curl -sSL https://install.python-poetry.org | python3 - && \
+    # ln -s $POETRY_HOME/bin/poetry /usr/local/bin/poetry && \
     # Generating a requirements.txt from Poetry dependencies:
     # [tool.poetry.dependencies]
-    poetry self add poetry-plugin-export && \
+    # poetry self add poetry-plugin-export && \
+    pip install poetry===1.8 && \
     poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
     pip3 install -r /app/requirements.txt && \
     rm -rf /var/lib/apt/lists/*
