@@ -7,12 +7,6 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 FROM docker.io/lukemathwalker/cargo-chef:0.1.71-rust-1.86-bullseye AS chef
 WORKDIR /app
 
-ENV POETRY_HOME="/opt/poetry" \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_NO_INTERACTION=1
-
-ENV PATH="$POETRY_HOME/bin:$PATH"
-
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
@@ -37,6 +31,12 @@ RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$D
 FROM chef AS builder
 ARG DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
+
+ENV POETRY_HOME="/opt/poetry" \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_NO_INTERACTION=1
+
+ENV PATH="$POETRY_HOME/bin:$PATH"
 
 COPY . /app
 COPY --from=cacher /app/target /app/target
@@ -77,6 +77,12 @@ RUN \
 
 FROM docker.io/library/debian:bullseye-slim
 ARG MYSQLCLIENT_PKG
+
+ENV POETRY_HOME="/opt/poetry" \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_NO_INTERACTION=1
+
+ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR /app
 COPY --from=builder /app/requirements.txt /app
