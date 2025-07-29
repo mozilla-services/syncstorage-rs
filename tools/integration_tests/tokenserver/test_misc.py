@@ -4,7 +4,7 @@
 import pytest
 import unittest
 
-from tokenserver.test_support import TestCase
+from tools.integration_tests.tokenserver.test_support import TestCase
 
 MAX_GENERATION = 9223372036854775807
 

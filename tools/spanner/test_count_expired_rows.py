@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 import pytest
 import logging
 
-import count_expired_rows
-from utils import ids_from_env
+from spanner import count_expired_rows
+from spanner.utils import ids_from_env
 
 def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     # Prepare mocks

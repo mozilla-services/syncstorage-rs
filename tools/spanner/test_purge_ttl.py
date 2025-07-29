@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import sys
 
 # Import the functions to test from purge_ttl.py
-import purge_ttl
+from spanner import purge_ttl
 
 def test_parse_args_list_single_item():
     assert purge_ttl.parse_args_list("foo") == ["foo"]
@@ -55,7 +55,7 @@ def test_add_conditions_with_prefix():
     assert params["prefix"] == "abc"
     assert types["prefix"] == purge_ttl.param_types.STRING
 
-@mock.patch("purge_ttl.statsd")
+@mock.patch("spanner.purge_ttl.statsd")
 def test_deleter_dryrun(statsd_mock):
     database = mock.Mock()
     statsd_mock.timer.return_value.__enter__.return_value = None
@@ -63,7 +63,7 @@ def test_deleter_dryrun(statsd_mock):
     purge_ttl.deleter(database, "batches", "DELETE FROM batches", dryrun=True)
     database.execute_partitioned_dml.assert_not_called()
 
-@mock.patch("purge_ttl.statsd")
+@mock.patch("spanner.purge_ttl.statsd")
 def test_deleter_executes(statsd_mock):
     database = mock.Mock()
     statsd_mock.timer.return_value.__enter__.return_value = None
@@ -73,10 +73,10 @@ def test_deleter_executes(statsd_mock):
     purge_ttl.deleter(database, "batches", "DELETE FROM batches", dryrun=False)
     database.execute_partitioned_dml.assert_called_once()
 
-@mock.patch("purge_ttl.deleter")
-@mock.patch("purge_ttl.add_conditions")
-@mock.patch("purge_ttl.get_expiry_condition")
-@mock.patch("purge_ttl.client")
+@mock.patch("spanner.purge_ttl.deleter")
+@mock.patch("spanner.purge_ttl.add_conditions")
+@mock.patch("spanner.purge_ttl.get_expiry_condition")
+@mock.patch("spanner.purge_ttl.client")
 def test_spanner_purge_both(client_mock, get_expiry_condition_mock, add_conditions_mock, deleter_mock):
     # Setup
     args = SimpleNamespace(

@@ -30,7 +30,7 @@ import simplejson
 
 from pyramid.interfaces import IAuthenticationPolicy
 from webtest.app import AppError
-from test_support import StorageFunctionalTestCase
+from tools.integration_tests.test_support import StorageFunctionalTestCase
 
 import tokenlib
 
