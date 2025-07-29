@@ -1,4 +1,3 @@
-version: "3"
 services:
   mysql-e2e-tests:
     container_name: mysql-e2e-tests

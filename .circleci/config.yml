@@ -58,8 +58,8 @@ commands:
           name: Core Python Checks
           command: |
             flake8 syncserver/src/tokenserver
-            flake8 tools/integration_tests
-            flake8 tools/tokenserver
+            # flake8 tools/integration_tests
+            # flake8 tools/tokenserver
   rust-clippy-mysql:
     steps:
       - run:

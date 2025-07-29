@@ -1,4 +1,3 @@
-version: "3"
 services:
   spanner-e2e-tests:
     container_name: spanner-e2e-tests
