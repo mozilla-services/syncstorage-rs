@@ -147,8 +147,9 @@ merge_coverage_results:
 
 .ONESHELL:
 run_token_server_integration_tests:
-	pip3 install -r tools/tokenserver/requirements.txt
-	pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
+	cd tools/tokenserver
+	poetry install --no-root --without dev
+	poetry run pytest tools/tokenserver --junit-xml=${INTEGRATION_JUNIT_XML}
 
 .PHONY: install
 install: $(INSTALL_STAMP)  ##  Install dependencies with poetry
