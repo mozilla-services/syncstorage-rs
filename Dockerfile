@@ -85,6 +85,7 @@ ENV POETRY_HOME="/opt/poetry" \
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR /app
+
 COPY --from=builder /app/requirements.txt /app
 COPY --from=builder /app/pyproject.toml /app/poetry.lock /app/
 
