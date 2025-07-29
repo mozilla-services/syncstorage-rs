@@ -1,3 +1,0 @@
-hawkauthlib
-tokenlib
-webob
