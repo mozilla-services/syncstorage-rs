@@ -37,6 +37,7 @@ ENV POETRY_HOME="/opt/poetry" \
     POETRY_NO_INTERACTION=1
 
 ENV PATH="$POETRY_HOME/bin:$PATH"
+ENV PYTHONPATH=/app
 
 COPY . /app
 COPY --from=cacher /app/target /app/target
@@ -85,6 +86,8 @@ ENV POETRY_HOME="/opt/poetry" \
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
 WORKDIR /app
+ENV PYTHONPATH=/app
+
 COPY --from=builder /app/requirements.txt /app
 COPY --from=builder /app/pyproject.toml /app/poetry.lock /app/
 
