@@ -1,0 +1,329 @@
+[1A[2KCreating project_mock-fxa-server_1 ... [32mdone[0m[1B[2A[2KCreating project_syncserver_1      ... [32mdone[0m[2BCreating project_sqlite-e2e-tests_1 ... 
+[1A[2KCreating project_sqlite-e2e-tests_1 ... [32mdone[0m[1BAttaching to project_mock-fxa-server_1, project_syncserver_1, project_sqlite-e2e-tests_1
+[32msqlite-e2e-tests_1  |[0m thread 'main' panicked at syncserver/src/main.rs:61:55:
+[32msqlite-e2e-tests_1  |[0m called `Result::unwrap()` on an `Err` value: ApiError { kind: Db(DbError { kind: Sql(SqlError { kind: DieselConnection(BadConnection("Unable to open the database file")), status: 500, backtrace:    0: <syncserver_db_common::error::SqlError as core::convert::From<syncserver_db_common::error::SqlErrorKind>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver-db-common/src/error.rs:37:24
+[32msqlite-e2e-tests_1  |[0m       <T as core::convert::Into<U>>::into
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/convert/mod.rs:759:9
+[32msqlite-e2e-tests_1  |[0m       <syncserver_db_common::error::SqlError as core::convert::From<diesel::result::ConnectionError>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver-common/src/lib.rs:50:33
+[32msqlite-e2e-tests_1  |[0m    1: <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sql-db-common/src/error.rs:148:77
+[32msqlite-e2e-tests_1  |[0m       <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver-common/src/lib.rs:50:17
+[32msqlite-e2e-tests_1  |[0m    2: <core::result::Result<T,F> as core::ops::try_trait::FromResidual<core::result::Result<core::convert::Infallible,E>>>::from_residual
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/result.rs:1964:27
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::run_embedded_migrations
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:37:16
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::SqliteDbPool::new
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:69:9
+[32msqlite-e2e-tests_1  |[0m    3: syncserver::server::Server::with_settings::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/server/mod.rs:271:23
+[32msqlite-e2e-tests_1  |[0m       syncserver::main::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:61:49
+[32msqlite-e2e-tests_1  |[0m    4: <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1041:42
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:793:13
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:791:17
+[32msqlite-e2e-tests_1  |[0m       <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1031:9
+[32msqlite-e2e-tests_1  |[0m    5: tokio::task::local::LocalSet::run_until::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:689:19
+[32msqlite-e2e-tests_1  |[0m       <core::pin::Pin<P> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/future/future.rs:123:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:57
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::with_budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:107:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:73:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:25
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::Context::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:428:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:728:36
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:68
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::scoped::Scoped<T>::set
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/scoped.rs:40:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:26
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:17
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:27
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:716:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:196:28
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::runtime::enter_runtime
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/runtime.rs:65:16
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:184:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on_inner
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:368:47
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:342:13
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:646:9
+[32msqlite-e2e-tests_1  |[0m       actix_rt::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/runtime.rs:138:20
+[32msqlite-e2e-tests_1  |[0m       actix_rt::system::SystemRunner::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/system.rs:244:17
+[32msqlite-e2e-tests_1  |[0m       syncserver::main
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:27:1
+[32msqlite-e2e-tests_1  |[0m    6: core::ops::function::FnOnce::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:250:5
+[32msqlite-e2e-tests_1  |[0m       std::sys_common::backtrace::__rust_begin_short_backtrace
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/sys_common/backtrace.rs:155:18
+[32msqlite-e2e-tests_1  |[0m    7: std::rt::lang_start::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:166:18
+[32msqlite-e2e-tests_1  |[0m    8: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:284:13
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:48
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:20
+[32msqlite-e2e-tests_1  |[0m    9: main
+[32msqlite-e2e-tests_1  |[0m   10: __libc_start_main
+[32msqlite-e2e-tests_1  |[0m              at ./csu/../csu/libc-start.c:308:16
+[32msqlite-e2e-tests_1  |[0m   11: _start
+[32msqlite-e2e-tests_1  |[0m  }), status: 500, backtrace:    0: <syncstorage_sql_db_common::error::DbError as core::convert::From<syncstorage_sql_db_common::error::DbErrorKind>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sql-db-common/src/error.rs:66:37
+[32msqlite-e2e-tests_1  |[0m    1: <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sql-db-common/src/error.rs:148:46
+[32msqlite-e2e-tests_1  |[0m       <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver-common/src/lib.rs:50:17
+[32msqlite-e2e-tests_1  |[0m    2: <core::result::Result<T,F> as core::ops::try_trait::FromResidual<core::result::Result<core::convert::Infallible,E>>>::from_residual
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/result.rs:1964:27
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::run_embedded_migrations
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:37:16
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::SqliteDbPool::new
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:69:9
+[32msqlite-e2e-tests_1  |[0m    3: syncserver::server::Server::with_settings::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/server/mod.rs:271:23
+[32msqlite-e2e-tests_1  |[0m       syncserver::main::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:61:49
+[32msqlite-e2e-tests_1  |[0m    4: <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1041:42
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:793:13
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:791:17
+[32msqlite-e2e-tests_1  |[0m       <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1031:9
+[32msqlite-e2e-tests_1  |[0m    5: tokio::task::local::LocalSet::run_until::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:689:19
+[32msqlite-e2e-tests_1  |[0m       <core::pin::Pin<P> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/future/future.rs:123:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:57
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::with_budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:107:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:73:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:25
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::Context::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:428:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:728:36
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:68
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::scoped::Scoped<T>::set
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/scoped.rs:40:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:26
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:17
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:27
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:716:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:196:28
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::runtime::enter_runtime
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/runtime.rs:65:16
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:184:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on_inner
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:368:47
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:342:13
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:646:9
+[32msqlite-e2e-tests_1  |[0m       actix_rt::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/runtime.rs:138:20
+[32msqlite-e2e-tests_1  |[0m       actix_rt::system::SystemRunner::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/system.rs:244:17
+[32msqlite-e2e-tests_1  |[0m       syncserver::main
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:27:1
+[32msqlite-e2e-tests_1  |[0m    6: core::ops::function::FnOnce::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:250:5
+[32msqlite-e2e-tests_1  |[0m       std::sys_common::backtrace::__rust_begin_short_backtrace
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/sys_common/backtrace.rs:155:18
+[32msqlite-e2e-tests_1  |[0m    7: std::rt::lang_start::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:166:18
+[32msqlite-e2e-tests_1  |[0m    8: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:284:13
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:48
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:20
+[32msqlite-e2e-tests_1  |[0m    9: main
+[32msqlite-e2e-tests_1  |[0m   10: __libc_start_main
+[32msqlite-e2e-tests_1  |[0m              at ./csu/../csu/libc-start.c:308:16
+[32msqlite-e2e-tests_1  |[0m   11: _start
+[32msqlite-e2e-tests_1  |[0m  }), backtrace:    0: <syncstorage_sql_db_common::error::DbError as core::convert::From<syncstorage_sql_db_common::error::DbErrorKind>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sql-db-common/src/error.rs:66:37
+[32msqlite-e2e-tests_1  |[0m    1: <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sql-db-common/src/error.rs:148:46
+[32msqlite-e2e-tests_1  |[0m       <syncstorage_sql_db_common::error::DbError as core::convert::From<diesel::result::ConnectionError>>::from
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver-common/src/lib.rs:50:17
+[32msqlite-e2e-tests_1  |[0m    2: <core::result::Result<T,F> as core::ops::try_trait::FromResidual<core::result::Result<core::convert::Infallible,E>>>::from_residual
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/result.rs:1964:27
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::run_embedded_migrations
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:37:16
+[32msqlite-e2e-tests_1  |[0m       syncstorage_sqlite::pool::SqliteDbPool::new
+[32msqlite-e2e-tests_1  |[0m              at /app/syncstorage-sqlite/src/pool.rs:69:9
+[32msqlite-e2e-tests_1  |[0m    3: syncserver::server::Server::with_settings::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/server/mod.rs:271:23
+[32msqlite-e2e-tests_1  |[0m       syncserver::main::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:61:49
+[32msqlite-e2e-tests_1  |[0m    4: <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1041:42
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:793:13
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::with
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:791:17
+[32msqlite-e2e-tests_1  |[0m       <tokio::task::local::RunUntil<T> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:1031:9
+[32msqlite-e2e-tests_1  |[0m    5: tokio::task::local::LocalSet::run_until::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:689:19
+[32msqlite-e2e-tests_1  |[0m       <core::pin::Pin<P> as core::future::future::Future>::poll
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/future/future.rs:123:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:57
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::with_budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:107:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::coop::budget
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/coop.rs:73:5
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:729:25
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::Context::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:428:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:728:36
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:68
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::scoped::Scoped<T>::set
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/scoped.rs:40:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:26
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::try_with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:284:16
+[32msqlite-e2e-tests_1  |[0m       std::thread::local::LocalKey<T>::with
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/thread/local.rs:260:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::set_scheduler
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context.rs:180:17
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::enter
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:807:27
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CoreGuard::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:716:19
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:196:28
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::context::runtime::enter_runtime
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/context/runtime.rs:65:16
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::scheduler::current_thread::CurrentThread::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/scheduler/current_thread/mod.rs:184:9
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on_inner
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:368:47
+[32msqlite-e2e-tests_1  |[0m       tokio::runtime::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/runtime/runtime.rs:342:13
+[32msqlite-e2e-tests_1  |[0m       tokio::task::local::LocalSet::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.43.0/src/task/local.rs:646:9
+[32msqlite-e2e-tests_1  |[0m       actix_rt::runtime::Runtime::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/runtime.rs:138:20
+[32msqlite-e2e-tests_1  |[0m       actix_rt::system::SystemRunner::block_on
+[32msqlite-e2e-tests_1  |[0m              at /usr/local/cargo/registry/src/index.crates.io-6f17d22bba15001f/actix-rt-2.10.0/src/system.rs:244:17
+[32msqlite-e2e-tests_1  |[0m       syncserver::main
+[32msqlite-e2e-tests_1  |[0m              at /app/syncserver/src/main.rs:27:1
+[32msqlite-e2e-tests_1  |[0m    6: core::ops::function::FnOnce::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:250:5
+[32msqlite-e2e-tests_1  |[0m       std::sys_common::backtrace::__rust_begin_short_backtrace
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/sys_common/backtrace.rs:155:18
+[32msqlite-e2e-tests_1  |[0m    7: std::rt::lang_start::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:166:18
+[32msqlite-e2e-tests_1  |[0m    8: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/core/src/ops/function.rs:284:13
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal::{{closure}}
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:48
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try::do_call
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:552:40
+[32msqlite-e2e-tests_1  |[0m       std::panicking::try
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panicking.rs:516:19
+[32msqlite-e2e-tests_1  |[0m       std::panic::catch_unwind
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/panic.rs:146:14
+[32msqlite-e2e-tests_1  |[0m       std::rt::lang_start_internal
+[32msqlite-e2e-tests_1  |[0m              at /rustc/9b00956e56009bab2aa15d7bff10916599e3d6d6/library/std/src/rt.rs:148:20
+[32msqlite-e2e-tests_1  |[0m    9: main
+[32msqlite-e2e-tests_1  |[0m   10: __libc_start_main
+[32msqlite-e2e-tests_1  |[0m              at ./csu/../csu/libc-start.c:308:16
+[32msqlite-e2e-tests_1  |[0m   11: _start
+[32msqlite-e2e-tests_1  |[0m , status: 500 }
+[32msqlite-e2e-tests_1  |[0m note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+Stopping project_sqlite-e2e-tests_1 ... 
+[3A[2KStopping project_sqlite-e2e-tests_1 ... [32mdone[0m[3B[1A[2KStopping project_syncserver_1       ... [32mdone[0m[1B[2A[2KStopping project_mock-fxa-server_1  ... [32mdone[0m[2B

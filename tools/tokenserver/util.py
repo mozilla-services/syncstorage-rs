@@ -20,7 +20,7 @@ from datadog import initialize, statsd
 
 
 def encode_bytes_b64(value):
-    return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
 
 
 def run_script(main):
@@ -41,12 +41,14 @@ def configure_script_logging(opts=None, logger_name=""):
     """
 
     verbosity = (
-        opts and getattr(
-            opts, "verbosity", logging.NOTSET)) or logging.NOTSET
+        opts and getattr(opts, "verbosity", logging.NOTSET)
+    ) or logging.NOTSET
     logger = logging.getLogger(logger_name)
-    level = os.environ.get("PYTHON_LOG", "").upper() or \
-        max(logging.DEBUG, logging.WARNING - (verbosity * 10)) or \
-        logger.getEffectiveLevel()
+    level = (
+        os.environ.get("PYTHON_LOG", "").upper()
+        or max(logging.DEBUG, logging.WARNING - (verbosity * 10))
+        or logger.getEffectiveLevel()
+    )
 
     # if we've previously setup a handler, adjust it instead
     if logger.hasHandlers():
@@ -59,8 +61,8 @@ def configure_script_logging(opts=None, logger_name=""):
     if opts:
         if getattr(opts, "human_logs", None):
             formatter = logging.Formatter(
-                "{levelname:<8s}: {message}",
-                style="{")
+                "{levelname:<8s}: {message}", style="{"
+            )
 
     handler.setFormatter(formatter)
     handler.setLevel(level)
@@ -76,14 +78,15 @@ def configure_script_logging(opts=None, logger_name=""):
 class GCP_JSON_Formatter(logging.Formatter):
 
     def format(self, record):
-        return json.dumps({
-            "severity": record.levelname,
-            "message": record.getMessage(),
-            "timestamp": datetime.fromtimestamp(
-                record.created).strftime(
+        return json.dumps(
+            {
+                "severity": record.levelname,
+                "message": record.getMessage(),
+                "timestamp": datetime.fromtimestamp(record.created).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"  # RFC3339
                 ),
-        })
+            }
+        )
 
 
 def format_key_id(keys_changed_at, key_hash):
@@ -99,7 +102,7 @@ def get_timestamp():
     return int(time.time() * 1000)
 
 
-class Metrics():
+class Metrics:
 
     def __init__(self, opts, namespace=""):
         options = dict(
@@ -121,11 +124,11 @@ def add_metric_options(parser: optparse.OptionParser):
         "",
         "--metric_host",
         default=os.environ.get("SYNC_STATSD_HOST"),
-        help="Metric host name"
+        help="Metric host name",
     )
     parser.add_option(
         "",
         "--metric_port",
         default=os.environ.get("SYNC_STATSD_PORT"),
-        help="Metric host port"
+        help="Metric host port",
     )

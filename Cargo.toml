@@ -9,11 +9,15 @@ members = [
   "syncstorage-mysql",
   "syncstorage-settings",
   "syncstorage-spanner",
+  "syncstorage-sqlite",
   "tokenserver-auth",
   "tokenserver-common",
   "tokenserver-db",
+  "tokenserver-db-common",
+  "tokenserver-db-mysql",
+  "tokenserver-db-sqlite",
   "tokenserver-settings",
-  "syncserver",
+  "syncserver", "syncstorage-sql-db-common",
 ]
 default-members = ["syncserver"]
 
@@ -23,6 +27,7 @@ authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
+  "Eragon <eragon+github@eragon.re>",
 ]
 edition = "2021"
 rust-version = "1.86"

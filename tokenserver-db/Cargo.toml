@@ -19,12 +19,20 @@ diesel = { workspace = true, features = ["mysql", "r2d2"] }
 diesel_logger = { workspace = true }
 diesel_migrations = { workspace = true, features = ["mysql"] }
 syncserver-common = { path = "../syncserver-common" }
-syncserver-db-common = { path = "../syncserver-db-common" }
+syncserver-db-common = { path = "../syncserver-db-common", features = ["mysql", "sqlite"] }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
+tokenserver-db-common = { path = "../tokenserver-db-common" }
+tokenserver-db-mysql = { path = "../tokenserver-db-mysql", optional = true}
+tokenserver-db-sqlite = { path = "../tokenserver-db-sqlite", optional = true}
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 [dev-dependencies]
 env_logger.workspace = true
 
 syncserver-settings = { path = "../syncserver-settings" }
+
+[features]
+default = []
+mysql = ["tokenserver-db-mysql"]
+sqlite = ["tokenserver-db-sqlite"]

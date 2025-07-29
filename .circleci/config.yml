@@ -65,6 +65,11 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: make clippy_mysql
+  rust-clippy-sqlite:
+    steps:
+      - run:
+          name: Rust Clippy SQLite
+          command: make clippy_sqlite
   rust-clippy-spanner:
     steps:
       - run:
@@ -156,6 +161,20 @@ commands:
             make docker_run_<< parameters.db >>_e2e_tests
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
+
+  run-sqlite-tests:
+    steps:
+      - run:
+          name: e2e tests (syncstorage sqlite)
+          command: >
+               /usr/local/bin/docker-compose
+               -f docker-compose.sqlite.yaml
+               -f docker-compose.e2e.sqlite.yaml
+               up
+               --exit-code-from sqlite-e2e-tests
+               --abort-on-container-exit
+          environment:
+              SYNCSTORAGE_RS_IMAGE: app:build
 
   run-spanner-tests:
     steps:
@@ -348,6 +367,42 @@ jobs:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
+
+  build-sqlite-image:
+    docker:
+      - image: cimg/rust:1.86  # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - display-versions
+      - write-version
+      - run:
+          name: Build SQLite Docker image
+          command: docker build -t app:build --build-arg DATABASE_BACKEND=sqlite .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*sqlite.yaml /home/circleci/cache
+      - run:
+          name: Save Makefile to cache
+          command: cp Makefile /home/circleci/cache
+      - save_cache:
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+
   build-spanner-image:
     docker:
       - image: cimg/rust:1.86 # RUST_VER
@@ -500,6 +555,36 @@ jobs:
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
 
+  sqlite-e2e-tests:
+    docker:
+      - image: cimg/base:2025.04
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+          key: sqlite-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore Makefile from save_cache
+          command: cp /home/circleci/cache/Makefile .
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
+      - make-test-dir
+      - run-e2e-tests:
+          db: sqlite
+      - store-test-results
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
+      - run-e2e-sqlite-tests
+
   deploy:
     docker:
       - image: docker:18.02.0-ce
@@ -601,6 +686,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - build-sqlite-image:
+          requires:
+            - build-and-test
+          filters:
+            tags:
+              only: /.*/
       - mysql-e2e-tests:
           requires:
             - build-mysql-image
@@ -613,10 +704,17 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - sqlite-e2e-tests:
+          requires:
+            - build-sqlite-image
+          filters:
+            tags:
+              only: /.*/
       - deploy:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
@@ -630,6 +728,7 @@ workflows:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/
@@ -639,6 +738,7 @@ workflows:
           requires:
             - mysql-e2e-tests
             - spanner-e2e-tests
+            - sqlite-e2e-tests
           filters:
             tags:
               only: /.*/

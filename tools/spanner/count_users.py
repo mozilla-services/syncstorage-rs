@@ -20,7 +20,8 @@ from utils import ids_from_env
 logging.basicConfig(
     format='{"datetime": "%(asctime)s", "message": "%(message)s"}',
     stream=sys.stdout,
-    level=logging.INFO)
+    level=logging.INFO,
+)
 
 # Change these to match your install.
 client = spanner.Client()
@@ -49,7 +50,7 @@ def spanner_read_data() -> None:
     # Count users
     with statsd.timer("syncstorage.count_users.duration"):
         with database.snapshot() as snapshot:
-            query = 'SELECT COUNT (DISTINCT fxa_uid) FROM user_collections'
+            query = "SELECT COUNT (DISTINCT fxa_uid) FROM user_collections"
             result = snapshot.execute_sql(query)
             user_count = result.one()[0]
             statsd.gauge("syncstorage.distinct_fxa_uid", user_count)
@@ -57,8 +58,8 @@ def spanner_read_data() -> None:
 
 
 if __name__ == "__main__":
-    logging.info('Starting count_users.py')
+    logging.info("Starting count_users.py")
 
     spanner_read_data()
 
-    logging.info('Completed count_users.py')
+    logging.info("Completed count_users.py")

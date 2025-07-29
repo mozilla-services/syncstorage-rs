@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
+use tokenserver_db_common::error::{DbError, DbFuture};
 
-use super::error::{DbError, DbFuture};
 use super::models::Db;
 use super::params;
 use super::pool::DbPool;
