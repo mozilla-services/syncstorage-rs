@@ -537,10 +537,12 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         if "secrets_file" in settings:
             if "secret" in settings:
                 raise ValueError("can't use both 'secret' and 'secrets_file'")
-            secrets["backend"] = "test_support.Secrets"
+            secrets["backend"] = "tools.integration_tests.test_support.Secrets"
             secrets["filename"] = settings.pop("secrets_file")
         elif "secret" in settings:
-            secrets["backend"] = "test_support.FixedSecrets"
+            secrets["backend"] = (
+                "tools.integration_tests.test_support.FixedSecrets"
+                )
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):

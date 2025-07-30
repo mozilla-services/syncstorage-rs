@@ -290,8 +290,8 @@ jobs:
       - setup-mysql
       - create-tokenserver-database
       # XXX: currently the time needed to setup-sccache negates its savings
-      #- setup-sccache
-      #- restore-sccache-cache
+      - setup-sccache
+      - restore-sccache-cache
       - write-version
       - install-test-deps
       - make-test-dir
@@ -310,7 +310,8 @@ jobs:
           source: workflow/test-results
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
           extension: json
-      #- save-sccache-cache
+      - save-sccache-cache
+
   build-mysql-image:
     docker:
       - image: cimg/rust:1.86 # RUST_VER
