@@ -47,7 +47,7 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-tokenserver-auth = { path = "../tokenserver-auth", default-features = false }
+tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
@@ -60,7 +60,7 @@ woothee = "0.13"
 [features]
 default = ["mysql", "py_verifier"]
 no_auth = []
-py_verifier = ["tokenserver-auth/py"]
+py_verifier = ["tokenserver-auth/py", "tokenserver-common/py"]
 mysql = ["syncstorage-db/mysql"]
 spanner = ["syncstorage-db/spanner"]
 actix-compress = ["actix-web/compress-brotli", "actix-web/compress-gzip", "actix-web/compress-zstd"]
