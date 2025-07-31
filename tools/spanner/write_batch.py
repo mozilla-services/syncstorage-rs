@@ -21,7 +21,7 @@ from google.api_core.exceptions import AlreadyExists
 from google.cloud import spanner
 from google.cloud.spanner_v1 import param_types
 
-from utils import ids_from_env
+from spanner.utils import ids_from_env
 
 
 # max batch size for this write is 2000, otherwise we run into:

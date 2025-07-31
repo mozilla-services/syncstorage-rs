@@ -41,8 +41,8 @@ services:
     entrypoint: >
       /bin/sh -c "
         exit_code=0;
-        pytest /app/tools/integration_tests/ --junit-xml=/spanner_integration_results.xml || exit_code=$$?;
+        PYTHONPATH=/app pytest /app/tools/integration_tests/ --junit-xml=/spanner_integration_results.xml || exit_code=$$?;
         export JWK_CACHE_DISABLED=true;
-        pytest /app/tools/integration_tests/ --junit-xml=/spanner_no_jwk_integration_results.xml || exit_code=$$?;
+        PYTHONPATH=/app pytest /app/tools/integration_tests/ --junit-xml=/spanner_no_jwk_integration_results.xml || exit_code=$$?;
         exit $$exit_code;
       "

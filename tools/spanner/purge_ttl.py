@@ -17,7 +17,7 @@ from google.cloud.spanner_v1.database import Database
 from google.cloud.spanner_v1 import param_types
 from statsd.defaults.env import statsd
 
-from utils import ids_from_env, Mode
+from spanner.utils import ids_from_env, Mode
 
 # set up logger
 logging.basicConfig(

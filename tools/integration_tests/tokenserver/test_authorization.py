@@ -3,7 +3,7 @@
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 import pytest
 import unittest
-from tokenserver.test_support import TestCase
+from integration_tests.tokenserver.test_support import TestCase
 
 
 @pytest.mark.usefixtures('setup_server_local_testing_with_oauth')

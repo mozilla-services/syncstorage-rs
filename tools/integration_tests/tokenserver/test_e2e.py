@@ -21,7 +21,7 @@ from fxa.errors import ClientError, ServerError
 from fxa.tests.utils import TestEmailAccount
 from hashlib import sha256
 
-from tokenserver.test_support import TestCase
+from integration_tests.tokenserver.test_support import TestCase
 
 # This is the client ID used for Firefox Desktop. The FxA team confirmed that
 # this is the proper client ID to be using for these integration tests.

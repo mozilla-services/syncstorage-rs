@@ -4,11 +4,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-from enum import auto, Enum
 import os
+from enum import auto, Enum
 from urllib import parse
 from typing import Tuple
-from unittest.mock import MagicMock
 
 DSN_URL = "SYNC_SYNCSTORAGE__DATABASE_URL"
 """
