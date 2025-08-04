@@ -13,7 +13,7 @@ from statsd.defaults.env import statsd
 from urllib import parse
 
 from google.cloud import spanner
-from utils import ids_from_env
+from spanner.utils import ids_from_env
 
 # set up logger
 logging.basicConfig(

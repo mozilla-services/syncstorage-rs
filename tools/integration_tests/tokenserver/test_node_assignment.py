@@ -4,7 +4,7 @@
 import pytest
 import unittest
 
-from tokenserver.test_support import TestCase
+from integration_tests.tokenserver.test_support import TestCase
 
 
 @pytest.mark.usefixtures('setup_server_local_testing_with_oauth')

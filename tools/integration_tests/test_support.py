@@ -1,7 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-""" Base test class, with an instanciated app.
+""" Base test class, with an instantiated app.
 """
 
 import contextlib
@@ -537,10 +537,12 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         if "secrets_file" in settings:
             if "secret" in settings:
                 raise ValueError("can't use both 'secret' and 'secrets_file'")
-            secrets["backend"] = "test_support.Secrets"
+            secrets["backend"] = "tools.integration_tests.test_support.Secrets"
             secrets["filename"] = settings.pop("secrets_file")
         elif "secret" in settings:
-            secrets["backend"] = "test_support.FixedSecrets"
+            secrets["backend"] = (
+                "tools.integration_tests.test_support.FixedSecrets"
+                )
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
