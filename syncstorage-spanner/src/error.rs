@@ -53,6 +53,10 @@ impl DbError {
     pub fn too_large(msg: String) -> Self {
         DbErrorKind::TooLarge(msg).into()
     }
+
+    pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+        DbErrorKind::PoolTimeout(timeout_type).into()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -65,6 +69,9 @@ pub(crate) enum DbErrorKind {
 
     #[error("A database error occurred: {}", _0)]
     Grpc(#[from] grpcio::Error),
+
+    #[error("A database pool timeout occurred, type: {:?}", _0)]
+    PoolTimeout(deadpool::managed::TimeoutType),
 
     #[error("Database integrity error: {}", _0)]
     Integrity(String),
@@ -131,22 +138,35 @@ impl ReportableError for DbError {
                     _ => true,
                 }
             }
+            DbErrorKind::PoolTimeout(_) => false,
             _ => true,
         }
     }
 
     fn metric_label(&self) -> Option<&str> {
-        match &self.kind {
-            DbErrorKind::Common(e) => e.metric_label(),
+        Some(match &self.kind {
+            DbErrorKind::Common(e) => return e.metric_label(),
 
             DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
                 match status.code() {
-                    RpcStatusCode::UNAVAILABLE => Some("grpc.unavailable"), // Code 14 - UNAVAILABLE
-                    RpcStatusCode::INVALID_ARGUMENT => Some("grpc.invalid_argument"), // Code 3 - INVALID_ARGUMENT
-                    _ => None,
+                    // Code 14 - UNAVAILABLE
+                    RpcStatusCode::UNAVAILABLE => "storage.spanner.grpc.unavailable",
+                    // Code 3 - INVALID_ARGUMENT
+                    RpcStatusCode::INVALID_ARGUMENT => "storage.spapner.grpc.invalid_argument",
+                    _ => return None,
                 }
             }
-            _ => None,
+            DbErrorKind::PoolTimeout(_) => "storage.spanner.pool.timeout",
+            _ => return None,
+        })
+    }
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        match &self.kind {
+            DbErrorKind::PoolTimeout(timeout_type) => {
+                vec![("type", format!("{timeout_type:?}").to_ascii_lowercase())]
+            }
+            _ => vec![],
         }
     }
 
