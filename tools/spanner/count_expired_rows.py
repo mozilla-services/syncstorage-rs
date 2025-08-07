@@ -5,15 +5,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import os
 import sys
 import logging
-from datetime import datetime
 from statsd.defaults.env import statsd
-from urllib import parse
 
 from google.cloud import spanner
-from spanner.utils import ids_from_env
+from tools.spanner.utils import ids_from_env
 
 # set up logger
 logging.basicConfig(

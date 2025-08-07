@@ -1,7 +1,6 @@
 import pytest
 
-from spanner.utils import ids_from_env
-from unittest.mock import MagicMock
+from tools.spanner.utils import ids_from_env
 
 @pytest.fixture(autouse=True)
 def reset_env(monkeypatch):
