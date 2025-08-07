@@ -41,16 +41,31 @@ def main(args=None):
     usage = "usage: %prog [options] node_name capacity"
     descr = "Add a new node to the tokenserver database"
     parser = optparse.OptionParser(usage=usage, description=descr)
-    parser.add_option("", "--available", type="int",
-                      help="How many user slots the node has available")
-    parser.add_option("", "--current-load", type="int",
-                      help="How many user slots the node has occupied")
-    parser.add_option("", "--downed", action="store_true",
-                      help="Mark the node as down in the db")
-    parser.add_option("", "--backoff", action="store_true",
-                      help="Mark the node as backed-off in the db")
-    parser.add_option("-v", "--verbose", action="count", dest="verbosity",
-                      help="Control verbosity of log messages")
+    parser.add_option(
+        "", "--available", type="int", help="How many user slots the node has available"
+    )
+    parser.add_option(
+        "",
+        "--current-load",
+        type="int",
+        help="How many user slots the node has occupied",
+    )
+    parser.add_option(
+        "", "--downed", action="store_true", help="Mark the node as down in the db"
+    )
+    parser.add_option(
+        "",
+        "--backoff",
+        action="store_true",
+        help="Mark the node as backed-off in the db",
+    )
+    parser.add_option(
+        "-v",
+        "--verbose",
+        action="count",
+        dest="verbosity",
+        help="Control verbosity of log messages",
+    )
 
     opts, args = parser.parse_args(args)
     if len(args) != 2:

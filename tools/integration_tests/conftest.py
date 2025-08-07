@@ -38,12 +38,9 @@ def _wait_for_server_startup(max_attempts=SYNC_SERVER_STARTUP_MAX_ATTEMPTS):
     itter = 0
     while True:
         if itter >= max_attempts:
-            raise RuntimeError(
-                "Server failed to start within the timeout period."
-            )
+            raise RuntimeError("Server failed to start within the timeout period.")
         try:
-            req = requests.get("http://localhost:8000/__heartbeat__",
-                               timeout=2)
+            req = requests.get("http://localhost:8000/__heartbeat__", timeout=2)
             if req.status_code == 200:
                 break
         except requests.exceptions.RequestException as e:
@@ -63,9 +60,7 @@ def _start_server():
     elif os.path.exists(RELEASE_BUILD):
         target_binary = RELEASE_BUILD
     else:
-        raise RuntimeError(
-            "Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found."
-        )
+        raise RuntimeError("Neither {DEBUG_BUILD} nor {RELEASE_BUILD} were found.")
 
     server_proc = subprocess.Popen(
         target_binary,
@@ -99,8 +94,10 @@ def _set_local_test_env_vars():
     os.environ.setdefault("SYNC_CORS_MAX_AGE", "555")
     os.environ.setdefault("SYNC_CORS_ALLOWED_ORIGIN", "*")
     os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
-    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
-        os.environ["MOCK_FXA_SERVER_URL"]
+    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = os.environ[
+        "MOCK_FXA_SERVER_URL"
+    ]
+
 
 # Fixtures
 
@@ -147,16 +144,15 @@ def setup_server_end_to_end_testing():
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY"]
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG"]
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID"]
-        del os.environ[
-            "SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT"
-        ]
+        del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT"]
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE"]
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N"]
         del os.environ["SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E"]
 
     # Set OAuth-specific environment variables
-    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = \
+    os.environ["SYNC_TOKENSERVER__FXA_OAUTH_SERVER_URL"] = (
         "https://oauth.stage.mozaws.net"
+    )
 
     # Start the server
     yield from _server_manager()
