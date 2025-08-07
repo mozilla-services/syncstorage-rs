@@ -191,3 +191,15 @@ tokenserver-load:
 	$(POETRY) -V
 	$(POETRY) install --directory=$(LOAD_TEST_DIR) --no-root
 
+## Python Utilities
+.PHONY: ruff-lint
+ruff-lint: $(INSTALL_STAMP)  ##  Lint check for utilities.
+	$(POETRY) run ruff check $(TOOLS_DIR)
+
+.PHONY: ruff-fmt
+ruff-fmt: $(INSTALL_STAMP)  ##  Format check with change summary, not reformat.
+	$(POETRY) run ruff format --check $(TOOLS_DIR)
+
+.PHONY: ruff-format
+ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
+	$(POETRY) run ruff format $(TOOLS_DIR)
