@@ -15,7 +15,6 @@ from purge_old_records import purge_old_records
 
 
 class PurgeOldRecordsTestCase(unittest.TestCase):
-
     @classmethod
     def setUpClass(cls):
         cls.service_requests = []
@@ -36,17 +35,17 @@ class PurgeOldRecordsTestCase(unittest.TestCase):
 
         # Configure the node-assignment backend to talk to our test service.
         self.database = Database()
-        self.database.add_service('sync-1.5', r'{node}/1.5/{uid}')
+        self.database.add_service("sync-1.5", r"{node}/1.5/{uid}")
         self.database.add_node(self.service_node, 100)
 
     def tearDown(self):
-        cursor = self.database._execute_sql('DELETE FROM users')
+        cursor = self.database._execute_sql("DELETE FROM users")
         cursor.close()
 
-        cursor = self.database._execute_sql('DELETE FROM nodes')
+        cursor = self.database._execute_sql("DELETE FROM nodes")
         cursor.close()
 
-        cursor = self.database._execute_sql('DELETE FROM services')
+        cursor = self.database._execute_sql("DELETE FROM services")
         cursor.close()
 
         del self.service_requests[:]
@@ -74,12 +73,11 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
     def test_purging_of_old_user_records(self):
         # Make some old user records.
         email = "test@mozilla.com"
-        user = self.database.allocate_user(email, client_state="aa",
-                                           generation=123)
-        self.database.update_user(user, client_state="bb",
-                                  generation=456, keys_changed_at=450)
-        self.database.update_user(user, client_state="cc",
-                                  generation=789)
+        user = self.database.allocate_user(email, client_state="aa", generation=123)
+        self.database.update_user(
+            user, client_state="bb", generation=456, keys_changed_at=450
+        )
+        self.database.update_user(user, client_state="cc", generation=789)
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 3)
         user = self.database.get_user(email)
@@ -155,12 +153,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         # With the node down, we should be able to purge any records.
         self.database.update_node(self.service_node, downed=1)
 
-        self.assertTrue(
-            purge_old_records(
-                node_secret,
-                grace_period=0,
-                force=True)
-            )
+        self.assertTrue(purge_old_records(node_secret, grace_period=0, force=True))
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 1)
@@ -178,12 +171,7 @@ class TestPurgeOldRecords(PurgeOldRecordsTestCase):
         self.database.update_node(self.service_node, downed=1)
 
         # Don't actually perform anything destructive.
-        self.assertTrue(
-            purge_old_records(
-                node_secret,
-                grace_period=0,
-                dryrun=True)
-            )
+        self.assertTrue(purge_old_records(node_secret, grace_period=0, dryrun=True))
 
         user_records = list(self.database.get_user_records(email))
         self.assertEqual(len(user_records), 2)
@@ -199,12 +187,10 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.spanner_service = make_server(
-            "localhost", 0, cls._service_app)
+        cls.spanner_service = make_server("localhost", 0, cls._service_app)
         host, port = cls.spanner_service.server_address
         cls.spanner_node = f"http://{host}:{port}"
-        cls.spanner_thread = threading.Thread(
-            target=cls.spanner_service.serve_forever)
+        cls.spanner_thread = threading.Thread(target=cls.spanner_service.serve_forever)
         cls.spanner_thread.start()
         cls.downed_node = f"http://{host}:9999"
 
@@ -236,7 +222,8 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
         user = self.database.allocate_user(email, client_state="aa")
         self.database.replace_user_record(user["uid"])
         user = self.database.allocate_user(
-            email, node=self.spanner_node, client_state="aa")
+            email, node=self.spanner_node, client_state="aa"
+        )
 
         self.assertTrue(purge_old_records(node_secret, grace_period=0))
         user_records = list(self.database.get_user_records(email))
@@ -265,10 +252,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret,
-                grace_period=0,
-                force=True,
-                override_node=self.spanner_node
+                node_secret, grace_period=0, force=True, override_node=self.spanner_node
             )
         )
         user_records = list(self.database.get_user_records(email))
@@ -299,10 +283,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret,
-                grace_period=0,
-                force=True,
-                override_node=self.spanner_node
+                node_secret, grace_period=0, force=True, override_node=self.spanner_node
             )
         )
         user_records = list(self.database.get_user_records(email))
@@ -333,10 +314,7 @@ class TestMigrationRecords(PurgeOldRecordsTestCase):
 
         self.assertTrue(
             purge_old_records(
-                node_secret,
-                grace_period=0,
-                force=True,
-                override_node=self.spanner_node
+                node_secret, grace_period=0, force=True, override_node=self.spanner_node
             )
         )
         user_records = list(self.database.get_user_records(email))

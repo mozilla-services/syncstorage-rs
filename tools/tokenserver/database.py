@@ -252,19 +252,15 @@ limit
     1
 """)
 
-SERVICE_NAME = 'sync-1.5'
+SERVICE_NAME = "sync-1.5"
 
 
 class Database:
     def __init__(self):
-        engine = create_engine(os.environ['SYNC_TOKENSERVER__DATABASE_URL'])
-        self.database = engine. \
-            execution_options(isolation_level="AUTOCOMMIT"). \
-            connect()
-        self.capacity_release_rate = os.environ. \
-            get("NODE_CAPACITY_RELEASE_RATE", 0.1)
-        self.spanner_node_id = os.environ.get(
-            "SYNC_TOKENSERVER__SPANNER_NODE_ID")
+        engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
+        self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
+        self.capacity_release_rate = os.environ.get("NODE_CAPACITY_RELEASE_RATE", 0.1)
+        self.spanner_node_id = os.environ.get("SYNC_TOKENSERVER__SPANNER_NODE_ID")
         self.spanner_node = None
         if self.spanner_node_id:
             self.spanner_node = self.get_spanner_node(self.spanner_node_id)
@@ -276,8 +272,7 @@ class Database:
         self.database.close()
 
     def get_user(self, email):
-        params = {'service': self._get_service_id(SERVICE_NAME),
-                  'email': email}
+        params = {"service": self._get_service_id(SERVICE_NAME), "email": email}
         res = self._execute_sql(_GET_USER_RECORDS, **params)
         try:
             # The query fetches rows ordered by created_at, but we want
@@ -294,40 +289,49 @@ class Database:
             cur_row = rows[0]
             old_rows = rows[1:]
             user = {
-                'email': email,
-                'uid': cur_row.uid,
-                'node': cur_row.node,
-                'generation': cur_row.generation,
-                'keys_changed_at': cur_row.keys_changed_at or 0,
-                'client_state': cur_row.client_state,
-                'old_client_states': {},
-                'first_seen_at': cur_row.created_at,
+                "email": email,
+                "uid": cur_row.uid,
+                "node": cur_row.node,
+                "generation": cur_row.generation,
+                "keys_changed_at": cur_row.keys_changed_at or 0,
+                "client_state": cur_row.client_state,
+                "old_client_states": {},
+                "first_seen_at": cur_row.created_at,
             }
             # If the current row is marked as replaced or is missing a node,
             # and they haven't been retired, then assign them a new node.
             if cur_row.replaced_at is not None or cur_row.node is None:
                 if cur_row.generation < MAX_GENERATION:
-                    user = self.allocate_user(email,
-                                              cur_row.generation,
-                                              cur_row.client_state,
-                                              cur_row.keys_changed_at)
+                    user = self.allocate_user(
+                        email,
+                        cur_row.generation,
+                        cur_row.client_state,
+                        cur_row.keys_changed_at,
+                    )
             for old_row in old_rows:
                 # Collect any previously-seen client-state values.
-                if old_row.client_state != user['client_state']:
-                    user['old_client_states'][old_row.client_state] = True
+                if old_row.client_state != user["client_state"]:
+                    user["old_client_states"][old_row.client_state] = True
                 # Make sure each old row is marked as replaced.
                 # They might not be, due to races in row creation.
                 if old_row.replaced_at is None:
                     timestamp = cur_row.created_at
                     self.replace_user_record(old_row.uid, timestamp)
                 # Track backwards to the oldest timestamp at which we saw them.
-                user['first_seen_at'] = old_row.created_at
+                user["first_seen_at"] = old_row.created_at
             return user
         finally:
             res.close()
 
-    def allocate_user(self, email, generation=0, client_state='',
-                      keys_changed_at=0, node=None, timestamp=None):
+    def allocate_user(
+        self,
+        email,
+        generation=0,
+        client_state="",
+        keys_changed_at=0,
+        node=None,
+        timestamp=None,
+    ):
         if timestamp is None:
             timestamp = get_timestamp()
         if node is None:
@@ -335,100 +339,99 @@ class Database:
         else:
             nodeid = self.get_node_id(node)
         params = {
-            'service': self._get_service_id(SERVICE_NAME),
-            'email': email,
-            'nodeid': nodeid,
-            'generation': generation,
-            'keys_changed_at': keys_changed_at,
-            'client_state': client_state,
-            'timestamp': timestamp
+            "service": self._get_service_id(SERVICE_NAME),
+            "email": email,
+            "nodeid": nodeid,
+            "generation": generation,
+            "keys_changed_at": keys_changed_at,
+            "client_state": client_state,
+            "timestamp": timestamp,
         }
         res = self._execute_sql(_CREATE_USER_RECORD, **params)
         return {
-            'email': email,
-            'uid': res.lastrowid,
-            'node': node,
-            'generation': generation,
-            'keys_changed_at': keys_changed_at,
-            'client_state': client_state,
-            'old_client_states': {},
-            'first_seen_at': timestamp,
+            "email": email,
+            "uid": res.lastrowid,
+            "node": node,
+            "generation": generation,
+            "keys_changed_at": keys_changed_at,
+            "client_state": client_state,
+            "old_client_states": {},
+            "first_seen_at": timestamp,
         }
 
-    def update_user(self, user, generation=None, client_state=None,
-                    keys_changed_at=None, node=None):
+    def update_user(
+        self, user, generation=None, client_state=None, keys_changed_at=None, node=None
+    ):
         if client_state is None and node is None:
             # No need for a node-reassignment, just update the row in place.
             # Note that if we're changing keys_changed_at without changing
             # client_state, it's because we're seeing an existing value of
             # keys_changed_at for the first time.
             params = {
-                'service': self._get_service_id(SERVICE_NAME),
-                'email': user['email'],
-                'generation': generation,
-                'keys_changed_at': keys_changed_at
+                "service": self._get_service_id(SERVICE_NAME),
+                "email": user["email"],
+                "generation": generation,
+                "keys_changed_at": keys_changed_at,
             }
             res = self._execute_sql(_UPDATE_USER_RECORD_IN_PLACE, **params)
             res.close()
 
             if generation is not None:
-                user['generation'] = max(user['generation'], generation)
-            user['keys_changed_at'] = max_keys_changed_at(
-                user,
-                keys_changed_at
-            )
+                user["generation"] = max(user["generation"], generation)
+            user["keys_changed_at"] = max_keys_changed_at(user, keys_changed_at)
         else:
             # Reject previously-seen client-state strings.
             if client_state is None:
-                client_state = user['client_state']
+                client_state = user["client_state"]
             else:
-                if client_state == user['client_state']:
-                    raise Exception('previously seen client-state string')
-                if client_state in user['old_client_states']:
-                    raise Exception('previously seen client-state string')
+                if client_state == user["client_state"]:
+                    raise Exception("previously seen client-state string")
+                if client_state in user["old_client_states"]:
+                    raise Exception("previously seen client-state string")
             # Need to create a new record for new user state.
             # If the node is not explicitly changing, try to keep them on the
             # same node, but if e.g. it no longer exists them allocate them to
             # a new one.
             if node is not None:
                 nodeid = self.get_node_id(node)
-                user['node'] = node
+                user["node"] = node
             else:
                 try:
-                    nodeid = self.get_node_id(user['node'])
+                    nodeid = self.get_node_id(user["node"])
                 except ValueError:
                     nodeid, node = self.get_best_node()
-                    user['node'] = node
+                    user["node"] = node
             if generation is not None:
-                generation = max(user['generation'], generation)
+                generation = max(user["generation"], generation)
             else:
-                generation = user['generation']
+                generation = user["generation"]
             keys_changed_at = max_keys_changed_at(user, keys_changed_at)
             now = get_timestamp()
             params = {
-                'service': self._get_service_id(SERVICE_NAME),
-                'email': user['email'], 'nodeid': nodeid,
-                'generation': generation, 'keys_changed_at': keys_changed_at,
-                'client_state': client_state, 'timestamp': now,
+                "service": self._get_service_id(SERVICE_NAME),
+                "email": user["email"],
+                "nodeid": nodeid,
+                "generation": generation,
+                "keys_changed_at": keys_changed_at,
+                "client_state": client_state,
+                "timestamp": now,
             }
             res = self._execute_sql(_CREATE_USER_RECORD, **params)
             res.close()
-            user['uid'] = res.lastrowid
-            user['generation'] = generation
-            user['keys_changed_at'] = keys_changed_at
-            user['old_client_states'][user['client_state']] = True
-            user['client_state'] = client_state
+            user["uid"] = res.lastrowid
+            user["generation"] = generation
+            user["keys_changed_at"] = keys_changed_at
+            user["old_client_states"][user["client_state"]] = True
+            user["client_state"] = client_state
             # mark old records as having been replaced.
             # if we crash here, they are unmarked and we may fail to
             # garbage collect them for a while, but the active state
             # will be undamaged.
-            self.replace_user_records(user['email'], now)
+            self.replace_user_records(user["email"], now)
 
     def retire_user(self, email):
         now = get_timestamp()
-        params = {
-            'email': email, 'timestamp': now, 'generation': MAX_GENERATION
-        }
+        params = {"email": email, "timestamp": now, "generation": MAX_GENERATION}
         # Pass through explicit engine to help with sharded implementation,
         # since we can't shard by service name here.
         res = self._execute_sql(_RETIRE_USER_RECORDS, **params)
@@ -448,8 +451,7 @@ class Database:
 
     def get_user_records(self, email):
         """Get all the user's records, including the old ones."""
-        params = {'service': self._get_service_id(SERVICE_NAME),
-                  'email': email}
+        params = {"service": self._get_service_id(SERVICE_NAME), "email": email}
         res = self._execute_sql(_GET_ALL_USER_RECORDS_FOR_SERVICE, **params)
         try:
             for row in res:
@@ -472,14 +474,15 @@ class Database:
                 pass
             rrep = " and ".join(rstr)
             sql = sqltext(
-                _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE.replace(
-                    "::RANGE::", rrep))
+                _GET_OLD_USER_RECORDS_FOR_SERVICE_RANGE.replace("::RANGE::", rrep)
+            )
         else:
             sql = _GET_OLD_USER_RECORDS_FOR_SERVICE
         return sql
 
-    def get_old_user_records(self, grace_period=-1, limit=100,
-                             offset=0, uid_range=None):
+    def get_old_user_records(
+        self, grace_period=-1, limit=100, offset=0, uid_range=None
+    ):
         """Get user records that were replaced outside the grace period."""
         if grace_period < 0:
             grace_period = 60 * 60 * 24 * 7  # one week, in seconds
@@ -488,7 +491,7 @@ class Database:
             "service": self._get_service_id(SERVICE_NAME),
             "timestamp": get_timestamp() - grace_period,
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
 
         sql = self._build_old_user_query(uid_range, params)
@@ -505,8 +508,9 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self._get_service_id(SERVICE_NAME), 'email': email,
-            'timestamp': timestamp
+            "service": self._get_service_id(SERVICE_NAME),
+            "email": email,
+            "timestamp": timestamp,
         }
         res = self._execute_sql(_REPLACE_USER_RECORDS, **params)
         res.close()
@@ -516,15 +520,16 @@ class Database:
         if timestamp is None:
             timestamp = get_timestamp()
         params = {
-            'service': self._get_service_id(SERVICE_NAME), 'uid': uid,
-            'timestamp': timestamp
+            "service": self._get_service_id(SERVICE_NAME),
+            "uid": uid,
+            "timestamp": timestamp,
         }
         res = self._execute_sql(_REPLACE_USER_RECORD, **params)
         res.close()
 
     def delete_user_record(self, uid):
         """Delete the user record with the given uid."""
-        params = {'service': self._get_service_id(SERVICE_NAME), 'uid': uid}
+        params = {"service": self._get_service_id(SERVICE_NAME), "uid": uid}
         if not self.spanner_node_id:
             res = self._execute_sql(_FREE_SLOT_ON_NODE, **params)
             res.close()
@@ -536,35 +541,47 @@ class Database:
     #
 
     def _get_service_id(self, service):
-        if hasattr(self, 'service_id'):
+        if hasattr(self, "service_id"):
             return self.service_id
         else:
             res = self._execute_sql(_GET_SERVICE_ID, service=service)
             row = res.fetchone()
             res.close()
             if row is None:
-                raise Exception('unknown service: ' + service)
+                raise Exception("unknown service: " + service)
             self.service_id = row.id
 
             return row.id
 
     def add_service(self, service_name, pattern, **kwds):
         """Add definition for a new service."""
-        res = self._execute_sql(sqltext("""
+        res = self._execute_sql(
+            sqltext("""
           insert into services (service, pattern)
           values (:servicename, :pattern)
-        """), servicename=service_name, pattern=pattern, **kwds)
+        """),
+            servicename=service_name,
+            pattern=pattern,
+            **kwds,
+        )
         res.close()
         return res.lastrowid
 
     def add_node(self, node, capacity, **kwds):
         """Add definition for a new node."""
-        available = kwds.get('available')
+        available = kwds.get("available")
         # We release only a fraction of the node's capacity to start.
         if available is None:
             available = math.ceil(capacity * self.capacity_release_rate)
-        cols = ["service", "node", "available", "capacity",
-                "current_load", "downed", "backoff"]
+        cols = [
+            "service",
+            "node",
+            "available",
+            "capacity",
+            "current_load",
+            "downed",
+            "backoff",
+        ]
         args = [":" + v for v in cols]
         # Handle test cases that require nodeid to be 800
         if "nodeid" in kwds:
@@ -576,14 +593,14 @@ class Database:
             """.format(cols=", ".join(cols), args=", ".join(args))
         res = self._execute_sql(
             sqltext(query),
-            nodeid=kwds.get('nodeid'),
+            nodeid=kwds.get("nodeid"),
             service=self._get_service_id(SERVICE_NAME),
             node=node,
             capacity=capacity,
             available=available,
-            current_load=kwds.get('current_load', 0),
-            downed=kwds.get('downed', 0),
-            backoff=kwds.get('backoff', 0),
+            current_load=kwds.get("current_load", 0),
+            downed=kwds.get("downed", 0),
+            backoff=kwds.get("backoff", 0),
         )
         res.close()
 
@@ -605,8 +622,8 @@ class Database:
         query += """
             where service = :service and node = :node
         """
-        values['service'] = self._get_service_id(SERVICE_NAME)
-        values['node'] = node
+        values["service"] = self._get_service_id(SERVICE_NAME)
+        values["node"] = node
         if kwds:
             raise ValueError("unknown fields: " + str(kwds.keys()))
         con = self._execute_sql(sqltext(query), **values)
@@ -619,7 +636,8 @@ class Database:
             select id from nodes
             where service=:service and node=:node
             """),
-            service=self._get_service_id(SERVICE_NAME), node=node
+            service=self._get_service_id(SERVICE_NAME),
+            node=node,
         )
         row = res.fetchone()
         res.close()
@@ -630,11 +648,13 @@ class Database:
     def remove_node(self, node, timestamp=None):
         """Remove definition for a node."""
         nodeid = self.get_node_id(node)
-        res = self._execute_sql(sqltext(
-            """
+        res = self._execute_sql(
+            sqltext(
+                """
             delete from nodes where id=:nodeid
-            """),
-            nodeid=nodeid
+            """
+            ),
+            nodeid=nodeid,
         )
         res.close()
         self.unassign_node(node, timestamp, nodeid=nodeid)
@@ -651,7 +671,8 @@ class Database:
             set replaced_at=:timestamp
             where nodeid=:nodeid
             """),
-            nodeid=nodeid, timestamp=timestamp
+            nodeid=nodeid,
+            timestamp=timestamp,
         )
         res.close()
 
@@ -672,8 +693,8 @@ class Database:
             # bailing out.
             for _ in range(5):
                 res = self._execute_sql(
-                    _GET_BEST_NODE,
-                    service=self._get_service_id(SERVICE_NAME))
+                    _GET_BEST_NODE, service=self._get_service_id(SERVICE_NAME)
+                )
                 row = res.fetchone()
                 res.close()
                 if row is None:
@@ -682,7 +703,7 @@ class Database:
                     res = self._execute_sql(
                         _RELEASE_NODE_CAPACITY,
                         capacity_release_rate=self.capacity_release_rate,
-                        service=self._get_service_id(SERVICE_NAME)
+                        service=self._get_service_id(SERVICE_NAME),
                     )
                     res.close()
                     if res.rowcount == 0:
@@ -692,7 +713,7 @@ class Database:
 
         # Did we succeed in finding a node?
         if row is None:
-            raise Exception('unable to get a node')
+            raise Exception("unable to get a node")
 
         nodeid = row.id
         node = str(row.node)
@@ -700,9 +721,9 @@ class Database:
         # Update the node to reflect the new assignment.
         # This is a little racy with concurrent assignments, but no big
         # deal.
-        con = self._execute_sql(_ADD_USER_TO_NODE,
-                                service=self._get_service_id(SERVICE_NAME),
-                                node=node)
+        con = self._execute_sql(
+            _ADD_USER_TO_NODE, service=self._get_service_id(SERVICE_NAME), node=node
+        )
         con.close()
 
         return nodeid, node
@@ -710,23 +731,22 @@ class Database:
     def get_node(self, node):
         if node is None:
             raise Exception("NONE node")
-        res = self._execute_sql(_GET_NODE,
-                                service=self._get_service_id(SERVICE_NAME),
-                                node=node)
+        res = self._execute_sql(
+            _GET_NODE, service=self._get_service_id(SERVICE_NAME), node=node
+        )
         row = res.fetchone()
         res.close()
         if row is None:
-            raise Exception('unknown node: ' + node)
+            raise Exception("unknown node: " + node)
         return row
 
     # somewhat simplified version that just gets the one Spanner node.
     def get_spanner_node(self, node):
-        res = self._execute_sql(_GET_SPANNER_NODE,
-                                id=node)
+        res = self._execute_sql(_GET_SPANNER_NODE, id=node)
         row = res.fetchone()
         res.close()
         if row is None:
-            raise Exception(f'unknown node: {node}')
+            raise Exception(f"unknown node: {node}")
         return str(row.node)
 
 
@@ -737,9 +757,5 @@ def max_keys_changed_at(user, keys_changed_at):
     May return `None` as the column is nullable.
 
     """
-    it = (
-        x
-        for x in (keys_changed_at, user['keys_changed_at'])
-        if x is not None
-    )
+    it = (x for x in (keys_changed_at, user["keys_changed_at"]) if x is not None)
     return max(it, default=None)
