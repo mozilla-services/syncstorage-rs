@@ -1,3 +1,13 @@
+<a name="0.19.1"></a>
+## 0.19.1 (2025-08-07)
+
+
+#### Features
+
+*   quiet pool timeout events (emit as metrics) (#1740) ([3e20b054](https://github.com/mozilla-services/syncstorage-rs/commit/3e20b054cf2dd274fe551fe40bfb4b946812a2ea))
+
+
+
 <a name="0.19.0"></a>
 ## 0.19.0 (2025-08-05)
 
