@@ -40,11 +40,11 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
+            pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
             # NOTE: Python3.12 requires `--break-system-packages`.
             # This command is run on the cimg/rust image, which is running python 3.10
             poetry self add poetry-plugin-export
-            poetry install --without dev --with tokenserver-unit-tests --no-interaction --no-ansi
+            poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
   rust-check:
     steps:
       - run:
@@ -57,9 +57,8 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 syncserver/src/tokenserver
-            flake8 tools/integration_tests
-            flake8 tools/tokenserver
+            make ruff-fmt-chk
+            make ruff-lint
   rust-clippy-mysql:
     steps:
       - run:
