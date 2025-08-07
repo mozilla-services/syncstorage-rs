@@ -10,14 +10,14 @@ import os
 import sys
 from datetime import datetime
 from typing import List, Optional
-from urllib import parse
+
 
 from google.cloud import spanner
 from google.cloud.spanner_v1.database import Database
 from google.cloud.spanner_v1 import param_types
 from statsd.defaults.env import statsd
 
-from spanner.utils import ids_from_env, Mode
+from tools.spanner.utils import ids_from_env, Mode
 
 # set up logger
 logging.basicConfig(
@@ -60,7 +60,7 @@ def add_conditions(args, query: str, prefix: Optional[str]):
         if ids:
             query += " AND collection_id"
             if len(ids) == 1:
-                query += " = @collection_id".format(ids[0])
+                query += " = @collection_id"
                 params['collection_id'] = ids[0]
                 types['collection_id'] = param_types.INT64
             else:
@@ -71,7 +71,7 @@ def add_conditions(args, query: str, prefix: Optional[str]):
                 query += " in (@{})".format(
                     ', @'.join(params.keys()))
     if prefix:
-        query += ' AND STARTS_WITH(fxa_uid, @prefix)'.format(prefix)
+        query += ' AND STARTS_WITH(fxa_uid, @prefix)'
         params['prefix'] = prefix
         types['prefix'] = param_types.STRING
     return (query, params, types)

@@ -1,11 +1,7 @@
-import os
-import types
 from unittest.mock import MagicMock
-import pytest
 import logging
 
-from spanner import count_expired_rows
-from spanner.utils import ids_from_env
+from tools.spanner import count_expired_rows
 
 def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     # Prepare mocks
