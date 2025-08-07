@@ -16,9 +16,11 @@ Depending on deployment, can be MySQL or Spanner.
 In this context, should always point to spanner for these scripts.
 """
 
+
 class Mode(Enum):
     URL = auto()
     ENV_VAR = auto()
+
 
 def ids_from_env(dsn=DSN_URL, mode=Mode.ENV_VAR) -> Tuple[str, str, str]:
     """
@@ -38,7 +40,7 @@ def ids_from_env(dsn=DSN_URL, mode=Mode.ENV_VAR) -> Tuple[str, str, str]:
     instance_id = None
     database_id = None
     project_id = None
-    
+
     try:
         if mode == Mode.ENV_VAR:
             url = os.environ.get(dsn)

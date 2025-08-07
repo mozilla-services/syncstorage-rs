@@ -2,6 +2,7 @@ import pytest
 
 from tools.spanner.utils import ids_from_env
 
+
 @pytest.fixture(autouse=True)
 def reset_env(monkeypatch):
     # Reset environment variables before each test
@@ -9,18 +10,23 @@ def reset_env(monkeypatch):
         "SYNC_SYNCSTORAGE__DATABASE_URL",
         "INSTANCE_ID",
         "DATABASE_ID",
-        "GOOGLE_CLOUD_PROJECT"
+        "GOOGLE_CLOUD_PROJECT",
     ]:
         monkeypatch.delenv(var, raising=False)
 
+
 def test_ids_from_env_parses_url(monkeypatch):
     """Test with passed in DSN"""
-    monkeypatch.setenv("SYNC_SYNCSTORAGE__DATABASE_URL", "spanner://projects/proj/instances/inst/databases/db")
+    monkeypatch.setenv(
+        "SYNC_SYNCSTORAGE__DATABASE_URL",
+        "spanner://projects/proj/instances/inst/databases/db",
+    )
     dsn = "SYNC_SYNCSTORAGE__DATABASE_URL"
     instance_id, database_id, project_id = ids_from_env(dsn)
     assert project_id == "proj"
     assert instance_id == "inst"
     assert database_id == "db"
+
 
 def test_ids_from_env_with_missing_url(monkeypatch):
     """Test ensures that default env vars set id values."""

@@ -3,6 +3,7 @@ import logging
 
 from tools.spanner import count_expired_rows
 
+
 def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     # Prepare mocks
     mock_instance = MagicMock()
@@ -26,7 +27,9 @@ def test_spanner_read_data_counts_and_logs(monkeypatch, caplog):
     mock_statsd.timer.return_value.__exit__.return_value = None
 
     # Patch from_env to return fixed values
-    monkeypatch.setattr(count_expired_rows, "ids_from_env", lambda: ("inst", "db", "proj"))
+    monkeypatch.setattr(
+        count_expired_rows, "ids_from_env", lambda: ("inst", "db", "proj")
+    )
 
     # Run function
     with caplog.at_level(logging.INFO):
