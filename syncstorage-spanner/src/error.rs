@@ -53,6 +53,10 @@ impl DbError {
     pub fn too_large(msg: String) -> Self {
         DbErrorKind::TooLarge(msg).into()
     }
+
+    pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+        DbErrorKind::PoolTimeout(timeout_type).into()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -65,6 +69,9 @@ pub(crate) enum DbErrorKind {
 
     #[error("A database error occurred: {}", _0)]
     Grpc(#[from] grpcio::Error),
+
+    #[error("A database pool timeout occurred, type: {:?}", _0)]
+    PoolTimeout(deadpool::managed::TimeoutType),
 
     #[error("Database integrity error: {}", _0)]
     Integrity(String),
@@ -131,6 +138,7 @@ impl ReportableError for DbError {
                     _ => true,
                 }
             }
+            DbErrorKind::PoolTimeout(_) => false,
             _ => true,
         }
     }
@@ -141,12 +149,27 @@ impl ReportableError for DbError {
 
             DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
                 match status.code() {
-                    RpcStatusCode::UNAVAILABLE => Some("grpc.unavailable"), // Code 14 - UNAVAILABLE
-                    RpcStatusCode::INVALID_ARGUMENT => Some("grpc.invalid_argument"), // Code 3 - INVALID_ARGUMENT
+                    // Code 14 - UNAVAILABLE
+                    RpcStatusCode::UNAVAILABLE => Some("storage.spanner.grpc.unavailable"),
+                    // Code 3 - INVALID_ARGUMENT
+                    RpcStatusCode::INVALID_ARGUMENT => {
+                        Some("storage.spanner.grpc.invalid_argument")
+                    }
+
                     _ => None,
                 }
             }
+            DbErrorKind::PoolTimeout(_) => Some("storage.spanner.pool.timeout"),
             _ => None,
+        }
+    }
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        match &self.kind {
+            DbErrorKind::PoolTimeout(timeout_type) => {
+                vec![("type", format!("{timeout_type:?}").to_ascii_lowercase())]
+            }
+            _ => vec![],
         }
     }
 
