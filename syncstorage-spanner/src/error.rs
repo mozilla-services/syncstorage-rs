@@ -144,21 +144,24 @@ impl ReportableError for DbError {
     }
 
     fn metric_label(&self) -> Option<&str> {
-        Some(match &self.kind {
-            DbErrorKind::Common(e) => return e.metric_label(),
+        match &self.kind {
+            DbErrorKind::Common(e) => e.metric_label(),
 
             DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
                 match status.code() {
                     // Code 14 - UNAVAILABLE
-                    RpcStatusCode::UNAVAILABLE => "storage.spanner.grpc.unavailable",
+                    RpcStatusCode::UNAVAILABLE => Some("storage.spanner.grpc.unavailable"),
                     // Code 3 - INVALID_ARGUMENT
-                    RpcStatusCode::INVALID_ARGUMENT => "storage.spapner.grpc.invalid_argument",
-                    _ => return None,
+                    RpcStatusCode::INVALID_ARGUMENT => {
+                        Some("storage.spanner.grpc.invalid_argument")
+                    }
+
+                    _ => None,
                 }
             }
-            DbErrorKind::PoolTimeout(_) => "storage.spanner.pool.timeout",
-            _ => return None,
-        })
+            DbErrorKind::PoolTimeout(_) => Some("storage.spanner.pool.timeout"),
+            _ => None,
+        }
     }
 
     fn tags(&self) -> Vec<(&str, String)> {
