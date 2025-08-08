@@ -142,6 +142,13 @@ test_with_coverage:
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
 	exit $$exit_code
 
+.ONESHELL:
+spanner_test_with_coverage:
+	cargo llvm-cov --no-report --summary-only \
+		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}|| true; exit_code=$$?
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
+	exit $$exit_code
+
 merge_coverage_results:
 	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
 

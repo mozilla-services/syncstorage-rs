@@ -119,6 +119,40 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
+  run-spanner-tests:
+    steps:
+      - run:
+          name: cargo spanner build
+          command: cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+      - run:
+          name: Wait for Spanner Emulator
+          command: |-
+            for i in {1..10}; do
+              if nc -z 127.0.0.1 9020; then
+                echo "Spanner emulator running on port 9020."
+                break
+              fi
+              echo "Waiting for Spanner emulator..."
+              sleep 2
+            done
+            if ! nc -z 127.0.0.1 9020; then
+              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
+              exit 1
+            fi
+      - run:
+          name: setup spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          command: scripts/prepare-spanner.sh
+      - run:
+          name: cargo test spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+            RUST_TEST_THREADS: 1
+          command: make spanner_test_with_coverage
+
   merge-unit-test-coverage:
     steps:
       - run:
@@ -156,39 +190,6 @@ commands:
             make docker_run_<< parameters.db >>_e2e_tests
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
-
-  run-spanner-tests:
-    steps:
-      - run:
-          name: cargo spanner build
-          command: cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
-      - run:
-          name: Wait for Spanner Emulator
-          command: |-
-            for i in {1..10}; do
-              if nc -z 127.0.0.1 9020; then
-                echo "Spanner emulator running on port 9020."
-                break
-              fi
-              echo "Waiting for Spanner emulator..."
-              sleep 2
-            done
-            if ! nc -z 127.0.0.1 9020; then
-              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
-              exit 1
-            fi
-      - run:
-          name: setup spanner
-          environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
-          command: scripts/prepare-spanner.sh
-      - run:
-          name: cargo test spanner
-          environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
-          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier || true
 
   gcs-configure-and-upload:
     parameters:
