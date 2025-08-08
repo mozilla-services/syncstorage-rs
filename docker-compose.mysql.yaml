@@ -8,7 +8,6 @@
 # you can test if it's available with
 # curl "http://localhost:8000/__heartbeat__"
 
-version: "3"
 services:
   sync-db:
     image: docker.io/library/mysql:8.0
