@@ -1,3 +1,4 @@
+ARG PYTHON_VERSION=3.13
 ARG DATABASE_BACKEND=spanner
 # Alternatively MYSQLCLIENT_PKG=libmysqlclient-dev for the Oracle/MySQL official client
 ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
@@ -75,7 +76,7 @@ RUN \
     rustc --version && \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
 
-FROM docker.io/library/debian:bullseye-slim
+FROM python:${PYTHON_VERSION}-slim
 ARG MYSQLCLIENT_PKG
 
 ENV POETRY_HOME="/opt/poetry" \
