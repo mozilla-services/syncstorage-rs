@@ -10,7 +10,7 @@ pyfxa==0.8.1
 pytest
 requests
 simplejson
-sqlalchemy==2.0.41
+sqlalchemy==1.4.46
 tokenlib
 webtest
 wsgiproxy2
