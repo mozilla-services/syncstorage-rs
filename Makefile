@@ -31,6 +31,7 @@ TEST_RESULTS_DIR ?= workflow/test-results
 TEST_PROFILE := $(if $(CIRCLECI),ci,default)
 TEST_FILE_PREFIX := $(if $(CIRCLECI),$(CIRCLE_BUILD_NUM)__$(EPOCH_TIME)__$(CIRCLE_PROJECT_REPONAME)__$(WORKFLOW)__)
 UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
+SPANNER_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_unit__results.xml
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 
 SPANNER_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_integration__results.xml
@@ -140,6 +141,13 @@ test_with_coverage:
 	cargo llvm-cov --no-report --summary-only \
 		nextest --workspace --profile ${TEST_PROFILE}; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
+	exit $$exit_code
+
+.ONESHELL:
+spanner_test_with_coverage:
+	cargo llvm-cov --no-report --summary-only \
+		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}|| true; exit_code=$$?
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${SPANNER_UNIT_JUNIT_XML}
 	exit $$exit_code
 
 merge_coverage_results:
