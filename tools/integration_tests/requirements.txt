@@ -4,7 +4,7 @@ konfig
 mysqlclient
 psutil
 pyjwt
-pyramid
+pyramid==1.10.8
 pyramid_hawkauth
 pyfxa==0.8.1
 pytest

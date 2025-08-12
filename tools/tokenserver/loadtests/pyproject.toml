@@ -19,7 +19,7 @@ cryptography = "^45.0.4"
 locust = "^2.37.10"
 pybrowserid = "^0.14.0"
 pyjwt = "^2.10.1"
-sqlalchemy = "^2.0.41"
+sqlalchemy = "1.4.46"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.16.0"
