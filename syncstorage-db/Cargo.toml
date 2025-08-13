@@ -12,7 +12,7 @@ lazy_static.workspace = true
 rand.workspace = true
 slog-scope.workspace = true
 
-async-trait = "0.1.40"
+async-trait = "0.1.88"
 log = { version = "0.4", features = [
     "max_level_debug",
     "release_max_level_info",
