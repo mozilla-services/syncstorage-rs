@@ -133,8 +133,10 @@ impl ReportableError for DbError {
             // Match against server/connection errors that we don't want reported to Sentry.
             DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
                 match status.code() {
-                    RpcStatusCode::UNAVAILABLE => false, // Code 14 - UNAVAILABLE
-                    RpcStatusCode::INVALID_ARGUMENT => false, // Code 3 - INVALID_ARGUMENT
+                    // Code 14 - UNAVAILABLE
+                    RpcStatusCode::UNAVAILABLE => false,
+                    // Code 13 - INTERNAL
+                    RpcStatusCode::INTERNAL => !is_ignored_internal(status),
                     _ => true,
                 }
             }
@@ -151,10 +153,8 @@ impl ReportableError for DbError {
                 match status.code() {
                     // Code 14 - UNAVAILABLE
                     RpcStatusCode::UNAVAILABLE => Some("storage.spanner.grpc.unavailable"),
-                    // Code 3 - INVALID_ARGUMENT
-                    RpcStatusCode::INVALID_ARGUMENT => {
-                        Some("storage.spanner.grpc.invalid_argument")
-                    }
+                    // Code 13 - INTERNAL
+                    RpcStatusCode::INTERNAL => Some("storage.spanner.grpc.internal"),
 
                     _ => None,
                 }
@@ -176,6 +176,16 @@ impl ReportableError for DbError {
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
     }
+}
+
+/// Whether to ignore a 13 - INTERNAL error based on its status
+fn is_ignored_internal(status: &grpcio::RpcStatus) -> bool {
+    [
+        "rst_stream",
+        "rst stream",
+        "received unexpected eos on data frame from server",
+    ]
+    .contains(&status.message().to_lowercase().as_str())
 }
 
 impl InternalError for DbError {
