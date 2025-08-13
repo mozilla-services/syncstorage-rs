@@ -25,7 +25,7 @@ authors = [
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
 ]
 edition = "2021"
-rust-version = "1.86"
+rust-version = "1.89"
 license = "MPL-2.0"
 
 [workspace.dependencies]

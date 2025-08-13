@@ -246,7 +246,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -263,7 +263,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -315,7 +315,7 @@ jobs:
 
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -352,7 +352,7 @@ jobs:
             - /home/circleci/cache
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
