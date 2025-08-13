@@ -19,7 +19,7 @@ sha2.workspace = true
 thiserror.workspace = true
 slog-scope.workspace = true
 
-async-trait = "0.1.40"
+async-trait = "0.1.88"
 dyn-clone = "1.0.4"
 reqwest = { workspace = true, features = ["json"] }
 ring = "0.17"

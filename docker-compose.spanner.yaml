@@ -1,4 +1,3 @@
-version: "3"
 services:
   sync-db:
     # Getting sporadic errors in spanner.

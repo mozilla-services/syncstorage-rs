@@ -40,11 +40,11 @@ commands:
           name: Setup python
           command: |
             sudo apt-get update && sudo apt-get install -y python3-dev python3-pip
-            pip3 install flake8 hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
+            pip3 install hawkauthlib konfig pyramid pyramid_hawkauth requests simplejson unittest2 WebTest WSGIProxy2 poetry
             # NOTE: Python3.12 requires `--break-system-packages`.
             # This command is run on the cimg/rust image, which is running python 3.10
             poetry self add poetry-plugin-export
-            poetry install --without dev --with tokenserver-unit-tests --no-interaction --no-ansi
+            poetry install --with tokenserver-unit-tests,dev --no-interaction --no-ansi
   rust-check:
     steps:
       - run:
@@ -57,9 +57,8 @@ commands:
       - run:
           name: Core Python Checks
           command: |
-            flake8 syncserver/src/tokenserver
-            flake8 tools/integration_tests
-            flake8 tools/tokenserver
+            make ruff-fmt-chk
+            make ruff-lint
   rust-clippy-mysql:
     steps:
       - run:
@@ -119,6 +118,40 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
+  run-spanner-tests:
+    steps:
+      - run:
+          name: cargo spanner build
+          command: cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
+      - run:
+          name: Wait for Spanner Emulator
+          command: |-
+            for i in {1..10}; do
+              if nc -z 127.0.0.1 9020; then
+                echo "Spanner emulator running on port 9020."
+                break
+              fi
+              echo "Waiting for Spanner emulator..."
+              sleep 2
+            done
+            if ! nc -z 127.0.0.1 9020; then
+              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
+              exit 1
+            fi
+      - run:
+          name: setup spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
+          command: scripts/prepare-spanner.sh
+      - run:
+          name: cargo test spanner
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
+            RUST_TEST_THREADS: 1
+          command: make spanner_test_with_coverage
+
   merge-unit-test-coverage:
     steps:
       - run:
@@ -156,39 +189,6 @@ commands:
             make docker_run_<< parameters.db >>_e2e_tests
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
-
-  run-spanner-tests:
-    steps:
-      - run:
-          name: cargo spanner build
-          command: cargo build --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier
-      - run:
-          name: Wait for Spanner Emulator
-          command: |-
-            for i in {1..10}; do
-              if nc -z 127.0.0.1 9020; then
-                echo "Spanner emulator running on port 9020."
-                break
-              fi
-              echo "Waiting for Spanner emulator..."
-              sleep 2
-            done
-            if ! nc -z 127.0.0.1 9020; then
-              echo "ERROR: Cannot connect to Spanner emulator at 127.0.0.1:9020. Terminating."
-              exit 1
-            fi
-      - run:
-          name: setup spanner
-          environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9020
-          command: scripts/prepare-spanner.sh
-      - run:
-          name: cargo test spanner
-          environment:
-            SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-            SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
-          command: cargo test --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier || true
 
   gcs-configure-and-upload:
     parameters:
@@ -245,7 +245,7 @@ commands:
 jobs:
   checks:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -262,7 +262,7 @@ jobs:
 
   build-and-test:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -314,7 +314,7 @@ jobs:
 
   build-mysql-image:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
@@ -351,7 +351,7 @@ jobs:
             - /home/circleci/cache
   build-spanner-image:
     docker:
-      - image: cimg/rust:1.86 # RUST_VER
+      - image: cimg/rust:1.89 # RUST_VER
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
