@@ -6,6 +6,7 @@ use diesel::{
     Expression, RunQueryDsl, Table,
 };
 
+#[allow(dead_code)] // Not really dead, Rust can't see it.
 #[derive(Debug, Clone)]
 pub struct OnDuplicateKeyUpdate<T, U, Op, Ret, X>(Box<InsertStatement<T, U, Op, Ret>>, X);
 

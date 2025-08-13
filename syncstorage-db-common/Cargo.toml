@@ -15,7 +15,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 
-async-trait = "0.1.40"
+async-trait = "0.1.88"
 # diesel = 1.4
 diesel = { workspace = true, features = ["mysql", "r2d2"] }
 syncserver-common = { path = "../syncserver-common" }

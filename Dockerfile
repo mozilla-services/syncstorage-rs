@@ -4,7 +4,7 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.71-rust-1.86-bullseye AS chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-bullseye AS chef
 WORKDIR /app
 
 FROM chef AS planner
