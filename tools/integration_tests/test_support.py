@@ -1,8 +1,7 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-""" Base test class, with an instantiated app.
-"""
+"""Base test class, with an instantiated app."""
 
 import contextlib
 import functools
@@ -24,6 +23,7 @@ import sys
 import time
 import tokenlib
 import urllib.parse as urlparse
+
 # unittest imported by pytest requirement
 import unittest
 import uuid
@@ -57,7 +57,6 @@ class Secrets(object):
 
         for name in filename:
             with open(name, "rb") as f:
-
                 reader = csv.reader(f, delimiter=",")
                 for line, row in enumerate(reader):
                     if len(row) < 2:
@@ -79,8 +78,7 @@ class Secrets(object):
             writer = csv.writer(f, delimiter=",")
             for node, secrets in self._secrets.items():
                 secrets = [
-                    "%s:%s" % (timestamp, secret)
-                    for timestamp, secret in secrets
+                    "%s:%s" % (timestamp, secret) for timestamp, secret in secrets
                 ]
                 secrets.insert(0, node)
                 writer.writerow(secrets)
@@ -180,9 +178,7 @@ def get_test_configurator(root, ini_file="tests.ini"):
     config = get_configurator({"__file__": ini_path})
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
-    authn_policy = TokenServerAuthenticationPolicy.from_settings(
-        config.get_settings()
-    )
+    authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
     config.set_authentication_policy(authn_policy)
     return config
 
@@ -253,9 +249,7 @@ class TestCase(unittest.TestCase):
                 self.ini_file = self.TEST_INI_FILE
             else:
                 # The file to use may be specified in the environment.
-                self.ini_file = os.environ.get(
-                    "MOZSVC_TEST_INI_FILE", "tests.ini"
-                )
+                self.ini_file = os.environ.get("MOZSVC_TEST_INI_FILE", "tests.ini")
         __file__ = sys.modules[self.__class__.__module__].__file__
         config = get_test_configurator(__file__, self.ini_file)
         config.begin()
@@ -540,13 +534,11 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
             secrets["backend"] = "tools.integration_tests.test_support.Secrets"
             secrets["filename"] = settings.pop("secrets_file")
         elif "secret" in settings:
-            secrets["backend"] = (
-                "tools.integration_tests.test_support.FixedSecrets"
-                )
+            secrets["backend"] = "tools.integration_tests.test_support.FixedSecrets"
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
-                secrets[name[len(secrets_prefix):]] = settings.pop(name)
+                secrets[name[len(secrets_prefix) :]] = settings.pop(name)
         kwds["secrets"] = secrets
         return kwds
 
