@@ -1,3 +1,23 @@
+<a name="0.20.0"></a>
+## 0.20.0 (2025-08-14)
+
+
+#### Test
+
+*   resolve test deprecations (#1732) ([8055e742](https://github.com/mozilla-services/syncstorage-rs/commit/8055e7429d376a33a9434f05f33ce0d7dabbd825))
+*   collect and report spanner tests (#1743) ([3e130960](https://github.com/mozilla-services/syncstorage-rs/commit/3e130960441334c3c17042833309a679e2160026))
+
+#### Chore
+
+*   update syncstorage rust (#1749) ([f7197fef](https://github.com/mozilla-services/syncstorage-rs/commit/f7197fefb8d23ec9634dc1c70e473ca08a70fae5))
+
+#### Features
+
+*   emit sentry events for INVALID_ARGUMENT (#1748) ([57af35c5](https://github.com/mozilla-services/syncstorage-rs/commit/57af35c591b5b12dde6ed3405ae2932dc2e3ff33))
+*   ruff for python lint and format (#1742) ([8995db62](https://github.com/mozilla-services/syncstorage-rs/commit/8995db6268f5745cd671a43a14903f0ee6631ce5))
+
+
+
 <a name="0.19.1"></a>
 ## 0.19.1 (2025-08-07)
 
