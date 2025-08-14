@@ -1,3 +1,53 @@
+<a name="0.19.1"></a>
+## 0.19.1 (2025-08-07)
+
+
+#### Features
+
+*   quiet pool timeout events (emit as metrics) (#1740) ([3e20b054](https://github.com/mozilla-services/syncstorage-rs/commit/3e20b054cf2dd274fe551fe40bfb4b946812a2ea))
+
+
+
+<a name="0.19.0"></a>
+## 0.19.0 (2025-08-05)
+
+
+#### Refactor
+
+*   python imports (#1730) ([77254b4a](https://github.com/mozilla-services/syncstorage-rs/commit/77254b4a6eb5f9806e103dcd67ad667412078fb4))
+*   convert db extract calls to async (#1715) ([4ddf5b41](https://github.com/mozilla-services/syncstorage-rs/commit/4ddf5b416962b29e4257aac964922c16701f74a9))
+*   sync sentry cleanup grpc errors (#1716) ([b0c8ac50](https://github.com/mozilla-services/syncstorage-rs/commit/b0c8ac50a0ec4ebb3e19ecb9a37eb7b9501da507))
+*   remove user migration utils (#1710) ([f01c21fe](https://github.com/mozilla-services/syncstorage-rs/commit/f01c21fef456e43dc5b73cb4882ea51f95f42ab6))
+*   move stream code into its own module ([a51c0144](https://github.com/mozilla-services/syncstorage-rs/commit/a51c01445eda08721418c9cc5eda389f6b7df347))
+*   remove purge_ttl.rs  (#1702) ([31c3b866](https://github.com/mozilla-services/syncstorage-rs/commit/31c3b866a4f69fe313f0e1979ac4120bc7d764e8))
+*   quiet dbg calls (#1701) ([0e3f7d16](https://github.com/mozilla-services/syncstorage-rs/commit/0e3f7d162c9cea4a68524e1b43151aea51be612f))
+
+#### Bug Fixes
+
+*   make pyo3 usage optional per the feature flag (#1731) ([2fb6b84a](https://github.com/mozilla-services/syncstorage-rs/commit/2fb6b84ad46755eeb6445071445430c7fc05fde8))
+
+#### Breaking Changes
+
+*   require minimum mysql 8 (#1717) ([69005091](https://github.com/mozilla-services/syncstorage-rs/commit/69005091a5d9e3adca246d95ebee97b44d241dce), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+#### Chore
+
+*   require minimum mysql 8 (#1717) ([69005091](https://github.com/mozilla-services/syncstorage-rs/commit/69005091a5d9e3adca246d95ebee97b44d241dce), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+*   strip actix-web features (#1713) ([dd546f02](https://github.com/mozilla-services/syncstorage-rs/commit/dd546f028e771845c174b66e61f02714a3d9a612))
+*   remove extraneous dependencies (#1700) ([0768d497](https://github.com/mozilla-services/syncstorage-rs/commit/0768d4975de555b2c7af64dfef1ba40e5e2f99df))
+
+#### Features
+
+*   use poetry for dependency management (#1706) ([f8715d4e](https://github.com/mozilla-services/syncstorage-rs/commit/f8715d4e916e5f3ef5431cb40ecdebd71b21fa7d))
+*   spanner scripts parse gcp project (#1714) ([d716ac5d](https://github.com/mozilla-services/syncstorage-rs/commit/d716ac5d105cb9eb8a603f2750bd3c3f0361837a))
+
+#### Test
+
+*   add spanner db tests to ci (#1711) ([f407eb21](https://github.com/mozilla-services/syncstorage-rs/commit/f407eb21d1f2fe987e05ead9d55dc33c0d225b01))
+*   make StreamedResultSet's stream generic ([59df9f64](https://github.com/mozilla-services/syncstorage-rs/commit/59df9f64276b5e1f7fe2ab12929c0425181d87c2))
+
+
+
 <a name="0.18.3"></a>
 ## 0.18.3 (2025-05-14)
 
