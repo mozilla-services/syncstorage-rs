@@ -13,10 +13,3 @@ pub const DOCKER_FLOW_ENDPOINTS: [&str; 4] = [
     "/__version__",
     "/__error__",
 ];
-
-#[macro_export]
-macro_rules! label {
-    ($string:expr) => {
-        Some($string.to_string())
-    };
-}

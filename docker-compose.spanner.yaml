@@ -1,4 +1,3 @@
-version: "3"
 services:
   sync-db:
     # Getting sporadic errors in spanner.
@@ -19,11 +18,14 @@ services:
     depends_on:
       - sync-db
     restart: "no"
-    entrypoint: "/app/scripts/prepare-spanner.sh"
+    entrypoint:
+      - /bin/sh
+      - -c
+      - /app/scripts/prepare-spanner.sh && sleep infinity
     environment:
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
   tokenserver-db:
-    image: docker.io/library/mysql:5.7
+    image: docker.io/library/mysql:8.0
     volumes:
       - tokenserver_db_data:/var/lib/mysql
     restart: always
@@ -35,6 +37,12 @@ services:
       MYSQL_DATABASE: tokenserver
       MYSQL_USER: test
       MYSQL_PASSWORD: test
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin -uroot -p$${MYSQL_ROOT_PASSWORD} version"]
+      interval: 2s
+      retries: 10
+      start_period: 20s
+      timeout: 2s
   mock-fxa-server:
     image: app:build
     restart: "no"

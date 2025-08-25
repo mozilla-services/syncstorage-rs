@@ -32,22 +32,22 @@ impl HawkError {
         &self.kind
     }
 
-    pub fn metric_label(&self) -> Option<String> {
-        match self.kind() {
-            HawkErrorKind::Base64(_) => Some("request.error.hawk.decode_error".to_owned()),
-            HawkErrorKind::Expired => Some("request.error.hawk.expired".to_owned()),
-            HawkErrorKind::Header(_) => Some("request.error.hawk.header".to_owned()),
-            HawkErrorKind::Hmac(_) => Some("request.error.hawk.hmac".to_owned()),
-            HawkErrorKind::InvalidHeader => Some("request.error.hawk.invalid_header".to_owned()),
-            HawkErrorKind::InvalidKeyLength(_) => Some("request.error.hawk.expired".to_owned()),
-            HawkErrorKind::Json(_) => Some("request.error.hawk.invalid_json".to_owned()),
-            HawkErrorKind::MissingHeader => Some("request.error.hawk.missing_header".to_owned()),
-            HawkErrorKind::MissingId => Some("request.error.hawk.missing_id".to_owned()),
-            HawkErrorKind::MissingPrefix => Some("request.error.hawk.missing_prefix".to_owned()),
-            HawkErrorKind::Parse(_) => Some("request.error.hawk.parse_error".to_owned()),
-            HawkErrorKind::TruncatedId => Some("request.error.hawk.id_too_short".to_owned()),
-            _ => None,
-        }
+    pub fn metric_label(&self) -> Option<&'static str> {
+        Some(match self.kind() {
+            HawkErrorKind::Base64(_) => "request.error.hawk.decode_error",
+            HawkErrorKind::Expired => "request.error.hawk.expired",
+            HawkErrorKind::Header(_) => "request.error.hawk.header",
+            HawkErrorKind::Hmac(_) => "request.error.hawk.hmac",
+            HawkErrorKind::InvalidHeader => "request.error.hawk.invalid_header",
+            HawkErrorKind::InvalidKeyLength(_) => "request.error.hawk.expired",
+            HawkErrorKind::Json(_) => "request.error.hawk.invalid_json",
+            HawkErrorKind::MissingHeader => "request.error.hawk.missing_header",
+            HawkErrorKind::MissingId => "request.error.hawk.missing_id",
+            HawkErrorKind::MissingPrefix => "request.error.hawk.missing_prefix",
+            HawkErrorKind::Parse(_) => "request.error.hawk.parse_error",
+            HawkErrorKind::TruncatedId => "request.error.hawk.id_too_short",
+            _ => return None,
+        })
     }
 }
 
@@ -102,18 +102,10 @@ pub struct ValidationError {
 }
 
 impl ValidationError {
-    pub fn metric_label(&self) -> Option<String> {
+    pub fn metric_label(&self) -> Option<&'static str> {
         match &self.kind {
-            ValidationErrorKind::FromDetails(
-                _description,
-                ref _location,
-                Some(ref _name),
-                metric_label,
-            ) => metric_label.clone(),
-            ValidationErrorKind::FromValidationErrors(_errors, _location, metric_label) => {
-                metric_label.clone()
-            }
-            _ => None,
+            ValidationErrorKind::FromDetails(.., metric_label)
+            | ValidationErrorKind::FromValidationErrors(.., metric_label) => *metric_label,
         }
     }
 
@@ -153,13 +145,18 @@ impl ValidationError {
 #[derive(Debug, Error)]
 pub enum ValidationErrorKind {
     #[error("{}", _0)]
-    FromDetails(String, RequestErrorLocation, Option<String>, Option<String>),
+    FromDetails(
+        String,
+        RequestErrorLocation,
+        Option<String>,
+        Option<&'static str>,
+    ),
 
     #[error("{}", _0)]
     FromValidationErrors(
         validator::ValidationErrors,
         RequestErrorLocation,
-        Option<String>,
+        Option<&'static str>,
     ),
 }
 

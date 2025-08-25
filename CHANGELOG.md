@@ -1,3 +1,151 @@
+<a name="0.20.0"></a>
+## 0.20.0 (2025-08-14)
+
+
+#### Test
+
+*   resolve test deprecations (#1732) ([8055e742](https://github.com/mozilla-services/syncstorage-rs/commit/8055e7429d376a33a9434f05f33ce0d7dabbd825))
+*   collect and report spanner tests (#1743) ([3e130960](https://github.com/mozilla-services/syncstorage-rs/commit/3e130960441334c3c17042833309a679e2160026))
+
+#### Chore
+
+*   update syncstorage rust (#1749) ([f7197fef](https://github.com/mozilla-services/syncstorage-rs/commit/f7197fefb8d23ec9634dc1c70e473ca08a70fae5))
+
+#### Features
+
+*   emit sentry events for INVALID_ARGUMENT (#1748) ([57af35c5](https://github.com/mozilla-services/syncstorage-rs/commit/57af35c591b5b12dde6ed3405ae2932dc2e3ff33))
+*   ruff for python lint and format (#1742) ([8995db62](https://github.com/mozilla-services/syncstorage-rs/commit/8995db6268f5745cd671a43a14903f0ee6631ce5))
+
+
+
+<a name="0.19.1"></a>
+## 0.19.1 (2025-08-07)
+
+
+#### Features
+
+*   quiet pool timeout events (emit as metrics) (#1740) ([3e20b054](https://github.com/mozilla-services/syncstorage-rs/commit/3e20b054cf2dd274fe551fe40bfb4b946812a2ea))
+
+
+
+<a name="0.19.0"></a>
+## 0.19.0 (2025-08-05)
+
+
+#### Refactor
+
+*   python imports (#1730) ([77254b4a](https://github.com/mozilla-services/syncstorage-rs/commit/77254b4a6eb5f9806e103dcd67ad667412078fb4))
+*   convert db extract calls to async (#1715) ([4ddf5b41](https://github.com/mozilla-services/syncstorage-rs/commit/4ddf5b416962b29e4257aac964922c16701f74a9))
+*   sync sentry cleanup grpc errors (#1716) ([b0c8ac50](https://github.com/mozilla-services/syncstorage-rs/commit/b0c8ac50a0ec4ebb3e19ecb9a37eb7b9501da507))
+*   remove user migration utils (#1710) ([f01c21fe](https://github.com/mozilla-services/syncstorage-rs/commit/f01c21fef456e43dc5b73cb4882ea51f95f42ab6))
+*   move stream code into its own module ([a51c0144](https://github.com/mozilla-services/syncstorage-rs/commit/a51c01445eda08721418c9cc5eda389f6b7df347))
+*   remove purge_ttl.rs  (#1702) ([31c3b866](https://github.com/mozilla-services/syncstorage-rs/commit/31c3b866a4f69fe313f0e1979ac4120bc7d764e8))
+*   quiet dbg calls (#1701) ([0e3f7d16](https://github.com/mozilla-services/syncstorage-rs/commit/0e3f7d162c9cea4a68524e1b43151aea51be612f))
+
+#### Bug Fixes
+
+*   make pyo3 usage optional per the feature flag (#1731) ([2fb6b84a](https://github.com/mozilla-services/syncstorage-rs/commit/2fb6b84ad46755eeb6445071445430c7fc05fde8))
+
+#### Breaking Changes
+
+*   require minimum mysql 8 (#1717) ([69005091](https://github.com/mozilla-services/syncstorage-rs/commit/69005091a5d9e3adca246d95ebee97b44d241dce), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+
+#### Chore
+
+*   require minimum mysql 8 (#1717) ([69005091](https://github.com/mozilla-services/syncstorage-rs/commit/69005091a5d9e3adca246d95ebee97b44d241dce), breaks [#](https://github.com/mozilla-services/syncstorage-rs/issues/))
+*   strip actix-web features (#1713) ([dd546f02](https://github.com/mozilla-services/syncstorage-rs/commit/dd546f028e771845c174b66e61f02714a3d9a612))
+*   remove extraneous dependencies (#1700) ([0768d497](https://github.com/mozilla-services/syncstorage-rs/commit/0768d4975de555b2c7af64dfef1ba40e5e2f99df))
+
+#### Features
+
+*   use poetry for dependency management (#1706) ([f8715d4e](https://github.com/mozilla-services/syncstorage-rs/commit/f8715d4e916e5f3ef5431cb40ecdebd71b21fa7d))
+*   spanner scripts parse gcp project (#1714) ([d716ac5d](https://github.com/mozilla-services/syncstorage-rs/commit/d716ac5d105cb9eb8a603f2750bd3c3f0361837a))
+
+#### Test
+
+*   add spanner db tests to ci (#1711) ([f407eb21](https://github.com/mozilla-services/syncstorage-rs/commit/f407eb21d1f2fe987e05ead9d55dc33c0d225b01))
+*   make StreamedResultSet's stream generic ([59df9f64](https://github.com/mozilla-services/syncstorage-rs/commit/59df9f64276b5e1f7fe2ab12929c0425181d87c2))
+
+
+
+<a name="0.18.3"></a>
+## 0.18.3 (2025-05-14)
+
+
+#### Chore
+
+*   bump to latest rust ([0148e04d](https://github.com/mozilla-services/syncstorage-rs/commit/0148e04dd2881869ffe52b6ebb93be6929f31a25))
+*   update python cryptography (#1690) ([e93bb882](https://github.com/mozilla-services/syncstorage-rs/commit/e93bb8821ccdf94e34c184f51ad86f0388333f3d))
+*   added build-and-push to GAR (#1654) ([cb37e2aa](https://github.com/mozilla-services/syncstorage-rs/commit/cb37e2aa4134d5e8e0c11178e267d3e7565da05d))
+*   upload test artifacts to gcs ([aeedcf1e](https://github.com/mozilla-services/syncstorage-rs/commit/aeedcf1e19e622b4f0d0e9c813ba4da3c712f125))
+*   switch back to libmariadb-dev (#1665) ([e0093a88](https://github.com/mozilla-services/syncstorage-rs/commit/e0093a88bfc059a891c1a5d3f74cef068b720861))
+*   migrate tokenserver tests to pytest with junit output ([15840c5e](https://github.com/mozilla-services/syncstorage-rs/commit/15840c5ecfd1e6fbcd239bed0f50cf3537631775))
+*   migrate unit tests to nextest and llvm-cov ([8c56cae8](https://github.com/mozilla-services/syncstorage-rs/commit/8c56cae8905325345972a4abe99c12c1fc1b012c))
+
+#### Features
+
+*   build docker w/ Oracle's libmysqlclient (#1695) ([569e5100](https://github.com/mozilla-services/syncstorage-rs/commit/569e5100839245cd5869bb12b655b7fe571fbbcf))
+*   emit oauth verification timeouts as metrics (not sentry) (#1694) ([624eced1](https://github.com/mozilla-services/syncstorage-rs/commit/624eced1e9cad6492a38397c9440b558d263cca0))
+
+#### Bug Fixes
+
+*   re-enable tokensever e2e tests ([d0336c88](https://github.com/mozilla-services/syncstorage-rs/commit/d0336c8869e52a48e49fed989b5ac9573a3b1e55))
+*   avoid underflow of the queued_tasks metric ([10daab06](https://github.com/mozilla-services/syncstorage-rs/commit/10daab06cf35cf5696aa6ed6b790d8115bfeb432))
+*   Revert "fix: avoid underflow of the queued_tasks metric (#1628)" ([31dda136](https://github.com/mozilla-services/syncstorage-rs/commit/31dda136809879b8e7f91f095bc378bb41b9f304))
+*   resolve pyo3 vuln deprecations (#1682) ([0675930a](https://github.com/mozilla-services/syncstorage-rs/commit/0675930a155d27bbf2eca2c0abf81d262a9cfb28))
+* **infra:**  configure gcp utils before upload (#1698) ([5dcfefe2](https://github.com/mozilla-services/syncstorage-rs/commit/5dcfefe2b6a8946f02c7bfac2fd641b0a6a3356b))
+
+#### Test
+
+* **e2e:**  run integration and e2e tests with pytest (#1697) ([6f15ad54](https://github.com/mozilla-services/syncstorage-rs/commit/6f15ad546d3c5234986db09fec485fb911624e5f))
+
+#### Doc
+
+*   add tokenserver documentation to sync (#1681) ([dadbcea3](https://github.com/mozilla-services/syncstorage-rs/commit/dadbcea3f7428ad7f0a5ae6f0c2ad966c331660a))
+*   update purge script's status now that it's running (#1679) ([6f0c7b28](https://github.com/mozilla-services/syncstorage-rs/commit/6f0c7b28db3f8a2701c4af4dfe7a2d691fc079ef))
+*   document pruning scripts (#1645) ([7c9bc008](https://github.com/mozilla-services/syncstorage-rs/commit/7c9bc0089dd73a9ecaba8b33e26634b2a69b5ff0))
+
+#### Refactor
+
+*   kill tokenserver's TokenType now that it's solely oauth ([a26ff490](https://github.com/mozilla-services/syncstorage-rs/commit/a26ff490b8086ce3c12b837ca00cc757caa54169))
+*   simplify metric_label to return a &str ([0ca435fb](https://github.com/mozilla-services/syncstorage-rs/commit/0ca435fb1a05f073d1e78ed420d953a00c8d0d53))
+
+
+
+<a name="0.18.2"></a>
+## 0.18.2 (2024-12-05)
+
+
+#### Chore
+
+*   bump to latest sentry (#1639) ([bc79ccb9](https://github.com/mozilla-services/syncstorage-rs/commit/bc79ccb97243f946c1abb436f07a1be8b63f6ba6))
+
+
+
+<a name="0.18.1"></a>
+## 0.18.1 (2024-11-27)
+
+
+#### Features
+
+*    Enable Glean probe-scraper task (#1636) ([8363f82d](https://github.com/mozilla-services/syncstorage-rs/commit/8363f82d4197923e8ee1062de849d2c61e467db4))
+
+
+
+<a name="0.18.0"></a>
+## 0.18.0 (2024-11-26)
+
+
+#### Doc
+
+*   sync DAU server side metrics adr (#1608) ([7e211542](https://github.com/mozilla-services/syncstorage-rs/commit/7e21154203411e98200e7af60e2e7199050e9fb7))
+
+#### Features
+
+*   glean metrics logic (#1626) ([9e9869ee](https://github.com/mozilla-services/syncstorage-rs/commit/9e9869ee0605d0610d6c94bf6185eb1eabd6b6a2))
+
+
+
 <a name="0.17.15"></a>
 ## 0.17.15 (2024-11-21)
 

@@ -83,7 +83,7 @@ pub enum ApiErrorKind {
 }
 
 impl ApiErrorKind {
-    pub fn metric_label(&self) -> Option<String> {
+    pub fn metric_label(&self) -> Option<&str> {
         match self {
             ApiErrorKind::Hawk(err) => err.metric_label(),
             ApiErrorKind::Db(err) => err.metric_label(),
@@ -285,7 +285,7 @@ impl ReportableError for ApiError {
             }
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         self.kind.metric_label()
     }
 }

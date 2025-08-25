@@ -106,7 +106,7 @@ impl SpannerSessionSettings {
 
     /// Build [grpcio::Metadata] with a Resource prefix and other applicable
     /// settings
-    pub fn metadata_builder(&self) -> MetadataBuilder {
+    pub fn metadata_builder(&self) -> MetadataBuilder<'_> {
         MetadataBuilder::with_prefix(&self.database).route_to_leader(self.route_to_leader)
     }
 }

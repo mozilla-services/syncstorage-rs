@@ -93,10 +93,7 @@ where
                             // but we may need that information to debug a production issue. We can
                             // add an info here, temporarily turn on info level debugging on a given server,
                             // capture it, and then turn it off before we run out of money.
-                            if let Some(label) = reportable_err.metric_label() {
-                                debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                                let _ = metrics.incr(&label);
-                            }
+                            maybe_emit_metrics(&metrics, reportable_err);
                             debug!("Sentry: Not reporting error (service error): {:?}", error);
                             return Err(error);
                         }
@@ -115,10 +112,7 @@ where
             if let Some(error) = response.response().error() {
                 if let Some(reportable_err) = error.as_error::<E>() {
                     if !reportable_err.is_sentry_event() {
-                        if let Some(label) = reportable_err.metric_label() {
-                            debug!("Sentry: Sending error to metrics: {:?}", reportable_err);
-                            let _ = metrics.incr(&label);
-                        }
+                        maybe_emit_metrics(&metrics, reportable_err);
                         debug!("Not reporting error (service error): {:?}", error);
                         return Ok(response);
                     }
@@ -132,6 +126,23 @@ where
         }
         .boxed_local()
     }
+}
+
+/// Emit metrics when a [ReportableError::metric_label] is returned
+fn maybe_emit_metrics<E>(metrics: &StatsdClient, err: &E)
+where
+    E: ReportableError,
+{
+    let Some(label) = err.metric_label() else {
+        return;
+    };
+    debug!("Sending error to metrics: {:?}", err);
+    let mut builder = metrics.incr_with_tags(label);
+    let tags = err.tags();
+    for (key, val) in &tags {
+        builder = builder.with_tag(key, val);
+    }
+    builder.send();
 }
 
 /// Build a Sentry request struct from the HTTP request

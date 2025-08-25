@@ -76,7 +76,7 @@ impl SpannerDbPool {
         let conn = self.pool.get().await.map_err(|e| match e {
             deadpool::managed::PoolError::Backend(dbe) => dbe,
             deadpool::managed::PoolError::Timeout(timeout_type) => {
-                DbError::internal(format!("deadpool Timeout: {:?}", timeout_type))
+                DbError::pool_timeout(timeout_type)
             }
             _ => DbError::internal(format!("deadpool PoolError: {}", e)),
         })?;
@@ -124,11 +124,10 @@ impl DbPool for SpannerDbPool {
         self.get_async()
             .await
             .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
-            .map_err(Into::into)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        super::batch::validate_batch_id(&id).map_err(Into::into)
+        super::batch::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {

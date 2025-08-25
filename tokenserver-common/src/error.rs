@@ -22,17 +22,11 @@ pub struct TokenserverError {
     /// distinguish between similar errors in Sentry.
     pub context: String,
     pub backtrace: Box<Backtrace>,
-    pub token_type: TokenType,
-    pub tags: Option<Box<Vec<(&'static str, String)>>>,
+    pub tags: Option<Vec<(&'static str, String)>>,
     /// TODO: refactor TokenserverError to include a TokenserverErrorKind, w/
     /// variants for sources (currently just DbError). May require moving
     /// TokenserverError out of common (into syncserver)
     pub source: Option<Box<dyn ReportableError + Send>>,
-}
-
-#[derive(Clone, Debug)]
-pub enum TokenType {
-    Oauth,
 }
 
 impl Error for TokenserverError {}
@@ -66,7 +60,6 @@ impl Default for TokenserverError {
             http_status: StatusCode::UNAUTHORIZED,
             context: "Unauthorized".to_owned(),
             backtrace: Box::new(Backtrace::new()),
-            token_type: TokenType::Oauth,
             tags: None,
             source: None,
         }
@@ -113,7 +106,7 @@ impl TokenserverError {
 
     pub fn invalid_client_state(
         description: String,
-        tags: Option<Box<Vec<(&'static str, String)>>>,
+        tags: Option<Vec<(&'static str, String)>>,
     ) -> Self {
         Self {
             status: "invalid-client-state",
@@ -153,7 +146,15 @@ impl TokenserverError {
             description: "Resource is not available".to_owned(),
             http_status: StatusCode::SERVICE_UNAVAILABLE,
             context: "Resource is not available".to_owned(),
-            ..Default::default()
+            ..Self::default()
+        }
+    }
+
+    pub fn oauth_timeout() -> Self {
+        Self {
+            context: "OAuth verification timeout".to_owned(),
+            tags: Some(vec![("reason", "oauth_verify_timeout".to_owned())]),
+            ..Self::resource_unavailable()
         }
     }
 
@@ -290,32 +291,28 @@ impl ReportableError for TokenserverError {
         if let Some(source) = &self.source {
             return source.is_sentry_event();
         }
+        if self.http_status == StatusCode::SERVICE_UNAVAILABLE {
+            return false;
+        }
         self.http_status.is_server_error() && self.metric_label().is_none()
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&str> {
         if let Some(source) = &self.source {
             return source.metric_label();
         }
-        if self.http_status.is_client_error() {
-            match self.token_type {
-                TokenType::Oauth => Some("request.error.oauth".to_owned()),
-            }
-        } else if matches!(
-            self,
-            TokenserverError {
-                status: "invalid-client-state",
-                ..
-            }
-        ) {
-            Some("request.error.invalid_client_state".to_owned())
-        } else {
-            None
+
+        if self.http_status == StatusCode::SERVICE_UNAVAILABLE {
+            return Some("request.error.resource_unavailable");
         }
+        if self.http_status.is_client_error() {
+            return Some("request.error.oauth");
+        }
+        (self.status == "invalid-client-state").then_some("request.error.invalid_client_state")
     }
 
     fn tags(&self) -> Vec<(&str, String)> {
-        *self.tags.clone().unwrap_or_default()
+        self.tags.clone().unwrap_or_default()
     }
 }
 
@@ -325,6 +322,13 @@ impl InternalError for TokenserverError {
             context: message,
             ..TokenserverError::internal_error()
         }
+    }
+}
+
+#[cfg(feature = "py")]
+impl From<pyo3::prelude::PyErr> for TokenserverError {
+    fn from(err: pyo3::prelude::PyErr) -> Self {
+        InternalError::internal_error(err.to_string())
     }
 }
 

@@ -1,0 +1,42 @@
+[project]
+name = "tokenserver"
+version = "0.1.0"
+description = "Tokenserver utilites, scripts, and tests"
+authors = [
+    {name = "Taddes",email = "tkorris@mozilla.com"}
+]
+readme = "README.md"
+# Odd <4.0 designation required for backoff dependency.
+requires-python = ">=3.9.2,<4.0"
+license = "Mozilla Public License Version 2.0"
+
+[tool.poetry]
+package-mode = false 
+
+[tool.poetry.dependencies]
+boto = "2.49.0"
+hawkauthlib = "2.0.0"
+mysqlclient = "2.1.1"
+pyramid = "^1.10.8"
+sqlalchemy = "^1.4.46"
+testfixtures = "^8.3.0"
+tokenlib = "2.0.0"
+pybrowserid = "0.14.0"
+pytest = "8.3.5"
+backoff = "^2.2.1"
+datadog = "^0.51.0"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.0"
+pydocstyle = "^6.3.0"
+ruff = "^0.12.7"
+black = "^25.1.0"
+bandit = "^1.8.3"
+isort = "^6.0.1"
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

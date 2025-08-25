@@ -60,7 +60,7 @@ impl TokenserverRequest {
     ///     `keys_changed_at` <= `generation` at all times.
     ///
     ///   * `client_state` is a key fingerprint and should never change back
-    ///      to a previously-seen value.
+    ///     to a previously-seen value.
     ///
     /// Callers who provide identity claims that violate any of these rules
     /// either have stale credetials (in which case they should re-authenticate)
@@ -115,7 +115,7 @@ impl TokenserverRequest {
             warn!("Client attempted stale value"; "uid"=> self.user.uid, "client_state"=> self.user.client_state.clone());
             return Err(TokenserverError::invalid_client_state(
                 error_message,
-                Some(Box::new(vec![("is_stale", "true".to_owned())])),
+                Some(vec![("is_stale", "true".to_owned())]),
             ));
         }
 
@@ -1200,7 +1200,7 @@ mod tests {
             error,
             TokenserverError::invalid_client_state(
                 error_message,
-                Some(Box::new(vec![("is_stale", "true".to_owned())]))
+                Some(vec![("is_stale", "true".to_owned())])
             )
         );
     }

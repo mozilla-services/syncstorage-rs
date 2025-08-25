@@ -182,7 +182,7 @@ impl fmt::Display for LogItems {
 
 struct LogItemsMutator<'a>(&'a HttpRequest);
 
-impl<'a> LogItemsMutator<'a> {
+impl LogItemsMutator<'_> {
     pub fn insert(&mut self, k: String, v: String) {
         let mut exts = self.0.extensions_mut();
 

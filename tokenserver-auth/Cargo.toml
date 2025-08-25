@@ -8,7 +8,6 @@ edition.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 hex.workspace = true
@@ -20,7 +19,7 @@ sha2.workspace = true
 thiserror.workspace = true
 slog-scope.workspace = true
 
-async-trait = "0.1.40"
+async-trait = "0.1.88"
 dyn-clone = "1.0.4"
 reqwest = { workspace = true, features = ["json"] }
 ring = "0.17"
@@ -28,7 +27,7 @@ syncserver-common = { path = "../syncserver-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true }
-pyo3 = { version = "0.22", features = ["auto-initialize"], optional = true }
+pyo3 = { version = "0.24", features = ["auto-initialize"], optional = true }
 
 
 [dev-dependencies]
@@ -37,5 +36,4 @@ mockito = "1.4.0"
 tokio = { workspace = true, features = ["macros"] }
 
 [features]
-default = ["py"]
-py = ["pyo3"]
+py = ["pyo3", "tokenserver-common/py"]
