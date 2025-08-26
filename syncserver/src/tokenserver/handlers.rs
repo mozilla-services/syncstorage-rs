@@ -141,7 +141,7 @@ where
 
 async fn update_user(
     req: &TokenserverRequest,
-    db: Box<dyn Db>,
+    mut db: Box<dyn Db>,
 ) -> Result<UserUpdates, TokenserverError> {
     let keys_changed_at = match (req.auth_data.keys_changed_at, req.user.keys_changed_at) {
         // If the keys_changed_at in the request is larger than that stored on the user record,
@@ -269,7 +269,7 @@ async fn update_user(
     }
 }
 
-pub async fn heartbeat(DbWrapper(db): DbWrapper) -> Result<HttpResponse, Error> {
+pub async fn heartbeat(DbWrapper(mut db): DbWrapper) -> Result<HttpResponse, Error> {
     let mut checklist = HashMap::new();
     checklist.insert(
         "version".to_owned(),

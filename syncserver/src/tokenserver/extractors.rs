@@ -207,7 +207,7 @@ impl FromRequest for TokenserverRequest {
             // metrics. Use "none" as a placeholder for "device" with OAuth requests.
             let hashed_device_id = hash_device_id(&hashed_fxa_uid, fxa_metrics_hash_secret);
 
-            let DbWrapper(db) = DbWrapper::extract(&req).await?;
+            let DbWrapper(mut db) = DbWrapper::extract(&req).await?;
             let service_id = {
                 let path = req.match_info();
 

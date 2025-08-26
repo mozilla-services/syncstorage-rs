@@ -8,7 +8,7 @@ use diesel::{
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
 use syncserver_common::{BlockingThreadpool, Metrics};
-use syncserver_db_common::{sync_db_method, DbFuture};
+use syncserver_db_common::DbFuture;
 
 use std::{
     sync::{Arc, RwLock},
@@ -17,7 +17,7 @@ use std::{
 
 use super::{
     error::{DbError, DbResult},
-    params, results,
+    params, results, sync_db_method,
 };
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
@@ -708,8 +708,8 @@ impl Db for TokenserverDb {
     #[cfg(test)]
     sync_db_method!(get_user, get_user_sync, GetUser);
 
-    fn check(&self) -> DbFuture<'_, results::Check, DbError> {
-        let db = self.clone();
+    fn check(&mut self) -> DbFuture<'_, results::Check, DbError> {
+        let mut db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
     }
 
