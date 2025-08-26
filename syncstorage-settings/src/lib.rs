@@ -12,9 +12,11 @@ use syncserver_common::{self, MAX_SPANNER_LOAD_SIZE};
 static KILOBYTE: u32 = 1024;
 static MEGABYTE: u32 = KILOBYTE * KILOBYTE;
 static GIGABYTE: u32 = MEGABYTE * 1_000;
-static DEFAULT_MAX_POST_BYTES: u32 = 2 * MEGABYTE;
+// Current limit of 2.5 MB
+static DEFAULT_MAX_POST_BYTES: u32 = (2.5 * MEGABYTE as f32) as u32;
 static DEFAULT_MAX_POST_RECORDS: u32 = 100;
-static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = 2 * MEGABYTE;
+// Current limit of 2.5 MB
+static DEFAULT_MAX_RECORD_PAYLOAD_BYTES: u32 = (2.5 * MEGABYTE as f32) as u32;
 static DEFAULT_MAX_REQUEST_BYTES: u32 = DEFAULT_MAX_POST_BYTES + 4 * KILOBYTE;
 static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
 // also used to determine the max number of records to return for MySQL.
@@ -175,6 +177,7 @@ pub struct ServerLimits {
     pub max_post_records: u32,
 
     /// Maximum size of an individual BSO payload, in bytes.
+    /// At present is limited to 2.5MB
     pub max_record_payload_bytes: u32,
 
     /// Maximum `Content-Length` for all incoming requests, in bytes.
