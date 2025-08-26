@@ -1,8 +1,5 @@
 use base64::Engine;
-use std::{
-    collections::HashSet,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use std::collections::HashSet;
 
 use diesel::{
     self,
@@ -22,9 +19,9 @@ use super::{
     DbResult,
 };
 
-const MAXTTL: i32 = 2_100_000_000;
+const MAX_TTL: i32 = 2_100_000_000;
 
-static COUNTER: AtomicU32 = AtomicU32::new(0);
+const MAX_BATCH_CREATE_RETRY: u8 = 5;
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
@@ -37,23 +34,32 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
     // sharding writes via (batchid % num_tables), and leaving it as zero would
     // skew the sharding distribution.
     //
-    // We mix in a per-process counter to make batch IDs (more) unique within
-    // a timestamp.
-    let batch_id = db.timestamp().as_i64() + COUNTER.fetch_add(1, Ordering::Relaxed) as i64 % 10;
-    insert_into(batch_uploads::table)
-        .values((
-            batch_uploads::batch_id.eq(&batch_id),
-            batch_uploads::user_id.eq(&user_id),
-            batch_uploads::collection_id.eq(&collection_id),
-        ))
-        .execute(&mut *db.conn.write()?)
-        .map_err(|e| -> DbError {
-            match e {
-                // The user tried to create two batches with the same timestamp
-                DieselError::DatabaseError(UniqueViolation, _) => DbError::conflict(),
-                _ => e.into(),
+    // So we mix in the lowest digit of the uid to improve the distribution
+    // while still letting us treat these ids as millisecond timestamps.  It's
+    // yuck, but it works and it keeps the weirdness contained to this single
+    // line of code.
+    let mut batch_id = db.timestamp().as_i64() + (user_id % 10);
+    // Occasionally batch_ids clash (usually during unit testing), so also
+    // retry w/ increments
+    for i in 1..=MAX_BATCH_CREATE_RETRY {
+        let result = insert_into(batch_uploads::table)
+            .values((
+                batch_uploads::batch_id.eq(&batch_id),
+                batch_uploads::user_id.eq(&user_id),
+                batch_uploads::collection_id.eq(&collection_id),
+            ))
+            .execute(&mut *db.conn.write()?);
+        match result {
+            Ok(_) => break,
+            Err(DieselError::DatabaseError(UniqueViolation, _)) => {
+                if i == MAX_BATCH_CREATE_RETRY {
+                    return Err(DbError::conflict());
+                }
+                batch_id += 1;
             }
-        })?;
+            Err(e) => return Err(e.into()),
+        }
+    }
 
     do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
     Ok(results::CreateBatch {
@@ -146,7 +152,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::Co
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .bind::<BigInt, _>((MAXTTL as i64) * 1000) // XXX:
+        .bind::<BigInt, _>((MAX_TTL as i64) * 1000) // XXX:
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
