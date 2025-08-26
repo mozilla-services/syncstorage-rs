@@ -83,7 +83,7 @@ impl ServerState {
         // unlikely for this query to fail outside of network failures or other random errors
         db_pool.service_id = db_pool
             .get_sync()
-            .and_then(|db| {
+            .and_then(|mut db| {
                 db.get_service_id_sync(params::GetServiceId {
                     service: "sync-1.5".to_owned(),
                 })
