@@ -212,36 +212,24 @@ impl MysqlDb {
 
         // Lock the db
         self.begin(true)?;
-        // SyncTimestamp only has 10 ms resolution.
-        let result = user_collections::table
-            .select((
-                sql::<BigInt>("UNIX_TIMESTAMP(UTC_TIMESTAMP(2))*1000"),
-                user_collections::modified,
-            ))
+        let modified = user_collections::table
+            .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first(&mut *self.conn.write()?)
             .optional()?;
-        let timestamp = if let Some((timestamp, modified)) = result {
+        if let Some(modified) = modified {
             let modified = SyncTimestamp::from_i64(modified)?;
-            let now = SyncTimestamp::from_i64(timestamp)?;
             // Forbid the write if it would not properly incr the timestamp
-            if modified >= now {
+            if modified >= self.timestamp() {
                 return Err(DbError::conflict());
             }
             self.session
                 .borrow_mut()
                 .coll_modified_cache
                 .insert((user_id as u32, collection_id), modified);
-            now
-        } else {
-            let result = sql_query("SELECT UNIX_TIMESTAMP(UTC_TIMESTAMP(2))*1000 AS timestamp")
-                .get_result::<TimestampResult>(&mut *self.conn.write()?)?;
-            SyncTimestamp::from_i64(result.timestamp)?
-        };
-        self.set_timestamp(timestamp);
-
+        }
         self.session
             .borrow_mut()
             .coll_locks
@@ -1153,12 +1141,6 @@ struct IdResult {
 struct NameResult {
     #[diesel(sql_type = Text)]
     name: String,
-}
-
-#[derive(Debug, QueryableByName)]
-struct TimestampResult {
-    #[diesel(sql_type = BigInt)]
-    timestamp: i64,
 }
 
 #[derive(Debug, QueryableByName)]
