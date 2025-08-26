@@ -92,7 +92,7 @@ impl TokenserverDb {
         }
     }
 
-    fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
+    fn get_node_id_sync(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
         const QUERY: &str = r#"
             SELECT id
               FROM nodes
@@ -115,7 +115,10 @@ impl TokenserverDb {
     }
 
     /// Mark users matching the given email and service ID as replaced.
-    fn replace_users_sync(&self, params: params::ReplaceUsers) -> DbResult<results::ReplaceUsers> {
+    fn replace_users_sync(
+        &mut self,
+        params: params::ReplaceUsers,
+    ) -> DbResult<results::ReplaceUsers> {
         const QUERY: &str = r#"
             UPDATE users
                SET replaced_at = ?
@@ -139,7 +142,7 @@ impl TokenserverDb {
     }
 
     /// Mark the user with the given uid and service ID as being replaced.
-    fn replace_user_sync(&self, params: params::ReplaceUser) -> DbResult<results::ReplaceUser> {
+    fn replace_user_sync(&mut self, params: params::ReplaceUser) -> DbResult<results::ReplaceUser> {
         const QUERY: &str = r#"
             UPDATE users
                SET replaced_at = ?
@@ -158,7 +161,7 @@ impl TokenserverDb {
 
     /// Update the user with the given email and service ID with the given `generation` and
     /// `keys_changed_at`.
-    fn put_user_sync(&self, params: params::PutUser) -> DbResult<results::PutUser> {
+    fn put_user_sync(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
         // The `where` clause on this statement is designed as an extra layer of
         // protection, to ensure that concurrent updates don't accidentally move
         // timestamp fields backwards in time. The handling of `keys_changed_at`
@@ -191,7 +194,7 @@ impl TokenserverDb {
     }
 
     /// Create a new user.
-    fn post_user_sync(&self, user: params::PostUser) -> DbResult<results::PostUser> {
+    fn post_user_sync(&mut self, user: params::PostUser) -> DbResult<results::PostUser> {
         const QUERY: &str = r#"
             INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, NULL);
@@ -216,7 +219,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    fn check_sync(&self) -> DbResult<results::Check> {
+    fn check_sync(&mut self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
         let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"")
             .execute(&mut *self.inner.conn.write()?)?;
@@ -224,7 +227,10 @@ impl TokenserverDb {
     }
 
     /// Gets the least-loaded node that has available slots.
-    fn get_best_node_sync(&self, params: params::GetBestNode) -> DbResult<results::GetBestNode> {
+    fn get_best_node_sync(
+        &mut self,
+        params: params::GetBestNode,
+    ) -> DbResult<results::GetBestNode> {
         const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
         const GET_BEST_NODE_QUERY: &str = r#"
               SELECT id, node
@@ -302,7 +308,7 @@ impl TokenserverDb {
     }
 
     fn add_user_to_node_sync(
-        &self,
+        &mut self,
         params: params::AddUserToNode,
     ) -> DbResult<results::AddUserToNode> {
         let mut metrics = self.metrics.clone();
@@ -336,7 +342,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    fn get_users_sync(&self, params: params::GetUsers) -> DbResult<results::GetUsers> {
+    fn get_users_sync(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_users", None);
 
@@ -361,7 +367,7 @@ impl TokenserverDb {
     /// Gets the user with the given email and service ID, or if one doesn't exist, allocates a new
     /// user.
     fn get_or_create_user_sync(
-        &self,
+        &mut self,
         params: params::GetOrCreateUser,
     ) -> DbResult<results::GetOrCreateUser> {
         let mut raw_users = self.get_users_sync(params::GetUsers {
@@ -479,7 +485,10 @@ impl TokenserverDb {
     }
 
     /// Creates a new user and assigns them to a node.
-    fn allocate_user_sync(&self, params: params::AllocateUser) -> DbResult<results::AllocateUser> {
+    fn allocate_user_sync(
+        &mut self,
+        params: params::AllocateUser,
+    ) -> DbResult<results::AllocateUser> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.allocate_user", None);
 
@@ -519,7 +528,7 @@ impl TokenserverDb {
     }
 
     pub fn get_service_id_sync(
-        &self,
+        &mut self,
         params: params::GetServiceId,
     ) -> DbResult<results::GetServiceId> {
         const QUERY: &str = r#"
@@ -540,7 +549,7 @@ impl TokenserverDb {
 
     #[cfg(test)]
     fn set_user_created_at_sync(
-        &self,
+        &mut self,
         params: params::SetUserCreatedAt,
     ) -> DbResult<results::SetUserCreatedAt> {
         const QUERY: &str = r#"
@@ -558,7 +567,7 @@ impl TokenserverDb {
 
     #[cfg(test)]
     fn set_user_replaced_at_sync(
-        &self,
+        &mut self,
         params: params::SetUserReplacedAt,
     ) -> DbResult<results::SetUserReplacedAt> {
         const QUERY: &str = r#"
@@ -575,7 +584,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn get_user_sync(&self, params: params::GetUser) -> DbResult<results::GetUser> {
+    fn get_user_sync(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
         const QUERY: &str = r#"
             SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
               FROM users
@@ -589,7 +598,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn post_node_sync(&self, params: params::PostNode) -> DbResult<results::PostNode> {
+    fn post_node_sync(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -610,7 +619,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn get_node_sync(&self, params: params::GetNode) -> DbResult<results::GetNode> {
+    fn get_node_sync(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
         const QUERY: &str = r#"
             SELECT *
               FROM nodes
@@ -624,7 +633,10 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn unassign_node_sync(&self, params: params::UnassignNode) -> DbResult<results::UnassignNode> {
+    fn unassign_node_sync(
+        &mut self,
+        params: params::UnassignNode,
+    ) -> DbResult<results::UnassignNode> {
         const QUERY: &str = r#"
             UPDATE users
                SET replaced_at = ?
@@ -645,7 +657,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn remove_node_sync(&self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
+    fn remove_node_sync(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
         const QUERY: &str = "DELETE FROM nodes WHERE id = ?";
 
         diesel::sql_query(QUERY)
@@ -656,7 +668,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    fn post_service_sync(&self, params: params::PostService) -> DbResult<results::PostService> {
+    fn post_service_sync(&mut self, params: params::PostService) -> DbResult<results::PostService> {
         const INSERT_SERVICE_QUERY: &str = r#"
             INSERT INTO services (service, pattern)
             VALUES (?, ?)
@@ -737,79 +749,84 @@ pub trait Db {
     }
 
     fn replace_user(
-        &self,
+        &mut self,
         params: params::ReplaceUser,
     ) -> DbFuture<'_, results::ReplaceUser, DbError>;
 
     fn replace_users(
-        &self,
+        &mut self,
         params: params::ReplaceUsers,
     ) -> DbFuture<'_, results::ReplaceUsers, DbError>;
 
-    fn post_user(&self, params: params::PostUser) -> DbFuture<'_, results::PostUser, DbError>;
+    fn post_user(&mut self, params: params::PostUser) -> DbFuture<'_, results::PostUser, DbError>;
 
-    fn put_user(&self, params: params::PutUser) -> DbFuture<'_, results::PutUser, DbError>;
+    fn put_user(&mut self, params: params::PutUser) -> DbFuture<'_, results::PutUser, DbError>;
 
-    fn check(&self) -> DbFuture<'_, results::Check, DbError>;
+    fn check(&mut self) -> DbFuture<'_, results::Check, DbError>;
 
-    fn get_node_id(&self, params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId, DbError>;
+    fn get_node_id(
+        &mut self,
+        params: params::GetNodeId,
+    ) -> DbFuture<'_, results::GetNodeId, DbError>;
 
     fn get_best_node(
-        &self,
+        &mut self,
         params: params::GetBestNode,
     ) -> DbFuture<'_, results::GetBestNode, DbError>;
 
     fn add_user_to_node(
-        &self,
+        &mut self,
         params: params::AddUserToNode,
     ) -> DbFuture<'_, results::AddUserToNode, DbError>;
 
-    fn get_users(&self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers, DbError>;
+    fn get_users(&mut self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers, DbError>;
 
     fn get_or_create_user(
-        &self,
+        &mut self,
         params: params::GetOrCreateUser,
     ) -> DbFuture<'_, results::GetOrCreateUser, DbError>;
 
     fn get_service_id(
-        &self,
+        &mut self,
         params: params::GetServiceId,
     ) -> DbFuture<'_, results::GetServiceId, DbError>;
 
     #[cfg(test)]
     fn set_user_created_at(
-        &self,
+        &mut self,
         params: params::SetUserCreatedAt,
     ) -> DbFuture<'_, results::SetUserCreatedAt, DbError>;
 
     #[cfg(test)]
     fn set_user_replaced_at(
-        &self,
+        &mut self,
         params: params::SetUserReplacedAt,
     ) -> DbFuture<'_, results::SetUserReplacedAt, DbError>;
 
     #[cfg(test)]
-    fn get_user(&self, params: params::GetUser) -> DbFuture<'_, results::GetUser, DbError>;
+    fn get_user(&mut self, params: params::GetUser) -> DbFuture<'_, results::GetUser, DbError>;
 
     #[cfg(test)]
-    fn post_node(&self, params: params::PostNode) -> DbFuture<'_, results::PostNode, DbError>;
+    fn post_node(&mut self, params: params::PostNode) -> DbFuture<'_, results::PostNode, DbError>;
 
     #[cfg(test)]
-    fn get_node(&self, params: params::GetNode) -> DbFuture<'_, results::GetNode, DbError>;
+    fn get_node(&mut self, params: params::GetNode) -> DbFuture<'_, results::GetNode, DbError>;
 
     #[cfg(test)]
     fn unassign_node(
-        &self,
+        &mut self,
         params: params::UnassignNode,
     ) -> DbFuture<'_, results::UnassignNode, DbError>;
 
     #[cfg(test)]
-    fn remove_node(&self, params: params::RemoveNode)
-        -> DbFuture<'_, results::RemoveNode, DbError>;
+    fn remove_node(
+        &mut self,
+        params: params::RemoveNode,
+    ) -> DbFuture<'_, results::RemoveNode, DbError>;
 
     #[cfg(test)]
     fn post_service(
-        &self,
+        &mut self,
         params: params::PostService,
     ) -> DbFuture<'_, results::PostService, DbError>;
 }
