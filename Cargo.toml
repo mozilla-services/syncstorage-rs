@@ -34,9 +34,9 @@ actix-web = { version = "4", default-features = false, features = ["compat", "ht
 docopt = "1.1"
 base64 = "0.22"
 
-diesel = "2.2.6"
-diesel_migrations = "2.2.0"
-diesel_logger = "0.4.0"
+diesel = "2.2"
+diesel_migrations = "2.2"
+diesel_logger = "0.4"
 
 cadence = "1.3"
 backtrace = "0.3"
