@@ -23,6 +23,10 @@ impl DbError {
     pub(crate) fn internal(msg: String) -> Self {
         DbErrorKind::Internal(msg).into()
     }
+
+    pub(crate) fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+        DbErrorKind::PoolTimeout(timeout_type).into()
+    }
 }
 
 impl ReportableError for DbError {
@@ -36,6 +40,7 @@ impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Sql(e) => e.is_sentry_event(),
+            DbErrorKind::PoolTimeout(_) => false,
             _ => true,
         }
     }
@@ -43,6 +48,7 @@ impl ReportableError for DbError {
     fn metric_label(&self) -> Option<&str> {
         match &self.kind {
             DbErrorKind::Sql(e) => e.metric_label(),
+            DbErrorKind::PoolTimeout(_) => Some("storage.pool.timeout"),
             _ => None,
         }
     }
@@ -55,6 +61,9 @@ enum DbErrorKind {
 
     #[error("Unexpected error: {}", _0)]
     Internal(String),
+
+    #[error("A database pool timeout occurred, type: {:?}", _0)]
+    PoolTimeout(deadpool::managed::TimeoutType),
 }
 
 impl From<DbErrorKind> for DbError {
@@ -65,7 +74,7 @@ impl From<DbErrorKind> for DbError {
                 backtrace: Box::new(mysql_error.backtrace.clone()),
                 kind,
             },
-            DbErrorKind::Internal(_) => Self {
+            _ => Self {
                 kind,
                 status: StatusCode::INTERNAL_SERVER_ERROR,
                 backtrace: Box::new(Backtrace::new()),

@@ -1,16 +1,16 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::{
-    mysql::MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-    Connection,
+use diesel::{mysql::MysqlConnection, Connection};
+use diesel_async::{
+    pooled_connection::{deadpool::Pool, AsyncDieselConnectionManager},
+    AsyncMysqlConnection,
 };
 use diesel_logger::LoggingConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use syncserver_common::{BlockingThreadpool, Metrics};
+use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
-use syncserver_db_common::test::TestTransactionCustomizer;
+use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_settings::Settings;
 
@@ -20,6 +20,8 @@ use super::{
 };
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
+pub(crate) type Conn = diesel_async::pooled_connection::deadpool::Object<AsyncMysqlConnection>;
 
 /// Run the diesel embedded migrations
 ///
@@ -36,12 +38,11 @@ fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 #[derive(Clone)]
 pub struct TokenserverPool {
     /// Pool of db connections
-    inner: Pool<ConnectionManager<MysqlConnection>>,
+    inner: diesel_async::pooled_connection::deadpool::Pool<AsyncMysqlConnection>,
     metrics: Metrics,
     // This field is public so the service ID can be set after the pool is created
     pub service_id: Option<i32>,
     spanner_node_id: Option<i32>,
-    blocking_threadpool: Arc<BlockingThreadpool>,
     pub timeout: Option<Duration>,
 }
 
@@ -49,68 +50,78 @@ impl TokenserverPool {
     pub fn new(
         settings: &Settings,
         metrics: &Metrics,
-        blocking_threadpool: Arc<BlockingThreadpool>,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
         if settings.run_migrations {
+            // NOTE: this is blocking
             run_embedded_migrations(&settings.database_url)?;
         }
 
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        let builder = Pool::builder()
-            .max_size(settings.database_pool_max_size)
-            .connection_timeout(Duration::from_secs(
-                settings.database_pool_connection_timeout.unwrap_or(30) as u64,
-            ))
-            .min_idle(settings.database_pool_min_idle);
+        let manager = AsyncDieselConnectionManager::<AsyncMysqlConnection>::new(
+            settings.database_url.clone(),
+        );
 
+        let wait = settings
+            .database_pool_connection_timeout
+            .map(|seconds| Duration::from_secs(seconds as u64));
+        let timeouts = deadpool::managed::Timeouts {
+            wait,
+            ..Default::default()
+        };
+        let config = deadpool::managed::PoolConfig {
+            max_size: settings.database_pool_max_size as usize,
+            timeouts,
+            // XXX:
+            // Prefer LIFO to allow the sweeper task to evict least frequently
+            // used connections.
+            queue_mode: deadpool::managed::QueueMode::Lifo,
+        };
+
+        let builder = Pool::builder(manager)
+            .config(config)
+            .runtime(deadpool::Runtime::Tokio1);
         #[cfg(debug_assertions)]
         let builder = if _use_test_transactions {
-            builder.connection_customizer(Box::new(TestTransactionCustomizer))
+            builder.post_create(deadpool::managed::Hook::async_fn(|conn, _| {
+                Box::pin(async { test_transaction_hook(conn).await })
+            }))
         } else {
             builder
         };
+        let pool = builder
+            .build()
+            .map_err(|e| DbError::internal(format!("Couldn't build Db Pool: {e}")))?;
+
         let timeout = settings
             .database_request_timeout
             .map(|v| Duration::from_secs(v as u64));
 
         Ok(Self {
-            inner: builder.build(manager)?,
+            inner: pool,
             metrics: metrics.clone(),
             spanner_node_id: settings.spanner_node_id,
             service_id: None,
-            blocking_threadpool,
             timeout,
         })
     }
 
-    pub fn get_sync(&self) -> Result<TokenserverDb, DbError> {
-        let conn = self.inner.get().map_err(DbError::from)?;
-
-        Ok(TokenserverDb::new(
-            conn,
-            &self.metrics,
-            self.service_id,
-            self.spanner_node_id,
-            self.blocking_threadpool.clone(),
-            self.timeout,
-        ))
-    }
-
-    #[cfg(test)]
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
-        let pool = self.clone();
-        let conn = self
-            .blocking_threadpool
-            .spawn(move || pool.inner.get().map_err(DbError::from))
-            .await?;
+        let conn = self.inner.get().await.map_err(|e| match e {
+            deadpool::managed::PoolError::Backend(poole) => match poole {
+                diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
+                diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
+            },
+            deadpool::managed::PoolError::Timeout(timeout_type) => {
+                DbError::pool_timeout(timeout_type)
+            }
+            _ => DbError::internal(format!("deadpool PoolError: {e}")),
+        })?;
 
         Ok(TokenserverDb::new(
             conn,
             &self.metrics,
             self.service_id,
             self.spanner_node_id,
-            self.blocking_threadpool.clone(),
             self.timeout,
         ))
     }
@@ -121,21 +132,7 @@ impl DbPool for TokenserverPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_pool", None);
-
-        let pool = self.clone();
-        let conn = self
-            .blocking_threadpool
-            .spawn(move || pool.inner.get().map_err(DbError::from))
-            .await?;
-
-        Ok(Box::new(TokenserverDb::new(
-            conn,
-            &self.metrics,
-            self.service_id,
-            self.spanner_node_id,
-            self.blocking_threadpool.clone(),
-            self.timeout,
-        )) as Box<dyn Db>)
+        Ok(Box::new(self.get_tokenserver_db().await?) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
@@ -152,7 +149,7 @@ pub trait DbPool: Sync + Send + GetPoolState {
 
 impl GetPoolState for TokenserverPool {
     fn state(&self) -> PoolState {
-        self.inner.state().into()
+        self.inner.status().into()
     }
 }
 

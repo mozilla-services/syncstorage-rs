@@ -15,17 +15,13 @@ pub use models::{Db, TokenserverDb};
 pub use pool::{DbPool, TokenserverPool};
 
 #[macro_export]
-macro_rules! sync_db_method {
+macro_rules! async_db_method {
     ($name:ident, $sync_name:ident, $type:ident) => {
-        sync_db_method!($name, $sync_name, $type, results::$type);
+        async_db_method!($name, $sync_name, $type, results::$type);
     };
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
-            let mut db = self.clone();
-            Box::pin(
-                self.blocking_threadpool
-                    .spawn(move || db.$sync_name(params)),
-            )
+            Box::pin(self.$sync_name(params))
         }
     };
 }

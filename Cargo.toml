@@ -35,6 +35,7 @@ docopt = "1.1"
 base64 = "0.22"
 
 diesel = "2.2"
+diesel-async = { version = "0.6", features = ["mysql", "deadpool"] }
 diesel_migrations = "2.2"
 diesel_logger = "0.4"
 
