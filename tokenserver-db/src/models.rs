@@ -2,8 +2,9 @@ use diesel::{
     mysql::MysqlConnection,
     r2d2::{ConnectionManager, PooledConnection},
     sql_types::{Bigint, Float, Integer, Nullable, Text},
-    OptionalExtension, RunQueryDsl,
+    OptionalExtension,
 };
+use diesel_async::RunQueryDsl;
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
 use http::StatusCode;
@@ -24,12 +25,14 @@ use super::{
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
 
-type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
+//type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
+use super::pool::Conn;
 
 #[cfg(not(debug_assertions))]
 type InternalConn = Conn;
 #[cfg(debug_assertions)]
-type InternalConn = LoggingConnection<Conn>; // display SQL when RUST_LOG="diesel_logger=trace"
+type InternalConn = Conn; // display SQL when RUST_LOG="diesel_logger=trace"
+                          //type InternalConn = LoggingConnection<Conn>; // display SQL when RUST_LOG="diesel_logger=trace"
 
 #[derive(Clone)]
 pub struct TokenserverDb {
@@ -77,7 +80,8 @@ impl TokenserverDb {
             #[cfg(not(debug_assertions))]
             conn: RwLock::new(conn),
             #[cfg(debug_assertions)]
-            conn: RwLock::new(LoggingConnection::new(conn)),
+            conn: RwLock::new(conn),
+            //conn: RwLock::new(LoggingConnection::new(conn)),
         };
 
         // https://github.com/mozilla-services/syncstorage-rs/issues/1480
@@ -92,7 +96,7 @@ impl TokenserverDb {
         }
     }
 
-    fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
+    async fn get_node_id_sync(&self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
         const QUERY: &str = r#"
             SELECT id
               FROM nodes
@@ -106,10 +110,13 @@ impl TokenserverDb {
             let mut metrics = self.metrics.clone();
             metrics.start_timer("storage.get_node_id", None);
 
+            use futures::TryFutureExt;
+            use std::ops::DerefMut;
             diesel::sql_query(QUERY)
                 .bind::<Integer, _>(params.service_id)
                 .bind::<Text, _>(&params.node)
                 .get_result(&mut *self.inner.conn.write()?)
+                .await
                 .map_err(Into::into)
         }
     }
@@ -682,7 +689,12 @@ impl Db for TokenserverDb {
     sync_db_method!(post_user, post_user_sync, PostUser);
 
     sync_db_method!(put_user, put_user_sync, PutUser);
-    sync_db_method!(get_node_id, get_node_id_sync, GetNodeId);
+
+    //sync_db_method!(get_node_id, get_node_id_sync, GetNodeId);
+    fn get_node_id(&self, params: params::GetNodeId) -> DbFuture<'_, results::GetNodeId, DbError> {
+        Box::pin(self.get_node_id_sync(params))
+    }
+
     sync_db_method!(get_best_node, get_best_node_sync, GetBestNode);
     sync_db_method!(add_user_to_node, add_user_to_node_sync, AddUserToNode);
     sync_db_method!(get_users, get_users_sync, GetUsers);
