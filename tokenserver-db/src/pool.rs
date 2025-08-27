@@ -94,6 +94,27 @@ impl TokenserverPool {
         let pool = Pool::builder(manager)
             .config(config)
             .runtime(deadpool::Runtime::Tokio1)
+            /*
+                    .post_create(deadpool::managed::Hook::async_fn(
+                        async |conn: &mut diesel_async::AsyncMysqlConnection,
+                               _metrics: &deadpool::managed::Metrics| {
+                            use diesel_async::AsyncConnection;
+                            conn.begin_test_transaction().await
+                        },
+            ))*/
+            .post_create(deadpool::managed::Hook::async_fn(
+                |conn: &mut diesel_async::AsyncMysqlConnection,
+                 _metrics: &deadpool::managed::Metrics| {
+                    use diesel_async::AsyncConnection;
+                    Box::pin(async {
+                        conn.begin_test_transaction().await.map_err(|e| {
+                            diesel_async::pooled_connection::deadpool::HookError::Backend(
+                                diesel_async::pooled_connection::PoolError::QueryError(e),
+                            )
+                        })
+                    })
+                },
+            ))
             .build()
             .unwrap();
 
