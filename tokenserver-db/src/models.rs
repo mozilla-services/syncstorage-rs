@@ -227,7 +227,7 @@ impl TokenserverDb {
             .await?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .bind::<Text, _>(&user.email)
+            //.bind::<Text, _>(&user.email)
             .get_result::<results::PostUser>(&mut *self.inner.conn.write()?)
             .await
             .map_err(Into::into)
