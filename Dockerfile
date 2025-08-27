@@ -54,8 +54,6 @@ RUN \
     fi && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel python3-venv pkg-config && \
-    python3 -mvenv /app/venv && \
-    . /app/venv/bin/activate && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
@@ -67,7 +65,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Generating a requirements.txt from Poetry dependencies.
 # [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install -r requirements.txt
+    pip3 install --break-system-packages -r requirements.txt
 
 
 ENV PATH=$PATH:/root/.cargo/bin
@@ -108,8 +106,6 @@ RUN if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
-    python3 -mvenv /app/venv && \
-    . /app/venv/bin/activate && \
     apt-get -q remove -y python3-cryptography && \
     rm -rf /var/lib/apt/lists/*
 
@@ -121,7 +117,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Generating a requirements.txt from Poetry dependencies.
 # [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install -r requirements.txt
+    pip3 install --break-system-packages -r requirements.txt
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/syncserver/version.json /app
@@ -139,8 +135,8 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
 WORKDIR /app/tools/tokenserver/
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes
 WORKDIR /app
-RUN pip3 install -r /app/tools/integration_tests/requirements.txt
-RUN pip3 install -r /app/tools/tokenserver/requirements.txt
+RUN pip3 install --break-system-packages -r /app/tools/integration_tests/requirements.txt
+RUN pip3 install --break-system-packages -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
