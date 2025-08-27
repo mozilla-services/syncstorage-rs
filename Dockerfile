@@ -67,7 +67,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Generating a requirements.txt from Poetry dependencies.
 # [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install --break-system-packages -r requirements.txt
+    pip3 install -r requirements.txt
 
 
 ENV PATH=$PATH:/root/.cargo/bin
@@ -121,7 +121,7 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
 # Generating a requirements.txt from Poetry dependencies.
 # [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install --break-system-packages -r requirements.txt
+    pip3 install -r requirements.txt
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/syncserver/version.json /app
@@ -139,8 +139,8 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
 WORKDIR /app/tools/tokenserver/
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes
 WORKDIR /app
-RUN pip3 install --break-system-packages -r /app/tools/integration_tests/requirements.txt
-RUN pip3 install --break-system-packages -r /app/tools/tokenserver/requirements.txt
+RUN pip3 install -r /app/tools/integration_tests/requirements.txt
+RUN pip3 install -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
