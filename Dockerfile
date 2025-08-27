@@ -4,7 +4,7 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-trixie AS chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-bookworm AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -75,7 +75,7 @@ RUN \
     rustc --version && \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
 
-FROM docker.io/library/debian:trixie-slim
+FROM docker.io/library/debian:bookworm-slim
 ARG MYSQLCLIENT_PKG
 
 ENV POETRY_HOME="/opt/poetry" \
