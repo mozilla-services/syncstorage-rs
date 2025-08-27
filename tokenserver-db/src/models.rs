@@ -845,7 +845,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_generation() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -919,7 +919,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_keys_changed_at() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -996,7 +996,7 @@ mod tests {
         const MILLISECONDS_IN_AN_HOUR: i64 = MILLISECONDS_IN_A_MINUTE * 60;
 
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -1177,7 +1177,7 @@ mod tests {
     #[tokio::test]
     async fn post_user() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1243,7 +1243,7 @@ mod tests {
     #[tokio::test]
     async fn get_node_id() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1290,7 +1290,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_allocation() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get_tokenserver_db().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -1335,7 +1335,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_to_least_loaded_node() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get_tokenserver_db().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -1396,7 +1396,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_downed_nodes() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get_tokenserver_db().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -1437,7 +1437,7 @@ mod tests {
     #[tokio::test]
     async fn test_allocation_is_not_allowed_to_backoff_nodes() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get_tokenserver_db().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -1478,7 +1478,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_when_records_are_replaced() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get_tokenserver_db().await?;
+        let mut db = pool.get_tokenserver_db().await?;
 
         // Add a service
         let service_id = db
@@ -1550,7 +1550,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_not_done_for_retired_users() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1606,7 +1606,7 @@ mod tests {
     #[tokio::test]
     async fn test_node_reassignment_and_removal() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1757,7 +1757,7 @@ mod tests {
     #[tokio::test]
     async fn test_gradual_release_of_node_capacity() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1923,7 +1923,7 @@ mod tests {
     #[tokio::test]
     async fn test_correct_created_at_used_during_node_reassignment() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
@@ -1987,7 +1987,7 @@ mod tests {
     #[tokio::test]
     async fn test_correct_created_at_used_during_user_retrieval() -> DbResult<()> {
         let pool = db_pool().await?;
-        let db = pool.get().await?;
+        let mut db = pool.get().await?;
 
         // Add a service
         let service_id = db
