@@ -55,7 +55,7 @@ macro_rules! mock_db_method {
         mock_db_method!($name, $type, results::$type);
     };
     ($name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, _params: params::$type) -> DbFuture<'_, $result> {
+        fn $name(&mut self, _params: params::$type) -> DbFuture<'_, $result> {
             let result: $result = Default::default();
             Box::pin(future::ok(result))
         }
@@ -65,15 +65,15 @@ macro_rules! mock_db_method {
 impl Db for MockDb {
     type Error = DbError;
 
-    fn commit(&self) -> DbFuture<'_, ()> {
+    fn commit(&mut self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn rollback(&self) -> DbFuture<'_, ()> {
+    fn rollback(&mut self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
-    fn begin(&self, _for_write: bool) -> DbFuture<'_, ()> {
+    fn begin(&mut self, _for_write: bool) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 
@@ -81,7 +81,7 @@ impl Db for MockDb {
         Box::new(self.clone())
     }
 
-    fn check(&self) -> DbFuture<'_, results::Check> {
+    fn check(&mut self) -> DbFuture<'_, results::Check> {
         Box::pin(future::ok(true))
     }
 
@@ -122,11 +122,11 @@ impl Db for MockDb {
         Default::default()
     }
 
-    fn set_timestamp(&self, _: SyncTimestamp) {}
+    fn set_timestamp(&mut self, _: SyncTimestamp) {}
 
     mock_db_method!(delete_batch, DeleteBatch);
 
-    fn clear_coll_cache(&self) -> DbFuture<'_, ()> {
+    fn clear_coll_cache(&mut self) -> DbFuture<'_, ()> {
         Box::pin(future::ok(()))
     }
 

@@ -986,22 +986,22 @@ impl MysqlDb {
 impl Db for MysqlDb {
     type Error = DbError;
 
-    fn commit(&self) -> DbFuture<'_, (), Self::Error> {
+    fn commit(&mut self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || db.commit_sync()))
     }
 
-    fn rollback(&self) -> DbFuture<'_, (), Self::Error> {
+    fn rollback(&mut self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || db.rollback_sync()))
     }
 
-    fn begin(&self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
+    fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
     }
 
-    fn check(&self) -> DbFuture<'_, results::Check, Self::Error> {
+    fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error> {
         let db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
     }
@@ -1061,7 +1061,7 @@ impl Db for MysqlDb {
     );
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
-    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
+    fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
         Box::pin(
             self.blocking_threadpool
@@ -1073,7 +1073,7 @@ impl Db for MysqlDb {
         results::ConnectionInfo::default()
     }
 
-    fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error> {
+    fn create_collection(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
         let db = self.clone();
         Box::pin(
             self.blocking_threadpool
@@ -1082,7 +1082,7 @@ impl Db for MysqlDb {
     }
 
     fn update_collection(
-        &self,
+        &mut self,
         param: params::UpdateCollection,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
@@ -1095,13 +1095,13 @@ impl Db for MysqlDb {
         self.timestamp()
     }
 
-    fn set_timestamp(&self, timestamp: SyncTimestamp) {
+    fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
         self.session.borrow_mut().timestamp = timestamp;
     }
 
     sync_db_method!(delete_batch, delete_batch_sync, DeleteBatch);
 
-    fn clear_coll_cache(&self) -> DbFuture<'_, (), Self::Error> {
+    fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || {
             db.coll_cache.clear();
