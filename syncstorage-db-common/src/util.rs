@@ -137,7 +137,7 @@ where
     i64: FromSql<BigInt, DB>,
     DB: Backend,
 {
-    fn from_sql(value: Option<&<DB as Backend>::RawValue>) -> deserialize::Result<Self> {
+    fn from_sql(value: <DB as Backend>::RawValue<'_>) -> deserialize::Result<Self> {
         let i64_value = <i64 as FromSql<BigInt, DB>>::from_sql(value)?;
         SyncTimestamp::from_i64(i64_value)
             .map_err(|e| format!("Invalid SyncTimestamp i64 {}", e).into())

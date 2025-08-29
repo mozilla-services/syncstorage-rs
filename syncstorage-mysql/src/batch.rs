@@ -19,7 +19,9 @@ use super::{
     DbResult,
 };
 
-const MAXTTL: i32 = 2_100_000_000;
+const MAX_TTL: i32 = 2_100_000_000;
+
+const MAX_BATCH_CREATE_RETRY: u8 = 5;
 
 pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
@@ -36,21 +38,28 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
     // while still letting us treat these ids as millisecond timestamps.  It's
     // yuck, but it works and it keeps the weirdness contained to this single
     // line of code.
-    let batch_id = db.timestamp().as_i64() + (user_id % 10);
-    insert_into(batch_uploads::table)
-        .values((
-            batch_uploads::batch_id.eq(&batch_id),
-            batch_uploads::user_id.eq(&user_id),
-            batch_uploads::collection_id.eq(&collection_id),
-        ))
-        .execute(&db.conn)
-        .map_err(|e| -> DbError {
-            match e {
-                // The user tried to create two batches with the same timestamp
-                DieselError::DatabaseError(UniqueViolation, _) => DbError::conflict(),
-                _ => e.into(),
+    let mut batch_id = db.timestamp().as_i64() + (user_id % 10);
+    // Occasionally batch_ids clash (usually during unit testing), so also
+    // retry w/ increments
+    for i in 1..=MAX_BATCH_CREATE_RETRY {
+        let result = insert_into(batch_uploads::table)
+            .values((
+                batch_uploads::batch_id.eq(&batch_id),
+                batch_uploads::user_id.eq(&user_id),
+                batch_uploads::collection_id.eq(&collection_id),
+            ))
+            .execute(&mut *db.conn.write()?);
+        match result {
+            Ok(_) => break,
+            Err(DieselError::DatabaseError(UniqueViolation, _)) => {
+                if i == MAX_BATCH_CREATE_RETRY {
+                    return Err(DbError::conflict());
+                }
+                batch_id += 1;
             }
-        })?;
+            Err(e) => return Err(e.into()),
+        }
+    }
 
     do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
     Ok(results::CreateBatch {
@@ -74,7 +83,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .get_result::<i32>(&db.conn)
+        .get_result::<i32>(&mut *db.conn.write()?)
         .optional()?;
     Ok(exists.is_some())
 }
@@ -124,11 +133,11 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .execute(&db.conn)?;
+        .execute(&mut *db.conn.write()?)?;
     diesel::delete(batch_upload_items::table)
         .filter(batch_upload_items::batch_id.eq(&batch_id))
         .filter(batch_upload_items::user_id.eq(&user_id))
-        .execute(&db.conn)?;
+        .execute(&mut *db.conn.write()?)?;
     Ok(())
 }
 
@@ -143,14 +152,14 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::Co
         .bind::<Integer, _>(&collection_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .bind::<BigInt, _>((MAXTTL as i64) * 1000) // XXX:
+        .bind::<BigInt, _>((MAX_TTL as i64) * 1000) // XXX:
         .bind::<BigInt, _>(&batch_id)
         .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .execute(&db.conn)?;
+        .execute(&mut *db.conn.write()?)?;
 
-    db.update_collection(user_id as u32, collection_id)?;
+    db.update_collection(user_id as u32, collection_id, None)?;
 
     delete(
         db,
@@ -186,14 +195,14 @@ pub fn do_append(
     // values contain a key that's already in the database, less so if the
     // the duplicate is in the value set we're inserting.
     #[derive(Debug, QueryableByName)]
-    #[table_name = "batch_upload_items"]
+    #[diesel(table_name = batch_upload_items)]
     struct ExistsResult {
         batch_id: i64,
         id: String,
     }
 
     #[derive(AsChangeset)]
-    #[table_name = "batch_upload_items"]
+    #[diesel(table_name = batch_upload_items)]
     struct UpdateBatches {
         payload: Option<String>,
         payload_size: Option<i64>,
@@ -208,7 +217,7 @@ pub fn do_append(
     )
     .bind::<BigInt, _>(user_id.legacy_id as i64)
     .bind::<BigInt, _>(batch_id)
-    .get_results::<ExistsResult>(&db.conn)?
+    .get_results::<ExistsResult>(&mut *db.conn.write()?)?
     {
         existing.insert(exist_idx(
             user_id.legacy_id,
@@ -232,7 +241,7 @@ pub fn do_append(
                 payload_size,
                 ttl_offset: bso.ttl.map(|ttl| ttl as i32),
             })
-            .execute(&db.conn)?;
+            .execute(&mut *db.conn.write()?)?;
         } else {
             diesel::insert_into(batch_upload_items::table)
                 .values((
@@ -244,7 +253,7 @@ pub fn do_append(
                     batch_upload_items::payload_size.eq(payload_size),
                     batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
                 ))
-                .execute(&db.conn)?;
+                .execute(&mut *db.conn.write()?)?;
             // make sure to include the key into our table check.
             existing.insert(exist_idx);
         }

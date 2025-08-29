@@ -155,9 +155,20 @@ from_error!(
     |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
 );
 from_error!(
-    diesel_migrations::RunMigrationsError,
+    diesel_migrations::MigrationError,
     DbError,
-    |error: diesel_migrations::RunMigrationsError| DbError::from(DbErrorKind::Mysql(
-        SqlError::from(error)
-    ))
+    |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Mysql(SqlError::from(
+        error
+    )))
 );
+from_error!(
+    std::boxed::Box<dyn std::error::Error + std::marker::Send + Sync>,
+    DbError,
+    |error: std::boxed::Box<dyn std::error::Error>| DbError::internal_error(error.to_string())
+);
+
+impl<Guard> From<std::sync::PoisonError<Guard>> for DbError {
+    fn from(inner: std::sync::PoisonError<Guard>) -> DbError {
+        DbError::internal_error(inner.to_string())
+    }
+}

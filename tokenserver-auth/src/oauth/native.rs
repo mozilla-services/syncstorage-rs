@@ -280,21 +280,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_keys_in_verifier_fallsback_to_fxa() -> Result<(), TokenserverError> {
-        let mock_jwks = mockito::mock("GET", "/v1/jwks").with_status(500).create();
+        let mut server = mockito::Server::new();
+        let mock_jwks = server.mock("GET", "/v1/jwks").with_status(500).create();
 
         let body = json!({
             "user": "fxa_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
-        let mock_verify = mockito::mock("POST", "/v1/verify")
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
             .with_header("content-type", "application/json")
             .with_status(200)
             .with_body(body.to_string())
             .create();
 
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Default::default()
         };
         let verifer: Verifier<JWTVerifierImpl> = Verifier::new(&settings, vec![])?;
@@ -310,12 +312,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_expired_signature_fails() -> Result<(), TokenserverError> {
-        let mock = mockito::mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new();
+        let mock = server.mock("POST", "/v1/verify").create();
         mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}];
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
 
@@ -337,7 +340,8 @@ mod tests {
     #[tokio::test]
     async fn test_verifier_attempts_all_keys_if_invalid_signature() -> Result<(), TokenserverError>
     {
-        let mock = mockito::mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new();
+        let mock = server.mock("POST", "/v1/verify").create();
         #[derive(Debug, Clone)]
         struct MockJWTVerifier {
             id: u8,
@@ -366,7 +370,7 @@ mod tests {
 
         let jwk_verifiers = vec![MockJWTVerifier { id: 0 }, MockJWTVerifier { id: 1 }];
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
@@ -391,12 +395,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_verifier_all_signature_failures_fails() -> Result<(), TokenserverError> {
-        let mock_verify = mockito::mock("POST", "/v1/verify").create();
+        let mut server = mockito::Server::new();
+        let mock_verify = server.mock("POST", "/v1/verify").create();
         mock_jwk_verifier!(Err(OAuthVerifyError::InvalidSignature));
 
         let jwk_verifiers = vec![MockJWTVerifier {}, MockJWTVerifier {}];
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
@@ -417,12 +422,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_verifier_fallsback_if_decode_error() -> Result<(), TokenserverError> {
+        let mut server = mockito::Server::new();
         let body = json!({
             "user": "fxa_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
-        let mock_verify = mockito::mock("POST", "/v1/verify")
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
             .with_header("content-type", "application/json")
             .with_status(200)
             .with_body(body.to_string())
@@ -432,7 +439,7 @@ mod tests {
 
         let jwk_verifiers = vec![MockJWTVerifier {}];
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
@@ -451,6 +458,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_sync_scope_fails() -> Result<(), TokenserverError> {
+        let server = mockito::Server::new();
         let token_claims = TokenClaims {
             user: "fxa_id".to_string(),
             scope: "some other scope".to_string(),
@@ -459,7 +467,7 @@ mod tests {
         mock_jwk_verifier!(token, Ok(serde_json::from_str(token).unwrap()));
         let jwk_verifiers = vec![MockJWTVerifier {}];
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
         let verifier: Verifier<MockJWTVerifier> = Verifier::new(&settings, jwk_verifiers).unwrap();
@@ -479,12 +487,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fxa_rejects_token_no_matter_the_body() -> Result<(), TokenserverError> {
+        let mut server = mockito::Server::new();
         let body = json!({
             "user": "fxa_id",
             "scope": [SYNC_SCOPE],
             "generation": 123
         });
-        let mock_verify = mockito::mock("POST", "/v1/verify")
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
             .with_header("content-type", "application/json")
             .with_status(401)
             // Even though the body is fine, if FxA returns a none-200, we automatically
@@ -492,7 +502,7 @@ mod tests {
             .with_body(body.to_string())
             .create();
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
 
@@ -518,12 +528,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_fxa_accepts_token_but_bad_body() -> Result<(), TokenserverError> {
+        let mut server = mockito::Server::new();
         let body = json!({
             "bad_key": "foo",
             "scope": [SYNC_SCOPE],
             "bad_genreation": 123
         });
-        let mock_verify = mockito::mock("POST", "/v1/verify")
+        let mock_verify = server
+            .mock("POST", "/v1/verify")
             .with_header("content-type", "application/json")
             .with_status(200)
             // Even though the body is valid json, it doesn't match our expectation so we'll error
@@ -531,7 +543,7 @@ mod tests {
             .with_body(body.to_string())
             .create();
         let settings = Settings {
-            fxa_oauth_server_url: mockito::server_url(),
+            fxa_oauth_server_url: server.url(),
             ..Settings::default()
         };
 
