@@ -4,7 +4,7 @@ ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
 # NOTE: Ensure builder's Rust version matches CI's in .circleci/config.yml
 # RUST_VER
-FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-bullseye AS chef
+FROM docker.io/lukemathwalker/cargo-chef:0.1.72-rust-1.89-bookworm AS chef
 WORKDIR /app
 
 FROM chef AS planner
@@ -20,7 +20,7 @@ RUN \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
     # Fetch and load the MySQL public key.
     wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list ; \
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list ; \
     fi && \
     apt-get -q update && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake
@@ -44,16 +44,16 @@ COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 
 RUN \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
-        # Fetch and load the MySQL public key.
-        # mysql_pubkey.asc from:
-        # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
-        # related:
-        # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
-        wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-        echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list ; \
+    # Fetch and load the MySQL public key.
+    # mysql_pubkey.asc from:
+    # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
+    # related:
+    # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
+    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list ; \
     fi && \
     apt-get -q update && \
-    apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel pkg-config && \
+    apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel python3-venv pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
@@ -62,10 +62,10 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
     poetry config virtualenvs.create false && \
     poetry self add poetry-plugin-export
 
-    # Generating a requirements.txt from Poetry dependencies.
-    # [tool.poetry.dependencies]
+# Generating a requirements.txt from Poetry dependencies.
+# [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install -r requirements.txt
+    pip3 install --break-system-packages -r requirements.txt
 
 
 ENV PATH=$PATH:/root/.cargo/bin
@@ -75,7 +75,7 @@ RUN \
     rustc --version && \
     cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
 
-FROM docker.io/library/debian:bullseye-slim
+FROM docker.io/library/debian:bookworm-slim
 ARG MYSQLCLIENT_PKG
 
 ENV POETRY_HOME="/opt/poetry" \
@@ -92,17 +92,17 @@ RUN apt-get -q update && apt-get -qy install wget
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 RUN if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
-        # first, an apt-get update is required for gnupg, which is required for apt-key adv
-        apt-get -q update && \
-        # and ca-certificates needed for https://repo.mysql.com
-        apt-get install -y gnupg ca-certificates wget && \
-        # Fetch and load the MySQL public key
-        echo "deb https://repo.mysql.com/apt/debian/ bullseye mysql-8.0" >> /etc/apt/sources.list && \
-        wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ; \
+    # first, an apt-get update is required for gnupg, which is required for apt-key adv
+    apt-get -q update && \
+    # and ca-certificates needed for https://repo.mysql.com
+    apt-get install -y gnupg ca-certificates wget && \
+    # Fetch and load the MySQL public key
+    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
+    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ; \
     fi && \
     # update again now that we trust repo.mysql.com
     apt-get -q update && \
-    apt-get -q install -y build-essential $MYSQLCLIENT_PKG libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel cargo curl jq pkg-config && \
+    apt-get -q install -y build-essential $MYSQLCLIENT_PKG libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel python3-venv cargo curl jq pkg-config && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
     # we have to remove the python3-cryptography package here.
@@ -114,10 +114,10 @@ RUN curl -sSL https://install.python-poetry.org | python3 - && \
     poetry --version && \
     poetry config virtualenvs.create false && \
     poetry self add poetry-plugin-export
-    # Generating a requirements.txt from Poetry dependencies.
-    # [tool.poetry.dependencies]
+# Generating a requirements.txt from Poetry dependencies.
+# [tool.poetry.dependencies]
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
-    pip3 install -r requirements.txt
+    pip3 install --break-system-packages -r requirements.txt
 
 COPY --from=builder /app/bin /app/bin
 COPY --from=builder /app/syncserver/version.json /app
@@ -135,8 +135,8 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
 WORKDIR /app/tools/tokenserver/
 RUN poetry export --no-interaction --without dev --output requirements.txt --without-hashes
 WORKDIR /app
-RUN pip3 install -r /app/tools/integration_tests/requirements.txt
-RUN pip3 install -r /app/tools/tokenserver/requirements.txt
+RUN pip3 install --break-system-packages -r /app/tools/integration_tests/requirements.txt
+RUN pip3 install --break-system-packages -r /app/tools/tokenserver/requirements.txt
 
 USER app:app
 
