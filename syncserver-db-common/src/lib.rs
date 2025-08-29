@@ -43,7 +43,7 @@ macro_rules! sync_db_method {
         sync_db_method!($name, $sync_name, $type, results::$type);
     };
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
-        fn $name(&self, params: params::$type) -> DbFuture<'_, $result, DbError> {
+        fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
             let db = self.clone();
             Box::pin(
                 self.blocking_threadpool

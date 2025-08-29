@@ -53,8 +53,8 @@ impl DbTransactionPool {
         F: Future<Output = Result<R, ApiError>>,
     {
         // Get connection from pool
-        let db = self.pool.get().await?;
-        let db2 = db.clone();
+        let mut db = self.pool.get().await?;
+        let mut db2 = db.clone();
 
         // Lock for transaction
         let result = match (self.get_lock_collection(), self.is_read) {
@@ -98,7 +98,7 @@ impl DbTransactionPool {
         A: FnOnce(Box<dyn Db<Error = DbError>>) -> F,
         F: Future<Output = Result<R, ApiError>> + 'a,
     {
-        let (resp, db) = self.transaction_internal(request, action).await?;
+        let (resp, mut db) = self.transaction_internal(request, action).await?;
 
         // No further processing before commit is possible
         db.commit().await?;
@@ -117,7 +117,7 @@ impl DbTransactionPool {
         F: Future<Output = Result<HttpResponse, ApiError>> + 'a,
     {
         let mreq = request.clone();
-        let check_precondition = move |db: Box<dyn Db<Error = DbError>>| {
+        let check_precondition = move |mut db: Box<dyn Db<Error = DbError>>| {
             async move {
                 // set the extra information for all requests so we capture default err handlers.
                 set_extra(&mreq, db.get_connection_info());
@@ -168,7 +168,7 @@ impl DbTransactionPool {
             }
         };
 
-        let (resp, db) = self
+        let (resp, mut db) = self
             .transaction_internal(request.clone(), check_precondition)
             .await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)

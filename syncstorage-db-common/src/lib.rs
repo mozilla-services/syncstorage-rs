@@ -67,116 +67,123 @@ impl<E> Clone for Box<dyn DbPool<Error = E>> {
 pub trait Db: Debug {
     type Error: DbErrorIntrospect + 'static;
 
-    fn lock_for_read(&self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
+    fn lock_for_read(&mut self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
 
-    fn lock_for_write(&self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
+    fn lock_for_write(&mut self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
 
-    fn begin(&self, for_write: bool) -> DbFuture<'_, (), Self::Error>;
+    fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error>;
 
-    fn commit(&self) -> DbFuture<'_, (), Self::Error>;
+    fn commit(&mut self) -> DbFuture<'_, (), Self::Error>;
 
-    fn rollback(&self) -> DbFuture<'_, (), Self::Error>;
+    fn rollback(&mut self) -> DbFuture<'_, (), Self::Error>;
 
     fn get_collection_timestamps(
-        &self,
+        &mut self,
         params: params::GetCollectionTimestamps,
     ) -> DbFuture<'_, results::GetCollectionTimestamps, Self::Error>;
 
     fn get_collection_timestamp(
-        &self,
+        &mut self,
         params: params::GetCollectionTimestamp,
     ) -> DbFuture<'_, results::GetCollectionTimestamp, Self::Error>;
 
     fn get_collection_counts(
-        &self,
+        &mut self,
         params: params::GetCollectionCounts,
     ) -> DbFuture<'_, results::GetCollectionCounts, Self::Error>;
 
     fn get_collection_usage(
-        &self,
+        &mut self,
         params: params::GetCollectionUsage,
     ) -> DbFuture<'_, results::GetCollectionUsage, Self::Error>;
 
     fn get_storage_timestamp(
-        &self,
+        &mut self,
         params: params::GetStorageTimestamp,
     ) -> DbFuture<'_, results::GetStorageTimestamp, Self::Error>;
 
     fn get_storage_usage(
-        &self,
+        &mut self,
         params: params::GetStorageUsage,
     ) -> DbFuture<'_, results::GetStorageUsage, Self::Error>;
 
     fn get_quota_usage(
-        &self,
+        &mut self,
         params: params::GetQuotaUsage,
     ) -> DbFuture<'_, results::GetQuotaUsage, Self::Error>;
 
     fn delete_storage(
-        &self,
+        &mut self,
         params: params::DeleteStorage,
     ) -> DbFuture<'_, results::DeleteStorage, Self::Error>;
 
     fn delete_collection(
-        &self,
+        &mut self,
         params: params::DeleteCollection,
     ) -> DbFuture<'_, results::DeleteCollection, Self::Error>;
 
     fn delete_bsos(
-        &self,
+        &mut self,
         params: params::DeleteBsos,
     ) -> DbFuture<'_, results::DeleteBsos, Self::Error>;
 
-    fn get_bsos(&self, params: params::GetBsos) -> DbFuture<'_, results::GetBsos, Self::Error>;
+    fn get_bsos(&mut self, params: params::GetBsos) -> DbFuture<'_, results::GetBsos, Self::Error>;
 
-    fn get_bso_ids(&self, params: params::GetBsos)
-        -> DbFuture<'_, results::GetBsoIds, Self::Error>;
+    fn get_bso_ids(
+        &mut self,
+        params: params::GetBsos,
+    ) -> DbFuture<'_, results::GetBsoIds, Self::Error>;
 
-    fn post_bsos(&self, params: params::PostBsos) -> DbFuture<'_, results::PostBsos, Self::Error>;
+    fn post_bsos(
+        &mut self,
+        params: params::PostBsos,
+    ) -> DbFuture<'_, results::PostBsos, Self::Error>;
 
     fn delete_bso(
-        &self,
+        &mut self,
         params: params::DeleteBso,
     ) -> DbFuture<'_, results::DeleteBso, Self::Error>;
 
-    fn get_bso(&self, params: params::GetBso)
-        -> DbFuture<'_, Option<results::GetBso>, Self::Error>;
+    fn get_bso(
+        &mut self,
+        params: params::GetBso,
+    ) -> DbFuture<'_, Option<results::GetBso>, Self::Error>;
 
     fn get_bso_timestamp(
-        &self,
+        &mut self,
         params: params::GetBsoTimestamp,
     ) -> DbFuture<'_, results::GetBsoTimestamp, Self::Error>;
 
-    fn put_bso(&self, params: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error>;
+    fn put_bso(&mut self, params: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error>;
 
     fn create_batch(
-        &self,
+        &mut self,
         params: params::CreateBatch,
     ) -> DbFuture<'_, results::CreateBatch, Self::Error>;
 
     fn validate_batch(
-        &self,
+        &mut self,
         params: params::ValidateBatch,
     ) -> DbFuture<'_, results::ValidateBatch, Self::Error>;
 
     fn append_to_batch(
-        &self,
+        &mut self,
         params: params::AppendToBatch,
     ) -> DbFuture<'_, results::AppendToBatch, Self::Error>;
 
     fn get_batch(
-        &self,
+        &mut self,
         params: params::GetBatch,
     ) -> DbFuture<'_, Option<results::GetBatch>, Self::Error>;
 
     fn commit_batch(
-        &self,
+        &mut self,
         params: params::CommitBatch,
     ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
 
     fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>>;
 
-    fn check(&self) -> DbFuture<'_, results::Check, Self::Error>;
+    fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
 
@@ -184,7 +191,7 @@ pub trait Db: Debug {
     ///
     /// Modeled on the Python `get_resource_timestamp` function.
     fn extract_resource(
-        &self,
+        &mut self,
         user_id: UserIdentifier,
         collection: Option<String>,
         bso: Option<String>,
@@ -230,22 +237,22 @@ pub trait Db: Debug {
 
     // Internal methods used by the db tests
 
-    fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error>;
+    fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error>;
 
-    fn create_collection(&self, name: String) -> DbFuture<'_, i32, Self::Error>;
+    fn create_collection(&mut self, name: String) -> DbFuture<'_, i32, Self::Error>;
 
     fn update_collection(
-        &self,
+        &mut self,
         params: params::UpdateCollection,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error>;
 
     fn timestamp(&self) -> SyncTimestamp;
 
-    fn set_timestamp(&self, timestamp: SyncTimestamp);
+    fn set_timestamp(&mut self, timestamp: SyncTimestamp);
 
-    fn delete_batch(&self, params: params::DeleteBatch) -> DbFuture<'_, (), Self::Error>;
+    fn delete_batch(&mut self, params: params::DeleteBatch) -> DbFuture<'_, (), Self::Error>;
 
-    fn clear_coll_cache(&self) -> DbFuture<'_, (), Self::Error>;
+    fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error>;
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
