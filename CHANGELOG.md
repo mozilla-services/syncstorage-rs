@@ -1,3 +1,17 @@
+<a name="0.20.1"></a>
+## 0.20.1 (2025-08-29)
+
+
+#### Features
+
+*   bump max payload to 2.5 (#1772) ([7c4b7c1b](https://github.com/mozilla-services/syncstorage-rs/commit/7c4b7c1b8f9ec89c7ac5612393f92623cbc7e797))
+
+#### Chore
+
+*   update sync python version  (#1774) ([19b6176d](https://github.com/mozilla-services/syncstorage-rs/commit/19b6176d5b9d7848b57954a489d494394c175798))
+
+
+
 <a name="0.20.0"></a>
 ## 0.20.0 (2025-08-14)
 
