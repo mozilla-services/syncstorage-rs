@@ -1,0 +1,33 @@
+[project]
+name = "hawk"
+version = "0.1.0"
+description = "Hawk Compatible Auth Header Utility"
+authors = [
+    {name = "Taddes",email = "tkorris@mozilla.com"}
+]
+license = "Mozilla Public License Version 2.0"
+readme = "README.md"
+requires-python = ">=3.9"
+
+[tool.poetry]
+package-mode = false 
+
+[tool.poetry.dependencies]
+hawkauthlib = "^2.0.0"
+tokenlib = "^2.0.0"
+webob = "^1.8.9"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.16.0"
+pydocstyle = "^6.3.0"
+ruff = "^0.12.7"
+black = "^25.1.0"
+bandit = "^1.8.3"
+isort = "^6.0.1"
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

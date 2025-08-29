@@ -24,11 +24,13 @@ Before submitting a PR:
   your reviewer's responsibility to ensure your patch includes adequate tests.
 
 When submitting a PR:
+- **[Sign all your git commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification#ssh-commit-verification)**.
+  We cannot accept any PR that does not have all commits signed. This is a policy
+  put in place by our Security Operations team and is enforced by our CI processes.
 - You agree to license your code under the project's open source license
   ([MPL 2.0](/LICENSE)).
 - Base your branch off the current `master`.
 - Add both your code and new tests if relevant.
-- Sign your git commit.
 - Run the test suite to make sure your code passes linting and tests.
 - Ensure your changes do not reduce code coverage of the test suite.
 - Please do not include merge commits in pull requests; include only commits

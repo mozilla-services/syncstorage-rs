@@ -37,7 +37,7 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 - pkg-config
 - [Rust stable](https://rustup.rs)
 - python 3.9+
-- MySQL 5.7 (or compatible)
+- MySQL 8.0 (or compatible)
   * libmysqlclient (`brew install mysql` on macOS, `apt install libmysqlclient-dev` on Ubuntu, `apt install libmariadb-dev-compat` on Debian)
 
 Depending on your OS, you may also need to install `libgrpcdev`,
@@ -241,7 +241,18 @@ We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env
 
 ### Unit tests
 
-`make test` - open the Makefile to adjust your `SYNC_SYNCSTORAGE__DATABASE_URL` as needed.
+You'll need [`nextest`](https://nexte.st/docs/installation/from-source/) and [`llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov?tab=readme-ov-file#installation) installed for full unittest and test coverage.
+
+    $ cargo install cargo-nextest --locked
+    $ cargo install cargo-llvm-cov --locked
+
+- `make test` - Runs all tests
+- `make test_with_coverage` - This will use `llvm-cov` to run tests and generate [source-based code coverage](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html)
+
+If you need to override `SYNC_SYNCSTORAGE__DATABASE_URL` or `SYNC_TOKENSERVER__DATABASE_URL` variables, you can modify them in the `Makefile` or by setting them in your shell
+
+    $ echo 'export SYNC_SYNCSTORAGE__DATABASE_URL="mysql://sample_user:sample_password@localhost/syncstorage_rs"' >> ~/.zshrc
+    $ echo 'export SYNC_TOKENSERVER__DATABASE_URL="mysql://sample_user:sample_password@localhost/tokenserver?rs"' >> ~/.zshrc
 
 #### Debugging unit test state
 
@@ -250,7 +261,7 @@ default, we use the diesel test_transaction functionality to ensure test data
 is not committed to the database. Therefore, there is an environment variable
 which can be used to turn off test_transaction.
 
-        SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS=false cargo test [testname]
+        SYNC_SYNCSTORAGE__DATABASE_USE_TEST_TRANSACTIONS=false make test ARGS="[testname]"
 
 Note that you will almost certainly want to pass a single test name. When running
 the entire test suite, data from previous tests will cause future tests to fail.

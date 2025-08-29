@@ -13,7 +13,7 @@ http.workspace = true
 slog-scope.workspace = true
 thiserror.workspace = true
 
-async-trait = "0.1.40"
+async-trait = "0.1.88"
 diesel = { workspace = true, features = ["mysql", "r2d2"] }
 diesel_logger = { workspace = true }
 diesel_migrations = { workspace = true, features = ["mysql"] }

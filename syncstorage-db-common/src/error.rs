@@ -101,9 +101,9 @@ impl ReportableError for SyncstorageDbError {
         !matches!(&self.kind, SyncstorageDbErrorKind::Conflict)
     }
 
-    fn metric_label(&self) -> Option<String> {
+    fn metric_label(&self) -> Option<&'static str> {
         match self.kind {
-            SyncstorageDbErrorKind::Conflict => Some("storage.conflict".to_owned()),
+            SyncstorageDbErrorKind::Conflict => Some("storage.conflict"),
             _ => None,
         }
     }

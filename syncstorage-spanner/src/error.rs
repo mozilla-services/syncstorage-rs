@@ -1,6 +1,7 @@
 use std::fmt;
 
 use backtrace::Backtrace;
+use grpcio::RpcStatusCode;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
@@ -11,7 +12,7 @@ use thiserror::Error;
 /// from the database backend.
 #[derive(Debug)]
 pub struct DbError {
-    kind: DbErrorKind,
+    pub(crate) kind: DbErrorKind,
     pub status: StatusCode,
     pub backtrace: Box<Backtrace>,
 }
@@ -52,10 +53,14 @@ impl DbError {
     pub fn too_large(msg: String) -> Self {
         DbErrorKind::TooLarge(msg).into()
     }
+
+    pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+        DbErrorKind::PoolTimeout(timeout_type).into()
+    }
 }
 
 #[derive(Debug, Error)]
-enum DbErrorKind {
+pub(crate) enum DbErrorKind {
     #[error("{}", _0)]
     Common(SyncstorageDbError),
 
@@ -64,6 +69,9 @@ enum DbErrorKind {
 
     #[error("A database error occurred: {}", _0)]
     Grpc(#[from] grpcio::Error),
+
+    #[error("A database pool timeout occurred, type: {:?}", _0)]
+    PoolTimeout(deadpool::managed::TimeoutType),
 
     #[error("Database integrity error: {}", _0)]
     Integrity(String),
@@ -122,21 +130,62 @@ impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
+            // Match against server/connection errors that we don't want reported to Sentry.
+            DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
+                match status.code() {
+                    // Code 14 - UNAVAILABLE
+                    RpcStatusCode::UNAVAILABLE => false,
+                    // Code 13 - INTERNAL
+                    RpcStatusCode::INTERNAL => !is_ignored_internal(status),
+                    _ => true,
+                }
+            }
+            DbErrorKind::PoolTimeout(_) => false,
             _ => true,
         }
     }
 
-    fn metric_label(&self) -> Option<String> {
-        if let DbErrorKind::Common(e) = &self.kind {
-            e.metric_label()
-        } else {
-            None
+    fn metric_label(&self) -> Option<&str> {
+        match &self.kind {
+            DbErrorKind::Common(e) => e.metric_label(),
+
+            DbErrorKind::Grpc(grpcio::Error::RpcFailure(status)) => {
+                match status.code() {
+                    // Code 14 - UNAVAILABLE
+                    RpcStatusCode::UNAVAILABLE => Some("storage.spanner.grpc.unavailable"),
+                    // Code 13 - INTERNAL
+                    RpcStatusCode::INTERNAL => Some("storage.spanner.grpc.internal"),
+
+                    _ => None,
+                }
+            }
+            DbErrorKind::PoolTimeout(_) => Some("storage.spanner.pool.timeout"),
+            _ => None,
+        }
+    }
+
+    fn tags(&self) -> Vec<(&str, String)> {
+        match &self.kind {
+            DbErrorKind::PoolTimeout(timeout_type) => {
+                vec![("type", format!("{timeout_type:?}").to_ascii_lowercase())]
+            }
+            _ => vec![],
         }
     }
 
     fn backtrace(&self) -> Option<&Backtrace> {
         Some(&self.backtrace)
     }
+}
+
+/// Whether to ignore a 13 - INTERNAL error based on its status
+fn is_ignored_internal(status: &grpcio::RpcStatus) -> bool {
+    [
+        "rst_stream",
+        "rst stream",
+        "received unexpected eos on data frame from server",
+    ]
+    .contains(&status.message().to_lowercase().as_str())
 }
 
 impl InternalError for DbError {

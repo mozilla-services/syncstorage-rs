@@ -1,15 +1,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
-""" Base test class, with an instanciated app.
-"""
+"""Base test class, with an instantiated app."""
 
 import contextlib
 import functools
 from konfig import Config, SettingsDict
 import hawkauthlib
 import os
-import optparse
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.config import Configurator
 from pyramid.interfaces import IAuthenticationPolicy
@@ -25,6 +23,7 @@ import sys
 import time
 import tokenlib
 import urllib.parse as urlparse
+
 # unittest imported by pytest requirement
 import unittest
 import uuid
@@ -32,7 +31,6 @@ from webtest import TestApp
 from zope.interface import implementer
 
 
-global_secret = None
 VALID_FXA_ID_REGEX = re.compile("^[A-Za-z0-9=\\-_]{1,64}$")
 
 
@@ -59,7 +57,6 @@ class Secrets(object):
 
         for name in filename:
             with open(name, "rb") as f:
-
                 reader = csv.reader(f, delimiter=",")
                 for line, row in enumerate(reader):
                     if len(row) < 2:
@@ -81,8 +78,7 @@ class Secrets(object):
             writer = csv.writer(f, delimiter=",")
             for node, secrets in self._secrets.items():
                 secrets = [
-                    "%s:%s" % (timestamp, secret)
-                    for timestamp, secret in secrets
+                    "%s:%s" % (timestamp, secret) for timestamp, secret in secrets
                 ]
                 secrets.insert(0, node)
                 writer.writerow(secrets)
@@ -182,9 +178,7 @@ def get_test_configurator(root, ini_file="tests.ini"):
     config = get_configurator({"__file__": ini_path})
     authz_policy = ACLAuthorizationPolicy()
     config.set_authorization_policy(authz_policy)
-    authn_policy = TokenServerAuthenticationPolicy.from_settings(
-        config.get_settings()
-    )
+    authn_policy = TokenServerAuthenticationPolicy.from_settings(config.get_settings())
     config.set_authentication_policy(authn_policy)
     return config
 
@@ -255,9 +249,7 @@ class TestCase(unittest.TestCase):
                 self.ini_file = self.TEST_INI_FILE
             else:
                 # The file to use may be specified in the environment.
-                self.ini_file = os.environ.get(
-                    "MOZSVC_TEST_INI_FILE", "tests.ini"
-                )
+                self.ini_file = os.environ.get("MOZSVC_TEST_INI_FILE", "tests.ini")
         __file__ = sys.modules[self.__class__.__module__].__file__
         config = get_test_configurator(__file__, self.ini_file)
         config.begin()
@@ -357,7 +349,6 @@ class FunctionalTestCase(TestCase):
         # This call implicitly commits the configurator. We probably still
         # want it for the side effects.
         self.config.make_wsgi_app()
-
         host_url = urlparse.urlparse(self.host_url)
         self.app = TestApp(
             self.host_url,
@@ -397,6 +388,7 @@ class StorageFunctionalTestCase(FunctionalTestCase, StorageTestCase):
 
     def _authenticate(self):
         policy = self.config.registry.getUtility(IAuthenticationPolicy)
+        global_secret = os.environ.get("SYNC_MASTER_SECRET")
         if global_secret is not None:
             policy.secrets._secrets = [global_secret]
         self.user_id = random.randint(1, 100000)
@@ -539,14 +531,14 @@ class TokenServerAuthenticationPolicy(HawkAuthenticationPolicy):
         if "secrets_file" in settings:
             if "secret" in settings:
                 raise ValueError("can't use both 'secret' and 'secrets_file'")
-            secrets["backend"] = "test_support.Secrets"
+            secrets["backend"] = "tools.integration_tests.test_support.Secrets"
             secrets["filename"] = settings.pop("secrets_file")
         elif "secret" in settings:
-            secrets["backend"] = "test_support.FixedSecrets"
+            secrets["backend"] = "tools.integration_tests.test_support.FixedSecrets"
             secrets["secrets"] = settings.pop("secret")
         for name in settings.keys():
             if name.startswith(secrets_prefix):
-                secrets[name[len(secrets_prefix):]] = settings.pop(name)
+                secrets[name[len(secrets_prefix) :]] = settings.pop(name)
         kwds["secrets"] = secrets
         return kwds
 
@@ -801,90 +793,3 @@ class SyncStorageAuthenticationPolicy(TokenServerAuthenticationPolicy):
                 raise ValueError("invalid device_id in token data")
         """
         return user
-
-
-def run_live_functional_tests(TestCaseClass, argv=None):
-    """Execute the given suite of testcases against a live server."""
-    if argv is None:
-        argv = sys.argv
-
-    # This will only work using a StorageFunctionalTestCase subclass,
-    # since we override the _authenticate() method.
-    assert issubclass(TestCaseClass, StorageFunctionalTestCase)
-
-    usage = "Usage: %prog [options] <server-url>"
-    parser = optparse.OptionParser(usage=usage)
-    parser.add_option(
-        "-x",
-        "--failfast",
-        action="store_true",
-        help="stop after the first failed test",
-    )
-    parser.add_option(
-        "",
-        "--config-file",
-        help="name of the config file in use by the server",
-    )
-    parser.add_option(
-        "",
-        "--use-token-server",
-        action="store_true",
-        help="the given URL is a tokenserver, not an endpoint",
-    )
-    parser.add_option(
-        "", "--email", help="email address to use for tokenserver tests"
-    )
-    parser.add_option(
-        "",
-        "--audience",
-        help="assertion audience to use for tokenserver tests",
-    )
-
-    try:
-        opts, args = parser.parse_args(argv)
-    except SystemExit as e:
-        return e.args[0]
-    if len(args) != 2:
-        parser.print_usage()
-        return 2
-
-    url = args[1]
-    if opts.config_file is not None:
-        os.environ["MOZSVC_TEST_INI_FILE"] = opts.config_file
-
-    # If we're not using the tokenserver, the default implementation of
-    # _authenticate will do just fine.  We optionally accept the token
-    # signing secret in the url hash fragement.
-    if opts.email is not None:
-        msg = "cant specify email address unless using live tokenserver"
-        raise ValueError(msg)
-    if opts.audience is not None:
-        msg = "cant specify audience unless using live tokenserver"
-        raise ValueError(msg)
-    host_url = urlparse.urlparse(url)
-    if host_url.fragment:
-        global global_secret
-        global_secret = host_url.fragment
-        host_url = host_url._replace(fragment="")
-    os.environ["MOZSVC_TEST_REMOTE"] = "localhost"
-
-    # Now use the unittest2 runner to execute them.
-    suite = unittest.TestSuite()
-    import test_storage
-
-    test_prefix = os.environ.get("SYNC_TEST_PREFIX", "test")
-    suite.addTest(unittest.findTestCases(test_storage, test_prefix))
-    # suite.addTest(unittest.makeSuite(LiveTestCases, prefix=test_prefix))
-    runner = unittest.TextTestRunner(
-        stream=sys.stderr,
-        failfast=opts.failfast,
-        verbosity=2,
-    )
-    res = runner.run(suite)
-    if not res.wasSuccessful():
-        return 1
-    return 0
-
-
-# Tell over-zealous test discovery frameworks that this isn't a real test.
-run_live_functional_tests.__test__ = False

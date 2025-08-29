@@ -1,3 +1,4 @@
+#![allow(non_local_definitions)]
 pub mod error;
 pub mod params;
 pub mod results;
@@ -6,7 +7,6 @@ pub mod util;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
-use futures::{future, TryFutureExt};
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use syncserver_db_common::{DbFuture, GetPoolState};
@@ -189,47 +189,46 @@ pub trait Db: Debug {
         collection: Option<String>,
         bso: Option<String>,
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-        // If there's no collection, we return the overall storage timestamp
-        let collection = match collection {
-            Some(collection) => collection,
-            None => return Box::pin(self.get_storage_timestamp(user_id)),
-        };
-        // If there's no bso, return the collection
-        let bso = match bso {
-            Some(bso) => bso,
-            None => {
-                return Box::pin(
-                    self.get_collection_timestamp(params::GetCollectionTimestamp {
-                        user_id,
-                        collection,
-                    })
-                    .or_else(|e| {
-                        if e.is_collection_not_found() {
-                            future::ok(SyncTimestamp::from_seconds(0f64))
-                        } else {
-                            future::err(e)
-                        }
-                    }),
-                )
-            }
-        };
-        Box::pin(
-            self.get_bso_timestamp(params::GetBsoTimestamp {
-                user_id,
-                collection,
-                id: bso,
-            })
-            .or_else(|e| {
-                if e.is_collection_not_found() {
-                    future::ok(SyncTimestamp::from_seconds(0f64))
-                } else {
-                    future::err(e)
+        Box::pin(async move {
+            match collection {
+                None => {
+                    // No collection specified, return overall storage timestamp
+                    self.get_storage_timestamp(user_id).await
                 }
-            }),
-        )
+                Some(collection) => match bso {
+                    None => self
+                        .get_collection_timestamp(params::GetCollectionTimestamp {
+                            user_id,
+                            collection,
+                        })
+                        .await
+                        .or_else(|e| {
+                            if e.is_collection_not_found() {
+                                Ok(SyncTimestamp::from_seconds(0f64))
+                            } else {
+                                Err(e)
+                            }
+                        }),
+                    Some(bso) => self
+                        .get_bso_timestamp(params::GetBsoTimestamp {
+                            user_id,
+                            collection,
+                            id: bso,
+                        })
+                        .await
+                        .or_else(|e| {
+                            if e.is_collection_not_found() {
+                                Ok(SyncTimestamp::from_seconds(0f64))
+                            } else {
+                                Err(e)
+                            }
+                        }),
+                },
+            }
+        })
     }
 
-    /// Internal methods used by the db tests
+    // Internal methods used by the db tests
 
     fn get_collection_id(&self, name: String) -> DbFuture<'_, i32, Self::Error>;
 

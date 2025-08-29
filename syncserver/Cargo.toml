@@ -22,7 +22,6 @@ rand.workspace = true
 regex.workspace = true
 sentry.workspace = true
 serde.workspace = true
-serde_derive.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 slog.workspace = true
@@ -38,8 +37,6 @@ thiserror.workspace = true
 actix-http = "3"
 actix-rt = "2"
 actix-cors = "0.7"
-async-trait = "0.1.40"
-dyn-clone = "1.0.4"
 glean = { path = "../glean" }
 hawk = "5.0"
 mime = "0.3"
@@ -50,19 +47,20 @@ syncserver-settings = { path = "../syncserver-settings" }
 syncstorage-db = { path = "../syncstorage-db" }
 syncstorage-settings = { path = "../syncstorage-settings" }
 time = "^0.3"
-tokenserver-auth = { path = "../tokenserver-auth", default-features = false }
+tokenserver-auth = { path = "../tokenserver-auth" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db = { path = "../tokenserver-db" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 urlencoding = "2.1"
-validator = "0.19"
-validator_derive = "0.19"
+validator = "0.20"
+validator_derive = "0.20"
 woothee = "0.13"
 
 [features]
 default = ["mysql", "py_verifier"]
 no_auth = []
-py_verifier = ["tokenserver-auth/py"]
+py_verifier = ["tokenserver-auth/py", "tokenserver-common/py"]
 mysql = ["syncstorage-db/mysql"]
 spanner = ["syncstorage-db/spanner"]
+actix-compress = ["actix-web/compress-brotli", "actix-web/compress-gzip", "actix-web/compress-zstd"]

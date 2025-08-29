@@ -48,16 +48,13 @@ impl ReportableError for SqlError {
         }
     }
 
-    fn metric_label(&self) -> Option<String> {
-        Some(
-            match self.kind {
-                SqlErrorKind::DieselQuery(_) => "storage.sql.error.diesel_query",
-                SqlErrorKind::DieselConnection(_) => "storage.sql.error.diesel_connection",
-                SqlErrorKind::Pool(_) => "storage.sql.error.pool",
-                SqlErrorKind::Migration(_) => "storage.sql.error.migration",
-            }
-            .to_string(),
-        )
+    fn metric_label(&self) -> Option<&'static str> {
+        Some(match self.kind {
+            SqlErrorKind::DieselQuery(_) => "storage.sql.error.diesel_query",
+            SqlErrorKind::DieselConnection(_) => "storage.sql.error.diesel_connection",
+            SqlErrorKind::Pool(_) => "storage.sql.error.pool",
+            SqlErrorKind::Migration(_) => "storage.sql.error.migration",
+        })
     }
 
     fn backtrace(&self) -> Option<&Backtrace> {

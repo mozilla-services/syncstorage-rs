@@ -18,17 +18,18 @@ members = [
 default-members = ["syncserver"]
 
 [workspace.package]
-version = "0.17.15"
+version = "0.20.0"
 authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
   "Mozilla Services Engineering <services-engineering+code@mozilla.com>",
 ]
 edition = "2021"
+rust-version = "1.89"
 license = "MPL-2.0"
 
 [workspace.dependencies]
-actix-web = "4"
+actix-web = { version = "4", default-features = false, features = ["compat", "http2", "macros"] }
 
 docopt = "1.1"
 base64 = "0.22"
@@ -62,13 +63,13 @@ regex = "1.4"
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ] }
-sentry = { version = "0.35", default-features = false, features = [
+sentry = { version = "0.42", default-features = false, features = [
   "curl",
   "backtrace",
   "contexts",
   "debug-images",
 ] }
-sentry-backtrace = "0.35"
+sentry-backtrace = "0.42"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
