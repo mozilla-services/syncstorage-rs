@@ -2192,10 +2192,6 @@ impl Db for SpannerDb {
             enforced,
         };
     }
-
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>> {
-        Box::new(self.clone())
-    }
 }
 
 fn sync_timestamp_from_rfc3339(val: &str) -> Result<SyncTimestamp, DbError> {
