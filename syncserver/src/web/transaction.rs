@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use actix_http::{header::HeaderValue, BoxedPayloadStream, Error, HttpMessage, Method, StatusCode};
 use actix_web::dev::Payload;
 use actix_web::http::header;
@@ -43,18 +41,16 @@ impl DbTransactionPool {
     /// transaction is rolled back. If the action succeeds, the transaction is
     /// NOT committed. Further processing is required before we are sure the
     /// action has succeeded (ex. check HTTP response for internal error).
-    async fn transaction_internal<A, R, F>(
+    async fn transaction_internal<A, R>(
         &self,
         request: HttpRequest,
         action: A,
     ) -> Result<(R, Box<dyn Db<Error = DbError>>), ApiError>
     where
-        A: FnOnce(Box<dyn Db<Error = DbError>>) -> F,
-        F: Future<Output = Result<R, ApiError>>,
+        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<R, ApiError>,
     {
         // Get connection from pool
         let mut db = self.pool.get().await?;
-        let mut db2 = db.clone();
 
         // Lock for transaction
         let result = match (self.get_lock_collection(), self.is_read) {
@@ -75,10 +71,10 @@ impl DbTransactionPool {
         // implicitly create them, so commit/rollback are always called to
         // finish them. They noop when no implicit transaction was created
         // (maybe rename them to maybe_commit/rollback?)
-        match action(db).await {
-            Ok(resp) => Ok((resp, db2)),
+        match action(&mut db).await {
+            Ok(resp) => Ok((resp, db)),
             Err(e) => {
-                db2.rollback().await?;
+                db.rollback().await?;
                 Err(e)
             }
         }
@@ -89,14 +85,13 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A, R, F>(
+    pub async fn transaction<'a, A, R>(
         &'a self,
         request: HttpRequest,
         action: A,
     ) -> Result<R, ApiError>
     where
-        A: FnOnce(Box<dyn Db<Error = DbError>>) -> F,
-        F: Future<Output = Result<R, ApiError>> + 'a,
+        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<R, ApiError>,
     {
         let (resp, mut db) = self.transaction_internal(request, action).await?;
 
@@ -107,65 +102,60 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A, F>(
+    pub async fn transaction_http<'a, A>(
         &'a self,
         request: HttpRequest,
         action: A,
     ) -> Result<HttpResponse, ApiError>
     where
-        A: FnOnce(Box<dyn Db<Error = DbError>>) -> F,
-        F: Future<Output = Result<HttpResponse, ApiError>> + 'a,
+        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<HttpResponse, ApiError> + 'a,
     {
         let mreq = request.clone();
-        let check_precondition = move |mut db: Box<dyn Db<Error = DbError>>| {
-            async move {
-                // set the extra information for all requests so we capture default err handlers.
-                set_extra(&mreq, db.get_connection_info());
-                let resource_ts = db
-                    .extract_resource(
-                        self.user_id.clone(),
-                        self.collection.clone(),
-                        self.bso_opt.clone(),
-                    )
-                    .await
-                    .map_err(ApiError::from)?;
+        let check_precondition = async |db: &mut Box<dyn Db<Error = DbError>>| {
+            // set the extra information for all requests so we capture default err handlers.
+            set_extra(&mreq, db.get_connection_info());
+            let resource_ts = db
+                .extract_resource(
+                    self.user_id.clone(),
+                    self.collection.clone(),
+                    self.bso_opt.clone(),
+                )
+                .await
+                .map_err(ApiError::from)?;
 
-                if let Some(precondition) = &self.precondition.opt {
-                    let status = match precondition {
-                        PreConditionHeader::IfModifiedSince(header_ts)
-                            if resource_ts <= *header_ts =>
-                        {
-                            StatusCode::NOT_MODIFIED
-                        }
-                        PreConditionHeader::IfUnmodifiedSince(header_ts)
-                            if resource_ts > *header_ts =>
-                        {
-                            StatusCode::PRECONDITION_FAILED
-                        }
-                        _ => StatusCode::OK,
-                    };
-                    if status != StatusCode::OK {
-                        return Ok(HttpResponse::build(status)
-                            .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
-                            .finish());
-                    };
-                }
-
-                let mut resp = action(db).await?;
-
-                if resp.headers().contains_key(X_LAST_MODIFIED) {
-                    return Ok(resp);
-                }
-
-                // See if we already extracted one and use that if possible
-                if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
-                    trace!("📝 Setting X-Last-Modfied {:?}", ts_header);
-                    resp.headers_mut()
-                        .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
-                }
-
-                Ok(resp)
+            if let Some(precondition) = &self.precondition.opt {
+                let status = match precondition {
+                    PreConditionHeader::IfModifiedSince(header_ts) if resource_ts <= *header_ts => {
+                        StatusCode::NOT_MODIFIED
+                    }
+                    PreConditionHeader::IfUnmodifiedSince(header_ts)
+                        if resource_ts > *header_ts =>
+                    {
+                        StatusCode::PRECONDITION_FAILED
+                    }
+                    _ => StatusCode::OK,
+                };
+                if status != StatusCode::OK {
+                    return Ok(HttpResponse::build(status)
+                        .insert_header((X_LAST_MODIFIED, resource_ts.as_header()))
+                        .finish());
+                };
             }
+
+            let mut resp = action(db).await?;
+
+            if resp.headers().contains_key(X_LAST_MODIFIED) {
+                return Ok(resp);
+            }
+
+            // See if we already extracted one and use that if possible
+            if let Ok(ts_header) = header::HeaderValue::from_str(&resource_ts.as_header()) {
+                trace!("📝 Setting X-Last-Modfied {:?}", ts_header);
+                resp.headers_mut()
+                    .insert(header::HeaderName::from_static(X_LAST_MODIFIED), ts_header);
+            }
+
+            Ok(resp)
         };
 
         let (resp, mut db) = self

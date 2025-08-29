@@ -257,6 +257,7 @@ pub trait Db: Debug {
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 
+/*
 impl<E> Clone for Box<dyn Db<Error = E>>
 where
     E: DbErrorIntrospect + 'static,
@@ -265,6 +266,7 @@ where
         self.box_clone()
     }
 }
+*/
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Copy)]
 #[serde(rename_all = "lowercase")]
