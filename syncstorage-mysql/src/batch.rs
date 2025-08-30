@@ -159,7 +159,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::Co
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .execute(&mut *db.conn.write()?)?;
 
-    db.update_collection(user_id as u32, collection_id, None)?;
+    db.update_collection(user_id as u32, collection_id)?;
 
     delete(
         db,

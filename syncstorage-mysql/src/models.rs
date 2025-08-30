@@ -327,16 +327,14 @@ impl MysqlDb {
             return Ok(id);
         }
 
-        let id = self.conn.write()?.transaction(|tx| {
-            diesel::insert_or_ignore_into(collections::table)
-                .values(collections::name.eq(name))
-                .execute(tx)?;
+        diesel::insert_or_ignore_into(collections::table)
+            .values(collections::name.eq(name))
+            .execute(&mut *self.conn.write()?)?;
 
-            collections::table
-                .select(collections::id)
-                .filter(collections::name.eq(name))
-                .first(tx)
-        })?;
+        let id = collections::table
+            .select(collections::id)
+            .filter(collections::name.eq(name))
+            .first(&mut *self.conn.write()?)?;
 
         if !self.session.borrow().in_write_transaction {
             self.coll_cache.put(id, name.to_owned())?;
@@ -414,65 +412,69 @@ impl MysqlDb {
             }
         }
 
-        self.conn.write()?.transaction(|tx| {
-            let payload = bso.payload.as_deref().unwrap_or_default();
-            let sortindex = bso.sortindex;
-            let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
-            let q = format!(r#"
+        let payload = bso.payload.as_deref().unwrap_or_default();
+        let sortindex = bso.sortindex;
+        let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+        let q = format!(
+            r#"
             INSERT INTO bso ({user_id}, {collection_id}, id, sortindex, payload, {modified}, {expiry})
             VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                    {user_id} = VALUES({user_id}),
                    {collection_id} = VALUES({collection_id}),
                    id = VALUES(id)
-            "#, user_id=USER_ID, modified=MODIFIED, collection_id=COLLECTION_ID, expiry=EXPIRY);
-            let q = format!(
-                "{}{}",
-                q,
-                if bso.sortindex.is_some() {
-                    ", sortindex = VALUES(sortindex)"
-                } else {
-                    ""
-                },
-            );
-            let q = format!(
-                "{}{}",
-                q,
-                if bso.payload.is_some() {
-                    ", payload = VALUES(payload)"
-                } else {
-                    ""
-                },
-            );
-            let q = format!(
-                "{}{}",
-                q,
-                if bso.ttl.is_some() {
-                    format!(", {expiry} = VALUES({expiry})", expiry=EXPIRY)
-                } else {
-                    "".to_owned()
-                },
-            );
-            let q = format!(
-                "{}{}",
-                q,
-                if bso.payload.is_some() || bso.sortindex.is_some() {
-                    format!(", {modified} = VALUES({modified})", modified=MODIFIED)
-                } else {
-                    "".to_owned()
-                },
-            );
-            sql_query(q)
-                .bind::<BigInt, _>(user_id as i64) // XXX:
-                .bind::<Integer, _>(&collection_id)
-                .bind::<Text, _>(&bso.id)
-                .bind::<Nullable<Integer>, _>(sortindex)
-                .bind::<Text, _>(payload)
-                .bind::<BigInt, _>(timestamp)
-                .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
-                .execute(tx)?;
-            self.update_collection(user_id as u32, collection_id, Some(tx))
-        })
+            "#,
+            user_id = USER_ID,
+            modified = MODIFIED,
+            collection_id = COLLECTION_ID,
+            expiry = EXPIRY
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.sortindex.is_some() {
+                ", sortindex = VALUES(sortindex)"
+            } else {
+                ""
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.payload.is_some() {
+                ", payload = VALUES(payload)"
+            } else {
+                ""
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.ttl.is_some() {
+                format!(", {expiry} = VALUES({expiry})", expiry = EXPIRY)
+            } else {
+                "".to_owned()
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.payload.is_some() || bso.sortindex.is_some() {
+                format!(", {modified} = VALUES({modified})", modified = MODIFIED)
+            } else {
+                "".to_owned()
+            },
+        );
+        sql_query(q)
+            .bind::<BigInt, _>(user_id as i64) // XXX:
+            .bind::<Integer, _>(&collection_id)
+            .bind::<Text, _>(&bso.id)
+            .bind::<Nullable<Integer>, _>(sortindex)
+            .bind::<Text, _>(payload)
+            .bind::<BigInt, _>(timestamp)
+            .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
+            .execute(&mut *self.conn.write()?)?;
+        self.update_collection(user_id as u32, collection_id)
     }
 
     fn get_bsos_sync(&self, params: params::GetBsos) -> DbResult<results::GetBsos> {
@@ -659,7 +661,7 @@ impl MysqlDb {
         if affected_rows == 0 {
             return Err(DbError::bso_not_found());
         }
-        self.update_collection(user_id as u32, collection_id, None)
+        self.update_collection(user_id as u32, collection_id)
     }
 
     fn delete_bsos_sync(&self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
@@ -670,7 +672,7 @@ impl MysqlDb {
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq_any(params.ids))
             .execute(&mut *self.conn.write()?)?;
-        self.update_collection(user_id as u32, collection_id, None)
+        self.update_collection(user_id as u32, collection_id)
     }
 
     fn post_bsos_sync(&self, input: params::PostBsos) -> DbResult<results::PostBsos> {
@@ -702,7 +704,7 @@ impl MysqlDb {
                 }
             }
         }
-        self.update_collection(input.user_id.legacy_id as u32, collection_id, None)?;
+        self.update_collection(input.user_id.legacy_id as u32, collection_id)?;
         Ok(result)
     }
 
@@ -832,10 +834,9 @@ impl MysqlDb {
         &self,
         user_id: u32,
         collection_id: i32,
-        mut conn: Option<&mut InternalConn>,
     ) -> DbResult<SyncTimestamp> {
         let quota = if self.quota.enabled {
-            self.calc_quota_usage_sync(user_id, collection_id, conn.as_deref_mut())?
+            self.calc_quota_usage_sync(user_id, collection_id)?
         } else {
             results::GetQuotaUsage {
                 count: 0,
@@ -859,7 +860,7 @@ impl MysqlDb {
         );
         let total_bytes = quota.total_bytes as i64;
         let timestamp = self.timestamp().as_i64();
-        let q = sql_query(upsert)
+        sql_query(upsert)
             .bind::<BigInt, _>(user_id as i64)
             .bind::<Integer, _>(&collection_id)
             .bind::<BigInt, _>(&timestamp)
@@ -867,12 +868,8 @@ impl MysqlDb {
             .bind::<Integer, _>(&quota.count)
             .bind::<BigInt, _>(&timestamp)
             .bind::<BigInt, _>(&total_bytes)
-            .bind::<Integer, _>(&quota.count);
-        if let Some(conn) = conn {
-            q.execute(conn)?;
-        } else {
-            q.execute(&mut *self.conn.write()?)?;
-        }
+            .bind::<Integer, _>(&quota.count)
+            .execute(&mut *self.conn.write()?)?;
         Ok(self.timestamp())
     }
 
@@ -917,23 +914,18 @@ impl MysqlDb {
         &self,
         user_id: u32,
         collection_id: i32,
-        conn: Option<&mut InternalConn>,
     ) -> DbResult<results::GetQuotaUsage> {
-        let q = bso::table
+        let (total_bytes, count): (i64, i32) = bso::table
             .select((
                 sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
                 sql::<Integer>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::expiry.gt(self.timestamp().as_i64()))
-            .filter(bso::collection_id.eq(collection_id));
-        let (total_bytes, count): (i64, i32) = if let Some(conn) = conn {
-            q.get_result(conn)
-        } else {
-            q.get_result(&mut *self.conn.write()?)
-        }
-        .optional()?
-        .unwrap_or_default();
+            .filter(bso::collection_id.eq(collection_id))
+            .get_result(&mut *self.conn.write()?)
+            .optional()?
+            .unwrap_or_default();
         Ok(results::GetQuotaUsage {
             total_bytes: total_bytes as usize,
             count,
@@ -1095,7 +1087,7 @@ impl Db for MysqlDb {
     ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
         Box::pin(self.blocking_threadpool.spawn(move || {
-            db.update_collection(param.user_id.legacy_id as u32, param.collection_id, None)
+            db.update_collection(param.user_id.legacy_id as u32, param.collection_id)
         }))
     }
 
