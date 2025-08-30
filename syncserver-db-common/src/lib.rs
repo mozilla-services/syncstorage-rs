@@ -44,7 +44,7 @@ macro_rules! sync_db_method {
     };
     ($name:ident, $sync_name:ident, $type:ident, $result:ty) => {
         fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
-            let db = self.clone();
+            let mut db = self.clone();
             Box::pin(
                 self.blocking_threadpool
                     .spawn(move || db.$sync_name(params)),

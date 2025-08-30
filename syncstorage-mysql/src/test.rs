@@ -32,7 +32,7 @@ fn static_collection_id() -> DbResult<()> {
         // Skip this test if we're not using mysql
         return Ok(());
     }
-    let db = db(&settings)?;
+    let mut db = db(&settings)?;
 
     // ensure DB actually has predefined common collections
     let cols: Vec<(i32, _)> = vec![
