@@ -43,7 +43,7 @@ impl DbTransactionPool {
     /// action has succeeded (ex. check HTTP response for internal error).
     async fn transaction_internal<A, R>(
         &self,
-        request: HttpRequest,
+        request: &HttpRequest,
         action: A,
     ) -> Result<(R, Box<dyn Db<Error = DbError>>), ApiError>
     where
@@ -62,7 +62,7 @@ impl DbTransactionPool {
         // Handle lock error
         if let Err(e) = result {
             // Update the extra info fields.
-            set_extra(&request, db.get_connection_info());
+            set_extra(request, db.get_connection_info());
             db.rollback().await?;
             return Err(e.into());
         }
@@ -85,16 +85,11 @@ impl DbTransactionPool {
     }
 
     /// Perform an action inside of a DB transaction.
-    pub async fn transaction<'a, A, R>(
-        &'a self,
-        request: HttpRequest,
-        action: A,
-    ) -> Result<R, ApiError>
+    pub async fn transaction<A, R>(&self, request: HttpRequest, action: A) -> Result<R, ApiError>
     where
         A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<R, ApiError>,
     {
-        let (resp, mut db) = self.transaction_internal(request, action).await?;
-
+        let (resp, mut db) = self.transaction_internal(&request, action).await?;
         // No further processing before commit is possible
         db.commit().await?;
         Ok(resp)
@@ -110,10 +105,9 @@ impl DbTransactionPool {
     where
         A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<HttpResponse, ApiError> + 'a,
     {
-        let mreq = request.clone();
         let check_precondition = async |db: &mut Box<dyn Db<Error = DbError>>| {
             // set the extra information for all requests so we capture default err handlers.
-            set_extra(&mreq, db.get_connection_info());
+            set_extra(&request, db.get_connection_info());
             let resource_ts = db
                 .extract_resource(
                     self.user_id.clone(),
@@ -159,7 +153,7 @@ impl DbTransactionPool {
         };
 
         let (resp, mut db) = self
-            .transaction_internal(request.clone(), check_precondition)
+            .transaction_internal(&request, check_precondition)
             .await?;
         // match on error and return a composed HttpResponse (so we can use the tags?)
 
