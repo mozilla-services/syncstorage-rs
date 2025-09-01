@@ -221,7 +221,7 @@ pub async fn get_collection(
 
 async fn finish_get_collection<T>(
     coll: &CollectionRequest,
-    db: &mut Box<dyn Db<Error = DbError>>,
+    db: &mut dyn Db<Error = DbError>,
     result: Result<Paginated<T>, DbError>,
 ) -> Result<HttpResponse, DbError>
 where
@@ -312,7 +312,7 @@ pub async fn post_collection(
 // the entire, accumulated if the `commit` flag is set.
 pub async fn post_collection_batch(
     coll: CollectionPostRequest,
-    db: &mut Box<dyn Db<Error = DbError>>,
+    db: &mut dyn Db<Error = DbError>,
 ) -> Result<HttpResponse, ApiError> {
     coll.emit_api_metric("request.post_collection_batch");
     trace!("Batch: Post collection batch");

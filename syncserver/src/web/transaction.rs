@@ -47,7 +47,7 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<(R, Box<dyn Db<Error = DbError>>), ApiError>
     where
-        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<R, ApiError>,
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<R, ApiError>,
     {
         // Get connection from pool
         let mut db = self.pool.get().await?;
@@ -71,7 +71,7 @@ impl DbTransactionPool {
         // implicitly create them, so commit/rollback are always called to
         // finish them. They noop when no implicit transaction was created
         // (maybe rename them to maybe_commit/rollback?)
-        match action(&mut db).await {
+        match action(&mut *db).await {
             Ok(resp) => Ok((resp, db)),
             Err(e) => {
                 db.rollback().await?;
@@ -87,7 +87,7 @@ impl DbTransactionPool {
     /// Perform an action inside of a DB transaction.
     pub async fn transaction<A, R>(&self, request: HttpRequest, action: A) -> Result<R, ApiError>
     where
-        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<R, ApiError>,
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<R, ApiError>,
     {
         let (resp, mut db) = self.transaction_internal(&request, action).await?;
         // No further processing before commit is possible
@@ -103,9 +103,9 @@ impl DbTransactionPool {
         action: A,
     ) -> Result<HttpResponse, ApiError>
     where
-        A: AsyncFnOnce(&mut Box<dyn Db<Error = DbError>>) -> Result<HttpResponse, ApiError> + 'a,
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<HttpResponse, ApiError> + 'a,
     {
-        let check_precondition = async |db: &mut Box<dyn Db<Error = DbError>>| {
+        let check_precondition = async |db: &mut dyn Db<Error = DbError>| {
             // set the extra information for all requests so we capture default err handlers.
             set_extra(&request, db.get_connection_info());
             let resource_ts = db
