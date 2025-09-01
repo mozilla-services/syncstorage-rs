@@ -41,7 +41,7 @@ pub async fn get_collections(
     state: Data<ServerState>,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request.clone(), async |db| {
+        .transaction_http(&request, async |db| {
             meta.emit_api_metric("request.get_collections");
             if state.glean_enabled {
                 // Values below are be passed to the Glean logic to emit metrics.
@@ -82,7 +82,7 @@ pub async fn get_collection_counts(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             meta.emit_api_metric("request.get_collection_counts");
             let result = db.get_collection_counts(meta.user_id).await?;
 
@@ -99,7 +99,7 @@ pub async fn get_collection_usage(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             meta.emit_api_metric("request.get_collection_usage");
             let usage: HashMap<_, _> = db
                 .get_collection_usage(meta.user_id)
@@ -121,7 +121,7 @@ pub async fn get_quota(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             meta.emit_api_metric("request.get_quota");
             let usage = db.get_storage_usage(meta.user_id).await?;
             Ok(HttpResponse::Ok().json(vec![Some(usage as f64 / ONE_KB), None]))
@@ -135,7 +135,7 @@ pub async fn delete_all(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             meta.emit_api_metric("request.delete_all");
             Ok(HttpResponse::Ok().json(db.delete_storage(meta.user_id).await?))
         })
@@ -148,7 +148,7 @@ pub async fn delete_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             let delete_bsos = !coll.query.ids.is_empty();
             let timestamp = if delete_bsos {
                 coll.emit_api_metric("request.delete_bsos");
@@ -193,7 +193,7 @@ pub async fn get_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             coll.emit_api_metric("request.get_collection");
             let params = params::GetBsos {
                 user_id: coll.user_id.clone(),
@@ -275,7 +275,7 @@ pub async fn post_collection(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             coll.emit_api_metric("request.post_collection");
             trace!("Collection: Post");
 
@@ -488,7 +488,7 @@ pub async fn delete_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.delete_bso");
             let result = db
                 .delete_bso(params::DeleteBso {
@@ -508,7 +508,7 @@ pub async fn get_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.get_bso");
             let result = db
                 .get_bso(params::GetBso {
@@ -532,7 +532,7 @@ pub async fn put_bso(
     request: HttpRequest,
 ) -> Result<HttpResponse, ApiError> {
     db_pool
-        .transaction_http(request, async |db| {
+        .transaction_http(&request, async |db| {
             bso_req.emit_api_metric("request.put_bso");
             let result = db
                 .put_bso(params::PutBso {
