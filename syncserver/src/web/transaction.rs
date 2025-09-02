@@ -97,13 +97,13 @@ impl DbTransactionPool {
 
     /// Perform an action inside of a DB transaction. This method will rollback
     /// if the HTTP response is an error.
-    pub async fn transaction_http<'a, A>(
-        &'a self,
+    pub async fn transaction_http<A>(
+        &self,
         request: &HttpRequest,
         action: A,
     ) -> Result<HttpResponse, ApiError>
     where
-        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<HttpResponse, ApiError> + 'a,
+        A: AsyncFnOnce(&mut dyn Db<Error = DbError>) -> Result<HttpResponse, ApiError>,
     {
         let check_precondition = async |db: &mut dyn Db<Error = DbError>| {
             // set the extra information for all requests so we capture default err handlers.
