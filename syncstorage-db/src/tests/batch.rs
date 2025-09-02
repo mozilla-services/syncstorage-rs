@@ -48,7 +48,7 @@ fn gb(user_id: u32, coll: &str, id: String) -> params::GetBatch {
 #[tokio::test]
 async fn create_delete() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -71,7 +71,7 @@ async fn create_delete() -> Result<(), DbError> {
 #[tokio::test]
 async fn expiry() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -95,7 +95,7 @@ async fn expiry() -> Result<(), DbError> {
 #[tokio::test]
 async fn update() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -119,7 +119,7 @@ async fn update() -> Result<(), DbError> {
 #[tokio::test]
 async fn append_commit() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -172,7 +172,7 @@ async fn quota_test_create_batch() -> Result<(), DbError> {
     settings.limits.max_quota_limit = limit;
 
     let pool = db_pool(Some(settings.clone())).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -214,7 +214,7 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
     settings.limits.max_quota_limit = limit;
 
     let pool = db_pool(Some(settings.clone())).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
 
     let uid = 1;
     let coll = "clients";
@@ -250,7 +250,7 @@ async fn quota_test_append_batch() -> Result<(), DbError> {
 async fn test_append_async_w_null() -> Result<(), DbError> {
     let settings = Settings::test_settings().syncstorage;
     let pool = db_pool(Some(settings)).await?;
-    let db = test_db(pool).await?;
+    let mut db = test_db(pool).await?;
     // Remember: TTL is seconds to live, not an expiry date
     let ttl_0 = 86_400;
     let ttl_1 = 86_400;

@@ -23,7 +23,7 @@ const MAX_TTL: i32 = 2_100_000_000;
 
 const MAX_BATCH_CREATE_RETRY: u8 = 5;
 
-pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
+pub fn create(db: &mut MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
     // Careful, there's some weirdness here!
@@ -68,7 +68,7 @@ pub fn create(db: &MysqlDb, params: params::CreateBatch) -> DbResult<results::Cr
     })
 }
 
-pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
+pub fn validate(db: &mut MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
@@ -88,7 +88,7 @@ pub fn validate(db: &MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
     Ok(exists.is_some())
 }
 
-pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
+pub fn append(db: &mut MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
     let exists = validate(
         db,
         params::ValidateBatch {
@@ -108,7 +108,7 @@ pub fn append(db: &MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
     Ok(())
 }
 
-pub fn get(db: &MysqlDb, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
+pub fn get(db: &mut MysqlDb, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
     let is_valid = validate(
         db,
         params::ValidateBatch {
@@ -125,7 +125,7 @@ pub fn get(db: &MysqlDb, params: params::GetBatch) -> DbResult<Option<results::G
     Ok(batch)
 }
 
-pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
+pub fn delete(db: &mut MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
     let batch_id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -142,7 +142,7 @@ pub fn delete(db: &MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
 }
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
-pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::CommitBatch> {
+pub fn commit(db: &mut MysqlDb, params: params::CommitBatch) -> DbResult<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
     let collection_id = db.get_collection_id(&params.collection)?;
@@ -173,7 +173,7 @@ pub fn commit(db: &MysqlDb, params: params::CommitBatch) -> DbResult<results::Co
 }
 
 pub fn do_append(
-    db: &MysqlDb,
+    db: &mut MysqlDb,
     batch_id: i64,
     user_id: UserIdentifier,
     _collection_id: i32,
@@ -282,7 +282,7 @@ fn decode_id(id: &str) -> DbResult<i64> {
 
 macro_rules! batch_db_method {
     ($name:ident, $batch_name:ident, $type:ident) => {
-        pub fn $name(&self, params: params::$type) -> DbResult<results::$type> {
+        pub fn $name(&mut self, params: params::$type) -> DbResult<results::$type> {
             batch::$batch_name(self, params)
         }
     };
