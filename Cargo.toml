@@ -34,12 +34,9 @@ actix-web = { version = "4", default-features = false, features = ["compat", "ht
 docopt = "1.1"
 base64 = "0.22"
 
-# Updating to 2.* requires changes to the Connection code for logging.
-# (Adding an `instrumentation()` and `set_instrumentation()` method.)
-# More investigation required.
-diesel = "1.4"
-diesel_migrations = "1.4"
-diesel_logger = "0.1"
+diesel = "2.2"
+diesel_migrations = "2.2"
+diesel_logger = "0.4"
 
 cadence = "1.3"
 backtrace = "0.3"
