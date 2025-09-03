@@ -72,25 +72,9 @@ impl ServerState {
         );
         let use_test_transactions = false;
 
-        let mut db_pool = TokenserverPool::new(
-            settings,
-            &Metrics::from(&metrics),
-            blocking_threadpool,
-            use_test_transactions,
-        )
-        .expect("Failed to create Tokenserver pool");
-        // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
-        // unlikely for this query to fail outside of network failures or other random errors
-        db_pool.service_id = db_pool
-            .get_sync()
-            .and_then(|mut db| {
-                db.get_service_id_sync(params::GetServiceId {
-                    service: "sync-1.5".to_owned(),
-                })
-            })
-            .ok()
-            .map(|result| result.id);
-
+        let db_pool =
+            TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
+                .expect("Failed to create Tokenserver pool");
         Ok(ServerState {
             fxa_email_domain: settings.fxa_email_domain.clone(),
             fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
@@ -101,6 +85,26 @@ impl ServerState {
             metrics,
             token_duration: settings.token_duration,
         })
+    }
+
+    pub async fn init_service_id(&mut self) {
+        // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
+        // unlikely for this query to fail outside of network failures or other random errors
+        let _ = self._init_service_id().await;
+    }
+
+    async fn _init_service_id(&mut self) -> Result<(), tokenserver_common::TokenserverError> {
+        let any_pool = &mut self.db_pool as &mut dyn std::any::Any;
+        if let Some(db_pool) = any_pool.downcast_mut::<TokenserverPool>() {
+            let mut db = db_pool.get().await?;
+            let service_id = db
+                .get_service_id(params::GetServiceId {
+                    service: "sync-1.5".to_owned(),
+                })
+                .await?;
+            db_pool.service_id = Some(service_id.id);
+        }
+        Ok(())
     }
 }
 

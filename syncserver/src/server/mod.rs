@@ -297,7 +297,7 @@ impl Server {
         let quota_enabled = settings.syncstorage.enable_quota;
         let actix_keep_alive = settings.actix_keep_alive;
         let tokenserver_state = if settings.tokenserver.enabled {
-            let state = tokenserver::ServerState::from_settings(
+            let mut state = tokenserver::ServerState::from_settings(
                 &settings.tokenserver,
                 syncserver_common::metrics_from_opts(
                     &settings.tokenserver.statsd_label,
@@ -306,6 +306,7 @@ impl Server {
                 )?,
                 blocking_threadpool,
             )?;
+            state.init_service_id().await;
 
             Some(state)
         } else {
@@ -373,7 +374,7 @@ impl Server {
                 .unwrap_or(0) as usize;
         let blocking_threadpool = Arc::new(BlockingThreadpool::new(thread_count));
         let worker_thread_count = calculate_worker_max_blocking_threads(thread_count);
-        let tokenserver_state = tokenserver::ServerState::from_settings(
+        let mut tokenserver_state = tokenserver::ServerState::from_settings(
             &settings.tokenserver,
             syncserver_common::metrics_from_opts(
                 &settings.tokenserver.statsd_label,
@@ -382,6 +383,7 @@ impl Server {
             )?,
             blocking_threadpool.clone(),
         )?;
+        tokenserver_state.init_service_id().await;
 
         spawn_metric_periodic_reporter(
             Duration::from_secs(10),
