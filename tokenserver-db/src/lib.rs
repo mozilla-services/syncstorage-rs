@@ -16,20 +16,8 @@ pub use pool::{DbPool, TokenserverPool};
 
 #[macro_export]
 macro_rules! async_db_method {
-    ($name:ident, $async_name:ident, $type:ident) => {
-        async_db_method!($name, $async_name, $type, results::$type);
-    };
-    ($name:ident, $async_name:ident, $type:ident, $result:ty) => {
-        fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
-            Box::pin(self.$async_name(params))
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! async_db_method2 {
     ($name:ident, $async_name:path, $type:ident) => {
-        async_db_method2!($name, $async_name, $type, results::$type);
+        async_db_method!($name, $async_name, $type, results::$type);
     };
     ($name:ident, $async_name:path, $type:ident, $result:ty) => {
         fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
