@@ -7,49 +7,27 @@ use http::StatusCode;
 use syncserver_common::Metrics;
 use syncserver_db_common::DbFuture;
 
-use std::{
-    sync::{Arc, RwLock},
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{
     async_db_method,
     error::{DbError, DbResult},
-    params, results,
+    params,
+    pool::Conn,
+    results,
 };
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
 
-//type Conn = PooledConnection<ConnectionManager<MysqlConnection>>;
-use super::pool::Conn;
-
-#[cfg(not(debug_assertions))]
-type InternalConn = Conn;
-#[cfg(debug_assertions)]
-type InternalConn = Conn; // display SQL when RUST_LOG="diesel_logger=trace"
-
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct TokenserverDb {
-    /// Arc<MysqlDbInner> provides a Clone impl utilized for safely moving to
-    /// the thread pool but does not provide Send as the underlying db
-    /// conn. structs are !Sync (Arc requires both for Send). See the Send impl
-    /// below.
-    inner: Arc<DbInner>,
+    conn: Conn,
     metrics: Metrics,
     service_id: Option<i32>,
     spanner_node_id: Option<i32>,
     pub timeout: Option<Duration>,
-}
-
-/// Despite the db conn structs being !Sync (see Arc<MysqlDbInner> above) we
-/// don't spawn multiple MysqlDb calls at a time in the thread pool. Calls are
-/// queued to the thread pool via Futures, naturally serialized.
-unsafe impl Send for TokenserverDb {}
-
-struct DbInner {
-    pub(super) conn: RwLock<InternalConn>,
 }
 
 impl TokenserverDb {
@@ -67,17 +45,8 @@ impl TokenserverDb {
         spanner_node_id: Option<i32>,
         timeout: Option<Duration>,
     ) -> Self {
-        let inner = DbInner {
-            #[cfg(not(debug_assertions))]
-            conn: RwLock::new(conn),
-            #[cfg(debug_assertions)]
-            conn: RwLock::new(conn),
-        };
-
-        // https://github.com/mozilla-services/syncstorage-rs/issues/1480
-        #[allow(clippy::arc_with_non_send_sync)]
         Self {
-            inner: Arc::new(inner),
+            conn,
             metrics: metrics.clone(),
             service_id,
             spanner_node_id,
@@ -105,7 +74,7 @@ impl TokenserverDb {
             diesel::sql_query(QUERY)
                 .bind::<Integer, _>(params.service_id)
                 .bind::<Text, _>(&params.node)
-                .get_result(&mut *self.inner.conn.write()?)
+                .get_result(&mut self.conn)
                 .await
                 .map_err(Into::into)
         }
@@ -133,7 +102,7 @@ impl TokenserverDb {
             .bind::<Integer, _>(&params.service_id)
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.replaced_at)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -155,7 +124,7 @@ impl TokenserverDb {
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Integer, _>(params.service_id)
             .bind::<Bigint, _>(params.uid)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -190,7 +159,7 @@ impl TokenserverDb {
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.generation)
             .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -214,12 +183,11 @@ impl TokenserverDb {
             .bind::<Bigint, _>(user.created_at)
             .bind::<Bigint, _>(user.node_id)
             .bind::<Nullable<Bigint>, _>(user.keys_changed_at)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            //.bind::<Text, _>(&user.email)
-            .get_result::<results::PostUser>(&mut *self.inner.conn.write()?)
+            .get_result::<results::PostUser>(&mut self.conn)
             .await
             .map_err(Into::into)
     }
@@ -227,7 +195,7 @@ impl TokenserverDb {
     async fn check_sync(&mut self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
         let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"")
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await?;
         Ok(result as u64 > 0)
     }
@@ -270,7 +238,7 @@ impl TokenserverDb {
         if let Some(spanner_node_id) = self.spanner_node_id {
             diesel::sql_query(SPANNER_QUERY)
                 .bind::<Integer, _>(spanner_node_id)
-                .get_result::<results::GetBestNode>(&mut *self.inner.conn.write()?)
+                .get_result::<results::GetBestNode>(&mut self.conn)
                 .await
                 .map_err(|e| {
                     let mut db_error =
@@ -284,7 +252,7 @@ impl TokenserverDb {
             for _ in 0..5 {
                 let maybe_result = diesel::sql_query(GET_BEST_NODE_QUERY)
                     .bind::<Integer, _>(params.service_id)
-                    .get_result::<results::GetBestNode>(&mut *self.inner.conn.write()?)
+                    .get_result::<results::GetBestNode>(&mut self.conn)
                     .await
                     .optional()?;
 
@@ -301,7 +269,7 @@ impl TokenserverDb {
                             .unwrap_or(DEFAULT_CAPACITY_RELEASE_RATE),
                     )
                     .bind::<Integer, _>(params.service_id)
-                    .execute(&mut *self.inner.conn.write()?)
+                    .execute(&mut self.conn)
                     .await?;
 
                 // If no nodes were affected by the last query, give up.
@@ -346,7 +314,7 @@ impl TokenserverDb {
         diesel::sql_query(query)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(&params.node)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -370,7 +338,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Text, _>(&params.email)
             .bind::<Integer, _>(params.service_id)
-            .load::<results::GetRawUser>(&mut *self.inner.conn.write()?)
+            .load::<results::GetRawUser>(&mut self.conn)
             .await
             .map_err(Into::into)
     }
@@ -561,7 +529,7 @@ impl TokenserverDb {
         } else {
             diesel::sql_query(QUERY)
                 .bind::<Text, _>(params.service)
-                .get_result::<results::GetServiceId>(&mut *self.inner.conn.write()?)
+                .get_result::<results::GetServiceId>(&mut self.conn)
                 .await
                 .map_err(Into::into)
         }
@@ -580,7 +548,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.created_at)
             .bind::<Bigint, _>(&params.uid)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -599,7 +567,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Bigint, _>(&params.uid)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -615,7 +583,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
-            .get_result::<results::GetUser>(&mut *self.inner.conn.write()?)
+            .get_result::<results::GetUser>(&mut self.conn)
             .await
             .map_err(Into::into)
     }
@@ -634,11 +602,11 @@ impl TokenserverDb {
             .bind::<Integer, _>(params.capacity)
             .bind::<Integer, _>(params.downed)
             .bind::<Integer, _>(params.backoff)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::PostNode>(&mut *self.inner.conn.write()?)
+            .get_result::<results::PostNode>(&mut self.conn)
             .await
             .map_err(Into::into)
     }
@@ -653,7 +621,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
-            .get_result::<results::GetNode>(&mut *self.inner.conn.write()?)
+            .get_result::<results::GetNode>(&mut self.conn)
             .await
             .map_err(Into::into)
     }
@@ -677,7 +645,7 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(current_time)
             .bind::<Bigint, _>(params.node_id)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -692,7 +660,7 @@ impl TokenserverDb {
 
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.node_id)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await
             .map(|_| ())
             .map_err(Into::into)
@@ -711,11 +679,11 @@ impl TokenserverDb {
         diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
-            .execute(&mut *self.inner.conn.write()?)
+            .execute(&mut self.conn)
             .await?;
 
         diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::LastInsertId>(&mut *self.inner.conn.write()?)
+            .get_result::<results::LastInsertId>(&mut self.conn)
             .await
             .map(|result| results::PostService {
                 id: result.id as i32,
