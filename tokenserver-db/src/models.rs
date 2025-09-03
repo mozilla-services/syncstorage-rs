@@ -21,7 +21,6 @@ use super::{
 /// "retired" from the db.
 const MAX_GENERATION: i64 = i64::MAX;
 
-//#[derive(Clone)]
 pub struct TokenserverDb {
     conn: Conn,
     metrics: Metrics,

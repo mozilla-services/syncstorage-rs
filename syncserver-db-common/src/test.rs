@@ -3,7 +3,7 @@ use diesel::{
     r2d2::{CustomizeConnection, Error as PoolError},
     Connection,
 };
-use diesel_async::AsyncConnection;
+use diesel_async::{AsyncConnection, AsyncMysqlConnection};
 
 #[derive(Debug)]
 pub struct TestTransactionCustomizer;
@@ -15,7 +15,7 @@ impl CustomizeConnection<MysqlConnection, PoolError> for TestTransactionCustomiz
 }
 
 pub async fn test_transaction_hook(
-    conn: &mut diesel_async::AsyncMysqlConnection,
+    conn: &mut AsyncMysqlConnection,
 ) -> deadpool::managed::HookResult<diesel_async::pooled_connection::PoolError> {
     conn.begin_test_transaction().await.map_err(|e| {
         deadpool::managed::HookError::Backend(

@@ -71,10 +71,7 @@ impl TokenserverPool {
         let config = deadpool::managed::PoolConfig {
             max_size: settings.database_pool_max_size as usize,
             timeouts,
-            // XXX:
-            // Prefer LIFO to allow the sweeper task to evict least frequently
-            // used connections.
-            queue_mode: deadpool::managed::QueueMode::Lifo,
+            ..Default::default()
         };
 
         let builder = Pool::builder(manager)
