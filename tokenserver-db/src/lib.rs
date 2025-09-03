@@ -25,3 +25,15 @@ macro_rules! async_db_method {
         }
     };
 }
+
+#[macro_export]
+macro_rules! async_db_method2 {
+    ($name:ident, $async_name:path, $type:ident) => {
+        async_db_method2!($name, $async_name, $type, results::$type);
+    };
+    ($name:ident, $async_name:path, $type:ident, $result:ty) => {
+        fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
+            Box::pin($async_name(self, params))
+        }
+    };
+}

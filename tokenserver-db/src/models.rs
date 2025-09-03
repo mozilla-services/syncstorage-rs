@@ -10,7 +10,7 @@ use syncserver_db_common::DbFuture;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{
-    async_db_method,
+    async_db_method, async_db_method2,
     error::{DbError, DbResult},
     params,
     pool::Conn,
@@ -191,7 +191,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    async fn check_sync(&mut self) -> DbResult<results::Check> {
+    async fn check(&mut self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
         let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"")
             .execute(&mut self.conn)
@@ -626,7 +626,7 @@ impl TokenserverDb {
     }
 
     #[cfg(test)]
-    async fn unassign_node_sync(
+    async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> DbResult<results::UnassignNode> {
@@ -714,7 +714,7 @@ impl Db for TokenserverDb {
     async_db_method!(get_user, get_user_sync, GetUser);
 
     fn check(&mut self) -> DbFuture<'_, results::Check, DbError> {
-        Box::pin(self.check_sync())
+        Box::pin(TokenserverDb::check(self))
     }
 
     #[cfg(test)]
@@ -738,7 +738,7 @@ impl Db for TokenserverDb {
     async_db_method!(get_node, get_node_sync, GetNode);
 
     #[cfg(test)]
-    async_db_method!(unassign_node, unassign_node_sync, UnassignNode);
+    async_db_method2!(unassign_node, TokenserverDb::unassign_node, UnassignNode);
 
     #[cfg(test)]
     async_db_method!(remove_node, remove_node_sync, RemoveNode);
