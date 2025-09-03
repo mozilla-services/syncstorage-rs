@@ -9,7 +9,7 @@ edition.workspace = true
 serde.workspace = true
 slog-scope.workspace = true
 
-config = "0.11"                                             # pin to 11, 12+ introduces a breaking change for env vars.
+config = "0.15"                                             # pin to 11, 12+ introduces a breaking change for env vars.
 num_cpus = "1"
 syncserver-common = { path = "../syncserver-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
