@@ -87,6 +87,7 @@ impl ServerState {
         })
     }
 
+    /// Query for and cache the common "sync-1.5" service_id
     pub async fn init_service_id(&mut self) {
         // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
         // unlikely for this query to fail outside of network failures or other random errors
@@ -94,6 +95,7 @@ impl ServerState {
     }
 
     async fn _init_service_id(&mut self) -> Result<(), tokenserver_common::TokenserverError> {
+        // downcast as we only have a `dyn DbPool` at this point
         let any_pool = &mut self.db_pool as &mut dyn std::any::Any;
         if let Some(db_pool) = any_pool.downcast_mut::<TokenserverPool>() {
             let mut db = db_pool.get().await?;
