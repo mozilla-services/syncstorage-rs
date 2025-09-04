@@ -3,9 +3,9 @@
 ## Services Table
 | Column    | Type           | Description                                                                    |
 | --------- | -------------- | ------------------------------------------------------------------------------ |
-| `id`      | `int`          | Primary key for the service. Auto-increments with each new entry.              |
-| `service` | `varchar(30)`  | A short name or identifier for the service (e.g., `sync-1.5`). Must be unique. |
-| `pattern` | `varchar(128)` | An optional pattern string for URI templating (e.g., `"{node}/1.5/{uid}"`).    |
+| `id`      | `SERIAL`          | Primary key for the service. Auto-increments with each new entry.              |
+| `service` | `VARCHAR(30)`  | A short name or identifier for the service (e.g., `sync-1.5`). Must be unique. |
+| `pattern` | `VARCHAR(128)` | An optional pattern string for URI templating (e.g., `"{node}/1.5/{uid}"`).    |
 
 ## Nodes Table
 | Column          | Type          | Description                                                               |
@@ -22,28 +22,27 @@
  ### Notes
  Regarding constraint clause that defines composite key/index:
  - Each service (sync-1.5, sync-1.1, etc.) has a set of distinct nodes.
-
-- Node names can repeat across services, but not within a single service.
+ - Node names can repeat across services, but not within a single service.
 
 ## Users Table
 | Column        | Type           | Description                                                    |
 | ----------------- | -------------- | -------------------------------------------------------------- |
-| `uid`             | `BIGINT`       | Unique identifier for the user (primary key, auto-incremented) |
+| `uid`             | `BIGINT`       | Unique identifier for the user (primary key), auto-incremented |
 | `service`         | `INT`          | Service ID 
 | `email`           | `VARCHAR(255)` | User's email address                                           |
 | `generation`      | `BIGINT`       | Versioning or generation for user updates                      |
-| `client_state`    | `VARCHAR(32)`  | State of the client (possibly device or app specific)          |
+| `client_state`    | `VARCHAR(32)`  | State of the client          |
 | `created_at`      | `BIGINT`       | Timestamp when user was created                                |
-| `replaced_at`     | `BIGINT`       | Timestamp when user was replaced, nullable                     |
+| `replaced_at`     | `BIGINT`       | Timestamp when user was replaced                     |
 | `nodeid`          | `BIGINT`       | ID of the node where the user is hosted                        |
-| `keys_changed_at` | `BIGINT`       | Timestamp of last key change, nullable                         |
+| `keys_changed_at` | `BIGINT`       | Timestamp of last key change                         |
 
 ### Notes
 Notes on created indexes:
 
 | Index Name        | Columns Indexed                    | Type      | Purpose                                                        |
 | ----------------- | ---------------------------------- | --------- | -------------------------------------------------------------- |
-| `lookup_idx`      | (`email`, `service`, `created_at`) | Composite | Speeds up user lookups, often by email, especially recent ones |
+| `lookup_idx`      | (`email`, `service`, `created_at`) | Composite | Speeds up user lookups, through composite key |
 | `replaced_at_idx` | (`service`, `replaced_at`)         | Composite | Optimizes queries on soft-deleted or replaced users            |
 | `node_idx`        | (`nodeid`)                         | Single    | Helps locate users hosted on a specific backend node           |
 
