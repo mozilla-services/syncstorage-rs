@@ -9,9 +9,6 @@ pub struct Settings {
     pub database_url: String,
     /// The max size of the database connection pool.
     pub database_pool_max_size: u32,
-    // NOTE: Not supported by deadpool!
-    /// The minimum number of database connections to be maintained at any given time.
-    pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
     /// Database request timeout, in seconds
@@ -65,7 +62,6 @@ impl Default for Settings {
         Settings {
             database_url: "mysql://root@127.0.0.1/tokenserver".to_owned(),
             database_pool_max_size: 10,
-            database_pool_min_idle: None,
             database_pool_connection_timeout: Some(30),
             database_request_timeout: None,
             enabled: false,

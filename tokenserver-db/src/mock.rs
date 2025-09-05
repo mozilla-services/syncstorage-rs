@@ -19,8 +19,12 @@ impl MockDbPool {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl DbPool for MockDbPool {
+    async fn init(&mut self) -> Result<(), DbError> {
+        Ok(())
+    }
+
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         Ok(Box::new(MockDb::new()))
     }
