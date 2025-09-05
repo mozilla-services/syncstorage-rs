@@ -181,8 +181,6 @@ pub trait Db: Debug {
         params: params::CommitBatch,
     ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
 
-    fn box_clone(&self) -> Box<dyn Db<Error = Self::Error>>;
-
     fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
@@ -255,15 +253,6 @@ pub trait Db: Debug {
     fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error>;
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
-}
-
-impl<E> Clone for Box<dyn Db<Error = E>>
-where
-    E: DbErrorIntrospect + 'static,
-{
-    fn clone(&self) -> Box<dyn Db<Error = E>> {
-        self.box_clone()
-    }
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Copy)]

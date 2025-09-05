@@ -77,10 +77,6 @@ impl Db for MockDb {
         Box::pin(future::ok(()))
     }
 
-    fn box_clone(&self) -> Box<dyn Db<Error = DbError>> {
-        Box::new(self.clone())
-    }
-
     fn check(&mut self) -> DbFuture<'_, results::Check> {
         Box::pin(future::ok(true))
     }
