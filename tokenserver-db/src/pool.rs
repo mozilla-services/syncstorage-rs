@@ -1,9 +1,13 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use deadpool::managed::PoolError;
 use diesel::{mysql::MysqlConnection, Connection};
 use diesel_async::{
-    pooled_connection::{deadpool::Pool, AsyncDieselConnectionManager},
+    pooled_connection::{
+        deadpool::{Object, Pool},
+        AsyncDieselConnectionManager,
+    },
     AsyncMysqlConnection,
 };
 use diesel_logger::LoggingConnection;
@@ -21,7 +25,7 @@ use super::{
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub(crate) type Conn = diesel_async::pooled_connection::deadpool::Object<AsyncMysqlConnection>;
+pub(crate) type Conn = Object<AsyncMysqlConnection>;
 
 /// Run the diesel embedded migrations
 ///
@@ -38,7 +42,7 @@ fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 #[derive(Clone)]
 pub struct TokenserverPool {
     /// Pool of db connections
-    inner: diesel_async::pooled_connection::deadpool::Pool<AsyncMysqlConnection>,
+    inner: Pool<AsyncMysqlConnection>,
     metrics: Metrics,
     // This field is public so the service ID can be set after the pool is created
     pub service_id: Option<i32>,
@@ -104,13 +108,11 @@ impl TokenserverPool {
 
     pub async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
         let conn = self.inner.get().await.map_err(|e| match e {
-            deadpool::managed::PoolError::Backend(poole) => match poole {
+            PoolError::Backend(poole) => match poole {
                 diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
                 diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
             },
-            deadpool::managed::PoolError::Timeout(timeout_type) => {
-                DbError::pool_timeout(timeout_type)
-            }
+            PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
         })?;
 
