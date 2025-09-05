@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use deadpool::managed::PoolError;
-use diesel::{mysql::MysqlConnection, Connection};
+use diesel::Connection;
 use diesel_async::{
+    async_connection_wrapper::AsyncConnectionWrapper,
     pooled_connection::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
@@ -31,8 +32,12 @@ pub(crate) type Conn = Object<AsyncMysqlConnection>;
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
+///
+/// Note that this runs as a plain diesel blocking method as diesel_async
+/// doesn't support async migrations (but we utilize its connection via its
+/// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = MysqlConnection::establish(database_url)?;
+    let conn = AsyncConnectionWrapper::<AsyncMysqlConnection>::establish(database_url)?;
 
     LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
 
