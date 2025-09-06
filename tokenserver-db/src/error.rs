@@ -7,7 +7,6 @@ use syncserver_db_common::error::SqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;
 
-pub(crate) type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 pub(crate) type DbResult<T> = Result<T, DbError>;
 
 /// An error type that represents any database-related errors that may occur while processing a

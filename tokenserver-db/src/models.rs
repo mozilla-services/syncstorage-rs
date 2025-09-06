@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use diesel::{
     sql_types::{Bigint, Float, Integer, Nullable, Text},
     OptionalExtension,
@@ -5,12 +6,10 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use syncserver_db_common::DbFuture;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::{
-    async_db_method,
     error::{DbError, DbResult},
     params,
     pool::Conn,
@@ -685,156 +684,220 @@ impl TokenserverDb {
     }
 }
 
+#[async_trait(?Send)]
 impl Db for TokenserverDb {
-    async_db_method!(replace_user, TokenserverDb::replace_user, ReplaceUser);
-    async_db_method!(replace_users, TokenserverDb::replace_users, ReplaceUsers);
-    async_db_method!(post_user, TokenserverDb::post_user, PostUser);
+    async fn replace_user(
+        &mut self,
+        params: params::ReplaceUser,
+    ) -> Result<results::ReplaceUser, DbError> {
+        TokenserverDb::replace_user(self, params).await
+    }
 
-    async_db_method!(put_user, TokenserverDb::put_user, PutUser);
+    async fn replace_users(
+        &mut self,
+        params: params::ReplaceUsers,
+    ) -> Result<results::ReplaceUsers, DbError> {
+        TokenserverDb::replace_users(self, params).await
+    }
 
-    async_db_method!(get_node_id, TokenserverDb::get_node_id, GetNodeId);
+    async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError> {
+        TokenserverDb::post_user(self, params).await
+    }
 
-    async_db_method!(get_best_node, TokenserverDb::get_best_node, GetBestNode);
-    async_db_method!(
-        add_user_to_node,
-        TokenserverDb::add_user_to_node,
-        AddUserToNode
-    );
-    async_db_method!(get_users, TokenserverDb::get_users, GetUsers);
-    async_db_method!(
-        get_or_create_user,
-        TokenserverDb::get_or_create_user,
-        GetOrCreateUser
-    );
-    async_db_method!(get_service_id, TokenserverDb::get_service_id, GetServiceId);
+    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError> {
+        TokenserverDb::put_user(self, params).await
+    }
+
+    async fn get_node_id(
+        &mut self,
+        params: params::GetNodeId,
+    ) -> Result<results::GetNodeId, DbError> {
+        TokenserverDb::get_node_id(self, params).await
+    }
+
+    async fn get_best_node(
+        &mut self,
+        params: params::GetBestNode,
+    ) -> Result<results::GetBestNode, DbError> {
+        TokenserverDb::get_best_node(self, params).await
+    }
+
+    async fn add_user_to_node(
+        &mut self,
+        params: params::AddUserToNode,
+    ) -> Result<results::AddUserToNode, DbError> {
+        TokenserverDb::add_user_to_node(self, params).await
+    }
+
+    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
+        TokenserverDb::get_users(self, params).await
+    }
+
+    async fn get_or_create_user(
+        &mut self,
+        params: params::GetOrCreateUser,
+    ) -> Result<results::GetOrCreateUser, DbError> {
+        TokenserverDb::get_or_create_user(self, params).await
+    }
+
+    async fn get_service_id(
+        &mut self,
+        params: params::GetServiceId,
+    ) -> Result<results::GetServiceId, DbError> {
+        TokenserverDb::get_service_id(self, params).await
+    }
 
     fn timeout(&self) -> Option<Duration> {
         self.timeout
     }
 
     #[cfg(test)]
-    async_db_method!(get_user, TokenserverDb::get_user, GetUser);
+    async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
+        TokenserverDb::get_user(self, params).await
+    }
 
-    fn check(&mut self) -> DbFuture<'_, results::Check, DbError> {
-        Box::pin(TokenserverDb::check(self))
+    async fn check(&mut self) -> Result<results::Check, DbError> {
+        TokenserverDb::check(self).await
     }
 
     #[cfg(test)]
-    async_db_method!(
-        set_user_created_at,
-        TokenserverDb::set_user_created_at,
-        SetUserCreatedAt
-    );
+    async fn set_user_created_at(
+        &mut self,
+        params: params::SetUserCreatedAt,
+    ) -> Result<results::SetUserCreatedAt, DbError> {
+        TokenserverDb::set_user_created_at(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(
-        set_user_replaced_at,
-        TokenserverDb::set_user_replaced_at,
-        SetUserReplacedAt
-    );
+    async fn set_user_replaced_at(
+        &mut self,
+        params: params::SetUserReplacedAt,
+    ) -> Result<results::SetUserReplacedAt, DbError> {
+        TokenserverDb::set_user_replaced_at(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(post_node, TokenserverDb::post_node, PostNode);
+    async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError> {
+        TokenserverDb::post_node(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(get_node, TokenserverDb::get_node, GetNode);
+    async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError> {
+        TokenserverDb::get_node(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(unassign_node, TokenserverDb::unassign_node, UnassignNode);
+    async fn unassign_node(
+        &mut self,
+        params: params::UnassignNode,
+    ) -> Result<results::UnassignNode, DbError> {
+        TokenserverDb::unassign_node(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(remove_node, TokenserverDb::remove_node, RemoveNode);
+    async fn remove_node(
+        &mut self,
+        params: params::RemoveNode,
+    ) -> Result<results::RemoveNode, DbError> {
+        TokenserverDb::remove_node(self, params).await
+    }
 
     #[cfg(test)]
-    async_db_method!(post_service, TokenserverDb::post_service, PostService);
+    async fn post_service(
+        &mut self,
+        params: params::PostService,
+    ) -> Result<results::PostService, DbError> {
+        TokenserverDb::post_service(self, params).await
+    }
 }
 
+#[async_trait(?Send)]
 pub trait Db {
     fn timeout(&self) -> Option<Duration> {
         None
     }
 
-    fn replace_user(
+    async fn replace_user(
         &mut self,
         params: params::ReplaceUser,
-    ) -> DbFuture<'_, results::ReplaceUser, DbError>;
+    ) -> Result<results::ReplaceUser, DbError>;
 
-    fn replace_users(
+    async fn replace_users(
         &mut self,
         params: params::ReplaceUsers,
-    ) -> DbFuture<'_, results::ReplaceUsers, DbError>;
+    ) -> Result<results::ReplaceUsers, DbError>;
 
-    fn post_user(&mut self, params: params::PostUser) -> DbFuture<'_, results::PostUser, DbError>;
+    async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError>;
 
-    fn put_user(&mut self, params: params::PutUser) -> DbFuture<'_, results::PutUser, DbError>;
+    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError>;
 
-    fn check(&mut self) -> DbFuture<'_, results::Check, DbError>;
+    async fn check(&mut self) -> Result<results::Check, DbError>;
 
-    fn get_node_id(
+    async fn get_node_id(
         &mut self,
         params: params::GetNodeId,
-    ) -> DbFuture<'_, results::GetNodeId, DbError>;
+    ) -> Result<results::GetNodeId, DbError>;
 
-    fn get_best_node(
+    async fn get_best_node(
         &mut self,
         params: params::GetBestNode,
-    ) -> DbFuture<'_, results::GetBestNode, DbError>;
+    ) -> Result<results::GetBestNode, DbError>;
 
-    fn add_user_to_node(
+    async fn add_user_to_node(
         &mut self,
         params: params::AddUserToNode,
-    ) -> DbFuture<'_, results::AddUserToNode, DbError>;
+    ) -> Result<results::AddUserToNode, DbError>;
 
-    fn get_users(&mut self, params: params::GetUsers) -> DbFuture<'_, results::GetUsers, DbError>;
+    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError>;
 
-    fn get_or_create_user(
+    async fn get_or_create_user(
         &mut self,
         params: params::GetOrCreateUser,
-    ) -> DbFuture<'_, results::GetOrCreateUser, DbError>;
+    ) -> Result<results::GetOrCreateUser, DbError>;
 
-    fn get_service_id(
+    async fn get_service_id(
         &mut self,
         params: params::GetServiceId,
-    ) -> DbFuture<'_, results::GetServiceId, DbError>;
+    ) -> Result<results::GetServiceId, DbError>;
 
     #[cfg(test)]
-    fn set_user_created_at(
+    async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
-    ) -> DbFuture<'_, results::SetUserCreatedAt, DbError>;
+    ) -> Result<results::SetUserCreatedAt, DbError>;
 
     #[cfg(test)]
-    fn set_user_replaced_at(
+    async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
-    ) -> DbFuture<'_, results::SetUserReplacedAt, DbError>;
+    ) -> Result<results::SetUserReplacedAt, DbError>;
 
     #[cfg(test)]
-    fn get_user(&mut self, params: params::GetUser) -> DbFuture<'_, results::GetUser, DbError>;
+    async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError>;
 
     #[cfg(test)]
-    fn post_node(&mut self, params: params::PostNode) -> DbFuture<'_, results::PostNode, DbError>;
+    async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError>;
 
     #[cfg(test)]
-    fn get_node(&mut self, params: params::GetNode) -> DbFuture<'_, results::GetNode, DbError>;
+    async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError>;
 
     #[cfg(test)]
-    fn unassign_node(
+    async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
-    ) -> DbFuture<'_, results::UnassignNode, DbError>;
+    ) -> Result<results::UnassignNode, DbError>;
 
     #[cfg(test)]
-    fn remove_node(
+    async fn remove_node(
         &mut self,
         params: params::RemoveNode,
-    ) -> DbFuture<'_, results::RemoveNode, DbError>;
+    ) -> Result<results::RemoveNode, DbError>;
 
     #[cfg(test)]
-    fn post_service(
+    async fn post_service(
         &mut self,
         params: params::PostService,
-    ) -> DbFuture<'_, results::PostService, DbError>;
+    ) -> Result<results::PostService, DbError>;
 }
 
 #[cfg(test)]
