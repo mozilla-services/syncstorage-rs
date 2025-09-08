@@ -82,6 +82,9 @@ class TestStorage(StorageFunctionalTestCase):
     """
 
     def setUp(self):
+        """Call setUp, set API path for current user, delete
+        old root path with user for a clean slate in each test.
+        """
         super(TestStorage, self).setUp()
         self.root = "/1.5/%d" % (self.user_id,)
 
@@ -89,6 +92,11 @@ class TestStorage(StorageFunctionalTestCase):
 
     @contextlib.contextmanager
     def _switch_user(self):
+        """Allows for temporary switch url to another user id.
+        Context manager yields for duration of test and then 
+        returns to original user, regardless of test result.
+        If unsuccessful, root url is retained.
+        """
         orig_root = self.root
         try:
             with super(TestStorage, self)._switch_user():
@@ -98,18 +106,26 @@ class TestStorage(StorageFunctionalTestCase):
             self.root = orig_root
 
     def retry_post_json(self, *args, **kwargs):
+        """Helper wrapper for any POST operation."""
         return self._retry_send(self.app.post_json, *args, **kwargs)
 
     def retry_put_json(self, *args, **kwargs):
+        """Helper wrapper for any PUT operation."""
         return self._retry_send(self.app.put_json, *args, **kwargs)
 
     def retry_delete(self, *args, **kwargs):
+        """Helper wrapper for any DELETE operation."""
         return self._retry_send(self.app.delete, *args, **kwargs)
 
     def _retry_send(self, func, *args, **kwargs):
         try:
-            return func(*args, **kwargs)
+            # Try to call underlying webtest method with args.
+            return func(*args, **kwargs) # Generic callable
         except webtest.AppError as ex:
+            # If non-200 resp, we want to retry as may be transient 
+            # status. If 409 (conflict) or 503 (Service Unavailable)
+            #  are not present, err non-transient and we re-raise, 
+            # no retry.
             if "409 " not in ex.args[0] and "503 " not in ex.args[0]:
                 raise ex
             time.sleep(0.01)
@@ -1586,6 +1602,7 @@ class TestStorage(StorageFunctionalTestCase):
         commit = "?batch={0}&commit=true".format(batch)
         resp = self.retry_post_json(endpoint + commit, [bso5, bso6, bso0])
         committed = resp.json["modified"]
+        print(committed)
         self.assertEqual(resp.json["modified"], float(resp.headers["X-Last-Modified"]))
 
         # make sure /info/collections got updated
@@ -1801,12 +1818,20 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.retry_post_json(endpoint_batch, bsos)
         batch = resp.json["batch"]
         resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json['modified'], max_total_records)
         committed = resp.json["modified"]
+        print(committed)
 
-
-
-
-
+        # Fail case above limit (+1)
+        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records + 1)]
+        resp = self.retry_post_json(endpoint_batch, bsos)
+        batch = resp.json["batch"]
+        resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
+        self.assertIn('error', resp.json)
+        self.assertEqual(resp.status_code, 400)
+        committed = resp.json["modified"]
+        print(committed)
 
     def test_batch_partial_update(self):
         collection = self.root + "/storage/xxx_col2"
