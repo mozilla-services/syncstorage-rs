@@ -1761,6 +1761,40 @@ class TestStorage(StorageFunctionalTestCase):
         )
         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
 
+    def text_max_total_records(self):
+        """Test ensuring `max_total_records` setting of 1664 in the
+        `/info/configuration` endpoint` is validated.
+
+        `max_total_records` is an (inclusive) limit on the total
+        number of items in a batch
+
+        Is related directly to `X-Weave-Total-Records` header.
+        """
+        endpoint = self.root + "/storage/xxx_col2?batch=true"
+        conf_limits = self.app.get(self.root + "/info/configuration")
+        try:
+            max_total_records = conf_limits.json["max_total_records"]
+        except KeyError:
+            # This can't be run against a live server because we
+            # have to forge an auth token to test things properly.
+                if self.distant:
+                    pytest.skip("Test cannot be run against a live server.")
+                raise
+        
+        self.assertTrue("max_total_records" in conf_limits)
+        self.assertTrue(max_total_records == 1664)
+
+        # We can only enforce it if the client tells us this via the
+        # 'X-Weave-Total-Records' header.
+        self.retry_post_json(endpoint, [], headers={
+            'X-Weave-Total-Records': str(conf_limits['max_total_records'])
+        })
+        res = self.retry_post_json(endpoint, [], headers={
+            'X-Weave-Total-Records': str(conf_limits['max_total_records'] + 1)
+        }, status=400)
+        self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+
+
     def test_batch_partial_update(self):
         collection = self.root + "/storage/xxx_col2"
         bsos = [
