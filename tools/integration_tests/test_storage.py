@@ -1770,10 +1770,11 @@ class TestStorage(StorageFunctionalTestCase):
 
         Is related directly to `X-Weave-Total-Records` header.
         """
-        endpoint = self.root + "/storage/xxx_col2?batch=true"
+        endpoint = self.root + "/storage/xxx_col2"
+        endpoint_batch = self.root + "/storage/xxx_col2?batch=true"
         conf_limits = self.app.get(self.root + "/info/configuration")
         try:
-            max_total_records = conf_limits.json["max_total_records"]
+            limit = conf_limits.json["max_total_records"]
         except KeyError:
             # This can't be run against a live server because we
             # have to forge an auth token to test things properly.
@@ -1781,18 +1782,30 @@ class TestStorage(StorageFunctionalTestCase):
                     pytest.skip("Test cannot be run against a live server.")
                 raise
         
+        max_total_records = limit
         self.assertTrue("max_total_records" in conf_limits)
         self.assertTrue(max_total_records == 1664)
 
         # We can only enforce it if the client tells us this via the
         # 'X-Weave-Total-Records' header.
-        self.retry_post_json(endpoint, [], headers={
+        self.retry_post_json(endpoint_batch, [], headers={
             'X-Weave-Total-Records': str(conf_limits['max_total_records'])
         })
-        res = self.retry_post_json(endpoint, [], headers={
+        res = self.retry_post_json(endpoint_batch, [], headers={
             'X-Weave-Total-Records': str(conf_limits['max_total_records'] + 1)
         }, status=400)
         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+
+        # Success case within limit
+        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records)]
+        resp = self.retry_post_json(endpoint_batch, bsos)
+        batch = resp.json["batch"]
+        resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
+        committed = resp.json["modified"]
+
+
+
+
 
 
     def test_batch_partial_update(self):
