@@ -1820,8 +1820,6 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json['modified'], max_total_records)
-        committed = resp.json["modified"]
-        print(committed)
 
         # Fail case above limit (+1)
         bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records + 1)]
@@ -1830,8 +1828,6 @@ class TestStorage(StorageFunctionalTestCase):
         resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
         self.assertIn('error', resp.json)
         self.assertEqual(resp.status_code, 400)
-        committed = resp.json["modified"]
-        print(committed)
 
     def test_batch_partial_update(self):
         collection = self.root + "/storage/xxx_col2"
