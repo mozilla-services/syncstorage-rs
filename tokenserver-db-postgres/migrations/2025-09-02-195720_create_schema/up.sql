@@ -15,7 +15,7 @@ CREATE TABLE nodes (
     capacity INTEGER NOT NULL,
     downed INTEGER NOT NULL,
     backoff INTEGER NOT NULL,
-    CONSTRAINT unique_service_node UNIQUE (service, node),
+    CONSTRAINT unique_service_node UNIQUE (service, node)
 );
 
 CREATE TABLE users (
@@ -27,7 +27,7 @@ CREATE TABLE users (
     created_at BIGINT NOT NULL,
     replaced_at BIGINT,
     nodeid BIGINT NOT NULL,
-    keys_changed_at BIGINT,
+    keys_changed_at BIGINT
 );
 
 -- Create Indexes for `users` table
@@ -35,4 +35,4 @@ CREATE INDEX lookup_idx ON users (email, service, created_at);
 
 CREATE INDEX replaced_at_idx ON users (service, replaced_at);
 
-CREATE INDEX node_idx ON users (nodeid)
+CREATE INDEX node_idx ON users (nodeid);
