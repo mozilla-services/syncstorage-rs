@@ -82,6 +82,9 @@ class TestStorage(StorageFunctionalTestCase):
     """
 
     def setUp(self):
+        """Call setUp, set API path for current user, delete
+        old root path with user for a clean slate in each test.
+        """
         super(TestStorage, self).setUp()
         self.root = "/1.5/%d" % (self.user_id,)
 
@@ -89,6 +92,11 @@ class TestStorage(StorageFunctionalTestCase):
 
     @contextlib.contextmanager
     def _switch_user(self):
+        """Allows for temporary switch url to another user id.
+        Context manager yields for duration of test and then 
+        returns to original user, regardless of test result.
+        If unsuccessful, root url is retained.
+        """
         orig_root = self.root
         try:
             with super(TestStorage, self)._switch_user():
@@ -98,18 +106,26 @@ class TestStorage(StorageFunctionalTestCase):
             self.root = orig_root
 
     def retry_post_json(self, *args, **kwargs):
+        """Helper wrapper for any POST operation."""
         return self._retry_send(self.app.post_json, *args, **kwargs)
 
     def retry_put_json(self, *args, **kwargs):
+        """Helper wrapper for any PUT operation."""
         return self._retry_send(self.app.put_json, *args, **kwargs)
 
     def retry_delete(self, *args, **kwargs):
+        """Helper wrapper for any DELETE operation."""
         return self._retry_send(self.app.delete, *args, **kwargs)
 
     def _retry_send(self, func, *args, **kwargs):
         try:
-            return func(*args, **kwargs)
+            # Try to call underlying webtest method with args.
+            return func(*args, **kwargs) # Generic callable
         except webtest.AppError as ex:
+            # If non-200 resp, we want to retry as may be transient 
+            # status. If 409 (conflict) or 503 (Service Unavailable)
+            #  are not present, err non-transient and we re-raise, 
+            # no retry.
             if "409 " not in ex.args[0] and "503 " not in ex.args[0]:
                 raise ex
             time.sleep(0.01)
@@ -1586,6 +1602,7 @@ class TestStorage(StorageFunctionalTestCase):
         commit = "?batch={0}&commit=true".format(batch)
         resp = self.retry_post_json(endpoint + commit, [bso5, bso6, bso0])
         committed = resp.json["modified"]
+        print(committed)
         self.assertEqual(resp.json["modified"], float(resp.headers["X-Last-Modified"]))
 
         # make sure /info/collections got updated
@@ -1760,6 +1777,57 @@ class TestStorage(StorageFunctionalTestCase):
             status=400,
         )
         self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+
+    def text_max_total_records(self):
+        """Test ensuring `max_total_records` setting of 1664 in the
+        `/info/configuration` endpoint` is validated.
+
+        `max_total_records` is an (inclusive) limit on the total
+        number of items in a batch
+
+        Is related directly to `X-Weave-Total-Records` header.
+        """
+        endpoint = self.root + "/storage/xxx_col2"
+        endpoint_batch = self.root + "/storage/xxx_col2?batch=true"
+        conf_limits = self.app.get(self.root + "/info/configuration")
+        try:
+            limit = conf_limits.json["max_total_records"]
+        except KeyError:
+            # This can't be run against a live server because we
+            # have to forge an auth token to test things properly.
+                if self.distant:
+                    pytest.skip("Test cannot be run against a live server.")
+                raise
+        
+        max_total_records = limit
+        self.assertTrue("max_total_records" in conf_limits)
+        self.assertTrue(max_total_records == 1664)
+
+        # We can only enforce it if the client tells us this via the
+        # 'X-Weave-Total-Records' header.
+        self.retry_post_json(endpoint_batch, [], headers={
+            'X-Weave-Total-Records': str(conf_limits['max_total_records'])
+        })
+        res = self.retry_post_json(endpoint_batch, [], headers={
+            'X-Weave-Total-Records': str(conf_limits['max_total_records'] + 1)
+        }, status=400)
+        self.assertEqual(res.json, WEAVE_SIZE_LIMIT_EXCEEDED)
+
+        # Success case within limit
+        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records)]
+        resp = self.retry_post_json(endpoint_batch, bsos)
+        batch = resp.json["batch"]
+        resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json['modified'], max_total_records)
+
+        # Fail case above limit (+1)
+        bsos = [{'id': str(i), 'payload': 'X'} for i in range(max_total_records + 1)]
+        resp = self.retry_post_json(endpoint_batch, bsos)
+        batch = resp.json["batch"]
+        resp = self.retry_post_json(f"{endpoint}?batch={batch}&commit=true", [])
+        self.assertIn('error', resp.json)
+        self.assertEqual(resp.status_code, 400)
 
     def test_batch_partial_update(self):
         collection = self.root + "/storage/xxx_col2"
