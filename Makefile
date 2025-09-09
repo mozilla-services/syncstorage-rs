@@ -44,7 +44,7 @@ SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/
 SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
 SRC_ROOT = $(shell pwd)
-PYTHON_SITE_PACKGES = $(shell $(SRC_ROOT)/venv/bin/python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+PYTHON_SITE_PACKGES = $(shell poetry run python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -56,7 +56,6 @@ clippy_spanner:
 
 clean:
 	cargo clean
-	rm -r venv
 
 docker_start_mysql:
 	docker compose -f docker-compose.mysql.yaml up -d
@@ -102,26 +101,20 @@ docker_run_spanner_e2e_tests:
 	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML};
 	exit $$exit_code;
 
-python:
-	python3 -m venv venv
-	venv/bin/python -m pip install -r requirements.txt
-
-run_mysql: python
-	PATH="./venv/bin:$(PATH)" \
-		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
-		# below env var
-		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
+run_mysql: $(INSTALL_STAMP)
+	# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
+	# below env var
+	PYTHONPATH=$(PYTHON_SITE_PACKGES) \
 	        RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- --config config/local.toml
 
-run_spanner: python
+run_spanner: $(INSTALL_STAMP)
 	GOOGLE_APPLICATION_CREDENTIALS=$(PATH_TO_SYNC_SPANNER_KEYS) \
 		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 		# below env var
 		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
-	    PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
