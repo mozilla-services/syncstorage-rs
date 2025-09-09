@@ -56,7 +56,6 @@ clippy_spanner:
 
 clean:
 	cargo clean
-	rm -r venv
 
 docker_start_mysql:
 	docker compose -f docker-compose.mysql.yaml up -d
@@ -103,10 +102,9 @@ docker_run_spanner_e2e_tests:
 	exit $$exit_code;
 
 run_mysql: $(INSTALL_STAMP)
-	PATH="./venv/bin:$(PATH)" \
-		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
-		# below env var
-		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
+	# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
+	# below env var
+	PYTHONPATH=$(PYTHON_SITE_PACKGES) \
 	        RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- --config config/local.toml
@@ -117,7 +115,6 @@ run_spanner: $(INSTALL_STAMP)
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 		# below env var
 		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
-	    PATH="./venv/bin:$(PATH)" \
 		RUST_LOG=debug \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
