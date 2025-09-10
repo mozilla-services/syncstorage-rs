@@ -1,9 +1,8 @@
 -- Create Tables
 CREATE TABLE services (
     id SERIAL PRIMARY KEY,
-    service VARCHAR(30),
+    service VARCHAR(30) UNIQUE,
     pattern VARCHAR(128),
-    CONSTRAINT unique_service UNIQUE (service)
 );
 
 CREATE TABLE nodes (
@@ -15,7 +14,7 @@ CREATE TABLE nodes (
     capacity INTEGER NOT NULL,
     downed INTEGER NOT NULL,
     backoff INTEGER NOT NULL,
-    CONSTRAINT unique_service_node UNIQUE (service, node)
+    UNIQUE (service, node)
 );
 
 CREATE TABLE users (
