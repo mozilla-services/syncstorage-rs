@@ -1,0 +1,9 @@
+[package]
+name = "tokenserver-db-postgres"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+diesel = { workspace = true, features = ["postgres", "r2d2"] }
