@@ -823,8 +823,10 @@ dependencies = [
  "bitflags 2.9.3",
  "byteorder",
  "diesel_derives",
+ "itoa",
  "mysqlclient-sys",
  "percent-encoding",
+ "pq-sys",
  "r2d2",
  "url",
 ]
@@ -2314,6 +2316,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pq-sys"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfd6cf44cca8f9624bc19df234fc4112873432f5fda1caff174527846d026fa9"
+dependencies = [
+ "libc",
+ "vcpkg",
+]
+
+[[package]]
 name = "proc-macro-error-attr2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3597,6 +3609,17 @@ dependencies = [
  "tokenserver-common",
  "tokenserver-settings",
  "tokio",
+]
+
+[[package]]
+name = "tokenserver-db-postgres"
+version = "0.20.1"
+dependencies = [
+ "diesel",
+ "diesel-async",
+ "diesel_logger",
+ "diesel_migrations",
+ "serde 1.0.219",
 ]
 
 [[package]]
