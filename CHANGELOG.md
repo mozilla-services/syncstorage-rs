@@ -1,3 +1,44 @@
+<a name="0.21.0"></a>
+## 0.21.0 (2025-09-11)
+
+
+#### Refactor
+
+*   move tokenserver's Db to async-trait (#1799) ([9d799a45](https://github.com/mozilla-services/syncstorage-rs/commit/9d799a45d41d1f09589cd01ac4df38decb7a9548))
+*   apply &mut self to syncstorage-mysql ([38b4db40](https://github.com/mozilla-services/syncstorage-rs/commit/38b4db401fdcb405cb7f56e54e85aca47877265d))
+*   switch syncstorage Db methods to &mut self ([38cb38fb](https://github.com/mozilla-services/syncstorage-rs/commit/38cb38fbd91861db8ac9ce28d9149bb5db530fca))
+*   switch tokenserver Db methods to &mut self ([614e3902](https://github.com/mozilla-services/syncstorage-rs/commit/614e3902d00749b478b84fbdfa7b7247ab1b56cd))
+
+#### Bug Fixes
+
+*   kill unnecessary transactions (savepoints) (#1782) ([9381bc68](https://github.com/mozilla-services/syncstorage-rs/commit/9381bc68b8c9a1b73806790f1803a0ec7f3e410b))
+*   Revert "fix: mysql: Call set_timestamp in lock_for_write_sync." ([dfe21646](https://github.com/mozilla-services/syncstorage-rs/commit/dfe216466da41581cae084e19db2b43fcf8fca77))
+*   mysql: Replace the user_id%10 in batch_id with a global counter. ([2a1268ed](https://github.com/mozilla-services/syncstorage-rs/commit/2a1268ed0440de4c5709b150b37c440369bf2a2e))
+*   mysql: Call set_timestamp in lock_for_write_sync. ([d4511cc7](https://github.com/mozilla-services/syncstorage-rs/commit/d4511cc746d8c2e991c8faf55ef608e8ff7895bc))
+*   Fix usage of Mockito for >0.30.0. ([3e37e42d](https://github.com/mozilla-services/syncstorage-rs/commit/3e37e42d92cda1cb9e072a279145dc9a369cf22c))
+*   Fix misspelled cfg(test) in tokenserver-auth. ([82dd4235](https://github.com/mozilla-services/syncstorage-rs/commit/82dd4235c665d9c41800b137af920557d7321ef4))
+
+#### Test
+
+*   add max total records e2e test (#1796) ([6100529d](https://github.com/mozilla-services/syncstorage-rs/commit/6100529da70bb1af2de6f329c8b63224113da2a3))
+
+#### Chore
+
+*   more poetry usage (#1798) ([ffade2f8](https://github.com/mozilla-services/syncstorage-rs/commit/ffade2f86909cb6cf29264d453be839afdf7065f))
+*   bump tracing-subscriber per RUSTSEC-2025-0055 ([d89a05e7](https://github.com/mozilla-services/syncstorage-rs/commit/d89a05e7451fe797ad79ba00ecc1960ba4c94c13))
+*   Bump validator to 0.19.0. ([c924fae7](https://github.com/mozilla-services/syncstorage-rs/commit/c924fae77a98f995db64bb5e5711f313553de1e5))
+*   Update Cargo.lock. ([dc4e8015](https://github.com/mozilla-services/syncstorage-rs/commit/dc4e80151b654e58bf881f940b82f3171c06366a))
+*   Upgrade Diesel to 2.x. ([b9507e36](https://github.com/mozilla-services/syncstorage-rs/commit/b9507e36c397d7114691498f3bb67c78fa74ac1b))
+
+#### Features
+
+*   tokenserver postgres schema (#1786) ([1dd7dab5](https://github.com/mozilla-services/syncstorage-rs/commit/1dd7dab55ec3aaf2658019dde4b1ac8e70c668a4))
+*   switch tokenserver to diesel-async (#1790) ([f2698a42](https://github.com/mozilla-services/syncstorage-rs/commit/f2698a4251cd719413b2071379f6866b50d4981a))
+*   kill Db's impl of Clone (#1789) ([b89b06d2](https://github.com/mozilla-services/syncstorage-rs/commit/b89b06d24f4b276c8818e1b062e9431944c5f59f))
+*   workaround batch_id conflicts w/ a simple retry ([e71980c2](https://github.com/mozilla-services/syncstorage-rs/commit/e71980c24281029854165bb5a74cf736aa41b5e4))
+
+
+
 <a name="0.20.1"></a>
 ## 0.20.1 (2025-08-29)
 

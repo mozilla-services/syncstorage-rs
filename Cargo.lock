@@ -823,8 +823,10 @@ dependencies = [
  "bitflags 2.9.3",
  "byteorder",
  "diesel_derives",
+ "itoa",
  "mysqlclient-sys",
  "percent-encoding",
+ "pq-sys",
  "r2d2",
  "url",
 ]
@@ -1203,7 +1205,7 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "glean"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "chrono",
  "serde 1.0.219",
@@ -2314,6 +2316,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "pq-sys"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfd6cf44cca8f9624bc19df234fc4112873432f5fda1caff174527846d026fa9"
+dependencies = [
+ "libc",
+ "vcpkg",
+]
+
+[[package]]
 name = "proc-macro-error-attr2"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3186,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "actix-cors",
  "actix-http",
@@ -3239,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-common"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -3258,7 +3270,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-db-common"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "backtrace",
  "deadpool",
@@ -3273,7 +3285,7 @@ dependencies = [
 
 [[package]]
 name = "syncserver-settings"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "config",
  "num_cpus",
@@ -3287,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "env_logger 0.11.8",
@@ -3308,7 +3320,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-db-common"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3326,7 +3338,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-mysql"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3349,7 +3361,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-settings"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "rand 0.8.5",
  "serde 1.0.219",
@@ -3359,7 +3371,7 @@ dependencies = [
 
 [[package]]
 name = "syncstorage-spanner"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "actix-web",
  "async-trait",
@@ -3538,7 +3550,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokenserver-auth"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "base64",
@@ -3564,7 +3576,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-common"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "actix-web",
  "backtrace",
@@ -3576,7 +3588,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3600,8 +3612,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokenserver-db-postgres"
+version = "0.21.0"
+dependencies = [
+ "diesel",
+]
+
+[[package]]
 name = "tokenserver-settings"
-version = "0.20.1"
+version = "0.21.0"
 dependencies = [
  "jsonwebtoken",
  "serde 1.0.219",
