@@ -6,15 +6,14 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
+use tokenserver_db_common::{
+    error::{DbError, DbResult},
+    params, results, Db,
+};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use super::{
-    error::{DbError, DbResult},
-    params,
-    pool::Conn,
-    results,
-};
+use super::pool::Conn;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.
@@ -530,7 +529,7 @@ impl TokenserverDb {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
@@ -549,7 +548,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
@@ -568,7 +567,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
         const QUERY: &str = r#"
             SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
@@ -583,7 +582,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
@@ -606,7 +605,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
         const QUERY: &str = r#"
             SELECT *
@@ -621,7 +620,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
@@ -646,7 +645,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
         const QUERY: &str = "DELETE FROM nodes WHERE id = ?";
 
@@ -658,7 +657,7 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
@@ -751,7 +750,7 @@ impl Db for TokenserverDb {
         self.timeout
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
         TokenserverDb::get_user(self, params).await
     }
@@ -760,7 +759,7 @@ impl Db for TokenserverDb {
         TokenserverDb::check(self).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
@@ -768,7 +767,7 @@ impl Db for TokenserverDb {
         TokenserverDb::set_user_created_at(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
@@ -776,17 +775,17 @@ impl Db for TokenserverDb {
         TokenserverDb::set_user_replaced_at(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError> {
         TokenserverDb::post_node(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError> {
         TokenserverDb::get_node(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
@@ -794,7 +793,7 @@ impl Db for TokenserverDb {
         TokenserverDb::unassign_node(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn remove_node(
         &mut self,
         params: params::RemoveNode,
@@ -802,102 +801,13 @@ impl Db for TokenserverDb {
         TokenserverDb::remove_node(self, params).await
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
     ) -> Result<results::PostService, DbError> {
         TokenserverDb::post_service(self, params).await
     }
-}
-
-#[async_trait(?Send)]
-pub trait Db {
-    fn timeout(&self) -> Option<Duration> {
-        None
-    }
-
-    async fn replace_user(
-        &mut self,
-        params: params::ReplaceUser,
-    ) -> Result<results::ReplaceUser, DbError>;
-
-    async fn replace_users(
-        &mut self,
-        params: params::ReplaceUsers,
-    ) -> Result<results::ReplaceUsers, DbError>;
-
-    async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError>;
-
-    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError>;
-
-    async fn check(&mut self) -> Result<results::Check, DbError>;
-
-    async fn get_node_id(
-        &mut self,
-        params: params::GetNodeId,
-    ) -> Result<results::GetNodeId, DbError>;
-
-    async fn get_best_node(
-        &mut self,
-        params: params::GetBestNode,
-    ) -> Result<results::GetBestNode, DbError>;
-
-    async fn add_user_to_node(
-        &mut self,
-        params: params::AddUserToNode,
-    ) -> Result<results::AddUserToNode, DbError>;
-
-    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError>;
-
-    async fn get_or_create_user(
-        &mut self,
-        params: params::GetOrCreateUser,
-    ) -> Result<results::GetOrCreateUser, DbError>;
-
-    async fn get_service_id(
-        &mut self,
-        params: params::GetServiceId,
-    ) -> Result<results::GetServiceId, DbError>;
-
-    #[cfg(test)]
-    async fn set_user_created_at(
-        &mut self,
-        params: params::SetUserCreatedAt,
-    ) -> Result<results::SetUserCreatedAt, DbError>;
-
-    #[cfg(test)]
-    async fn set_user_replaced_at(
-        &mut self,
-        params: params::SetUserReplacedAt,
-    ) -> Result<results::SetUserReplacedAt, DbError>;
-
-    #[cfg(test)]
-    async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError>;
-
-    #[cfg(test)]
-    async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError>;
-
-    #[cfg(test)]
-    async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError>;
-
-    #[cfg(test)]
-    async fn unassign_node(
-        &mut self,
-        params: params::UnassignNode,
-    ) -> Result<results::UnassignNode, DbError>;
-
-    #[cfg(test)]
-    async fn remove_node(
-        &mut self,
-        params: params::RemoveNode,
-    ) -> Result<results::RemoveNode, DbError>;
-
-    #[cfg(test)]
-    async fn post_service(
-        &mut self,
-        params: params::PostService,
-    ) -> Result<results::PostService, DbError>;
 }
 
 #[cfg(test)]
@@ -908,8 +818,9 @@ mod tests {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use syncserver_settings::Settings;
+    use tokenserver_db_common::DbPool;
 
-    use crate::pool::{DbPool, TokenserverPool};
+    use crate::pool::TokenserverPool;
 
     #[tokio::test]
     async fn test_update_generation() -> DbResult<()> {
