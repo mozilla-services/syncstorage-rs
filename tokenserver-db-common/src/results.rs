@@ -82,7 +82,7 @@ pub struct GetServiceId {
     pub id: i32,
 }
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 #[derive(Debug, Default, Eq, PartialEq, QueryableByName)]
 pub struct GetUser {
     #[diesel(sql_type = Integer)]
@@ -103,10 +103,10 @@ pub struct GetUser {
     pub keys_changed_at: Option<i64>,
 }
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 pub type PostNode = LastInsertId;
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 #[derive(Default, QueryableByName)]
 pub struct GetNode {
     #[diesel(sql_type = Bigint)]
@@ -128,23 +128,23 @@ pub struct GetNode {
     pub backoff: i32,
 }
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 #[derive(Default, QueryableByName)]
 pub struct PostService {
     #[diesel(sql_type = Integer)]
     pub id: i32,
 }
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 pub type SetUserCreatedAt = ();
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 pub type SetUserReplacedAt = ();
 
 pub type Check = bool;
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 pub type UnassignNode = ();
 
-#[cfg(test)]
+#[cfg(debug_assertions)]
 pub type RemoveNode = ();
