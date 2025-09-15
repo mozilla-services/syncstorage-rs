@@ -28,7 +28,7 @@ Mozilla Sync Storage built with [Rust](https://rust-lang.org).
 
 ## System Requirements
 
-- cmake
+- cmake (>= 3.5 and < 3.30)
 - gcc
 - [golang](https://golang.org/doc/install)
 - libcurl4-openssl-dev
@@ -76,6 +76,8 @@ CREATE DATABASE tokenserver_rs;
 GRANT ALL PRIVILEGES on syncstorage_rs.* to sample_user@localhost;
 GRANT ALL PRIVILEGES on tokenserver_rs.* to sample_user@localhost;
 ```
+
+Note that if you are running MySQL with Docker and encountered a socket connection error, change the MySQL DSN from `localhost` to `127.0.0.1` to use a TCP connection.
 
 ### Spanner
 
@@ -199,30 +201,9 @@ This requires access to [Google Cloud Rust (raw)](https://crates.io/crates/googl
 
 This will walk you through the steps to connect this project to your local copy of Firefox.
 
-1. Follow the steps outlined above for running this project using [MySQL](https://github.com/mozilla-services/syncstorage-rs#mysql).
-
-2. Setup a local copy of [syncserver](https://github.com/mozilla-services/syncserver), with a few special changes to [syncserver.ini](https://github.com/mozilla-services/syncserver/blob/master/syncserver.ini); make sure that you're using the following values (in addition to all of the other defaults):
-
-    ```ini
-    [server:main]
-    port = 5000
-
-    [syncserver]
-    public_url = http://localhost:5000/
-
-    # This value needs to match your "master_secret" for syncstorage-rs!
-    secret = INSERT_SECRET_KEY_HERE
-
-    [tokenserver]
-    node_url = http://localhost:8000
-    sqluri = pymysql://sample_user:sample_password@127.0.0.1/syncstorage_rs
-
-    [endpoints]
-    sync-1.5 = "http://localhost:8000/1.5/1"
-    ```
-
-3. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:5000/1.0/sync/1.5`.
-4. Restart Firefox. Now, try syncing. You should see new BSOs in your local MySQL instance.
+1. Follow the steps outlined above for running this project using MySQL or Spanner.
+2. In Firefox, go to `about:config`. Change `identity.sync.tokenserver.uri` to `http://localhost:8000/1.0/sync/1.5`.
+3. Restart Firefox. Now, try syncing. You should see new BSOs in your MySQL or Spanner instance.
 
 ## Logging
 
