@@ -17,14 +17,15 @@ use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
+use tokenserver_db_common::{
+    error::{DbError, DbResult},
+    params, Db, DbPool,
+};
+
 use tokenserver_settings::Settings;
 use tokio::task::spawn_blocking;
 
-use super::{
-    error::{DbError, DbResult},
-    models::{Db, TokenserverDb},
-    params,
-};
+use super::models::TokenserverDb;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -171,29 +172,8 @@ impl DbPool for TokenserverPool {
     }
 }
 
-#[async_trait(?Send)]
-pub trait DbPool: Sync + Send + GetPoolState {
-    async fn init(&mut self) -> Result<(), DbError>;
-
-    async fn get(&self) -> Result<Box<dyn Db>, DbError>;
-
-    fn box_clone(&self) -> Box<dyn DbPool>;
-}
-
 impl GetPoolState for TokenserverPool {
     fn state(&self) -> PoolState {
         self.inner.status().into()
-    }
-}
-
-impl GetPoolState for Box<dyn DbPool> {
-    fn state(&self) -> PoolState {
-        (**self).state()
-    }
-}
-
-impl Clone for Box<dyn DbPool> {
-    fn clone(&self) -> Box<dyn DbPool> {
-        self.box_clone()
     }
 }
