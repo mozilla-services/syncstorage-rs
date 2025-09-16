@@ -1,3 +1,5 @@
+//! Postgres DB Models for the Tokenserver Nodes table
+
 use diesel::{Insertable, Queryable};
 
 #[derive(Queryable, Debug, Identifiable)]
