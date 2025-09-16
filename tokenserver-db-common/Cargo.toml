@@ -13,6 +13,7 @@ diesel.workspace = true
 diesel_migrations.workspace = true
 http.workspace = true
 serde.workspace = true
+slog-scope.workspace = true
 thiserror.workspace = true
 
 syncserver-common = { path = "../syncserver-common" }

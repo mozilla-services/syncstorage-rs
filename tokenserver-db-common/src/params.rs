@@ -123,3 +123,6 @@ pub struct UnassignNode {
 pub struct RemoveNode {
     pub node_id: i64,
 }
+
+#[cfg(debug_assertions)]
+pub type SpannerNodeId = Option<i32>;

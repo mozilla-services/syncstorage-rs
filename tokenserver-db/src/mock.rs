@@ -164,4 +164,7 @@ impl Db for MockDb {
     ) -> Result<results::PostService, DbError> {
         Ok(results::PostService::default())
     }
+
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, _params: params::SpannerNodeId) {}
 }
