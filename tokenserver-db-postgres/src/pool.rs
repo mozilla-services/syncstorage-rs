@@ -16,7 +16,10 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use tokenserver_db_common::error::{DbError, DbResult};
+use tokenserver_db_common::{
+    error::{DbError, DbResult},
+    params,
+};
 
 use super::models::TokenserverDb;
 use tokenserver_settings::Settings;
@@ -129,5 +132,18 @@ impl TokenserverPgPool {
             self.spanner_node_id,
             self.timeout,
         ))
+    }
+
+    /// Acquire the common "sync-1.5" service_id and cache.
+    async fn init_service_id(&mut self) -> Result<(), tokenserver_common::TokenserverError> {
+        let service_id = self
+            .get()
+            .await?
+            .get_service_id(params::GetServiceId {
+                service: "sync-1.5".to_owned(),
+            })
+            .await?;
+        self.service_id = Some(service_id.id);
+        Ok(())
     }
 }

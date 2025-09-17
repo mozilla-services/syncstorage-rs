@@ -15,5 +15,6 @@ diesel_migrations = { workspace = true, features = ["postgres"] }
 
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
+tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
