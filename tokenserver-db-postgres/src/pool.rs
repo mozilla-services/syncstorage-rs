@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use async_trait::async_trait;
 use deadpool::managed::PoolError;
 use diesel::Connection;
 use diesel_async::{
@@ -15,25 +14,29 @@ use diesel_async::{
 use diesel_logger::LoggingConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::Metrics;
-use tokenserver_db_common::{
-    error::{DbError, DbResult},
-    params, Db, DbPool,
-};
+#[cfg(debug_assertions)]
+use syncserver_db_common::test::test_transaction_hook;
+use tokenserver_db_common::error::{DbError, DbResult};
+
+use super::models::TokenserverDb;
+use tokenserver_settings::Settings;
 
 /// The `embed_migrations!` macro reads migrations at compile time.
 /// This creates a constant that references a list of migrations.
 /// See https://docs.rs/diesel_migrations/2.2.0/diesel_migrations/macro.embed_migrations.html
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
+/// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
 
+#[allow(dead_code)]
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
     LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
-
     Ok(())
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct TokenserverPgPool {
     /// Pool of db connections.
@@ -52,6 +55,7 @@ pub struct TokenserverPgPool {
     database_url: String,
 }
 
+#[allow(dead_code)]
 impl TokenserverPgPool {
     pub fn new(
         settings: &Settings,
@@ -102,5 +106,28 @@ impl TokenserverPgPool {
             run_migrations: settings.run_migrations,
             database_url: settings.database_url.clone(),
         })
+    }
+
+    async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
+        let conn = self.inner.get().await.map_err(|e| match e {
+            PoolError::Backend(backend_err) => match backend_err {
+                diesel_async::pooled_connection::PoolError::ConnectionError(conn_err) => {
+                    conn_err.into()
+                }
+                diesel_async::pooled_connection::PoolError::QueryError(query_err) => {
+                    query_err.into()
+                }
+            },
+            PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
+            _ => DbError::internal(format!("Deadpool PoolError: {e}")),
+        })?;
+
+        Ok(TokenserverDb::new(
+            conn,
+            &self.metrics,
+            self.service_id,
+            self.spanner_node_id,
+            self.timeout,
+        ))
     }
 }
