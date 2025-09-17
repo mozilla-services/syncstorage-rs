@@ -3721,11 +3721,16 @@ dependencies = [
 name = "tokenserver-db-postgres"
 version = "0.20.1"
 dependencies = [
+ "async-trait",
  "deadpool",
  "diesel",
  "diesel-async",
  "diesel_logger",
  "diesel_migrations",
+ "syncserver-common",
+ "syncserver-db-common",
+ "tokenserver-db-common",
+ "tokenserver-settings",
 ]
 
 [[package]]
