@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use async_trait::async_trait;
 use deadpool::managed::PoolError;
 use diesel::Connection;
 use diesel_async::{
@@ -16,13 +17,15 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
+use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{
     error::{DbError, DbResult},
-    params,
+    params, Db, DbPool,
 };
 
 use super::models::TokenserverDb;
 use tokenserver_settings::Settings;
+use tokio::task::spawn_blocking;
 
 /// The `embed_migrations!` macro reads migrations at compile time.
 /// This creates a constant that references a list of migrations.
@@ -145,5 +148,38 @@ impl TokenserverPgPool {
             .await?;
         self.service_id = Some(service_id.id);
         Ok(())
+    }
+}
+
+#[async_trait(?Send)]
+impl DbPool for TokenserverPgPool {
+    async fn init(&mut self) -> Result<(), DbError> {
+        if self.run_migrations {
+            let database_url = self.database_url.clone();
+            spawn_blocking(move || run_embedded_migrations(&database_url))
+                .await
+                .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        }
+        // As long as the sync service "sync-1.5" service record is in the database, this query should not fail,
+        // unless there is a network failure or unpredictable event.
+        let _ = self.init_service_id().await;
+        Ok(())
+    }
+
+    async fn get(&self) -> Result<Box<dyn Db>, DbError> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.get_pool", None);
+        todo!("implement get once Db trait implemented for TokenserverDb")
+        // Ok(Box::new(self.get_tokenserver_db().await?) as Box<dyn Db>)
+    }
+
+    fn box_clone(&self) -> Box<dyn DbPool> {
+        Box::new(self.clone())
+    }
+}
+
+impl GetPoolState for TokenserverPgPool {
+    fn state(&self) -> PoolState {
+        self.inner.status().into()
     }
 }

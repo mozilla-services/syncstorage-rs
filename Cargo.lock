@@ -3729,8 +3729,10 @@ dependencies = [
  "diesel_migrations",
  "syncserver-common",
  "syncserver-db-common",
+ "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-settings",
+ "tokio",
 ]
 
 [[package]]
