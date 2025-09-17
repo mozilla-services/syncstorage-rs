@@ -28,3 +28,15 @@ fn run_embedded_migrations(database_url: &str) -> Result<()> {
 
     Ok(())
 }
+
+#[derive(Clone)]
+pub struct TokenserverPgPool {
+    /// Pool of db connections
+    inner: Pool<AsyncPgConnection>,
+    // This field is public so the service ID can be set after the pool is created
+    pub service_id: Option<i32>,
+    spanner_node_id: Option<i32>,
+    pub timeout: Option<Duration>,
+    run_migrations: bool,
+    database_url: String,
+}
