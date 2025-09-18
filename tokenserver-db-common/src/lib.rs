@@ -8,6 +8,7 @@ pub mod results;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
+use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 
 pub use crate::error::{DbError, DbResult};
@@ -87,6 +88,9 @@ pub trait Db {
         &mut self,
         params: params::GetServiceId,
     ) -> DbResult<results::GetServiceId>;
+
+    /// Return the Db instance Metrics.
+    fn metrics(&self) -> &Metrics;
 
     /// Gets the user with the given email and service ID.
     /// If one doesn't exist, allocates a new user.
@@ -217,7 +221,46 @@ pub trait Db {
         &mut self,
         params: params::AllocateUser,
     ) -> DbResult<results::AllocateUser> {
-        allocate_user(self, params).await
+        let mut metrics = self.metrics().clone();
+        metrics.start_timer("storage.allocate_user", None);
+
+        // Get the least-loaded node
+        let node = self
+            .get_best_node(params::GetBestNode {
+                service_id: params.service_id,
+                capacity_release_rate: params.capacity_release_rate,
+            })
+            .await?;
+
+        // Decrement `available` and increment `current_load` on the node assigned to the user.
+        self.add_user_to_node(params::AddUserToNode {
+            service_id: params.service_id,
+            node: node.node.clone(),
+        })
+        .await?;
+
+        let created_at = {
+            let start = SystemTime::now();
+            start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
+        };
+        let uid = self
+            .post_user(params::PostUser {
+                service_id: params.service_id,
+                email: params.email.clone(),
+                generation: params.generation,
+                client_state: params.client_state.clone(),
+                created_at,
+                node_id: node.id,
+                keys_changed_at: params.keys_changed_at,
+            })
+            .await?
+            .id;
+
+        Ok(results::AllocateUser {
+            uid,
+            node: node.node,
+            created_at,
+        })
     }
 
     // Internal methods used by the db tests
@@ -265,48 +308,4 @@ pub trait Db {
 
     #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId);
-}
-
-/// Creates a new user and assigns them to a node.
-pub async fn allocate_user(
-    db: &mut (impl Db + ?Sized),
-    params: params::AllocateUser,
-) -> DbResult<results::AllocateUser> {
-    // Get the least-loaded node
-    let node = db
-        .get_best_node(params::GetBestNode {
-            service_id: params.service_id,
-            capacity_release_rate: params.capacity_release_rate,
-        })
-        .await?;
-
-    // Decrement `available` and increment `current_load` on the node assigned to the user.
-    db.add_user_to_node(params::AddUserToNode {
-        service_id: params.service_id,
-        node: node.node.clone(),
-    })
-    .await?;
-
-    let created_at = {
-        let start = SystemTime::now();
-        start.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64
-    };
-    let uid = db
-        .post_user(params::PostUser {
-            service_id: params.service_id,
-            email: params.email.clone(),
-            generation: params.generation,
-            client_state: params.client_state.clone(),
-            created_at,
-            node_id: node.id,
-            keys_changed_at: params.keys_changed_at,
-        })
-        .await?
-        .id;
-
-    Ok(results::AllocateUser {
-        uid,
-        node: node.node,
-        created_at,
-    })
 }

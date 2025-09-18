@@ -1,6 +1,9 @@
 #![allow(clippy::new_without_default)]
 
+use std::sync::LazyLock;
+
 use async_trait::async_trait;
+use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{error::DbError, params, results, Db, DbPool};
 
@@ -108,6 +111,11 @@ impl Db for MockDb {
         _params: params::GetServiceId,
     ) -> Result<results::GetServiceId, DbError> {
         Ok(results::GetServiceId::default())
+    }
+
+    fn metrics(&self) -> &Metrics {
+        static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::noop);
+        &METRICS
     }
 
     #[cfg(debug_assertions)]
