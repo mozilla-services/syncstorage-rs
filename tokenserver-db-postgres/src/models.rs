@@ -38,6 +38,10 @@ impl Db for TokenserverPgDb {
         self.timeout
     }
 
+    async fn check(&mut self) -> Result<results::Check, DbError> {
+        TokenserverPgDb::check(self).await
+    }
+
     // Services Methods
     async fn get_service_id(
         &mut self,

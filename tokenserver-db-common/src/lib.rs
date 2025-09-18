@@ -55,6 +55,7 @@ pub trait Db {
     /// Based on service_id, email, generation, and changed keys timestamp, update user.
     async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError>;
 
+    /// Show database uptime status and health as boolean.
     async fn check(&mut self) -> Result<results::Check, DbError>;
 
     /// Get Node ID based on service_id and node string.
@@ -100,6 +101,7 @@ pub trait Db {
         params: params::SetUserCreatedAt,
     ) -> Result<results::SetUserCreatedAt, DbError>;
 
+    /// Update users replaced_at attribute based on user uid.
     #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
