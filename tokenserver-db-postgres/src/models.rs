@@ -72,7 +72,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_best_node(self, params).await
     }
 
-    async fn post_node(&mut self, params: params::PostNode) -> Results<result::PostNode> {
+    async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError> {
         TokenserverPgDb::post_node(self, params).await
     }
 
@@ -91,4 +91,61 @@ impl Db for TokenserverPgDb {
     }
 
     // Users Methods
+    async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
+        TokenserverPgDb::get_user(self, params).await
+    }
+
+    async fn get_or_create_user(
+        &mut self,
+        params: params::GetOrCreateUser,
+    ) -> Result<results::GetOrCreateUser, DbError> {
+        TokenserverPgDb::get_or_create_user(self, params).await
+    }
+
+    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
+        TokenserverPgDb::get_users(self, params).await
+    }
+
+    async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError> {
+        TokenserverPgDb::post_user(self, params).await
+    }
+
+    async fn put_user(&mut self, params: params::PutUser) -> Result<results::PutUser, DbError> {
+        TokenserverPgDb::put_user(self, params).await
+    }
+
+    async fn replace_user(
+        &mut self,
+        params: params::ReplaceUser,
+    ) -> Result<results::ReplaceUser, DbError> {
+        TokenserverPgDb::replace_user(self, params).await
+    }
+
+    async fn replace_users(
+        &mut self,
+        params: params::ReplaceUsers,
+    ) -> Result<results::ReplaceUsers, DbError> {
+        TokenserverPgDb::replace_users(self, params).await
+    }
+
+    async fn unassign_node_from_users(
+        &mut self,
+        params: params::UnassignNode,
+    ) -> Result<results::UnassignNode, DbError> {
+        TokenserverPgDb::unassign_node_from_users(self, params).await
+    }
+
+    async fn set_user_created_at(
+        &mut self,
+        params: params::SetUserCreatedAt,
+    ) -> Result<results::SetUserCreatedAt, DbError> {
+        TokenserverPgDb::set_user_created_at(self, params).await
+    }
+
+    async fn set_user_replaced_at(
+        &mut self,
+        params: params::SetUserReplacedAt,
+    ) -> Result<results::SetUserReplacedAt, DbError> {
+        TokenserverPgDb::set_user_replaced_at(self, params).await
+    }
 }
