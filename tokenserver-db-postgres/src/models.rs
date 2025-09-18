@@ -132,11 +132,11 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::replace_users(self, params).await
     }
 
-    async fn unassign_node_from_users(
+    async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> Result<results::UnassignNode, DbError> {
-        TokenserverPgDb::unassign_node_from_users(self, params).await
+        TokenserverPgDb::unassign_node(self, params).await
     }
 
     async fn set_user_created_at(
