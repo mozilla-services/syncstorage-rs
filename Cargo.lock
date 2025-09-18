@@ -3695,6 +3695,7 @@ dependencies = [
  "syncserver-settings",
  "tokenserver-common",
  "tokenserver-db-common",
+ "tokenserver-db-postgres",
  "tokenserver-settings",
  "tokio",
  "url",

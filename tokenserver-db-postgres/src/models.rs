@@ -38,6 +38,10 @@ impl Db for TokenserverPgDb {
         self.timeout
     }
 
+    fn metrics(&self) -> &Metrics {
+        &self.metrics
+    }
+
     async fn check(&mut self) -> Result<results::Check, DbError> {
         TokenserverPgDb::check(self).await
     }
@@ -151,5 +155,10 @@ impl Db for TokenserverPgDb {
         params: params::SetUserReplacedAt,
     ) -> Result<results::SetUserReplacedAt, DbError> {
         TokenserverPgDb::set_user_replaced_at(self, params).await
+    }
+
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
+        self.spanner_node_id = params;
     }
 }

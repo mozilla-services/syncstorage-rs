@@ -18,6 +18,7 @@ syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
+tokenserver-db-postgres = { path = "../tokenserver-db-postgres" }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.1"

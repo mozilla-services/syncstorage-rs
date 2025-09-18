@@ -6,4 +6,4 @@ mod models;
 mod pool;
 
 pub use models::TokenserverPgDb;
-pub use tokenserver_db_common::{params, results, Db, DbPool};
+pub use pool::TokenserverPgPool;
