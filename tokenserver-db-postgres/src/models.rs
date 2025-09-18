@@ -54,6 +54,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_service_id(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
@@ -62,6 +63,7 @@ impl Db for TokenserverPgDb {
     }
 
     // Nodes Methods
+    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError> {
         TokenserverPgDb::get_node(self, params).await
     }
@@ -80,6 +82,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_best_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError> {
         TokenserverPgDb::post_node(self, params).await
     }
@@ -91,6 +94,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::add_user_to_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn remove_node(
         &mut self,
         params: params::RemoveNode,
@@ -99,6 +103,7 @@ impl Db for TokenserverPgDb {
     }
 
     // Users Methods
+    #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
         TokenserverPgDb::get_user(self, params).await
     }
@@ -136,6 +141,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::replace_users(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
@@ -143,6 +149,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::unassign_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
@@ -150,6 +157,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::set_user_created_at(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,

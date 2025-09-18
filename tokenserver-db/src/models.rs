@@ -1,3 +1,7 @@
+use std::time::Duration;
+#[cfg(debug_assertions)]
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use async_trait::async_trait;
 use diesel::{
     sql_types::{Bigint, Float, Integer, Nullable, Text},
@@ -10,8 +14,6 @@ use tokenserver_db_common::{
     error::{DbError, DbResult},
     params, results, Db,
 };
-
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use super::pool::Conn;
 
