@@ -331,15 +331,6 @@ impl TokenserverDb {
             .map_err(Into::into)
     }
 
-    async fn allocate_user(
-        &mut self,
-        params: params::AllocateUser,
-    ) -> DbResult<results::AllocateUser> {
-        let mut metrics = self.metrics.clone();
-        metrics.start_timer("storage.allocate_user", None);
-        tokenserver_db_common::allocate_user(self, params).await
-    }
-
     pub async fn get_service_id(
         &mut self,
         params: params::GetServiceId,
@@ -584,11 +575,8 @@ impl Db for TokenserverDb {
         self.timeout
     }
 
-    async fn allocate_user(
-        &mut self,
-        params: params::AllocateUser,
-    ) -> Result<results::AllocateUser, DbError> {
-        TokenserverDb::allocate_user(self, params).await
+    fn timeout(&self) -> Option<Duration> {
+        self.timeout
     }
 
     #[cfg(debug_assertions)]
