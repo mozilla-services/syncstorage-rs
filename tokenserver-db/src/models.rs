@@ -786,7 +786,7 @@ impl Db for TokenserverDb {
     }
 
     #[cfg(debug_assertions)]
-    async fn unassign_node_from_users(
+    async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> Result<results::UnassignNode, DbError> {
@@ -1691,7 +1691,7 @@ mod tests {
         assert_eq!(node2_count, 2);
 
         // Clear the assignments on the first node.
-        db.unassign_node_from_users(params::UnassignNode { node_id: node1_id })
+        db.unassign_node(params::UnassignNode { node_id: node1_id })
             .await?;
 
         // The users previously on the first node should balance across both nodes,
@@ -1952,8 +1952,7 @@ mod tests {
             .await?;
 
         // Clear the user's node
-        db.unassign_node_from_users(params::UnassignNode { node_id })
-            .await?;
+        db.unassign_node(params::UnassignNode { node_id }).await?;
 
         // Sleep very briefly to ensure the timestamp created during node reassignment is greater
         // than the timestamp created during user creation

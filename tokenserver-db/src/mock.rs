@@ -142,7 +142,7 @@ impl Db for MockDb {
     }
 
     #[cfg(debug_assertions)]
-    async fn unassign_node_from_users(
+    async fn unassign_node(
         &mut self,
         _params: params::UnassignNode,
     ) -> Result<results::UnassignNode, DbError> {

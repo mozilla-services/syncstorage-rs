@@ -122,7 +122,7 @@ pub trait Db {
 
     /// Based on Node ID, unassign node from `users`.
     #[cfg(debug_assertions)]
-    async fn unassign_node_from_users(
+    async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
     ) -> Result<results::UnassignNode, DbError>;
