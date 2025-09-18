@@ -23,7 +23,7 @@ use tokenserver_db_common::{
     params, Db, DbPool,
 };
 
-use super::models::TokenserverDb;
+use super::models::TokenserverPgDb;
 use tokenserver_settings::Settings;
 use tokio::task::spawn_blocking;
 
@@ -114,7 +114,7 @@ impl TokenserverPgPool {
         })
     }
 
-    async fn get_tokenserver_db(&self) -> Result<TokenserverDb, DbError> {
+    async fn get_tokenserver_db(&self) -> Result<TokenserverPgDb, DbError> {
         let conn = self.inner.get().await.map_err(|e| match e {
             PoolError::Backend(backend_err) => match backend_err {
                 diesel_async::pooled_connection::PoolError::ConnectionError(conn_err) => {
@@ -128,7 +128,7 @@ impl TokenserverPgPool {
             _ => DbError::internal(format!("Deadpool PoolError: {e}")),
         })?;
 
-        Ok(TokenserverDb::new(
+        Ok(TokenserverPgDb::new(
             conn,
             &self.metrics,
             self.service_id,

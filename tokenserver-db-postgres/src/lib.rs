@@ -5,5 +5,5 @@ extern crate diesel_migrations;
 mod models;
 mod pool;
 
-pub use models::TokenserverDb;
+pub use models::TokenserverPgDb;
 pub use tokenserver_db_common::{params, results, Db, DbPool};
