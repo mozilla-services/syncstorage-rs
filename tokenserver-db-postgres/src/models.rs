@@ -46,7 +46,6 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_service_id(self, params).await
     }
 
-    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
@@ -55,6 +54,41 @@ impl Db for TokenserverPgDb {
     }
 
     // Nodes Methods
+    async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError> {
+        TokenserverPgDb::get_node(self, params).await
+    }
+
+    async fn get_node_id(
+        &mut self,
+        params: params::GetNodeId,
+    ) -> Result<results::GetNodeId, DbError> {
+        TokenserverPgDb::get_node_id(self, params).await
+    }
+
+    async fn get_best_node(
+        &mut self,
+        params: params::GetBestNode,
+    ) -> Result<results::GetBestNode, DbError> {
+        TokenserverPgDb::get_best_node(self, params).await
+    }
+
+    async fn post_node(&mut self, params: params::PostNode) -> Results<result::PostNode> {
+        TokenserverPgDb::post_node(self, params).await
+    }
+
+    async fn add_user_to_node(
+        &mut self,
+        params: params::AddUserToNode,
+    ) -> Result<results::AddUserToNode, DbError> {
+        TokenserverPgDb::add_user_to_node(self, params).await
+    }
+
+    async fn remove_node(
+        &mut self,
+        params: params::RemoveNode,
+    ) -> Result<results::RemoveNode, DbError> {
+        TokenserverPgDb::remove_node(self, params).await
+    }
 
     // Users Methods
 }
