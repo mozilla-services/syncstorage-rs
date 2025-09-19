@@ -640,40 +640,25 @@ impl MysqlDb {
         self.update_collection(user_id as u32, collection_id).await
     }
 
-    async fn post_bsos(&mut self, input: params::PostBsos) -> DbResult<results::PostBsos> {
+    async fn post_bsos(&mut self, input: params::PostBsos) -> DbResult<SyncTimestamp> {
         let collection_id = self.get_or_create_collection_id(&input.collection).await?;
-        let mut result = results::PostBsos {
-            modified: self.timestamp(),
-            success: Default::default(),
-            failed: input.failed,
-        };
+        let modified = self.timestamp();
 
         for pbso in input.bsos {
-            let id = pbso.id;
-            let put_result = self
-                .put_bso(params::PutBso {
-                    user_id: input.user_id.clone(),
-                    collection: input.collection.clone(),
-                    id: id.clone(),
-                    payload: pbso.payload,
-                    sortindex: pbso.sortindex,
-                    ttl: pbso.ttl,
-                })
-                .await;
-            // XXX: python version doesn't report failures from db
-            // layer.. (wouldn't db failures abort the entire transaction
-            // anyway?)
-            // XXX: sanitize to.to_string()?
-            match put_result {
-                Ok(_) => result.success.push(id),
-                Err(e) => {
-                    result.failed.insert(id, e.to_string());
-                }
-            }
+            self.put_bso(params::PutBso {
+                user_id: input.user_id.clone(),
+                collection: input.collection.clone(),
+                id: pbso.id.clone(),
+                payload: pbso.payload,
+                sortindex: pbso.sortindex,
+                ttl: pbso.ttl,
+            })
+            .await?;
         }
         self.update_collection(input.user_id.legacy_id as u32, collection_id)
             .await?;
-        Ok(result)
+
+        Ok(modified)
     }
 
     async fn get_storage_timestamp(&mut self, user_id: UserIdentifier) -> DbResult<SyncTimestamp> {

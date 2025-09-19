@@ -1464,14 +1464,13 @@ impl SpannerDb {
                 collection: params.collection,
                 bsos,
                 for_batch: false,
-                failed: HashMap::new(),
             })
             .await?;
 
-        Ok(result.modified)
+        Ok(result)
     }
 
-    async fn post_bsos(&self, params: params::PostBsos) -> DbResult<results::PostBsos> {
+    async fn post_bsos(&self, params: params::PostBsos) -> DbResult<SyncTimestamp> {
         if self.conn.settings.use_mutations {
             self.post_bsos_with_mutations(params).await
         } else {
@@ -1479,10 +1478,7 @@ impl SpannerDb {
         }
     }
 
-    async fn post_bsos_with_mutations(
-        &self,
-        params: params::PostBsos,
-    ) -> DbResult<results::PostBsos> {
+    async fn post_bsos_with_mutations(&self, params: params::PostBsos) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
@@ -1538,10 +1534,8 @@ impl SpannerDb {
         }
         let mut inserts = vec![];
         let mut updates = HashMap::new();
-        let mut success = vec![];
         let mut load_size: usize = 0;
         for bso in params.bsos {
-            success.push(bso.id.clone());
             if existing.contains(&bso.id) {
                 let (columns, values) = bso_to_update_row(&user_id, collection_id, bso, timestamp)?;
                 load_size += values.compute_size() as usize;
@@ -1587,14 +1581,8 @@ impl SpannerDb {
             // update the quotas
             self.update_user_collection_quotas(&user_id, collection_id)
                 .await?;
-        }
-
-        let result = results::PostBsos {
-            modified: timestamp,
-            success,
-            failed: params.failed,
         };
-        Ok(result)
+        Ok(timestamp)
     }
 
     async fn check(&self) -> DbResult<results::Check> {
@@ -1818,13 +1806,9 @@ impl SpannerDb {
     async fn post_bsos_without_mutations(
         &self,
         input: params::PostBsos,
-    ) -> DbResult<results::PostBsos> {
+    ) -> DbResult<SyncTimestamp> {
         let collection_id = self.get_or_create_collection_id(&input.collection).await?;
-        let mut result = results::PostBsos {
-            modified: self.checked_timestamp()?,
-            success: Default::default(),
-            failed: input.failed,
-        };
+        let modified = self.checked_timestamp()?;
 
         for pbso in input.bsos {
             let id = pbso.id;
@@ -1837,11 +1821,10 @@ impl SpannerDb {
                 ttl: pbso.ttl,
             })
             .await?;
-            result.success.push(id);
         }
         self.update_user_collection_quotas(&input.user_id, collection_id)
             .await?;
-        Ok(result)
+        Ok(modified)
     }
 }
 
@@ -2004,10 +1987,7 @@ impl Db for SpannerDb {
         Box::pin(async move { db.put_bso(param).map_err(Into::into).await })
     }
 
-    fn post_bsos(
-        &mut self,
-        param: params::PostBsos,
-    ) -> DbFuture<'_, results::PostBsos, Self::Error> {
+    fn post_bsos(&mut self, param: params::PostBsos) -> DbFuture<'_, SyncTimestamp, Self::Error> {
         let db = self.clone();
         Box::pin(async move { db.post_bsos(param).map_err(Into::into).await })
     }
