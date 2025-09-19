@@ -1,6 +1,6 @@
 use futures::future::TryFutureExt;
 
-use std::{self, cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::Arc, sync::RwLock};
+use std::{cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::{Arc, RwLock}};
 
 use diesel::{
     connection::TransactionManager,
@@ -680,15 +680,12 @@ impl MysqlDb {
 
     fn post_bsos_sync(&mut self, input: params::PostBsos) -> DbResult<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
-        let mut result = results::PostBsos {
-            modified: self.timestamp(),
-            success: Default::default(),
-            failed: input.failed,
-        };
+        let modified = self.timestamp();
+        let success: Vec<String> = input.bsos.iter().map(|bso| bso.id.clone()).collect();
 
         for pbso in input.bsos {
             let id = pbso.id;
-            let put_result = self.put_bso_sync(params::PutBso {
+            let _ = self.put_bso_sync(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
@@ -696,19 +693,14 @@ impl MysqlDb {
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
             });
-            // XXX: python version doesn't report failures from db
-            // layer.. (wouldn't db failures abort the entire transaction
-            // anyway?)
-            // XXX: sanitize to.to_string()?
-            match put_result {
-                Ok(_) => result.success.push(id),
-                Err(e) => {
-                    result.failed.insert(id, e.to_string());
-                }
-            }
         }
         self.update_collection(input.user_id.legacy_id as u32, collection_id)?;
-        Ok(result)
+
+        Ok(results::PostBsos {
+            modified,
+            success,
+            failed: input.failed,
+        })
     }
 
     fn get_storage_timestamp_sync(&mut self, user_id: UserIdentifier) -> DbResult<SyncTimestamp> {
