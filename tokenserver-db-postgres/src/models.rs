@@ -2,15 +2,24 @@ use std::time::Duration;
 
 use super::pool::Conn;
 use async_trait::async_trait;
+use diesel::prelude::*;
+use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
 use syncserver_common::Metrics;
 use tokenserver_db_common::{params, results, Db, DbError};
 
+/// Struct containing connection and related metadata to a Tokenserver
+/// Postgres Database.
 #[allow(dead_code)]
 pub struct TokenserverPgDb {
+    /// Async PgConnection handle.
     conn: Conn,
+    /// Syncserver_common Metrics object.
     metrics: Metrics,
+    /// Optional Service Identifier.
     service_id: Option<i32>,
+    /// Optional Spanner Node ID.
     spanner_node_id: Option<i32>,
+    /// Settings specified timeout for Db Connection.
     pub timeout: Option<Duration>,
 }
 
@@ -28,6 +37,26 @@ impl TokenserverPgDb {
             service_id,
             spanner_node_id,
             timeout,
+        }
+    }
+
+    // Services Table Methods
+
+    /**
+    Acquire service_id through passed in service string.
+
+        SELECT id
+        FROM services
+        WHERE service = ?
+     */
+    pub async fn get_service_id(
+        &mut self,
+        params: params::GetServiceId,
+    ) -> DbResult<results::GetServiceId> {
+        if let Some(id) = self.service_id {
+            Ok(results::GetServiceId { id })
+        } else {
+            diesel_async
         }
     }
 }
