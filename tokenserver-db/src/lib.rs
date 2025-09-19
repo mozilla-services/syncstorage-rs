@@ -26,6 +26,7 @@ pub fn pool_from_settings(
             metrics,
             use_test_transactions,
         )?),
+        #[cfg(feature = "postgres")]
         "postgres" => Box::new(tokenserver_db_postgres::TokenserverPgPool::new(
             settings,
             metrics,
@@ -33,7 +34,7 @@ pub fn pool_from_settings(
         )?),
         invalid_scheme => {
             return Err(DbError::internal(format!(
-                "Invalid SYNC_TOKENSERVER__DATABASE_URL scheme: {invalid_scheme}"
+                "Invalid SYNC_TOKENSERVER__DATABASE_URL scheme: {invalid_scheme}://"
             )))
         }
     })
