@@ -18,10 +18,7 @@ use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
-use tokenserver_db_common::{
-    error::{DbError, DbResult},
-    params, Db, DbPool,
-};
+use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
 use super::models::TokenserverPgDb;
 use tokenserver_settings::Settings;

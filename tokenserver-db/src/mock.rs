@@ -1,8 +1,11 @@
 #![allow(clippy::new_without_default)]
 
+use std::sync::LazyLock;
+
 use async_trait::async_trait;
+use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
-use tokenserver_db_common::{error::DbError, params, results, Db, DbPool};
+use tokenserver_db_common::{params, results, Db, DbError, DbPool};
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -110,6 +113,11 @@ impl Db for MockDb {
         Ok(results::GetServiceId::default())
     }
 
+    fn metrics(&self) -> &Metrics {
+        static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::noop);
+        &METRICS
+    }
+
     #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
@@ -164,4 +172,7 @@ impl Db for MockDb {
     ) -> Result<results::PostService, DbError> {
         Ok(results::PostService::default())
     }
+
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, _params: params::SpannerNodeId) {}
 }

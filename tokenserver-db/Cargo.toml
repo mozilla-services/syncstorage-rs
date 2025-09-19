@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 async-trait.workspace = true
 http.workspace = true
-slog-scope.workspace = true
 
 deadpool = { workspace = true }
 diesel = { workspace = true }
@@ -19,10 +18,15 @@ syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
+tokenserver-db-postgres = { path = "../tokenserver-db-postgres", optional = true }
 tokenserver-settings = { path = "../tokenserver-settings" }
 tokio = { workspace = true, features = ["macros", "sync"] }
+url = "2.1"
 
 [dev-dependencies]
 env_logger.workspace = true
 
 syncserver-settings = { path = "../syncserver-settings" }
+
+[features]
+postgres = ['tokenserver-db-postgres']

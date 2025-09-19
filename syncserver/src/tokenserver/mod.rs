@@ -15,7 +15,7 @@ use syncserver_common::{BlockingThreadpool, Metrics};
 use tokenserver_auth::JWTVerifierImpl;
 use tokenserver_auth::{oauth, VerifyToken};
 use tokenserver_common::NodeType;
-use tokenserver_db::{DbPool, TokenserverPool};
+use tokenserver_db::{pool_from_settings, DbPool};
 use tokenserver_settings::Settings;
 
 use crate::{error::ApiError, server::user_agent};
@@ -72,14 +72,13 @@ impl ServerState {
         );
         let use_test_transactions = false;
 
-        let db_pool =
-            TokenserverPool::new(settings, &Metrics::from(&metrics), use_test_transactions)
-                .expect("Failed to create Tokenserver pool");
+        let db_pool = pool_from_settings(settings, &Metrics::from(&metrics), use_test_transactions)
+            .expect("Failed to create Tokenserver pool");
         Ok(ServerState {
             fxa_email_domain: settings.fxa_email_domain.clone(),
             fxa_metrics_hash_secret: settings.fxa_metrics_hash_secret.clone(),
             oauth_verifier,
-            db_pool: Box::new(db_pool),
+            db_pool,
             node_capacity_release_rate: settings.node_capacity_release_rate,
             node_type: settings.node_type,
             metrics,

@@ -7,8 +7,6 @@ use syncserver_db_common::error::SqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;
 
-pub type DbResult<T> = Result<T, DbError>;
-
 /// An error type that represents any database-related errors that may occur while processing a
 /// tokenserver request.
 #[derive(Debug)]

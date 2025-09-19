@@ -3,7 +3,7 @@ use std::time::Duration;
 use super::pool::Conn;
 use async_trait::async_trait;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{error::DbError, params, results, Db};
+use tokenserver_db_common::{params, results, Db, DbError};
 
 #[allow(dead_code)]
 pub struct TokenserverPgDb {
@@ -38,6 +38,10 @@ impl Db for TokenserverPgDb {
         self.timeout
     }
 
+    fn metrics(&self) -> &Metrics {
+        &self.metrics
+    }
+
     async fn check(&mut self) -> Result<results::Check, DbError> {
         TokenserverPgDb::check(self).await
     }
@@ -50,6 +54,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_service_id(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         params: params::PostService,
@@ -58,6 +63,7 @@ impl Db for TokenserverPgDb {
     }
 
     // Nodes Methods
+    #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> Result<results::GetNode, DbError> {
         TokenserverPgDb::get_node(self, params).await
     }
@@ -76,6 +82,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_best_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> Result<results::PostNode, DbError> {
         TokenserverPgDb::post_node(self, params).await
     }
@@ -87,6 +94,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::add_user_to_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn remove_node(
         &mut self,
         params: params::RemoveNode,
@@ -95,6 +103,7 @@ impl Db for TokenserverPgDb {
     }
 
     // Users Methods
+    #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
         TokenserverPgDb::get_user(self, params).await
     }
@@ -132,6 +141,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::replace_users(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         params: params::UnassignNode,
@@ -139,6 +149,7 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::unassign_node(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         params: params::SetUserCreatedAt,
@@ -146,10 +157,16 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::set_user_created_at(self, params).await
     }
 
+    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         params: params::SetUserReplacedAt,
     ) -> Result<results::SetUserReplacedAt, DbError> {
         TokenserverPgDb::set_user_replaced_at(self, params).await
+    }
+
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
+        self.spanner_node_id = params;
     }
 }
