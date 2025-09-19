@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate slog_scope;
 
-pub mod error;
+mod error;
 pub mod params;
 pub mod results;
 
@@ -11,7 +11,9 @@ use async_trait::async_trait;
 use syncserver_common::Metrics;
 use syncserver_db_common::{GetPoolState, PoolState};
 
-pub use crate::error::{DbError, DbResult};
+pub use crate::error::DbError;
+
+pub type DbResult<T> = Result<T, DbError>;
 
 /// The maximum possible generation number. Used as a tombstone to mark users that have been
 /// "retired" from the db.

@@ -10,10 +10,7 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{
-    error::{DbError, DbResult},
-    params, results, Db,
-};
+use tokenserver_db_common::{params, results, Db, DbError, DbResult};
 
 use super::pool::Conn;
 

@@ -2,7 +2,7 @@
 CREATE TABLE services (
     id SERIAL PRIMARY KEY,
     service VARCHAR(30) UNIQUE,
-    pattern VARCHAR(128),
+    pattern VARCHAR(128)
 );
 
 CREATE TABLE nodes (
