@@ -1,6 +1,12 @@
 use futures::future::TryFutureExt;
 
-use std::{cell::RefCell, collections::HashMap, fmt, ops::Deref, sync::{Arc, RwLock}};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt,
+    ops::Deref,
+    sync::{Arc, RwLock},
+};
 
 use diesel::{
     connection::TransactionManager,
