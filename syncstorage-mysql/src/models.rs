@@ -691,14 +691,14 @@ impl MysqlDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            let _ = self.put_bso_sync(params::PutBso {
+            self.put_bso_sync(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
                 payload: pbso.payload,
                 sortindex: pbso.sortindex,
                 ttl: pbso.ttl,
-            });
+            })?;
         }
         self.update_collection(input.user_id.legacy_id as u32, collection_id)?;
 
