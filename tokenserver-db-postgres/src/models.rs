@@ -3,7 +3,7 @@ use std::time::Duration;
 use super::pool::Conn;
 use async_trait::async_trait;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{error::DbError, params, results, Db};
+use tokenserver_db_common::{params, results, Db, DbError};
 
 #[allow(dead_code)]
 pub struct TokenserverPgDb {
