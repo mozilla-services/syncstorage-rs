@@ -152,8 +152,7 @@ impl DbPool for TokenserverPgPool {
     async fn get(&self) -> Result<Box<dyn Db>, DbError> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_pool", None);
-        todo!("implement get once Db trait implemented for TokenserverDb")
-        // Ok(Box::new(self.get_tokenserver_db().await?) as Box<dyn Db>)
+        Ok(Box::new(self.get_tokenserver_db().await?) as Box<dyn Db>)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool> {
