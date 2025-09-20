@@ -576,6 +576,10 @@ impl Db for TokenserverDb {
         self.timeout
     }
 
+    fn timeout(&self) -> Option<Duration> {
+        self.timeout
+    }
+
     #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> Result<results::GetUser, DbError> {
         TokenserverDb::get_user(self, params).await
