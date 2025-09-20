@@ -11,7 +11,7 @@ deadpool.workspace = true
 diesel = { workspace = true, features = ["postgres", "r2d2"] }
 diesel-async = { workspace = true, features = ["postgres"] }
 diesel_logger.workspace = true 
-diesel_migrations = { workspace = true, features = ["postgres"] }
+diesel_migrations.workspace = true
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 syncserver-common = { path = "../syncserver-common" }

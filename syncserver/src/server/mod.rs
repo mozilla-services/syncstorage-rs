@@ -268,11 +268,12 @@ impl Server {
         let blocking_threadpool = Arc::new(BlockingThreadpool::new(
             settings.worker_max_blocking_threads,
         ));
-        let db_pool = DbPoolImpl::new(
+        let mut db_pool = DbPoolImpl::new(
             &settings.syncstorage,
             &Metrics::from(&metrics),
             blocking_threadpool.clone(),
         )?;
+        db_pool.init().await?;
         // Spawns sweeper that calls Deadpool `retain` method, clearing unused connections.
         db_pool.spawn_sweeper(Duration::from_secs(
             settings

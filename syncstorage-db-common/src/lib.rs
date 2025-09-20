@@ -51,6 +51,10 @@ pub const FIRST_CUSTOM_COLLECTION_ID: i32 = 101;
 pub trait DbPool: Sync + Send + Debug + GetPoolState {
     type Error;
 
+    async fn init(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
     async fn get(&self) -> Result<Box<dyn Db<Error = Self::Error>>, Self::Error>;
 
     fn validate_batch_id(&self, params: params::ValidateBatchId) -> Result<(), Self::Error>;
