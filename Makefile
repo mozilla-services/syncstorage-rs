@@ -21,6 +21,7 @@ INTEGRATION_TEST_DIR_TOKENSERVER := $(TOOLS_DIR)/integration_tests/tokenserver
 SPANNER_DIR := $(TOOLS_DIR)/spanner
 TOKENSERVER_UTIL_DIR := $(TOOLS_DIR)/tokenserver
 LOAD_TEST_DIR := $(TOOLS_DIR)/tokenserver/loadtests
+RUST_LOG ?= debug
 
 # In order to be consumed by the ETE Test Metric Pipeline, files need to follow a strict naming
 # convention: {job_number}__{utc_epoch_datetime}__{workflow}__{test_suite}__results{-index}.xml
@@ -44,7 +45,7 @@ SYNC_SYNCSTORAGE__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/
 SYNC_TOKENSERVER__DATABASE_URL ?= mysql://sample_user:sample_password@localhost/tokenserver_rs
 
 SRC_ROOT = $(shell pwd)
-PYTHON_SITE_PACKGES = $(shell poetry run python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+PYTHON_SITE_PACKAGES = $(shell poetry run python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 
 clippy_mysql:
 	# Matches what's run in circleci
@@ -104,8 +105,8 @@ docker_run_spanner_e2e_tests:
 run_mysql: $(INSTALL_STAMP)
 	# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 	# below env var
-	PYTHONPATH=$(PYTHON_SITE_PACKGES) \
-	        RUST_LOG=debug \
+	PYTHONPATH=$(PYTHON_SITE_PACKAGES) \
+	        RUST_LOG=$(RUST_LOG) \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- --config config/local.toml
 
@@ -114,8 +115,8 @@ run_spanner: $(INSTALL_STAMP)
 		GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=$(PATH_TO_GRPC_CERT) \
 		# See https://github.com/PyO3/pyo3/issues/1741 for discussion re: why we need to set the
 		# below env var
-		PYTHONPATH=$(PYTHON_SITE_PACKGES) \
-		RUST_LOG=debug \
+		PYTHONPATH=$(PYTHON_SITE_PACKAGES) \
+		RUST_LOG=$(RUST_LOG) \
 		RUST_BACKTRACE=full \
 		cargo run --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- --config config/local.toml
 
