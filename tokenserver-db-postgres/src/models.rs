@@ -24,6 +24,9 @@ pub struct TokenserverPgDb {
 }
 
 impl TokenserverPgDb {
+    /// Utility constant to get the most recent id value after an insert.
+    const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+
     pub fn new(
         conn: Conn,
         metrics: &Metrics,
@@ -87,7 +90,19 @@ impl TokenserverPgDb {
             INSERT INTO services (service, pattern)
             VALUES (?, ?)
         "#;
-        todo!()
+        diesel::sql_query(INSERT_SERVICE_QUERY)
+            .bind::<Text, _>(&params.service)
+            .bind::<Text, _>(&params.pattern)
+            .execute(&mut self.conn)
+            .await?;
+
+        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+            .get_result::<results::LastInsertId>(&mut self.conn)
+            .await
+            .map(|result| results::PostService {
+                id: result.id as i32,
+            })
+            .map_err(Into::into)
     }
 }
 
