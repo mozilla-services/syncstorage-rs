@@ -10,7 +10,7 @@ import logging
 DEBUG_BUILD = "target/debug/syncserver"
 RELEASE_BUILD = "/app/bin/syncserver"
 # max number of attempts to check server heartbeat
-SYNC_SERVER_STARTUP_MAX_ATTEMPTS = 30
+SYNC_SERVER_STARTUP_MAX_ATTEMPTS = 35
 JWK_CACHE_DISABLED = os.environ.get("JWK_CACHE_DISABLED")
 
 logger = logging.getLogger("tokenserver.scripts.conftest")
