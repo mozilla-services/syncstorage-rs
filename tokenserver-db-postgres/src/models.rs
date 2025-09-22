@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use super::pool::Conn;
 use async_trait::async_trait;
-use diesel::prelude::*;
-use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
+use diesel::sql_types::Text;
+use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{params, results, Db, DbError};
+use tokenserver_db_common::{params, results, Db, DbError, DbResult};
 
 /// Struct containing connection and related metadata to a Tokenserver
 /// Postgres Database.
@@ -53,10 +53,20 @@ impl TokenserverPgDb {
         &mut self,
         params: params::GetServiceId,
     ) -> DbResult<results::GetServiceId> {
+        const QUERY: &str = r#"
+            SELECT id
+              FROM services
+             WHERE service = ?
+        "#;
+
         if let Some(id) = self.service_id {
             Ok(results::GetServiceId { id })
         } else {
-            diesel_async
+            diesel::sql_query(QUERY)
+                .bind::<Text, _>(params.service)
+                .get_result::<results::GetServiceId>(&mut self.conn)
+                .await
+                .map_err(Into::into)
         }
     }
 }
