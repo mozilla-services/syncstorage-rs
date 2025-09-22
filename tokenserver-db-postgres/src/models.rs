@@ -47,7 +47,7 @@ impl TokenserverPgDb {
 
         SELECT id
         FROM services
-        WHERE service = ?
+        WHERE service = <String service>
      */
     pub async fn get_service_id(
         &mut self,
@@ -68,6 +68,26 @@ impl TokenserverPgDb {
                 .await
                 .map_err(Into::into)
         }
+    }
+
+    /**
+    Create a new service, given a provided service string and pattern.
+    Returns a service_id.
+
+        INSERT INTO services (service, pattern)
+        VALUES (<String service>, <String pattern>)
+
+     */
+    #[cfg(debug_assertions)]
+    pub async fn post_service(
+        &mut self,
+        params: params::PostService,
+    ) -> DbResult<results::PostService> {
+        const INSERT_SERVICE_QUERY: &str = r#"
+            INSERT INTO services (service, pattern)
+            VALUES (?, ?)
+        "#;
+        todo!()
     }
 }
 
