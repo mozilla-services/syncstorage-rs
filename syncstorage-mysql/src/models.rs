@@ -788,9 +788,8 @@ impl MysqlDb {
     }
 
     fn check_sync(&mut self) -> DbResult<results::Check> {
-        // has the database been up for more than 0 seconds?
-        let result = sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&mut *self.conn.write()?)?;
-        Ok(result as u64 > 0)
+        diesel::sql_query("SELECT 1").execute(&mut *self.conn.write()?)?;
+        Ok(true)
     }
 
     fn map_collection_names<T>(&mut self, by_id: HashMap<i32, T>) -> DbResult<HashMap<String, T>> {
