@@ -72,7 +72,7 @@ impl SpannerDbPool {
         })
     }
 
-    pub async fn get_async(&self) -> DbResult<SpannerDb> {
+    pub async fn get_spanner_db(&self) -> DbResult<SpannerDb> {
         let conn = self.pool.get().await.map_err(|e| match e {
             deadpool::managed::PoolError::Backend(dbe) => dbe,
             deadpool::managed::PoolError::Timeout(timeout_type) => {
@@ -121,7 +121,7 @@ impl DbPool for SpannerDbPool {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.spanner.get_pool", None);
 
-        self.get_async()
+        self.get_spanner_db()
             .await
             .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
     }

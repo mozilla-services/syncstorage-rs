@@ -19,17 +19,14 @@ use super::models::{SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
 use super::DbResult;
 
-pub async fn create_async(
-    db: &SpannerDb,
-    params: params::CreateBatch,
-) -> DbResult<results::CreateBatch> {
+pub async fn create(db: &SpannerDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
     let batch_id = Uuid::new_v4().simple().to_string();
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     let timestamp = db.checked_timestamp()?.as_i64();
 
     // Ensure a parent record exists in user_collections before writing to batches
     // (INTERLEAVE IN PARENT user_collections)
-    pretouch_collection_async(db, &params.user_id, collection_id).await?;
+    pretouch_collection(db, &params.user_id, collection_id).await?;
     let new_batch = results::CreateBatch {
         size: db
             .check_quota(&params.user_id, &params.collection, collection_id)
@@ -51,10 +48,10 @@ pub async fn create_async(
     )?
     .params(sqlparams)
     .param_types(sqlparam_types)
-    .execute_dml_async(&db.conn)
+    .execute_dml(&db.conn)
     .await?;
 
-    do_append_async(
+    do_append(
         db,
         params.user_id,
         collection_id,
@@ -66,16 +63,16 @@ pub async fn create_async(
     Ok(new_batch)
 }
 
-pub async fn validate_async(db: &SpannerDb, params: params::ValidateBatch) -> DbResult<bool> {
-    let exists = get_async(db, params.into()).await?;
+pub async fn validate(db: &SpannerDb, params: params::ValidateBatch) -> DbResult<bool> {
+    let exists = get_query(db, params.into()).await?;
     Ok(exists.is_some())
 }
 
 // Append a collection to a pending batch (`create_batch` creates a new batch)
-pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbResult<()> {
+pub async fn append(db: &SpannerDb, params: params::AppendToBatch) -> DbResult<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
 
     let current_size = db
         .check_quota(&params.user_id, &params.collection, collection_id)
@@ -86,7 +83,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbRe
     }
 
     // confirm that this batch exists or has not yet been committed.
-    let exists = validate_async(
+    let exists = validate(
         db,
         params::ValidateBatch {
             user_id: params.user_id.clone(),
@@ -101,7 +98,7 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbRe
         return Err(DbError::batch_not_found());
     }
 
-    do_append_async(
+    do_append(
         db,
         params.user_id,
         collection_id,
@@ -113,11 +110,11 @@ pub async fn append_async(db: &SpannerDb, params: params::AppendToBatch) -> DbRe
     Ok(())
 }
 
-pub async fn get_async(
+pub async fn get_query(
     db: &SpannerDb,
     params: params::GetBatch,
 ) -> DbResult<Option<results::GetBatch>> {
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
         "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -136,15 +133,15 @@ pub async fn get_async(
         )?
         .params(sqlparams)
         .param_types(sqlparam_types)
-        .execute_async(&db.conn)?
+        .execute(&db.conn)?
         .one_or_none()
         .await?
         .map(move |_| params::Batch { id: params.id });
     Ok(batch)
 }
 
-pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> DbResult<()> {
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+pub async fn delete_query(db: &SpannerDb, params: params::DeleteBatch) -> DbResult<()> {
+    let collection_id = db.get_collection_id(&params.collection).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
         "fxa_kid" => params.user_id.fxa_kid.clone(),
@@ -162,23 +159,23 @@ pub async fn delete_async(db: &SpannerDb, params: params::DeleteBatch) -> DbResu
     )?
     .params(sqlparams)
     .param_types(sqlparam_types)
-    .execute_dml_async(&db.conn)
+    .execute_dml(&db.conn)
     .await?;
     Ok(())
 }
 
-pub async fn commit_async(
+pub async fn commit_query(
     db: &SpannerDb,
     params: params::CommitBatch,
 ) -> DbResult<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.apply_batch", None);
-    let collection_id = db.get_collection_id_async(&params.collection).await?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
 
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .update_collection_async(&params.user_id, collection_id, &params.collection)
+        .update_collection(&params.user_id, collection_id, &params.collection)
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;
@@ -200,7 +197,7 @@ pub async fn commit_async(
         db.sql(include_str!("batch_commit_update.sql"))?
             .params(sqlparams)
             .param_types(sqlparam_types)
-            .execute_dml_async(&db.conn)
+            .execute_dml(&db.conn)
             .await?;
     }
 
@@ -223,11 +220,11 @@ pub async fn commit_async(
         db.sql(include_str!("batch_commit_insert.sql"))?
             .params(sqlparams)
             .param_types(sqlparam_types)
-            .execute_dml_async(&db.conn)
+            .execute_dml(&db.conn)
             .await?;
     }
 
-    delete_async(
+    delete_query(
         db,
         params::DeleteBatch {
             user_id: params.user_id.clone(),
@@ -246,7 +243,7 @@ pub async fn commit_async(
 }
 
 // Append a collection to an existing, pending batch.
-pub async fn do_append_async(
+pub async fn do_append(
     db: &SpannerDb,
     user_id: UserIdentifier,
     collection_id: i32,
@@ -318,7 +315,7 @@ pub async fn do_append_async(
         )?
         .params(sqlparams)
         .param_types(sqlparam_types)
-        .execute_async(&db.conn)?;
+        .execute(&db.conn)?;
     while let Some(row) = existing_stream.try_next().await? {
         existing.insert(exist_idx(
             &collection_id.to_string(),
@@ -442,7 +439,7 @@ pub async fn do_append_async(
         )?
         .params(sqlparams)
         .param_types(sqlparam_types)
-        .execute_dml_async(&db.conn)
+        .execute_dml(&db.conn)
         .await?;
         db.metrics.count_with_tags(
             "storage.spanner.batch.insert",
@@ -493,7 +490,7 @@ pub async fn do_append_async(
             ))?
             .params(params)
             .param_types(param_types.clone())
-            .execute_dml_async(&db.conn)
+            .execute_dml(&db.conn)
             .await?;
         }
     }
@@ -509,7 +506,7 @@ pub async fn do_append_async(
 ///
 /// For the special case of a user creating a batch for a collection with no
 /// prior data.
-async fn pretouch_collection_async(
+async fn pretouch_collection(
     db: &SpannerDb,
     user_id: &UserIdentifier,
     collection_id: i32,
@@ -529,7 +526,7 @@ async fn pretouch_collection_async(
         )?
         .params(sqlparams.clone())
         .param_types(sqlparam_types.clone())
-        .execute_async(&db.conn)?
+        .execute(&db.conn)?
         .one_or_none()
         .await?;
     if result.is_none() {
@@ -548,7 +545,7 @@ async fn pretouch_collection_async(
         db.sql(sql)?
             .params(sqlparams)
             .param_types(sqlparam_types)
-            .execute_dml_async(&db.conn)
+            .execute_dml(&db.conn)
             .await?;
     }
     Ok(())
