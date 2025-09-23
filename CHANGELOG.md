@@ -1,3 +1,13 @@
+<a name="0.21.1"></a>
+## 0.21.1 (2025-09-23)
+
+
+#### Bug Fixes
+
+*   switch check to SELECT 1 to fix it on diesel-async (#1818) ([f9d142fb](https://github.com/mozilla-services/syncstorage-rs/commit/f9d142fbee7b8998e58f1d783d800e03466ba728))
+
+
+
 <a name="0.21.0"></a>
 ## 0.21.0 (2025-09-11)
 
