@@ -442,34 +442,7 @@ impl SpannerDb {
         self.session.borrow().in_write_transaction
     }
 
-    pub fn commit(&self) -> DbResult<()> {
-        if !self.in_write_transaction() {
-            // read-only
-            return Ok(());
-        }
-
-        let spanner = &self.conn;
-
-        if cfg!(debug_assertions) && spanner.settings.use_test_transactions {
-            // don't commit test transactions
-            return Ok(());
-        }
-
-        if let Some(transaction) = self.get_transaction()? {
-            let mut req = CommitRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
-            if let Some(mutations) = self.session.borrow_mut().mutations.take() {
-                req.set_mutations(RepeatedField::from_vec(mutations));
-            }
-            spanner.client.commit_opt(&req, spanner.session_opt()?)?;
-            Ok(())
-        } else {
-            Err(DbError::internal("No transaction to commit".to_owned()))
-        }
-    }
-
-    async fn commit_async(&self) -> DbResult<()> {
+    async fn commit(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -499,25 +472,7 @@ impl SpannerDb {
         }
     }
 
-    pub fn rollback(&self) -> DbResult<()> {
-        if !self.in_write_transaction() {
-            // read-only
-            return Ok(());
-        }
-
-        if let Some(transaction) = self.get_transaction()? {
-            let spanner = &self.conn;
-            let mut req = RollbackRequest::new();
-            req.set_session(spanner.session.get_name().to_owned());
-            req.set_transaction_id(transaction.get_id().to_vec());
-            spanner.client.rollback_opt(&req, spanner.session_opt()?)?;
-            Ok(())
-        } else {
-            Err(DbError::internal("No transaction to rollback".to_owned()))
-        }
-    }
-
-    async fn rollback_async(&self) -> DbResult<()> {
+    async fn rollback(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -1895,12 +1850,12 @@ impl Db for SpannerDb {
 
     fn commit(&mut self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(async move { db.commit_async().map_err(Into::into).await })
+        Box::pin(async move { db.commit().map_err(Into::into).await })
     }
 
     fn rollback(&mut self) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(async move { db.rollback_async().map_err(Into::into).await })
+        Box::pin(async move { db.rollback().map_err(Into::into).await })
     }
 
     fn lock_for_read(&mut self, param: params::LockCollection) -> DbFuture<'_, (), Self::Error> {
