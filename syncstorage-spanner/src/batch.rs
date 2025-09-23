@@ -45,7 +45,8 @@ pub async fn create(db: &SpannerDb, params: params::CreateBatch) -> DbResult<res
     db.sql(
         "INSERT INTO batches (fxa_uid, fxa_kid, collection_id, batch_id, expiry)
          VALUES (@fxa_uid, @fxa_kid, @collection_id, @batch_id, @expiry)",
-    )?
+    )
+    .await?
     .params(sqlparams)
     .param_types(sqlparam_types)
     .execute_dml(&db.conn)
@@ -130,7 +131,8 @@ pub async fn get_query(
                 AND collection_id = @collection_id
                 AND batch_id = @batch_id
                 AND expiry > CURRENT_TIMESTAMP()",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute(&db.conn)?
@@ -156,7 +158,8 @@ pub async fn delete_query(db: &SpannerDb, params: params::DeleteBatch) -> DbResu
             AND fxa_kid = @fxa_kid
             AND collection_id = @collection_id
             AND batch_id = @batch_id",
-    )?
+    )
+    .await?
     .params(sqlparams)
     .param_types(sqlparam_types)
     .execute_dml(&db.conn)
@@ -194,7 +197,8 @@ pub async fn commit_query(
         sqlparam_types.insert("timestamp".to_owned(), as_type(TypeCode::TIMESTAMP));
         // NOTE: This write treats both expired and non-expired as existing
         // bsos. See the note in [SpannerDb::post_bsos_with_mutations]
-        db.sql(include_str!("batch_commit_update.sql"))?
+        db.sql(include_str!("batch_commit_update.sql"))
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&db.conn)
@@ -217,7 +221,8 @@ pub async fn commit_query(
         timer3.start_timer("storage.spanner.apply_batch_insert", None);
         // NOTE: This write treats both expired and non-expired as existing
         // bsos. See the note in [SpannerDb::post_bsos_with_mutations]
-        db.sql(include_str!("batch_commit_insert.sql"))?
+        db.sql(include_str!("batch_commit_insert.sql"))
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&db.conn)
@@ -312,7 +317,8 @@ pub async fn do_append(
                 AND collection_id=@collection_id
                 AND batch_id=@batch_id
                 AND batch_bso_id in UNNEST(@ids);",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute(&db.conn)?;
@@ -436,7 +442,8 @@ pub async fn do_append(
             "INSERT INTO batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id,
                                     sortindex, payload, ttl)
             SELECT * FROM UNNEST(@values)",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute_dml(&db.conn)
@@ -487,7 +494,8 @@ pub async fn do_append(
                 WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id
                 AND batch_id=@batch_id AND batch_bso_id=@batch_bso_id",
                 updatable = updatable
-            ))?
+            ))
+            .await?
             .params(params)
             .param_types(param_types.clone())
             .execute_dml(&db.conn)
@@ -523,7 +531,8 @@ async fn pretouch_collection(
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
                 AND collection_id = @collection_id",
-        )?
+        )
+        .await?
         .params(sqlparams.clone())
         .param_types(sqlparam_types.clone())
         .execute(&db.conn)?
@@ -542,7 +551,8 @@ async fn pretouch_collection(
             "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
             VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
         };
-        db.sql(sql)?
+        db.sql(sql)
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&db.conn)

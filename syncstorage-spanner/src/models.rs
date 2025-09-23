@@ -137,7 +137,8 @@ impl SpannerDb {
                 "SELECT collection_id
                    FROM collections
                   WHERE name = @name",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -167,7 +168,8 @@ impl SpannerDb {
             .sql(
                 "SELECT COALESCE(MAX(collection_id), 1)
                    FROM collections",
-            )?
+            )
+            .await?
             .execute(&self.conn)?
             .one()
             .await?;
@@ -184,7 +186,8 @@ impl SpannerDb {
         self.sql(
             "INSERT INTO collections (collection_id, name)
              VALUES (@collection_id, @name)",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute_dml(&self.conn)
@@ -201,7 +204,7 @@ impl SpannerDb {
 
     async fn lock_for_read(&self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
-        self.begin_async(false).await?;
+        self.begin(false).await?;
 
         let collection_id = self
             .get_collection_id(&params.collection)
@@ -237,7 +240,7 @@ impl SpannerDb {
 
     async fn lock_for_write(&self, params: params::LockCollection) -> DbResult<()> {
         // Begin a transaction
-        self.begin_async(true).await?;
+        self.begin(true).await?;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         if let Some(CollectionLock::Read) = self
             .inner
@@ -266,7 +269,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -288,7 +292,8 @@ impl SpannerDb {
             now
         } else {
             let result = self
-                .sql("SELECT CURRENT_TIMESTAMP()")?
+                .sql("SELECT CURRENT_TIMESTAMP()")
+                .await?
                 .execute(&self.conn)?
                 .one()
                 .await?;
@@ -308,29 +313,7 @@ impl SpannerDb {
         self.session.borrow_mut().timestamp = Some(timestamp);
     }
 
-    pub(super) fn begin(&self, for_write: bool) -> DbResult<()> {
-        let spanner = &self.conn;
-        let mut options = TransactionOptions::new();
-        if for_write {
-            options.set_read_write(TransactionOptions_ReadWrite::new());
-            self.session.borrow_mut().in_write_transaction = true;
-        } else {
-            options.set_read_only(TransactionOptions_ReadOnly::new());
-        }
-        let mut req = BeginTransactionRequest::new();
-        req.set_session(spanner.session.get_name().to_owned());
-        req.set_options(options);
-        let mut transaction = spanner
-            .client
-            .begin_transaction_opt(&req, spanner.session_opt()?)?;
-
-        let mut ts = TransactionSelector::new();
-        ts.set_id(transaction.take_id());
-        self.session.borrow_mut().transaction = Some(ts);
-        Ok(())
-    }
-
-    pub(super) async fn begin_async(&self, for_write: bool) -> DbResult<()> {
+    pub(super) async fn begin(&self, for_write: bool) -> DbResult<()> {
         let spanner = &self.conn;
         let mut options = TransactionOptions::new();
         if for_write {
@@ -354,27 +337,18 @@ impl SpannerDb {
     }
 
     /// Return the current transaction metadata (TransactionSelector) if one is active.
-    fn get_transaction(&self) -> DbResult<Option<TransactionSelector>> {
+    async fn get_transaction(&self) -> DbResult<Option<TransactionSelector>> {
         if self.session.borrow().transaction.is_none() {
-            self.begin(true)?;
+            self.begin(true).await?;
         }
 
         Ok(self.session.borrow().transaction.clone())
     }
 
-    /// Return the current transaction metadata (TransactionSelector) if one is active.
-    async fn get_transaction_async(&self) -> DbResult<Option<TransactionSelector>> {
-        if self.session.borrow().transaction.is_none() {
-            self.begin_async(true).await?;
-        }
-
-        Ok(self.session.borrow().transaction.clone())
-    }
-
-    fn sql_request(&self, sql: &str) -> DbResult<ExecuteSqlRequest> {
+    async fn sql_request(&self, sql: &str) -> DbResult<ExecuteSqlRequest> {
         let mut sqlr = ExecuteSqlRequest::new();
         sqlr.set_sql(sql.to_owned());
-        if let Some(transaction) = self.get_transaction()? {
+        if let Some(transaction) = self.get_transaction().await? {
             sqlr.set_transaction(transaction);
             let mut session = self.session.borrow_mut();
             sqlr.seqno = session
@@ -386,8 +360,8 @@ impl SpannerDb {
         Ok(sqlr)
     }
 
-    pub(super) fn sql(&self, sql: &str) -> DbResult<ExecuteSqlRequestBuilder> {
-        Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql)?))
+    pub(super) async fn sql(&self, sql: &str) -> DbResult<ExecuteSqlRequestBuilder> {
+        Ok(ExecuteSqlRequestBuilder::new(self.sql_request(sql).await?))
     }
 
     #[allow(unused)]
@@ -455,7 +429,7 @@ impl SpannerDb {
             return Ok(());
         }
 
-        if let Some(transaction) = self.get_transaction_async().await? {
+        if let Some(transaction) = self.get_transaction().await? {
             let mut req = CommitRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
             req.set_transaction_id(transaction.get_id().to_vec());
@@ -478,7 +452,7 @@ impl SpannerDb {
             return Ok(());
         }
 
-        if let Some(transaction) = self.get_transaction_async().await? {
+        if let Some(transaction) = self.get_transaction().await? {
             let spanner = &self.conn;
             let mut req = RollbackRequest::new();
             req.set_session(spanner.session.get_name().to_owned());
@@ -522,7 +496,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -552,7 +527,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id != @collection_id
                     AND modified > @pretouch_ts",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?;
@@ -608,7 +584,8 @@ impl SpannerDb {
                     "SELECT collection_id, name
                        FROM collections
                       WHERE collection_id IN UNNEST(@ids)",
-                )?
+                )
+                .await?
                 .params(params)
                 .execute(&self.conn)?;
             while let Some(mut row) = rs.try_next().await? {
@@ -643,7 +620,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY collection_id",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?;
@@ -678,7 +656,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY collection_id",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?;
@@ -714,7 +693,8 @@ impl SpannerDb {
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND modified > @pretouch_ts",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -743,7 +723,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND expiry > CURRENT_TIMESTAMP()
                   GROUP BY fxa_uid",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -778,7 +759,8 @@ impl SpannerDb {
             "collection_id" => params.collection_id,
         };
         let result = self
-            .sql(check_sql)?
+            .sql(check_sql)
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -848,7 +830,8 @@ impl SpannerDb {
                 "collection_id" => collection_id,
             };
 
-            self.sql(calc_sql)?
+            self.sql(calc_sql)
+                .await?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
                 .execute(&self.conn)?
@@ -894,7 +877,8 @@ impl SpannerDb {
                 .sql(
                     "SELECT 1 FROM user_collections
                 WHERE fxa_uid=@fxa_uid AND fxa_kid=@fxa_kid AND collection_id=@collection_id",
-                )?
+                )
+                .await?
                 .params(sqlparams.clone())
                 .param_types(sqltypes.clone())
                 .execute(&self.conn)?
@@ -921,7 +905,8 @@ impl SpannerDb {
                 }
             }
         };
-        self.sql(set_sql)?
+        self.sql(set_sql)
+            .await?
             .params(sqlparams)
             .param_types(sqltypes)
             .execute_dml(&self.conn)
@@ -943,7 +928,8 @@ impl SpannerDb {
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid
                 AND collection_id = @collection_id",
-        )?
+        )
+        .await?
         .params(params.clone())
         .param_types(param_types.clone())
         .execute_dml(&self.conn)
@@ -966,7 +952,8 @@ impl SpannerDb {
             "DELETE FROM user_collections
               WHERE fxa_uid = @fxa_uid
                 AND fxa_kid = @fxa_kid",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute_dml(&self.conn)
@@ -1002,7 +989,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND modified > @pretouch_ts",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&self.conn)
@@ -1054,7 +1042,8 @@ impl SpannerDb {
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id",
-            )?
+            )
+            .await?
             .params(sqlparams.clone())
             .param_types(sqlparam_types.clone())
             .execute(&self.conn)?
@@ -1066,7 +1055,8 @@ impl SpannerDb {
                   WHERE fxa_uid = @fxa_uid
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id";
-            self.sql(sql)?
+            self.sql(sql)
+                .await?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
                 .execute_dml(&self.conn)
@@ -1084,7 +1074,8 @@ impl SpannerDb {
                 "INSERT INTO user_collections (fxa_uid, fxa_kid, collection_id, modified)
                 VALUES (@fxa_uid, @fxa_kid, @collection_id, @modified)"
             };
-            self.sql(update_sql)?
+            self.sql(update_sql)
+                .await?
                 .params(sqlparams)
                 .param_types(sqlparam_types)
                 .execute_dml(&self.conn)
@@ -1110,7 +1101,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&self.conn)
@@ -1141,7 +1133,8 @@ impl SpannerDb {
                 AND fxa_kid = @fxa_kid
                 AND collection_id = @collection_id
                 AND bso_id IN UNNEST(@ids)",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute_dml(&self.conn)
@@ -1246,7 +1239,8 @@ impl SpannerDb {
         if let Some(offset) = params.offset {
             query = format!("{} OFFSET {}", query, offset.offset);
         }
-        self.sql(&query)?
+        self.sql(&query)
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)
@@ -1406,7 +1400,8 @@ impl SpannerDb {
                 AND collection_id = @collection_id
                 AND bso_id = @bso_id
                 AND expiry > CURRENT_TIMESTAMP()",
-        )?
+        )
+        .await?
         .params(sqlparams)
         .param_types(sqlparam_types)
         .execute(&self.conn)?
@@ -1434,7 +1429,8 @@ impl SpannerDb {
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id
                     AND expiry > CURRENT_TIMESTAMP()",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?
@@ -1531,7 +1527,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id IN UNNEST(@ids)",
-            )?
+            )
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute(&self.conn)?;
@@ -1602,7 +1599,8 @@ impl SpannerDb {
 
     async fn check(&self) -> DbResult<results::Check> {
         // TODO: is there a better check than just fetching UTC?
-        self.sql("SELECT CURRENT_TIMESTAMP()")?
+        self.sql("SELECT CURRENT_TIMESTAMP()")
+            .await?
             .execute(&self.conn)?
             .one()
             .await?;
@@ -1672,7 +1670,8 @@ impl SpannerDb {
                     AND fxa_kid = @fxa_kid
                     AND collection_id = @collection_id
                     AND bso_id = @bso_id",
-            )?
+            )
+            .await?
             .params(sqlparams.clone())
             .param_types(sqlparam_types.clone())
             .execute(&self.conn)?
@@ -1803,7 +1802,8 @@ impl SpannerDb {
             sql.to_owned()
         };
 
-        self.sql(&sql)?
+        self.sql(&sql)
+            .await?
             .params(sqlparams)
             .param_types(sqlparam_types)
             .execute_dml(&self.conn)
@@ -1870,7 +1870,7 @@ impl Db for SpannerDb {
 
     fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
         let db = self.clone();
-        Box::pin(async move { db.begin_async(for_write).map_err(Into::into).await })
+        Box::pin(async move { db.begin(for_write).map_err(Into::into).await })
     }
 
     fn get_collection_timestamp(
