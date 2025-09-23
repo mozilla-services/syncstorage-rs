@@ -109,7 +109,7 @@ impl MysqlDbPool {
         sweeper()
     }
 
-    pub fn get_db_conn(&self) -> DbResult<MysqlDb> {
+    pub fn get_sync(&self) -> DbResult<MysqlDb> {
         Ok(MysqlDb::new(
             self.pool.get()?,
             Arc::clone(&self.coll_cache),
@@ -134,7 +134,7 @@ impl DbPool for MysqlDbPool {
     async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
         let pool = self.clone();
         self.blocking_threadpool
-            .spawn(move || pool.get_db_conn())
+            .spawn(move || pool.get_sync())
             .await
             .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
     }
