@@ -22,7 +22,7 @@ pub fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
         &Metrics::noop(),
         Arc::new(BlockingThreadpool::new(512)),
     )?;
-    pool.get_sync()
+    pool.get_db_conn()
 }
 
 #[test]

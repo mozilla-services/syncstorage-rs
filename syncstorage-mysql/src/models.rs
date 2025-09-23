@@ -150,7 +150,7 @@ impl MysqlDb {
     /// In theory it would be possible to use serializable transactions rather
     /// than explicit locking, but our ops team have expressed concerns about
     /// the efficiency of that approach at scale.
-    fn lock_for_read_sync(&mut self, params: params::LockCollection) -> DbResult<()> {
+    fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).or_else(|e| {
             if e.is_collection_not_found() {
@@ -196,7 +196,7 @@ impl MysqlDb {
         Ok(())
     }
 
-    fn lock_for_write_sync(&mut self, params: params::LockCollection) -> DbResult<()> {
+    fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection)?;
         if let Some(CollectionLock::Read) = self
@@ -252,7 +252,7 @@ impl MysqlDb {
         self.begin(for_write)
     }
 
-    fn commit_sync(&mut self) -> DbResult<()> {
+    fn commit(&mut self) -> DbResult<()> {
         if self.session.borrow().in_transaction {
             <InternalConn as Connection>::TransactionManager::commit_transaction(
                 &mut *self.conn.write()?,
@@ -261,7 +261,7 @@ impl MysqlDb {
         Ok(())
     }
 
-    fn rollback_sync(&mut self) -> DbResult<()> {
+    fn rollback(&mut self) -> DbResult<()> {
         if self.session.borrow().in_transaction {
             <InternalConn as Connection>::TransactionManager::rollback_transaction(
                 &mut *self.conn.write()?,
@@ -287,7 +287,7 @@ impl MysqlDb {
         Ok(())
     }
 
-    fn delete_storage_sync(&mut self, user_id: UserIdentifier) -> DbResult<()> {
+    fn delete_storage(&mut self, user_id: UserIdentifier) -> DbResult<()> {
         let user_id = user_id.legacy_id as i64;
         // Delete user data.
         delete(bso::table)
@@ -303,10 +303,7 @@ impl MysqlDb {
     // Deleting the collection should result in:
     //  - collection does not appear in /info/collections
     //  - X-Last-Modified timestamp at the storage level changing
-    fn delete_collection_sync(
-        &mut self,
-        params: params::DeleteCollection,
-    ) -> DbResult<SyncTimestamp> {
+    fn delete_collection(&mut self, params: params::DeleteCollection) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let mut count = delete(bso::table)
@@ -322,7 +319,7 @@ impl MysqlDb {
         } else {
             self.erect_tombstone(user_id as i32)?;
         }
-        self.get_storage_timestamp_sync(params.user_id)
+        self.get_storage_timestamp(params.user_id)
     }
 
     pub(super) fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
@@ -385,7 +382,7 @@ impl MysqlDb {
         Ok(name)
     }
 
-    fn put_bso_sync(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
+    fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
         /*
         if bso.payload.is_none() && bso.sortindex.is_none() && bso.ttl.is_none() {
             // XXX: go returns an error here (ErrNothingToDo), and is treated
@@ -398,7 +395,7 @@ impl MysqlDb {
         let user_id: u64 = bso.user_id.legacy_id;
         let timestamp = self.timestamp().as_i64();
         if self.quota.enabled {
-            let usage = self.get_quota_usage_sync(params::GetQuotaUsage {
+            let usage = self.get_quota_usage(params::GetQuotaUsage {
                 user_id: bso.user_id.clone(),
                 collection: bso.collection.clone(),
                 collection_id,
@@ -480,7 +477,7 @@ impl MysqlDb {
         self.update_collection(user_id as u32, collection_id)
     }
 
-    fn get_bsos_sync(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
+    fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let now = self.timestamp().as_i64();
@@ -570,7 +567,7 @@ impl MysqlDb {
         })
     }
 
-    fn get_bso_ids_sync(&mut self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
+    fn get_bso_ids(&mut self, params: params::GetBsos) -> DbResult<results::GetBsoIds> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let mut query = bso::table
@@ -633,7 +630,7 @@ impl MysqlDb {
         })
     }
 
-    fn get_bso_sync(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
+    fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         Ok(bso::table
@@ -652,7 +649,7 @@ impl MysqlDb {
             .optional()?)
     }
 
-    fn delete_bso_sync(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
+    fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection)?;
         let affected_rows = delete(bso::table)
@@ -667,7 +664,7 @@ impl MysqlDb {
         self.update_collection(user_id as u32, collection_id)
     }
 
-    fn delete_bsos_sync(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
+    fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         delete(bso::table)
@@ -678,7 +675,7 @@ impl MysqlDb {
         self.update_collection(user_id as u32, collection_id)
     }
 
-    fn post_bsos_sync(&mut self, input: params::PostBsos) -> DbResult<results::PostBsos> {
+    fn post_bsos(&mut self, input: params::PostBsos) -> DbResult<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&input.collection)?;
         let mut result = results::PostBsos {
             modified: self.timestamp(),
@@ -688,7 +685,7 @@ impl MysqlDb {
 
         for pbso in input.bsos {
             let id = pbso.id;
-            let put_result = self.put_bso_sync(params::PutBso {
+            let put_result = self.put_bso(params::PutBso {
                 user_id: input.user_id.clone(),
                 collection: input.collection.clone(),
                 id: id.clone(),
@@ -711,7 +708,7 @@ impl MysqlDb {
         Ok(result)
     }
 
-    fn get_storage_timestamp_sync(&mut self, user_id: UserIdentifier) -> DbResult<SyncTimestamp> {
+    fn get_storage_timestamp(&mut self, user_id: UserIdentifier) -> DbResult<SyncTimestamp> {
         let user_id = user_id.legacy_id as i64;
         let modified = user_collections::table
             .select(max(user_collections::modified))
@@ -721,7 +718,7 @@ impl MysqlDb {
         SyncTimestamp::from_i64(modified).map_err(Into::into)
     }
 
-    fn get_collection_timestamp_sync(
+    fn get_collection_timestamp(
         &mut self,
         params: params::GetCollectionTimestamp,
     ) -> DbResult<SyncTimestamp> {
@@ -744,10 +741,7 @@ impl MysqlDb {
             .ok_or_else(DbError::collection_not_found)
     }
 
-    fn get_bso_timestamp_sync(
-        &mut self,
-        params: params::GetBsoTimestamp,
-    ) -> DbResult<SyncTimestamp> {
+    fn get_bso_timestamp(&mut self, params: params::GetBsoTimestamp) -> DbResult<SyncTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection)?;
         let modified = bso::table
@@ -761,7 +755,7 @@ impl MysqlDb {
         SyncTimestamp::from_i64(modified).map_err(Into::into)
     }
 
-    fn get_collection_timestamps_sync(
+    fn get_collection_timestamps(
         &mut self,
         user_id: UserIdentifier,
     ) -> DbResult<results::GetCollectionTimestamps> {
@@ -787,7 +781,7 @@ impl MysqlDb {
         self.map_collection_names(modifieds)
     }
 
-    fn check_sync(&mut self) -> DbResult<results::Check> {
+    fn check(&mut self) -> DbResult<results::Check> {
         // has the database been up for more than 0 seconds?
         let result = sql_query("SHOW STATUS LIKE \"Uptime\"").execute(&mut *self.conn.write()?)?;
         Ok(result as u64 > 0)
@@ -842,7 +836,7 @@ impl MysqlDb {
         collection_id: i32,
     ) -> DbResult<SyncTimestamp> {
         let quota = if self.quota.enabled {
-            self.calc_quota_usage_sync(user_id, collection_id)?
+            self.calc_quota_usage(user_id, collection_id)?
         } else {
             results::GetQuotaUsage {
                 count: 0,
@@ -880,10 +874,7 @@ impl MysqlDb {
     }
 
     // Perform a lighter weight "read only" storage size check
-    fn get_storage_usage_sync(
-        &mut self,
-        user_id: UserIdentifier,
-    ) -> DbResult<results::GetStorageUsage> {
+    fn get_storage_usage(&mut self, user_id: UserIdentifier) -> DbResult<results::GetStorageUsage> {
         let uid = user_id.legacy_id as i64;
         let total_bytes = bso::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
@@ -894,7 +885,7 @@ impl MysqlDb {
     }
 
     // Perform a lighter weight "read only" quota storage check
-    fn get_quota_usage_sync(
+    fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
@@ -916,7 +907,7 @@ impl MysqlDb {
     }
 
     // perform a heavier weight quota calculation
-    fn calc_quota_usage_sync(
+    fn calc_quota_usage(
         &mut self,
         user_id: u32,
         collection_id: i32,
@@ -938,7 +929,7 @@ impl MysqlDb {
         })
     }
 
-    fn get_collection_usage_sync(
+    fn get_collection_usage(
         &mut self,
         user_id: UserIdentifier,
     ) -> DbResult<results::GetCollectionUsage> {
@@ -953,7 +944,7 @@ impl MysqlDb {
         self.map_collection_names(counts)
     }
 
-    fn get_collection_counts_sync(
+    fn get_collection_counts(
         &mut self,
         user_id: UserIdentifier,
     ) -> DbResult<results::GetCollectionCounts> {
@@ -980,7 +971,7 @@ impl MysqlDb {
     batch_db_method!(commit_batch_sync, commit, CommitBatch);
     batch_db_method!(delete_batch_sync, delete, DeleteBatch);
 
-    fn get_batch_sync(&mut self, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
+    fn get_batch(&mut self, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
         batch::get(self, params)
     }
 
@@ -994,12 +985,12 @@ impl Db for MysqlDb {
 
     fn commit(&mut self) -> DbFuture<'_, (), Self::Error> {
         let mut db = self.clone();
-        Box::pin(self.blocking_threadpool.spawn(move || db.commit_sync()))
+        Box::pin(self.blocking_threadpool.spawn(move || db.commit()))
     }
 
     fn rollback(&mut self) -> DbFuture<'_, (), Self::Error> {
         let mut db = self.clone();
-        Box::pin(self.blocking_threadpool.spawn(move || db.rollback_sync()))
+        Box::pin(self.blocking_threadpool.spawn(move || db.rollback()))
     }
 
     fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
@@ -1009,62 +1000,57 @@ impl Db for MysqlDb {
 
     fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error> {
         let mut db = self.clone();
-        Box::pin(self.blocking_threadpool.spawn(move || db.check_sync()))
+        Box::pin(self.blocking_threadpool.spawn(move || db.check()))
     }
 
-    sync_db_method!(lock_for_read, lock_for_read_sync, LockCollection);
-    sync_db_method!(lock_for_write, lock_for_write_sync, LockCollection);
+    sync_db_method!(lock_for_read, lock_for_read, LockCollection);
+    sync_db_method!(lock_for_write, lock_for_write, LockCollection);
     sync_db_method!(
         get_collection_timestamps,
-        get_collection_timestamps_sync,
+        get_collection_timestamps,
         GetCollectionTimestamps
     );
     sync_db_method!(
         get_collection_timestamp,
-        get_collection_timestamp_sync,
+        get_collection_timestamp,
         GetCollectionTimestamp
     );
     sync_db_method!(
         get_collection_counts,
-        get_collection_counts_sync,
+        get_collection_counts,
         GetCollectionCounts
     );
     sync_db_method!(
         get_collection_usage,
-        get_collection_usage_sync,
+        get_collection_usage,
         GetCollectionUsage
     );
     sync_db_method!(
         get_storage_timestamp,
-        get_storage_timestamp_sync,
+        get_storage_timestamp,
         GetStorageTimestamp
     );
-    sync_db_method!(get_storage_usage, get_storage_usage_sync, GetStorageUsage);
-    sync_db_method!(get_quota_usage, get_quota_usage_sync, GetQuotaUsage);
-    sync_db_method!(delete_storage, delete_storage_sync, DeleteStorage);
-    sync_db_method!(delete_collection, delete_collection_sync, DeleteCollection);
-    sync_db_method!(delete_bsos, delete_bsos_sync, DeleteBsos);
-    sync_db_method!(get_bsos, get_bsos_sync, GetBsos);
-    sync_db_method!(get_bso_ids, get_bso_ids_sync, GetBsoIds);
-    sync_db_method!(post_bsos, post_bsos_sync, PostBsos);
-    sync_db_method!(delete_bso, delete_bso_sync, DeleteBso);
-    sync_db_method!(get_bso, get_bso_sync, GetBso, Option<results::GetBso>);
+    sync_db_method!(get_storage_usage, get_storage_usage, GetStorageUsage);
+    sync_db_method!(get_quota_usage, get_quota_usage, GetQuotaUsage);
+    sync_db_method!(delete_storage, delete_storage, DeleteStorage);
+    sync_db_method!(delete_collection, delete_collection, DeleteCollection);
+    sync_db_method!(delete_bsos, delete_bsos, DeleteBsos);
+    sync_db_method!(get_bsos, get_bsos, GetBsos);
+    sync_db_method!(get_bso_ids, get_bso_ids, GetBsoIds);
+    sync_db_method!(post_bsos, post_bsos, PostBsos);
+    sync_db_method!(delete_bso, delete_bso, DeleteBso);
+    sync_db_method!(get_bso, get_bso, GetBso, Option<results::GetBso>);
     sync_db_method!(
         get_bso_timestamp,
-        get_bso_timestamp_sync,
+        get_bso_timestamp,
         GetBsoTimestamp,
         results::GetBsoTimestamp
     );
-    sync_db_method!(put_bso, put_bso_sync, PutBso);
+    sync_db_method!(put_bso, put_bso, PutBso);
     sync_db_method!(create_batch, create_batch_sync, CreateBatch);
     sync_db_method!(validate_batch, validate_batch_sync, ValidateBatch);
     sync_db_method!(append_to_batch, append_to_batch_sync, AppendToBatch);
-    sync_db_method!(
-        get_batch,
-        get_batch_sync,
-        GetBatch,
-        Option<results::GetBatch>
-    );
+    sync_db_method!(get_batch, get_batch, GetBatch, Option<results::GetBatch>);
     sync_db_method!(commit_batch, commit_batch_sync, CommitBatch);
 
     fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {

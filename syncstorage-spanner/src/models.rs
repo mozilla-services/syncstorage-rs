@@ -444,7 +444,7 @@ impl SpannerDb {
         self.session.borrow().in_write_transaction
     }
 
-    pub fn commit_sync(&self) -> DbResult<()> {
+    pub fn commit(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
@@ -501,7 +501,7 @@ impl SpannerDb {
         }
     }
 
-    pub fn rollback_sync(&self) -> DbResult<()> {
+    pub fn rollback(&self) -> DbResult<()> {
         if !self.in_write_transaction() {
             // read-only
             return Ok(());
