@@ -15,6 +15,7 @@ members = [
   "tokenserver-settings",
   "syncserver",
   "tokenserver-db-postgres",
+  "tokenserver-db-common",
 ]
 default-members = ["syncserver"]
 
@@ -31,7 +32,7 @@ license = "MPL-2.0"
 
 [workspace.dependencies]
 actix-web = { version = "4", default-features = false, features = ["compat", "http2", "macros"] }
-
+async-trait = "0.1.88"
 docopt = "1.1"
 base64 = "0.22"
 

@@ -45,10 +45,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Note: set "debug: true," to diagnose sentry issues
         transport: Some(Arc::new(curl_transport_factory)),
         release: sentry::release_name!(),
+        environment: Some(settings.environment.clone().into()),
         ..sentry::ClientOptions::default()
     });
     opts.integrations.retain(|i| i.name() != "debug-images");
     opts.default_integrations = false;
+
     let _sentry = sentry::init(opts);
 
     // Setup and run the server

@@ -1,13 +1,11 @@
 #![allow(clippy::new_without_default)]
 
-use async_trait::async_trait;
-use syncserver_db_common::{GetPoolState, PoolState};
+use std::sync::LazyLock;
 
-use super::error::DbError;
-use super::models::Db;
-use super::params;
-use super::pool::DbPool;
-use super::results;
+use async_trait::async_trait;
+use syncserver_common::Metrics;
+use syncserver_db_common::{GetPoolState, PoolState};
+use tokenserver_db_common::{params, results, Db, DbError, DbPool};
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -115,7 +113,12 @@ impl Db for MockDb {
         Ok(results::GetServiceId::default())
     }
 
-    #[cfg(test)]
+    fn metrics(&self) -> &Metrics {
+        static METRICS: LazyLock<Metrics> = LazyLock::new(Metrics::noop);
+        &METRICS
+    }
+
+    #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
         _params: params::SetUserCreatedAt,
@@ -123,7 +126,7 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
         _params: params::SetUserReplacedAt,
@@ -131,22 +134,22 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_user(&mut self, _params: params::GetUser) -> Result<results::GetUser, DbError> {
         Ok(results::GetUser::default())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_node(&mut self, _params: params::PostNode) -> Result<results::PostNode, DbError> {
         Ok(results::PostNode::default())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn get_node(&mut self, _params: params::GetNode) -> Result<results::GetNode, DbError> {
         Ok(results::GetNode::default())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
         _params: params::UnassignNode,
@@ -154,7 +157,7 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn remove_node(
         &mut self,
         _params: params::RemoveNode,
@@ -162,11 +165,14 @@ impl Db for MockDb {
         Ok(())
     }
 
-    #[cfg(test)]
+    #[cfg(debug_assertions)]
     async fn post_service(
         &mut self,
         _params: params::PostService,
     ) -> Result<results::PostService, DbError> {
         Ok(results::PostService::default())
     }
+
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, _params: params::SpannerNodeId) {}
 }

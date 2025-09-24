@@ -7,8 +7,6 @@ use syncserver_db_common::error::SqlError;
 use thiserror::Error;
 use tokenserver_common::TokenserverError;
 
-pub(crate) type DbResult<T> = Result<T, DbError>;
-
 /// An error type that represents any database-related errors that may occur while processing a
 /// tokenserver request.
 #[derive(Debug)]
@@ -19,11 +17,11 @@ pub struct DbError {
 }
 
 impl DbError {
-    pub(crate) fn internal(msg: String) -> Self {
+    pub fn internal(msg: String) -> Self {
         DbErrorKind::Internal(msg).into()
     }
 
-    pub(crate) fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+    pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
         DbErrorKind::PoolTimeout(timeout_type).into()
     }
 }
@@ -68,9 +66,9 @@ enum DbErrorKind {
 impl From<DbErrorKind> for DbError {
     fn from(kind: DbErrorKind) -> Self {
         match kind {
-            DbErrorKind::Sql(ref mysql_error) => Self {
-                status: mysql_error.status,
-                backtrace: Box::new(mysql_error.backtrace.clone()),
+            DbErrorKind::Sql(ref sqle) => Self {
+                status: sqle.status,
+                backtrace: Box::new(sqle.backtrace.clone()),
                 kind,
             },
             _ => Self {
