@@ -162,11 +162,6 @@ from_error!(
     )))
 );
 from_error!(
-    diesel::r2d2::PoolError,
-    DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
-);
-from_error!(
     diesel_migrations::MigrationError,
     DbError,
     |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Mysql(SqlError::from(

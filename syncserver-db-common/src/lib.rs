@@ -20,14 +20,6 @@ pub struct PoolState {
     pub idle_connections: u32,
 }
 
-impl From<diesel::r2d2::State> for PoolState {
-    fn from(state: diesel::r2d2::State) -> PoolState {
-        PoolState {
-            connections: state.connections,
-            idle_connections: state.idle_connections,
-        }
-    }
-}
 impl From<deadpool::Status> for PoolState {
     fn from(status: deadpool::Status) -> PoolState {
         PoolState {
