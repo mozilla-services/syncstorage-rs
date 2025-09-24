@@ -160,7 +160,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a SQL read statement but return a non-blocking streaming result
-    pub fn execute_async(self, conn: &Conn) -> DbResult<StreamedResultSetAsync> {
+    pub fn execute(self, conn: &Conn) -> DbResult<StreamedResultSetAsync> {
         let stream = conn
             .client
             .execute_streaming_sql_opt(&self.prepare_request(conn), conn.session_opt()?)?;
@@ -168,7 +168,7 @@ impl ExecuteSqlRequestBuilder {
     }
 
     /// Execute a DML statement, returning the exact count of modified rows
-    pub async fn execute_dml_async(self, conn: &Conn) -> DbResult<i64> {
+    pub async fn execute_dml(self, conn: &Conn) -> DbResult<i64> {
         let rs = conn
             .client
             .execute_sql_async_opt(&self.prepare_request(conn), conn.session_opt()?)?
