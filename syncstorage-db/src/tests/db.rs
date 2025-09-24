@@ -160,7 +160,7 @@ async fn get_bsos_limit_offset() -> Result<(), DbError> {
     let offset = "0".to_owned();
     // XXX: validation?
     /*
-    let bsos = db.get_bsos_sync(gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0))?;
+    let bsos = db.get_bsos(gbsos(uid, coll, &[], MAX_TIMESTAMP, 0, Sorting::Index, -1, 0))?;
     .. etc
     */
 
