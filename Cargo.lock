@@ -3703,7 +3703,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-common"
-version = "0.20.1"
+version = "0.21.1"
 dependencies = [
  "async-trait",
  "backtrace",
@@ -3721,7 +3721,7 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-postgres"
-version = "0.20.1"
+version = "0.21.1"
 dependencies = [
  "async-trait",
  "deadpool",
@@ -3735,13 +3735,6 @@ dependencies = [
  "tokenserver-db-common",
  "tokenserver-settings",
  "tokio",
-]
-
-[[package]]
-name = "tokenserver-db-postgres"
-version = "0.21.1"
-dependencies = [
- "diesel",
 ]
 
 [[package]]
