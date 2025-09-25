@@ -1,13 +1,10 @@
 //! Mock db implementation with methods stubbed to return default values.
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
-use futures::future;
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
 
 use crate::DbError;
-
-type DbFuture<'a, T> = syncserver_db_common::DbFuture<'a, T, DbError>;
 
 #[derive(Clone, Debug)]
 pub struct MockDbPool;
@@ -50,69 +47,215 @@ impl MockDb {
     }
 }
 
-macro_rules! mock_db_method {
-    ($name:ident, $type:ident) => {
-        mock_db_method!($name, $type, results::$type);
-    };
-    ($name:ident, $type:ident, $result:ty) => {
-        fn $name(&mut self, _params: params::$type) -> DbFuture<'_, $result> {
-            let result: $result = Default::default();
-            Box::pin(future::ok(result))
-        }
-    };
-}
-
+#[async_trait(?Send)]
 impl Db for MockDb {
     type Error = DbError;
 
-    fn commit(&mut self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
+    async fn commit(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 
-    fn rollback(&mut self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
+    async fn rollback(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 
-    fn begin(&mut self, _for_write: bool) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
+    async fn begin(&mut self, _for_write: bool) -> Result<(), Self::Error> {
+        Ok(())
     }
 
-    fn check(&mut self) -> DbFuture<'_, results::Check> {
-        Box::pin(future::ok(true))
+    async fn check(&mut self) -> Result<results::Check, Self::Error> {
+        Ok(true)
     }
 
-    mock_db_method!(lock_for_read, LockCollection);
-    mock_db_method!(lock_for_write, LockCollection);
-    mock_db_method!(get_collection_timestamps, GetCollectionTimestamps);
-    mock_db_method!(get_collection_timestamp, GetCollectionTimestamp);
-    mock_db_method!(get_collection_counts, GetCollectionCounts);
-    mock_db_method!(get_collection_usage, GetCollectionUsage);
-    mock_db_method!(get_storage_timestamp, GetStorageTimestamp);
-    mock_db_method!(get_storage_usage, GetStorageUsage);
-    mock_db_method!(get_quota_usage, GetQuotaUsage);
-    mock_db_method!(delete_storage, DeleteStorage);
-    mock_db_method!(delete_collection, DeleteCollection);
-    mock_db_method!(delete_bsos, DeleteBsos);
-    mock_db_method!(get_bsos, GetBsos);
-    mock_db_method!(get_bso_ids, GetBsoIds);
-    mock_db_method!(post_bsos, PostBsos);
-    mock_db_method!(delete_bso, DeleteBso);
-    mock_db_method!(get_bso, GetBso, Option<results::GetBso>);
-    mock_db_method!(get_bso_timestamp, GetBsoTimestamp);
-    mock_db_method!(put_bso, PutBso);
-    mock_db_method!(create_batch, CreateBatch);
-    mock_db_method!(validate_batch, ValidateBatch);
-    mock_db_method!(append_to_batch, AppendToBatch);
-    mock_db_method!(get_batch, GetBatch, Option<results::GetBatch>);
-    mock_db_method!(commit_batch, CommitBatch);
+    async fn lock_for_read(
+        &mut self,
+        _params: params::LockCollection,
+    ) -> Result<results::LockCollection, Self::Error> {
+        Ok(())
+    }
+
+    async fn lock_for_write(
+        &mut self,
+        _params: params::LockCollection,
+    ) -> Result<results::LockCollection, Self::Error> {
+        Ok(())
+    }
+
+    async fn get_collection_timestamps(
+        &mut self,
+        _params: params::GetCollectionTimestamps,
+    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_collection_timestamp(
+        &mut self,
+        _params: params::GetCollectionTimestamp,
+    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_collection_counts(
+        &mut self,
+        _params: params::GetCollectionCounts,
+    ) -> Result<results::GetCollectionCounts, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_collection_usage(
+        &mut self,
+        _params: params::GetCollectionUsage,
+    ) -> Result<results::GetCollectionUsage, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_storage_timestamp(
+        &mut self,
+        _params: params::GetStorageTimestamp,
+    ) -> Result<results::GetStorageTimestamp, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_storage_usage(
+        &mut self,
+        _params: params::GetStorageUsage,
+    ) -> Result<results::GetStorageUsage, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_quota_usage(
+        &mut self,
+        _params: params::GetQuotaUsage,
+    ) -> Result<results::GetQuotaUsage, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn delete_storage(
+        &mut self,
+        _params: params::DeleteStorage,
+    ) -> Result<results::DeleteStorage, Self::Error> {
+        Ok(())
+    }
+
+    async fn delete_collection(
+        &mut self,
+        _params: params::DeleteCollection,
+    ) -> Result<results::DeleteCollection, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn delete_bsos(
+        &mut self,
+        _params: params::DeleteBsos,
+    ) -> Result<results::DeleteBsos, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_bsos(
+        &mut self,
+        _params: params::GetBsos,
+    ) -> Result<results::GetBsos, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_bso_ids(
+        &mut self,
+        _params: params::GetBsoIds,
+    ) -> Result<results::GetBsoIds, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn post_bsos(
+        &mut self,
+        _params: params::PostBsos,
+    ) -> Result<results::PostBsos, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn delete_bso(
+        &mut self,
+        _params: params::DeleteBso,
+    ) -> Result<results::DeleteBso, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_bso(
+        &mut self,
+        _params: params::GetBso,
+    ) -> Result<Option<results::GetBso>, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn get_bso_timestamp(
+        &mut self,
+        _params: params::GetBsoTimestamp,
+    ) -> Result<results::GetBsoTimestamp, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn put_bso(&mut self, _params: params::PutBso) -> Result<results::PutBso, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn create_batch(
+        &mut self,
+        _params: params::CreateBatch,
+    ) -> Result<results::CreateBatch, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn validate_batch(
+        &mut self,
+        _params: params::ValidateBatch,
+    ) -> Result<results::ValidateBatch, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn append_to_batch(
+        &mut self,
+        _params: params::AppendToBatch,
+    ) -> Result<results::AppendToBatch, Self::Error> {
+        Ok(())
+    }
+
+    async fn get_batch(
+        &mut self,
+        _params: params::GetBatch,
+    ) -> Result<Option<results::GetBatch>, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn commit_batch(
+        &mut self,
+        _params: params::CommitBatch,
+    ) -> Result<results::CommitBatch, Self::Error> {
+        Ok(Default::default())
+    }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
-        results::ConnectionInfo::default()
+        Default::default()
     }
 
-    mock_db_method!(get_collection_id, GetCollectionId);
-    mock_db_method!(create_collection, CreateCollection);
-    mock_db_method!(update_collection, UpdateCollection);
+    async fn get_collection_id(
+        &mut self,
+        _params: params::GetCollectionId,
+    ) -> Result<results::GetCollectionId, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn create_collection(
+        &mut self,
+        _params: params::CreateCollection,
+    ) -> Result<results::CreateCollection, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn update_collection(
+        &mut self,
+        _params: params::UpdateCollection,
+    ) -> Result<results::UpdateCollection, Self::Error> {
+        Ok(Default::default())
+    }
 
     fn timestamp(&self) -> SyncTimestamp {
         Default::default()
@@ -120,13 +263,16 @@ impl Db for MockDb {
 
     fn set_timestamp(&mut self, _: SyncTimestamp) {}
 
-    mock_db_method!(delete_batch, DeleteBatch);
+    async fn delete_batch(
+        &mut self,
+        _params: params::DeleteBatch,
+    ) -> Result<results::DeleteBatch, Self::Error> {
+        Ok(())
+    }
 
-    fn clear_coll_cache(&mut self) -> DbFuture<'_, ()> {
-        Box::pin(future::ok(()))
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 
     fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
 }
-
-unsafe impl Send for MockDb {}

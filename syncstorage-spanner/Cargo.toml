@@ -7,6 +7,7 @@ edition.workspace = true
 
 [dependencies]
 actix-web.workspace = true
+async-trait.workspace = true
 backtrace.workspace = true
 deadpool.workspace = true
 futures.workspace = true
@@ -15,7 +16,6 @@ slog-scope.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
-async-trait = "0.1.40"
 google-cloud-rust-raw = { version = "0.16.1", features = ["spanner"] }
 form_urlencoded = "1.2"
 # Some versions of OpenSSL 1.1.1 conflict with grpcio's built-in boringssl which can cause
