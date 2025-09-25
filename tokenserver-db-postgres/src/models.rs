@@ -59,7 +59,7 @@ impl TokenserverPgDb {
         const QUERY: &str = r#"
             SELECT id
               FROM services
-             WHERE service = ?
+             WHERE service = $1
         "#;
 
         if let Some(id) = self.service_id {
@@ -88,7 +88,7 @@ impl TokenserverPgDb {
     ) -> DbResult<results::PostService> {
         const INSERT_SERVICE_QUERY: &str = r#"
             INSERT INTO services (service, pattern)
-            VALUES (?, ?)
+            VALUES ($1, $2)
         "#;
         diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
