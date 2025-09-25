@@ -11,8 +11,7 @@ deadpool.workspace = true
 futures.workspace = true
 http.workspace = true
 thiserror.workspace = true
-
-diesel = { workspace = true, features = ["mysql", "r2d2"] }
-diesel-async = { workspace = true }
-diesel_migrations = { workspace = true, features = ["mysql"] }
+diesel.workspace = true
+diesel-async.workspace = true
+diesel_migrations.workspace = true
 syncserver-common = { path = "../syncserver-common" }

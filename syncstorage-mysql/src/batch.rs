@@ -8,8 +8,9 @@ use diesel::{
     result::{DatabaseErrorKind::UniqueViolation, Error as DieselError},
     sql_query,
     sql_types::{BigInt, Integer},
-    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl,
 };
+use diesel_async::RunQueryDsl;
 use syncstorage_db_common::{params, results, UserIdentifier, BATCH_LIFETIME};
 
 use super::{
@@ -23,9 +24,12 @@ const MAX_TTL: i32 = 2_100_000_000;
 
 const MAX_BATCH_CREATE_RETRY: u8 = 5;
 
-pub fn create(db: &mut MysqlDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
+pub async fn create(
+    db: &mut MysqlDb,
+    params: params::CreateBatch,
+) -> DbResult<results::CreateBatch> {
     let user_id = params.user_id.legacy_id as i64;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     // Careful, there's some weirdness here!
     //
     // Sync timestamps are in seconds and quantized to two decimal places, so
@@ -48,7 +52,8 @@ pub fn create(db: &mut MysqlDb, params: params::CreateBatch) -> DbResult<results
                 batch_uploads::user_id.eq(&user_id),
                 batch_uploads::collection_id.eq(&collection_id),
             ))
-            .execute(&mut *db.conn.write()?);
+            .execute(&mut db.conn)
+            .await;
         match result {
             Ok(_) => break,
             Err(DieselError::DatabaseError(UniqueViolation, _)) => {
@@ -61,14 +66,14 @@ pub fn create(db: &mut MysqlDb, params: params::CreateBatch) -> DbResult<results
         }
     }
 
-    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
+    do_append(db, batch_id, params.user_id, collection_id, params.bsos).await?;
     Ok(results::CreateBatch {
         id: encode_id(batch_id),
         size: None,
     })
 }
 
-pub fn validate(db: &mut MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
+pub async fn validate(db: &mut MysqlDb, params: params::ValidateBatch) -> DbResult<bool> {
     let batch_id = decode_id(&params.id)?;
     // Avoid hitting the db for batches that are obviously too old.  Recall
     // that the batchid is a millisecond timestamp.
@@ -77,18 +82,19 @@ pub fn validate(db: &mut MysqlDb, params: params::ValidateBatch) -> DbResult<boo
     }
 
     let user_id = params.user_id.legacy_id as i64;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     let exists = batch_uploads::table
         .select(sql::<Integer>("1"))
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .get_result::<i32>(&mut *db.conn.write()?)
+        .get_result::<i32>(&mut db.conn)
+        .await
         .optional()?;
     Ok(exists.is_some())
 }
 
-pub fn append(db: &mut MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
+pub async fn append(db: &mut MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
     let exists = validate(
         db,
         params::ValidateBatch {
@@ -96,19 +102,23 @@ pub fn append(db: &mut MysqlDb, params: params::AppendToBatch) -> DbResult<()> {
             collection: params.collection.clone(),
             id: params.batch.id.clone(),
         },
-    )?;
+    )
+    .await?;
 
     if !exists {
         return Err(DbError::batch_not_found());
     }
 
     let batch_id = decode_id(&params.batch.id)?;
-    let collection_id = db.get_collection_id(&params.collection)?;
-    do_append(db, batch_id, params.user_id, collection_id, params.bsos)?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
+    do_append(db, batch_id, params.user_id, collection_id, params.bsos).await?;
     Ok(())
 }
 
-pub fn get(db: &mut MysqlDb, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
+pub async fn get(
+    db: &mut MysqlDb,
+    params: params::GetBatch,
+) -> DbResult<Option<results::GetBatch>> {
     let is_valid = validate(
         db,
         params::ValidateBatch {
@@ -116,7 +126,8 @@ pub fn get(db: &mut MysqlDb, params: params::GetBatch) -> DbResult<Option<result
             collection: params.collection,
             id: params.id.clone(),
         },
-    )?;
+    )
+    .await?;
     let batch = if is_valid {
         Some(results::GetBatch { id: params.id })
     } else {
@@ -125,27 +136,32 @@ pub fn get(db: &mut MysqlDb, params: params::GetBatch) -> DbResult<Option<result
     Ok(batch)
 }
 
-pub fn delete(db: &mut MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
+pub async fn delete(db: &mut MysqlDb, params: params::DeleteBatch) -> DbResult<()> {
     let batch_id = decode_id(&params.id)?;
     let user_id = params.user_id.legacy_id as i64;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     diesel::delete(batch_uploads::table)
         .filter(batch_uploads::batch_id.eq(&batch_id))
         .filter(batch_uploads::user_id.eq(&user_id))
         .filter(batch_uploads::collection_id.eq(&collection_id))
-        .execute(&mut *db.conn.write()?)?;
+        .execute(&mut db.conn)
+        .await?;
     diesel::delete(batch_upload_items::table)
         .filter(batch_upload_items::batch_id.eq(&batch_id))
         .filter(batch_upload_items::user_id.eq(&user_id))
-        .execute(&mut *db.conn.write()?)?;
+        .execute(&mut db.conn)
+        .await?;
     Ok(())
 }
 
 /// Commits a batch to the bsos table, deleting the batch when succesful
-pub fn commit(db: &mut MysqlDb, params: params::CommitBatch) -> DbResult<results::CommitBatch> {
+pub async fn commit(
+    db: &mut MysqlDb,
+    params: params::CommitBatch,
+) -> DbResult<results::CommitBatch> {
     let batch_id = decode_id(&params.batch.id)?;
     let user_id = params.user_id.legacy_id as i64;
-    let collection_id = db.get_collection_id(&params.collection)?;
+    let collection_id = db.get_collection_id(&params.collection).await?;
     let timestamp = db.timestamp();
     sql_query(include_str!("batch_commit.sql"))
         .bind::<BigInt, _>(user_id)
@@ -157,9 +173,10 @@ pub fn commit(db: &mut MysqlDb, params: params::CommitBatch) -> DbResult<results
         .bind::<BigInt, _>(user_id)
         .bind::<BigInt, _>(&db.timestamp().as_i64())
         .bind::<BigInt, _>(&db.timestamp().as_i64())
-        .execute(&mut *db.conn.write()?)?;
+        .execute(&mut db.conn)
+        .await?;
 
-    db.update_collection(user_id as u32, collection_id)?;
+    db.update_collection(user_id as u32, collection_id).await?;
 
     delete(
         db,
@@ -168,11 +185,12 @@ pub fn commit(db: &mut MysqlDb, params: params::CommitBatch) -> DbResult<results
             collection: params.collection,
             id: params.batch.id,
         },
-    )?;
+    )
+    .await?;
     Ok(timestamp)
 }
 
-pub fn do_append(
+pub async fn do_append(
     db: &mut MysqlDb,
     batch_id: i64,
     user_id: UserIdentifier,
@@ -217,7 +235,7 @@ pub fn do_append(
     )
     .bind::<BigInt, _>(user_id.legacy_id as i64)
     .bind::<BigInt, _>(batch_id)
-    .get_results::<ExistsResult>(&mut *db.conn.write()?)?
+    .get_results::<ExistsResult>(&mut db.conn).await?
     {
         existing.insert(exist_idx(
             user_id.legacy_id,
@@ -241,7 +259,8 @@ pub fn do_append(
                 payload_size,
                 ttl_offset: bso.ttl.map(|ttl| ttl as i32),
             })
-            .execute(&mut *db.conn.write()?)?;
+            .execute(&mut db.conn)
+            .await?;
         } else {
             diesel::insert_into(batch_upload_items::table)
                 .values((
@@ -253,7 +272,8 @@ pub fn do_append(
                     batch_upload_items::payload_size.eq(payload_size),
                     batch_upload_items::ttl_offset.eq(bso.ttl.map(|ttl| ttl as i32)),
                 ))
-                .execute(&mut *db.conn.write()?)?;
+                .execute(&mut db.conn)
+                .await?;
             // make sure to include the key into our table check.
             existing.insert(exist_idx);
         }
@@ -282,8 +302,8 @@ fn decode_id(id: &str) -> DbResult<i64> {
 
 macro_rules! batch_db_method {
     ($name:ident, $batch_name:ident, $type:ident) => {
-        pub fn $name(&mut self, params: params::$type) -> DbResult<results::$type> {
-            batch::$batch_name(self, params)
+        pub async fn $name(&mut self, params: params::$type) -> DbResult<results::$type> {
+            batch::$batch_name(self, params).await
         }
     };
 }

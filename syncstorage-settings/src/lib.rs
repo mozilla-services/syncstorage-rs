@@ -72,8 +72,6 @@ impl From<&Settings> for Deadman {
 pub struct Settings {
     pub database_url: String,
     pub database_pool_max_size: u32,
-    // NOTE: Not supported by deadpool!
-    pub database_pool_min_idle: Option<u32>,
     /// Pool timeout when waiting for a slot to become available, in seconds
     pub database_pool_connection_timeout: Option<u32>,
     /// Max age a given connection should live, in seconds
@@ -116,7 +114,6 @@ impl Default for Settings {
         Settings {
             database_url: "mysql://root@127.0.0.1/syncstorage".to_string(),
             database_pool_max_size: 10,
-            database_pool_min_idle: None,
             database_pool_connection_lifespan: None,
             database_pool_connection_max_idle: None,
             database_pool_sweeper_task_interval: 30,

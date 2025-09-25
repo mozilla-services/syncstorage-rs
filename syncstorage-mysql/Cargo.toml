@@ -8,20 +8,23 @@ edition.workspace = true
 [dependencies]
 backtrace.workspace = true
 base64.workspace = true
+deadpool.workspace = true
+diesel.workspace = true
+diesel-async.workspace = true
+diesel_logger.workspace = true
+diesel_migrations.workspace = true
 futures.workspace = true
 http.workspace = true
 slog-scope.workspace = true
 thiserror.workspace = true
 
 async-trait = "0.1.88"
-diesel = { workspace = true, features = ["mysql", "r2d2"] }
-diesel_logger = { workspace = true }
-diesel_migrations = { workspace = true, features = ["mysql"] }
+tokio = { workspace = true, features = ["macros", "sync"] }
+url = "2.1"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncstorage-db-common = { path = "../syncstorage-db-common" }
 syncstorage-settings = { path = "../syncstorage-settings" }
-url = "2.1"
 
 [dev-dependencies]
 env_logger.workspace = true

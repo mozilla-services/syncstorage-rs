@@ -38,7 +38,7 @@ impl ServerState {
     pub fn from_settings(
         settings: &Settings,
         metrics: Arc<StatsdClient>,
-        blocking_threadpool: Arc<BlockingThreadpool>,
+        #[allow(unused_variables)] blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> Result<Self, ApiError> {
         #[cfg(not(feature = "py_verifier"))]
         let oauth_verifier = {

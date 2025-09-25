@@ -7,31 +7,43 @@ use std::{
     time::Duration,
 };
 
-use diesel::{
-    mysql::MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-    Connection,
+use deadpool::managed::PoolError;
+use diesel::Connection;
+use diesel_async::{
+    async_connection_wrapper::AsyncConnectionWrapper,
+    pooled_connection::{
+        deadpool::{Object, Pool},
+        AsyncDieselConnectionManager,
+    },
+    AsyncMysqlConnection,
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
-use syncserver_db_common::test::TestTransactionCustomizer;
+use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
+use tokio::task::spawn_blocking;
 
 use super::{error::DbError, models::MysqlDb, DbResult};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
+pub(crate) type Conn = Object<AsyncMysqlConnection>;
+
 /// Run the diesel embedded migrations
 ///
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
+///
+/// Note that this runs as a plain diesel blocking method as diesel_async
+/// doesn't support async migrations (but we utilize its connection via its
+/// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = MysqlConnection::establish(database_url)?;
+    let conn = AsyncConnectionWrapper::<AsyncMysqlConnection>::establish(database_url)?;
 
     // This conn2 charade is to make mut-ness the same for both cases.
     #[cfg(debug_assertions)]
@@ -46,51 +58,58 @@ fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 #[derive(Clone)]
 pub struct MysqlDbPool {
     /// Pool of db connections
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<AsyncMysqlConnection>,
     /// Thread Pool for running synchronous db calls
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
 
     metrics: Metrics,
     quota: Quota,
-    blocking_threadpool: Arc<BlockingThreadpool>,
+    database_url: String,
 }
 
 impl MysqlDbPool {
     /// Creates a new pool of Mysql db connections.
     ///
-    /// Also initializes the Mysql db, ensuring all migrations are ran.
+    /// Doesn't initialize the db (does not run migrations).
     pub fn new(
         settings: &Settings,
         metrics: &Metrics,
-        blocking_threadpool: Arc<BlockingThreadpool>,
+        _blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> DbResult<Self> {
-        run_embedded_migrations(&settings.database_url)?;
-        Self::new_without_migrations(settings, metrics, blocking_threadpool)
-    }
+        let manager =
+            AsyncDieselConnectionManager::<AsyncMysqlConnection>::new(&settings.database_url);
 
-    pub fn new_without_migrations(
-        settings: &Settings,
-        metrics: &Metrics,
-        blocking_threadpool: Arc<BlockingThreadpool>,
-    ) -> DbResult<Self> {
-        let manager = ConnectionManager::<MysqlConnection>::new(settings.database_url.clone());
-        let builder = Pool::builder()
-            .max_size(settings.database_pool_max_size)
-            .connection_timeout(Duration::from_secs(
-                settings.database_pool_connection_timeout.unwrap_or(30) as u64,
-            ))
-            .min_idle(settings.database_pool_min_idle);
+        let wait = settings
+            .database_pool_connection_timeout
+            .map(|seconds| Duration::from_secs(seconds as u64));
+        let timeouts = deadpool::managed::Timeouts {
+            wait,
+            ..Default::default()
+        };
+        let config = deadpool::managed::PoolConfig {
+            max_size: settings.database_pool_max_size as usize,
+            timeouts,
+            ..Default::default()
+        };
 
+        let builder = Pool::builder(manager)
+            .config(config)
+            .runtime(deadpool::Runtime::Tokio1);
         #[cfg(debug_assertions)]
         let builder = if settings.database_use_test_transactions {
-            builder.connection_customizer(Box::new(TestTransactionCustomizer))
+            builder.post_create(deadpool::managed::Hook::async_fn(|conn, _| {
+                Box::pin(async { test_transaction_hook(conn).await })
+            }))
         } else {
             builder
         };
+        let pool = builder
+            .build()
+            .map_err(|e| DbError::internal(format!("Couldn't build Db Pool: {e}")))?;
 
         Ok(Self {
-            pool: builder.build(manager)?,
+            pool,
             coll_cache: Default::default(),
             metrics: metrics.clone(),
             quota: Quota {
@@ -98,7 +117,7 @@ impl MysqlDbPool {
                 enabled: settings.enable_quota,
                 enforced: settings.enforce_quota,
             },
-            blocking_threadpool,
+            database_url: settings.database_url.clone(),
         })
     }
 
@@ -109,13 +128,21 @@ impl MysqlDbPool {
         sweeper()
     }
 
-    pub fn get_sync(&self) -> DbResult<MysqlDb> {
+    pub async fn get_mysql_db(&self) -> DbResult<MysqlDb> {
+        let conn = self.pool.get().await.map_err(|e| match e {
+            PoolError::Backend(be) => match be {
+                diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
+                diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
+            },
+            PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
+            _ => DbError::internal(format!("deadpool PoolError: {e}")),
+        })?;
+
         Ok(MysqlDb::new(
-            self.pool.get()?,
+            conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
-            self.blocking_threadpool.clone(),
         ))
     }
 }
@@ -131,12 +158,16 @@ fn sweeper() {}
 impl DbPool for MysqlDbPool {
     type Error = DbError;
 
-    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
-        let pool = self.clone();
-        self.blocking_threadpool
-            .spawn(move || pool.get_sync())
+    async fn init(&mut self) -> Result<(), Self::Error> {
+        let database_url = self.database_url.clone();
+        spawn_blocking(move || run_embedded_migrations(&database_url))
             .await
-            .map(|db| Box::new(db) as Box<dyn Db<Error = Self::Error>>)
+            .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        Ok(())
+    }
+
+    async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
+        Ok(Box::new(self.get_mysql_db().await?) as Box<dyn Db<Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
@@ -158,7 +189,7 @@ impl fmt::Debug for MysqlDbPool {
 
 impl GetPoolState for MysqlDbPool {
     fn state(&self) -> PoolState {
-        self.pool.state().into()
+        self.pool.status().into()
     }
 }
 

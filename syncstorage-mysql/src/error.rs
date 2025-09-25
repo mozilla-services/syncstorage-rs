@@ -41,6 +41,10 @@ impl DbError {
     pub fn quota() -> Self {
         DbErrorKind::Common(SyncstorageDbError::quota()).into()
     }
+
+    pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
+        DbErrorKind::PoolTimeout(timeout_type).into()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -50,6 +54,9 @@ enum DbErrorKind {
 
     #[error("{}", _0)]
     Mysql(SqlError),
+
+    #[error("A database pool timeout occurred, type: {:?}", _0)]
+    PoolTimeout(deadpool::managed::TimeoutType),
 }
 
 impl From<DbErrorKind> for DbError {
@@ -96,6 +103,7 @@ impl ReportableError for DbError {
         Some(match &self.kind {
             DbErrorKind::Common(e) => e,
             DbErrorKind::Mysql(e) => e,
+            _ => return None,
         })
     }
 
@@ -103,6 +111,7 @@ impl ReportableError for DbError {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
             DbErrorKind::Mysql(e) => e.is_sentry_event(),
+            DbErrorKind::PoolTimeout(_) => false,
         }
     }
 
@@ -110,6 +119,7 @@ impl ReportableError for DbError {
         match &self.kind {
             DbErrorKind::Common(e) => e.metric_label(),
             DbErrorKind::Mysql(e) => e.metric_label(),
+            DbErrorKind::PoolTimeout(_) => Some("storage.diesel.pool.timeout"),
         }
     }
 
@@ -117,6 +127,7 @@ impl ReportableError for DbError {
         match &self.kind {
             DbErrorKind::Common(e) => e.backtrace(),
             DbErrorKind::Mysql(e) => e.backtrace(),
+            _ => None,
         }
     }
 
@@ -124,6 +135,7 @@ impl ReportableError for DbError {
         match &self.kind {
             DbErrorKind::Common(e) => e.tags(),
             DbErrorKind::Mysql(e) => e.tags(),
+            _ => vec![],
         }
     }
 }
@@ -150,11 +162,6 @@ from_error!(
     )))
 );
 from_error!(
-    diesel::r2d2::PoolError,
-    DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
-);
-from_error!(
     diesel_migrations::MigrationError,
     DbError,
     |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Mysql(SqlError::from(
@@ -166,9 +173,3 @@ from_error!(
     DbError,
     |error: std::boxed::Box<dyn std::error::Error>| DbError::internal_error(error.to_string())
 );
-
-impl<Guard> From<std::sync::PoisonError<Guard>> for DbError {
-    fn from(inner: std::sync::PoisonError<Guard>) -> DbError {
-        DbError::internal_error(inner.to_string())
-    }
-}

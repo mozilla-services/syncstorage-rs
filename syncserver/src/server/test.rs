@@ -93,15 +93,21 @@ async fn get_test_state(settings: &Settings) -> ServerState {
         app_channel: settings.environment.clone(),
     });
 
+    let mut db_pool = Box::new(
+        DbPoolImpl::new(
+            &settings.syncstorage,
+            &Metrics::from(&metrics),
+            blocking_threadpool,
+        )
+        .expect("Could not get db_pool in get_test_state"),
+    );
+    db_pool
+        .init()
+        .await
+        .expect("Could not init db_pool in get_test_state");
+
     ServerState {
-        db_pool: Box::new(
-            DbPoolImpl::new(
-                &settings.syncstorage,
-                &Metrics::from(&metrics),
-                blocking_threadpool,
-            )
-            .expect("Could not get db_pool in get_test_state"),
-        ),
+        db_pool,
         limits: Arc::clone(&SERVER_LIMITS),
         limits_json: serde_json::to_string(&**SERVER_LIMITS).unwrap(),
         metrics,
