@@ -1,7 +1,6 @@
-use futures::future::TryFutureExt;
-
 use std::{collections::HashMap, fmt, sync::Arc};
 
+use async_trait::async_trait;
 use diesel::{
     delete,
     dsl::max,
@@ -12,7 +11,6 @@ use diesel::{
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncserver_common::Metrics;
-use syncserver_db_common::{async_db_method, DbFuture};
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
     DEFAULT_BSO_TTL,
@@ -966,109 +964,205 @@ impl MysqlDb {
     }
 }
 
+#[async_trait(?Send)]
 impl Db for MysqlDb {
     type Error = DbError;
 
-    fn commit(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(self.commit())
+    async fn commit(&mut self) -> Result<(), Self::Error> {
+        self.commit().await
     }
 
-    fn rollback(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(self.rollback())
+    async fn rollback(&mut self) -> Result<(), Self::Error> {
+        self.rollback().await
     }
 
-    fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(self.begin(for_write))
+    async fn begin(&mut self, for_write: bool) -> Result<(), Self::Error> {
+        self.begin(for_write).await
     }
 
-    fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error> {
-        Box::pin(self.check())
+    async fn check(&mut self) -> Result<results::Check, Self::Error> {
+        self.check().await
     }
 
-    async_db_method!(lock_for_read, MysqlDb::lock_for_read, LockCollection);
-    async_db_method!(lock_for_write, MysqlDb::lock_for_write, LockCollection);
-    async_db_method!(
-        get_collection_timestamps,
-        MysqlDb::get_collection_timestamps,
-        GetCollectionTimestamps
-    );
-    async_db_method!(
-        get_collection_timestamp,
-        MysqlDb::get_collection_timestamp,
-        GetCollectionTimestamp
-    );
-    async_db_method!(
-        get_collection_counts,
-        MysqlDb::get_collection_counts,
-        GetCollectionCounts
-    );
-    async_db_method!(
-        get_collection_usage,
-        MysqlDb::get_collection_usage,
-        GetCollectionUsage
-    );
-    async_db_method!(
-        get_storage_timestamp,
-        MysqlDb::get_storage_timestamp,
-        GetStorageTimestamp
-    );
-    async_db_method!(
-        get_storage_usage,
-        MysqlDb::get_storage_usage,
-        GetStorageUsage
-    );
-    async_db_method!(get_quota_usage, MysqlDb::get_quota_usage, GetQuotaUsage);
-    async_db_method!(delete_storage, MysqlDb::delete_storage, DeleteStorage);
-    async_db_method!(
-        delete_collection,
-        MysqlDb::delete_collection,
-        DeleteCollection
-    );
-    async_db_method!(delete_bsos, MysqlDb::delete_bsos, DeleteBsos);
-    async_db_method!(get_bsos, MysqlDb::get_bsos, GetBsos);
-    async_db_method!(get_bso_ids, MysqlDb::get_bso_ids, GetBsoIds);
-    async_db_method!(post_bsos, MysqlDb::post_bsos, PostBsos);
-    async_db_method!(delete_bso, MysqlDb::delete_bso, DeleteBso);
-    async_db_method!(get_bso, MysqlDb::get_bso, GetBso, Option<results::GetBso>);
-    async_db_method!(
-        get_bso_timestamp,
-        MysqlDb::get_bso_timestamp,
-        GetBsoTimestamp,
-        results::GetBsoTimestamp
-    );
-    async_db_method!(put_bso, MysqlDb::put_bso, PutBso);
-    async_db_method!(create_batch, MysqlDb::create_batch, CreateBatch);
-    async_db_method!(validate_batch, MysqlDb::validate_batch, ValidateBatch);
-    async_db_method!(append_to_batch, MysqlDb::append_to_batch, AppendToBatch);
-    async_db_method!(
-        get_batch,
-        MysqlDb::get_batch,
-        GetBatch,
-        Option<results::GetBatch>
-    );
-    async_db_method!(commit_batch, MysqlDb::commit_batch, CommitBatch);
+    async fn lock_for_read(
+        &mut self,
+        params: params::LockCollection,
+    ) -> Result<results::LockCollection, Self::Error> {
+        MysqlDb::lock_for_read(self, params).await
+    }
 
-    fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
-        Box::pin(async move { self.get_collection_id(&name).map_err(Into::into).await })
+    async fn lock_for_write(
+        &mut self,
+        params: params::LockCollection,
+    ) -> Result<results::LockCollection, Self::Error> {
+        MysqlDb::lock_for_write(self, params).await
+    }
+
+    async fn get_collection_timestamps(
+        &mut self,
+        params: params::GetCollectionTimestamps,
+    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
+        MysqlDb::get_collection_timestamps(self, params).await
+    }
+
+    async fn get_collection_timestamp(
+        &mut self,
+        params: params::GetCollectionTimestamp,
+    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
+        MysqlDb::get_collection_timestamp(self, params).await
+    }
+
+    async fn get_collection_counts(
+        &mut self,
+        params: params::GetCollectionCounts,
+    ) -> Result<results::GetCollectionCounts, Self::Error> {
+        MysqlDb::get_collection_counts(self, params).await
+    }
+
+    async fn get_collection_usage(
+        &mut self,
+        params: params::GetCollectionUsage,
+    ) -> Result<results::GetCollectionUsage, Self::Error> {
+        MysqlDb::get_collection_usage(self, params).await
+    }
+
+    async fn get_storage_timestamp(
+        &mut self,
+        params: params::GetStorageTimestamp,
+    ) -> Result<results::GetStorageTimestamp, Self::Error> {
+        MysqlDb::get_storage_timestamp(self, params).await
+    }
+
+    async fn get_storage_usage(
+        &mut self,
+        params: params::GetStorageUsage,
+    ) -> Result<results::GetStorageUsage, Self::Error> {
+        MysqlDb::get_storage_usage(self, params).await
+    }
+
+    async fn get_quota_usage(
+        &mut self,
+        params: params::GetQuotaUsage,
+    ) -> Result<results::GetQuotaUsage, Self::Error> {
+        MysqlDb::get_quota_usage(self, params).await
+    }
+
+    async fn delete_storage(
+        &mut self,
+        params: params::DeleteStorage,
+    ) -> Result<results::DeleteStorage, Self::Error> {
+        MysqlDb::delete_storage(self, params).await
+    }
+
+    async fn delete_collection(
+        &mut self,
+        params: params::DeleteCollection,
+    ) -> Result<results::DeleteCollection, Self::Error> {
+        MysqlDb::delete_collection(self, params).await
+    }
+
+    async fn delete_bsos(
+        &mut self,
+        params: params::DeleteBsos,
+    ) -> Result<results::DeleteBsos, Self::Error> {
+        MysqlDb::delete_bsos(self, params).await
+    }
+
+    async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
+        MysqlDb::get_bsos(self, params).await
+    }
+
+    async fn get_bso_ids(
+        &mut self,
+        params: params::GetBsoIds,
+    ) -> Result<results::GetBsoIds, Self::Error> {
+        MysqlDb::get_bso_ids(self, params).await
+    }
+
+    async fn post_bsos(
+        &mut self,
+        params: params::PostBsos,
+    ) -> Result<results::PostBsos, Self::Error> {
+        MysqlDb::post_bsos(self, params).await
+    }
+
+    async fn delete_bso(
+        &mut self,
+        params: params::DeleteBso,
+    ) -> Result<results::DeleteBso, Self::Error> {
+        MysqlDb::delete_bso(self, params).await
+    }
+
+    async fn get_bso(
+        &mut self,
+        params: params::GetBso,
+    ) -> Result<Option<results::GetBso>, Self::Error> {
+        MysqlDb::get_bso(self, params).await
+    }
+
+    async fn get_bso_timestamp(
+        &mut self,
+        params: params::GetBsoTimestamp,
+    ) -> Result<results::GetBsoTimestamp, Self::Error> {
+        MysqlDb::get_bso_timestamp(self, params).await
+    }
+
+    async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error> {
+        MysqlDb::put_bso(self, params).await
+    }
+
+    async fn create_batch(
+        &mut self,
+        params: params::CreateBatch,
+    ) -> Result<results::CreateBatch, Self::Error> {
+        MysqlDb::create_batch(self, params).await
+    }
+
+    async fn validate_batch(
+        &mut self,
+        params: params::ValidateBatch,
+    ) -> Result<results::ValidateBatch, Self::Error> {
+        MysqlDb::validate_batch(self, params).await
+    }
+
+    async fn append_to_batch(
+        &mut self,
+        params: params::AppendToBatch,
+    ) -> Result<results::AppendToBatch, Self::Error> {
+        MysqlDb::append_to_batch(self, params).await
+    }
+
+    async fn get_batch(
+        &mut self,
+        params: params::GetBatch,
+    ) -> Result<Option<results::GetBatch>, Self::Error> {
+        MysqlDb::get_batch(self, params).await
+    }
+
+    async fn commit_batch(
+        &mut self,
+        params: params::CommitBatch,
+    ) -> Result<results::CommitBatch, Self::Error> {
+        MysqlDb::commit_batch(self, params).await
+    }
+
+    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error> {
+        self.get_collection_id(&name).await
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
         results::ConnectionInfo::default()
     }
 
-    fn create_collection(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
-        Box::pin(async move { self.get_or_create_collection_id(&name).await })
+    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error> {
+        self.get_or_create_collection_id(&name).await
     }
 
-    fn update_collection(
+    async fn update_collection(
         &mut self,
         param: params::UpdateCollection,
-    ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-        Box::pin(MysqlDb::update_collection(
-            self,
-            param.user_id.legacy_id as u32,
-            param.collection_id,
-        ))
+    ) -> Result<SyncTimestamp, Self::Error> {
+        MysqlDb::update_collection(self, param.user_id.legacy_id as u32, param.collection_id).await
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -1079,13 +1173,16 @@ impl Db for MysqlDb {
         self.session.timestamp = timestamp;
     }
 
-    async_db_method!(delete_batch, MysqlDb::delete_batch, DeleteBatch);
+    async fn delete_batch(
+        &mut self,
+        params: params::DeleteBatch,
+    ) -> Result<results::DeleteBatch, Self::Error> {
+        MysqlDb::delete_batch(self, params).await
+    }
 
-    fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async {
-            self.coll_cache.clear();
-            Ok(())
-        })
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+        self.coll_cache.clear();
+        Ok(())
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
