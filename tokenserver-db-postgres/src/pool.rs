@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use deadpool::managed::PoolError;
 use diesel::Connection;
 use diesel_async::{
     async_connection_wrapper::AsyncConnectionWrapper,
@@ -112,21 +111,8 @@ impl TokenserverPgPool {
     }
 
     async fn get_tokenserver_db(&self) -> Result<TokenserverPgDb, DbError> {
-        let conn = self.inner.get().await.map_err(|e| match e {
-            PoolError::Backend(backend_err) => match backend_err {
-                diesel_async::pooled_connection::PoolError::ConnectionError(conn_err) => {
-                    conn_err.into()
-                }
-                diesel_async::pooled_connection::PoolError::QueryError(query_err) => {
-                    query_err.into()
-                }
-            },
-            PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
-            _ => DbError::internal(format!("Deadpool PoolError: {e}")),
-        })?;
-
         Ok(TokenserverPgDb::new(
-            conn,
+            self.inner.get().await?,
             &self.metrics,
             self.service_id,
             self.spanner_node_id,

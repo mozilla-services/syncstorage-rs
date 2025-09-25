@@ -1,6 +1,7 @@
 use std::fmt;
 
 use backtrace::Backtrace;
+use deadpool::managed::PoolError;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncserver_db_common::error::SqlError;
@@ -119,11 +120,6 @@ from_error!(
     |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
 );
 from_error!(
-    diesel::r2d2::PoolError,
-    DbError,
-    |error: diesel::r2d2::PoolError| DbError::from(DbErrorKind::Sql(SqlError::from(error)))
-);
-from_error!(
     diesel_migrations::MigrationError,
     DbError,
     |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Sql(SqlError::from(
@@ -135,3 +131,16 @@ from_error!(
     DbError,
     |error: std::boxed::Box<dyn std::error::Error>| DbError::internal_error(error.to_string())
 );
+
+impl From<PoolError<diesel_async::pooled_connection::PoolError>> for DbError {
+    fn from(pe: PoolError<diesel_async::pooled_connection::PoolError>) -> DbError {
+        match pe {
+            PoolError::Backend(be) => match be {
+                diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
+                diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
+            },
+            PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
+            _ => DbError::internal(format!("deadpool PoolError: {pe}")),
+        }
+    }
+}
