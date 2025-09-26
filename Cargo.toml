@@ -20,7 +20,7 @@ members = [
 default-members = ["syncserver"]
 
 [workspace.package]
-version = "0.20.1"
+version = "0.21.1"
 authors = [
   "Ben Bangert <ben@groovie.org>",
   "Phil Jenvey <pjenvey@underboss.org>",
