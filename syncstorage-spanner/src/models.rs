@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use futures::future::TryFutureExt;
+use async_trait::async_trait;
 use google_cloud_rust_raw::spanner::v1::{
     mutation::{Mutation, Mutation_Write},
     spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
@@ -21,7 +21,6 @@ use protobuf::{
     Message, RepeatedField,
 };
 use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
-use syncserver_db_common::DbFuture;
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
     DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
@@ -1829,195 +1828,184 @@ impl SpannerDb {
     }
 }
 
+#[async_trait(?Send)]
 impl Db for SpannerDb {
     type Error = DbError;
 
-    fn commit(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move { self.commit().map_err(Into::into).await })
+    async fn commit(&mut self) -> Result<(), Self::Error> {
+        self.commit().await
     }
 
-    fn rollback(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move { self.rollback().map_err(Into::into).await })
+    async fn rollback(&mut self) -> Result<(), Self::Error> {
+        self.rollback().await
     }
 
-    fn lock_for_read(&mut self, param: params::LockCollection) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move { self.lock_for_read(param).map_err(Into::into).await })
+    async fn lock_for_read(&mut self, param: params::LockCollection) -> Result<(), Self::Error> {
+        self.lock_for_read(param).await
     }
 
-    fn lock_for_write(&mut self, param: params::LockCollection) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move { self.lock_for_write(param).map_err(Into::into).await })
+    async fn lock_for_write(&mut self, param: params::LockCollection) -> Result<(), Self::Error> {
+        self.lock_for_write(param).await
     }
 
-    fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move { self.begin(for_write).map_err(Into::into).await })
+    async fn begin(&mut self, for_write: bool) -> Result<(), Self::Error> {
+        self.begin(for_write).await
     }
 
-    fn get_collection_timestamp(
+    async fn get_collection_timestamp(
         &mut self,
         param: params::GetCollectionTimestamp,
-    ) -> DbFuture<'_, results::GetCollectionTimestamp, Self::Error> {
-        Box::pin(async move {
-            self.get_collection_timestamp(param)
-                .map_err(Into::into)
-                .await
-        })
+    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
+        self.get_collection_timestamp(param).await
     }
 
-    fn get_storage_timestamp(
+    async fn get_storage_timestamp(
         &mut self,
         param: params::GetStorageTimestamp,
-    ) -> DbFuture<'_, results::GetStorageTimestamp, Self::Error> {
-        Box::pin(async move { self.get_storage_timestamp(param).map_err(Into::into).await })
+    ) -> Result<results::GetStorageTimestamp, Self::Error> {
+        self.get_storage_timestamp(param).await
     }
 
-    fn delete_collection(
+    async fn delete_collection(
         &mut self,
         param: params::DeleteCollection,
-    ) -> DbFuture<'_, results::DeleteCollection, Self::Error> {
-        Box::pin(async move { self.delete_collection(param).map_err(Into::into).await })
+    ) -> Result<results::DeleteCollection, Self::Error> {
+        self.delete_collection(param).await
     }
 
-    fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error> {
-        Box::pin(async move { self.check().map_err(Into::into).await })
+    async fn check(&mut self) -> Result<results::Check, Self::Error> {
+        self.check().await
     }
 
-    fn get_collection_timestamps(
+    async fn get_collection_timestamps(
         &mut self,
         user_id: params::GetCollectionTimestamps,
-    ) -> DbFuture<'_, results::GetCollectionTimestamps, Self::Error> {
-        Box::pin(async move {
-            self.get_collection_timestamps(user_id)
-                .map_err(Into::into)
-                .await
-        })
+    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
+        self.get_collection_timestamps(user_id).await
     }
 
-    fn get_collection_counts(
+    async fn get_collection_counts(
         &mut self,
         user_id: params::GetCollectionCounts,
-    ) -> DbFuture<'_, results::GetCollectionCounts, Self::Error> {
-        Box::pin(async move {
-            self.get_collection_counts(user_id)
-                .map_err(Into::into)
-                .await
-        })
+    ) -> Result<results::GetCollectionCounts, Self::Error> {
+        self.get_collection_counts(user_id).await
     }
 
-    fn get_collection_usage(
+    async fn get_collection_usage(
         &mut self,
         user_id: params::GetCollectionUsage,
-    ) -> DbFuture<'_, results::GetCollectionUsage, Self::Error> {
-        Box::pin(async move { self.get_collection_usage(user_id).map_err(Into::into).await })
+    ) -> Result<results::GetCollectionUsage, Self::Error> {
+        self.get_collection_usage(user_id).await
     }
 
-    fn get_storage_usage(
+    async fn get_storage_usage(
         &mut self,
         param: params::GetStorageUsage,
-    ) -> DbFuture<'_, results::GetStorageUsage, Self::Error> {
-        Box::pin(async move { self.get_storage_usage(param).map_err(Into::into).await })
+    ) -> Result<results::GetStorageUsage, Self::Error> {
+        self.get_storage_usage(param).await
     }
 
-    fn get_quota_usage(
+    async fn get_quota_usage(
         &mut self,
         param: params::GetQuotaUsage,
-    ) -> DbFuture<'_, results::GetQuotaUsage, Self::Error> {
-        Box::pin(async move { self.get_quota_usage(param).map_err(Into::into).await })
+    ) -> Result<results::GetQuotaUsage, Self::Error> {
+        self.get_quota_usage(param).await
     }
 
-    fn delete_storage(
+    async fn delete_storage(
         &mut self,
         param: params::DeleteStorage,
-    ) -> DbFuture<'_, results::DeleteStorage, Self::Error> {
-        Box::pin(async move { self.delete_storage(param).map_err(Into::into).await })
+    ) -> Result<results::DeleteStorage, Self::Error> {
+        self.delete_storage(param).await
     }
 
-    fn delete_bso(
+    async fn delete_bso(
         &mut self,
         param: params::DeleteBso,
-    ) -> DbFuture<'_, results::DeleteBso, Self::Error> {
-        Box::pin(async move { self.delete_bso(param).map_err(Into::into).await })
+    ) -> Result<results::DeleteBso, Self::Error> {
+        self.delete_bso(param).await
     }
 
-    fn delete_bsos(
+    async fn delete_bsos(
         &mut self,
         param: params::DeleteBsos,
-    ) -> DbFuture<'_, results::DeleteBsos, Self::Error> {
-        Box::pin(async move { self.delete_bsos(param).map_err(Into::into).await })
+    ) -> Result<results::DeleteBsos, Self::Error> {
+        self.delete_bsos(param).await
     }
 
-    fn get_bsos(&mut self, param: params::GetBsos) -> DbFuture<'_, results::GetBsos, Self::Error> {
-        Box::pin(async move { self.get_bsos(param).map_err(Into::into).await })
+    async fn get_bsos(&mut self, param: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
+        self.get_bsos(param).await
     }
 
-    fn get_bso_ids(
+    async fn get_bso_ids(
         &mut self,
         param: params::GetBsoIds,
-    ) -> DbFuture<'_, results::GetBsoIds, Self::Error> {
-        Box::pin(async move { self.get_bso_ids(param).map_err(Into::into).await })
+    ) -> Result<results::GetBsoIds, Self::Error> {
+        self.get_bso_ids(param).await
     }
 
-    fn get_bso(
+    async fn get_bso(
         &mut self,
         param: params::GetBso,
-    ) -> DbFuture<'_, Option<results::GetBso>, Self::Error> {
-        Box::pin(async move { self.get_bso(param).map_err(Into::into).await })
+    ) -> Result<Option<results::GetBso>, Self::Error> {
+        self.get_bso(param).await
     }
 
-    fn get_bso_timestamp(
+    async fn get_bso_timestamp(
         &mut self,
         param: params::GetBsoTimestamp,
-    ) -> DbFuture<'_, results::GetBsoTimestamp, Self::Error> {
-        Box::pin(async move { self.get_bso_timestamp(param).map_err(Into::into).await })
+    ) -> Result<results::GetBsoTimestamp, Self::Error> {
+        self.get_bso_timestamp(param).await
     }
 
-    fn put_bso(&mut self, param: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error> {
-        Box::pin(async move { self.put_bso(param).map_err(Into::into).await })
+    async fn put_bso(&mut self, param: params::PutBso) -> Result<results::PutBso, Self::Error> {
+        self.put_bso(param).await
     }
 
-    fn post_bsos(
+    async fn post_bsos(
         &mut self,
         param: params::PostBsos,
-    ) -> DbFuture<'_, results::PostBsos, Self::Error> {
-        Box::pin(async move { self.post_bsos(param).map_err(Into::into).await })
+    ) -> Result<results::PostBsos, Self::Error> {
+        self.post_bsos(param).await
     }
 
-    fn create_batch(
+    async fn create_batch(
         &mut self,
         param: params::CreateBatch,
-    ) -> DbFuture<'_, results::CreateBatch, Self::Error> {
-        Box::pin(async move { batch::create(self, param).map_err(Into::into).await })
+    ) -> Result<results::CreateBatch, Self::Error> {
+        batch::create(self, param).await
     }
 
-    fn validate_batch(
+    async fn validate_batch(
         &mut self,
         param: params::ValidateBatch,
-    ) -> DbFuture<'_, results::ValidateBatch, Self::Error> {
-        Box::pin(async move { batch::validate(self, param).map_err(Into::into).await })
+    ) -> Result<results::ValidateBatch, Self::Error> {
+        batch::validate(self, param).await
     }
 
-    fn append_to_batch(
+    async fn append_to_batch(
         &mut self,
         param: params::AppendToBatch,
-    ) -> DbFuture<'_, results::AppendToBatch, Self::Error> {
-        Box::pin(async move { batch::append(self, param).map_err(Into::into).await })
+    ) -> Result<results::AppendToBatch, Self::Error> {
+        batch::append(self, param).await
     }
 
-    fn get_batch(
+    async fn get_batch(
         &mut self,
         param: params::GetBatch,
-    ) -> DbFuture<'_, Option<results::GetBatch>, Self::Error> {
-        Box::pin(async move { batch::get_query(self, param).map_err(Into::into).await })
+    ) -> Result<Option<results::GetBatch>, Self::Error> {
+        batch::get_query(self, param).await
     }
 
-    fn commit_batch(
+    async fn commit_batch(
         &mut self,
         param: params::CommitBatch,
-    ) -> DbFuture<'_, results::CommitBatch, Self::Error> {
-        Box::pin(async move { batch::commit_query(self, param).map_err(Into::into).await })
+    ) -> Result<results::CommitBatch, Self::Error> {
+        batch::commit_query(self, param).await
     }
 
-    fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
-        Box::pin(async move { self.get_collection_id(&name).await })
+    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error> {
+        self.get_collection_id(&name).await
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -2038,19 +2026,17 @@ impl Db for SpannerDb {
         }
     }
 
-    fn create_collection(&mut self, name: String) -> DbFuture<'_, i32, Self::Error> {
-        Box::pin(async move { self.create_collection(&name).await })
+    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error> {
+        // XXX: why is this get_or_create_collection_id in mysql?
+        self.create_collection(&name).await
     }
 
-    fn update_collection(
+    async fn update_collection(
         &mut self,
         param: params::UpdateCollection,
-    ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-        Box::pin(async move {
-            self.update_collection(&param.user_id, param.collection_id, &param.collection)
-                .map_err(Into::into)
-                .await
-        })
+    ) -> Result<SyncTimestamp, Self::Error> {
+        self.update_collection(&param.user_id, param.collection_id, &param.collection)
+            .await
     }
 
     fn timestamp(&self) -> SyncTimestamp {
@@ -2062,18 +2048,16 @@ impl Db for SpannerDb {
         SpannerDb::set_timestamp(self, timestamp)
     }
 
-    fn delete_batch(
+    async fn delete_batch(
         &mut self,
         param: params::DeleteBatch,
-    ) -> DbFuture<'_, results::DeleteBatch, Self::Error> {
-        Box::pin(async move { batch::delete_query(self, param).map_err(Into::into).await })
+    ) -> Result<results::DeleteBatch, Self::Error> {
+        batch::delete_query(self, param).await
     }
 
-    fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error> {
-        Box::pin(async move {
-            self.coll_cache.clear().await;
-            Ok(())
-        })
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+        self.coll_cache.clear().await;
+        Ok(())
     }
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {

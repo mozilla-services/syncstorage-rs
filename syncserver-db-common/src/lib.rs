@@ -3,10 +3,6 @@ pub mod test;
 
 use std::fmt::Debug;
 
-use futures::future::LocalBoxFuture;
-
-pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
-
 /// A trait to be implemented by database pool data structures. It provides an interface to
 /// derive the current state of the pool, as represented by the `PoolState` struct.
 pub trait GetPoolState {
