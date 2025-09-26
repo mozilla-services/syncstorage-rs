@@ -182,11 +182,10 @@ impl TokenserverDb {
     }
 
     async fn check(&mut self) -> DbResult<results::Check> {
-        // has the database been up for more than 0 seconds?
-        let result = diesel::sql_query("SHOW STATUS LIKE \"Uptime\"")
+        diesel::sql_query("SELECT 1")
             .execute(&mut self.conn)
             .await?;
-        Ok(result as u64 > 0)
+        Ok(true)
     }
 
     /// Gets the least-loaded node that has available slots.
@@ -1929,6 +1928,14 @@ mod tests {
             spanner_node_id
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn heartbeat() -> Result<(), DbError> {
+        let pool = db_pool().await?;
+        let mut db = pool.get().await?;
+        assert!(db.check().await?);
         Ok(())
     }
 
