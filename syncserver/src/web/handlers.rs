@@ -31,6 +31,7 @@ use crate::{
 };
 
 use glean::server_events::{EventsPing, RequestInfo, SyncstorageGetCollectionsEvent};
+use syncstorage_db::params::PostCollectionBso;
 
 pub const ONE_KB: f64 = 1024.0;
 
@@ -291,19 +292,25 @@ pub async fn post_collection(
                 }
             }
 
-            let result = db
+            let bsos: Vec<PostCollectionBso> =
+                coll.bsos.valid.into_iter().map(From::from).collect();
+            let modified = db
                 .post_bsos(params::PostBsos {
                     user_id: coll.user_id,
                     collection: coll.collection,
-                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                    bsos: bsos.clone(),
                     for_batch: false,
-                    failed: coll.bsos.invalid,
+                    failed: coll.bsos.invalid.clone(),
                 })
                 .await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .insert_header((X_LAST_MODIFIED, result.modified.as_header()))
-                .json(result))
+                .insert_header((X_LAST_MODIFIED, modified.as_header()))
+                .json(json!({
+                    "modified": modified,
+                    "success": bsos.iter().map(|bso| bso.id.clone()).collect::<Vec<_>>(),
+                    "failed": coll.bsos.invalid,
+                })))
         })
         .await
 }
