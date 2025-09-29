@@ -2,19 +2,31 @@ use std::time::Duration;
 
 use super::pool::Conn;
 use async_trait::async_trait;
+use diesel::sql_types::Text;
+use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
-use tokenserver_db_common::{params, results, Db, DbError};
+use tokenserver_db_common::{params, results, Db, DbError, DbResult};
 
+/// Struct containing connection and related metadata to a Tokenserver
+/// Postgres Database.
 #[allow(dead_code)]
 pub struct TokenserverPgDb {
+    /// Async PgConnection handle.
     conn: Conn,
+    /// Syncserver_common Metrics object.
     metrics: Metrics,
+    /// Optional Service Identifier.
     service_id: Option<i32>,
+    /// Optional Spanner Node ID.
     spanner_node_id: Option<i32>,
+    /// Settings specified timeout for Db Connection.
     pub timeout: Option<Duration>,
 }
 
 impl TokenserverPgDb {
+    /// Utility constant to get the most recent id value after an insert.
+    const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+
     pub fn new(
         conn: Conn,
         metrics: &Metrics,
@@ -29,6 +41,68 @@ impl TokenserverPgDb {
             spanner_node_id,
             timeout,
         }
+    }
+
+    // Services Table Methods
+
+    /**
+    Acquire service_id through passed in service string.
+
+        SELECT id
+        FROM services
+        WHERE service = <String service>
+     */
+    pub async fn get_service_id(
+        &mut self,
+        params: params::GetServiceId,
+    ) -> DbResult<results::GetServiceId> {
+        const QUERY: &str = r#"
+            SELECT id
+              FROM services
+             WHERE service = $1
+        "#;
+
+        if let Some(id) = self.service_id {
+            Ok(results::GetServiceId { id })
+        } else {
+            diesel::sql_query(QUERY)
+                .bind::<Text, _>(params.service)
+                .get_result::<results::GetServiceId>(&mut self.conn)
+                .await
+                .map_err(Into::into)
+        }
+    }
+
+    /**
+    Create a new service, given a provided service string and pattern.
+    Returns a service_id.
+
+        INSERT INTO services (service, pattern)
+        VALUES (<String service>, <String pattern>)
+
+     */
+    #[cfg(debug_assertions)]
+    pub async fn post_service(
+        &mut self,
+        params: params::PostService,
+    ) -> DbResult<results::PostService> {
+        const INSERT_SERVICE_QUERY: &str = r#"
+            INSERT INTO services (service, pattern)
+            VALUES ($1, $2)
+        "#;
+        diesel::sql_query(INSERT_SERVICE_QUERY)
+            .bind::<Text, _>(&params.service)
+            .bind::<Text, _>(&params.pattern)
+            .execute(&mut self.conn)
+            .await?;
+
+        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+            .get_result::<results::LastInsertId>(&mut self.conn)
+            .await
+            .map(|result| results::PostService {
+                id: result.id as i32,
+            })
+            .map_err(Into::into)
     }
 }
 
