@@ -291,19 +291,29 @@ pub async fn post_collection(
                 }
             }
 
-            let result = db
+            let (success_ids, bsos): (Vec<_>, Vec<_>) = coll
+                .bsos
+                .valid
+                .into_iter()
+                .map(|x| (x.id.clone(), x.into()))
+                .unzip();
+
+            let modified = db
                 .post_bsos(params::PostBsos {
                     user_id: coll.user_id,
                     collection: coll.collection,
-                    bsos: coll.bsos.valid.into_iter().map(From::from).collect(),
+                    bsos,
                     for_batch: false,
-                    failed: coll.bsos.invalid,
                 })
                 .await?;
 
             Ok(HttpResponse::build(StatusCode::OK)
-                .insert_header((X_LAST_MODIFIED, result.modified.as_header()))
-                .json(result))
+                .insert_header((X_LAST_MODIFIED, modified.as_header()))
+                .json(json!({
+                    "modified": modified,
+                    "success": success_ids,
+                    "failed": coll.bsos.invalid,
+                })))
         })
         .await
 }
@@ -464,7 +474,6 @@ pub async fn post_collection_batch(
                     })
                     .collect(),
                 for_batch: false,
-                failed: Default::default(),
             })
             .await
             .map(|_| ());

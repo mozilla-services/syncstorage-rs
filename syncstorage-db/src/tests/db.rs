@@ -784,15 +784,8 @@ async fn post_bsos() -> Result<(), DbError> {
                 postbso("b2", Some("payload 2"), Some(100), None),
             ],
             for_batch: false,
-            failed: Default::default(),
         })
         .await?;
-
-    assert!(result.success.contains(&"b0".to_owned()));
-    assert!(result.success.contains(&"b2".to_owned()));
-    // NOTE: b1 exceeds BSO_MAX_TTL but the database layer doesn't validate.
-    // This is the extractor's responsibility
-    //assert!(!result.success.contains(&"b1".to_owned()));
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
@@ -801,7 +794,7 @@ async fn post_bsos() -> Result<(), DbError> {
         })
         .await?;
     // XXX: casts
-    assert_eq!(result.modified, ts);
+    assert_eq!(result, ts);
 
     let result2 = db
         .post_bsos(params::PostBsos {
@@ -812,14 +805,8 @@ async fn post_bsos() -> Result<(), DbError> {
                 postbso("b2", Some("updated 2"), Some(22), Some(10000)),
             ],
             for_batch: false,
-            failed: Default::default(),
         })
         .await?;
-
-    assert_eq!(result2.success.len(), 2);
-    assert_eq!(result2.failed.len(), 0);
-    assert!(result2.success.contains(&"b0".to_owned()));
-    assert!(result2.success.contains(&"b2".to_owned()));
 
     let bso = db.get_bso(gbso(uid, coll, "b0")).await?.unwrap();
     assert_eq!(bso.sortindex, Some(11));
@@ -834,7 +821,7 @@ async fn post_bsos() -> Result<(), DbError> {
             collection: coll.to_string(),
         })
         .await?;
-    assert_eq!(result2.modified, ts);
+    assert_eq!(result2, ts);
     Ok(())
 }
 
