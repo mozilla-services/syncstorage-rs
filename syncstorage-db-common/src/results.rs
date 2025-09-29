@@ -23,6 +23,7 @@ pub type DeleteCollection = SyncTimestamp;
 pub type DeleteBsos = SyncTimestamp;
 pub type DeleteBso = SyncTimestamp;
 pub type PutBso = SyncTimestamp;
+pub type PostBsos = SyncTimestamp;
 
 #[derive(Debug, Default, Clone)]
 pub struct CreateBatch {
@@ -75,13 +76,6 @@ where
 
 pub type GetBsos = Paginated<GetBso>;
 pub type GetBsoIds = Paginated<String>;
-
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub struct PostBsos {
-    pub modified: SyncTimestamp,
-    pub success: Vec<String>,
-    pub failed: HashMap<String, String>,
-}
 
 #[derive(Debug, Default)]
 pub struct ConnectionInfo {

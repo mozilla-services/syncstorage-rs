@@ -138,10 +138,7 @@ pub trait Db: Debug {
         params: params::GetBsos,
     ) -> DbFuture<'_, results::GetBsoIds, Self::Error>;
 
-    fn post_bsos(
-        &mut self,
-        params: params::PostBsos,
-    ) -> DbFuture<'_, results::PostBsos, Self::Error>;
+    fn post_bsos(&mut self, params: params::PostBsos) -> DbFuture<'_, SyncTimestamp, Self::Error>;
 
     fn delete_bso(
         &mut self,
