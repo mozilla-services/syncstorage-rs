@@ -2,8 +2,12 @@ use std::time::Duration;
 
 use super::pool::Conn;
 use async_trait::async_trait;
-use diesel::sql_types::{Integer, Text};
+use diesel::{
+    sql_types::{BigInt, Float, Integer, Text},
+    OptionalExtension,
+};
 use diesel_async::RunQueryDsl;
+use http::StatusCode;
 use syncserver_common::Metrics;
 use tokenserver_db_common::{params, results, Db, DbError, DbResult};
 
@@ -107,7 +111,31 @@ impl TokenserverPgDb {
     // Nodes Table Methods
 
     /**
-    Get Node ID, given a provided service string and node.
+    Get Node with complete metadata, given a provided Node ID.
+    Returns a complete Node, including id, service_id, node string identifier
+    availability, and current load.
+
+        SELECT *
+        FROM nodes
+        WHERE id = <id i64>
+     */
+    #[cfg(debug_assertions)]
+    async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
+        const QUERY: &str = r#"
+            SELECT *
+            FROM nodes
+            WHERE id = $1
+            "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.id)
+            .get_result::<results::GetNode>(&mut self.conn)
+            .await
+            .map_err(Into::into)
+    }
+
+    /**
+    Get the specific Node ID, given a provided service string and node.
     Returns a node_id.
 
         SELECT id
@@ -135,6 +163,106 @@ impl TokenserverPgDb {
                 .get_result(&mut self.conn)
                 .await
                 .map_err(Into::into)
+        }
+    }
+    /**
+    Get the best Node ID, which is the least loaded node with most available slots,
+    given a provided service string and node.
+    Returns a node_id and identifier string.
+
+              SELECT id, node
+                FROM nodes
+               WHERE service = <service_id i32>
+                 AND available > 0
+                 AND capacity > current_load
+                 AND downed = 0
+                 AND backoff = 0
+            ORDER BY LOG(current_load) / LOG(capacity)
+               LIMIT 1
+     */
+    async fn get_best_node(
+        &mut self,
+        params: params::GetBestNode,
+    ) -> DbResult<results::GetBestNode> {
+        const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
+        const GET_BEST_NODE_QUERY: &str = r#"
+                SELECT id, node
+                FROM nodes
+                WHERE service = $1
+                AND available > 0
+                AND capacity > current_load
+                AND downed = 0
+                AND backoff = 0
+                ORDER BY LOG(current_load) / LOG(capacity)
+                LIMIT 1
+            "#;
+        const RELEASE_CAPACITY_QUERY: &str = r#"
+            UPDATE nodes
+            SET available = LEAST(capacity * $1, capacity - current_load)
+            WHERE service = $2
+            AND available <= 0
+            AND capacity > current_load
+            AND downed = 0
+            "#;
+        const SPANNER_QUERY: &str = r#"
+            SELECT id, node
+            FROM nodes
+            WHERE id = $1
+            LIMIT 1
+            "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.get_best_node", None);
+
+        if let Some(spanner_node_id) = self.spanner_node_id {
+            diesel::sql_query(SPANNER_QUERY)
+                .bind::<Integer, _>(spanner_node_id)
+                .get_result::<results::GetBestNode>(&mut self.conn)
+                .await
+                .map_err(|e| {
+                    let mut db_error = DbError::internal(format!(
+                        "Tokenserver get_best_node query - Unable to get Spanner node: {}",
+                        e
+                    ));
+                    db_error.status = StatusCode::SERVICE_UNAVAILABLE;
+                    db_error
+                })
+        } else {
+            // This loop allows for a maximum of 5 retries before stopping.
+            // This allows for query retries if more capacity needs to be released.
+            for _ in 0..5 {
+                let possible_result: Option<results::GetBestNode> =
+                    diesel::sql_query(GET_BEST_NODE_QUERY)
+                        .bind::<Integer, _>(params.service_id)
+                        .get_result::<results::GetBestNode>(&mut self.conn)
+                        .await
+                        .optional()?;
+
+                if let Some(result) = possible_result {
+                    return Ok(result);
+                }
+
+                // No available Nodes.
+                // Attempt to release additional capacity from any nodes that are not full.
+                let affected_rows = diesel::sql_query(RELEASE_CAPACITY_QUERY)
+                    .bind::<Float, _>(
+                        params
+                            .capacity_release_rate
+                            .unwrap_or(DEFAULT_CAPACITY_RELEASE_RATE),
+                    )
+                    .bind::<Integer, _>(params.service_id)
+                    .execute(&mut self.conn)
+                    .await?;
+
+                // If no nodes were affected by the last query, terminate.
+                if affected_rows == 0 {
+                    break;
+                }
+            }
+
+            let mut db_error: DbError = DbError::internal(String::from("unable to get a node"));
+            db_error.status = StatusCode::SERVICE_UNAVAILABLE;
+            Err(db_error)
         }
     }
 }
