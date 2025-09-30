@@ -297,6 +297,44 @@ impl TokenserverPgDb {
             .await
             .map_err(Into::into)
     }
+
+    async fn add_user_to_node(
+        &mut self,
+        params: params::AddUserToNode,
+    ) -> DbResult<results::AddUserToNode> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.add_user_to_node", None);
+
+        const QUERY: &str = r#"
+            UPDATE nodes
+            SET current_load = current_load + 1,
+                available = GREATEST(available - 1, 0)
+            WHERE service = $1
+            AND node = $2
+        "#;
+        const SPANNER_QUERY: &str = r#"
+            UPDATE nodes
+            SET current_load = current_load + 1
+            WHERE service = $1
+            AND node = $2
+        "#;
+
+        // Use the spanner query if the instance has spanner_node_id set.
+        // Otherwise use the other query that calculates the available value.
+        let query = if self.spanner_node_id.is_some() {
+            SPANNER_QUERY
+        } else {
+            QUERY
+        };
+
+        diesel::sql_query(query)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.node)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait(?Send)]
