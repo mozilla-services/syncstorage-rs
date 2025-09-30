@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use super::pool::Conn;
 use async_trait::async_trait;
-use diesel::sql_types::Text;
+use diesel::sql_types::{Integer, Text};
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
 use tokenserver_db_common::{params, results, Db, DbError, DbResult};
@@ -79,7 +79,6 @@ impl TokenserverPgDb {
 
         INSERT INTO services (service, pattern)
         VALUES (<String service>, <String pattern>)
-
      */
     #[cfg(debug_assertions)]
     pub async fn post_service(
@@ -103,6 +102,40 @@ impl TokenserverPgDb {
                 id: result.id as i32,
             })
             .map_err(Into::into)
+    }
+
+    // Nodes Table Methods
+
+    /**
+    Get Node ID, given a provided service string and node.
+    Returns a node_id.
+
+        SELECT id
+        FROM nodes
+        WHERE service = <String service>
+        AND node = <String node>
+     */
+    async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
+        const QUERY: &str = r#"
+            SELECT id
+              FROM nodes
+             WHERE service = $1
+               AND node = $2
+        "#;
+
+        if let Some(id) = self.spanner_node_id {
+            Ok(results::GetNodeId { id: id as i64 })
+        } else {
+            let mut metrics = self.metrics.clone();
+            metrics.start_timer("storage.get_node_id", None);
+
+            diesel::sql_query(QUERY)
+                .bind::<Integer, _>(params.service_id)
+                .bind::<Text, _>(&params.node)
+                .get_result(&mut self.conn)
+                .await
+                .map_err(Into::into)
+        }
     }
 }
 
