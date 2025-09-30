@@ -165,20 +165,21 @@ impl TokenserverPgDb {
                 .map_err(Into::into)
         }
     }
+
     /**
     Get the best Node ID, which is the least loaded node with most available slots,
     given a provided service string and node.
     Returns a node_id and identifier string.
 
-              SELECT id, node
-                FROM nodes
-               WHERE service = <service_id i32>
-                 AND available > 0
-                 AND capacity > current_load
-                 AND downed = 0
-                 AND backoff = 0
-            ORDER BY LOG(current_load) / LOG(capacity)
-               LIMIT 1
+        SELECT id, node
+        FROM nodes
+        WHERE service = <service_id i32>
+            AND available > 0
+            AND capacity > current_load
+            AND downed = 0
+            AND backoff = 0
+        ORDER BY LOG(current_load) / LOG(capacity)
+        LIMIT 1
      */
     async fn get_best_node(
         &mut self,
@@ -264,6 +265,37 @@ impl TokenserverPgDb {
             db_error.status = StatusCode::SERVICE_UNAVAILABLE;
             Err(db_error)
         }
+    }
+
+    /**
+    Create and Insert a new node.
+    Returns the last_insert_id of the newly created node.
+
+        INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
+        VALUES (<service_id i32>, <node String>, <available i32>, <current_load i32>,
+        <capacity i32>, <downed i32>, <backoff i32>)
+     */
+    #[cfg(debug_assertions)]
+    async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
+        const QUERY: &str = r#"
+            INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        "#;
+        diesel::sql_query(QUERY)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.node)
+            .bind::<Integer, _>(params.available)
+            .bind::<Integer, _>(params.current_load)
+            .bind::<Integer, _>(params.capacity)
+            .bind::<Integer, _>(params.downed)
+            .bind::<Integer, _>(params.backoff)
+            .execute(&mut self.conn)
+            .await?;
+
+        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+            .get_result::<results::PostNode>(&mut self.conn)
+            .await
+            .map_err(Into::into)
     }
 }
 
