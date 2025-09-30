@@ -298,6 +298,17 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
+    /**
+    Update the current load count of a node, passing in the service string and node string.
+    This represents the addition of a user to a note, while not defining which user specifically.
+    Does not return anything
+
+        UPDATE nodes
+        SET current_load = current_load + 1,
+            available = GREATEST(available - 1, 0)
+        WHERE service = <service String>
+        AND node = <node String>
+     */
     async fn add_user_to_node(
         &mut self,
         params: params::AddUserToNode,
