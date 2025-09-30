@@ -19,7 +19,10 @@ use super::models::{SpannerDb, PRETOUCH_TS};
 use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
 use super::DbResult;
 
-pub async fn create(db: &SpannerDb, params: params::CreateBatch) -> DbResult<results::CreateBatch> {
+pub async fn create(
+    db: &mut SpannerDb,
+    params: params::CreateBatch,
+) -> DbResult<results::CreateBatch> {
     let batch_id = Uuid::new_v4().simple().to_string();
     let collection_id = db.get_collection_id(&params.collection).await?;
     let timestamp = db.checked_timestamp()?.as_i64();
@@ -64,13 +67,13 @@ pub async fn create(db: &SpannerDb, params: params::CreateBatch) -> DbResult<res
     Ok(new_batch)
 }
 
-pub async fn validate(db: &SpannerDb, params: params::ValidateBatch) -> DbResult<bool> {
+pub async fn validate(db: &mut SpannerDb, params: params::ValidateBatch) -> DbResult<bool> {
     let exists = get_query(db, params.into()).await?;
     Ok(exists.is_some())
 }
 
 // Append a collection to a pending batch (`create_batch` creates a new batch)
-pub async fn append(db: &SpannerDb, params: params::AppendToBatch) -> DbResult<()> {
+pub async fn append(db: &mut SpannerDb, params: params::AppendToBatch) -> DbResult<()> {
     let mut metrics = db.metrics.clone();
     metrics.start_timer("storage.spanner.append_items_to_batch", None);
     let collection_id = db.get_collection_id(&params.collection).await?;
@@ -112,7 +115,7 @@ pub async fn append(db: &SpannerDb, params: params::AppendToBatch) -> DbResult<(
 }
 
 pub async fn get_query(
-    db: &SpannerDb,
+    db: &mut SpannerDb,
     params: params::GetBatch,
 ) -> DbResult<Option<results::GetBatch>> {
     let collection_id = db.get_collection_id(&params.collection).await?;
@@ -142,7 +145,7 @@ pub async fn get_query(
     Ok(batch)
 }
 
-pub async fn delete_query(db: &SpannerDb, params: params::DeleteBatch) -> DbResult<()> {
+pub async fn delete_query(db: &mut SpannerDb, params: params::DeleteBatch) -> DbResult<()> {
     let collection_id = db.get_collection_id(&params.collection).await?;
     let (sqlparams, sqlparam_types) = params! {
         "fxa_uid" => params.user_id.fxa_uid.clone(),
@@ -168,7 +171,7 @@ pub async fn delete_query(db: &SpannerDb, params: params::DeleteBatch) -> DbResu
 }
 
 pub async fn commit_query(
-    db: &SpannerDb,
+    db: &mut SpannerDb,
     params: params::CommitBatch,
 ) -> DbResult<results::CommitBatch> {
     let mut metrics = db.metrics.clone();
@@ -249,7 +252,7 @@ pub async fn commit_query(
 
 // Append a collection to an existing, pending batch.
 pub async fn do_append(
-    db: &SpannerDb,
+    db: &mut SpannerDb,
     user_id: UserIdentifier,
     collection_id: i32,
     batch: results::CreateBatch,
@@ -515,7 +518,7 @@ pub async fn do_append(
 /// For the special case of a user creating a batch for a collection with no
 /// prior data.
 async fn pretouch_collection(
-    db: &SpannerDb,
+    db: &mut SpannerDb,
     user_id: &UserIdentifier,
     collection_id: i32,
 ) -> DbResult<()> {
