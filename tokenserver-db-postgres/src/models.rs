@@ -13,7 +13,6 @@ use tokenserver_db_common::{params, results, Db, DbError, DbResult};
 
 /// Struct containing connection and related metadata to a Tokenserver
 /// Postgres Database.
-#[allow(dead_code)]
 pub struct TokenserverPgDb {
     /// Async PgConnection handle.
     conn: Conn,
@@ -301,7 +300,7 @@ impl TokenserverPgDb {
     /**
     Update the current load count of a node, passing in the service string and node string.
     This represents the addition of a user to a note, while not defining which user specifically.
-    Does not return anything
+    Does not return anything.
 
         UPDATE nodes
         SET current_load = current_load + 1,
@@ -341,6 +340,24 @@ impl TokenserverPgDb {
         diesel::sql_query(query)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.node)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    /**
+    Remove a node given the node ID.
+    Does not return anything.
+
+        DELETE FROM nodes WHERE id = <node_id i64>
+     */
+    #[cfg(debug_assertions)]
+    async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
+        const QUERY: &str = "DELETE FROM nodes WHERE id = $1";
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.node_id)
             .execute(&mut self.conn)
             .await
             .map(|_| ())
