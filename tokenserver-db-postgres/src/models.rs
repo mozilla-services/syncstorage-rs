@@ -299,7 +299,7 @@ impl TokenserverPgDb {
 
     /**
     Update the current load count of a node, passing in the service string and node string.
-    This represents the addition of a user to a note, while not defining which user specifically.
+    This represents the addition of a user to a node, while not defining which user specifically.
     Does not return anything.
 
         UPDATE nodes
