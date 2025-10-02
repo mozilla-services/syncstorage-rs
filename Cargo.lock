@@ -3719,6 +3719,7 @@ dependencies = [
  "diesel-async",
  "diesel_logger",
  "diesel_migrations",
+ "http 1.3.1",
  "syncserver-common",
  "syncserver-db-common",
  "tokenserver-common",

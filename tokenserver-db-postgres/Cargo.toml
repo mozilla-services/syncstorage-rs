@@ -12,6 +12,7 @@ diesel = { workspace = true, features = ["postgres"] }
 diesel-async = { workspace = true, features = ["postgres"] }
 diesel_logger.workspace = true
 diesel_migrations.workspace = true
+http.workspace = true
 tokio = { workspace = true, features = ["macros", "sync"] }
 
 syncserver-common = { path = "../syncserver-common" }
