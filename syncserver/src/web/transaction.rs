@@ -5,14 +5,15 @@ use actix_web::web::Data;
 use actix_web::{FromRequest, HttpRequest, HttpResponse};
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
+
 use syncserver_common::{Taggable, X_LAST_MODIFIED};
 use syncstorage_db::{params, results::ConnectionInfo, Db, DbError, DbPool, UserIdentifier};
 
-use crate::error::{ApiError, ApiErrorKind};
-use crate::server::{MetricsWrapper, ServerState};
-use crate::web::extractors::{
+use super::extractors::{
     BsoParam, CollectionParam, HawkIdentifier, PreConditionHeader, PreConditionHeaderOpt,
 };
+use crate::error::{ApiError, ApiErrorKind};
+use crate::server::{MetricsWrapper, ServerState};
 
 #[derive(Clone)]
 pub struct DbTransactionPool {
