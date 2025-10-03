@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 async-trait.workspace = true
 env_logger.workspace = true
-futures.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
 slog-scope.workspace = true

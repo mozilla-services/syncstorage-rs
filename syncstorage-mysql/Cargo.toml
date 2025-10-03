@@ -14,7 +14,6 @@ diesel.workspace = true
 diesel-async.workspace = true
 diesel_logger.workspace = true
 diesel_migrations.workspace = true
-futures.workspace = true
 http.workspace = true
 slog-scope.workspace = true
 thiserror.workspace = true

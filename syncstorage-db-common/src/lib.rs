@@ -188,8 +188,6 @@ pub trait Db: Debug {
     fn get_connection_info(&self) -> results::ConnectionInfo;
 
     /// Retrieve the timestamp for an item/collection
-    ///
-    /// Modeled on the Python `get_resource_timestamp` function.
     async fn extract_resource(
         &mut self,
         user_id: UserIdentifier,

@@ -10,7 +10,6 @@ async-trait.workspace = true
 backtrace.workspace = true
 chrono.workspace = true
 diesel.workspace = true
-futures.workspace = true
 lazy_static.workspace = true
 http.workspace = true
 serde.workspace = true
