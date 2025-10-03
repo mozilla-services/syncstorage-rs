@@ -1,3 +1,5 @@
+use std::{str::FromStr, sync::Arc};
+
 use actix_web::{
     dev::{ConnectionInfo, Extensions, Payload},
     http::Uri,
@@ -6,21 +8,21 @@ use actix_web::{
 };
 use futures::future::{self, Ready};
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, sync::Arc};
+
+use syncserver_common::Taggable;
 use syncserver_settings::Secrets;
 use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
+use super::{urldecode, RequestErrorLocation};
 use crate::{
     error::{ApiError, ApiErrorKind},
     web::{
         auth::HawkPayload,
         error::{HawkErrorKind, ValidationErrorKind},
-        extractors::{urldecode, RequestErrorLocation},
         DOCKER_FLOW_ENDPOINTS,
     },
 };
-use syncserver_common::Taggable;
 
 /// Extract a user-identifier from the authentication token and validate against the URL
 ///
@@ -205,5 +207,83 @@ impl FromRequest for HawkIdentifier {
         }
 
         future::ready(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use actix_web::{
+        dev::{Payload, ServiceResponse},
+        http::Method,
+        test::TestRequest,
+        FromRequest, HttpResponse,
+    };
+    use futures::executor::block_on;
+
+    use super::HawkIdentifier;
+    use crate::web::{
+        auth::HawkPayload,
+        extractors::test_utils::{
+            create_valid_hawk_header, extract_body_as_str, make_state, SECRETS, TEST_HOST,
+            TEST_PORT, USER_ID, USER_ID_STR,
+        },
+    };
+
+    #[test]
+    fn valid_header_with_valid_path() {
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
+        let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
+        let uri = format!("/1.5/{}/storage/col2", *USER_ID);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .insert_header(("authorization", header))
+            .method(Method::GET)
+            .data(state)
+            .data(secrets)
+            .param("uid", USER_ID_STR.as_str())
+            .to_http_request();
+        let mut payload = Payload::None;
+        let result = block_on(HawkIdentifier::from_request(&req, &mut payload))
+            .expect("Could not get result in valid_header_with_valid_path");
+        assert_eq!(result.legacy_id, *USER_ID);
+    }
+
+    #[test]
+    fn valid_header_with_invalid_uid_in_path() {
+        // the uid in the hawk payload should match the UID in the path.
+        let hawk_payload = HawkPayload::test_default(*USER_ID);
+        let mismatch_uid = "5";
+        let state = make_state();
+        let secrets = Arc::clone(&SECRETS);
+        let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
+        let header =
+            create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
+        let req = TestRequest::with_uri(&uri)
+            .data(state)
+            .data(secrets)
+            .insert_header(("authorization", header))
+            .method(Method::GET)
+            .param("uid", mismatch_uid)
+            .to_http_request();
+        let result = block_on(HawkIdentifier::extract(&req));
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
+        assert_eq!(body, "0");
+
+        /* New tests for when we can use descriptive errors
+
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+
+        assert_eq!(err["errors"][0]["description"], "conflicts with payload");
+        assert_eq!(err["errors"][0]["location"], "path");
+        assert_eq!(err["errors"][0]["name"], "uid");
+        */
     }
 }

@@ -1,17 +1,64 @@
+use std::{num::ParseIntError, str::FromStr};
+
 use actix_web::{dev::Payload, web::Query, Error, FromRequest, HttpRequest};
 use futures::future::{LocalBoxFuture, TryFutureExt};
 use serde::{
     de::{Deserializer, Error as SerdeError},
     Deserialize,
 };
-use std::str::FromStr;
-use syncstorage_db::{Sorting, SyncTimestamp};
 use validator::{Validate, ValidationError};
 
-use crate::web::{
-    error::ValidationErrorKind,
-    extractors::{request_error, Offset, RequestErrorLocation, BATCH_MAX_IDS, VALID_ID_REGEX},
-};
+use syncstorage_db::{params, Sorting, SyncTimestamp};
+
+use super::{request_error, RequestErrorLocation, BATCH_MAX_IDS, VALID_ID_REGEX};
+use crate::web::error::ValidationErrorKind;
+
+#[derive(Debug, Default, Clone, Copy, Deserialize, Eq, PartialEq, Validate)]
+#[serde(default)]
+pub struct Offset {
+    pub timestamp: Option<SyncTimestamp>,
+    pub offset: u64,
+}
+
+impl From<Offset> for params::Offset {
+    fn from(offset: Offset) -> Self {
+        Self {
+            timestamp: offset.timestamp,
+            offset: offset.offset,
+        }
+    }
+}
+
+impl FromStr for Offset {
+    type Err = ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // issue559: Disable ':' support for now: simply parse as i64 as
+        // previously (it was u64 previously but i64's close enough)
+        let result = Offset {
+            timestamp: None,
+            offset: s.parse::<u64>()?,
+        };
+        /*
+        let result = match s.chars().position(|c| c == ':') {
+            None => Offset {
+                timestamp: None,
+                offset: s.parse::<u64>()?,
+            },
+            Some(_colon_position) => {
+                let mut parts = s.split(':');
+                let timestamp_string = parts.next().unwrap_or("0");
+                let timestamp = SyncTimestamp::from_milliseconds(timestamp_string.parse::<u64>()?);
+                let offset = parts.next().unwrap_or("0").parse::<u64>()?;
+                Offset {
+                    timestamp: Some(timestamp),
+                    offset,
+                }
+            }
+        };
+        */
+        Ok(result)
+    }
+}
 
 /// Verifies that the list of id's is not too long and that the ids are valid
 pub fn validate_qs_ids(ids: &[String]) -> Result<(), ValidationError> {
@@ -186,5 +233,74 @@ impl FromRequest for BsoQueryParams {
             */
             Ok(params)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use actix_web::{dev::ServiceResponse, test::TestRequest, FromRequest, HttpResponse};
+    use futures::executor::block_on;
+
+    use syncstorage_db::{params, Sorting, SyncTimestamp};
+
+    use super::{BsoQueryParams, Offset};
+    use crate::web::extractors::test_utils::{extract_body_as_str, make_state};
+
+    #[test]
+    fn test_invalid_query_args() {
+        let state = make_state();
+        let req = TestRequest::with_uri("/?lower=-1.23&sort=whatever")
+            .data(state)
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req));
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
+        assert_eq!(body, "0");
+
+        /* New tests for when we can use descriptive errors
+        let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(err["status"], 400);
+        assert_eq!(err["reason"], "Bad Request");
+
+        let (_lower_error, sort_error) = if err["errors"][0]["name"] == "lower" {
+        (&err["errors"][0], &err["errors"][1])
+        } else {
+        (&err["errors"][1], &err["errors"][0])
+        };
+
+        assert_eq!(sort_error["location"], "querystring");
+        */
+    }
+
+    #[test]
+    fn test_valid_query_args() {
+        let req = TestRequest::with_uri("/?ids=1,2&full=&sort=index&older=2.43")
+            .data(make_state())
+            .to_http_request();
+        let result = block_on(BsoQueryParams::extract(&req)).unwrap();
+        assert_eq!(result.ids, vec!["1", "2"]);
+        assert_eq!(result.sort, Sorting::Index);
+        assert_eq!(result.older.unwrap(), SyncTimestamp::from_seconds(2.43));
+        assert!(result.full);
+    }
+
+    #[actix_rt::test]
+    async fn test_offset() {
+        let sample_offset = params::Offset {
+            timestamp: Some(SyncTimestamp::default()),
+            offset: 1234,
+        };
+
+        let test_offset = Offset {
+            timestamp: None,
+            offset: sample_offset.offset,
+        };
+
+        let offset_str = sample_offset.to_string();
+        assert!(test_offset == Offset::from_str(&offset_str).unwrap())
     }
 }

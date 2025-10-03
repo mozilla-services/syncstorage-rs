@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use actix_web::{
     dev::{Extensions, Payload},
     http::Uri,
@@ -7,16 +9,10 @@ use futures::future::LocalBoxFuture;
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
-use std::str::FromStr;
 use validator::Validate;
 
-use crate::{
-    server::COLLECTION_ID_REGEX,
-    web::{
-        error::ValidationErrorKind,
-        extractors::{urldecode, RequestErrorLocation},
-    },
-};
+use super::{urldecode, RequestErrorLocation};
+use crate::{server::COLLECTION_ID_REGEX, web::error::ValidationErrorKind};
 
 lazy_static! {
     static ref VALID_COLLECTION_ID_REGEX: Regex =

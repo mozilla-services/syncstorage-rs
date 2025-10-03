@@ -1,10 +1,12 @@
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 use futures::future::{FutureExt, LocalBoxFuture};
+
 use syncserver_common::Metrics;
 use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
-use crate::{server::MetricsWrapper, web::extractors::HawkIdentifier};
+use super::HawkIdentifier;
+use crate::server::MetricsWrapper;
 
 /// Information Requests extractor
 ///

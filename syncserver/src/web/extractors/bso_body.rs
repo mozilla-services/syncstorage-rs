@@ -8,16 +8,11 @@ use futures::future::LocalBoxFuture;
 use serde::{de::IgnoredAny, Deserialize, Serialize};
 use validator::Validate;
 
-use crate::{
-    server::ServerState,
-    web::{
-        error::ValidationErrorKind,
-        extractors::{
-            validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl,
-            RequestErrorLocation, ACCEPTED_CONTENT_TYPES,
-        },
-    },
+use super::{
+    validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl, RequestErrorLocation,
+    ACCEPTED_CONTENT_TYPES,
 };
+use crate::{server::ServerState, web::error::ValidationErrorKind};
 
 #[derive(Default, Debug, Deserialize, Serialize, Validate)]
 #[serde(deny_unknown_fields)]

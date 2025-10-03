@@ -3,51 +3,53 @@
 //! Handles ensuring the header's, body, and query parameters are correct, extraction to
 //! relevant types, and failing correctly with the appropriate errors if issues arise.
 
+// Only used within extractors
 mod constants;
-pub use constants::*;
-mod utils;
-pub use utils::*;
+use constants::*;
 mod validation;
-pub use validation::*;
-mod metrics;
-pub use metrics::*;
+use validation::*;
 
-mod hawk_identifier;
-pub use hawk_identifier::*;
-mod offset;
-pub use offset::*;
-mod precondition_header;
-pub use precondition_header::*;
+mod utils;
+pub(crate) use utils::RequestErrorLocation;
+use utils::{get_accepted, urldecode};
 
 mod batch_bso_body;
-pub use batch_bso_body::*;
-mod bso_body;
-pub use bso_body::*;
+use batch_bso_body::*;
 mod bso_bodies;
-pub use bso_bodies::*;
-mod bso_param;
-pub use bso_param::*;
+use bso_bodies::*;
 mod bso_query_params;
-pub use bso_query_params::*;
-mod collection_param;
-pub use collection_param::*;
-
+use bso_query_params::*;
 mod batch_request;
-pub use batch_request::*;
+use batch_request::*;
+
+mod bso_body;
+pub(crate) use bso_body::*;
+
+mod hawk_identifier;
+pub(crate) use hawk_identifier::*;
+mod precondition_header;
+pub(crate) use precondition_header::*;
+mod bso_param;
+pub(crate) use bso_param::*;
+mod collection_param;
+pub(crate) use collection_param::*;
+
+mod metrics;
+pub(crate) use metrics::*;
 mod bso_request;
-pub use bso_request::*;
+pub(crate) use bso_request::*;
 mod bso_put_request;
-pub use bso_put_request::*;
+pub(crate) use bso_put_request::*;
 mod collection_request;
-pub use collection_request::*;
+pub(crate) use collection_request::*;
 mod collection_post_request;
-pub use collection_post_request::*;
+pub(crate) use collection_post_request::*;
 mod heartbeat_request;
-pub use heartbeat_request::*;
+pub(crate) use heartbeat_request::*;
 mod meta_request;
-pub use meta_request::*;
+pub(crate) use meta_request::*;
 mod test_error_request;
-pub use test_error_request::*;
+pub(crate) use test_error_request::*;
 
 #[cfg(test)]
-mod tests;
+mod test_utils;

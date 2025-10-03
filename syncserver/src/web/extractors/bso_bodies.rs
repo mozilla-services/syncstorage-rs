@@ -1,10 +1,5 @@
-use crate::{
-    server::ServerState,
-    web::{
-        error::ValidationErrorKind,
-        extractors::{BatchBsoBody, RequestErrorLocation, ACCEPTED_CONTENT_TYPES},
-    },
-};
+use std::collections::{HashMap, HashSet};
+
 use actix_web::{
     dev::Payload,
     http::header::{ContentType, Header},
@@ -17,7 +12,9 @@ use futures::{
 };
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::{HashMap, HashSet};
+
+use super::{BatchBsoBody, RequestErrorLocation, ACCEPTED_CONTENT_TYPES};
+use crate::{server::ServerState, web::error::ValidationErrorKind};
 
 #[derive(Default, Deserialize)]
 pub struct BsoBodies {

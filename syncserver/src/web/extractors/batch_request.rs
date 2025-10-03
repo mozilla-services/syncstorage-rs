@@ -5,17 +5,15 @@ use actix_web::{
 };
 use futures::future::{LocalBoxFuture, TryFutureExt};
 use serde::Deserialize;
-use syncserver_common::X_WEAVE_RECORDS;
 use validator::{Validate, ValidationError};
 
+use syncserver_common::X_WEAVE_RECORDS;
+
+use super::{request_error, RequestErrorLocation, TRUE_REGEX};
 use crate::{
     error::ApiError,
     server::ServerState,
-    web::{
-        error::ValidationErrorKind,
-        extractors::{request_error, RequestErrorLocation, TRUE_REGEX},
-        transaction::DbTransactionPool,
-    },
+    web::{error::ValidationErrorKind, transaction::DbTransactionPool},
 };
 
 /// Verifies the batch commit field is valid

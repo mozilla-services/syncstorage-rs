@@ -1,6 +1,4 @@
-use crate::web::extractors::{
-    BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, MetaRequest,
-};
+use super::{BsoPutRequest, BsoRequest, CollectionPostRequest, CollectionRequest, MetaRequest};
 
 pub trait EmitApiMetric {
     fn emit_api_metric(&self, label: &str);

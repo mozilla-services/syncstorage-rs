@@ -3,12 +3,11 @@ use actix_web::{
 };
 use futures::future::{FutureExt, LocalBoxFuture};
 use serde::Serialize;
+
 use syncstorage_db::{DbError, DbPool};
 
-use crate::{
-    server::ServerState,
-    web::{error::ValidationErrorKind, extractors::RequestErrorLocation},
-};
+use super::RequestErrorLocation;
+use crate::{server::ServerState, web::error::ValidationErrorKind};
 
 /// Quota information for heartbeat responses
 #[derive(Clone, Copy, Debug, Serialize)]

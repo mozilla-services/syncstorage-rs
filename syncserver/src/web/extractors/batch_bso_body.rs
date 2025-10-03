@@ -1,10 +1,10 @@
-use crate::web::extractors::{
-    validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl,
-};
 use serde::Deserialize;
 use serde_json::Value;
-use syncstorage_db::params::PostCollectionBso;
 use validator::Validate;
+
+use syncstorage_db::params::PostCollectionBso;
+
+use super::{validate_body_bso_id, validate_body_bso_sortindex, validate_body_bso_ttl};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct BatchBsoBody {

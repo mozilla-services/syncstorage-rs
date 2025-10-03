@@ -1,8 +1,10 @@
 use actix_web::{dev::Payload, http::header::HeaderMap, Error, FromRequest, HttpRequest};
 use futures::future::LocalBoxFuture;
+
 use syncstorage_db::SyncTimestamp;
 
-use crate::web::{error::ValidationErrorKind, extractors::RequestErrorLocation};
+use super::RequestErrorLocation;
+use crate::web::error::ValidationErrorKind;
 
 /// PreCondition Header
 ///
@@ -14,6 +16,7 @@ use crate::web::{error::ValidationErrorKind, extractors::RequestErrorLocation};
 pub enum PreConditionHeader {
     IfModifiedSince(SyncTimestamp),
     IfUnmodifiedSince(SyncTimestamp),
+    #[allow(dead_code)]
     NoHeader,
 }
 
@@ -100,5 +103,84 @@ impl FromRequest for PreConditionHeaderOpt {
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
         let req = req.clone();
         Box::pin(async move { Self::extrude(req.headers()) })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{dev::ServiceResponse, test::TestRequest, HttpResponse};
+
+    use syncstorage_db::SyncTimestamp;
+
+    use super::{PreConditionHeader, PreConditionHeaderOpt};
+    use crate::web::extractors::test_utils::{extract_body_as_str, make_state};
+
+    #[test]
+    fn test_invalid_precondition_headers() {
+        fn assert_invalid_header(
+            req: actix_web::HttpRequest,
+            _error_header: &str,
+            _error_message: &str,
+        ) {
+            let result = PreConditionHeaderOpt::extrude(req.headers());
+            assert!(result.is_err());
+            let response: HttpResponse = result.err().unwrap().into();
+            assert_eq!(response.status(), 400);
+            let body = extract_body_as_str(ServiceResponse::new(req, response));
+
+            assert_eq!(body, "0");
+
+            /* New tests for when we can use descriptive errors
+            let err: serde_json::Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(err["status"], 400);
+
+            assert_eq!(err["errors"][0]["description"], error_message);
+            assert_eq!(err["errors"][0]["location"], "header");
+            assert_eq!(err["errors"][0]["name"], error_header);
+            */
+        }
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
+            .insert_header(("X-If-Modified-Since", "32124.32"))
+            .insert_header(("X-If-Unmodified-Since", "4212.12"))
+            .to_http_request();
+        assert_invalid_header(
+            req,
+            "X-If-Unmodified-Since",
+            "conflicts with X-If-Modified-Since",
+        );
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
+            .insert_header(("X-If-Modified-Since", "-32.1"))
+            .to_http_request();
+        assert_invalid_header(req, "X-If-Modified-Since", "Invalid value");
+    }
+
+    #[test]
+    fn test_valid_precondition_headers() {
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
+            .insert_header(("X-If-Modified-Since", "32.1"))
+            .to_http_request();
+        let result = PreConditionHeaderOpt::extrude(req.headers())
+            .unwrap()
+            .opt
+            .unwrap();
+        assert_eq!(
+            result,
+            PreConditionHeader::IfModifiedSince(SyncTimestamp::from_seconds(32.1))
+        );
+        let req = TestRequest::with_uri("/")
+            .data(make_state())
+            .insert_header(("X-If-Unmodified-Since", "32.14"))
+            .to_http_request();
+        let result = PreConditionHeaderOpt::extrude(req.headers())
+            .unwrap()
+            .opt
+            .unwrap();
+        assert_eq!(
+            result,
+            PreConditionHeader::IfUnmodifiedSince(SyncTimestamp::from_seconds(32.14))
+        );
     }
 }

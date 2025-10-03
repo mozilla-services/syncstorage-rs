@@ -1,18 +1,17 @@
 use actix_web::{dev::Payload, web::Data, Error, FromRequest, HttpRequest};
 use futures::future::LocalBoxFuture;
+
 use syncserver_common::Metrics;
 use syncstorage_db::UserIdentifier;
 use tokenserver_auth::TokenserverOrigin;
 
+use super::{
+    BatchRequest, BatchRequestOpt, BsoBodies, BsoQueryParams, CollectionParam, HawkIdentifier,
+    RequestErrorLocation, KNOWN_BAD_PAYLOAD_REGEX,
+};
 use crate::{
     server::{MetricsWrapper, ServerState},
-    web::{
-        error::ValidationErrorKind,
-        extractors::{
-            BatchRequest, BatchRequestOpt, BsoBodies, BsoQueryParams, CollectionParam,
-            HawkIdentifier, RequestErrorLocation, KNOWN_BAD_PAYLOAD_REGEX,
-        },
-    },
+    web::error::ValidationErrorKind,
 };
 
 /// Collection Request Post extractor
@@ -109,5 +108,103 @@ impl FromRequest for CollectionPostRequest {
                 quota_enabled: state.quota_enabled,
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actix_web::{dev::ServiceResponse, http::Method, test::TestRequest, HttpResponse};
+    use serde_json::json;
+
+    use crate::web::extractors::test_utils::{
+        extract_body_as_str, make_state, post_collection, USER_ID,
+    };
+
+    #[actix_rt::test]
+    async fn test_valid_collection_post_request() {
+        // Batch requests require id's on each BSO
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("", &bso_body)
+            .await
+            .expect("Could not get result in test_valid_collection_post_request");
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+        assert!(result.batch.is_none());
+    }
+
+    #[actix_rt::test]
+    async fn test_invalid_collection_post_request() {
+        // Add extra fields, these will be invalid
+        let bso_body = json!([
+            {"id": "1", "sortindex": 23, "jump": 1},
+            {"id": "2", "sortindex": -99, "hop": "low"}
+        ]);
+        let result = post_collection("", &bso_body)
+            .await
+            .expect("Could not get result in test_invalid_collection_post_request");
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.invalid.len(), 2);
+    }
+
+    #[actix_rt::test]
+    async fn test_valid_collection_batch_post_request() {
+        // If the "batch" parameter is has no value or has a value of "true"
+        // then a new batch will be created.
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let result = post_collection("batch=True", &bso_body)
+            .await
+            .expect("Could not get result in test_valid_collection_batch_post_request");
+        assert_eq!(result.user_id.legacy_id, *USER_ID);
+        assert_eq!(&result.collection, "tabs");
+        assert_eq!(result.bsos.valid.len(), 2);
+        let batch = result
+            .batch
+            .expect("Could not get batch in test_valid_collection_batch_post_request");
+        assert!(batch.id.is_none());
+        assert!(!batch.commit);
+
+        let result2 = post_collection("batch", &bso_body)
+            .await
+            .expect("Could not get result2 in test_valid_collection_batch_post_request");
+        let batch2 = result2
+            .batch
+            .expect("Could not get batch2 in test_valid_collection_batch_post_request");
+        assert!(batch2.id.is_none());
+        assert!(!batch2.commit);
+
+        let result3 = post_collection("batch=MTI%3D&commit=true", &bso_body)
+            .await
+            .expect("Could not get result3 in test_valid_collection_batch_post_request");
+        let batch3 = result3
+            .batch
+            .expect("Could not get batch3 in test_valid_collection_batch_post_request");
+        assert!(batch3.id.is_some());
+        assert!(batch3.commit);
+    }
+
+    #[actix_rt::test]
+    async fn test_invalid_collection_batch_post_request() {
+        let bso_body = json!([
+            {"id": "123", "payload": "xxx", "sortindex": 23},
+            {"id": "456", "payload": "xxxasdf", "sortindex": 23}
+        ]);
+        let req = TestRequest::with_uri("/")
+            .method(Method::POST)
+            .data(make_state())
+            .to_http_request();
+        let result = post_collection("commit=true", &bso_body).await;
+        assert!(result.is_err());
+        let response: HttpResponse = result.err().unwrap().into();
+        assert_eq!(response.status(), 400);
+        let body = extract_body_as_str(ServiceResponse::new(req, response));
+        assert_eq!(body, "0");
     }
 }
