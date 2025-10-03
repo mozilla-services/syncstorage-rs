@@ -315,7 +315,7 @@ If you see a problem related to `libssl` you may need to specify the `cargo` opt
 
 - [API docs](https://mozilla-services.readthedocs.io/en/latest/storage/apis-1.5.html)
 
-- [Code docs](https://mozilla-services.github.io/syncstorage-rs/syncstorage/)
+- [Code docs](https://github.com/mozilla-services/syncstorage-rs/tree/master/docs)
 
 [mpl-svg]: https://img.shields.io/badge/License-MPL%202.0-blue.svg
 [mpl]: https://opensource.org/licenses/MPL-2.0
