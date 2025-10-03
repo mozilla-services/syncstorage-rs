@@ -3,10 +3,6 @@ pub mod test;
 
 use std::fmt::Debug;
 
-use futures::future::LocalBoxFuture;
-
-pub type DbFuture<'a, T, E> = LocalBoxFuture<'a, Result<T, E>>;
-
 /// A trait to be implemented by database pool data structures. It provides an interface to
 /// derive the current state of the pool, as represented by the `PoolState` struct.
 pub trait GetPoolState {
@@ -27,16 +23,4 @@ impl From<deadpool::Status> for PoolState {
             idle_connections: status.available.max(0) as u32,
         }
     }
-}
-
-#[macro_export]
-macro_rules! async_db_method {
-    ($name:ident, $async_name:path, $type:ident) => {
-        async_db_method!($name, $async_name, $type, results::$type);
-    };
-    ($name:ident, $async_name:path, $type:ident, $result:ty) => {
-        fn $name(&mut self, params: params::$type) -> DbFuture<'_, $result, DbError> {
-            Box::pin($async_name(self, params))
-        }
-    };
 }

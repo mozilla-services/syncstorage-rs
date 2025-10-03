@@ -6,13 +6,12 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 env_logger.workspace = true
-futures.workspace = true
 lazy_static.workspace = true
 rand.workspace = true
 slog-scope.workspace = true
 
-async-trait = "0.1.88"
 log = { version = "0.4", features = [
     "max_level_debug",
     "release_max_level_info",

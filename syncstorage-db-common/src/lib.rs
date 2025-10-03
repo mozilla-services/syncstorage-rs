@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use serde::Deserialize;
-use syncserver_db_common::{DbFuture, GetPoolState};
+use syncserver_db_common::GetPoolState;
 
 use error::DbErrorIntrospect;
 use util::SyncTimestamp;
@@ -68,190 +68,187 @@ impl<E> Clone for Box<dyn DbPool<Error = E>> {
     }
 }
 
+#[async_trait(?Send)]
 pub trait Db: Debug {
     type Error: DbErrorIntrospect + 'static;
 
-    fn lock_for_read(&mut self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
+    async fn lock_for_read(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
-    fn lock_for_write(&mut self, params: params::LockCollection) -> DbFuture<'_, (), Self::Error>;
+    async fn lock_for_write(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
-    fn begin(&mut self, for_write: bool) -> DbFuture<'_, (), Self::Error>;
+    async fn begin(&mut self, for_write: bool) -> Result<(), Self::Error>;
 
-    fn commit(&mut self) -> DbFuture<'_, (), Self::Error>;
+    async fn commit(&mut self) -> Result<(), Self::Error>;
 
-    fn rollback(&mut self) -> DbFuture<'_, (), Self::Error>;
+    async fn rollback(&mut self) -> Result<(), Self::Error>;
 
-    fn get_collection_timestamps(
+    async fn get_collection_timestamps(
         &mut self,
         params: params::GetCollectionTimestamps,
-    ) -> DbFuture<'_, results::GetCollectionTimestamps, Self::Error>;
+    ) -> Result<results::GetCollectionTimestamps, Self::Error>;
 
-    fn get_collection_timestamp(
+    async fn get_collection_timestamp(
         &mut self,
         params: params::GetCollectionTimestamp,
-    ) -> DbFuture<'_, results::GetCollectionTimestamp, Self::Error>;
+    ) -> Result<results::GetCollectionTimestamp, Self::Error>;
 
-    fn get_collection_counts(
+    async fn get_collection_counts(
         &mut self,
         params: params::GetCollectionCounts,
-    ) -> DbFuture<'_, results::GetCollectionCounts, Self::Error>;
+    ) -> Result<results::GetCollectionCounts, Self::Error>;
 
-    fn get_collection_usage(
+    async fn get_collection_usage(
         &mut self,
         params: params::GetCollectionUsage,
-    ) -> DbFuture<'_, results::GetCollectionUsage, Self::Error>;
+    ) -> Result<results::GetCollectionUsage, Self::Error>;
 
-    fn get_storage_timestamp(
+    async fn get_storage_timestamp(
         &mut self,
         params: params::GetStorageTimestamp,
-    ) -> DbFuture<'_, results::GetStorageTimestamp, Self::Error>;
+    ) -> Result<results::GetStorageTimestamp, Self::Error>;
 
-    fn get_storage_usage(
+    async fn get_storage_usage(
         &mut self,
         params: params::GetStorageUsage,
-    ) -> DbFuture<'_, results::GetStorageUsage, Self::Error>;
+    ) -> Result<results::GetStorageUsage, Self::Error>;
 
-    fn get_quota_usage(
+    async fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
-    ) -> DbFuture<'_, results::GetQuotaUsage, Self::Error>;
+    ) -> Result<results::GetQuotaUsage, Self::Error>;
 
-    fn delete_storage(
+    async fn delete_storage(
         &mut self,
         params: params::DeleteStorage,
-    ) -> DbFuture<'_, results::DeleteStorage, Self::Error>;
+    ) -> Result<results::DeleteStorage, Self::Error>;
 
-    fn delete_collection(
+    async fn delete_collection(
         &mut self,
         params: params::DeleteCollection,
-    ) -> DbFuture<'_, results::DeleteCollection, Self::Error>;
+    ) -> Result<results::DeleteCollection, Self::Error>;
 
-    fn delete_bsos(
+    async fn delete_bsos(
         &mut self,
         params: params::DeleteBsos,
-    ) -> DbFuture<'_, results::DeleteBsos, Self::Error>;
+    ) -> Result<results::DeleteBsos, Self::Error>;
 
-    fn get_bsos(&mut self, params: params::GetBsos) -> DbFuture<'_, results::GetBsos, Self::Error>;
+    async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error>;
 
-    fn get_bso_ids(
+    async fn get_bso_ids(
         &mut self,
         params: params::GetBsos,
-    ) -> DbFuture<'_, results::GetBsoIds, Self::Error>;
+    ) -> Result<results::GetBsoIds, Self::Error>;
 
-    fn post_bsos(&mut self, params: params::PostBsos) -> DbFuture<'_, SyncTimestamp, Self::Error>;
+    async fn post_bsos(&mut self, params: params::PostBsos) -> Result<SyncTimestamp, Self::Error>;
 
-    fn delete_bso(
+    async fn delete_bso(
         &mut self,
         params: params::DeleteBso,
-    ) -> DbFuture<'_, results::DeleteBso, Self::Error>;
+    ) -> Result<results::DeleteBso, Self::Error>;
 
-    fn get_bso(
+    async fn get_bso(
         &mut self,
         params: params::GetBso,
-    ) -> DbFuture<'_, Option<results::GetBso>, Self::Error>;
+    ) -> Result<Option<results::GetBso>, Self::Error>;
 
-    fn get_bso_timestamp(
+    async fn get_bso_timestamp(
         &mut self,
         params: params::GetBsoTimestamp,
-    ) -> DbFuture<'_, results::GetBsoTimestamp, Self::Error>;
+    ) -> Result<results::GetBsoTimestamp, Self::Error>;
 
-    fn put_bso(&mut self, params: params::PutBso) -> DbFuture<'_, results::PutBso, Self::Error>;
+    async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error>;
 
-    fn create_batch(
+    async fn create_batch(
         &mut self,
         params: params::CreateBatch,
-    ) -> DbFuture<'_, results::CreateBatch, Self::Error>;
+    ) -> Result<results::CreateBatch, Self::Error>;
 
-    fn validate_batch(
+    async fn validate_batch(
         &mut self,
         params: params::ValidateBatch,
-    ) -> DbFuture<'_, results::ValidateBatch, Self::Error>;
+    ) -> Result<results::ValidateBatch, Self::Error>;
 
-    fn append_to_batch(
+    async fn append_to_batch(
         &mut self,
         params: params::AppendToBatch,
-    ) -> DbFuture<'_, results::AppendToBatch, Self::Error>;
+    ) -> Result<results::AppendToBatch, Self::Error>;
 
-    fn get_batch(
+    async fn get_batch(
         &mut self,
         params: params::GetBatch,
-    ) -> DbFuture<'_, Option<results::GetBatch>, Self::Error>;
+    ) -> Result<Option<results::GetBatch>, Self::Error>;
 
-    fn commit_batch(
+    async fn commit_batch(
         &mut self,
         params: params::CommitBatch,
-    ) -> DbFuture<'_, results::CommitBatch, Self::Error>;
+    ) -> Result<results::CommitBatch, Self::Error>;
 
-    fn check(&mut self) -> DbFuture<'_, results::Check, Self::Error>;
+    async fn check(&mut self) -> Result<results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
 
     /// Retrieve the timestamp for an item/collection
-    ///
-    /// Modeled on the Python `get_resource_timestamp` function.
-    fn extract_resource(
+    async fn extract_resource(
         &mut self,
         user_id: UserIdentifier,
         collection: Option<String>,
         bso: Option<String>,
-    ) -> DbFuture<'_, SyncTimestamp, Self::Error> {
-        Box::pin(async move {
-            match collection {
-                None => {
-                    // No collection specified, return overall storage timestamp
-                    self.get_storage_timestamp(user_id).await
-                }
-                Some(collection) => match bso {
-                    None => self
-                        .get_collection_timestamp(params::GetCollectionTimestamp {
-                            user_id,
-                            collection,
-                        })
-                        .await
-                        .or_else(|e| {
-                            if e.is_collection_not_found() {
-                                Ok(SyncTimestamp::from_seconds(0f64))
-                            } else {
-                                Err(e)
-                            }
-                        }),
-                    Some(bso) => self
-                        .get_bso_timestamp(params::GetBsoTimestamp {
-                            user_id,
-                            collection,
-                            id: bso,
-                        })
-                        .await
-                        .or_else(|e| {
-                            if e.is_collection_not_found() {
-                                Ok(SyncTimestamp::from_seconds(0f64))
-                            } else {
-                                Err(e)
-                            }
-                        }),
-                },
+    ) -> Result<SyncTimestamp, Self::Error> {
+        match collection {
+            None => {
+                // No collection specified, return overall storage timestamp
+                self.get_storage_timestamp(user_id).await
             }
-        })
+            Some(collection) => match bso {
+                None => self
+                    .get_collection_timestamp(params::GetCollectionTimestamp {
+                        user_id,
+                        collection,
+                    })
+                    .await
+                    .or_else(|e| {
+                        if e.is_collection_not_found() {
+                            Ok(SyncTimestamp::from_seconds(0f64))
+                        } else {
+                            Err(e)
+                        }
+                    }),
+                Some(bso) => self
+                    .get_bso_timestamp(params::GetBsoTimestamp {
+                        user_id,
+                        collection,
+                        id: bso,
+                    })
+                    .await
+                    .or_else(|e| {
+                        if e.is_collection_not_found() {
+                            Ok(SyncTimestamp::from_seconds(0f64))
+                        } else {
+                            Err(e)
+                        }
+                    }),
+            },
+        }
     }
 
     // Internal methods used by the db tests
 
-    fn get_collection_id(&mut self, name: String) -> DbFuture<'_, i32, Self::Error>;
+    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error>;
 
-    fn create_collection(&mut self, name: String) -> DbFuture<'_, i32, Self::Error>;
+    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error>;
 
-    fn update_collection(
+    async fn update_collection(
         &mut self,
         params: params::UpdateCollection,
-    ) -> DbFuture<'_, SyncTimestamp, Self::Error>;
+    ) -> Result<SyncTimestamp, Self::Error>;
 
     fn timestamp(&self) -> SyncTimestamp;
 
     fn set_timestamp(&mut self, timestamp: SyncTimestamp);
 
-    fn delete_batch(&mut self, params: params::DeleteBatch) -> DbFuture<'_, (), Self::Error>;
+    async fn delete_batch(&mut self, params: params::DeleteBatch) -> Result<(), Self::Error>;
 
-    fn clear_coll_cache(&mut self) -> DbFuture<'_, (), Self::Error>;
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error>;
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }

@@ -8,7 +8,6 @@ edition.workspace = true
 [dependencies]
 backtrace.workspace = true
 deadpool.workspace = true
-futures.workspace = true
 http.workspace = true
 thiserror.workspace = true
 diesel.workspace = true
