@@ -9,7 +9,7 @@ use syncstorage_settings::{Quota, Settings};
 use tokio::sync::RwLock;
 
 pub(super) use super::manager::Conn;
-use super::{error::DbError, manager::SpannerSessionManager, models::SpannerDb, DbResult};
+use super::{db::SpannerDb, error::DbError, manager::SpannerSessionManager, DbResult};
 
 #[derive(Clone)]
 pub struct SpannerDbPool {
@@ -127,7 +127,7 @@ impl DbPool for SpannerDbPool {
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        super::batch::validate_batch_id(&id)
+        super::db::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {

@@ -15,9 +15,11 @@ use uuid::Uuid;
 
 use crate::error::DbError;
 
-use super::models::{SpannerDb, PRETOUCH_TS};
-use super::support::{as_type, null_value, struct_type_field, IntoSpannerValue};
-use super::DbResult;
+use super::db_impl::{SpannerDb, PRETOUCH_TS};
+use crate::{
+    support::{as_type, null_value, struct_type_field, IntoSpannerValue},
+    DbResult,
+};
 
 pub async fn create(
     db: &mut SpannerDb,
