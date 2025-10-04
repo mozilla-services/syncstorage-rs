@@ -19,7 +19,7 @@ macro_rules! params {
 
 #[test]
 fn test_params_macro() {
-    use super::support::IntoSpannerValue;
+    use crate::db::support::IntoSpannerValue;
     use google_cloud_rust_raw::spanner::v1::type_pb::{Type, TypeCode};
     use protobuf::{
         well_known_types::{ListValue, Value},

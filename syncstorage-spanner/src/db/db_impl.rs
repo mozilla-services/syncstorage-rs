@@ -19,12 +19,12 @@ use syncstorage_db_common::{
 };
 use syncstorage_settings::Quota;
 
-use super::{batch_impl, CollectionLock, SpannerDb, TOMBSTONE};
-use crate::{
-    error::DbError,
+use super::{
+    batch_impl,
     support::{as_type, bso_from_row, IntoSpannerValue},
-    DbResult,
+    CollectionLock, SpannerDb, TOMBSTONE,
 };
+use crate::{error::DbError, DbResult};
 
 pub(super) const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";
 

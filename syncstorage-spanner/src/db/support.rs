@@ -13,7 +13,7 @@ use syncstorage_db_common::{
     params, results, util::to_rfc3339, util::SyncTimestamp, UserIdentifier, DEFAULT_BSO_TTL,
 };
 
-pub use crate::stream::StreamedResultSetAsync;
+pub use super::stream::StreamedResultSetAsync;
 use crate::{error::DbError, pool::Conn, DbResult};
 
 pub trait IntoSpannerValue {

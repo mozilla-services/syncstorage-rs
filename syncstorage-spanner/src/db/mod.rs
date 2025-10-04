@@ -26,11 +26,11 @@ use syncstorage_settings::Quota;
 use crate::{
     error::DbError,
     pool::{CollectionCache, Conn},
-    support::{
-        as_type, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder, IntoSpannerValue,
-        StreamedResultSetAsync,
-    },
     DbResult,
+};
+use support::{
+    as_type, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder, IntoSpannerValue,
+    StreamedResultSetAsync,
 };
 
 #[derive(Debug, Eq, PartialEq)]
@@ -41,6 +41,8 @@ enum CollectionLock {
 
 mod batch_impl;
 mod db_impl;
+mod stream;
+pub(crate) mod support;
 
 pub use batch_impl::validate_batch_id;
 
@@ -324,11 +326,8 @@ impl SpannerDb {
                     "count".to_owned(),
                     result[1].take_string_value().into_spanner_value(),
                 );
-                sqltypes.insert(
-                    "total_bytes".to_owned(),
-                    crate::support::as_type(TypeCode::INT64),
-                );
-                sqltypes.insert("count".to_owned(), crate::support::as_type(TypeCode::INT64));
+                sqltypes.insert("total_bytes".to_owned(), support::as_type(TypeCode::INT64));
+                sqltypes.insert("count".to_owned(), support::as_type(TypeCode::INT64));
                 "UPDATE user_collections
                 SET modified = @modified,
                     count = @count,
@@ -886,7 +885,7 @@ impl SpannerDb {
             };
 
             if use_sortindex {
-                use crate::support::null_value;
+                use support::null_value;
                 let sortindex = bso
                     .sortindex
                     .map(|sortindex| sortindex.into_spanner_value())

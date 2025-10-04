@@ -8,7 +8,8 @@ use google_cloud_rust_raw::spanner::v1::{
 use grpcio::ClientSStreamReceiver;
 use protobuf::well_known_types::Value;
 
-use crate::{error::DbError, support::IntoSpannerValue, DbResult};
+use super::support::IntoSpannerValue;
+use crate::{error::DbError, DbResult};
 
 pub struct StreamedResultSetAsync<T = ClientSStreamReceiver<PartialResultSet>> {
     /// Stream from execute_streaming_sql
