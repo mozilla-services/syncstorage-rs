@@ -183,7 +183,11 @@ pub async fn commit_query(
     // Ensure a parent record exists in user_collections before writing to bsos
     // (INTERLEAVE IN PARENT user_collections)
     let timestamp = db
-        .update_collection(&params.user_id, collection_id, &params.collection)
+        .update_collection(params::UpdateCollection {
+            user_id: params.user_id.clone(),
+            collection_id,
+            collection: params.collection.clone(),
+        })
         .await?;
 
     let as_rfc3339 = timestamp.as_rfc3339()?;

@@ -1,14 +1,8 @@
-use std::{
-    collections::{HashMap, HashSet},
-    convert::TryInto,
-    fmt,
-    sync::Arc,
-};
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use google_cloud_rust_raw::spanner::v1::{
-    mutation::{Mutation, Mutation_Write},
-    spanner::{BeginTransactionRequest, CommitRequest, ExecuteSqlRequest, RollbackRequest},
+    spanner::{BeginTransactionRequest, CommitRequest, RollbackRequest},
     transaction::{
         TransactionOptions, TransactionOptions_ReadOnly, TransactionOptions_ReadWrite,
         TransactionSelector,
@@ -20,21 +14,15 @@ use protobuf::{
     well_known_types::{ListValue, Value},
     Message, RepeatedField,
 };
-use syncserver_common::{Metrics, MAX_SPANNER_LOAD_SIZE};
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL, FIRST_CUSTOM_COLLECTION_ID,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, FIRST_CUSTOM_COLLECTION_ID,
 };
 use syncstorage_settings::Quota;
 
 use super::{batch_impl, CollectionLock, SpannerDb, TOMBSTONE};
 use crate::{
     error::DbError,
-    pool::{CollectionCache, Conn},
-    support::{
-        as_type, bso_from_row, bso_to_insert_row, bso_to_update_row, ExecuteSqlRequestBuilder,
-        IntoSpannerValue, StreamedResultSetAsync,
-    },
+    support::{as_type, bso_from_row, IntoSpannerValue},
     DbResult,
 };
 
@@ -606,9 +594,7 @@ impl Db for SpannerDb {
 
     async fn update_collection(
         &mut self,
-        user_id: &UserIdentifier,
-        collection_id: i32,
-        collection: &str,
+        params: params::UpdateCollection,
     ) -> DbResult<SyncTimestamp> {
         // NOTE: Spanner supports upserts via its InsertOrUpdate mutation but
         // lacks a SQL equivalent. This call could be 1 InsertOrUpdate instead
@@ -627,9 +613,9 @@ impl Db for SpannerDb {
         }
 
         let (sqlparams, mut sqlparam_types) = params! {
-            "fxa_uid" => user_id.fxa_uid.clone(),
-            "fxa_kid" => user_id.fxa_kid.clone(),
-            "collection_id" => collection_id,
+            "fxa_uid" => params.user_id.fxa_uid,
+            "fxa_kid" => params.user_id.fxa_kid,
+            "collection_id" => params.collection_id,
             "modified" => timestamp.as_rfc3339()?,
         };
         sqlparam_types.insert("modified".to_owned(), as_type(TypeCode::TIMESTAMP));
@@ -661,7 +647,7 @@ impl Db for SpannerDb {
                 .await?;
         } else {
             let mut tags = HashMap::default();
-            tags.insert("collection".to_owned(), collection.to_owned());
+            tags.insert("collection".to_owned(), params.collection);
             self.metrics
                 .clone()
                 .start_timer("storage.quota.init_totals", Some(tags));
