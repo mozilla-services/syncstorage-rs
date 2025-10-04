@@ -11,8 +11,6 @@ mod error;
 mod manager;
 mod metadata;
 mod pool;
-mod stream;
-mod support;
 
 pub use db::SpannerDb;
 pub use error::DbError;
