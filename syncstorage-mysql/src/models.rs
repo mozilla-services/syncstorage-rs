@@ -1131,16 +1131,16 @@ impl Db for MysqlDb {
         MysqlDb::commit_batch(self, params).await
     }
 
-    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error> {
-        MysqlDb::get_collection_id(self, &name).await
+    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error> {
+        MysqlDb::get_collection_id(self, name).await
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
         results::ConnectionInfo::default()
     }
 
-    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error> {
-        self.get_or_create_collection_id(&name).await
+    async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
+        self.get_or_create_collection_id(name).await
     }
 
     async fn update_collection(

@@ -238,14 +238,14 @@ impl Db for MockDb {
 
     async fn get_collection_id(
         &mut self,
-        _params: params::GetCollectionId,
+        _params: &str,
     ) -> Result<results::GetCollectionId, Self::Error> {
         Ok(Default::default())
     }
 
     async fn create_collection(
         &mut self,
-        _params: params::CreateCollection,
+        _params: &str,
     ) -> Result<results::CreateCollection, Self::Error> {
         Ok(Default::default())
     }

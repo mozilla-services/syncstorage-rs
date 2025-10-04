@@ -233,9 +233,9 @@ pub trait Db: Debug {
 
     // Internal methods used by the db tests
 
-    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error>;
+    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error>;
 
-    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error>;
+    async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error>;
 
     async fn update_collection(
         &mut self,
