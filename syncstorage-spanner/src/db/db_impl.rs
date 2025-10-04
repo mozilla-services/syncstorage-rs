@@ -27,8 +27,8 @@ use syncstorage_db_common::{
 };
 use syncstorage_settings::Quota;
 
+use super::batch_impl;
 use crate::{
-    batch,
     error::DbError,
     pool::{CollectionCache, Conn},
     support::{
@@ -90,7 +90,7 @@ impl fmt::Debug for SpannerDb {
 }
 
 impl SpannerDb {
-    pub(super) fn new(
+    pub(crate) fn new(
         conn: Conn,
         coll_cache: Arc<CollectionCache>,
         metrics: &Metrics,
@@ -828,9 +828,9 @@ impl SpannerDb {
                 );
                 sqltypes.insert(
                     "total_bytes".to_owned(),
-                    super::support::as_type(TypeCode::INT64),
+                    crate::support::as_type(TypeCode::INT64),
                 );
-                sqltypes.insert("count".to_owned(), super::support::as_type(TypeCode::INT64));
+                sqltypes.insert("count".to_owned(), crate::support::as_type(TypeCode::INT64));
                 "UPDATE user_collections
                 SET modified = @modified,
                     count = @count,
@@ -1747,7 +1747,7 @@ impl SpannerDb {
             };
 
             if use_sortindex {
-                use super::support::null_value;
+                use crate::support::null_value;
                 let sortindex = bso
                     .sortindex
                     .map(|sortindex| sortindex.into_spanner_value())
@@ -1956,35 +1956,35 @@ impl Db for SpannerDb {
         &mut self,
         param: params::CreateBatch,
     ) -> Result<results::CreateBatch, Self::Error> {
-        batch::create(self, param).await
+        batch_impl::create(self, param).await
     }
 
     async fn validate_batch(
         &mut self,
         param: params::ValidateBatch,
     ) -> Result<results::ValidateBatch, Self::Error> {
-        batch::validate(self, param).await
+        batch_impl::validate(self, param).await
     }
 
     async fn append_to_batch(
         &mut self,
         param: params::AppendToBatch,
     ) -> Result<results::AppendToBatch, Self::Error> {
-        batch::append(self, param).await
+        batch_impl::append(self, param).await
     }
 
     async fn get_batch(
         &mut self,
         param: params::GetBatch,
     ) -> Result<Option<results::GetBatch>, Self::Error> {
-        batch::get_query(self, param).await
+        batch_impl::get_query(self, param).await
     }
 
     async fn commit_batch(
         &mut self,
         param: params::CommitBatch,
     ) -> Result<results::CommitBatch, Self::Error> {
-        batch::commit_query(self, param).await
+        batch_impl::commit_query(self, param).await
     }
 
     async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error> {
@@ -1993,7 +1993,7 @@ impl Db for SpannerDb {
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
         let session = self.conn.session.clone();
-        let now = super::now();
+        let now = crate::now();
         results::ConnectionInfo {
             spanner_age: session
                 .create_time
@@ -2034,7 +2034,7 @@ impl Db for SpannerDb {
         &mut self,
         param: params::DeleteBatch,
     ) -> Result<results::DeleteBatch, Self::Error> {
-        batch::delete_query(self, param).await
+        batch_impl::delete_query(self, param).await
     }
 
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
