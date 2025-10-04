@@ -9,13 +9,13 @@ use protobuf::{
     RepeatedField,
 };
 use syncstorage_db_common::{
-    params, results, util::to_rfc3339, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
+    params, results, util::to_rfc3339, Db, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 use uuid::Uuid;
 
 use crate::error::DbError;
 
-use super::db_impl::{SpannerDb, PRETOUCH_TS};
+use super::{SpannerDb, PRETOUCH_TS};
 use crate::{
     support::{as_type, null_value, struct_type_field, IntoSpannerValue},
     DbResult,
