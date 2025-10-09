@@ -2,7 +2,7 @@
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, DbPool};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, BatchDb, Db, DbPool};
 
 use crate::DbError;
 
@@ -49,8 +49,6 @@ impl MockDb {
 
 #[async_trait(?Send)]
 impl Db for MockDb {
-    type Error = DbError;
-
     async fn commit(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -197,6 +195,48 @@ impl Db for MockDb {
         Ok(Default::default())
     }
 
+    fn get_connection_info(&self) -> results::ConnectionInfo {
+        Default::default()
+    }
+
+    async fn get_collection_id(
+        &mut self,
+        _params: &str,
+    ) -> Result<results::GetCollectionId, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn create_collection(
+        &mut self,
+        _params: &str,
+    ) -> Result<results::CreateCollection, Self::Error> {
+        Ok(Default::default())
+    }
+
+    async fn update_collection(
+        &mut self,
+        _params: params::UpdateCollection,
+    ) -> Result<results::UpdateCollection, Self::Error> {
+        Ok(Default::default())
+    }
+
+    fn timestamp(&self) -> SyncTimestamp {
+        Default::default()
+    }
+
+    fn set_timestamp(&mut self, _: SyncTimestamp) {}
+
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
+}
+
+#[async_trait(?Send)]
+impl BatchDb for MockDb {
+    type Error = DbError;
+
     async fn create_batch(
         &mut self,
         _params: params::CreateBatch,
@@ -232,47 +272,10 @@ impl Db for MockDb {
         Ok(Default::default())
     }
 
-    fn get_connection_info(&self) -> results::ConnectionInfo {
-        Default::default()
-    }
-
-    async fn get_collection_id(
-        &mut self,
-        _params: &str,
-    ) -> Result<results::GetCollectionId, Self::Error> {
-        Ok(Default::default())
-    }
-
-    async fn create_collection(
-        &mut self,
-        _params: &str,
-    ) -> Result<results::CreateCollection, Self::Error> {
-        Ok(Default::default())
-    }
-
-    async fn update_collection(
-        &mut self,
-        _params: params::UpdateCollection,
-    ) -> Result<results::UpdateCollection, Self::Error> {
-        Ok(Default::default())
-    }
-
-    fn timestamp(&self) -> SyncTimestamp {
-        Default::default()
-    }
-
-    fn set_timestamp(&mut self, _: SyncTimestamp) {}
-
     async fn delete_batch(
         &mut self,
         _params: params::DeleteBatch,
     ) -> Result<results::DeleteBatch, Self::Error> {
         Ok(())
     }
-
-    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
-        Ok(())
-    }
-
-    fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
 }
