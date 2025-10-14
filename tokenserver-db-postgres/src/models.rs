@@ -464,6 +464,15 @@ impl TokenserverPgDb {
     /**
     Method to create a new user, given a `PostUser` struct containing data regarding the user.
 
+        INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
+        VALUES (<service i64>,
+            <email String>,
+            <generation i64>,
+            <client_state String>,
+            <created_at i64>, <node_id i64>,
+            <keys_changed_at i64>,
+            <replaced_at NULL>)
+        RETURNING id;
 
     */
     #[cfg(debug_assertions)]
@@ -487,6 +496,48 @@ impl TokenserverPgDb {
             .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
             .get_result::<results::PostUser>(&mut self.conn)
             .await
+            .map_err(Into::into)
+    }
+
+    /**
+    Update the user with the given email and service ID with the given `generation` and
+    `keys_changed_at`.
+
+        UPDATE users
+            SET generation = <generation i64>,
+                keys_changed_at = <keys_changed_at Option<i64>>
+            WHERE service = <service String>
+            AND email = <email String>
+            AND generation <=  <generation i64>,
+            AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
+            AND replaced_at IS NULL
+
+    */
+    async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+                SET generation = $1,
+                    keys_changed_at = $2
+            WHERE service = $3
+                email = $4
+                generation <= $5
+                COALESCE(keys_changed_at, 0) <= COALESCE($6, keys_changed_at, 0)
+                replaced_at IS NULL
+        "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.put_user", None);
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .bind::<BigInt, _>(params.generation)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
             .map_err(Into::into)
     }
 }
