@@ -98,8 +98,8 @@ pub struct GetServiceId {
 
 #[cfg(debug_assertions)]
 pub struct SetUserCreatedAt {
-    pub uid: i64,
     pub created_at: i64,
+    pub uid: i64,
 }
 
 #[cfg(debug_assertions)]
