@@ -429,44 +429,6 @@ impl TokenserverPgDb {
     }
 
     /**
-    Given a service_id and email, return matching user, otherwise create a new user.
-    Calls the `.get_users` method to first check for a match.
-
-    */
-    async fn get_or_create_user(
-        &mut self,
-        params: params::GetOrCreateUser,
-    ) -> DbResult<results::GetOrCreateUser> {
-        let mut raw_users = self
-            .get_users(params::GetUsers {
-                service_id: params.service_id,
-                email: params.email.clone(),
-            })
-            .await?;
-
-        // If there are no matching users in the database with the given email and service ID,
-        // allocate a new user.
-        if raw_users.is_empty() {
-            let allocate_user_result = self
-                .allocate_user(params.clone() as params::AllocateUser)
-                .await?;
-
-            Ok(results::GetOrCreateUser {
-                uid: allocate_user_result.uid,
-                email: params.email,
-                client_state: params.client_state,
-                generation: params.generation,
-                node: allocate_user_result.node,
-                keys_changed_at: params.keys_changed_at,
-                created_at: allocate_user_result.created_at,
-                replaced_at: None,
-                first_seen_at: allocate_user_result.created_at,
-                old_client_states: vec![],
-            })
-        }
-    }
-
-    /**
     Method to create a new user, given a `PostUser` struct containing data regarding the user.
 
         INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
@@ -706,6 +668,12 @@ impl TokenserverPgDb {
             .await
             .map(|_| ())
             .map_err(Into::into)
+    }
+
+    #[allow(dead_code)]
+    #[cfg(debug_assertions)]
+    fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
+        self.spanner_node_id = params;
     }
 }
 
