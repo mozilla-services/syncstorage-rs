@@ -390,7 +390,7 @@ impl TokenserverPgDb {
     }
 
     /**
-    Given a sertice_id and email, return all matching users (up to 20).
+    Given a service_id and email, return all matching users (up to 20).
     Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
 
         SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
@@ -421,6 +421,31 @@ impl TokenserverPgDb {
             .load::<results::GetRawUser>(&mut self.conn)
             .await
             .map_err(Into::into)
+    }
+
+    /**
+    Given a service_id and email, return matching user, otherwise create a new user.
+    Calls the `.get_users` method to first check for a match.
+
+    */
+    async fn get_or_create_user(
+        &mut self,
+        params: params::GetOrCreateUser,
+    ) -> DbResult<results::GetOrCreateUser> {
+        let mut raw_users = self
+            .get_users(params::GetUsers {
+                service_id: params.service_id,
+                email: params.email.clone(),
+            })
+            .await?;
+
+        // If there are no matching users in the database with the given email and service ID,
+        // allocate a new user.
+        if raw_users.is_empty() {
+            let allocate_user_result = self
+                .allocate_user(params.clone() as params::AllocateUser)
+                .await?;
+        }
     }
 }
 
