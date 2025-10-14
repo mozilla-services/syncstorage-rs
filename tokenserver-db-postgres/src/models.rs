@@ -501,7 +501,8 @@ impl TokenserverPgDb {
 
     /**
     Update the user with the given email and service ID with the given `generation` and
-    `keys_changed_at`.
+    `keys_changed_at`. Additionally, the other parameters ensure greater certainty to prevent
+    timestamp fields from regressing. More information below.
 
         UPDATE users
             SET generation = <generation i64>,
@@ -514,6 +515,9 @@ impl TokenserverPgDb {
 
     */
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
+        // As an added layer of safety, the `WHERE` clause ensures that concurrent updates
+        // don't accidentally move timestamp fields backwards in time. The handling of
+        // `keys_changed_at`can be problematic as we want to treat the default `NULL` as zero (0).
         const QUERY: &str = r#"
             UPDATE users
                 SET generation = $1,
