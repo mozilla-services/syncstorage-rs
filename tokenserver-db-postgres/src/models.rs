@@ -544,6 +544,37 @@ impl TokenserverPgDb {
             .map(|_| ())
             .map_err(Into::into)
     }
+
+    /**
+    Update the user record with the given uid and service id
+    marking it as 'replaced'
+
+        UPDATE users
+            SET replaced_at = <replaced_at i64>
+            WHERE service = <service i32>
+            AND uid = <uid i64>
+
+    */
+    async fn replace_user(
+        &mut self,
+        params: params::ReplaceUser,
+    ) -> DbResult<results::ReplaceUser> {
+        const QUERY: &str = r#"
+            UPDATE users
+                SET replaced_at = $1
+             WHERE service = $2
+                AND uid = $3
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.replaced_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<BigInt, _>(params.uid)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait(?Send)]
