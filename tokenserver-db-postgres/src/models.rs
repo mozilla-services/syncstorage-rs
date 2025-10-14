@@ -547,11 +547,11 @@ impl TokenserverPgDb {
 
     /**
     Update the user record with the given uid and service id
-    marking it as 'replaced'
+    marking it as 'replaced'. This is through updating the `replaced_at` field.
 
         UPDATE users
             SET replaced_at = <replaced_at i64>
-            WHERE service = <service i32>
+        WHERE service = <service i32>
             AND uid = <uid i64>
 
     */
@@ -570,6 +570,44 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(params.replaced_at)
             .bind::<Integer, _>(params.service_id)
             .bind::<BigInt, _>(params.uid)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    /**
+    Update several user records with the given email and service id
+    marking them as 'replaced'. This is through updating the `replaced_at` field.
+    The `replaced_at` field should be null AND the `created_at` field should be earlier
+    than the `replaced_at`.
+
+        UPDATE users
+            SET replaced_at = <replaced_at i64>
+            WHERE service = <service i32>
+            AND uid = <uid i64>
+
+    */
+    async fn replace_users(
+        &mut self,
+        params: params::ReplaceUsers,
+    ) -> DbResult<results::ReplaceUsers> {
+        const QUERY: &str = r#"
+            UPDATE users
+                SET replaced_at = $1
+            WHERE service = $2
+                AND email = $3
+                AND replaced_at IS NULL
+                AND created_at < $4
+        "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.replace_users", None);
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.replaced_at)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .bind::<BigInt, _>(params.replaced_at)
             .execute(&mut self.conn)
             .await
             .map(|_| ())
