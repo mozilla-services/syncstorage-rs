@@ -363,6 +363,31 @@ impl TokenserverPgDb {
             .map(|_| ())
             .map_err(Into::into)
     }
+
+    // Users Table Methods
+
+    /**
+    Given a user id, return a single user (GetUser) struct.
+    Contains all data relevant to particular user.
+
+        SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
+        FROM users
+        WHERE uid = <uid i64>
+    */
+    #[cfg(debug_assertions)]
+    async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
+        const QUERY: &str = r#"
+            SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
+              FROM users
+             WHERE uid = $1
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(params.id)
+            .get_result::<results::GetUser>(&mut self.conn)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait(?Send)]
