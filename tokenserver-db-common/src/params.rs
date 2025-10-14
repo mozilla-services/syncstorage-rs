@@ -104,8 +104,8 @@ pub struct SetUserCreatedAt {
 
 #[cfg(debug_assertions)]
 pub struct SetUserReplacedAt {
-    pub uid: i64,
     pub replaced_at: i64,
+    pub uid: i64,
 }
 
 #[cfg(debug_assertions)]
