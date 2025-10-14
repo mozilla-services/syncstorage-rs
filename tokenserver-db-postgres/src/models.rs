@@ -3,7 +3,7 @@ use std::time::Duration;
 use super::pool::Conn;
 use async_trait::async_trait;
 use diesel::{
-    sql_types::{BigInt, Float, Integer, Text},
+    sql_types::{BigInt, Float, Integer, Nullable, Text},
     OptionalExtension,
 };
 use diesel_async::RunQueryDsl;
@@ -445,7 +445,49 @@ impl TokenserverPgDb {
             let allocate_user_result = self
                 .allocate_user(params.clone() as params::AllocateUser)
                 .await?;
+
+            Ok(results::GetOrCreateUser {
+                uid: allocate_user_result.uid,
+                email: params.email,
+                client_state: params.client_state,
+                generation: params.generation,
+                node: allocate_user_result.node,
+                keys_changed_at: params.keys_changed_at,
+                created_at: allocate_user_result.created_at,
+                replaced_at: None,
+                first_seen_at: allocate_user_result.created_at,
+                old_client_states: vec![],
+            })
         }
+    }
+
+    /**
+    Method to create a new user, given a `PostUser` struct containing data regarding the user.
+
+
+    */
+    #[cfg(debug_assertions)]
+    async fn post_user(&mut self, params: params::PostUser) -> DbResult<results::PostUser> {
+        const QUERY: &str = r#"
+            INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
+            RETURNING id;
+        "#;
+
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.post_user", None);
+
+        diesel::sql_query(QUERY)
+            .bind::<Integer, _>(params.service_id)
+            .bind::<Text, _>(params.email)
+            .bind::<BigInt, _>(params.generation)
+            .bind::<Text, _>(params.client_state)
+            .bind::<BigInt, _>(params.created_at)
+            .bind::<BigInt, _>(params.node_id)
+            .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
+            .get_result::<results::PostUser>(&mut self.conn)
+            .await
+            .map_err(Into::into)
     }
 }
 
