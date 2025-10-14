@@ -1,4 +1,6 @@
 use std::time::Duration;
+#[cfg(debug_assertions)]
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::pool::Conn;
 use async_trait::async_trait;
@@ -608,6 +610,41 @@ impl TokenserverPgDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.email)
             .bind::<BigInt, _>(params.replaced_at)
+            .execute(&mut self.conn)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    /**
+    Given ONLY a particular `node_id`, update the users table to indicate an unassigned
+    node by updating the `replaced_at` field with the current time since Unix Epoch.
+
+        UPDATE users
+            SET replaced_at = <replaced_at i64>
+            WHERE nodeid = <node_id i64>
+    */
+    #[cfg(debug_assertions)]
+    async fn unassign_node(
+        &mut self,
+        params: params::UnassignNode,
+    ) -> DbResult<results::UnassignNode> {
+        use std::time::SystemTime;
+
+        const QUERY: &str = r#"
+            UPDATE users
+               SET replaced_at = $1
+             WHERE nodeid = $2
+        "#;
+
+        let current_time: i64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+
+        diesel::sql_query(QUERY)
+            .bind::<BigInt, _>(current_time)
+            .bind::<BigInt, _>(params.node_id)
             .execute(&mut self.conn)
             .await
             .map(|_| ())
