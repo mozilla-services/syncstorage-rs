@@ -388,6 +388,40 @@ impl TokenserverPgDb {
             .await
             .map_err(Into::into)
     }
+
+    /**
+    Given a sertice_id and email, return all matching users (up to 20).
+    Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
+
+        SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
+        FROM users
+        LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
+            WHERE email = <email String>
+            AND users.service = <service_id i32>
+        ORDER BY created_at DESC, uid DESC
+            LIMIT 20
+    */
+    async fn get_users(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers> {
+        let mut metrics = self.metrics.clone();
+        metrics.start_timer("storage.get_users", None);
+
+        const QUERY: &str = r#"
+            SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
+            FROM users
+            LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
+                WHERE email = $1
+                AND users.service = $2
+            ORDER BY created_at DESC, uid DESC
+                LIMIT 20
+        "#;
+
+        diesel::sql_query(QUERY)
+            .bind::<Text, _>(params.email)
+            .bind::<Integer, _>(params.service_id)
+            .load::<results::GetRawUser>(&mut self.conn)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[async_trait(?Send)]
@@ -466,15 +500,15 @@ impl Db for TokenserverPgDb {
         TokenserverPgDb::get_user(self, params).await
     }
 
+    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
+        TokenserverPgDb::get_users(self, params).await
+    }
+
     async fn get_or_create_user(
         &mut self,
         params: params::GetOrCreateUser,
     ) -> Result<results::GetOrCreateUser, DbError> {
         TokenserverPgDb::get_or_create_user(self, params).await
-    }
-
-    async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
-        TokenserverPgDb::get_users(self, params).await
     }
 
     async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError> {

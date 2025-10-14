@@ -23,8 +23,8 @@ pub struct PostService {
 }
 
 pub struct GetUsers {
-    pub service_id: i32,
     pub email: String,
+    pub service_id: i32,
 }
 
 #[derive(Clone, Default)]
