@@ -94,7 +94,7 @@ commands:
       - run:
           name: Create PostgreSQL Tokenserver database
           command: |
-            PGPASSWORD=test psql -U test -h 127.0.0.1 -c 'CREATE DATABASE tokenserver;'
+            PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
   write-version:
     steps:
