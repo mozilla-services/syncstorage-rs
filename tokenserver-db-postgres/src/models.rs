@@ -439,7 +439,7 @@ impl TokenserverPgDb {
             <created_at i64>, <node_id i64>,
             <keys_changed_at i64>,
             <replaced_at NULL>)
-        RETURNING id;
+        RETURNING uid;
 
     */
     #[cfg(debug_assertions)]
@@ -447,7 +447,7 @@ impl TokenserverPgDb {
         const QUERY: &str = r#"
             INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
-            RETURNING id;
+            RETURNING uid;
         "#;
 
         let mut metrics = self.metrics.clone();
@@ -551,9 +551,10 @@ impl TokenserverPgDb {
 
         UPDATE users
             SET replaced_at = <replaced_at i64>
-            WHERE service = <service i32>
-            AND uid = <uid i64>
-
+        WHERE service = <service i32>
+            AND email = <email String>
+            AND replaced_at IS NULL
+            AND created_at < <replaced_at i64>
     */
     async fn replace_users(
         &mut self,
