@@ -57,8 +57,8 @@ impl TokenserverPgDb {
     Acquire service_id through passed in service string.
 
         SELECT id
-        FROM services
-        WHERE service = <String service>
+          FROM services
+         WHERE service = <service String>
      */
     pub async fn get_service_id(
         &mut self,
@@ -86,7 +86,7 @@ impl TokenserverPgDb {
     Returns a service_id.
 
         INSERT INTO services (service, pattern)
-        VALUES (<String service>, <String pattern>)
+        VALUES (<service String >, <pattern String>)
      */
     #[cfg(debug_assertions)]
     pub async fn post_service(
@@ -120,15 +120,15 @@ impl TokenserverPgDb {
     availability, and current load.
 
         SELECT *
-        FROM nodes
-        WHERE id = <id i64>
+          FROM nodes
+         WHERE id = <id i64>
      */
     #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
         const QUERY: &str = r#"
             SELECT *
-            FROM nodes
-            WHERE id = $1
+              FROM nodes
+             WHERE id = $1
             "#;
 
         diesel::sql_query(QUERY)
@@ -143,9 +143,9 @@ impl TokenserverPgDb {
     Returns a node_id.
 
         SELECT id
-        FROM nodes
-        WHERE service = <String service>
-        AND node = <String node>
+          FROM nodes
+         WHERE service = <service String>
+           AND node = <node String>
      */
     async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
         const QUERY: &str = r#"
@@ -176,14 +176,14 @@ impl TokenserverPgDb {
     Returns a node_id and identifier string.
 
         SELECT id, node
-        FROM nodes
-        WHERE service = <service_id i32>
-            AND available > 0
-            AND capacity > current_load
-            AND downed = 0
-            AND backoff = 0
-        ORDER BY LOG(current_load) / LOG(capacity)
-        LIMIT 1
+          FROM nodes
+         WHERE service = <service_id i32>
+           AND available > 0
+           AND capacity > current_load
+           AND downed = 0
+           AND backoff = 0
+         ORDER BY LOG(current_load) / LOG(capacity)
+         LIMIT 1
      */
     async fn get_best_node(
         &mut self,
@@ -191,29 +191,29 @@ impl TokenserverPgDb {
     ) -> DbResult<results::GetBestNode> {
         const DEFAULT_CAPACITY_RELEASE_RATE: f32 = 0.1;
         const GET_BEST_NODE_QUERY: &str = r#"
-                SELECT id, node
-                FROM nodes
-                WHERE service = $1
-                AND available > 0
-                AND capacity > current_load
-                AND downed = 0
-                AND backoff = 0
-                ORDER BY LOG(current_load) / LOG(capacity)
-                LIMIT 1
+            SELECT id, node
+              FROM nodes
+             WHERE service = $1
+               AND available > 0
+               AND capacity > current_load
+               AND downed = 0
+               AND backoff = 0
+             ORDER BY LOG(current_load) / LOG(capacity)
+             LIMIT 1
             "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"
             UPDATE nodes
-            SET available = LEAST(capacity * $1, capacity - current_load)
-            WHERE service = $2
-            AND available <= 0
-            AND capacity > current_load
-            AND downed = 0
+               SET available = LEAST(capacity * $1, capacity - current_load)
+             WHERE service = $2
+               AND available <= 0
+               AND capacity > current_load
+               AND downed = 0
             "#;
         const SPANNER_QUERY: &str = r#"
             SELECT id, node
-            FROM nodes
-            WHERE id = $1
-            LIMIT 1
+              FROM nodes
+             WHERE id = $1
+             LIMIT 1
             "#;
 
         let mut metrics = self.metrics.clone();
@@ -283,7 +283,7 @@ impl TokenserverPgDb {
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
         "#;
         diesel::sql_query(QUERY)
             .bind::<Integer, _>(params.service_id)
@@ -308,10 +308,10 @@ impl TokenserverPgDb {
     Does not return anything.
 
         UPDATE nodes
-        SET current_load = current_load + 1,
-            available = GREATEST(available - 1, 0)
-        WHERE service = <service String>
-        AND node = <node String>
+           SET current_load = current_load + 1,
+               available = GREATEST(available - 1, 0)
+         WHERE service = <service String>
+           AND node = <node String>
      */
     async fn add_user_to_node(
         &mut self,
@@ -322,16 +322,16 @@ impl TokenserverPgDb {
 
         const QUERY: &str = r#"
             UPDATE nodes
-            SET current_load = current_load + 1,
-                available = GREATEST(available - 1, 0)
-            WHERE service = $1
-            AND node = $2
+               SET current_load = current_load + 1,
+                   available = GREATEST(available - 1, 0)
+             WHERE service = $1
+               AND node = $2
         "#;
         const SPANNER_QUERY: &str = r#"
             UPDATE nodes
-            SET current_load = current_load + 1
-            WHERE service = $1
-            AND node = $2
+               SET current_load = current_load + 1
+             WHERE service = $1
+               AND node = $2
         "#;
 
         // Use the spanner query if the instance has spanner_node_id set.
@@ -376,8 +376,8 @@ impl TokenserverPgDb {
     Contains all data relevant to particular user.
 
         SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
-        FROM users
-        WHERE uid = <uid i64>
+          FROM users
+         WHERE uid = <uid i64>
     */
     #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
@@ -399,25 +399,26 @@ impl TokenserverPgDb {
     Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
 
         SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
-        FROM users
-        LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
-            WHERE email = <email String>
-            AND users.service = <service_id i32>
-        ORDER BY created_at DESC, uid DESC
-            LIMIT 20
+          FROM users
+          LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
+         WHERE email = <email String>
+           AND users.service = <service_id i32>
+         ORDER BY created_at DESC, uid DESC
+         LIMIT 20
     */
     async fn get_users(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_users", None);
 
         const QUERY: &str = r#"
-            SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
-            FROM users
+                     SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at,
+                            replaced_at
+                       FROM users
             LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
-                WHERE email = $1
-                AND users.service = $2
-            ORDER BY created_at DESC, uid DESC
-                LIMIT 20
+                      WHERE email = $1
+                        AND users.service = $2
+                   ORDER BY created_at DESC, uid DESC
+                      LIMIT 20
         "#;
 
         diesel::sql_query(QUERY)
@@ -431,7 +432,8 @@ impl TokenserverPgDb {
     /**
     Method to create a new user, given a `PostUser` struct containing data regarding the user.
 
-        INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
+        INSERT INTO users (service, email, generation, client_state, created_at,
+                           nodeid, keys_changed_at, replaced_at)
         VALUES (<service i64>,
             <email String>,
             <generation i64>,
@@ -445,7 +447,8 @@ impl TokenserverPgDb {
     #[cfg(debug_assertions)]
     async fn post_user(&mut self, params: params::PostUser) -> DbResult<results::PostUser> {
         const QUERY: &str = r#"
-            INSERT INTO users (service, email, generation, client_state, created_at, nodeid, keys_changed_at, replaced_at)
+            INSERT INTO users (service, email, generation, client_state, created_at,
+                               nodeid, keys_changed_at, replaced_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, NULL)
             RETURNING uid;
         "#;
@@ -472,13 +475,13 @@ impl TokenserverPgDb {
     timestamp fields from regressing. More information below.
 
         UPDATE users
-            SET generation = <generation i64>,
-                keys_changed_at = <keys_changed_at Option<i64>>
-            WHERE service = <service String>
-            AND email = <email String>
-            AND generation <=  <generation i64>,
-            AND COALESCE(keys_changed_at, 0) <= COALESCE(?, keys_changed_at, 0)
-            AND replaced_at IS NULL
+           SET generation = <generation i64>,
+               keys_changed_at = <keys_changed_at Option<i64>>
+         WHERE service = <service String>
+           AND email = <email String>
+           AND generation <=  <generation i64>,
+           AND COALESCE(keys_changed_at, 0) <= COALESCE(<, keys_changed_at, 0)
+           AND replaced_at IS NULL
 
     */
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
@@ -487,13 +490,13 @@ impl TokenserverPgDb {
         // `keys_changed_at`can be problematic as we want to treat the default `NULL` as zero (0).
         const QUERY: &str = r#"
             UPDATE users
-                SET generation = $1,
-                    keys_changed_at = $2
-            WHERE service = $3
-                email = $4
-                generation <= $5
-                COALESCE(keys_changed_at, 0) <= COALESCE($6, keys_changed_at, 0)
-                replaced_at IS NULL
+               SET generation = $1,
+                   keys_changed_at = $2
+             WHERE service = $3
+               AND email = $4
+               AND  generation <= $5
+               AND COALESCE(keys_changed_at, 0) <= COALESCE(<keys_changed_at i64>, keys_changed_at, 0)
+               AND replaced_at IS NULL
         "#;
 
         let mut metrics = self.metrics.clone();
@@ -517,9 +520,9 @@ impl TokenserverPgDb {
     marking it as 'replaced'. This is through updating the `replaced_at` field.
 
         UPDATE users
-            SET replaced_at = <replaced_at i64>
-        WHERE service = <service i32>
-            AND uid = <uid i64>
+           SET replaced_at = <replaced_at i64>
+         WHERE service = <service i32>
+           AND uid = <uid i64>
 
     */
     async fn replace_user(
@@ -528,9 +531,9 @@ impl TokenserverPgDb {
     ) -> DbResult<results::ReplaceUser> {
         const QUERY: &str = r#"
             UPDATE users
-                SET replaced_at = $1
+               SET replaced_at = $1
              WHERE service = $2
-                AND uid = $3
+               AND uid = $3
         "#;
 
         diesel::sql_query(QUERY)
@@ -550,11 +553,11 @@ impl TokenserverPgDb {
     than the `replaced_at`.
 
         UPDATE users
-            SET replaced_at = <replaced_at i64>
-        WHERE service = <service i32>
-            AND email = <email String>
-            AND replaced_at IS NULL
-            AND created_at < <replaced_at i64>
+           SET replaced_at = <replaced_at i64>
+         WHERE service = <service i32>
+           AND email = <email String>
+           AND replaced_at IS NULL
+           AND created_at < <replaced_at i64>
     */
     async fn replace_users(
         &mut self,
@@ -562,11 +565,11 @@ impl TokenserverPgDb {
     ) -> DbResult<results::ReplaceUsers> {
         const QUERY: &str = r#"
             UPDATE users
-                SET replaced_at = $1
-            WHERE service = $2
-                AND email = $3
-                AND replaced_at IS NULL
-                AND created_at < $4
+               SET replaced_at = $1
+             WHERE service = $2
+               AND email = $3
+               AND replaced_at IS NULL
+               AND created_at < $4
         "#;
 
         let mut metrics = self.metrics.clone();
@@ -587,8 +590,8 @@ impl TokenserverPgDb {
     node by updating the `replaced_at` field with the current time since Unix Epoch.
 
         UPDATE users
-            SET replaced_at = <replaced_at i64>
-            WHERE nodeid = <node_id i64>
+           SET replaced_at = <replaced_at i64>
+         WHERE nodeid = <node_id i64>
     */
     #[cfg(debug_assertions)]
     async fn unassign_node(
@@ -620,8 +623,8 @@ impl TokenserverPgDb {
     with the passed parameter.
 
         UPDATE users
-        SET created_at = <created_at i64>
-        WHERE uid = <uid i64>
+           SET created_at = <created_at i64>
+         WHERE uid = <uid i64>
     */
     #[cfg(debug_assertions)]
     async fn set_user_created_at(
@@ -630,8 +633,8 @@ impl TokenserverPgDb {
     ) -> DbResult<results::SetUserCreatedAt> {
         const QUERY: &str = r#"
             UPDATE users
-                SET created_at = $1
-            WHERE uid = $2
+               SET created_at = $1
+             WHERE uid = $2
         "#;
 
         diesel::sql_query(QUERY)
@@ -648,8 +651,8 @@ impl TokenserverPgDb {
     with the passed parameter.
 
         UPDATE users
-        SET replaced_at = <replaced_at i64>
-        WHERE uid = <uid i64>
+           SET replaced_at = <replaced_at i64>
+         WHERE uid = <uid i64>
     */
     #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
@@ -658,8 +661,8 @@ impl TokenserverPgDb {
     ) -> DbResult<results::SetUserReplacedAt> {
         const QUERY: &str = r#"
             UPDATE users
-                SET replaced_at = $1
-            WHERE uid = $2
+               SET replaced_at = $1
+             WHERE uid = $2
         "#;
 
         diesel::sql_query(QUERY)
