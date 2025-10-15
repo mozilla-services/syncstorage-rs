@@ -1,11 +1,11 @@
 -- Create Tables
-CREATE TABLE services (
+CREATE TABLE IF NOT EXISTS services (
     id SERIAL PRIMARY KEY,
     service VARCHAR(30) UNIQUE,
     pattern VARCHAR(128)
 );
 
-CREATE TABLE nodes (
+CREATE TABLE IF NOT EXISTS nodes (
     id BIGSERIAL PRIMARY KEY,
     service INTEGER NOT NULL,
     node VARCHAR(64) NOT NULL,
@@ -17,7 +17,7 @@ CREATE TABLE nodes (
     UNIQUE (service, node)
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     uid BIGSERIAL PRIMARY KEY,
     service INTEGER NOT NULL,
     email VARCHAR(255) NOT NULL,
@@ -30,8 +30,8 @@ CREATE TABLE users (
 );
 
 -- Create Indexes for `users` table
-CREATE INDEX lookup_idx ON users (email, service, created_at);
+CREATE INDEX IF NOT EXISTS lookup_idx ON users (email, service, created_at);
 
-CREATE INDEX replaced_at_idx ON users (service, replaced_at);
+CREATE INDEX IF NOT EXISTS replaced_at_idx ON users (service, replaced_at);
 
-CREATE INDEX node_idx ON users (nodeid);
+CREATE INDEX IF NOT EXISTS node_idx ON users (nodeid);
