@@ -65,11 +65,11 @@ impl TokenserverPgDb {
         if let Some(id) = self.service_id {
             Ok(results::GetServiceId { id })
         } else {
-            diesel::sql_query(QUERY)
+            let result = diesel::sql_query(QUERY)
                 .bind::<Text, _>(params.service)
                 .get_result::<results::GetServiceId>(&mut self.conn)
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok(result)
         }
     }
 
@@ -86,15 +86,14 @@ impl TokenserverPgDb {
             RETURNING id
         "#;
 
-        diesel::sql_query(INSERT_SERVICE_QUERY)
+        Ok(diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
             .get_result::<results::LastInsertId>(&mut self.conn)
             .await
             .map(|result| results::PostService {
                 id: result.id as i32,
-            })
-            .map_err(Into::into)
+            })?)
     }
 
     // Nodes Table Methods
@@ -110,11 +109,11 @@ impl TokenserverPgDb {
              WHERE id = $1
             "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<BigInt, _>(params.id)
             .get_result::<results::GetNode>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     /// Get the specific Node ID, given a provided service string and node.
@@ -133,12 +132,12 @@ impl TokenserverPgDb {
             let mut metrics = self.metrics.clone();
             metrics.start_timer("storage.get_node_id", None);
 
-            diesel::sql_query(QUERY)
+            let result = diesel::sql_query(QUERY)
                 .bind::<Integer, _>(params.service_id)
                 .bind::<Text, _>(&params.node)
                 .get_result(&mut self.conn)
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok(result)
         }
     }
 
@@ -240,7 +239,7 @@ impl TokenserverPgDb {
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
         "#;
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.node)
             .bind::<Integer, _>(params.available)
@@ -249,8 +248,8 @@ impl TokenserverPgDb {
             .bind::<Integer, _>(params.downed)
             .bind::<Integer, _>(params.backoff)
             .get_result::<results::PostNode>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     /// Update the current load count of a node, passing in the service string and node string.
@@ -317,11 +316,11 @@ impl TokenserverPgDb {
              WHERE uid = $1
         "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<BigInt, _>(params.id)
             .get_result::<results::GetUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     /// Given a service_id and email, return all matching users (up to 20).
@@ -341,12 +340,12 @@ impl TokenserverPgDb {
                       LIMIT 20
         "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Text, _>(params.email)
             .bind::<Integer, _>(params.service_id)
             .load::<results::GetRawUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     /// Method to create a new user, given a `PostUser` struct containing data regarding the user.
@@ -362,7 +361,7 @@ impl TokenserverPgDb {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.post_user", None);
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.email)
             .bind::<BigInt, _>(params.generation)
@@ -371,8 +370,8 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(params.node_id)
             .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
             .get_result::<results::PostUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     /// Update the user with the given email and service ID with the given `generation` and
