@@ -295,7 +295,7 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_DATABASE: syncstorage
-      - image: cimg/postgres:18
+      - image: cimg/postgres:18.0
         auth:
           username: $DOCKER_USER
           password: $DOCKER_PASS
