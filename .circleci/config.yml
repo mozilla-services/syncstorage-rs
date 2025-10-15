@@ -135,10 +135,8 @@ commands:
   run-unit-tests-postgres:
     steps:
       - run:
-          name: nextest postgres with code coverage
+          name: Tokenserver tests on PostgreSQL
           command: |
-            RUST_BACKTRACE=full \
-            RUST_TEST_THREADS=1 \
             cargo llvm-cov --no-report --summary-only \
               nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ci
 
@@ -709,7 +707,7 @@ workflows:
       - merge-coverage:
           requires:
             - build-and-test-mysql
-            - build-and-test-postgres
+            # - build-and-test-postgres
             - build-and-test-spanner
           filters:
             tags:
