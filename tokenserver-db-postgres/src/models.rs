@@ -527,6 +527,13 @@ impl TokenserverPgDb {
         Ok(())
     }
 
+    /// Simple check function to ensure database liveliness.
+    async fn check(&mut self) -> DbResult<results::Check> {
+        diesel::sql_query("SELECT 1")
+            .execute(&mut self.conn)
+            .await?;
+        Ok(true)
+    }
     #[allow(dead_code)]
     #[cfg(debug_assertions)]
     fn set_spanner_node_id(&mut self, params: params::SpannerNodeId) {
