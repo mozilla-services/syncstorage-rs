@@ -77,13 +77,24 @@ commands:
       - run:
           name: Install MySQL client
           command: sudo apt-get update && sudo apt-get install -y default-mysql-client
-  create-tokenserver-database:
+  create-tokenserver-database-mysql:
     steps:
       - run:
-          name: Create Tokenserver database
+          name: Create MySQL Tokenserver database
           command: |
             mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
             mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
+  setup-postgres:
+    steps:
+      - run:
+          name: Install PostgreSQL client
+          command: sudo apt-get update && sudo apt-get install -y postgresql-client
+  create-tokenserver-database-postgres:
+    steps:
+      - run:
+          name: Create PostgreSQL Tokenserver database
+          command: |
+            PGPASSWORD=test psql -U test -h 127.0.0.1 -c 'CREATE DATABASE tokenserver;'
 
   write-version:
     steps:
@@ -110,7 +121,7 @@ commands:
           name: Create test-results directory
           command: mkdir -p workflow/test-results
 
-  run-unit-tests:
+  run-unit-tests-mysql:
     steps:
       - run:
           name: nextest with code coverage
@@ -284,6 +295,14 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_DATABASE: syncstorage
+      - image: cimg/postgres:18
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: syncstorage
       - image: gcr.io/cloud-spanner-emulator/emulator
     resource_class: large
     steps:
@@ -291,14 +310,16 @@ jobs:
       - display-versions
       - setup-python
       - setup-mysql
-      - create-tokenserver-database
+      - create-tokenserver-database-mysql
+      - setup-postgres
+      - create-tokenserver-database-postgres
       # XXX: currently the time needed to setup-sccache negates its savings
       # - setup-sccache
       # - restore-sccache-cache
       - write-version
       - install-test-deps
       - make-test-dir
-      - run-unit-tests
+      - run-unit-tests-mysql
       - run-spanner-tests
       - merge-unit-test-coverage
       # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
