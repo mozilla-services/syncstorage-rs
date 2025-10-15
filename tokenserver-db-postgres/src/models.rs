@@ -32,9 +32,7 @@ pub struct TokenserverPgDb {
 }
 
 impl TokenserverPgDb {
-    /// Utility constant to get the most recent id value after an insert.
-    const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
-
+    /// Create new instance of `TokenserverPgDb`
     pub fn new(
         conn: Conn,
         metrics: &Metrics,
@@ -85,14 +83,12 @@ impl TokenserverPgDb {
         const INSERT_SERVICE_QUERY: &str = r#"
             INSERT INTO services (service, pattern)
             VALUES ($1, $2)
+            RETURNING id
         "#;
+
         diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
-            .execute(&mut self.conn)
-            .await?;
-
-        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
             .get_result::<results::LastInsertId>(&mut self.conn)
             .await
             .map(|result| results::PostService {
@@ -242,6 +238,7 @@ impl TokenserverPgDb {
         const QUERY: &str = r#"
             INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
         "#;
         diesel::sql_query(QUERY)
             .bind::<Integer, _>(params.service_id)
@@ -251,10 +248,6 @@ impl TokenserverPgDb {
             .bind::<Integer, _>(params.capacity)
             .bind::<Integer, _>(params.downed)
             .bind::<Integer, _>(params.backoff)
-            .execute(&mut self.conn)
-            .await?;
-
-        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
             .get_result::<results::PostNode>(&mut self.conn)
             .await
             .map_err(Into::into)
