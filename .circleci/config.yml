@@ -132,6 +132,16 @@ commands:
           environment:
             SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
+  run-unit-tests-postgres:
+    steps:
+      - run:
+          name: nextest postgres with code coverage
+          command: |
+            RUST_BACKTRACE=full \
+            RUST_TEST_THREADS=1 \
+            cargo llvm-cov --no-report --summary-only \
+              nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ${TEST_PROFILE}
+
   run-spanner-tests:
     steps:
       - run:
@@ -358,7 +368,7 @@ jobs:
       - write-version
       - install-test-deps
       - make-test-dir
-      - run-unit-tests-mysql
+      - run-unit-tests-postgres
       - persist-coverage-to-workspace
       # - save-sccache-cache
 
@@ -699,7 +709,7 @@ workflows:
       - merge-coverage:
           requires:
             - build-and-test-mysql
-            # - build-and-test-postgres
+            - build-and-test-postgres
             - build-and-test-spanner
           filters:
             tags:
