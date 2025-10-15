@@ -173,6 +173,19 @@ commands:
           name: Merge llvm-cov results
           command: make merge_coverage_results
 
+  persist-coverage-to-workspace:
+    steps:
+      - persist_to_workspace:
+          root: .
+          paths:
+            - target/llvm-cov-target
+            - workflow/test-results
+
+  attach-coverage-workspace:
+    steps:
+      - attach_workspace:
+          at: .
+
   store-test-results:
     steps:
       - store_test_results:
@@ -274,7 +287,7 @@ jobs:
       - setup-python
       - python-check
 
-  build-and-test:
+  build-and-test-mysql:
     docker:
       - image: cimg/rust:1.89 # RUST_VER
         auth:
@@ -295,6 +308,35 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_DATABASE: syncstorage
+    resource_class: large
+    steps:
+      - checkout
+      - display-versions
+      - setup-python
+      - setup-mysql
+      - create-tokenserver-database-mysql
+      # XXX: currently the time needed to setup-sccache negates its savings
+      # - setup-sccache
+      # - restore-sccache-cache
+      - write-version
+      - install-test-deps
+      - make-test-dir
+      - run-unit-tests-mysql
+      - persist-coverage-to-workspace
+      # - save-sccache-cache
+
+  build-and-test-postgres:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
+          SYNC_TOKENSERVER__DATABASE_URL: postgresql://test:test@127.0.0.1/tokenserver
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
       - image: cimg/postgres:18.0
         auth:
           username: $DOCKER_USER
@@ -303,14 +345,11 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
           POSTGRES_DB: syncstorage
-      - image: gcr.io/cloud-spanner-emulator/emulator
     resource_class: large
     steps:
       - checkout
       - display-versions
       - setup-python
-      - setup-mysql
-      - create-tokenserver-database-mysql
       - setup-postgres
       - create-tokenserver-database-postgres
       # XXX: currently the time needed to setup-sccache negates its savings
@@ -320,11 +359,47 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-unit-tests-mysql
+      - persist-coverage-to-workspace
+      # - save-sccache-cache
+
+  build-and-test-spanner:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
+      - image: gcr.io/cloud-spanner-emulator/emulator
+    resource_class: large
+    steps:
+      - checkout
+      - display-versions
+      - setup-python
+      # XXX: currently the time needed to setup-sccache negates its savings
+      # - setup-sccache
+      # - restore-sccache-cache
+      - write-version
+      - install-test-deps
+      - make-test-dir
       - run-spanner-tests
+      - persist-coverage-to-workspace
+      # - save-sccache-cache
+
+  merge-coverage:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - checkout
+      - install-test-deps
+      - attach-coverage-workspace
       - merge-unit-test-coverage
-      # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
-      # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
-      # configured already, and it appears unit-tests modify the db to the expected state
       - store-test-results
       - gcs-configure-and-upload:
           source: workflow/test-results
@@ -334,7 +409,6 @@ jobs:
           source: workflow/test-results
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
           extension: json
-      # - save-sccache-cache
 
   build-mysql-image:
     docker:
@@ -610,19 +684,35 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - build-and-test:
+      - build-and-test-mysql:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test-postgres:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test-spanner:
+          filters:
+            tags:
+              only: /.*/
+      - merge-coverage:
+          requires:
+            - build-and-test-mysql
+            # - build-and-test-postgres
+            - build-and-test-spanner
           filters:
             tags:
               only: /.*/
       - build-mysql-image:
           requires:
-            - build-and-test
+            - build-and-test-mysql
           filters:
             tags:
               only: /.*/
       - build-spanner-image:
           requires:
-            - build-and-test
+            - build-and-test-spanner
           filters:
             tags:
               only: /.*/
