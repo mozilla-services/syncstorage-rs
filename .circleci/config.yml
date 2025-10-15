@@ -182,17 +182,40 @@ commands:
           command: make merge_coverage_results
 
   persist-coverage-to-workspace:
+    parameters:
+      job_name:
+        type: string
     steps:
+      - run:
+          name: Copy coverage data
+          command: |
+            mkdir -p /tmp/coverage-<< parameters.job_name >>
+            cp -r target/llvm-cov-target /tmp/coverage-<< parameters.job_name >>/
+            cp -r workflow/test-results /tmp/coverage-<< parameters.job_name >>/
       - persist_to_workspace:
-          root: .
+          root: /tmp
           paths:
-            - target/llvm-cov-target
-            - workflow/test-results
+            - coverage-<< parameters.job_name >>
 
   attach-coverage-workspace:
     steps:
       - attach_workspace:
-          at: .
+          at: /tmp
+      - run:
+          name: Merge coverage data
+          command: |
+            mkdir -p target/llvm-cov-target
+            mkdir -p workflow/test-results
+            for dir in /tmp/coverage-*/llvm-cov-target; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* target/llvm-cov-target/
+              fi
+            done
+            for dir in /tmp/coverage-*/test-results; do
+              if [ -d "$dir" ]; then
+                cp -r "$dir"/* workflow/test-results/
+              fi
+            done
 
   store-test-results:
     steps:
@@ -330,7 +353,8 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-unit-tests-mysql
-      - persist-coverage-to-workspace
+      - persist-coverage-to-workspace:
+          job_name: mysql
       # - save-sccache-cache
 
   build-and-test-postgres:
@@ -367,7 +391,8 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-unit-tests-postgres
-      - persist-coverage-to-workspace
+      - persist-coverage-to-workspace:
+          job_name: postgres
       # - save-sccache-cache
 
   build-and-test-spanner:
@@ -393,7 +418,8 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-spanner-tests
-      - persist-coverage-to-workspace
+      - persist-coverage-to-workspace:
+          job_name: spanner
       # - save-sccache-cache
 
   merge-coverage:
