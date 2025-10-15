@@ -140,7 +140,7 @@ commands:
             RUST_BACKTRACE=full \
             RUST_TEST_THREADS=1 \
             cargo llvm-cov --no-report --summary-only \
-              nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ${TEST_PROFILE}
+              nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ci
 
   run-spanner-tests:
     steps:
