@@ -289,9 +289,8 @@ impl TokenserverPgDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(params.node)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Remove a node given the node ID.
@@ -302,9 +301,8 @@ impl TokenserverPgDb {
         diesel::sql_query(QUERY)
             .bind::<BigInt, _>(params.node_id)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     // Users Table Methods
@@ -406,9 +404,8 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(params.generation)
             .bind::<Nullable<BigInt>, _>(params.keys_changed_at)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Update the user record with the given uid and service id
@@ -429,9 +426,8 @@ impl TokenserverPgDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<BigInt, _>(params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Update several user records with the given email and service id
@@ -459,9 +455,8 @@ impl TokenserverPgDb {
             .bind::<Text, _>(params.email)
             .bind::<BigInt, _>(params.replaced_at)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Given ONLY a particular `node_id`, update the users table to indicate an unassigned
@@ -486,9 +481,8 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(current_time)
             .bind::<BigInt, _>(params.node_id)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Given ONLY a particular `uid`, update the users table `created_at` value
@@ -508,9 +502,8 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(params.created_at)
             .bind::<BigInt, _>(params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Given ONLY a particular `uid`, update the users table `replaced_at` value
@@ -530,9 +523,8 @@ impl TokenserverPgDb {
             .bind::<BigInt, _>(params.replaced_at)
             .bind::<BigInt, _>(params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     #[allow(dead_code)]
