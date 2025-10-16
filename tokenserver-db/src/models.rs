@@ -29,6 +29,7 @@ impl TokenserverDb {
     // requests, using this function would introduce a race condition, as we could potentially
     // get IDs from records created during other requests.
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+    const LAST_INSERT_UID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS uid";
 
     pub fn new(
         conn: Conn,
@@ -172,7 +173,7 @@ impl TokenserverDb {
             .execute(&mut self.conn)
             .await?;
 
-        let result = diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+        let result = diesel::sql_query(Self::LAST_INSERT_UID_QUERY)
             .get_result::<results::PostUser>(&mut self.conn)
             .await?;
         Ok(result)
