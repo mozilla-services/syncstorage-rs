@@ -675,7 +675,7 @@ mod tests {
                 ..Default::default()
             })
             .await?
-            .id;
+            .uid;
 
         let user = db.get_user(params::GetUser { id: uid }).await?;
 
@@ -749,7 +749,7 @@ mod tests {
                 ..Default::default()
             })
             .await?
-            .id;
+            .uid;
 
         let user = db.get_user(params::GetUser { id: uid }).await?;
 
@@ -831,7 +831,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
@@ -853,7 +853,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_replaced_at(params::SetUserReplacedAt {
                 replaced_at: an_hour_ago + MILLISECONDS_IN_A_MINUTE,
@@ -880,7 +880,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: now + MILLISECONDS_IN_AN_HOUR,
@@ -901,7 +901,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
@@ -920,7 +920,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             // Set created_at to be an hour ago
             db.set_user_created_at(params::SetUserCreatedAt {
@@ -1005,7 +1005,7 @@ mod tests {
             node_id,
             keys_changed_at: Some(3),
         };
-        let uid1 = db.post_user(post_user_params1.clone()).await?.id;
+        let uid1 = db.post_user(post_user_params1.clone()).await?.uid;
 
         // Add another user
         let email2 = "test_user_2";
@@ -1015,7 +1015,7 @@ mod tests {
             email: email2.to_owned(),
             ..Default::default()
         };
-        let uid2 = db.post_user(post_user_params2).await?.id;
+        let uid2 = db.post_user(post_user_params2).await?.uid;
 
         // Ensure that two separate users were created
         assert_ne!(uid1, uid2);
