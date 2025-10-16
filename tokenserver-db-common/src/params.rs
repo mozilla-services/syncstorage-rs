@@ -23,8 +23,8 @@ pub struct PostService {
 }
 
 pub struct GetUsers {
-    pub service_id: i32,
     pub email: String,
+    pub service_id: i32,
 }
 
 #[derive(Clone, Default)]
@@ -98,14 +98,14 @@ pub struct GetServiceId {
 
 #[cfg(debug_assertions)]
 pub struct SetUserCreatedAt {
-    pub uid: i64,
     pub created_at: i64,
+    pub uid: i64,
 }
 
 #[cfg(debug_assertions)]
 pub struct SetUserReplacedAt {
-    pub uid: i64,
     pub replaced_at: i64,
+    pub uid: i64,
 }
 
 #[cfg(debug_assertions)]
