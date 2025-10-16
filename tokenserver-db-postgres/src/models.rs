@@ -231,7 +231,7 @@ impl TokenserverPgDb {
     }
 
     /// Create and Insert a new node.
-    /// Returns the last_insert_id of the newly created node.
+    /// Returns the last inserted `id` of the newly created node.
     #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
