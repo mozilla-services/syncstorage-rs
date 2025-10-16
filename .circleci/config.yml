@@ -172,6 +172,7 @@ commands:
             SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
             SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: 127.0.0.1:9010
             RUST_TEST_THREADS: 1
+            CARGO_BUILD_JOBS: 2
           command: make spanner_test_with_coverage
 
   merge-unit-test-coverage:
