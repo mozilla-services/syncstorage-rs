@@ -86,14 +86,15 @@ impl TokenserverPgDb {
             RETURNING id
         "#;
 
-        Ok(diesel::sql_query(INSERT_SERVICE_QUERY)
+        let result = diesel::sql_query(INSERT_SERVICE_QUERY)
             .bind::<Text, _>(&params.service)
             .bind::<Text, _>(&params.pattern)
             .get_result::<results::LastInsertId>(&mut self.conn)
             .await
             .map(|result| results::PostService {
                 id: result.id as i32,
-            })?)
+            })?;
+        Ok(result)
     }
 
     // Nodes Table Methods
