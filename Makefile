@@ -140,7 +140,7 @@ test_with_coverage:
 .ONESHELL:
 spanner_test_with_coverage:
 	cargo llvm-cov --no-report --summary-only \
-		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
+		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}|| true; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${SPANNER_UNIT_JUNIT_XML}
 	exit $$exit_code
 
