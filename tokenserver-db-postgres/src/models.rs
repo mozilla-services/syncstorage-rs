@@ -53,13 +53,7 @@ impl TokenserverPgDb {
 
     // Services Table Methods
 
-    /**
-    Acquire service_id through passed in service string.
-
-        SELECT id
-          FROM services
-         WHERE service = <service String>
-     */
+    /// Acquire service_id through passed in service string.
     pub async fn get_service_id(
         &mut self,
         params: params::GetServiceId,
@@ -81,13 +75,8 @@ impl TokenserverPgDb {
         }
     }
 
-    /**
-    Create a new service, given a provided service string and pattern.
-    Returns a service_id.
-
-        INSERT INTO services (service, pattern)
-        VALUES (<service String >, <pattern String>)
-     */
+    // Create a new service, given a provided service string and pattern.
+    // Returns a service_id.
     #[cfg(debug_assertions)]
     pub async fn post_service(
         &mut self,
@@ -114,15 +103,9 @@ impl TokenserverPgDb {
 
     // Nodes Table Methods
 
-    /**
-    Get Node with complete metadata, given a provided Node ID.
-    Returns a complete Node, including id, service_id, node string identifier
-    availability, and current load.
-
-        SELECT *
-          FROM nodes
-         WHERE id = <id i64>
-     */
+    /// Get Node with complete metadata, given a provided Node ID.
+    /// Returns a complete Node, including id, service_id, node string identifier
+    /// availability, and current load.
     #[cfg(debug_assertions)]
     async fn get_node(&mut self, params: params::GetNode) -> DbResult<results::GetNode> {
         const QUERY: &str = r#"
@@ -138,15 +121,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Get the specific Node ID, given a provided service string and node.
-    Returns a node_id.
-
-        SELECT id
-          FROM nodes
-         WHERE service = <service String>
-           AND node = <node String>
-     */
+    /// Get the specific Node ID, given a provided service string and node.
+    /// Returns a node_id.
     async fn get_node_id(&mut self, params: params::GetNodeId) -> DbResult<results::GetNodeId> {
         const QUERY: &str = r#"
             SELECT id
@@ -170,21 +146,9 @@ impl TokenserverPgDb {
         }
     }
 
-    /**
-    Get the best Node ID, which is the least loaded node with most available slots,
-    given a provided service string and node.
-    Returns a node_id and identifier string.
-
-        SELECT id, node
-          FROM nodes
-         WHERE service = <service_id i32>
-           AND available > 0
-           AND capacity > current_load
-           AND downed = 0
-           AND backoff = 0
-         ORDER BY LOG(current_load) / LOG(capacity)
-         LIMIT 1
-     */
+    /// Get the best Node ID, which is the least loaded node with most available slots,
+    /// given a provided service string and node.
+    /// Returns a node_id and identifier string.
     async fn get_best_node(
         &mut self,
         params: params::GetBestNode,
@@ -271,14 +235,8 @@ impl TokenserverPgDb {
         }
     }
 
-    /**
-    Create and Insert a new node.
-    Returns the last_insert_id of the newly created node.
-
-        INSERT INTO nodes (service, node, available, current_load, capacity, downed, backoff)
-        VALUES (<service_id i32>, <node String>, <available i32>, <current_load i32>,
-        <capacity i32>, <downed i32>, <backoff i32>)
-     */
+    /// Create and Insert a new node.
+    /// Returns the last_insert_id of the newly created node.
     #[cfg(debug_assertions)]
     async fn post_node(&mut self, params: params::PostNode) -> DbResult<results::PostNode> {
         const QUERY: &str = r#"
@@ -302,17 +260,9 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Update the current load count of a node, passing in the service string and node string.
-    This represents the addition of a user to a node, while not defining which user specifically.
-    Does not return anything.
-
-        UPDATE nodes
-           SET current_load = current_load + 1,
-               available = GREATEST(available - 1, 0)
-         WHERE service = <service String>
-           AND node = <node String>
-     */
+    /// Update the current load count of a node, passing in the service string and node string.
+    /// This represents the addition of a user to a node, while not defining which user specifically.
+    /// Does not return anything.
     async fn add_user_to_node(
         &mut self,
         params: params::AddUserToNode,
@@ -351,12 +301,7 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Remove a node given the node ID.
-    Does not return anything.
-
-        DELETE FROM nodes WHERE id = <node_id i64>
-     */
+    /// Remove a node given the node ID.
     #[cfg(debug_assertions)]
     async fn remove_node(&mut self, params: params::RemoveNode) -> DbResult<results::RemoveNode> {
         const QUERY: &str = "DELETE FROM nodes WHERE id = $1";
@@ -371,14 +316,8 @@ impl TokenserverPgDb {
 
     // Users Table Methods
 
-    /**
-    Given a user id, return a single user (GetUser) struct.
-    Contains all data relevant to particular user.
-
-        SELECT service, email, generation, client_state, replaced_at, nodeid, keys_changed_at
-          FROM users
-         WHERE uid = <uid i64>
-    */
+    /// Given a user id, return a single user (GetUser) struct.
+    /// Contains all data relevant to particular user.
     #[cfg(debug_assertions)]
     async fn get_user(&mut self, params: params::GetUser) -> DbResult<results::GetUser> {
         const QUERY: &str = r#"
@@ -394,18 +333,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Given a service_id and email, return all matching users (up to 20).
-    Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
-
-        SELECT uid, nodes.node, generation, keys_changed_at, client_state, created_at, replaced_at
-          FROM users
-          LEFT OUTER JOIN nodes ON users.nodeid = nodes.id
-         WHERE email = <email String>
-           AND users.service = <service_id i32>
-         ORDER BY created_at DESC, uid DESC
-         LIMIT 20
-    */
+    /// Given a service_id and email, return all matching users (up to 20).
+    /// Returns vector of matching `GetUser` structs, a type alias for `GetRawUsers`
     async fn get_users(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers> {
         let mut metrics = self.metrics.clone();
         metrics.start_timer("storage.get_users", None);
@@ -429,21 +358,7 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Method to create a new user, given a `PostUser` struct containing data regarding the user.
-
-        INSERT INTO users (service, email, generation, client_state, created_at,
-                           nodeid, keys_changed_at, replaced_at)
-        VALUES (<service i64>,
-            <email String>,
-            <generation i64>,
-            <client_state String>,
-            <created_at i64>, <node_id i64>,
-            <keys_changed_at i64>,
-            <replaced_at NULL>)
-        RETURNING uid;
-
-    */
+    /// Method to create a new user, given a `PostUser` struct containing data regarding the user.
     #[cfg(debug_assertions)]
     async fn post_user(&mut self, params: params::PostUser) -> DbResult<results::PostUser> {
         const QUERY: &str = r#"
@@ -469,21 +384,9 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Update the user with the given email and service ID with the given `generation` and
-    `keys_changed_at`. Additionally, the other parameters ensure greater certainty to prevent
-    timestamp fields from regressing. More information below.
-
-        UPDATE users
-           SET generation = <generation i64>,
-               keys_changed_at = <keys_changed_at Option<i64>>
-         WHERE service = <service String>
-           AND email = <email String>
-           AND generation <=  <generation i64>,
-           AND COALESCE(keys_changed_at, 0) <= COALESCE(<, keys_changed_at, 0)
-           AND replaced_at IS NULL
-
-    */
+    /// Update the user with the given email and service ID with the given `generation` and
+    /// `keys_changed_at`. Additionally, the other parameters ensure greater certainty to prevent
+    /// timestamp fields from regressing. More information below.
     async fn put_user(&mut self, params: params::PutUser) -> DbResult<results::PutUser> {
         // As an added layer of safety, the `WHERE` clause ensures that concurrent updates
         // don't accidentally move timestamp fields backwards in time. The handling of
@@ -515,16 +418,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Update the user record with the given uid and service id
-    marking it as 'replaced'. This is through updating the `replaced_at` field.
-
-        UPDATE users
-           SET replaced_at = <replaced_at i64>
-         WHERE service = <service i32>
-           AND uid = <uid i64>
-
-    */
+    /// Update the user record with the given uid and service id
+    /// marking it as 'replaced'. This is through updating the `replaced_at` field.
     async fn replace_user(
         &mut self,
         params: params::ReplaceUser,
@@ -546,19 +441,10 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Update several user records with the given email and service id
-    marking them as 'replaced'. This is through updating the `replaced_at` field.
-    The `replaced_at` field should be null AND the `created_at` field should be earlier
-    than the `replaced_at`.
-
-        UPDATE users
-           SET replaced_at = <replaced_at i64>
-         WHERE service = <service i32>
-           AND email = <email String>
-           AND replaced_at IS NULL
-           AND created_at < <replaced_at i64>
-    */
+    /// Update several user records with the given email and service id
+    /// marking them as 'replaced'. This is through updating the `replaced_at` field.
+    /// The `replaced_at` field should be null AND the `created_at` field should be earlier
+    /// than the `replaced_at`.
     async fn replace_users(
         &mut self,
         params: params::ReplaceUsers,
@@ -585,14 +471,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Given ONLY a particular `node_id`, update the users table to indicate an unassigned
-    node by updating the `replaced_at` field with the current time since Unix Epoch.
-
-        UPDATE users
-           SET replaced_at = <replaced_at i64>
-         WHERE nodeid = <node_id i64>
-    */
+    /// Given ONLY a particular `node_id`, update the users table to indicate an unassigned
+    /// node by updating the `replaced_at` field with the current time since Unix Epoch.
     #[cfg(debug_assertions)]
     async fn unassign_node(
         &mut self,
@@ -618,14 +498,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Given ONLY a particular `uid`, update the users table `created_at` value
-    with the passed parameter.
-
-        UPDATE users
-           SET created_at = <created_at i64>
-         WHERE uid = <uid i64>
-    */
+    /// Given ONLY a particular `uid`, update the users table `created_at` value
+    /// with the passed parameter.
     #[cfg(debug_assertions)]
     async fn set_user_created_at(
         &mut self,
@@ -646,14 +520,8 @@ impl TokenserverPgDb {
             .map_err(Into::into)
     }
 
-    /**
-    Given ONLY a particular `uid`, update the users table `replaced_at` value
-    with the passed parameter.
-
-        UPDATE users
-           SET replaced_at = <replaced_at i64>
-         WHERE uid = <uid i64>
-    */
+    /// Given ONLY a particular `uid`, update the users table `replaced_at` value
+    /// with the passed parameter.
     #[cfg(debug_assertions)]
     async fn set_user_replaced_at(
         &mut self,
