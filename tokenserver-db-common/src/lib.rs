@@ -256,7 +256,7 @@ pub trait Db {
                 keys_changed_at: params.keys_changed_at,
             })
             .await?
-            .id;
+            .uid;
 
         Ok(results::AllocateUser {
             uid,

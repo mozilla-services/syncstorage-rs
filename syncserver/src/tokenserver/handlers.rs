@@ -230,7 +230,7 @@ async fn update_user(
         };
         let uid = apply_timeout(db.timeout(), db.post_user(post_user_params))
             .await?
-            .id;
+            .uid;
 
         // Make sure each old row is marked as replaced (they might not be, due to races in row
         // creation)
