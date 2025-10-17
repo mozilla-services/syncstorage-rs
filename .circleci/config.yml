@@ -462,6 +462,7 @@ jobs:
           command: >
             docker build -t app:build
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
+            --build-arg TOKENSERVER_DATABASE_BACKEND=mysql
             .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is

@@ -28,7 +28,12 @@ RUN \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
+RUN set -x && \
+    TOKENSERVER_FEATURES="" && \
+    if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
+        TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
+    fi && \
+    cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --recipe-path recipe.json
 
 FROM chef AS builder
 ARG SYNCSTORAGE_DATABASE_BACKEND
@@ -73,10 +78,14 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
 
 ENV PATH=$PATH:/root/.cargo/bin
 
-RUN \
+RUN set -x && \
+    TOKENSERVER_FEATURES="" && \
+    if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
+        TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
+    fi && \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --locked --root /app
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --locked --root /app
 
 FROM docker.io/library/debian:bookworm-slim
 ARG MYSQLCLIENT_PKG
