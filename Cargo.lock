@@ -3389,6 +3389,7 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-mysql",
+ "syncstorage-postgres",
  "syncstorage-settings",
  "syncstorage-spanner",
  "tokio",
@@ -3431,6 +3432,29 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "syncstorage-postgres"
+version = "0.21.1"
+dependencies = [
+ "async-trait",
+ "backtrace",
+ "base64",
+ "deadpool",
+ "diesel",
+ "diesel-async",
+ "diesel_logger",
+ "diesel_migrations",
+ "http 1.3.1",
+ "slog-scope",
+ "syncserver-common",
+ "syncserver-db-common",
+ "syncstorage-db-common",
+ "syncstorage-settings",
+ "thiserror 1.0.69",
  "tokio",
  "url",
 ]

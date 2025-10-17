@@ -15,7 +15,7 @@ members = [
   "tokenserver-settings",
   "syncserver",
   "tokenserver-db-postgres",
-  "tokenserver-db-common",
+  "tokenserver-db-common", "syncstorage-postgres",
 ]
 default-members = ["syncserver"]
 
