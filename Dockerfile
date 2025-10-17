@@ -1,4 +1,5 @@
-ARG DATABASE_BACKEND=spanner
+ARG SYNCSTORAGE_DATABASE_BACKEND=spanner
+ARG TOKENSERVER_DATABASE_BACKEND=mysql
 # Alternatively MYSQLCLIENT_PKG=libmysqlclient-dev for the Oracle/MySQL official client
 ARG MYSQLCLIENT_PKG=libmariadb-dev-compat
 
@@ -12,7 +13,8 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS cacher
-ARG DATABASE_BACKEND
+ARG SYNCSTORAGE_DATABASE_BACKEND
+ARG TOKENSERVER_DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
 
 # cmake is required to build grpcio-sys for Spanner builds
@@ -26,10 +28,11 @@ RUN \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake
 
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
+RUN cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --recipe-path recipe.json
 
 FROM chef AS builder
-ARG DATABASE_BACKEND
+ARG SYNCSTORAGE_DATABASE_BACKEND
+ARG TOKENSERVER_DATABASE_BACKEND
 ARG MYSQLCLIENT_PKG
 
 ENV POETRY_HOME="/opt/poetry" \
@@ -73,7 +76,7 @@ ENV PATH=$PATH:/root/.cargo/bin
 RUN \
     cargo --version && \
     rustc --version && \
-    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$DATABASE_BACKEND --features=py_verifier --locked --root /app
+    cargo install --path ./syncserver --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND --features=tokenserver-db/$TOKENSERVER_DATABASE_BACKEND --features=py_verifier --locked --root /app
 
 FROM docker.io/library/debian:bookworm-slim
 ARG MYSQLCLIENT_PKG

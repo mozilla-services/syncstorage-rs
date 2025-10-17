@@ -461,7 +461,7 @@ jobs:
           name: Build MySQL Docker image
           command: >
             docker build -t app:build
-            --build-arg DATABASE_BACKEND=mysql
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
             .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
@@ -498,7 +498,8 @@ jobs:
           name: Build Postgres Docker image
           command: >
             docker build -t app:build
-            --build-arg DATABASE_BACKEND=spanner
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
+            --build-arg TOKENSERVER_DATABASE_BACKEND=postgres
             .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
@@ -536,7 +537,7 @@ jobs:
           # Build w/ the Oracle libmysqlclient-dev for TLS support
           command: >
             docker build -t app:build
-            --build-arg DATABASE_BACKEND=spanner
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
             --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
             .
           no_output_timeout: 30m
@@ -799,7 +800,7 @@ workflows:
       - merge-coverage:
           requires:
             - build-and-test-mysql
-            # - build-and-test-postgres
+            - build-and-test-postgres
             - build-and-test-spanner
           filters:
             tags:
