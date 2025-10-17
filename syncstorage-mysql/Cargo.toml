@@ -7,16 +7,16 @@ edition.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-backtrace.workspace = true
+#backtrace.workspace = true
 base64.workspace = true
 deadpool.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
 diesel_logger.workspace = true
 diesel_migrations.workspace = true
-http.workspace = true
+#http.workspace = true
 slog-scope.workspace = true
-thiserror.workspace = true
+#thiserror.workspace = true
 
 tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.1"

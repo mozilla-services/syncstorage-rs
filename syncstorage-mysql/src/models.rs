@@ -19,10 +19,9 @@ use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
     batch,
-    error::DbError,
     pool::{CollectionCache, Conn},
     schema::{bso, collections, user_collections},
-    DbResult,
+    DbError, DbResult,
 };
 
 // this is the max number of records we will return.

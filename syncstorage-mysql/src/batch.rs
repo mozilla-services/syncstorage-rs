@@ -14,10 +14,9 @@ use diesel_async::RunQueryDsl;
 use syncstorage_db_common::{params, results, UserIdentifier, BATCH_LIFETIME};
 
 use super::{
-    error::DbError,
     models::MysqlDb,
     schema::{batch_upload_items, batch_uploads},
-    DbResult,
+    DbError, DbResult,
 };
 
 const MAX_TTL: i32 = 2_100_000_000;
