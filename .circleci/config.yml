@@ -187,11 +187,11 @@ commands:
         type: string
     steps:
       - run:
-          name: Copy coverage data
+          name: Compress and copy coverage data
           command: |
             mkdir -p /tmp/coverage-<< parameters.job_name >>
-            cp -r target/llvm-cov-target /tmp/coverage-<< parameters.job_name >>/
-            cp -r workflow/test-results /tmp/coverage-<< parameters.job_name >>/
+            tar -czf /tmp/coverage-<< parameters.job_name >>/llvm-cov-target.tar.gz -C target llvm-cov-target
+            tar -czf /tmp/coverage-<< parameters.job_name >>/test-results.tar.gz -C workflow test-results
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -202,18 +202,18 @@ commands:
       - attach_workspace:
           at: /tmp
       - run:
-          name: Merge coverage data
+          name: Extract and merge coverage data
           command: |
             mkdir -p target/llvm-cov-target
             mkdir -p workflow/test-results
-            for dir in /tmp/coverage-*/llvm-cov-target; do
-              if [ -d "$dir" ]; then
-                cp -r "$dir"/* target/llvm-cov-target/
+            for tarball in /tmp/coverage-*/llvm-cov-target.tar.gz; do
+              if [ -f "$tarball" ]; then
+                tar -xzf "$tarball" -C target
               fi
             done
-            for dir in /tmp/coverage-*/test-results; do
-              if [ -d "$dir" ]; then
-                cp -r "$dir"/* workflow/test-results/
+            for tarball in /tmp/coverage-*/test-results.tar.gz; do
+              if [ -f "$tarball" ]; then
+                tar -xzf "$tarball" -C workflow
               fi
             done
 
