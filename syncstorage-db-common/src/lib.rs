@@ -69,9 +69,7 @@ impl<E> Clone for Box<dyn DbPool<Error = E>> {
 }
 
 #[async_trait(?Send)]
-pub trait Db: Debug {
-    type Error: DbErrorIntrospect + 'static;
-
+pub trait Db: BatchDb {
     async fn lock_for_read(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> Result<(), Self::Error>;
@@ -158,31 +156,6 @@ pub trait Db: Debug {
 
     async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error>;
 
-    async fn create_batch(
-        &mut self,
-        params: params::CreateBatch,
-    ) -> Result<results::CreateBatch, Self::Error>;
-
-    async fn validate_batch(
-        &mut self,
-        params: params::ValidateBatch,
-    ) -> Result<results::ValidateBatch, Self::Error>;
-
-    async fn append_to_batch(
-        &mut self,
-        params: params::AppendToBatch,
-    ) -> Result<results::AppendToBatch, Self::Error>;
-
-    async fn get_batch(
-        &mut self,
-        params: params::GetBatch,
-    ) -> Result<Option<results::GetBatch>, Self::Error>;
-
-    async fn commit_batch(
-        &mut self,
-        params: params::CommitBatch,
-    ) -> Result<results::CommitBatch, Self::Error>;
-
     async fn check(&mut self) -> Result<results::Check, Self::Error>;
 
     fn get_connection_info(&self) -> results::ConnectionInfo;
@@ -233,9 +206,9 @@ pub trait Db: Debug {
 
     // Internal methods used by the db tests
 
-    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error>;
+    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error>;
 
-    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error>;
+    async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error>;
 
     async fn update_collection(
         &mut self,
@@ -246,11 +219,41 @@ pub trait Db: Debug {
 
     fn set_timestamp(&mut self, timestamp: SyncTimestamp);
 
-    async fn delete_batch(&mut self, params: params::DeleteBatch) -> Result<(), Self::Error>;
-
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error>;
 
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
+}
+
+#[async_trait(?Send)]
+pub trait BatchDb: Debug {
+    type Error: DbErrorIntrospect + 'static;
+
+    async fn create_batch(
+        &mut self,
+        params: params::CreateBatch,
+    ) -> Result<results::CreateBatch, Self::Error>;
+
+    async fn validate_batch(
+        &mut self,
+        params: params::ValidateBatch,
+    ) -> Result<results::ValidateBatch, Self::Error>;
+
+    async fn append_to_batch(
+        &mut self,
+        params: params::AppendToBatch,
+    ) -> Result<results::AppendToBatch, Self::Error>;
+
+    async fn get_batch(
+        &mut self,
+        params: params::GetBatch,
+    ) -> Result<Option<results::GetBatch>, Self::Error>;
+
+    async fn commit_batch(
+        &mut self,
+        params: params::CommitBatch,
+    ) -> Result<results::CommitBatch, Self::Error>;
+
+    async fn delete_batch(&mut self, params: params::DeleteBatch) -> Result<(), Self::Error>;
 }
 
 #[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Copy)]

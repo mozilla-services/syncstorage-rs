@@ -12,8 +12,8 @@ use diesel::{
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
-    DEFAULT_BSO_TTL,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, BatchDb, Db, Sorting,
+    UserIdentifier, DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
@@ -951,8 +951,6 @@ impl MysqlDb {
 
 #[async_trait(?Send)]
 impl Db for MysqlDb {
-    type Error = DbError;
-
     async fn commit(&mut self) -> Result<(), Self::Error> {
         MysqlDb::commit(self).await
     }
@@ -1096,6 +1094,51 @@ impl Db for MysqlDb {
         MysqlDb::put_bso(self, params).await
     }
 
+    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error> {
+        MysqlDb::get_collection_id(self, name).await
+    }
+
+    fn get_connection_info(&self) -> results::ConnectionInfo {
+        results::ConnectionInfo::default()
+    }
+
+    async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
+        self.get_or_create_collection_id(name).await
+    }
+
+    async fn update_collection(
+        &mut self,
+        param: params::UpdateCollection,
+    ) -> Result<SyncTimestamp, Self::Error> {
+        MysqlDb::update_collection(self, param.user_id.legacy_id as u32, param.collection_id).await
+    }
+
+    fn timestamp(&self) -> SyncTimestamp {
+        MysqlDb::timestamp(self)
+    }
+
+    fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
+        self.session.timestamp = timestamp;
+    }
+
+    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+        self.coll_cache.clear();
+        Ok(())
+    }
+
+    fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
+        self.quota = Quota {
+            size: limit,
+            enabled,
+            enforced,
+        }
+    }
+}
+
+#[async_trait(?Send)]
+impl BatchDb for MysqlDb {
+    type Error = DbError;
+
     async fn create_batch(
         &mut self,
         params: params::CreateBatch,
@@ -1131,51 +1174,11 @@ impl Db for MysqlDb {
         MysqlDb::commit_batch(self, params).await
     }
 
-    async fn get_collection_id(&mut self, name: String) -> Result<i32, Self::Error> {
-        MysqlDb::get_collection_id(self, &name).await
-    }
-
-    fn get_connection_info(&self) -> results::ConnectionInfo {
-        results::ConnectionInfo::default()
-    }
-
-    async fn create_collection(&mut self, name: String) -> Result<i32, Self::Error> {
-        self.get_or_create_collection_id(&name).await
-    }
-
-    async fn update_collection(
-        &mut self,
-        param: params::UpdateCollection,
-    ) -> Result<SyncTimestamp, Self::Error> {
-        MysqlDb::update_collection(self, param.user_id.legacy_id as u32, param.collection_id).await
-    }
-
-    fn timestamp(&self) -> SyncTimestamp {
-        MysqlDb::timestamp(self)
-    }
-
-    fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
-        self.session.timestamp = timestamp;
-    }
-
     async fn delete_batch(
         &mut self,
         params: params::DeleteBatch,
     ) -> Result<results::DeleteBatch, Self::Error> {
         MysqlDb::delete_batch(self, params).await
-    }
-
-    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
-        self.coll_cache.clear();
-        Ok(())
-    }
-
-    fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
-        self.quota = Quota {
-            size: limit,
-            enabled,
-            enforced,
-        }
     }
 }
 

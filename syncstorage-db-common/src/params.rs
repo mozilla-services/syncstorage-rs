@@ -198,10 +198,6 @@ pub struct PostCollectionBso {
     pub ttl: Option<u32>,
 }
 
-pub type GetCollectionId = String;
-
-pub type CreateCollection = String;
-
 data! {
     UpdateCollection {
         user_id: UserIdentifier,

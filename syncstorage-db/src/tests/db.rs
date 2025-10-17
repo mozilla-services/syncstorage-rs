@@ -407,9 +407,9 @@ async fn get_storage_timestamp() -> Result<(), DbError> {
     let mut db = test_db(pool).await?;
 
     let uid = *UID;
-    db.create_collection("NewCollection1".to_owned()).await?;
-    let col2 = db.create_collection("NewCollection2".to_owned()).await?;
-    db.create_collection("NewCollection3".to_owned()).await?;
+    db.create_collection("NewCollection1").await?;
+    let col2 = db.create_collection("NewCollection2").await?;
+    db.create_collection("NewCollection3").await?;
 
     with_delta!(&mut db, 100_000, {
         db.update_collection(params::UpdateCollection {
@@ -428,7 +428,7 @@ async fn get_storage_timestamp() -> Result<(), DbError> {
 async fn get_collection_id() -> Result<(), DbError> {
     let pool = db_pool(None).await?;
     let mut db = test_db(pool).await?;
-    db.get_collection_id("bookmarks".to_owned()).await?;
+    db.get_collection_id("bookmarks").await?;
     Ok(())
 }
 
@@ -438,9 +438,9 @@ async fn create_collection() -> Result<(), DbError> {
     let mut db = test_db(pool).await?;
 
     let name = "NewCollection";
-    let cid = db.create_collection(name.to_owned()).await?;
+    let cid = db.create_collection(name).await?;
     assert_ne!(cid, 0);
-    let cid2 = db.get_collection_id(name.to_owned()).await?;
+    let cid2 = db.get_collection_id(name).await?;
     assert_eq!(cid2, cid);
     Ok(())
 }
@@ -451,7 +451,7 @@ async fn update_collection() -> Result<(), DbError> {
     let mut db = test_db(pool).await?;
     let collection = "test".to_owned();
 
-    let cid = db.create_collection(collection.clone()).await?;
+    let cid = db.create_collection(&collection).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(1),
         collection_id: cid,
@@ -563,25 +563,25 @@ async fn get_collection_timestamps() -> Result<(), DbError> {
     let mut db = test_db(pool).await?;
 
     let uid = *UID;
-    let coll = "test".to_owned();
-    let cid = db.create_collection(coll.clone()).await?;
+    let coll = "test";
+    let cid = db.create_collection(coll).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
-        collection: coll.clone(),
+        collection: coll.to_owned(),
     })
     .await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
-    assert!(cols.contains_key(&coll));
-    assert_eq!(cols.get(&coll), Some(&db.timestamp()));
+    assert!(cols.contains_key(coll));
+    assert_eq!(cols.get(coll), Some(&db.timestamp()));
 
     let ts = db
         .get_collection_timestamp(params::GetCollectionTimestamp {
             user_id: hid(uid),
-            collection: coll.clone(),
+            collection: coll.to_owned(),
         })
         .await?;
-    assert_eq!(Some(&ts), cols.get(&coll));
+    assert_eq!(Some(&ts), cols.get(coll));
     Ok(())
 }
 
@@ -591,18 +591,18 @@ async fn get_collection_timestamps_tombstone() -> Result<(), DbError> {
     let mut db = test_db(pool).await?;
 
     let uid = *UID;
-    let coll = "test".to_owned();
-    let cid = db.create_collection(coll.clone()).await?;
+    let coll = "test";
+    let cid = db.create_collection(coll).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
-        collection: coll.clone(),
+        collection: coll.to_owned(),
     })
     .await?;
 
     db.delete_collection(params::DeleteCollection {
         user_id: hid(uid),
-        collection: coll,
+        collection: coll.to_owned(),
     })
     .await?;
     let cols = db.get_collection_timestamps(hid(uid)).await?;
@@ -645,7 +645,7 @@ async fn get_collection_usage() -> Result<(), DbError> {
     assert_eq!(total, sum as u64);
     let settings = Settings::test_settings();
     if settings.syncstorage.enable_quota {
-        let collection_id = db.get_collection_id("bookmarks".to_owned()).await?;
+        let collection_id = db.get_collection_id("bookmarks").await?;
         let quota = db
             .get_quota_usage(params::GetQuotaUsage {
                 user_id: hid(uid),
@@ -1019,7 +1019,7 @@ async fn delete_storage() -> Result<(), DbError> {
     let uid = *UID;
     let bid = "test";
     let coll = "my_collection";
-    let cid = db.create_collection(coll.to_owned()).await?;
+    let cid = db.create_collection(coll).await?;
     db.put_bso(pbso(uid, coll, bid, Some("test"), None, None))
         .await?;
 
@@ -1028,7 +1028,7 @@ async fn delete_storage() -> Result<(), DbError> {
     assert!(result.is_none());
 
     // collection data sticks around
-    let cid2 = db.get_collection_id("my_collection".to_owned()).await?;
+    let cid2 = db.get_collection_id("my_collection").await?;
     assert_eq!(cid2, cid);
 
     let collections = db.get_collection_counts(hid(uid)).await?;
@@ -1044,7 +1044,7 @@ async fn collection_cache() -> Result<(), DbError> {
 
     let uid = *UID;
     let coll = "test";
-    let cid = db.create_collection(coll.to_owned()).await?;
+    let cid = db.create_collection(coll).await?;
     db.update_collection(params::UpdateCollection {
         user_id: hid(uid),
         collection_id: cid,
@@ -1070,7 +1070,7 @@ async fn lock_for_read() -> Result<(), DbError> {
         collection: coll.to_owned(),
     })
     .await?;
-    let result = db.get_collection_id("NewCollection".to_owned()).await;
+    let result = db.get_collection_id("NewCollection").await;
     assert!(result.unwrap_err().is_collection_not_found());
     db.commit().await?;
     Ok(())

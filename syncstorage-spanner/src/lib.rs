@@ -6,17 +6,14 @@ extern crate slog_scope;
 #[macro_use]
 mod macros;
 
-mod batch;
+mod db;
 mod error;
 mod manager;
 mod metadata;
-mod models;
 mod pool;
-mod stream;
-mod support;
 
+pub use db::SpannerDb;
 pub use error::DbError;
-pub use models::SpannerDb;
 pub use pool::SpannerDbPool;
 
 type DbResult<T> = Result<T, error::DbError>;
