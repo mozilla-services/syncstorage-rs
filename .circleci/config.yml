@@ -810,6 +810,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - build-postgres-image:
+          requires:
+            - build-and-test-postgres
+          filters:
+            tags:
+              only: /.*/
       - build-spanner-image:
           requires:
             - build-and-test-spanner
@@ -822,6 +828,12 @@ workflows:
           filters:
             tags:
               only: /.*/
+      - postgres-e2e-tests:
+          requires:
+            - build-postgres-image
+          filters:
+            tags:
+              only: /.*/
       - spanner-e2e-tests:
           requires:
             - build-spanner-image
@@ -831,6 +843,7 @@ workflows:
       - deploy:
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
@@ -844,6 +857,7 @@ workflows:
           image: syncstorage-rs
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
@@ -853,6 +867,7 @@ workflows:
       - deploy-python-utils:
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
