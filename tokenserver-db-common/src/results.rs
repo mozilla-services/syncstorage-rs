@@ -50,12 +50,11 @@ pub struct GetOrCreateUser {
 }
 
 #[derive(Default, QueryableByName)]
-pub struct LastInsertId {
+pub struct PostUser {
     #[diesel(sql_type = Bigint)]
-    pub id: i64,
+    pub uid: i64,
 }
 
-pub type PostUser = LastInsertId;
 pub type ReplaceUsers = ();
 pub type ReplaceUser = ();
 pub type PutUser = ();
@@ -104,7 +103,11 @@ pub struct GetUser {
 }
 
 #[cfg(debug_assertions)]
-pub type PostNode = LastInsertId;
+#[derive(Default, QueryableByName)]
+pub struct PostNode {
+    #[diesel(sql_type = Bigint)]
+    pub id: i64,
+}
 
 #[cfg(debug_assertions)]
 #[derive(Default, QueryableByName)]

@@ -29,6 +29,7 @@ impl TokenserverDb {
     // requests, using this function would introduce a race condition, as we could potentially
     // get IDs from records created during other requests.
     const LAST_INSERT_ID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS id";
+    const LAST_INSERT_UID_QUERY: &'static str = "SELECT LAST_INSERT_ID() AS uid";
 
     pub fn new(
         conn: Conn,
@@ -60,12 +61,12 @@ impl TokenserverDb {
             let mut metrics = self.metrics.clone();
             metrics.start_timer("storage.get_node_id", None);
 
-            diesel::sql_query(QUERY)
+            let result = diesel::sql_query(QUERY)
                 .bind::<Integer, _>(params.service_id)
                 .bind::<Text, _>(&params.node)
                 .get_result(&mut self.conn)
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok(result)
         }
     }
 
@@ -92,9 +93,8 @@ impl TokenserverDb {
             .bind::<Text, _>(&params.email)
             .bind::<Bigint, _>(params.replaced_at)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Mark the user with the given uid and service ID as being replaced.
@@ -114,9 +114,8 @@ impl TokenserverDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Bigint, _>(params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Update the user with the given email and service ID with the given `generation` and
@@ -149,9 +148,8 @@ impl TokenserverDb {
             .bind::<Bigint, _>(params.generation)
             .bind::<Nullable<Bigint>, _>(params.keys_changed_at)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     /// Create a new user.
@@ -175,10 +173,10 @@ impl TokenserverDb {
             .execute(&mut self.conn)
             .await?;
 
-        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+        let result = diesel::sql_query(Self::LAST_INSERT_UID_QUERY)
             .get_result::<results::PostUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     async fn check(&mut self) -> DbResult<results::Check> {
@@ -303,9 +301,8 @@ impl TokenserverDb {
             .bind::<Integer, _>(params.service_id)
             .bind::<Text, _>(&params.node)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     async fn get_users(&mut self, params: params::GetUsers) -> DbResult<results::GetUsers> {
@@ -323,12 +320,12 @@ impl TokenserverDb {
                       LIMIT 20
         "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Text, _>(&params.email)
             .bind::<Integer, _>(params.service_id)
             .load::<results::GetRawUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     pub async fn get_service_id(
@@ -344,11 +341,11 @@ impl TokenserverDb {
         if let Some(id) = self.service_id {
             Ok(results::GetServiceId { id })
         } else {
-            diesel::sql_query(QUERY)
+            let result = diesel::sql_query(QUERY)
                 .bind::<Text, _>(params.service)
                 .get_result::<results::GetServiceId>(&mut self.conn)
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok(result)
         }
     }
 
@@ -366,9 +363,8 @@ impl TokenserverDb {
             .bind::<Bigint, _>(params.created_at)
             .bind::<Bigint, _>(&params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     #[cfg(debug_assertions)]
@@ -385,9 +381,8 @@ impl TokenserverDb {
             .bind::<Bigint, _>(params.replaced_at)
             .bind::<Bigint, _>(&params.uid)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     #[cfg(debug_assertions)]
@@ -398,11 +393,11 @@ impl TokenserverDb {
              WHERE uid = ?
         "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
             .get_result::<results::GetUser>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     #[cfg(debug_assertions)]
@@ -422,10 +417,10 @@ impl TokenserverDb {
             .execute(&mut self.conn)
             .await?;
 
-        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+        let result = diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
             .get_result::<results::PostNode>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     #[cfg(debug_assertions)]
@@ -436,11 +431,11 @@ impl TokenserverDb {
              WHERE id = ?
         "#;
 
-        diesel::sql_query(QUERY)
+        let result = diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.id)
             .get_result::<results::GetNode>(&mut self.conn)
-            .await
-            .map_err(Into::into)
+            .await?;
+        Ok(result)
     }
 
     #[cfg(debug_assertions)]
@@ -463,9 +458,8 @@ impl TokenserverDb {
             .bind::<Bigint, _>(current_time)
             .bind::<Bigint, _>(params.node_id)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     #[cfg(debug_assertions)]
@@ -475,9 +469,8 @@ impl TokenserverDb {
         diesel::sql_query(QUERY)
             .bind::<Bigint, _>(params.node_id)
             .execute(&mut self.conn)
-            .await
-            .map(|_| ())
-            .map_err(Into::into)
+            .await?;
+        Ok(())
     }
 
     #[cfg(debug_assertions)]
@@ -496,13 +489,10 @@ impl TokenserverDb {
             .execute(&mut self.conn)
             .await?;
 
-        diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
-            .get_result::<results::LastInsertId>(&mut self.conn)
-            .await
-            .map(|result| results::PostService {
-                id: result.id as i32,
-            })
-            .map_err(Into::into)
+        let result = diesel::sql_query(Self::LAST_INSERT_ID_QUERY)
+            .get_result::<results::PostService>(&mut self.conn)
+            .await?;
+        Ok(result)
     }
 
     #[cfg(debug_assertions)]
@@ -686,7 +676,7 @@ mod tests {
                 ..Default::default()
             })
             .await?
-            .id;
+            .uid;
 
         let user = db.get_user(params::GetUser { id: uid }).await?;
 
@@ -760,7 +750,7 @@ mod tests {
                 ..Default::default()
             })
             .await?
-            .id;
+            .uid;
 
         let user = db.get_user(params::GetUser { id: uid }).await?;
 
@@ -842,7 +832,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
@@ -864,7 +854,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_replaced_at(params::SetUserReplacedAt {
                 replaced_at: an_hour_ago + MILLISECONDS_IN_A_MINUTE,
@@ -891,7 +881,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: now + MILLISECONDS_IN_AN_HOUR,
@@ -912,7 +902,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             db.set_user_created_at(params::SetUserCreatedAt {
                 created_at: an_hour_ago,
@@ -931,7 +921,7 @@ mod tests {
                     ..Default::default()
                 })
                 .await?
-                .id;
+                .uid;
 
             // Set created_at to be an hour ago
             db.set_user_created_at(params::SetUserCreatedAt {
@@ -1016,7 +1006,7 @@ mod tests {
             node_id,
             keys_changed_at: Some(3),
         };
-        let uid1 = db.post_user(post_user_params1.clone()).await?.id;
+        let uid1 = db.post_user(post_user_params1.clone()).await?.uid;
 
         // Add another user
         let email2 = "test_user_2";
@@ -1026,7 +1016,7 @@ mod tests {
             email: email2.to_owned(),
             ..Default::default()
         };
-        let uid2 = db.post_user(post_user_params2).await?.id;
+        let uid2 = db.post_user(post_user_params2).await?.uid;
 
         // Ensure that two separate users were created
         assert_ne!(uid1, uid2);
