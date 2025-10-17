@@ -28,7 +28,7 @@ use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::task::spawn_blocking;
 
-use super::{error::DbError, models::MysqlDb, DbResult};
+use super::{models::MysqlDb, DbError, DbResult};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 

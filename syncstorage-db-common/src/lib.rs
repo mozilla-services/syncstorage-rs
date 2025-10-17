@@ -1,4 +1,5 @@
 #![allow(non_local_definitions)]
+pub mod diesel;
 pub mod error;
 pub mod params;
 pub mod results;
