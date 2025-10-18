@@ -33,6 +33,7 @@ The following configuration options are available.
 | debug | false | _unused_ |
 | port | 8000 | connection port |
 | host | 127.0.0.1 | host to listen for connections |
+| public_url | _None_ | public url for performing request validation |
 | database_url | mysql://root@127.0.0.1/syncstorage | database DSN |
 | database_pool_max_size | _None_ | Max pool of database connections |
 | master_secret| _None_ |  Sync master encryption secret |
