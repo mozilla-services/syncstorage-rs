@@ -1,3 +1,5 @@
+#![allow(dead_code)] // XXX:
+#![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
 
 use std::{
@@ -15,11 +17,11 @@ use diesel_async::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
     },
-    AsyncMysqlConnection,
+    AsyncPgConnection,
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+//use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
@@ -28,14 +30,15 @@ use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::task::spawn_blocking;
 
-use super::{models::MysqlDb, DbError, DbResult};
+use super::{DbError, DbResult, PgDb};
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+//pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
-pub(crate) type Conn = Object<AsyncMysqlConnection>;
+pub(crate) type Conn = Object<AsyncPgConnection>;
 
 /// Run the diesel embedded migrations
 ///
+/// TODO: XXX: Pg notes
 /// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 ///
@@ -43,7 +46,9 @@ pub(crate) type Conn = Object<AsyncMysqlConnection>;
 /// doesn't support async migrations (but we utilize its connection via its
 /// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncMysqlConnection>::establish(database_url)?;
+    todo!();
+    /*
+    let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
 
     // This conn2 charade is to make mut-ness the same for both cases.
     #[cfg(debug_assertions)]
@@ -53,12 +58,13 @@ fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
 
     conn2.run_pending_migrations(MIGRATIONS)?;
     Ok(())
+    */
 }
 
 #[derive(Clone)]
-pub struct MysqlDbPool {
+pub struct PgDbPool {
     /// Pool of db connections
-    pool: Pool<AsyncMysqlConnection>,
+    pool: Pool<AsyncPgConnection>,
     /// Thread Pool for running synchronous db calls
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
@@ -68,8 +74,8 @@ pub struct MysqlDbPool {
     database_url: String,
 }
 
-impl MysqlDbPool {
-    /// Creates a new pool of Mysql db connections.
+impl PgDbPool {
+    /// Creates a new pool of Pg db connections.
     ///
     /// Doesn't initialize the db (does not run migrations).
     pub fn new(
@@ -78,7 +84,7 @@ impl MysqlDbPool {
         _blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> DbResult<Self> {
         let manager =
-            AsyncDieselConnectionManager::<AsyncMysqlConnection>::new(&settings.database_url);
+            AsyncDieselConnectionManager::<AsyncPgConnection>::new(&settings.database_url);
 
         let wait = settings
             .database_pool_connection_timeout
@@ -123,12 +129,12 @@ impl MysqlDbPool {
 
     /// Spawn a task to periodically evict idle connections. Calls wrapper sweeper fn
     ///  to use pool.retain, retaining objects only if they are shorter in duration than
-    ///  defined max_idle. Noop for mysql impl.
+    ///  defined max_idle. Noop for pg impl.
     pub fn spawn_sweeper(&self, _interval: Duration) {
         sweeper()
     }
 
-    pub async fn get_mysql_db(&self) -> DbResult<MysqlDb> {
+    pub async fn get_pg_db(&self) -> DbResult<PgDb> {
         let conn = self.pool.get().await.map_err(|e| match e {
             PoolError::Backend(be) => match be {
                 diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
@@ -138,12 +144,15 @@ impl MysqlDbPool {
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
         })?;
 
-        Ok(MysqlDb::new(
+        todo!();
+        /*
+        Ok(PgDb::new(
             conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
         ))
+        */
     }
 }
 
@@ -151,11 +160,11 @@ impl MysqlDbPool {
 /// In this context, if a Spanner connection is unutilized, we want it
 /// to release the given connections.
 /// See: https://docs.rs/deadpool/latest/deadpool/managed/struct.Pool.html#method.retain
-/// Noop for mysql impl
+/// Noop for pg impl
 fn sweeper() {}
 
 #[async_trait]
-impl DbPool for MysqlDbPool {
+impl DbPool for PgDbPool {
     type Error = DbError;
 
     async fn init(&mut self) -> Result<(), Self::Error> {
@@ -167,11 +176,12 @@ impl DbPool for MysqlDbPool {
     }
 
     async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
-        Ok(Box::new(self.get_mysql_db().await?) as Box<dyn Db<Error = Self::Error>>)
+        todo!();
+        //Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        super::batch::validate_batch_id(&id)
+        todo!();
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
@@ -179,15 +189,15 @@ impl DbPool for MysqlDbPool {
     }
 }
 
-impl fmt::Debug for MysqlDbPool {
+impl fmt::Debug for PgDbPool {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt.debug_struct("MysqlDbPool")
+        fmt.debug_struct("PgDbPool")
             .field("coll_cache", &self.coll_cache)
             .finish()
     }
 }
 
-impl GetPoolState for MysqlDbPool {
+impl GetPoolState for PgDbPool {
     fn state(&self) -> PoolState {
         self.pool.status().into()
     }

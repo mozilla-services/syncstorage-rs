@@ -15,6 +15,13 @@ pub use syncstorage_mysql::DbError;
 #[cfg(feature = "mysql")]
 pub type DbImpl = syncstorage_mysql::MysqlDb;
 
+#[cfg(feature = "postgres")]
+pub type DbPoolImpl = syncstorage_postgres::PgDbPool;
+#[cfg(feature = "postgres")]
+pub use syncstorage_postgres::DbError;
+#[cfg(feature = "postgres")]
+pub type DbImpl = syncstorage_postgres::PgDb;
+
 #[cfg(feature = "spanner")]
 pub type DbPoolImpl = syncstorage_spanner::SpannerDbPool;
 #[cfg(feature = "spanner")]
@@ -34,5 +41,13 @@ pub use syncstorage_db_common::{
 #[cfg(all(feature = "mysql", feature = "spanner"))]
 compile_error!("only one of the \"mysql\" and \"spanner\" features can be enabled at a time");
 
-#[cfg(not(any(feature = "mysql", feature = "spanner")))]
-compile_error!("exactly one of the \"mysql\" and \"spanner\" features must be enabled");
+#[cfg(all(feature = "mysql", feature = "postgres"))]
+compile_error!("only one of the \"mysql\" and \"postgres\" features can be enabled at a time");
+
+#[cfg(all(feature = "postgres", feature = "spanner"))]
+compile_error!("only one of the \"postgres\" and \"spanner\" features can be enabled at a time");
+
+#[cfg(not(any(feature = "mysql", feature = "postgres", feature = "spanner")))]
+compile_error!(
+    "exactly one of the \"mysql\", \"postgres\" and \"spanner\" features must be enabled"
+);

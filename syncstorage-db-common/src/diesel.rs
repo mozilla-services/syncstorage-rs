@@ -4,10 +4,11 @@ use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{from_error, impl_fmt_display, InternalError, ReportableError};
 use syncserver_db_common::error::SqlError;
-use syncstorage_db_common::error::{DbErrorIntrospect, SyncstorageDbError};
 use thiserror::Error;
 
-/// An error type that represents any MySQL-related errors that may occur while processing a
+use super::error::{DbErrorIntrospect, SyncstorageDbError};
+
+/// An error type that represents any diesel-related errors that may occur while processing a
 /// syncstorage request. These errors may be application-specific or lower-level errors that arise
 /// from the database backend.
 #[derive(Debug)]
@@ -53,7 +54,7 @@ enum DbErrorKind {
     Common(SyncstorageDbError),
 
     #[error("{}", _0)]
-    Mysql(SqlError),
+    Diesel(SqlError),
 
     #[error("A database pool timeout occurred, type: {:?}", _0)]
     PoolTimeout(deadpool::managed::TimeoutType),
@@ -102,7 +103,7 @@ impl ReportableError for DbError {
     fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
         Some(match &self.kind {
             DbErrorKind::Common(e) => e,
-            DbErrorKind::Mysql(e) => e,
+            DbErrorKind::Diesel(e) => e,
             _ => return None,
         })
     }
@@ -110,7 +111,7 @@ impl ReportableError for DbError {
     fn is_sentry_event(&self) -> bool {
         match &self.kind {
             DbErrorKind::Common(e) => e.is_sentry_event(),
-            DbErrorKind::Mysql(e) => e.is_sentry_event(),
+            DbErrorKind::Diesel(e) => e.is_sentry_event(),
             DbErrorKind::PoolTimeout(_) => false,
         }
     }
@@ -118,7 +119,7 @@ impl ReportableError for DbError {
     fn metric_label(&self) -> Option<&str> {
         match &self.kind {
             DbErrorKind::Common(e) => e.metric_label(),
-            DbErrorKind::Mysql(e) => e.metric_label(),
+            DbErrorKind::Diesel(e) => e.metric_label(),
             DbErrorKind::PoolTimeout(_) => Some("storage.diesel.pool.timeout"),
         }
     }
@@ -126,7 +127,7 @@ impl ReportableError for DbError {
     fn backtrace(&self) -> Option<&Backtrace> {
         match &self.kind {
             DbErrorKind::Common(e) => e.backtrace(),
-            DbErrorKind::Mysql(e) => e.backtrace(),
+            DbErrorKind::Diesel(e) => e.backtrace(),
             _ => None,
         }
     }
@@ -134,7 +135,7 @@ impl ReportableError for DbError {
     fn tags(&self) -> Vec<(&str, String)> {
         match &self.kind {
             DbErrorKind::Common(e) => e.tags(),
-            DbErrorKind::Mysql(e) => e.tags(),
+            DbErrorKind::Diesel(e) => e.tags(),
             _ => vec![],
         }
     }
@@ -152,19 +153,19 @@ from_error!(SyncstorageDbError, DbError, DbErrorKind::Common);
 from_error!(
     diesel::result::Error,
     DbError,
-    |error: diesel::result::Error| DbError::from(DbErrorKind::Mysql(SqlError::from(error)))
+    |error: diesel::result::Error| DbError::from(DbErrorKind::Diesel(SqlError::from(error)))
 );
 from_error!(
     diesel::result::ConnectionError,
     DbError,
-    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Mysql(SqlError::from(
+    |error: diesel::result::ConnectionError| DbError::from(DbErrorKind::Diesel(SqlError::from(
         error
     )))
 );
 from_error!(
     diesel_migrations::MigrationError,
     DbError,
-    |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Mysql(SqlError::from(
+    |error: diesel_migrations::MigrationError| DbError::from(DbErrorKind::Diesel(SqlError::from(
         error
     )))
 );
