@@ -587,7 +587,7 @@ class Database:
             insert_sql = sqltext("""
             insert into services (service, pattern)
             values (:servicename, :pattern)
-            RETURNING uid
+            RETURNING id
         """)
         else:
             insert_sql = sqltext("""
