@@ -88,6 +88,7 @@ Stores BSOs during a batch upload, not yet committed to bsos.
 
 ## Database Diagram and Relationship
 ```mermaid
+erDiagram
     USER_COLLECTIONS {
         TEXT fxa_uid PK
         TEXT fxa_kid PK
