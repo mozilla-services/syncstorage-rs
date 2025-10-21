@@ -281,14 +281,15 @@ class TestCase:
             "keys_changed_at": keys_changed_at,
         }
 
-    def _get_replaced_users(self, service_id, email):
+    def _get_replaced_users(self, service, email):
         query = sqltext("""\
                 select * from users
-                 where service = :service_id
+                 where service = :service
                    and email = :email
                    and replaced_at is not null
                 """)
-        cursor = self._execute_sql(query, {"service": service_id, "email": email})
+        params = {"service": service, "email": email}
+        cursor = self._execute_sql(query, params)
 
         users = []
         for user in cursor.fetchall():
