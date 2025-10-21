@@ -258,7 +258,6 @@ SERVICE_NAME = "sync-1.5"
 class Database:
     def __init__(self):
         engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
-        self.db_mode = os.environ["SYNC_TOKENSERVER__DATABASE_URL"].split(":")[0]
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
         self.capacity_release_rate = os.environ.get("NODE_CAPACITY_RELEASE_RATE", 0.1)
         self.spanner_node_id = os.environ.get("SYNC_TOKENSERVER__SPANNER_NODE_ID")
@@ -348,24 +347,10 @@ class Database:
             "client_state": client_state,
             "timestamp": timestamp,
         }
-        if self.db_mode == "postgres":
-            insert_sql = sqltext("""\
-                insert into users (service, email, nodeid, generation, keys_changed_at, client_state, created_at, replaced_at)
-                values (:service, :email, :nodeid, :generation, :keys_changed_at, :client_state, :timestamp, NULL)
-                RETURNING uid
-            """)
-        else:
-            insert_sql = _CREATE_USER_RECORD
-        res = self._execute_sql(insert_sql, **params)
-
-        if self.db_mode == "postgres":
-            uid = res.fetchone()[0]
-        else:
-            uid = res.lastrowid
-        res.close()
+        res = self._execute_sql(_CREATE_USER_RECORD, **params)
         return {
             "email": email,
-            "uid": uid,
+            "uid": res.lastrowid,
             "node": node,
             "generation": generation,
             "keys_changed_at": keys_changed_at,
@@ -431,22 +416,9 @@ class Database:
                 "client_state": client_state,
                 "timestamp": now,
             }
-            if self.db_mode == "postgres":
-                insert_sql = sqltext("""\
-                insert into users (service, email, nodeid, generation, keys_changed_at, client_state, created_at, replaced_at)
-                values (:service, :email, :nodeid, :generation, :keys_changed_at, :client_state, :timestamp, NULL)
-                RETURNING uid
-                """)
-            else:
-                insert_sql = _CREATE_USER_RECORD
-            res = self._execute_sql(insert_sql, **params)
-
-            if self.db_mode == "postgres":
-                uid = res.fetchone()[0]
-            else:
-                uid = res.lastrowid
+            res = self._execute_sql(_CREATE_USER_RECORD, **params)
             res.close()
-            user["uid"] = uid
+            user["uid"] = res.lastrowid
             user["generation"] = generation
             user["keys_changed_at"] = keys_changed_at
             user["old_client_states"][user["client_state"]] = True
@@ -583,27 +555,17 @@ class Database:
 
     def add_service(self, service_name, pattern, **kwds):
         """Add definition for a new service."""
-        if self.db_mode == "postgres":
-            insert_sql = sqltext("""
-            insert into services (service, pattern)
-            values (:servicename, :pattern)
-            RETURNING uid
-        """)
-        else:
-            insert_sql = sqltext("""
+        res = self._execute_sql(
+            sqltext("""
           insert into services (service, pattern)
           values (:servicename, :pattern)
-        """)
-        res = self._execute_sql(insert_sql,
+        """),
             servicename=service_name,
             pattern=pattern,
             **kwds,
         )
         res.close()
-        if self.db_mode == "postgres":
-            return res.fetchone()[0]
-        else:
-            return res.lastrowid
+        return res.lastrowid
 
     def add_node(self, node, capacity, **kwds):
         """Add definition for a new node."""
