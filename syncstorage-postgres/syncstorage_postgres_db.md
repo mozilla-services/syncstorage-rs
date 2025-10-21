@@ -10,8 +10,6 @@
 | `batch_bsos`       | Stores BSOs that are part of a batch, pending commit                                             |
 
 ## User Collection Table
-Table: user_collections
-
 Stores per-user, per-collection metadata.
 
 | Column          | Type        | Description                                                           |
@@ -22,7 +20,6 @@ Stores per-user, per-collection metadata.
 | `modified`      | `TIMESTAMP` | Last modification time (server-assigned, updated on writes)           |
 | `count`         | `BIGINT`    | Count of BSOs in this collection (used for quota enforcement)         |
 | `total_bytes`   | `BIGINT`    | Total payload size of all BSOs (used for quota enforcement)     
-      |
 
 Supports last-modified time tracking at the collection level.
 
@@ -91,7 +88,6 @@ Stores BSOs during a batch upload, not yet committed to bsos.
 
 ## Database Diagram and Relationship
 ```mermaid
-erDiagram
     USER_COLLECTIONS {
         TEXT fxa_uid PK
         TEXT fxa_kid PK
@@ -103,13 +99,13 @@ erDiagram
 
     COLLECTIONS {
         BIGINT collection_id PK
-        VARCHAR name UNIQUE
+        VARCHAR name
     }
 
     BSOS {
-        TEXT fxa_uid PK, FK
-        TEXT fxa_kid PK, FK
-        BIGINT collection_id PK, FK
+        TEXT fxa_uid PK
+        TEXT fxa_kid PK
+        BIGINT collection_id PK
         TEXT bso_id PK
         BIGINT sortindex
         TEXT payload
@@ -118,18 +114,18 @@ erDiagram
     }
 
     BATCHES {
-        TEXT fxa_uid PK, FK
-        TEXT fxa_kid PK, FK
-        BIGINT collection_id PK, FK
+        TEXT fxa_uid PK
+        TEXT fxa_kid PK
+        BIGINT collection_id PK
         TEXT batch_id PK
         TIMESTAMP expiry
     }
 
     BATCH_BSOS {
-        TEXT fxa_uid PK, FK
-        TEXT fxa_kid PK, FK
-        BIGINT collection_id PK, FK
-        TEXT batch_id PK, FK
+        TEXT fxa_uid PK
+        TEXT fxa_kid PK
+        BIGINT collection_id PK
+        TEXT batch_id PK
         TEXT batch_bso_id PK
         BIGINT sortindex
         TEXT payload
