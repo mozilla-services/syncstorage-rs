@@ -92,10 +92,10 @@ class TestCase:
         body = {"body": claims, "status": status}
 
         headers = {}
-        headers["Authorization"] = "Bearer %s" % json.dumps(body)
+        headers["Authorization"] = f"Bearer {json.dumps(body)}"
         client_state = binascii.unhexlify(client_state)
         client_state = b64encode(client_state).strip(b"=").decode("utf-8")
-        headers["X-KeyID"] = "%s-%s" % (keys_changed_at, client_state)
+        headers["X-KeyID"] = f"{keys_changed_at}-{client_state}"
         headers.update(additional_headers)
 
         return headers
