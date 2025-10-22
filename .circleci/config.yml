@@ -371,7 +371,6 @@ jobs:
           command: >
             docker build -t app:build
             --build-arg DATABASE_BACKEND=spanner
-            --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
             .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
