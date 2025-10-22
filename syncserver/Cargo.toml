@@ -56,6 +56,11 @@ urlencoding = "2.1"
 validator = "0.20"
 validator_derive = "0.20"
 woothee = "0.13"
+slog-journald = "2.2.0"
+rustix = { version = "1.0.3", default-features = false, features = [
+    "std",
+    "fs",
+] }
 
 [features]
 default = ["mysql", "py_verifier"]
