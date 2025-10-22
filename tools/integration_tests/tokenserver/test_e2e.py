@@ -143,7 +143,7 @@ class TestE2e(TestCase, unittest.TestCase):
         }
         self.assertEqual(res.json, expected_error_response)
         token = self._get_bad_token()
-        headers = {"Authorization": "Bearer %s" % token, "X-KeyID": "1234-qqo"}
+        headers = {"Authorization": f"Bearer {token}", "X-KeyID": "1234-qqo"}
         # Bad token -> 'invalid-credentials'
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         expected_error_response = {
@@ -153,13 +153,13 @@ class TestE2e(TestCase, unittest.TestCase):
         self.assertEqual(res.json, expected_error_response)
         # Untrusted scopes -> 'invalid-credentials'
         token = self._get_oauth_token_with_bad_scope()
-        headers = {"Authorization": "Bearer %s" % token, "X-KeyID": "1234-qqo"}
+        headers = {"Authorization": f"Bearer {token}", "X-KeyID": "1234-qqo"}
         res = self.app.get("/1.0/sync/1.5", headers=headers, status=401)
         self.assertEqual(res.json, expected_error_response)
 
     def test_valid_oauth_request(self):
         oauth_token = self.oauth_token
-        headers = {"Authorization": "Bearer %s" % oauth_token, "X-KeyID": "1234-qqo"}
+        headers = {"Authorization": f"Bearer {oauth_token}", "X-KeyID": "1234-qqo"}
         # Send a valid request, allocating a new user
         res = self.app.get("/1.0/sync/1.5", headers=headers)
         fxa_uid = self.session.uid
@@ -192,7 +192,7 @@ class TestE2e(TestCase, unittest.TestCase):
         # Check to make sure the remainder of the fields are valid
         self.assertEqual(res.json["uid"], user["uid"])
         self.assertEqual(
-            res.json["api_endpoint"], "%s/1.5/%s" % (self.NODE_URL, user["uid"])
+            res.json["api_endpoint"], f"{self.NODE_URL}/1.5/{user['uid']}"
         )
         self.assertEqual(res.json["duration"], DEFAULT_TOKEN_DURATION)
         self.assertEqual(res.json["hashalg"], "sha256")

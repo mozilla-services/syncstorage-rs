@@ -42,5 +42,5 @@ if __name__ == "__main__":
     port = os.environ.get("MOCK_FXA_SERVER_PORT", 6000)
 
     with make_server(host, int(port)) as httpd:
-        print("Running mock FxA server on %s:%s" % (host, port))
+        print(f"Running mock FxA server on {host}:{port}")
         httpd.serve_forever()

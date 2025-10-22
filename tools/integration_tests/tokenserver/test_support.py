@@ -10,6 +10,7 @@ import time
 import urllib.parse as urlparse
 
 from sqlalchemy import create_engine
+from sqlalchemy.sql import text as sqltext
 from tokenlib.utils import decode_token_bytes
 from webtest import TestApp
 
@@ -31,7 +32,7 @@ class TestCase:
     def setUp(self):
         engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
-
+        self.db_mode = os.environ["SYNC_TOKENSERVER__DATABASE_URL"].split(":")[0]
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
         self.app = TestApp(
             self.TOKENSERVER_HOST,
@@ -45,10 +46,10 @@ class TestCase:
         )
 
         # Start each test with a blank slate.
-        cursor = self._execute_sql(("DELETE FROM users"), ())
+        cursor = self._execute_sql(sqltext(("DELETE FROM users")), {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM nodes"), ())
+        cursor = self._execute_sql((sqltext("DELETE FROM nodes")), {})
         cursor.close()
 
         self.service_id = self._add_service("sync-1.5", r"{node}/1.5/{uid}")
@@ -58,13 +59,13 @@ class TestCase:
 
     def tearDown(self):
         # And clean up at the end, for good measure.
-        cursor = self._execute_sql(("DELETE FROM users"), ())
+        cursor = self._execute_sql(sqltext(("DELETE FROM users")), {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM nodes"), ())
+        cursor = self._execute_sql(sqltext(("DELETE FROM nodes")), {})
         cursor.close()
 
-        cursor = self._execute_sql(("DELETE FROM services"), ())
+        cursor = self._execute_sql(sqltext(("DELETE FROM services")), {})
         cursor.close()
 
         self.database.close()
@@ -91,10 +92,10 @@ class TestCase:
         body = {"body": claims, "status": status}
 
         headers = {}
-        headers["Authorization"] = "Bearer %s" % json.dumps(body)
+        headers["Authorization"] = f"Bearer {json.dumps(body)}"
         client_state = binascii.unhexlify(client_state)
         client_state = b64encode(client_state).strip(b"=").decode("utf-8")
-        headers["X-KeyID"] = "%s-%s" % (keys_changed_at, client_state)
+        headers["X-KeyID"] = f"{keys_changed_at}-{client_state}"
         headers.update(additional_headers)
 
         return headers
@@ -109,32 +110,68 @@ class TestCase:
         backoff=0,
         downed=0,
     ):
-        query = "INSERT INTO nodes (service, node, available, capacity, \
-            current_load, backoff, downed"
-        data = (
-            self.service_id,
-            node,
-            available,
-            capacity,
-            current_load,
-            backoff,
-            downed,
-        )
-
-        if id:
-            query += ", id) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)"
-            data += (id,)
+        if not id:
+            params = {
+                "service": self.service_id,
+                "node": node,
+                "available": available,
+                "capacity": capacity,
+                "current_load": current_load,
+                "backoff": backoff,
+                "downed": downed,
+            }
+            query = sqltext("""\
+            insert into nodes (service, node, available, capacity, \
+                current_load, backoff, downed)
+            values (:service, :node, :available, :capacity, :current_load,
+                    :backoff, :downed)
+            """)
+            query_pg = sqltext("""\
+            insert into nodes (service, node, available, capacity, \
+                current_load, backoff, downed)
+            values (:service, :node, :available, :capacity, :current_load,
+                    :backoff, :downed)
+            RETURNING id
+            """)
         else:
-            query += ") VALUES(%s, %s, %s, %s, %s, %s, %s)"
+            query = sqltext("""\
+            insert into nodes (service, node, available, capacity, \
+                current_load, backoff, downed, id)
+            values (:service, :node, :available, :capacity, :current_load,
+                    :backoff, :downed, :id)
+            """)
+            query_pg = sqltext("""\
+            insert into nodes (service, node, available, capacity, \
+                current_load, backoff, downed, id)
+            values (:service, :node, :available, :capacity, :current_load,
+                    :backoff, :downed, :id)
+            RETURNING id
+            """)
+            params = {
+                "service": self.service_id,
+                "node": node,
+                "available": available,
+                "capacity": capacity,
+                "current_load": current_load,
+                "backoff": backoff,
+                "downed": downed,
+                "id": id,
+            }
 
-        cursor = self._execute_sql(query, data)
+        if self.db_mode == "postgres":
+            cursor = self._execute_sql(query_pg, params)
+        else:
+            cursor = self._execute_sql(query, params)
         cursor.close()
 
-        return self._last_insert_id()
+        if self.db_mode == "postgres":
+            return cursor.fetchone()[0]
+        else:
+            return cursor.lastrowid
 
     def _get_node(self, id):
-        query = "SELECT * FROM nodes WHERE id=%s"
-        cursor = self._execute_sql(query, (id,))
+        query = sqltext("select * from nodes where id = :id")
+        cursor = self._execute_sql(query, {"id": id})
         (id, service, node, available, current_load, capacity, downed, backoff) = (
             cursor.fetchone()
         )
@@ -151,58 +188,74 @@ class TestCase:
             "backoff": backoff,
         }
 
-    def _last_insert_id(self):
-        cursor = self._execute_sql("SELECT LAST_INSERT_ID()", ())
-        (id,) = cursor.fetchone()
+    def _add_service(self, service, pattern):
+        """Add definition for a new service."""
+        if self.db_mode == "postgres":
+            insert_sql = sqltext("""
+            insert into services (service, pattern)
+            values (:service, :pattern)
+            RETURNING id
+        """)
+        else:
+            insert_sql = sqltext("""
+          insert into services (service, pattern)
+          values (:service, :pattern)
+        """)
+        cursor = self._execute_sql(insert_sql, {"service": service, "pattern": pattern})
         cursor.close()
-
-        return id
-
-    def _add_service(self, service_name, pattern):
-        query = "INSERT INTO services (service, pattern) \
-            VALUES(%s, %s)"
-        cursor = self._execute_sql(query, (service_name, pattern))
-        cursor.close()
-
-        return self._last_insert_id()
+        if self.db_mode == "postgres":
+            return cursor.fetchone()[0]
+        else:
+            return cursor.lastrowid
 
     def _add_user(
         self,
         email=None,
+        nodeid=NODE_ID,
         generation=1234,
+        keys_changed_at=1234,
         client_state="aaaa",
         created_at=None,
-        nodeid=NODE_ID,
-        keys_changed_at=1234,
         replaced_at=None,
     ):
-        query = """
-            INSERT INTO users (service, email, generation, client_state, \
-                created_at, nodeid, keys_changed_at, replaced_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-        """
-        created_at = created_at or math.trunc(time.time() * 1000)
-        cursor = self._execute_sql(
-            query,
-            (
-                self.service_id,
-                email or "test@%s" % self.FXA_EMAIL_DOMAIN,
-                generation,
-                client_state,
-                created_at,
-                nodeid,
-                keys_changed_at,
-                replaced_at,
-            ),
-        )
-        cursor.close()
+        if self.db_mode == "postgres":
+            insert_sql = sqltext("""\
+            insert into users (service, email, nodeid, generation, keys_changed_at, client_state, created_at, replaced_at)
+            values (:service, :email, :nodeid, :generation, :keys_changed_at, :client_state, :created_at, :replaced_at)
+            RETURNING uid
+        """)
+        else:
+            insert_sql = sqltext("""\
+            insert into
+                users
+                (service, email, nodeid, generation, keys_changed_at, client_state,
+                created_at, replaced_at)
+            values
+                (:service, :email, :nodeid, :generation, :keys_changed_at,
+                :client_state, :created_at, :replaced_at)
+            """)
 
-        return self._last_insert_id()
+        created_at = created_at or math.trunc(time.time() * 1000)
+        params = {
+            "service": self.service_id,
+            "email": email or f"test@{self.FXA_EMAIL_DOMAIN}",
+            "nodeid": nodeid,
+            "generation": generation,
+            "keys_changed_at": keys_changed_at,
+            "client_state": client_state,
+            "created_at": created_at,
+            "replaced_at": replaced_at,
+        }
+        cursor = self._execute_sql(insert_sql, params)
+        cursor.close()
+        if self.db_mode == "postgres":
+            return cursor.fetchone()[0]
+        else:
+            return cursor.lastrowid
 
     def _get_user(self, uid):
-        query = "SELECT * FROM users WHERE uid = %s"
-        cursor = self._execute_sql(query, (uid,))
-
+        query = sqltext("select * from users where uid = :uid")
+        cursor = self._execute_sql(query, {"uid": uid})
         (
             uid,
             service,
@@ -228,10 +281,15 @@ class TestCase:
             "keys_changed_at": keys_changed_at,
         }
 
-    def _get_replaced_users(self, service_id, email):
-        query = "SELECT * FROM users WHERE service = %s AND email = %s AND \
-            replaced_at IS NOT NULL"
-        cursor = self._execute_sql(query, (service_id, email))
+    def _get_replaced_users(self, service, email):
+        query = sqltext("""\
+                select * from users
+                 where service = :service
+                   and email = :email
+                   and replaced_at is not null
+                """)
+        params = {"service": service, "email": email}
+        cursor = self._execute_sql(query, params)
 
         users = []
         for user in cursor.fetchall():
@@ -264,24 +322,25 @@ class TestCase:
         return users
 
     def _get_service_id(self, service):
-        query = "SELECT id FROM services WHERE service = %s"
-        cursor = self._execute_sql(query, (service,))
+        query = sqltext("select id from services where service = :service")
+        cursor = self._execute_sql(query, {"service": service})
         (service_id,) = cursor.fetchone()
         cursor.close()
 
         return service_id
 
     def _count_users(self):
-        query = "SELECT COUNT(DISTINCT(uid)) FROM users"
-        cursor = self._execute_sql(query, ())
+        query = sqltext("select COUNT(DISTINCT(uid)) from users")
+        cursor = self._execute_sql(query, {})
         (count,) = cursor.fetchone()
         cursor.close()
 
         return count
 
-    def _execute_sql(self, query, args):
-        cursor = self.database.execute(query, args)
-
+    def _execute_sql(self, *args, **kwds):
+        """Execute SQL statement. *args is the query and **kwds are the keyword
+        argument parameters."""
+        cursor = self.database.execute(*args, **kwds)
         return cursor
 
     def unsafelyParseToken(self, token):
