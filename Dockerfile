@@ -18,11 +18,14 @@ ARG MYSQLCLIENT_PKG
 # cmake is required to build grpcio-sys for Spanner builds
 RUN \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
-    # Fetch and load the MySQL public key.
-    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list ; \
-    fi && \
+    # Install MySQL APT Repository configuration package
     apt-get -q update && \
+    apt-get -q install -y --no-install-recommends wget ca-certificates lsb-release && \
+    wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb && \
+    DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.29-1_all.deb && \
+    rm mysql-apt-config_0.8.29-1_all.deb && \
+    apt-get -q update ; \
+    fi && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake
 
 COPY --from=planner /app/recipe.json recipe.json
@@ -44,15 +47,14 @@ COPY --from=cacher $CARGO_HOME /app/$CARGO_HOME
 
 RUN \
     if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
-    # Fetch and load the MySQL public key.
-    # mysql_pubkey.asc from:
-    # https://dev.mysql.com/doc/refman/8.0/en/checking-gpg-signature.html
-    # related:
-    # https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/#repo-qg-apt-repo-manual-setup
-    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc && \
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list ; \
-    fi && \
+    # Install MySQL APT Repository configuration package
     apt-get -q update && \
+    apt-get -q install -y --no-install-recommends wget ca-certificates lsb-release && \
+    wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb && \
+    DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.29-1_all.deb && \
+    rm mysql-apt-config_0.8.29-1_all.deb && \
+    apt-get -q update ; \
+    fi && \
     apt-get -q install -y --no-install-recommends $MYSQLCLIENT_PKG cmake golang-go python3-dev python3-pip python3-setuptools python3-wheel python3-venv pkg-config && \
     rm -rf /var/lib/apt/lists/*
 
@@ -92,16 +94,14 @@ RUN apt-get -q update && apt-get -qy install wget
 RUN groupadd --gid 10001 app && \
     useradd --uid 10001 --gid 10001 --home /app --create-home app
 RUN if [ "$MYSQLCLIENT_PKG" = libmysqlclient-dev ] ; then \
-    # first, an apt-get update is required for gnupg, which is required for apt-key adv
+    # Install MySQL APT Repository configuration package
     apt-get -q update && \
-    # and ca-certificates needed for https://repo.mysql.com
-    apt-get install -y gnupg ca-certificates wget && \
-    # Fetch and load the MySQL public key
-    echo "deb https://repo.mysql.com/apt/debian/ bookworm mysql-8.0" >> /etc/apt/sources.list && \
-    wget -qO- https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 > /etc/apt/trusted.gpg.d/mysql.asc ; \
+    apt-get install -y wget ca-certificates lsb-release && \
+    wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb && \
+    DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.29-1_all.deb && \
+    rm mysql-apt-config_0.8.29-1_all.deb && \
+    apt-get -q update ; \
     fi && \
-    # update again now that we trust repo.mysql.com
-    apt-get -q update && \
     apt-get -q install -y build-essential $MYSQLCLIENT_PKG libssl-dev libffi-dev libcurl4 python3-dev python3-pip python3-setuptools python3-wheel python3-venv cargo curl jq pkg-config && \
     # The python3-cryptography debian package installs version 2.6.1, but we
     # we want to use the version specified in requirements.txt. To do this,
