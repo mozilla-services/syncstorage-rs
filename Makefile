@@ -102,6 +102,8 @@ docker_run_postgres_e2e_tests:
 	exit_code=$$?;
 	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML};
 	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML};
+	mkdir -p ${TEST_RESULTS_DIR}/../logs;
+	docker compose -f docker-compose.postgres.yaml -f docker-compose.e2e.postgres.yaml logs syncserver > ${TEST_RESULTS_DIR}/../logs/syncserver.log 2>&1 || true;
 	exit $$exit_code;
 
 .ONESHELL:

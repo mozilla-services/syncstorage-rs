@@ -243,10 +243,11 @@ commands:
     steps:
       - run:
           name: e2e tests (syncstorage << parameters.db >>)
-          command: >
-            make docker_run_<< parameters.db >>_e2e_tests
+          command: make docker_run_<< parameters.db >>_e2e_tests
           environment:
             SYNCSTORAGE_RS_IMAGE: app:build
+      - store_artifacts:
+          path: workflow/logs
 
   gcs-configure-and-upload:
     parameters:
