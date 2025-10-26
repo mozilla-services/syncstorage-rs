@@ -42,7 +42,7 @@ installing, running and testing.
 
 ## Code Review
 
-This project is production Mozilla code and subject to our [engineering practices and quality standards](https://developer.mozilla.org/en-US/docs/Mozilla/Developer_guide/Committing_Rules_and_Responsibilities). Every patch must be peer reviewed.
+This project is production Mozilla code and subject to the contributing guidelines established in this documentation. Every patch must be peer reviewed by a member of the official Sync team. 
 
 ## Git Commit Guidelines
 
