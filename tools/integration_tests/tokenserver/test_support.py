@@ -30,7 +30,11 @@ class TestCase:
         cls._build_auth_headers = cls._build_oauth_headers
 
     def setUp(self):
-        engine = create_engine(os.environ["SYNC_TOKENSERVER__DATABASE_URL"])
+        db_url = os.environ["SYNC_TOKENSERVER__DATABASE_URL"]
+        # SQLAlchemy 1.4+ wants postgresql
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        engine = create_engine(db_url)
         self.database = engine.execution_options(isolation_level="AUTOCOMMIT").connect()
         self.db_mode = os.environ["SYNC_TOKENSERVER__DATABASE_URL"].split(":")[0]
         host_url = urlparse.urlparse(self.TOKENSERVER_HOST)
@@ -50,6 +54,9 @@ class TestCase:
         cursor.close()
 
         cursor = self._execute_sql((sqltext("DELETE FROM nodes")), {})
+        cursor.close()
+
+        cursor = self._execute_sql(sqltext(("DELETE FROM services")), {})
         cursor.close()
 
         self.service_id = self._add_service("sync-1.5", r"{node}/1.5/{uid}")
@@ -160,14 +167,14 @@ class TestCase:
 
         if self.db_mode == "postgres":
             cursor = self._execute_sql(query_pg, params)
+            result = cursor.fetchone()[0]
+            cursor.close()
+            return result
         else:
             cursor = self._execute_sql(query, params)
-        cursor.close()
-
-        if self.db_mode == "postgres":
-            return cursor.fetchone()[0]
-        else:
-            return cursor.lastrowid
+            result = cursor.lastrowid
+            cursor.close()
+            return result
 
     def _get_node(self, id):
         query = sqltext("select * from nodes where id = :id")
@@ -202,11 +209,14 @@ class TestCase:
           values (:service, :pattern)
         """)
         cursor = self._execute_sql(insert_sql, {"service": service, "pattern": pattern})
-        cursor.close()
         if self.db_mode == "postgres":
-            return cursor.fetchone()[0]
+            result = cursor.fetchone()[0]
+            cursor.close()
+            return result
         else:
-            return cursor.lastrowid
+            result = cursor.lastrowid
+            cursor.close()
+            return result
 
     def _add_user(
         self,
@@ -247,11 +257,14 @@ class TestCase:
             "replaced_at": replaced_at,
         }
         cursor = self._execute_sql(insert_sql, params)
-        cursor.close()
         if self.db_mode == "postgres":
-            return cursor.fetchone()[0]
+            result = cursor.fetchone()[0]
+            cursor.close()
+            return result
         else:
-            return cursor.lastrowid
+            result = cursor.lastrowid
+            cursor.close()
+            return result
 
     def _get_user(self, uid):
         query = sqltext("select * from users where uid = :uid")
