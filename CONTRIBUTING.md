@@ -17,9 +17,9 @@ Patches should be submitted as pull requests (PR).
 
 Before submitting a PR:
 - Your code must run and pass all the automated tests before you submit your PR
-  for review. "Work in progress" pull requests are allowed to be submitted, but
-  should be clearly labeled as such and should not be merged until all tests
-  pass and the code has been reviewed.
+  for review. "Work in progress" or "Draft" pull requests are allowed to be submitted,
+  but should be clearly labeled as such and should not be merged until all tests pass and the code
+  has been reviewed.
 - Your patch should include new tests that cover your changes. It is your and
   your reviewer's responsibility to ensure your patch includes adequate tests.
 
@@ -46,7 +46,7 @@ This project is production Mozilla code and subject to the contributing guidelin
 
 ## Git Commit Guidelines
 
-We loosely follow the [Angular commit guidelines](https://github.com/angular/angular.js/blob/master/CONTRIBUTING.md#type)
+We loosely follow the [Angular commit guidelines][angular_commit_guidelines]
 of `<type>: <subject>` where `type` must be one of:
 
 * **feat**: A new feature
@@ -59,6 +59,19 @@ of `<type>: <subject>` where `type` must be one of:
 * **test**: Adding missing tests
 * **chore**: Changes to the build process or auxiliary tools and libraries such as documentation
   generation
+
+If associated with a Jira ticket, synchronization with Jira and GitHub is possible by appending the suffix of the Jira ticket to the branch name (`STOR-1234` in the example below). Name the branch using the appropriate `<type>` above followed by a forward slash, followed by a dash-separated description of the task and then by the Jira ticket and 
+. Ex. `feat/add-sentry-sdk-STOR-1234` or `add-sentry-sdk-STOR-1234` 
+
+Note: the Jira ticket project and number can be added anywhere in the
+branch name, but adding to the beginning is ideal. You can also include the Jira issue at the end of
+commit messages to keep the task up to date. See Jira Docs for referencing issues [here][jira].
+
+Make sure that the title of your pull request in GitHub has the `type` followed by a colon so that it will be automatically added in the changelog when Sync is published for release.
+Ex. `feat: add sentry sdk`
+
+[angular_commit_guidelines]: https://github.com/angular/angular/blob/main/CONTRIBUTING.md
+[jira]: https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/
 
 ### Subject
 
