@@ -9,7 +9,8 @@ GitHub.
 ## Bug Reports
 
 You can file issues here on GitHub. Please try to include as much information as
-you can and under what conditions you saw the issue.
+you can and under what conditions you saw the issue. We will do our best to triage
+the issue as soon as possible.
 
 ## Sending Pull Requests
 
@@ -60,6 +61,8 @@ of `<type>: <subject>` where `type` must be one of:
 * **chore**: Changes to the build process or auxiliary tools and libraries such as documentation
   generation
 
+For Mozilla engineers:
+
 If associated with a Jira ticket, synchronization with Jira and GitHub is possible by appending the suffix of the Jira ticket to the branch name (`STOR-1234` in the example below). Name the branch using the appropriate `<type>` above followed by a forward slash, followed by a dash-separated description of the task and then by the Jira ticket and 
 . Ex. `feat/add-sentry-sdk-STOR-1234` or `add-sentry-sdk-STOR-1234` 
 
@@ -67,6 +70,12 @@ Note: the Jira ticket project and number can be added anywhere in the
 branch name, but adding to the beginning is ideal. You can also include the Jira issue at the end of
 commit messages to keep the task up to date. See Jira Docs for referencing issues [here][jira].
 
+For Community Contributors:
+
+You won't have access to Jira, so just add the GitHub Issue number at the end of the PR branch name:
+Ex. `feat/add-sentry-sdk-1112`
+
+For Everyone:
 Make sure that the title of your pull request in GitHub has the `type` followed by a colon so that it will be automatically added in the changelog when Sync is published for release.
 Ex. `feat: add sentry sdk`
 
