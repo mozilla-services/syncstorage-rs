@@ -155,7 +155,7 @@ impl TokenserverPgDb {
                AND capacity > current_load
                AND downed = 0
                AND backoff = 0
-             ORDER BY LOG(current_load) / LOG(capacity)
+             ORDER BY CASE WHEN current_load = 0 THEN -1 ELSE LN(current_load) / LN(capacity) END
              LIMIT 1
             "#;
         const RELEASE_CAPACITY_QUERY: &str = r#"
@@ -386,7 +386,7 @@ impl TokenserverPgDb {
              WHERE service = $3
                AND email = $4
                AND  generation <= $5
-               AND COALESCE(keys_changed_at, 0) <= COALESCE(<keys_changed_at i64>, keys_changed_at, 0)
+               AND COALESCE(keys_changed_at, 0) <= COALESCE($6, keys_changed_at, 0)
                AND replaced_at IS NULL
         "#;
 
@@ -616,13 +616,6 @@ impl Db for TokenserverPgDb {
 
     async fn get_users(&mut self, params: params::GetUsers) -> Result<results::GetUsers, DbError> {
         TokenserverPgDb::get_users(self, params).await
-    }
-
-    async fn get_or_create_user(
-        &mut self,
-        params: params::GetOrCreateUser,
-    ) -> Result<results::GetOrCreateUser, DbError> {
-        TokenserverPgDb::get_or_create_user(self, params).await
     }
 
     async fn post_user(&mut self, params: params::PostUser) -> Result<results::PostUser, DbError> {
