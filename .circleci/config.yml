@@ -318,44 +318,44 @@ jobs:
       - setup-python
       - python-check
 
-  build-and-test-mysql:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-        environment:
-          SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
-          SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
-          RUST_BACKTRACE: 1
-          # XXX: begin_test_transaction doesn't play nice over threaded tests
-          RUST_TEST_THREADS: 1
-      - image: cimg/mysql:8.0
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-        environment:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_USER: test
-          MYSQL_PASSWORD: test
-          MYSQL_DATABASE: syncstorage
-    resource_class: large
-    steps:
-      - checkout
-      - display-versions
-      - setup-python
-      - setup-mysql
-      - create-tokenserver-database-mysql
-      # XXX: currently the time needed to setup-sccache negates its savings
-      # - setup-sccache
-      # - restore-sccache-cache
-      - write-version
-      - install-test-deps
-      - make-test-dir
-      - run-unit-tests-mysql
-      - persist-coverage-to-workspace:
-          job_name: mysql
-      # - save-sccache-cache
+  # build-and-test-mysql:
+  #   docker:
+  #     - image: cimg/rust:1.89 # RUST_VER
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #       environment:
+  #         SYNC_SYNCSTORAGE__DATABASE_URL: mysql://test:test@127.0.0.1/syncstorage
+  #         SYNC_TOKENSERVER__DATABASE_URL: mysql://test:test@127.0.0.1/tokenserver
+  #         RUST_BACKTRACE: 1
+  #         # XXX: begin_test_transaction doesn't play nice over threaded tests
+  #         RUST_TEST_THREADS: 1
+  #     - image: cimg/mysql:8.0
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #       environment:
+  #         MYSQL_ROOT_PASSWORD: password
+  #         MYSQL_USER: test
+  #         MYSQL_PASSWORD: test
+  #         MYSQL_DATABASE: syncstorage
+  #   resource_class: large
+  #   steps:
+  #     - checkout
+  #     - display-versions
+  #     - setup-python
+  #     - setup-mysql
+  #     - create-tokenserver-database-mysql
+  #     # XXX: currently the time needed to setup-sccache negates its savings
+  #     # - setup-sccache
+  #     # - restore-sccache-cache
+  #     - write-version
+  #     - install-test-deps
+  #     - make-test-dir
+  #     - run-unit-tests-mysql
+  #     - persist-coverage-to-workspace:
+  #         job_name: mysql
+  #     # - save-sccache-cache
 
   build-and-test-postgres:
     docker:
@@ -395,93 +395,93 @@ jobs:
           job_name: postgres
       # - save-sccache-cache
 
-  build-and-test-spanner:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-        environment:
-          RUST_BACKTRACE: 1
-          # XXX: begin_test_transaction doesn't play nice over threaded tests
-          RUST_TEST_THREADS: 1
-      - image: gcr.io/cloud-spanner-emulator/emulator
-    resource_class: xlarge
-    steps:
-      - checkout
-      - display-versions
-      - setup-python
-      # XXX: currently the time needed to setup-sccache negates its savings
-      # - setup-sccache
-      # - restore-sccache-cache
-      - write-version
-      - install-test-deps
-      - make-test-dir
-      - run-spanner-tests
-      - persist-coverage-to-workspace:
-          job_name: spanner
-      # - save-sccache-cache
+  # build-and-test-spanner:
+  #   docker:
+  #     - image: cimg/rust:1.89 # RUST_VER
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #       environment:
+  #         RUST_BACKTRACE: 1
+  #         # XXX: begin_test_transaction doesn't play nice over threaded tests
+  #         RUST_TEST_THREADS: 1
+  #     - image: gcr.io/cloud-spanner-emulator/emulator
+  #   resource_class: xlarge
+  #   steps:
+  #     - checkout
+  #     - display-versions
+  #     - setup-python
+  #     # XXX: currently the time needed to setup-sccache negates its savings
+  #     # - setup-sccache
+  #     # - restore-sccache-cache
+  #     - write-version
+  #     - install-test-deps
+  #     - make-test-dir
+  #     - run-spanner-tests
+  #     - persist-coverage-to-workspace:
+  #         job_name: spanner
+  #     # - save-sccache-cache
 
-  merge-coverage:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    resource_class: large
-    steps:
-      - checkout
-      - install-test-deps
-      - attach-coverage-workspace
-      - merge-unit-test-coverage
-      - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-          extension: json
+  # merge-coverage:
+  #   docker:
+  #     - image: cimg/rust:1.89 # RUST_VER
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   resource_class: large
+  #   steps:
+  #     - checkout
+  #     - install-test-deps
+  #     - attach-coverage-workspace
+  #     - merge-unit-test-coverage
+  #     - store-test-results
+  #     - gcs-configure-and-upload:
+  #         source: workflow/test-results
+  #         destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+  #         extension: xml
+  #     - gcs-configure-and-upload:
+  #         source: workflow/test-results
+  #         destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+  #         extension: json
 
-  build-mysql-image:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    resource_class: large
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - checkout
-      - display-versions
-      - write-version
-      - run:
-          name: Build MySQL Docker image
-          command: >
-            docker build -t app:build
-            --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
-            --build-arg TOKENSERVER_DATABASE_BACKEND=mysql
-            .
-          no_output_timeout: 30m
-      # save the built docker container into CircleCI's cache. This is
-      # required since Workflows do not have the same remote docker instance.
-      - run:
-          name: docker save app:build
-          command: |
-            mkdir -p /home/circleci/cache
-            docker save -o /home/circleci/cache/docker.tar "app:build"
-      - run:
-          name: Save docker-compose config
-          command: cp docker-compose*mysql.yaml /home/circleci/cache
-      - run:
-          name: Save Makefile to cache
-          command: cp Makefile /home/circleci/cache
-      - save_cache:
-          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
-          paths:
-            - /home/circleci/cache
+  # build-mysql-image:
+  #   docker:
+  #     - image: cimg/rust:1.89 # RUST_VER
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   resource_class: large
+  #   steps:
+  #     - setup_remote_docker:
+  #         docker_layer_caching: true
+  #     - checkout
+  #     - display-versions
+  #     - write-version
+  #     - run:
+  #         name: Build MySQL Docker image
+  #         command: >
+  #           docker build -t app:build
+  #           --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
+  #           --build-arg TOKENSERVER_DATABASE_BACKEND=mysql
+  #           .
+  #         no_output_timeout: 30m
+  #     # save the built docker container into CircleCI's cache. This is
+  #     # required since Workflows do not have the same remote docker instance.
+  #     - run:
+  #         name: docker save app:build
+  #         command: |
+  #           mkdir -p /home/circleci/cache
+  #           docker save -o /home/circleci/cache/docker.tar "app:build"
+  #     - run:
+  #         name: Save docker-compose config
+  #         command: cp docker-compose*mysql.yaml /home/circleci/cache
+  #     - run:
+  #         name: Save Makefile to cache
+  #         command: cp Makefile /home/circleci/cache
+  #     - save_cache:
+  #         key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+  #         paths:
+  #           - /home/circleci/cache
   build-postgres-image:
     docker:
       - image: cimg/rust:1.89 # RUST_VER
@@ -520,128 +520,128 @@ jobs:
           key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
-  build-spanner-image:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    resource_class: large
-    steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
-      - checkout
-      - display-versions
-      - write-version
-      - run:
-          name: Build Spanner Docker image
-          # Build w/ the Oracle libmysqlclient-dev for TLS support
-          command: >
-            docker build -t app:build
-            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
-            --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
-            .
-          no_output_timeout: 30m
-      # save the built docker container into CircleCI's cache. This is
-      # required since Workflows do not have the same remote docker instance.
-      - run:
-          name: docker save app:build
-          command: |
-            mkdir -p /home/circleci/cache
-            docker save -o /home/circleci/cache/docker.tar "app:build"
-      - run:
-          name: Save docker-compose config
-          command: cp docker-compose*spanner.yaml /home/circleci/cache
-      - run:
-          name: Save Makefile to cache
-          command: cp Makefile /home/circleci/cache
-      - save_cache:
-          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
-          paths:
-            - /home/circleci/cache
+  # build-spanner-image:
+  #   docker:
+  #     - image: cimg/rust:1.89 # RUST_VER
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   resource_class: large
+  #   steps:
+  #     - setup_remote_docker:
+  #         docker_layer_caching: true
+  #     - checkout
+  #     - display-versions
+  #     - write-version
+  #     - run:
+  #         name: Build Spanner Docker image
+  #         # Build w/ the Oracle libmysqlclient-dev for TLS support
+  #         command: >
+  #           docker build -t app:build
+  #           --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
+  #           --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
+  #           .
+  #         no_output_timeout: 30m
+  #     # save the built docker container into CircleCI's cache. This is
+  #     # required since Workflows do not have the same remote docker instance.
+  #     - run:
+  #         name: docker save app:build
+  #         command: |
+  #           mkdir -p /home/circleci/cache
+  #           docker save -o /home/circleci/cache/docker.tar "app:build"
+  #     - run:
+  #         name: Save docker-compose config
+  #         command: cp docker-compose*spanner.yaml /home/circleci/cache
+  #     - run:
+  #         name: Save Makefile to cache
+  #         command: cp Makefile /home/circleci/cache
+  #     - save_cache:
+  #         key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+  #         paths:
+  #           - /home/circleci/cache
 
   # Auth to GCR, tag and push image
-  deploy-to-gar:
-    executor: gcp-gcr/default
-    parameters:
-      image:
-        type: string
-        default: syncstorage-rs
-      registry-url:
-        type: string
-        default: us-docker.pkg.dev
-      gar-repo:
-        type: string
-        default: sync-prod
-    steps:
-      # Auth to GCR
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
-      - gcp-gcr/gcr-auth:
-          registry-url: <<parameters.registry-url>>
-          use_oidc: true
-      - restore_cache:
-          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Tag image
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              GAR_TAG="${CIRCLE_SHA1}"
-            fi
+  # deploy-to-gar:
+  #   executor: gcp-gcr/default
+  #   parameters:
+  #     image:
+  #       type: string
+  #       default: syncstorage-rs
+  #     registry-url:
+  #       type: string
+  #       default: us-docker.pkg.dev
+  #     gar-repo:
+  #       type: string
+  #       default: sync-prod
+  #   steps:
+  #     # Auth to GCR
+  #     # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
+  #     - gcp-gcr/gcr-auth:
+  #         registry-url: <<parameters.registry-url>>
+  #         use_oidc: true
+  #     - restore_cache:
+  #         key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+  #     - run:
+  #         name: Restore Docker image cache
+  #         command: docker load -i /home/circleci/cache/docker.tar
+  #     - run:
+  #         name: Tag image
+  #         command: |
+  #           if [ "${CIRCLE_BRANCH}" == "master" ]; then
+  #             GAR_TAG="${CIRCLE_SHA1}"
+  #           fi
 
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              GAR_TAG="${CIRCLE_BRANCH}"
-            fi
+  #           if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+  #             GAR_TAG="${CIRCLE_BRANCH}"
+  #           fi
 
-            if [ -n "${CIRCLE_TAG}" ]; then
-              GAR_TAG="$CIRCLE_TAG"
-            fi
+  #           if [ -n "${CIRCLE_TAG}" ]; then
+  #             GAR_TAG="$CIRCLE_TAG"
+  #           fi
 
-            if [ -n "${GAR_TAG}" ]; then
-              echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
-              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
-              source $BASH_ENV
-              docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
-            else
-              echo "Not pushing to gar for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
-      # Push image
-      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
-      - gcp-gcr/push-image:
-          image: <<parameters.gar-repo>>/<<parameters.image>>
-          registry-url: <<parameters.registry-url>>
-          tag: $GAR_TAG
+  #           if [ -n "${GAR_TAG}" ]; then
+  #             echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
+  #             echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
+  #             source $BASH_ENV
+  #             docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
+  #           else
+  #             echo "Not pushing to gar for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+  #           fi
+  #     # Push image
+  #     # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
+  #     - gcp-gcr/push-image:
+  #         image: <<parameters.gar-repo>>/<<parameters.image>>
+  #         registry-url: <<parameters.registry-url>>
+  #         tag: $GAR_TAG
 
-  mysql-e2e-tests:
-    docker:
-      - image: cimg/base:2025.04
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - display-versions
-      - restore_cache:
-          key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Restore Makefile from save_cache
-          command: cp /home/circleci/cache/Makefile .
-      - run:
-          name: Restore docker-compose config
-          command: cp /home/circleci/cache/docker-compose*.yaml .
-      - make-test-dir
-      - run-e2e-tests:
-          db: mysql
-      - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
+  # mysql-e2e-tests:
+  #   docker:
+  #     - image: cimg/base:2025.04
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   steps:
+  #     - setup_remote_docker
+  #     - display-versions
+  #     - restore_cache:
+  #         key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+  #     - run:
+  #         name: Restore Docker image cache
+  #         command: docker load -i /home/circleci/cache/docker.tar
+  #     - run:
+  #         name: Restore Makefile from save_cache
+  #         command: cp /home/circleci/cache/Makefile .
+  #     - run:
+  #         name: Restore docker-compose config
+  #         command: cp /home/circleci/cache/docker-compose*.yaml .
+  #     - make-test-dir
+  #     - run-e2e-tests:
+  #         db: mysql
+  #     - store-test-results
+  #     - gcs-configure-and-upload:
+  #         source: workflow/test-results
+  #         destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+  #         extension: xml
 
   postgres-e2e-tests:
     docker:
@@ -672,111 +672,111 @@ jobs:
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
 
-  spanner-e2e-tests:
-    docker:
-      - image: cimg/base:2025.04
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - display-versions
-      - restore_cache:
-          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Restore Makefile from save_cache
-          command: cp /home/circleci/cache/Makefile .
-      - run:
-          name: Restore docker-compose config
-          command: cp /home/circleci/cache/docker-compose*.yaml .
-      - make-test-dir
-      - run-e2e-tests:
-          db: spanner
-      - store-test-results
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
-          extension: xml
+  # spanner-e2e-tests:
+  #   docker:
+  #     - image: cimg/base:2025.04
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   steps:
+  #     - setup_remote_docker
+  #     - display-versions
+  #     - restore_cache:
+  #         key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+  #     - run:
+  #         name: Restore Docker image cache
+  #         command: docker load -i /home/circleci/cache/docker.tar
+  #     - run:
+  #         name: Restore Makefile from save_cache
+  #         command: cp /home/circleci/cache/Makefile .
+  #     - run:
+  #         name: Restore docker-compose config
+  #         command: cp /home/circleci/cache/docker-compose*.yaml .
+  #     - make-test-dir
+  #     - run-e2e-tests:
+  #         db: spanner
+  #     - store-test-results
+  #     - gcs-configure-and-upload:
+  #         source: workflow/test-results
+  #         destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+  #         extension: xml
 
-  deploy:
-    docker:
-      - image: docker:18.02.0-ce
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - display-versions
-      - restore_cache:
-          key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
-      - run:
-          name: Restore Docker image cache
-          command: docker load -i /home/circleci/cache/docker.tar
-      - run:
-          name: Deploy to Dockerhub
-          command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="${CIRCLE_SHA1}"
-            fi
+  # deploy:
+  #   docker:
+  #     - image: docker:18.02.0-ce
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   steps:
+  #     - setup_remote_docker
+  #     - display-versions
+  #     - restore_cache:
+  #         key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+  #     - run:
+  #         name: Restore Docker image cache
+  #         command: docker load -i /home/circleci/cache/docker.tar
+  #     - run:
+  #         name: Deploy to Dockerhub
+  #         command: |
+  #           if [ "${CIRCLE_BRANCH}" == "master" ]; then
+  #             DOCKER_TAG="${CIRCLE_SHA1}"
+  #           fi
 
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              DOCKER_TAG="${CIRCLE_BRANCH}"
-            fi
+  #           if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+  #             DOCKER_TAG="${CIRCLE_BRANCH}"
+  #           fi
 
-            if [ -n "${CIRCLE_TAG}" ]; then
-              DOCKER_TAG="$CIRCLE_TAG"
-            fi
+  #           if [ -n "${CIRCLE_TAG}" ]; then
+  #             DOCKER_TAG="$CIRCLE_TAG"
+  #           fi
 
-            if [ -n "${DOCKER_TAG}" ]; then
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
-              docker images
-              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
-            else
-              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
+  #           if [ -n "${DOCKER_TAG}" ]; then
+  #             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+  #             echo ${DOCKERHUB_REPO}:${DOCKER_TAG}
+  #             docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
+  #             docker images
+  #             docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
+  #           else
+  #             echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+  #           fi
 
-  deploy-python-utils:
-    docker:
-      - image: docker:stable-git
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    steps:
-      - setup_remote_docker
-      - checkout
-      - display-versions
-      - write-version
-      - run:
-          name: Build and deploy to Dockerhub
-          command: |
-            export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              DOCKER_TAG="latest"
-            fi
+  # deploy-python-utils:
+  #   docker:
+  #     - image: docker:stable-git
+  #       auth:
+  #         username: $DOCKER_USER
+  #         password: $DOCKER_PASS
+  #   steps:
+  #     - setup_remote_docker
+  #     - checkout
+  #     - display-versions
+  #     - write-version
+  #     - run:
+  #         name: Build and deploy to Dockerhub
+  #         command: |
+  #           export UTILS_DOCKERHUB_REPO=mozilla/sync-spanner-py-utils
+  #           if [ "${CIRCLE_BRANCH}" == "master" ]; then
+  #             DOCKER_TAG="latest"
+  #           fi
 
-            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
-              DOCKER_TAG="${CIRCLE_BRANCH}"
-            fi
+  #           if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+  #             DOCKER_TAG="${CIRCLE_BRANCH}"
+  #           fi
 
-            if [ -n "${CIRCLE_TAG}" ]; then
-              DOCKER_TAG="$CIRCLE_TAG"
-            fi
+  #           if [ -n "${CIRCLE_TAG}" ]; then
+  #             DOCKER_TAG="$CIRCLE_TAG"
+  #           fi
 
-            if [ -n "${DOCKER_TAG}" ]; then
-              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-              echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
-              cd tools/spanner
-              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
-              docker images
-              docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
-            else
-              echo "Not building or pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
-            fi
+  #           if [ -n "${DOCKER_TAG}" ]; then
+  #             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+  #             echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
+  #             cd tools/spanner
+  #             docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
+  #             docker images
+  #             docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
+  #           else
+  #             echo "Not building or pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+  #           fi
 
 workflows:
   version: 2
