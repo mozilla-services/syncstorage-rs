@@ -786,91 +786,91 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - build-and-test-mysql:
-          filters:
-            tags:
-              only: /.*/
+      # - build-and-test-mysql:
+      #     filters:
+      #       tags:
+      #         only: /.*/
       - build-and-test-postgres:
           filters:
             tags:
               only: /.*/
-      - build-and-test-spanner:
-          filters:
-            tags:
-              only: /.*/
-      - merge-coverage:
-          requires:
-            - build-and-test-mysql
-            - build-and-test-postgres
-            - build-and-test-spanner
-          filters:
-            tags:
-              only: /.*/
-      - build-mysql-image:
-          requires:
-            - build-and-test-mysql
-          filters:
-            tags:
-              only: /.*/
+      # - build-and-test-spanner:
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      # - merge-coverage:
+      #     requires:
+      #       - build-and-test-mysql
+      #       - build-and-test-postgres
+      #       - build-and-test-spanner
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      # - build-mysql-image:
+      #     requires:
+      #       - build-and-test-mysql
+      #     filters:
+      #       tags:
+      #         only: /.*/
       - build-postgres-image:
           requires:
             - build-and-test-postgres
           filters:
             tags:
               only: /.*/
-      - build-spanner-image:
-          requires:
-            - build-and-test-spanner
-          filters:
-            tags:
-              only: /.*/
-      - mysql-e2e-tests:
-          requires:
-            - build-mysql-image
-          filters:
-            tags:
-              only: /.*/
+      # - build-spanner-image:
+      #     requires:
+      #       - build-and-test-spanner
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      # - mysql-e2e-tests:
+      #     requires:
+      #       - build-mysql-image
+      #     filters:
+      #       tags:
+      #         only: /.*/
       - postgres-e2e-tests:
           requires:
             - build-postgres-image
           filters:
             tags:
               only: /.*/
-      - spanner-e2e-tests:
-          requires:
-            - build-spanner-image
-          filters:
-            tags:
-              only: /.*/
-      - deploy:
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              only: master
-              # touch: 1676417203
-      - deploy-to-gar:
-          registry-url: us-docker.pkg.dev
-          gar-repo: sync-prod
-          image: syncstorage-rs
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              only: master
-      - deploy-python-utils:
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
-          filters:
-            tags:
-              only: /.*/
+      # - spanner-e2e-tests:
+      #     requires:
+      #       - build-spanner-image
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      # - deploy:
+      #     requires:
+      #       - mysql-e2e-tests
+      #       - postgres-e2e-tests
+      #       - spanner-e2e-tests
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         only: master
+      #         # touch: 1676417203
+      # - deploy-to-gar:
+      #     registry-url: us-docker.pkg.dev
+      #     gar-repo: sync-prod
+      #     image: syncstorage-rs
+      #     requires:
+      #       - mysql-e2e-tests
+      #       - postgres-e2e-tests
+      #       - spanner-e2e-tests
+      #     filters:
+      #       tags:
+      #         only: /.*/
+      #       branches:
+      #         only: master
+      # - deploy-python-utils:
+      #     requires:
+      #       - mysql-e2e-tests
+      #       - postgres-e2e-tests
+      #       - spanner-e2e-tests
+      #     filters:
+      #       tags:
+      #         only: /.*/
