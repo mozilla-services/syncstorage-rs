@@ -10,7 +10,8 @@ DROP INDEX bsos_expiry_idx;
 
 DROP INDEX batch_expiry_idx;
 
-DROP INDEX collections_name_key;
+ALTER TABLE collections
+DROP CONSTRAINT IF EXISTS collections_name_key;
 
 -- Drop child tables first (reverse dependency order)
 DROP TABLE batch_bsos;
