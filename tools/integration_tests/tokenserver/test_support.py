@@ -49,10 +49,10 @@ class TestCase:
             },
         )
         print("+++LOG+++")
-        print(f"{self.db_mode}")
-        print(f"{db_url}")
-        print(f"{host_url}")
-        print(f"{self.app}")
+        print(f"self.db_mode: {self.db_mode}")
+        print(f"db_url: {db_url}")
+        print(f"host_url: {host_url}")
+        print(f"self.app: {self.app.__repr__()}")
 
         # Start each test with a blank slate.
         cursor = self._execute_sql(sqltext(("DELETE FROM users")), {})

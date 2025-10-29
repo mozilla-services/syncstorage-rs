@@ -135,6 +135,13 @@ commands:
   run-unit-tests-postgres:
     steps:
       - run:
+          name: log if tests fail
+          command: |
+            echo "---- START syncserver logs START ----"
+            docker logs syncserver || true
+            echo "---- END syncserver END logs ----"
+          when: on_fail
+      - run:
           name: Tokenserver tests on PostgreSQL
           command: |
             cargo llvm-cov --no-report --summary-only \

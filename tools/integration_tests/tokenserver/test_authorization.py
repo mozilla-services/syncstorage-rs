@@ -103,6 +103,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.app.get("/1.0/sync/1.5", headers=headers)
 
     def test_disallow_reusing_old_client_state(self):
+        print("*** FAIL test_disallow_reusing_old_client_state ***")
         # Add a user record that has already been replaced
         self._add_user(client_state="aaaa", replaced_at=1200)
         # Add the most up-to-date user record
@@ -136,6 +137,10 @@ class TestAuthorization(TestCase, unittest.TestCase):
         res2 = self.app.get("/1.0/sync/1.5", headers=headers)
         # This results in the creation of a new user record
         self.assertNotEqual(res1.json["uid"], res2.json["uid"])
+        print("headers", headers)
+        print("res2", res2)
+        print("res1", res1)
+        print("self", self.__repr__())
 
     def test_generation_change_must_accompany_client_state_change(self):
         self._add_user(generation=1234, client_state="aaaa")
@@ -335,6 +340,7 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(token["node"], token0["node"])
 
     def test_client_specified_duration(self):
+        print("*** PASS test_client_specified_duration ***")
         self._add_user(generation=1234, keys_changed_at=1234, client_state="aaaa")
         headers = self._build_auth_headers(
             generation=1234, keys_changed_at=1234, client_state="aaaa"
@@ -350,6 +356,9 @@ class TestAuthorization(TestCase, unittest.TestCase):
         self.assertEqual(res.json["duration"], 3600)
         res = self.app.get("/1.0/sync/1.5?duration=-1", headers=headers)
         self.assertEqual(res.json["duration"], 3600)
+        print("headers", headers)
+        print(self.__repr__())
+        print(self)
 
     # Although all servers are now writing keys_changed_at, we still need this
     # case to be handled. See this PR for more information:
