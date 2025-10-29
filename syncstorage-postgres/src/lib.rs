@@ -1,5 +1,5 @@
 #![allow(non_local_definitions)]
-#![allow(unused_imports)] // XXX:
+#![allow(unused_imports)]
 #[macro_use]
 extern crate diesel;
 extern crate diesel_migrations;
@@ -7,9 +7,12 @@ extern crate diesel_migrations;
 extern crate slog_scope;
 
 mod db;
+mod orm_models;
 mod pool;
+mod schema;
 
 pub use db::PgDb;
+pub use orm_models::{BatchBso, Batche, Bso, Collection, UserCollection};
 pub use pool::PgDbPool;
 pub use syncstorage_db_common::diesel::DbError;
 
