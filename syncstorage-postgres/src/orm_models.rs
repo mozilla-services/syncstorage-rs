@@ -21,7 +21,8 @@ pub struct BatchBso {
 
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id))]
-pub struct Batche {
+#[diesel(table_name=batches)]
+pub struct Batch {
     pub fxa_uid: Uuid,
     pub fxa_kid: String,
     pub collection_id: i64,
