@@ -1,5 +1,5 @@
 #![allow(dead_code)] // XXX:
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
@@ -22,6 +22,17 @@ pub struct PgDb {
     /// Configured quota, with defined size, enabled, and enforced attributes.
     metrics: Metrics,
     quota: Quota,
+}
+
+impl fmt::Debug for PgDb {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PgDb")
+            .field("session", &self.session)
+            .field("coll_cache", &self.coll_cache)
+            .field("metrics", &self.metrics)
+            .field("quota", &self.quota)
+            .finish()
+    }
 }
 
 /// Per-session Db metadata.
