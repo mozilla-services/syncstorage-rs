@@ -1,11 +1,15 @@
 #![allow(dead_code)] // XXX:
+use async_trait::async_trait;
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
-use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, UserIdentifier};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, BatchDb, Db, UserIdentifier};
 use syncstorage_settings::Quota;
 
-use super::pool::{CollectionCache, Conn};
+use super::{
+    pool::{CollectionCache, Conn},
+    DbError, DbResult,
+};
 
 #[derive(Debug, Eq, PartialEq)]
 enum CollectionLock {
@@ -69,6 +73,10 @@ impl PgDb {
             metrics: metrics.clone(),
             quota: *quota,
         }
+    }
+
+    pub(super) async fn get_or_create_collection_id(&mut self, _name: &str) -> DbResult<i32> {
+        todo!()
     }
 }
 
@@ -225,19 +233,20 @@ impl Db for PgDb {
         results::ConnectionInfo::default()
     }
 
-    async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
+    async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
         self.get_or_create_collection_id(name).await
     }
 
     async fn update_collection(
         &mut self,
-        param: params::UpdateCollection,
+        params: params::UpdateCollection,
     ) -> Result<SyncTimestamp, Self::Error> {
-        PgDb::update_collection(self, param.user_id.legacy_id as u32, param.collection_id).await
+        PgDb::update_collection(self, params).await
     }
 
     fn timestamp(&self) -> SyncTimestamp {
-        PgDb::timestamp(self)
+        todo!()
+        // PgDb::timestamp(self)
     }
 
     fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
@@ -255,5 +264,52 @@ impl Db for PgDb {
             enabled,
             enforced,
         }
+    }
+}
+
+#[async_trait(?Send)]
+impl BatchDb for PgDb {
+    type Error = DbError;
+
+    async fn create_batch(
+        &mut self,
+        params: params::CreateBatch,
+    ) -> Result<results::CreateBatch, Self::Error> {
+        PgDb::create_batch(self, params).await
+    }
+
+    async fn validate_batch(
+        &mut self,
+        params: params::ValidateBatch,
+    ) -> Result<results::ValidateBatch, Self::Error> {
+        PgDb::validate_batch(self, params).await
+    }
+
+    async fn append_to_batch(
+        &mut self,
+        params: params::AppendToBatch,
+    ) -> Result<results::AppendToBatch, Self::Error> {
+        PgDb::append_to_batch(self, params).await
+    }
+
+    async fn get_batch(
+        &mut self,
+        params: params::GetBatch,
+    ) -> Result<Option<results::GetBatch>, Self::Error> {
+        PgDb::get_batch(self, params).await
+    }
+
+    async fn commit_batch(
+        &mut self,
+        params: params::CommitBatch,
+    ) -> Result<results::CommitBatch, Self::Error> {
+        PgDb::commit_batch(self, params).await
+    }
+
+    async fn delete_batch(
+        &mut self,
+        params: params::DeleteBatch,
+    ) -> Result<results::DeleteBatch, Self::Error> {
+        PgDb::delete_batch(self, params).await
     }
 }
