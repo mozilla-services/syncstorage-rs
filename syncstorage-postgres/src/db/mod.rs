@@ -51,3 +51,22 @@ struct PgDbSession {
     /// Whether update_collection has already been called.
     updated_collection: bool,
 }
+
+impl PgDb {
+    /// Create a new instance of PgDb
+    /// Fresh metrics clone and default impl of session.
+    pub(super) fn new(
+        conn: Conn,
+        coll_cache: Arc<CollectionCache>,
+        metrics: &Metrics,
+        quota: &Quota,
+    ) -> Self {
+        PgDb {
+            conn,
+            session: Default::default(),
+            coll_cache,
+            metrics: metrics.clone(),
+            quota: *quota,
+        }
+    }
+}
