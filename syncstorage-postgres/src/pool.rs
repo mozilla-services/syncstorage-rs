@@ -146,15 +146,12 @@ impl PgDbPool {
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
         })?;
 
-        todo!();
-        /*
         Ok(PgDb::new(
             conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
         ))
-        */
     }
 }
 
