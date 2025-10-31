@@ -66,7 +66,7 @@ pub struct PgDbPool {
     pool: Pool<AsyncPgConnection>,
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
-    /// Metrics module from synserver-common.
+    /// Metrics module from syncserver-common.
     metrics: Metrics,
     /// Configured quota, with defined size, enabled, and enforced attributes.
     quota: Quota,
@@ -175,12 +175,12 @@ impl DbPool for PgDbPool {
     }
 
     async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
-        todo!();
-        //Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
+        // Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
+        todo!()
     }
-
+    /// XXX: Will complete when implementing the entire batch.rs module.
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        todo!();
+        todo!()
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
