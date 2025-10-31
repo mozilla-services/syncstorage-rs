@@ -3443,6 +3443,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "base64",
+ "chrono",
  "deadpool",
  "diesel",
  "diesel-async",
@@ -3457,6 +3458,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "url",
+ "uuid",
 ]
 
 [[package]]
