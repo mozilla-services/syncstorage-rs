@@ -62,14 +62,23 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - sync-db-setup
+      sync-db-setup:
+        condition: service_started
+      mock-fxa-server:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
     environment:
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
       SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_HUMAN_LOGS: "true"
+      RUST_LOG: debug,syncserver=trace,tokenserver=trace
+      RUST_BACKTRACE: full
 
 volumes:
   tokenserver_db_data:
