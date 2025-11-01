@@ -36,15 +36,16 @@ RUN apt-get -q update && \
     if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         POSTGRES_DEV_PKG="libpq-dev"; \
     fi && \
-    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_DEV_PKG cmake
+    apt-get -q install -y --no-install-recommends $MYSQL_PKG $POSTGRES_DEV_PKG cmake python3-dev
 
 COPY --from=planner /app/recipe.json recipe.json
+COPY . .
 RUN set -x && \
     TOKENSERVER_FEATURES="" && \
     if [ "$TOKENSERVER_DATABASE_BACKEND" = "postgres" ]; then \
         TOKENSERVER_FEATURES="--features=tokenserver-db/postgres"; \
     fi && \
-    cargo chef cook --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier --recipe-path recipe.json
+    cargo build --release --no-default-features --features=syncstorage-db/$SYNCSTORAGE_DATABASE_BACKEND $TOKENSERVER_FEATURES --features=py_verifier
 
 FROM chef AS builder
 ARG SYNCSTORAGE_DATABASE_BACKEND
