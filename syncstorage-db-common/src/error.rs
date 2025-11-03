@@ -10,32 +10,47 @@ use thiserror::Error;
 /// database backend.
 #[derive(Debug)]
 pub struct SyncstorageDbError {
+    /// Enum variant defining class of `DbError`.
     kind: SyncstorageDbErrorKind,
+    /// Enum variant of status code (`http::StatusCode`) name with matching code.
     pub status: StatusCode,
+    /// Captured stack trace for debugging.
     pub backtrace: Backtrace,
 }
 
+/// Enum mapping of possible error types.
+/// Each variant represents a distinct error condition.
+/// Note the `thiserror` automatic `Display` macro string.
 #[derive(Debug, Error)]
 enum SyncstorageDbErrorKind {
+    /// Collection cannot be found.
     #[error("Specified collection does not exist")]
     CollectionNotFound,
 
+    /// BSO object cannot be found.
     #[error("Specified bso does not exist")]
     BsoNotFound,
 
+    /// Specified batch could not be found.
     #[error("Specified batch does not exist")]
     BatchNotFound,
 
+    /// Conflicting write attempt.
     #[error("An attempt at a conflicting write")]
     Conflict,
 
+    /// Holds a message payload for arbitrary internal failures.
     #[error("Unexpected error: {}", _0)]
     Internal(String),
 
+    /// User over quota.
     #[error("User over quota")]
     Quota,
 }
 
+/// Trait implementation that converts the provided `SyncstorageDbErrorKind` enum variant into a full
+/// `SyncstorageDbError` struct. Fills in the HTTP status and a new backtrace automatically.
+/// See `impl From<SyncstorageDbErrorKind> for SyncstorageDbError` below.
 impl SyncstorageDbError {
     pub fn batch_not_found() -> Self {
         SyncstorageDbErrorKind::BatchNotFound.into()
@@ -62,6 +77,8 @@ impl SyncstorageDbError {
     }
 }
 
+/// Trait that returns boolean as to whether the
+/// `SyncstorageDbErrorKind` matches the kind passed in.
 pub trait DbErrorIntrospect {
     fn is_collection_not_found(&self) -> bool;
     fn is_conflict(&self) -> bool;
@@ -70,6 +87,8 @@ pub trait DbErrorIntrospect {
     fn is_batch_not_found(&self) -> bool;
 }
 
+/// Trait implementation to match the error kind to the
+/// `SyncstorageDbErrorKind` enum.
 impl DbErrorIntrospect for SyncstorageDbError {
     fn is_collection_not_found(&self) -> bool {
         matches!(self.kind, SyncstorageDbErrorKind::CollectionNotFound)
@@ -92,6 +111,8 @@ impl DbErrorIntrospect for SyncstorageDbError {
     }
 }
 
+/// This trait comes from `syncserver_common`.
+/// It defines how errors should be reported (to logs, metrics, or Sentry).
 impl ReportableError for SyncstorageDbError {
     fn reportable_source(&self) -> Option<&(dyn ReportableError + 'static)> {
         None
@@ -114,6 +135,8 @@ impl ReportableError for SyncstorageDbError {
 }
 
 impl From<SyncstorageDbErrorKind> for SyncstorageDbError {
+    /// Converts the provided `SyncstorageDbErrorKind` enum into a full SyncstorageDbError struct.
+    /// Fills in the HTTP status and a new backtrace automatically.
     fn from(kind: SyncstorageDbErrorKind) -> Self {
         let status = match kind {
             SyncstorageDbErrorKind::CollectionNotFound | SyncstorageDbErrorKind::BsoNotFound => {
