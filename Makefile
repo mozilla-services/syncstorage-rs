@@ -98,7 +98,7 @@ docker_run_postgres_e2e_tests:
 		-f docker-compose.e2e.postgres.yaml \
 	 	up \
 	 	--exit-code-from postgres-e2e-tests \
-	 	--abort-on-container-exit || true;
+	 	--abort-on-container-exit;
 	exit_code=$$?;
 	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML};
 	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML};

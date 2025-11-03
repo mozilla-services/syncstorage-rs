@@ -347,7 +347,6 @@ impl TokenserverPgDb {
     }
 
     /// Method to create a new user, given a `PostUser` struct containing data regarding the user.
-    #[cfg(debug_assertions)]
     async fn post_user(&mut self, params: params::PostUser) -> DbResult<results::PostUser> {
         const QUERY: &str = r#"
             INSERT INTO users (service, email, generation, client_state, created_at,
