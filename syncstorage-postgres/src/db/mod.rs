@@ -75,8 +75,13 @@ impl PgDb {
         }
     }
 
+    /// NOTE: Will be completed with other db method task.
     pub(super) async fn get_or_create_collection_id(&mut self, _name: &str) -> DbResult<i32> {
         todo!()
+    }
+
+    pub(super) fn timestamp(&self) -> SyncTimestamp {
+        self.session.timestamp
     }
 }
 
@@ -245,8 +250,7 @@ impl Db for PgDb {
     }
 
     fn timestamp(&self) -> SyncTimestamp {
-        todo!()
-        // PgDb::timestamp(self)
+        PgDb::timestamp(self)
     }
 
     fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
