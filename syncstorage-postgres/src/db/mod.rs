@@ -2,6 +2,9 @@
 use async_trait::async_trait;
 use std::{collections::HashMap, fmt, sync::Arc};
 
+use diesel::sql_query;
+use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
+
 use syncserver_common::Metrics;
 use syncstorage_db_common::{params, results, util::SyncTimestamp, BatchDb, Db, UserIdentifier};
 use syncstorage_settings::Quota;
@@ -78,6 +81,14 @@ impl PgDb {
     /// NOTE: Will be completed with other db method task.
     pub(super) async fn get_or_create_collection_id(&mut self, _name: &str) -> DbResult<i32> {
         todo!()
+    }
+
+    /// Simple check function to ensure database liveliness.
+    async fn check(&mut self) -> DbResult<results::Check> {
+        diesel::sql_query("SELECT 1")
+            .execute(&mut self.conn)
+            .await?;
+        Ok(true)
     }
 
     pub(super) fn timestamp(&self) -> SyncTimestamp {
