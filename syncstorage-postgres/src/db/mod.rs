@@ -83,6 +83,34 @@ impl PgDb {
         todo!()
     }
 
+    async fn commit(&mut self) -> DbResult<()> {
+        if self.session.in_transaction {
+            <Conn as AsyncConnection>::TransactionManager::commit_transaction(&mut self.conn)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Utility to rollback transaction if current Db session transaction in progress.
+    async fn rollback(&mut self) -> DbResult<()> {
+        if self.session.in_transaction {
+            <Conn as AsyncConnection>::TransactionManager::rollback_transaction(&mut self.conn)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Utility method to begin transaction and set current session `in_transaction` to `true`
+    /// If `for_write` truthy, `in_write_transaction` sets to true.
+    pub(super) async fn begin(&mut self, for_write: bool) -> DbResult<()> {
+        <Conn as AsyncConnection>::TransactionManager::begin_transaction(&mut self.conn).await?;
+        self.session.in_transaction = true;
+        if for_write {
+            self.session.in_write_transaction = true;
+        }
+        Ok(())
+    }
+
     /// Simple check function to ensure database liveliness.
     async fn check(&mut self) -> DbResult<results::Check> {
         diesel::sql_query("SELECT 1")
