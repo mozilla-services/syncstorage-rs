@@ -49,14 +49,7 @@ pub(crate) type Conn = Object<AsyncPgConnection>;
 /// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
-
-    // This conn2 charade is to make mut-ness the same for both cases.
-    #[cfg(debug_assertions)]
-    let mut conn2 = LoggingConnection::new(conn);
-    #[cfg(not(debug_assertions))]
-    let mut conn2 = conn;
-
-    conn2.run_pending_migrations(MIGRATIONS)?;
+    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
     Ok(())
 }
 
