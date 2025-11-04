@@ -1,6 +1,9 @@
 #![allow(dead_code)] // XXX:
 use std::{collections::HashMap, fmt, sync::Arc};
 
+use diesel::{sql_query, sql_types::Text};
+use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
+
 use syncserver_common::Metrics;
 use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
