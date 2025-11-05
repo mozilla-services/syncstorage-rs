@@ -8,11 +8,15 @@ use diesel::{
 use diesel_async::RunQueryDsl;
 use syncserver_common::{BlockingThreadpool, Metrics};
 use syncserver_settings::Settings as SyncserverSettings;
-use syncstorage_db_common::DbPool;
+use syncstorage_db_common::{Db, DbPool};
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
-use crate::{db::{schema::collections, MysqlDb}, pool::MysqlDbPool, DbResult};
+use crate::{
+    db::{schema::collections, MysqlDb},
+    pool::MysqlDbPool,
+    DbResult,
+};
 
 async fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
     let _ = env_logger::try_init();

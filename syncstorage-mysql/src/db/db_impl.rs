@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::collections::HashMap;
 
 use async_trait::async_trait;
 use diesel::{
@@ -10,95 +10,25 @@ use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
-use syncserver_common::Metrics;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, BatchDb, Db, Sorting,
-    UserIdentifier, DEFAULT_BSO_TTL,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
+    DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
     diesel_ext::LockInShareModeDsl,
-    pool::{CollectionCache, Conn},
-    DbError, DbResult,
+    schema::{bso, user_collections},
+    CollectionLock, MysqlDb, COLLECTION_ID, COUNT, EXPIRY, LAST_MODIFIED, MODIFIED, TOMBSTONE,
+    TOTAL_BYTES, USER_ID,
 };
-use schema::{bso, collections, user_collections};
-
-mod batch_impl;
-pub(crate) mod schema;
-
-pub use batch_impl::validate_batch_id;
+use crate::{pool::Conn, DbError, DbResult};
 
 // this is the max number of records we will return.
 static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
 
-const TOMBSTONE: i32 = 0;
-/// SQL Variable remapping
-/// These names are the legacy values mapped to the new names.
-const COLLECTION_ID: &str = "collection";
-const USER_ID: &str = "userid";
-const MODIFIED: &str = "modified";
-const EXPIRY: &str = "ttl";
-const LAST_MODIFIED: &str = "last_modified";
-const COUNT: &str = "count";
-const TOTAL_BYTES: &str = "total_bytes";
-
-#[derive(Debug)]
-enum CollectionLock {
-    Read,
-    Write,
-}
-
-/// Per session Db metadata
-#[derive(Debug, Default)]
-struct MysqlDbSession {
-    /// The "current time" on the server used for this session's operations
-    timestamp: SyncTimestamp,
-    /// Cache of collection modified timestamps per (user_id, collection_id)
-    coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
-    /// Currently locked collections
-    coll_locks: HashMap<(u32, i32), CollectionLock>,
-    /// Whether a transaction was started (begin() called)
-    in_transaction: bool,
-    in_write_transaction: bool,
-}
-
-pub struct MysqlDb {
-    pub(super) conn: Conn,
-    session: MysqlDbSession,
-    /// Pool level cache of collection_ids and their names
-    coll_cache: Arc<CollectionCache>,
-    metrics: Metrics,
-    quota: Quota,
-}
-
-impl fmt::Debug for MysqlDb {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MysqlDb")
-            .field("session", &self.session)
-            .field("coll_cache", &self.coll_cache)
-            .field("metrics", &self.metrics)
-            .field("quota", &self.quota)
-            .finish()
-    }
-}
-
-impl MysqlDb {
-    pub(super) fn new(
-        conn: Conn,
-        coll_cache: Arc<CollectionCache>,
-        metrics: &Metrics,
-        quota: &Quota,
-    ) -> Self {
-        MysqlDb {
-            conn,
-            session: Default::default(),
-            coll_cache,
-            metrics: metrics.clone(),
-            quota: *quota,
-        }
-    }
-
+#[async_trait(?Send)]
+impl Db for MysqlDb {
     /// APIs for collection-level locking
     ///
     /// Explicitly lock the matching row in the user_collections table. Read
@@ -194,7 +124,7 @@ impl MysqlDb {
         Ok(())
     }
 
-    pub(super) async fn begin(&mut self, for_write: bool) -> DbResult<()> {
+    async fn begin(&mut self, for_write: bool) -> DbResult<()> {
         <Conn as AsyncConnection>::TransactionManager::begin_transaction(&mut self.conn).await?;
         self.session.in_transaction = true;
         if for_write {
@@ -216,24 +146,6 @@ impl MysqlDb {
             <Conn as AsyncConnection>::TransactionManager::rollback_transaction(&mut self.conn)
                 .await?;
         }
-        Ok(())
-    }
-
-    async fn erect_tombstone(&mut self, user_id: i32) -> DbResult<()> {
-        sql_query(format!(
-            r#"INSERT INTO user_collections ({user_id}, {collection_id}, {modified})
-               VALUES (?, ?, ?)
-                   ON DUPLICATE KEY UPDATE
-                      {modified} = VALUES({modified})"#,
-            user_id = USER_ID,
-            collection_id = COLLECTION_ID,
-            modified = LAST_MODIFIED
-        ))
-        .bind::<BigInt, _>(user_id as i64)
-        .bind::<Integer, _>(TOMBSTONE)
-        .bind::<BigInt, _>(self.timestamp().as_i64())
-        .execute(&mut self.conn)
-        .await?;
         Ok(())
     }
 
@@ -279,30 +191,7 @@ impl MysqlDb {
         self.get_storage_timestamp(params.user_id).await
     }
 
-    pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
-        if let Some(id) = self.coll_cache.get_id(name)? {
-            return Ok(id);
-        }
-
-        diesel::insert_or_ignore_into(collections::table)
-            .values(collections::name.eq(name))
-            .execute(&mut self.conn)
-            .await?;
-
-        let id = collections::table
-            .select(collections::id)
-            .filter(collections::name.eq(name))
-            .first(&mut self.conn)
-            .await?;
-
-        if !self.session.in_write_transaction {
-            self.coll_cache.put(id, name.to_owned())?;
-        }
-
-        Ok(id)
-    }
-
-    pub(super) async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }
@@ -322,25 +211,6 @@ impl MysqlDb {
             self.coll_cache.put(id, name.to_owned())?;
         }
         Ok(id)
-    }
-
-    async fn _get_collection_name(&mut self, id: i32) -> DbResult<String> {
-        let name = if let Some(name) = self.coll_cache.get_name(id)? {
-            name
-        } else {
-            sql_query(
-                "SELECT name
-                   FROM collections
-                  WHERE id = ?",
-            )
-            .bind::<Integer, _>(&id)
-            .get_result::<NameResult>(&mut self.conn)
-            .await
-            .optional()?
-            .ok_or_else(DbError::collection_not_found)?
-            .name
-        };
-        Ok(name)
     }
 
     async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
@@ -438,7 +308,12 @@ impl MysqlDb {
             .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
             .execute(&mut self.conn)
             .await?;
-        self.update_collection(user_id as u32, collection_id).await
+        self.update_collection(params::UpdateCollection {
+            user_id: bso.user_id,
+            collection_id,
+            collection: bso.collection,
+        })
+        .await
     }
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
@@ -627,7 +502,12 @@ impl MysqlDb {
         if affected_rows == 0 {
             return Err(DbError::bso_not_found());
         }
-        self.update_collection(user_id as u32, collection_id).await
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
+        })
+        .await
     }
 
     async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
@@ -639,7 +519,12 @@ impl MysqlDb {
             .filter(bso::id.eq_any(params.ids))
             .execute(&mut self.conn)
             .await?;
-        self.update_collection(user_id as u32, collection_id).await
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
+        })
+        .await
     }
 
     async fn post_bsos(&mut self, input: params::PostBsos) -> DbResult<SyncTimestamp> {
@@ -657,8 +542,12 @@ impl MysqlDb {
             })
             .await?;
         }
-        self.update_collection(input.user_id.legacy_id as u32, collection_id)
-            .await?;
+        self.update_collection(params::UpdateCollection {
+            user_id: input.user_id,
+            collection_id,
+            collection: input.collection,
+        })
+        .await?;
 
         Ok(modified)
     }
@@ -747,60 +636,13 @@ impl MysqlDb {
         Ok(true)
     }
 
-    async fn map_collection_names<T>(
+    async fn update_collection(
         &mut self,
-        by_id: HashMap<i32, T>,
-    ) -> DbResult<HashMap<String, T>> {
-        let mut names = self.load_collection_names(by_id.keys()).await?;
-        by_id
-            .into_iter()
-            .map(|(id, value)| {
-                names.remove(&id).map(|name| (name, value)).ok_or_else(|| {
-                    DbError::internal("load_collection_names unknown collection id".to_owned())
-                })
-            })
-            .collect()
-    }
-
-    async fn load_collection_names<'a>(
-        &mut self,
-        collection_ids: impl Iterator<Item = &'a i32>,
-    ) -> DbResult<HashMap<i32, String>> {
-        let mut names = HashMap::new();
-        let mut uncached = Vec::new();
-        for &id in collection_ids {
-            if let Some(name) = self.coll_cache.get_name(id)? {
-                names.insert(id, name);
-            } else {
-                uncached.push(id);
-            }
-        }
-
-        if !uncached.is_empty() {
-            let result = collections::table
-                .select((collections::id, collections::name))
-                .filter(collections::id.eq_any(uncached))
-                .load::<(i32, String)>(&mut self.conn)
-                .await?;
-
-            for (id, name) in result {
-                names.insert(id, name.clone());
-                if !self.session.in_write_transaction {
-                    self.coll_cache.put(id, name)?;
-                }
-            }
-        }
-
-        Ok(names)
-    }
-
-    pub(super) async fn update_collection(
-        &mut self,
-        user_id: u32,
-        collection_id: i32,
+        params: params::UpdateCollection,
     ) -> DbResult<SyncTimestamp> {
         let quota = if self.quota.enabled {
-            self.calc_quota_usage(user_id, collection_id).await?
+            self.calc_quota_usage(params.user_id.legacy_id as i64, params.collection_id)
+                .await?
         } else {
             results::GetQuotaUsage {
                 count: 0,
@@ -825,8 +667,8 @@ impl MysqlDb {
         let total_bytes = quota.total_bytes as i64;
         let timestamp = self.timestamp().as_i64();
         sql_query(upsert)
-            .bind::<BigInt, _>(user_id as i64)
-            .bind::<Integer, _>(&collection_id)
+            .bind::<BigInt, _>(params.user_id.legacy_id as i64)
+            .bind::<Integer, _>(&params.collection_id)
             .bind::<BigInt, _>(&timestamp)
             .bind::<BigInt, _>(&total_bytes)
             .bind::<Integer, _>(&quota.count)
@@ -876,30 +718,6 @@ impl MysqlDb {
         })
     }
 
-    // perform a heavier weight quota calculation
-    async fn calc_quota_usage(
-        &mut self,
-        user_id: u32,
-        collection_id: i32,
-    ) -> DbResult<results::GetQuotaUsage> {
-        let (total_bytes, count): (i64, i32) = bso::table
-            .select((
-                sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
-                sql::<Integer>("COALESCE(COUNT(*),0)"),
-            ))
-            .filter(bso::user_id.eq(user_id as i64))
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
-            .filter(bso::collection_id.eq(collection_id))
-            .get_result(&mut self.conn)
-            .await
-            .optional()?
-            .unwrap_or_default();
-        Ok(results::GetQuotaUsage {
-            total_bytes: total_bytes as usize,
-            count,
-        })
-    }
-
     async fn get_collection_usage(
         &mut self,
         user_id: UserIdentifier,
@@ -938,168 +756,8 @@ impl MysqlDb {
         self.map_collection_names(counts).await
     }
 
-    batch_db_method!(create_batch, create, CreateBatch);
-    batch_db_method!(validate_batch, validate, ValidateBatch);
-    batch_db_method!(append_to_batch, append, AppendToBatch);
-    batch_db_method!(commit_batch, commit, CommitBatch);
-    batch_db_method!(delete_batch, delete, DeleteBatch);
-
-    async fn get_batch(&mut self, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
-        batch_impl::get(self, params).await
-    }
-
-    pub(super) fn timestamp(&self) -> SyncTimestamp {
+    fn timestamp(&self) -> SyncTimestamp {
         self.session.timestamp
-    }
-}
-
-#[async_trait(?Send)]
-impl Db for MysqlDb {
-    async fn commit(&mut self) -> Result<(), Self::Error> {
-        MysqlDb::commit(self).await
-    }
-
-    async fn rollback(&mut self) -> Result<(), Self::Error> {
-        MysqlDb::rollback(self).await
-    }
-
-    async fn begin(&mut self, for_write: bool) -> Result<(), Self::Error> {
-        MysqlDb::begin(self, for_write).await
-    }
-
-    async fn check(&mut self) -> Result<results::Check, Self::Error> {
-        MysqlDb::check(self).await
-    }
-
-    async fn lock_for_read(
-        &mut self,
-        params: params::LockCollection,
-    ) -> Result<results::LockCollection, Self::Error> {
-        MysqlDb::lock_for_read(self, params).await
-    }
-
-    async fn lock_for_write(
-        &mut self,
-        params: params::LockCollection,
-    ) -> Result<results::LockCollection, Self::Error> {
-        MysqlDb::lock_for_write(self, params).await
-    }
-
-    async fn get_collection_timestamps(
-        &mut self,
-        params: params::GetCollectionTimestamps,
-    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
-        MysqlDb::get_collection_timestamps(self, params).await
-    }
-
-    async fn get_collection_timestamp(
-        &mut self,
-        params: params::GetCollectionTimestamp,
-    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
-        MysqlDb::get_collection_timestamp(self, params).await
-    }
-
-    async fn get_collection_counts(
-        &mut self,
-        params: params::GetCollectionCounts,
-    ) -> Result<results::GetCollectionCounts, Self::Error> {
-        MysqlDb::get_collection_counts(self, params).await
-    }
-
-    async fn get_collection_usage(
-        &mut self,
-        params: params::GetCollectionUsage,
-    ) -> Result<results::GetCollectionUsage, Self::Error> {
-        MysqlDb::get_collection_usage(self, params).await
-    }
-
-    async fn get_storage_timestamp(
-        &mut self,
-        params: params::GetStorageTimestamp,
-    ) -> Result<results::GetStorageTimestamp, Self::Error> {
-        MysqlDb::get_storage_timestamp(self, params).await
-    }
-
-    async fn get_storage_usage(
-        &mut self,
-        params: params::GetStorageUsage,
-    ) -> Result<results::GetStorageUsage, Self::Error> {
-        MysqlDb::get_storage_usage(self, params).await
-    }
-
-    async fn get_quota_usage(
-        &mut self,
-        params: params::GetQuotaUsage,
-    ) -> Result<results::GetQuotaUsage, Self::Error> {
-        MysqlDb::get_quota_usage(self, params).await
-    }
-
-    async fn delete_storage(
-        &mut self,
-        params: params::DeleteStorage,
-    ) -> Result<results::DeleteStorage, Self::Error> {
-        MysqlDb::delete_storage(self, params).await
-    }
-
-    async fn delete_collection(
-        &mut self,
-        params: params::DeleteCollection,
-    ) -> Result<results::DeleteCollection, Self::Error> {
-        MysqlDb::delete_collection(self, params).await
-    }
-
-    async fn delete_bsos(
-        &mut self,
-        params: params::DeleteBsos,
-    ) -> Result<results::DeleteBsos, Self::Error> {
-        MysqlDb::delete_bsos(self, params).await
-    }
-
-    async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
-        MysqlDb::get_bsos(self, params).await
-    }
-
-    async fn get_bso_ids(
-        &mut self,
-        params: params::GetBsoIds,
-    ) -> Result<results::GetBsoIds, Self::Error> {
-        MysqlDb::get_bso_ids(self, params).await
-    }
-
-    async fn post_bsos(
-        &mut self,
-        params: params::PostBsos,
-    ) -> Result<results::PostBsos, Self::Error> {
-        MysqlDb::post_bsos(self, params).await
-    }
-
-    async fn delete_bso(
-        &mut self,
-        params: params::DeleteBso,
-    ) -> Result<results::DeleteBso, Self::Error> {
-        MysqlDb::delete_bso(self, params).await
-    }
-
-    async fn get_bso(
-        &mut self,
-        params: params::GetBso,
-    ) -> Result<Option<results::GetBso>, Self::Error> {
-        MysqlDb::get_bso(self, params).await
-    }
-
-    async fn get_bso_timestamp(
-        &mut self,
-        params: params::GetBsoTimestamp,
-    ) -> Result<results::GetBsoTimestamp, Self::Error> {
-        MysqlDb::get_bso_timestamp(self, params).await
-    }
-
-    async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error> {
-        MysqlDb::put_bso(self, params).await
-    }
-
-    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error> {
-        MysqlDb::get_collection_id(self, name).await
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
@@ -1108,17 +766,6 @@ impl Db for MysqlDb {
 
     async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
         self.get_or_create_collection_id(name).await
-    }
-
-    async fn update_collection(
-        &mut self,
-        param: params::UpdateCollection,
-    ) -> Result<SyncTimestamp, Self::Error> {
-        MysqlDb::update_collection(self, param.user_id.legacy_id as u32, param.collection_id).await
-    }
-
-    fn timestamp(&self) -> SyncTimestamp {
-        MysqlDb::timestamp(self)
     }
 
     fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
@@ -1139,64 +786,10 @@ impl Db for MysqlDb {
     }
 }
 
-#[async_trait(?Send)]
-impl BatchDb for MysqlDb {
-    type Error = DbError;
-
-    async fn create_batch(
-        &mut self,
-        params: params::CreateBatch,
-    ) -> Result<results::CreateBatch, Self::Error> {
-        MysqlDb::create_batch(self, params).await
-    }
-
-    async fn validate_batch(
-        &mut self,
-        params: params::ValidateBatch,
-    ) -> Result<results::ValidateBatch, Self::Error> {
-        MysqlDb::validate_batch(self, params).await
-    }
-
-    async fn append_to_batch(
-        &mut self,
-        params: params::AppendToBatch,
-    ) -> Result<results::AppendToBatch, Self::Error> {
-        MysqlDb::append_to_batch(self, params).await
-    }
-
-    async fn get_batch(
-        &mut self,
-        params: params::GetBatch,
-    ) -> Result<Option<results::GetBatch>, Self::Error> {
-        MysqlDb::get_batch(self, params).await
-    }
-
-    async fn commit_batch(
-        &mut self,
-        params: params::CommitBatch,
-    ) -> Result<results::CommitBatch, Self::Error> {
-        MysqlDb::commit_batch(self, params).await
-    }
-
-    async fn delete_batch(
-        &mut self,
-        params: params::DeleteBatch,
-    ) -> Result<results::DeleteBatch, Self::Error> {
-        MysqlDb::delete_batch(self, params).await
-    }
-}
-
 #[derive(Debug, QueryableByName)]
 struct IdResult {
     #[diesel(sql_type = Integer)]
     id: i32,
-}
-
-#[allow(dead_code)] // Not really dead, Rust can't see the use above
-#[derive(Debug, QueryableByName)]
-struct NameResult {
-    #[diesel(sql_type = Text)]
-    name: String,
 }
 
 #[derive(Debug, QueryableByName)]
