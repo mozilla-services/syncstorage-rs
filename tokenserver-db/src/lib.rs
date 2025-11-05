@@ -1,16 +1,9 @@
-extern crate diesel;
-extern crate diesel_migrations;
-
 pub mod mock;
-mod models;
-mod pool;
 
 use url::Url;
 
-pub use models::TokenserverDb;
-pub use pool::TokenserverPool;
 use syncserver_common::Metrics;
-pub use tokenserver_db_common::{params, results, Db, DbError, DbPool};
+pub use tokenserver_db_common::{Db, DbError, DbPool};
 use tokenserver_settings::Settings;
 
 pub fn pool_from_settings(
@@ -21,7 +14,8 @@ pub fn pool_from_settings(
     let url = Url::parse(&settings.database_url)
         .map_err(|e| DbError::internal(format!("Invalid SYNC_TOKENSERVER__DATABASE_URL: {e}")))?;
     Ok(match url.scheme() {
-        "mysql" => Box::new(crate::pool::TokenserverPool::new(
+        #[cfg(feature = "mysql")]
+        "mysql" => Box::new(tokenserver_mysql::TokenserverPool::new(
             settings,
             metrics,
             use_test_transactions,

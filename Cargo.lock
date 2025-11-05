@@ -3706,6 +3706,7 @@ dependencies = [
  "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-db-postgres",
+ "tokenserver-mysql",
  "tokenserver-settings",
  "tokio",
  "url",
@@ -3732,6 +3733,25 @@ dependencies = [
 
 [[package]]
 name = "tokenserver-db-postgres"
+version = "0.21.1"
+dependencies = [
+ "async-trait",
+ "deadpool",
+ "diesel",
+ "diesel-async",
+ "diesel_logger",
+ "diesel_migrations",
+ "http 1.3.1",
+ "syncserver-common",
+ "syncserver-db-common",
+ "tokenserver-common",
+ "tokenserver-db-common",
+ "tokenserver-settings",
+ "tokio",
+]
+
+[[package]]
+name = "tokenserver-mysql"
 version = "0.21.1"
 dependencies = [
  "async-trait",
