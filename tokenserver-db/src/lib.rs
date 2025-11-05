@@ -1,9 +1,11 @@
 pub mod mock;
+#[cfg(test)]
+mod tests;
 
 use url::Url;
 
 use syncserver_common::Metrics;
-pub use tokenserver_db_common::{Db, DbError, DbPool};
+pub use tokenserver_db_common::{params, results, Db, DbError, DbPool};
 use tokenserver_settings::Settings;
 
 pub fn pool_from_settings(
@@ -33,3 +35,6 @@ pub fn pool_from_settings(
         }
     })
 }
+
+#[cfg(not(any(feature = "mysql", feature = "postgres")))]
+compile_error!("at least one of the \"mysql\" or \"postgres\" features must be enabled");

@@ -3693,17 +3693,10 @@ name = "tokenserver-db"
 version = "0.21.1"
 dependencies = [
  "async-trait",
- "deadpool",
- "diesel",
- "diesel-async",
- "diesel_logger",
- "diesel_migrations",
  "env_logger 0.11.8",
- "http 1.3.1",
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
- "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-db-postgres",
  "tokenserver-mysql",

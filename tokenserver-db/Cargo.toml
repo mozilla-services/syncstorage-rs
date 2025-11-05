@@ -7,15 +7,8 @@ edition.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-http.workspace = true
-deadpool.workspace = true
-diesel.workspace = true
-diesel-async.workspace = true
-diesel_logger.workspace = true
-diesel_migrations.workspace = true
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
-tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
 tokenserver-mysql = { path = "../tokenserver-mysql", optional = true }
 tokenserver-db-postgres = { path = "../tokenserver-db-postgres", optional = true }
@@ -29,5 +22,6 @@ env_logger.workspace = true
 syncserver-settings = { path = "../syncserver-settings" }
 
 [features]
+default = ["mysql"]
 mysql = ['tokenserver-mysql']
 postgres = ['tokenserver-db-postgres']
