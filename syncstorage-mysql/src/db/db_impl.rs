@@ -18,12 +18,16 @@ use syncstorage_db_common::{
 use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
-    batch,
     diesel_ext::LockInShareModeDsl,
     pool::{CollectionCache, Conn},
-    schema::{bso, collections, user_collections},
     DbError, DbResult,
 };
+use schema::{bso, collections, user_collections};
+
+mod batch_impl;
+pub(crate) mod schema;
+
+pub use batch_impl::validate_batch_id;
 
 // this is the max number of records we will return.
 static DEFAULT_LIMIT: u32 = DEFAULT_MAX_TOTAL_RECORDS;
@@ -941,7 +945,7 @@ impl MysqlDb {
     batch_db_method!(delete_batch, delete, DeleteBatch);
 
     async fn get_batch(&mut self, params: params::GetBatch) -> DbResult<Option<results::GetBatch>> {
-        batch::get(self, params).await
+        batch_impl::get(self, params).await
     }
 
     pub(super) fn timestamp(&self) -> SyncTimestamp {

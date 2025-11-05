@@ -12,7 +12,7 @@ use syncstorage_db_common::DbPool;
 use syncstorage_settings::Settings as SyncstorageSettings;
 use url::Url;
 
-use crate::{models::MysqlDb, pool::MysqlDbPool, schema::collections, DbResult};
+use crate::{db::{schema::collections, MysqlDb}, pool::MysqlDbPool, DbResult};
 
 async fn db(settings: &SyncstorageSettings) -> DbResult<MysqlDb> {
     let _ = env_logger::try_init();
