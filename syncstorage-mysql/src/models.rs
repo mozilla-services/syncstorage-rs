@@ -19,6 +19,7 @@ use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
 
 use super::{
     batch,
+    diesel_ext::LockInShareModeDsl,
     pool::{CollectionCache, Conn},
     schema::{bso, collections, user_collections},
     DbError, DbResult,
@@ -133,7 +134,7 @@ impl MysqlDb {
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
-            .for_share()
+            .lock_in_share_mode()
             .first(&mut self.conn)
             .await
             .optional()?;
