@@ -5,7 +5,6 @@ use std::time::Duration;
 #[cfg(debug_assertions)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::pool::Conn;
 use async_trait::async_trait;
 use diesel::{
     sql_types::{BigInt, Float, Integer, Nullable, Text},
@@ -15,6 +14,8 @@ use diesel_async::RunQueryDsl;
 use http::StatusCode;
 use syncserver_common::Metrics;
 use tokenserver_db_common::{params, results, Db, DbError, DbResult};
+
+use super::pool::Conn;
 
 /// Struct containing connection and related metadata to a Tokenserver
 /// Postgres Database.
