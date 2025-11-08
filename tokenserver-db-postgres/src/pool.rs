@@ -19,7 +19,7 @@ use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
-use super::models::TokenserverPgDb;
+use crate::db::TokenserverPgDb;
 use tokenserver_settings::Settings;
 use tokio::task::spawn_blocking;
 

@@ -33,18 +33,18 @@ use support::{
     StreamedResultSetAsync,
 };
 
-#[derive(Debug, Eq, PartialEq)]
-enum CollectionLock {
-    Read,
-    Write,
-}
-
 mod batch_impl;
 mod db_impl;
 mod stream;
 pub(crate) mod support;
 
 pub use batch_impl::validate_batch_id;
+
+#[derive(Debug, Eq, PartialEq)]
+enum CollectionLock {
+    Read,
+    Write,
+}
 
 const TOMBSTONE: i32 = 0;
 pub const PRETOUCH_TS: &str = "0001-01-01T00:00:00.00Z";

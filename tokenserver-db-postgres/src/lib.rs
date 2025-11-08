@@ -2,12 +2,12 @@
 extern crate diesel;
 extern crate diesel_migrations;
 
-mod models;
-mod orm_models;
+mod db;
 mod pool;
-mod schema;
 
-pub use models::TokenserverPgDb;
-pub use orm_models::{Node, Service, User};
+pub use db::{
+    orm_models::{Node, Service, User},
+    TokenserverPgDb,
+};
 pub use pool::TokenserverPgPool;
 pub use tokenserver_db_common::{params, results, Db, DbPool};

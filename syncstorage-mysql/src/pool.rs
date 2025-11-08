@@ -28,7 +28,7 @@ use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
 use tokio::task::spawn_blocking;
 
-use super::{models::MysqlDb, DbError, DbResult};
+use super::{db::MysqlDb, DbError, DbResult};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -171,7 +171,7 @@ impl DbPool for MysqlDbPool {
     }
 
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        super::batch::validate_batch_id(&id)
+        super::db::validate_batch_id(&id)
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {
