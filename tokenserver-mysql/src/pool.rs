@@ -21,7 +21,7 @@ use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 use tokenserver_settings::Settings;
 use tokio::task::spawn_blocking;
 
-use super::models::TokenserverDb;
+use crate::db::TokenserverDb;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
