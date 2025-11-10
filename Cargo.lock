@@ -3698,8 +3698,8 @@ dependencies = [
  "syncserver-db-common",
  "syncserver-settings",
  "tokenserver-db-common",
- "tokenserver-db-postgres",
  "tokenserver-mysql",
+ "tokenserver-postgres",
  "tokenserver-settings",
  "tokio",
  "url",
@@ -3725,7 +3725,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokenserver-db-postgres"
+name = "tokenserver-mysql"
 version = "0.21.1"
 dependencies = [
  "async-trait",
@@ -3744,7 +3744,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokenserver-mysql"
+name = "tokenserver-postgres"
 version = "0.21.1"
 dependencies = [
  "async-trait",

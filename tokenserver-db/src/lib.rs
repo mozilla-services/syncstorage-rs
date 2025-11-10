@@ -23,7 +23,7 @@ pub fn pool_from_settings(
             use_test_transactions,
         )?),
         #[cfg(feature = "postgres")]
-        "postgres" => Box::new(tokenserver_db_postgres::TokenserverPgPool::new(
+        "postgres" => Box::new(tokenserver_postgres::TokenserverPgPool::new(
             settings,
             metrics,
             use_test_transactions,
