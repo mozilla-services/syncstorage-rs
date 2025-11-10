@@ -319,6 +319,7 @@ impl Server {
                 metrics.clone(),
                 db_pool.clone(),
                 blocking_threadpool,
+                settings.include_hostname_tag,
             )?;
 
             None
@@ -391,6 +392,7 @@ impl Server {
             tokenserver_state.metrics.clone(),
             tokenserver_state.db_pool.clone(),
             blocking_threadpool,
+            settings.include_hostname_tag,
         )?;
 
         let server = HttpServer::new(move || {
@@ -489,46 +491,54 @@ fn spawn_metric_periodic_reporter<T: GetPoolState + Send + 'static>(
     metrics: Arc<StatsdClient>,
     pool: T,
     blocking_threadpool: Arc<BlockingThreadpool>,
+    include_hostname_tag: bool,
 ) -> Result<(), DbError> {
-    let hostname = hostname::get()
-        .expect("Couldn't get hostname")
-        .into_string()
-        .expect("Couldn't get hostname");
+    let hostname = include_hostname_tag.then(|| {
+        hostname::get()
+            .expect("Couldn't get hostname")
+            .into_string()
+            .expect("Couldn't get hostname")
+    });
+
     tokio::spawn(async move {
+        let send_gauge_with_maybe_hostname = |key, value| {
+            let metric = metrics.gauge_with_tags(key, value);
+
+            let metric = if let Some(hostname) = &hostname {
+                metric.with_tag("hostname", hostname)
+            } else {
+                metric
+            };
+
+            metric.send();
+        };
+
         loop {
             let PoolState {
                 connections,
                 idle_connections,
             } = pool.state();
-            metrics
-                .gauge_with_tags(
-                    "storage.pool.connections.active",
-                    (connections - idle_connections) as u64,
-                )
-                .with_tag("hostname", &hostname)
-                .send();
-            metrics
-                .gauge_with_tags("storage.pool.connections.idle", idle_connections as u64)
-                .with_tag("hostname", &hostname)
-                .send();
+            send_gauge_with_maybe_hostname(
+                "storage.pool.connections.active",
+                (connections - idle_connections) as u64,
+            );
+            send_gauge_with_maybe_hostname(
+                "storage.pool.connections.active",
+                (connections - idle_connections) as u64,
+            );
+            send_gauge_with_maybe_hostname(
+                "storage.pool.connections.idle",
+                idle_connections as u64,
+            );
 
             let BlockingThreadpoolMetrics {
                 queued_tasks,
                 active_threads,
                 max_idle_threads,
             } = blocking_threadpool.metrics();
-            metrics
-                .gauge_with_tags("blocking_threadpool.queued", queued_tasks)
-                .with_tag("hostname", &hostname)
-                .send();
-            metrics
-                .gauge_with_tags("blocking_threadpool.active", active_threads)
-                .with_tag("hostname", &hostname)
-                .send();
-            metrics
-                .gauge_with_tags("blocking_threadpool.max_idle", max_idle_threads)
-                .with_tag("hostname", &hostname)
-                .send();
+            send_gauge_with_maybe_hostname("blocking_threadpool.queued", queued_tasks);
+            send_gauge_with_maybe_hostname("blocking_threadpool.active", active_threads);
+            send_gauge_with_maybe_hostname("blocking_threadpool.max_idle", max_idle_threads);
 
             time::sleep(interval).await;
         }
