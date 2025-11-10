@@ -29,6 +29,9 @@ pub struct Settings {
 
     pub statsd_host: Option<String>,
     pub statsd_port: u16,
+    /// Whether to  include the hostname in metrics, which increases cardinality significantly in
+    /// prod.
+    pub include_hostname_tag: bool,
 
     /// Environment of Sync application (Stage, Prod, Dev, etc).
     pub environment: String,
@@ -186,6 +189,7 @@ impl Default for Settings {
             master_secret: Secrets::default(),
             statsd_host: Some("localhost".to_owned()),
             statsd_port: 8125,
+            include_hostname_tag: false,
             environment: "dev".to_owned(),
             human_logs: false,
             cors_allowed_origin: Some("*".to_owned()),
