@@ -2,9 +2,8 @@ use chrono::NaiveDateTime;
 use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
-use diesel::{Identifiable, Insertable, Queryable};
+use diesel::{Identifiable, Queryable};
 
-#[allow(unused)]
 #[allow(clippy::all)]
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id))]
