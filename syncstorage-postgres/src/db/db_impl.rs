@@ -1,11 +1,12 @@
 #![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
+use diesel::{sql_query, sql_types::Text, OptionalExtension};
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{params, results, util::SyncTimestamp, Db};
 use syncstorage_settings::Quota;
 
 use super::PgDb;
-use crate::{pool::Conn, DbResult};
+use crate::{pool::Conn, DbError, DbResult};
 
 #[async_trait(?Send)]
 impl Db for PgDb {
@@ -172,8 +173,26 @@ impl Db for PgDb {
         todo!()
     }
 
-    async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error> {
-        todo!()
+    async fn get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        let id = sql_query(
+            "SELECT id
+               FROM collections
+              WHERE name = $1",
+        )
+        .bind::<Text, _>(name)
+        .get_result::<results::IdResult>(&mut self.conn)
+        .await
+        .optional()?
+        .ok_or_else(DbError::collection_not_found)?
+        .id;
+        if !self.session.in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+        Ok(id)
     }
 
     fn get_connection_info(&self) -> results::ConnectionInfo {
