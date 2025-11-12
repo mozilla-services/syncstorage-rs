@@ -86,6 +86,8 @@ pub struct ConnectionInfo {
 
 pub type GetCollectionId = i32;
 
+pub type GetOrCreateCollectionId = i32;
+
 pub type CreateCollection = i32;
 
 pub type UpdateCollection = SyncTimestamp;
