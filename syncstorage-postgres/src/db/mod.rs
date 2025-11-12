@@ -81,7 +81,9 @@ impl PgDb {
         }
     }
 
-    /// NOTE: Will be completed with other db method task.
+    /// Gets the provided collection by name and creates it if not present.
+    /// Checks collection cache first to see if matching collection stored.
+    /// Uses logic to not make change sif there is a conflict during insert.
     pub(super) async fn get_or_create_collection_id(
         &mut self,
         name: &str,
