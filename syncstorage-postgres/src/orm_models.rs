@@ -10,7 +10,7 @@ use diesel::{Identifiable, Queryable};
 pub struct BatchBso {
     pub fxa_uid: Uuid,
     pub fxa_kid: String,
-    pub collection_id: i64,
+    pub collection_id: i32,
     pub batch_id: String,
     pub batch_bso_id: String,
     pub sortindex: Option<i64>,
@@ -24,7 +24,7 @@ pub struct BatchBso {
 pub struct Batch {
     pub fxa_uid: Uuid,
     pub fxa_kid: String,
-    pub collection_id: i64,
+    pub collection_id: i32,
     pub batch_id: String,
     pub expiry: NaiveDateTime,
 }
@@ -34,7 +34,7 @@ pub struct Batch {
 pub struct Bso {
     pub fxa_uid: Uuid,
     pub fxa_kid: String,
-    pub collection_id: i64,
+    pub collection_id: i32,
     pub bso_id: String,
     pub sortindex: Option<i64>,
     pub payload: Vec<u8>,
@@ -45,7 +45,7 @@ pub struct Bso {
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(collection_id))]
 pub struct Collection {
-    pub collection_id: i64,
+    pub collection_id: i32,
     pub name: String,
 }
 
@@ -54,7 +54,7 @@ pub struct Collection {
 pub struct UserCollection {
     pub fxa_uid: Uuid,
     pub fxa_kid: String,
-    pub collection_id: i64,
+    pub collection_id: i32,
     pub modified: NaiveDateTime,
     pub count: Option<i64>,
     pub total_bytes: Option<i64>,
