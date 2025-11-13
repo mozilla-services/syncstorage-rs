@@ -53,9 +53,9 @@ struct PgDbSession {
     /// The "current time" on the server used for this session's operations.
     timestamp: SyncTimestamp,
     /// Cache of collection modified timestamps per (HawkIdentifier, collection_id).
-    coll_modified_cache: HashMap<(UserIdentifier, i32), SyncTimestamp>,
+    coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
     /// Currently locked collections.
-    coll_locks: HashMap<(UserIdentifier, i32), CollectionLock>,
+    coll_locks: HashMap<(u32, i32), CollectionLock>,
     /// Whether a transaction was started (begin() called)
     in_transaction: bool,
     /// Boolean to identify if query in active transaction.
