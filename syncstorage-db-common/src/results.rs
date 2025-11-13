@@ -86,14 +86,6 @@ pub struct ConnectionInfo {
 
 pub type GetCollectionId = i32;
 
-pub type GetOrCreateCollectionId = i32;
-
 pub type CreateCollection = i32;
 
 pub type UpdateCollection = SyncTimestamp;
-
-#[derive(Debug, QueryableByName)]
-pub struct IdResult {
-    #[diesel(sql_type = Integer)]
-    pub id: i32,
-}
