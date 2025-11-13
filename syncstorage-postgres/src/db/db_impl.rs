@@ -7,11 +7,13 @@ use diesel::{
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, Sorting};
+use syncstorage_db_common::{
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
+};
 use syncstorage_settings::Quota;
 
 use super::PgDb;
-use crate::{bsos_query, pool::Conn, schema::bsos, DbError, DbResult};
+use crate::{bsos_query, pool::Conn, schema::bsos, schema::user_collections, DbError, DbResult};
 
 #[async_trait(?Send)]
 impl Db for PgDb {
@@ -51,11 +53,63 @@ impl Db for PgDb {
         Ok(true)
     }
 
+    /// Explicitly lock the matching row in the user_collections table. Read
+    /// locks do `SELECT ... LOCK IN SHARE MODE` and write locks do `SELECT
+    /// ... FOR UPDATE`.
+    ///
+    /// In theory it would be possible to use serializable transactions rather
+    /// than explicit locking, but our ops team have expressed concerns about
+    /// the efficiency of that approach at scale.
     async fn lock_for_read(
         &mut self,
         params: params::LockCollection,
-    ) -> Result<results::LockCollection, Self::Error> {
-        todo!()
+    ) -> DbResult<results::LockCollection> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self
+            .get_collection_id(&params.collection)
+            .await
+            .or_else(|e| {
+                if e.is_collection_not_found() {
+                    // If the collection doesn't exist, we still want to start a
+                    // transaction, so it will continue to not exist.
+                    Ok(0)
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        // If we already have a read or write lock then it's safe to
+        // use it as-is.
+        if self
+            .session
+            .coll_locks
+            .contains_key(&(user_id as u32, collection_id))
+        {
+            return Ok(());
+        }
+
+        // Lock db.
+        self.begin(false).await?;
+
+        let modified = user_collections::table
+            .select(user_collections::modified)
+            .filter(user_collections::fxa_uid.eq(user_id))
+            .filter(user_collections::collection_id.eq(collection_id))
+            .for_share()
+            .first(&mut self.conn)
+            .await
+            .optional()?;
+
+        if let Some(modified) = modified {
+            let modified = SyncTimestamp::from_i64(modified)?;
+            self.session
+                .coll_modified_cache
+                .insert((user_id as u32, collection_id), modified);
+        }
+        self.session
+            .coll_locks
+            .insert((user_id as u32, collection_id), super::CollectionLock::Read);
+        Ok(())
     }
 
     async fn lock_for_write(
