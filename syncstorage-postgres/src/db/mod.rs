@@ -1,10 +1,14 @@
 #![allow(dead_code)] // XXX:
 use std::{collections::HashMap, fmt, sync::Arc};
 
+use diesel::{ExpressionMethods, QueryDsl};
+use diesel_async::RunQueryDsl;
+
 use syncserver_common::Metrics;
 use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
+use super::schema::collections;
 use super::{
     pool::{CollectionCache, Conn},
     DbResult,
@@ -77,8 +81,32 @@ impl PgDb {
         }
     }
 
-    /// NOTE: Will be completed with other db method task.
-    pub(super) async fn get_or_create_collection_id(&mut self, _name: &str) -> DbResult<i32> {
-        todo!()
+    /// Gets the provided collection by name and creates it if not present.
+    /// Checks collection cache first to see if matching collection stored.
+    /// Uses logic to not make change sif there is a conflict during insert.
+    pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
+        if let Some(id) = self.coll_cache.get_id(name)? {
+            return Ok(id);
+        }
+
+        // Postgres specific ON CONFLICT DO NOTHING statement.
+        // https://docs.diesel.rs/2.0.x/diesel/query_builder/struct.InsertStatement.html#method.on_conflict_do_nothing
+        diesel::insert_into(collections::table)
+            .values(collections::name.eq(name))
+            .on_conflict_do_nothing()
+            .execute(&mut self.conn)
+            .await?;
+
+        let id = collections::table
+            .select(collections::collection_id)
+            .filter(collections::name.eq(name))
+            .first(&mut self.conn)
+            .await?;
+
+        if !self.session.in_write_transaction {
+            self.coll_cache.put(id, name.to_owned())?;
+        }
+
+        Ok(id)
     }
 }

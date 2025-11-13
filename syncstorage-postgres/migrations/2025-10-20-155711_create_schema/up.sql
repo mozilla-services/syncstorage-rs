@@ -11,7 +11,7 @@
 CREATE TABLE user_collections (
     fxa_uid UUID NOT NULL,
     fxa_kid TEXT NOT NULL,
-    collection_id BIGINT NOT NULL,
+    collection_id INTEGER NOT NULL,
     modified TIMESTAMP NOT NULL,
     count BIGINT,
     total_bytes BIGINT,
@@ -26,7 +26,7 @@ CREATE TABLE user_collections (
 CREATE TABLE bsos (
     fxa_uid UUID NOT NULL,
     fxa_kid TEXT NOT NULL,
-    collection_id BIGINT NOT NULL,
+    collection_id INTEGER NOT NULL,
     bso_id TEXT NOT NULL,
     sortindex BIGINT,
     payload BYTEA NOT NULL,
@@ -65,7 +65,7 @@ CREATE INDEX bsos_expiry_idx ON bsos (
 
 -- collections table
 CREATE TABLE collections (
-    collection_id BIGINT PRIMARY KEY,
+    collection_id INTEGER PRIMARY KEY,
     name VARCHAR(32) NOT NULL UNIQUE
 );
 
@@ -73,7 +73,7 @@ CREATE TABLE collections (
 CREATE TABLE batches (
     fxa_uid UUID NOT NULL,
     fxa_kid TEXT NOT NULL,
-    collection_id BIGINT NOT NULL,
+    collection_id INTEGER NOT NULL,
     batch_id TEXT NOT NULL,
     expiry TIMESTAMP NOT NULL,
     PRIMARY KEY (
@@ -104,7 +104,7 @@ CREATE INDEX batch_expiry_idx ON batches (
 CREATE TABLE batch_bsos (
     fxa_uid UUID NOT NULL,
     fxa_kid TEXT NOT NULL,
-    collection_id BIGINT NOT NULL,
+    collection_id INTEGER NOT NULL,
     batch_id TEXT NOT NULL,
     batch_bso_id TEXT NOT NULL,
     sortindex BIGINT,
