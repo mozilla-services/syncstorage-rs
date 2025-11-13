@@ -16,7 +16,7 @@ Stores per-user, per-collection metadata.
 | --------------- | ----------- | --------------------------------------------------------------------- |
 | `fxa_uid`       | `UUID`      | Firefox Account UID PK (part 1)                              |
 | `fxa_kid`       | `TEXT`      | Key identifier; part of the sync crypto context. PK (part 2) |
-| `collection_id` | `BIGINT`    | Maps to a named collection. PK (part 3)                       |
+| `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 3)                       |
 | `modified`      | `TIMESTAMP` | Last modification time (server-assigned, updated on writes)           |
 | `count`         | `BIGINT`    | Count of BSOs in this collection (used for quota enforcement)         |
 | `total_bytes`   | `BIGINT`    | Total payload size of all BSOs (used for quota enforcement)     
@@ -32,7 +32,7 @@ Stores actual records being synced — Basic Storage Objects.
 | --------------- | ----------- | -------------------------------------------------- |
 | `fxa_uid`       | `UUID`      | Firefox Account UID. PK (part 1) & FK (part 1) to `user_collections` |
 | `fxa_kid`       | `TEXT`      | Key identifier. PK (part 2) & FK (part 2) to `user_collections`      |
-| `collection_id` | `BIGINT`    | Maps to a named collection. PK (part 3) & FK (part 3) to `user_collections`                           |
+| `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 3) & FK (part 3) to `user_collections`                           |
 | `bso_id`        | `TEXT`      | Unique ID within a collection. PK (part 4) |
 | `sortindex`     | `BIGINT`    | Indicates record importance for syncing (optional) |
 | `payload`       | `BYTEA`     | Bytes payload (e.g. JSON blob)                     |
@@ -51,7 +51,7 @@ Maps internal numeric IDs to collection names.
 
 | Column          | Type          | Description                     |
 | --------------- | ------------- | ------------------------------- |
-| `collection_id` | `BIGINT`      | Primary key                     |
+| `collection_id` | `INTEGER`      | Primary key                     |
 | `name`          | `VARCHAR(32)` | Collection name, must be unique |
 
 Used to reference collections efficiently via ID.
@@ -65,7 +65,7 @@ Temporary table for staging batch uploads before final commit.
 | --------------- | ----------- | ------------------------------------------------- |
 | `fxa_uid`       | `UUID`      | Firefox Account UID. PK (part 1) & FK (part 1) to `user_collections`        |
 | `fxa_kid`       | `TEXT`      | Key identifier. PK (part 2) & FK (part 2) to `user_collections`             |
-| `collection_id` | `BIGINT`    | Maps to a named collection. PK (part 3) & FK (part 3) to `user_collections` |
+| `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 3) & FK (part 3) to `user_collections` |
 | `batch_id`      | `TEXT`      | Client-generated or server-assigned batch ID. PK (part 4)  |
 | `expiry`        | `TIMESTAMP` | Time at which batch is discarded if not committed |
 
@@ -79,7 +79,7 @@ Stores BSOs during a batch upload, not yet committed to bsos.
 | --------------- | -------- | --------------------------- |
 | `fxa_uid`       | `UUID`   | FK to `batches`             |
 | `fxa_kid`       | `TEXT`   | FK to `batches`             |
-| `collection_id` | `BIGINT` | FK to `batches`             |
+| `collection_id` | `INTEGER` | FK to `batches`             |
 | `batch_id`      | `TEXT`   | FK to `batches`             |
 | `batch_bso_id`  | `TEXT`   | Unique ID within batch      |
 | `sortindex`     | `BIGINT` | Optional, for sort priority |
@@ -92,21 +92,21 @@ erDiagram
     USER_COLLECTIONS {
         UUID fxa_uid PK
         TEXT fxa_kid PK
-        BIGINT collection_id PK
+        INTEGER collection_id PK
         TIMESTAMP modified
         BIGINT count
         BIGINT total_bytes
     }
 
     COLLECTIONS {
-        BIGINT collection_id PK
+        INTEGER collection_id PK
         VARCHAR name
     }
 
     BSOS {
         UUID fxa_uid PK
         TEXT fxa_kid PK
-        BIGINT collection_id PK
+        INTEGER collection_id PK
         TEXT bso_id PK
         BIGINT sortindex
         BYTEA payload
@@ -117,7 +117,7 @@ erDiagram
     BATCHES {
         UUID fxa_uid PK
         TEXT fxa_kid PK
-        BIGINT collection_id PK
+        INTEGER collection_id PK
         TEXT batch_id PK
         TIMESTAMP expiry
     }
@@ -125,7 +125,7 @@ erDiagram
     BATCH_BSOS {
         UUID fxa_uid PK
         TEXT fxa_kid PK
-        BIGINT collection_id PK
+        INTEGER collection_id PK
         TEXT batch_id PK
         TEXT batch_bso_id PK
         BIGINT sortindex
