@@ -269,11 +269,14 @@ pub enum Sorting {
 
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 pub struct UserIdentifier {
-    /// For MySQL database backends as the primary key
+    /// For MySQL/Postgres database backends as the primary key.
     pub legacy_id: u64,
-    /// For NoSQL database backends that require randomly distributed primary keys
+    /// For NoSQL database backends that require randomly distributed primary keys.
     pub fxa_uid: String,
+    /// Key identifier; part of the sync crypto context.
     pub fxa_kid: String,
+    /// Hash of the Firefox user ID associated with a Sync account.
     pub hashed_fxa_uid: String,
+    /// Hash of the device id metadata.
     pub hashed_device_id: String,
 }
