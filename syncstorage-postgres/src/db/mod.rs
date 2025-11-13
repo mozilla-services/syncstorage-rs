@@ -5,7 +5,7 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 
 use syncserver_common::Metrics;
-use syncstorage_db_common::{results, util::SyncTimestamp, UserIdentifier};
+use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
 use super::schema::collections;
@@ -84,10 +84,7 @@ impl PgDb {
     /// Gets the provided collection by name and creates it if not present.
     /// Checks collection cache first to see if matching collection stored.
     /// Uses logic to not make change sif there is a conflict during insert.
-    pub(super) async fn get_or_create_collection_id(
-        &mut self,
-        name: &str,
-    ) -> DbResult<results::GetOrCreateCollectionId> {
+    pub(super) async fn get_or_create_collection_id(&mut self, name: &str) -> DbResult<i32> {
         if let Some(id) = self.coll_cache.get_id(name)? {
             return Ok(id);
         }

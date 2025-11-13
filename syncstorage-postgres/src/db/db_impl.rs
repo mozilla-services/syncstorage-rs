@@ -1,6 +1,10 @@
 #![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
-use diesel::{sql_query, sql_types::Text, OptionalExtension};
+use diesel::{
+    sql_query,
+    sql_types::{Integer, Text},
+    OptionalExtension,
+};
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{params, results, util::SyncTimestamp, Db};
 use syncstorage_settings::Quota;
@@ -184,7 +188,7 @@ impl Db for PgDb {
               WHERE name = $1",
         )
         .bind::<Text, _>(name)
-        .get_result::<results::IdResult>(&mut self.conn)
+        .get_result::<IdResult>(&mut self.conn)
         .await
         .optional()?
         .ok_or_else(DbError::collection_not_found)?
@@ -230,4 +234,10 @@ impl Db for PgDb {
             enforced,
         }
     }
+}
+
+#[derive(Debug, QueryableByName)]
+struct IdResult {
+    #[diesel(sql_type = Integer)]
+    id: i32,
 }
