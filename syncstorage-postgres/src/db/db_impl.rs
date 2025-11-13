@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use diesel::{
     sql_query,
     sql_types::{Integer, Text},
-    OptionalExtension,
+    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db};
