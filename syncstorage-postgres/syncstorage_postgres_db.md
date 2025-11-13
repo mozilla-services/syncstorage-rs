@@ -14,7 +14,7 @@ Stores per-user, per-collection metadata.
 
 | Column          | Type        | Description                                                           |
 | --------------- | ----------- | --------------------------------------------------------------------- |
-| `fxa_uid`       | `UUID`      | Firefox Account UID PK (part 1)                              |
+| `fxa_uid`       | `BIGINT`      | Firefox Account UID PK (part 1)                              |
 | `fxa_kid`       | `TEXT`      | Key identifier; part of the sync crypto context. PK (part 2) |
 | `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 3)                       |
 | `modified`      | `TIMESTAMP` | Last modification time (server-assigned, updated on writes)           |
