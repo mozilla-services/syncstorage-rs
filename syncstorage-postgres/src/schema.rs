@@ -1,6 +1,6 @@
 diesel::table! {
     batch_bsos (fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id) {
-        fxa_uid -> Uuid,
+        fxa_uid -> Int8,
         fxa_kid -> Text,
         collection_id -> Int4,
         batch_id -> Text,
@@ -13,7 +13,7 @@ diesel::table! {
 
 diesel::table! {
     batches (fxa_uid, fxa_kid, collection_id, batch_id) {
-        fxa_uid -> Uuid,
+        fxa_uid -> Int8,
         fxa_kid -> Text,
         collection_id -> Int4,
         batch_id -> Text,
@@ -23,13 +23,13 @@ diesel::table! {
 
 diesel::table! {
     bsos (fxa_uid, fxa_kid, collection_id, bso_id) {
-        fxa_uid -> Uuid,
+        fxa_uid -> Int8,
         fxa_kid -> Text,
         collection_id -> Int4,
         bso_id -> Text,
         sortindex -> Nullable<Int8>,
         payload -> Bytea,
-        modified -> Timestamp,
+        modified -> Bigint,
         expiry -> Timestamp,
     }
 }
@@ -44,10 +44,10 @@ diesel::table! {
 
 diesel::table! {
     user_collections (fxa_uid, fxa_kid, collection_id) {
-        fxa_uid -> Uuid,
+        fxa_uid -> Int8,
         fxa_kid -> Text,
         collection_id -> Int4,
-        modified -> Timestamp,
+        modified -> Bigint,
         count -> Nullable<Int8>,
         total_bytes -> Nullable<Int8>,
     }

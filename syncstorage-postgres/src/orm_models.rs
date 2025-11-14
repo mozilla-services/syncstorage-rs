@@ -1,5 +1,4 @@
 use chrono::NaiveDateTime;
-use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
 use diesel::{Identifiable, Queryable};
@@ -8,7 +7,7 @@ use diesel::{Identifiable, Queryable};
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id))]
 pub struct BatchBso {
-    pub fxa_uid: Uuid,
+    pub fxa_uid: i64,
     pub fxa_kid: String,
     pub collection_id: i32,
     pub batch_id: String,
@@ -22,7 +21,7 @@ pub struct BatchBso {
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id))]
 #[diesel(table_name=batches)]
 pub struct Batch {
-    pub fxa_uid: Uuid,
+    pub fxa_uid: i64,
     pub fxa_kid: String,
     pub collection_id: i32,
     pub batch_id: String,
@@ -32,13 +31,13 @@ pub struct Batch {
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id, bso_id))]
 pub struct Bso {
-    pub fxa_uid: Uuid,
+    pub fxa_uid: i64,
     pub fxa_kid: String,
     pub collection_id: i32,
     pub bso_id: String,
     pub sortindex: Option<i64>,
     pub payload: Vec<u8>,
-    pub modified: NaiveDateTime,
+    pub modified: i64,
     pub expiry: NaiveDateTime,
 }
 
@@ -52,10 +51,10 @@ pub struct Collection {
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(fxa_uid, fxa_kid, collection_id))]
 pub struct UserCollection {
-    pub fxa_uid: Uuid,
+    pub fxa_uid: i64,
     pub fxa_kid: String,
     pub collection_id: i32,
-    pub modified: NaiveDateTime,
+    pub modified: i64,
     pub count: Option<i64>,
     pub total_bytes: Option<i64>,
 }
