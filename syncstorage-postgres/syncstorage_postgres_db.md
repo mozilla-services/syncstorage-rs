@@ -17,7 +17,7 @@ Stores per-user, per-collection metadata.
 | `fxa_uid`       | `BIGINT`      | Firefox Account UID PK (part 1)                              |
 | `fxa_kid`       | `TEXT`      | Key identifier; part of the sync crypto context. PK (part 2) |
 | `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 3)                       |
-| `modified`      | `TIMESTAMP` | Last modification time (server-assigned, updated on writes)           |
+| `modified`      | `BIGINT` | Last modification time (server-assigned, updated on writes)           |
 | `count`         | `BIGINT`    | Count of BSOs in this collection (used for quota enforcement)         |
 | `total_bytes`   | `BIGINT`    | Total payload size of all BSOs (used for quota enforcement)     
 
@@ -36,7 +36,7 @@ Stores actual records being synced — Basic Storage Objects.
 | `bso_id`        | `TEXT`      | Unique ID within a collection. PK (part 4) |
 | `sortindex`     | `BIGINT`    | Indicates record importance for syncing (optional) |
 | `payload`       | `BYTEA`     | Bytes payload (e.g. JSON blob)                     |
-| `modified`      | `TIMESTAMP` | Auto-assigned modification timestamp               |
+| `modified`      | `BIGINT` | Auto-assigned modification timestamp               |
 | `expiry`        | `TIMESTAMP` | TTL as absolute expiration time (optional)         |
 
 Indexes
@@ -93,7 +93,7 @@ erDiagram
         UUID fxa_uid PK
         TEXT fxa_kid PK
         INTEGER collection_id PK
-        TIMESTAMP modified
+        BIGINT modified
         BIGINT count
         BIGINT total_bytes
     }
@@ -110,7 +110,7 @@ erDiagram
         TEXT bso_id PK
         BIGINT sortindex
         BYTEA payload
-        TIMESTAMP modified
+        BIGINT modified
         TIMESTAMP expiry
     }
 

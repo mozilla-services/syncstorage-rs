@@ -29,7 +29,7 @@ diesel::table! {
         bso_id -> Text,
         sortindex -> Nullable<Int8>,
         payload -> Bytea,
-        modified -> Timestamp,
+        modified -> Bigint,
         expiry -> Timestamp,
     }
 }
@@ -47,7 +47,7 @@ diesel::table! {
         fxa_uid -> Int8,
         fxa_kid -> Text,
         collection_id -> Int4,
-        modified -> Timestamp,
+        modified -> Bigint,
         count -> Nullable<Int8>,
         total_bytes -> Nullable<Int8>,
     }

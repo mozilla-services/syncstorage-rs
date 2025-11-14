@@ -12,7 +12,7 @@ CREATE TABLE user_collections (
     fxa_uid BIGINT NOT NULL,
     fxa_kid TEXT NOT NULL,
     collection_id INTEGER NOT NULL,
-    modified TIMESTAMP NOT NULL,
+    modified BIGINT NOT NULL,
     count BIGINT,
     total_bytes BIGINT,
     PRIMARY KEY (
@@ -30,7 +30,7 @@ CREATE TABLE bsos (
     bso_id TEXT NOT NULL,
     sortindex BIGINT,
     payload BYTEA NOT NULL,
-    modified TIMESTAMP NOT NULL,
+    modified BIGINT NOT NULL,
     expiry TIMESTAMP NOT NULL,
     PRIMARY KEY (
         fxa_uid,
