@@ -1,15 +1,13 @@
 use chrono::NaiveDateTime;
-use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
 use diesel::{Identifiable, Queryable};
 
 #[allow(clippy::all)]
 #[derive(Queryable, Debug, Identifiable)]
-#[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id, batch_bso_id))]
+#[diesel(primary_key(user_id, collection_id, batch_id, batch_bso_id))]
 pub struct BatchBso {
-    pub fxa_uid: Uuid,
-    pub fxa_kid: String,
+    pub user_id: i64,
     pub collection_id: i32,
     pub batch_id: String,
     pub batch_bso_id: String,
@@ -19,21 +17,19 @@ pub struct BatchBso {
 }
 
 #[derive(Queryable, Debug, Identifiable)]
-#[diesel(primary_key(fxa_uid, fxa_kid, collection_id, batch_id))]
+#[diesel(primary_key(user_id, collection_id, batch_id))]
 #[diesel(table_name=batches)]
 pub struct Batch {
-    pub fxa_uid: Uuid,
-    pub fxa_kid: String,
+    pub user_id: i64,
     pub collection_id: i32,
     pub batch_id: String,
     pub expiry: NaiveDateTime,
 }
 
 #[derive(Queryable, Debug, Identifiable)]
-#[diesel(primary_key(fxa_uid, fxa_kid, collection_id, bso_id))]
+#[diesel(primary_key(user_id, collection_id, bso_id))]
 pub struct Bso {
-    pub fxa_uid: Uuid,
-    pub fxa_kid: String,
+    pub user_id: i64,
     pub collection_id: i32,
     pub bso_id: String,
     pub sortindex: Option<i64>,
@@ -50,10 +46,10 @@ pub struct Collection {
 }
 
 #[derive(Queryable, Debug, Identifiable)]
-#[diesel(primary_key(fxa_uid, fxa_kid, collection_id))]
+#[diesel(primary_key(user_id, collection_id))]
 pub struct UserCollection {
-    pub fxa_uid: Uuid,
-    pub fxa_kid: String,
+    pub user_id: i64,
+
     pub collection_id: i32,
     pub modified: NaiveDateTime,
     pub count: Option<i64>,
