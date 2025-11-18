@@ -93,7 +93,7 @@ impl Db for PgDb {
 
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::fxa_uid.eq(user_id))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
             .first(&mut self.conn)
@@ -130,7 +130,7 @@ impl Db for PgDb {
         self.begin(true).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::fxa_uid.eq(user_id))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first(&mut self.conn)
