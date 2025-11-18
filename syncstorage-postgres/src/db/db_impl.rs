@@ -108,14 +108,11 @@ impl Db for PgDb {
         }
         self.session
             .coll_locks
-            .insert((user_id as u32, collection_id), super::CollectionLock::Read);
+            .insert((user_id as u32, collection_id), CollectionLock::Read);
         Ok(())
     }
 
-    async fn lock_for_write(
-        &mut self,
-        params: params::LockCollection,
-    ) -> DbResult<results::LockCollection> {
+    async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
@@ -135,10 +132,26 @@ impl Db for PgDb {
             .select(user_collections::modified)
             .filter(user_collections::fxa_uid.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
-            .for_share()
+            .for_update()
             .first(&mut self.conn)
             .await
             .optional()?;
+
+        if let Some(modified) = modified {
+            let modified = SyncTimestamp::from_i64(modified)?;
+            // Do not allow write if it would incorrectly increment timestamp.
+            if modified >= self.timestamp() {
+                return Err(DbError::conflict());
+            }
+            self.session
+                .coll_modified_cache
+                .insert((user_id as u32, collection_id), modified);
+        }
+
+        self.session
+            .coll_locks
+            .insert((user_id as u32, collection_id), CollectionLock::Write);
+        Ok(())
     }
 
     async fn get_collection_timestamps(
