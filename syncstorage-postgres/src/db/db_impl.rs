@@ -115,8 +115,30 @@ impl Db for PgDb {
     async fn lock_for_write(
         &mut self,
         params: params::LockCollection,
-    ) -> Result<results::LockCollection, Self::Error> {
-        todo!()
+    ) -> DbResult<results::LockCollection> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+
+        if let Some(CollectionLock::Read) = self
+            .session
+            .coll_locks
+            .get(&(user_id as u32, collection_id))
+        {
+            return Err(DbError::internal(
+                "Can't escalate read-lock to write-lock".to_string(),
+            ));
+        }
+
+        // Lock DB
+        self.begin(true).await?;
+        let modified = user_collections::table
+            .select(user_collections::modified)
+            .filter(user_collections::fxa_uid.eq(user_id))
+            .filter(user_collections::collection_id.eq(collection_id))
+            .for_share()
+            .first(&mut self.conn)
+            .await
+            .optional()?;
     }
 
     async fn get_collection_timestamps(
