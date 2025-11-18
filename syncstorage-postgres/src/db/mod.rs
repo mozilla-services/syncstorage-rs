@@ -109,4 +109,40 @@ impl PgDb {
 
         Ok(id)
     }
+
+    /// Given a set of collection_ids, return a HashMap of collection_id's
+    /// and their matching collection names.
+    /// First attempts to read values from cache if they are present, otherwise
+    /// does a lookup in the `collections` table.
+    async fn load_collection_names<'a>(
+        &mut self,
+        collection_ids: impl Iterator<Item = &'a i32>,
+    ) -> DbResult<HashMap<i32, String>> {
+        let mut names = HashMap::new();
+        let mut uncached = Vec::new();
+
+        for &id in collection_ids {
+            if let Some(name) = self.coll_cache.get_name(id)? {
+                names.insert(id, name);
+            } else {
+                uncached.push(id);
+            }
+        }
+
+        if !uncached.is_empty() {
+            let result = collections::table
+                .select((collections::collection_id, collections::name))
+                .filter(collections::collection_id.eq_any(uncached))
+                .load::<(i32, String)>(&mut self.conn)
+                .await?;
+
+            for (id, name) in result {
+                names.insert(id, name.clone());
+                if !self.session.in_write_transaction {
+                    self.coll_cache.put(id, name)?;
+                }
+            }
+        }
+        Ok(names)
+    }
 }
