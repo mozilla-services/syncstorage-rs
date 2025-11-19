@@ -5,6 +5,7 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 
 use syncserver_common::Metrics;
+use syncstorage_db_common::diesel::DbError;
 use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
@@ -144,5 +145,20 @@ impl PgDb {
             }
         }
         Ok(names)
+    }
+
+    async fn map_collection_names<T>(
+        &mut self,
+        by_id: HashMap<i32, T>,
+    ) -> DbResult<HashMap<String, T>> {
+        let mut names = self.load_collection_names(by_id.keys()).await?;
+        by_id
+            .into_iter()
+            .map(|(id, value)| {
+                names.remove(&id).map(|name| (name, value)).ok_or_else(|| {
+                    DbError::internal("load_collection_names unknown collection id".to_owned())
+                })
+            })
+            .collect()
     }
 }
