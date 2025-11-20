@@ -6,7 +6,7 @@ use diesel_async::RunQueryDsl;
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::diesel::DbError;
-use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
+use syncstorage_db_common::util::SyncTimestamp;
 use syncstorage_settings::Quota;
 
 use super::schema::collections;
