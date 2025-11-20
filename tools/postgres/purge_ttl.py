@@ -29,9 +29,9 @@ def get_db_engine(database_url: str):
 
     # newer versions of SQLAlchemy want 'postgresql' instead of 'postgres'
     if parsed.scheme == 'postgres':
-        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+        parsed = parsed._replace(scheme='postgresql')
 
-    return sqlalchemy.create_engine(database_url)
+    return sqlalchemy.create_engine(parsed.geturl())
 
 
 def exec_delete(
