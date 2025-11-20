@@ -5,6 +5,7 @@ use diesel::{ExpressionMethods, QueryDsl};
 use diesel_async::RunQueryDsl;
 
 use syncserver_common::Metrics;
+use syncstorage_db_common::diesel::DbError;
 use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
@@ -108,5 +109,56 @@ impl PgDb {
         }
 
         Ok(id)
+    }
+
+    /// Given a set of collection_ids, return a HashMap of collection_id's
+    /// and their matching collection names.
+    /// First attempts to read values from cache if they are present, otherwise
+    /// does a lookup in the `collections` table.
+    async fn load_collection_names<'a>(
+        &mut self,
+        collection_ids: impl Iterator<Item = &'a i32>,
+    ) -> DbResult<HashMap<i32, String>> {
+        let mut names = HashMap::new();
+        let mut uncached = Vec::new();
+
+        for &id in collection_ids {
+            if let Some(name) = self.coll_cache.get_name(id)? {
+                names.insert(id, name);
+            } else {
+                uncached.push(id);
+            }
+        }
+
+        if !uncached.is_empty() {
+            let result = collections::table
+                .select((collections::collection_id, collections::name))
+                .filter(collections::collection_id.eq_any(uncached))
+                .load::<(i32, String)>(&mut self.conn)
+                .await?;
+
+            for (id, name) in result {
+                names.insert(id, name.clone());
+                if !self.session.in_write_transaction {
+                    self.coll_cache.put(id, name)?;
+                }
+            }
+        }
+        Ok(names)
+    }
+
+    async fn map_collection_names<T>(
+        &mut self,
+        by_id: HashMap<i32, T>,
+    ) -> DbResult<HashMap<String, T>> {
+        let mut names = self.load_collection_names(by_id.keys()).await?;
+        by_id
+            .into_iter()
+            .map(|(id, value)| {
+                names.remove(&id).map(|name| (name, value)).ok_or_else(|| {
+                    DbError::internal("load_collection_names unknown collection id".to_owned())
+                })
+            })
+            .collect()
     }
 }
