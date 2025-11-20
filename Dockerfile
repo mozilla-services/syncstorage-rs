@@ -165,6 +165,7 @@ COPY --from=builder /app/syncserver/version.json /app
 COPY --from=builder /app/tools/spanner /app/tools/spanner
 COPY --from=builder /app/tools/integration_tests /app/tools/integration_tests
 COPY --from=builder /app/tools/tokenserver /app/tools/tokenserver
+COPY --from=builder /app/tools/postgres /app/tools/postgres
 COPY --from=builder /app/scripts/prepare-spanner.sh /app/scripts/prepare-spanner.sh
 COPY --from=builder /app/scripts/start_mock_fxa_server.sh /app/scripts/start_mock_fxa_server.sh
 COPY --from=builder /app/syncstorage-spanner/src/schema.ddl /app/schema.ddl
@@ -178,6 +179,11 @@ RUN poetry export --no-interaction --without dev --output requirements.txt --wit
 WORKDIR /app
 RUN pip3 install --break-system-packages -r /app/tools/integration_tests/requirements.txt
 RUN pip3 install --break-system-packages -r /app/tools/tokenserver/requirements.txt
+RUN if [ "$SYNCSTORAGE_DATABASE_BACKEND" = "postgres" ]; then \
+        cd /app/tools/postgres && \
+        poetry export --no-interaction --without dev --output requirements.txt --without-hashes && \
+        pip3 install --break-system-packages -r requirements.txt; \
+    fi
 
 USER app:app
 
