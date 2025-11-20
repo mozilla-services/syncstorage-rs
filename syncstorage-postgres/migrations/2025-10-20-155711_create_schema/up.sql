@@ -2,13 +2,10 @@
 CREATE TABLE user_collections (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
-    modified TIMESTAMP NOT NULL,
+    modified BIGINT NOT NULL,
     count BIGINT,
     total_bytes BIGINT,
-    PRIMARY KEY (
-	user_id,
-        collection_id
-    )
+    PRIMARY KEY (user_id, collection_id)
 );
 
 -- bsos table
@@ -18,20 +15,14 @@ CREATE TABLE bsos (
     bso_id TEXT NOT NULL,
     sortindex BIGINT,
     payload BYTEA NOT NULL,
-    modified TIMESTAMP NOT NULL,
+    modified BIGINT NOT NULL,
     expiry TIMESTAMP NOT NULL,
     PRIMARY KEY (
         user_id,
         collection_id,
         bso_id
     ),
-    FOREIGN KEY (
-        user_id,
-        collection_id
-    ) REFERENCES user_collections (
-        user_id,
-        collection_id
-    ) ON DELETE CASCADE
+    FOREIGN KEY (user_id, collection_id) REFERENCES user_collections (user_id, collection_id) ON DELETE CASCADE
 );
 
 CREATE INDEX bsos_modified_idx ON bsos (
@@ -63,13 +54,7 @@ CREATE TABLE batches (
         collection_id,
         batch_id
     ),
-    FOREIGN KEY (
-        user_id,
-        collection_id
-    ) REFERENCES user_collections (
-        user_id,
-        collection_id
-    ) ON DELETE CASCADE
+    FOREIGN KEY (user_id, collection_id) REFERENCES user_collections (user_id, collection_id) ON DELETE CASCADE
 );
 
 CREATE INDEX batch_expiry_idx ON batches (
