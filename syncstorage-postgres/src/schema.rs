@@ -4,8 +4,8 @@ diesel::table! {
         collection_id -> Int4,
         batch_id -> Text,
         batch_bso_id -> Text,
-        sortindex -> Nullable<Int8>,
-        payload -> Nullable<Bytea>,
+        sortindex -> Nullable<Int4>,
+        payload -> Nullable<Text>,
         ttl -> Nullable<Int8>,
     }
 }
@@ -24,8 +24,8 @@ diesel::table! {
         user_id -> Int8,
         collection_id -> Int4,
         bso_id -> Text,
-        sortindex -> Nullable<Int8>,
-        payload -> Bytea,
+        sortindex -> Nullable<Int4>,
+        payload -> Text,
         modified -> Timestamp,
         expiry -> Timestamp,
     }

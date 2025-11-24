@@ -822,6 +822,7 @@ checksum = "229850a212cd9b84d4f0290ad9d294afc0ae70fccaa8949dbe8b43ffafa1e20c"
 dependencies = [
  "bitflags 2.9.3",
  "byteorder",
+ "chrono",
  "diesel_derives",
  "itoa",
  "pq-sys",

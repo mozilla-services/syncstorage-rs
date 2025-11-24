@@ -16,8 +16,8 @@ CREATE TABLE bsos (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
     bso_id TEXT NOT NULL,
-    sortindex BIGINT,
-    payload BYTEA NOT NULL,
+    sortindex INTEGER,
+    payload TEXT NOT NULL,
     modified TIMESTAMP NOT NULL,
     expiry TIMESTAMP NOT NULL,
     PRIMARY KEY (
@@ -84,8 +84,8 @@ CREATE TABLE batch_bsos (
     collection_id INTEGER NOT NULL,
     batch_id TEXT NOT NULL,
     batch_bso_id TEXT NOT NULL,
-    sortindex BIGINT,
-    payload BYTEA,
+    sortindex INTEGER,
+    payload TEXT,
     ttl BIGINT,
     PRIMARY KEY (
         user_id,
