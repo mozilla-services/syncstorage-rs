@@ -1,10 +1,12 @@
-#![allow(unused_variables)] // XXX:
+#![allow(unused_variables)]
+// XXX:
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::{
     sql_query,
+    sql_types::{BigInt, Integer, Text},
     sql_types::{Integer, Nullable, Text, Timestamp},
-    ExpressionMethods, OptionalExtension, QueryDsl,
+    ExpressionMethods, OptionalExtension, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
@@ -316,8 +318,34 @@ impl Db for PgDb {
     async fn update_collection(
         &mut self,
         params: params::UpdateCollection,
-    ) -> Result<SyncTimestamp, Self::Error> {
-        todo!()
+    ) -> DbResult<SyncTimestamp> {
+        // XXX: In MySQL impl, this is where the unused quota
+        // enforcement takes place. We may/may not impl it.
+        let quota = results::GetQuotaUsage {
+            total_bytes: 0,
+            count: 0,
+        };
+
+        let upsert = r#"
+                INSERT INTO user_collections (user_id, collection_id, modified, count, total_bytes)
+                VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (user_id, collection_id)
+                    DO UPDATE SET
+                         modified = EXCLUDED.modified,
+                         total_bytes = EXCLUDED.total_bytes,
+                         count = EXCLUDED.count
+        "#;
+        let total_bytes = quota.total_bytes as i64;
+        let timestamp = self.timestamp().as_i64();
+        sql_query(upsert)
+            .bind::<BigInt, _>(params.user_id.legacy_id as i64)
+            .bind::<Integer, _>(&params.collection_id)
+            .bind::<BigInt, _>(&timestamp)
+            .bind::<Integer, _>(&quota.count)
+            .bind::<BigInt, _>(&total_bytes)
+            .execute(&mut self.conn)
+            .await?;
+        Ok(self.timestamp())
     }
 
     fn timestamp(&self) -> SyncTimestamp {
