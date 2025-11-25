@@ -315,6 +315,10 @@ impl Db for PgDb {
         self.get_or_create_collection_id(name).await
     }
 
+    /// Updates a given collection entry, when provided the `user_id`, `collection_id`,
+    /// and `collection` string. This is an insertion operation should the
+    /// `user_id` and `collection_id` keys not exist, but will update with the Postgres
+    /// `INSERT...ON CONFLICT` statement.
     async fn update_collection(
         &mut self,
         params: params::UpdateCollection,
@@ -326,6 +330,9 @@ impl Db for PgDb {
             count: 0,
         };
 
+        // This method is an upsert operation, which allows the update of an existing row
+        // or inserts a new one if it doesn’t exist. Postgres does not have `UPSERT` but
+        // achieves this though `INSERT...ON CONFLICT`.
         let upsert = r#"
                 INSERT INTO user_collections (user_id, collection_id, modified, count, total_bytes)
                 VALUES ($1, $2, $3, $4, $5)
