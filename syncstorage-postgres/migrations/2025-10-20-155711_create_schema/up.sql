@@ -2,7 +2,7 @@
 CREATE TABLE user_collections (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
-    modified BIGINT NOT NULL,
+    modified TIMESTAMP NOT NULL,
     count BIGINT,
     total_bytes BIGINT,
     PRIMARY KEY (user_id, collection_id)
