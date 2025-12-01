@@ -34,7 +34,7 @@ Stores actual records being synced — Basic Storage Objects.
 | `bso_id`        | `TEXT`      | Unique ID within a collection. PK (part 4) |
 | `sortindex`     | `BIGINT`    | Indicates record importance for syncing (optional) |
 | `payload`       | `BYTEA`     | Bytes payload (e.g. JSON blob)                     |
-| `modified`      | `BIGINT` | Auto-assigned modification timestamp               |
+| `modified`      | `TIMESTAMP` | Auto-assigned modification timestamp               |
 | `expiry`        | `TIMESTAMP` | TTL as absolute expiration time (optional)         |
 
 Indexes
@@ -89,7 +89,7 @@ erDiagram
     USER_COLLECTIONS {
         BIGINT user_id PK
         INTEGER collection_id PK
-        BIGINT modified
+        TIMESTAMP modified
         BIGINT count
         BIGINT total_bytes
     }
@@ -105,7 +105,7 @@ erDiagram
         TEXT bso_id PK
         BIGINT sortindex
         BYTEA payload
-        BIGINT modified
+        TIMESTAMP modified
         TIMESTAMP expiry
     }
 

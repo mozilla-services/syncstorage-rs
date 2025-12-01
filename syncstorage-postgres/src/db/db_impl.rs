@@ -91,17 +91,17 @@ impl Db for PgDb {
         // Lock db.
         self.begin(false).await?;
 
-        let modified = user_collections::table
+        let modified: Option<NaiveDateTime> = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
-            .first(&mut self.conn)
+            .first::<NaiveDateTime>(&mut self.conn)
             .await
             .optional()?;
 
         if let Some(modified) = modified {
-            let modified = SyncTimestamp::from_i64(modified)?;
+            let modified = SyncTimestamp::from_i64(modified.and_utc().timestamp_millis())?;
             self.session
                 .coll_modified_cache
                 .insert((user_id as u32, collection_id), modified);
@@ -128,17 +128,17 @@ impl Db for PgDb {
 
         // Lock DB
         self.begin(true).await?;
-        let modified = user_collections::table
+        let modified: Option<NaiveDateTime> = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
-            .first(&mut self.conn)
+            .first::<NaiveDateTime>(&mut self.conn)
             .await
             .optional()?;
 
         if let Some(modified) = modified {
-            let modified = SyncTimestamp::from_i64(modified)?;
+            let modified = SyncTimestamp::from_i64(modified.and_utc().timestamp_millis())?;
             // Do not allow write if it would incorrectly increment timestamp.
             if modified >= self.timestamp() {
                 return Err(DbError::conflict());

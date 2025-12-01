@@ -34,7 +34,7 @@ pub struct Bso {
     pub bso_id: String,
     pub sortindex: Option<i64>,
     pub payload: Vec<u8>,
-    pub modified: i64,
+    pub modified: NaiveDateTime,
     pub expiry: NaiveDateTime,
 }
 
@@ -51,7 +51,7 @@ pub struct UserCollection {
     pub user_id: i64,
 
     pub collection_id: i32,
-    pub modified: i64,
+    pub modified: NaiveDateTime,
     pub count: Option<i64>,
     pub total_bytes: Option<i64>,
 }

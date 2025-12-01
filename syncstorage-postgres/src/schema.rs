@@ -43,7 +43,7 @@ diesel::table! {
     user_collections (user_id, collection_id) {
         user_id -> Int8,
         collection_id -> Int4,
-        modified -> Bigint,
+        modified -> Timestamp,
         count -> Nullable<Int8>,
         total_bytes -> Nullable<Int8>,
     }
