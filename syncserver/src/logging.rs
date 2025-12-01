@@ -1,17 +1,18 @@
+use std::fs;
 use std::io;
+use std::os::linux::fs::MetadataExt;
 
 use crate::error::ApiResult;
 
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
-use std::os::fd::AsFd;
 
 fn connected_to_journal() -> bool {
-    rustix::fs::fstat(std::io::stderr().as_fd())
-        .map(|stat| format!("{}:{}", stat.st_dev, stat.st_ino))
+    fs::metadata("/dev/stderr")
+        .map(|meta| format!("{}:{}", meta.st_dev(), meta.st_ino()))
         .ok()
         .and_then(|stderr| {
-            std::env::var_os("JOURNAL_STREAM").map(|s| s.to_string_lossy() == stderr.as_str())
+            std::env::var_os("JOURNAL_STREAM").map(|s| s == stderr.as_str())
         })
         .unwrap_or(false)
 }
