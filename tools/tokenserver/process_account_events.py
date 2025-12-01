@@ -101,7 +101,7 @@ def process_account_event(database, body, metrics=None):
         # relier other than tokenserver.  Newer versions send just the raw uid
         # in the "uid" field, and include the domain in a separate "iss" field.
         if "iss" in event:
-            email = "%s@%s" % (uid, event["iss"])
+            email = f"{uid}@{event['iss']}"
         else:
             if "@" not in uid:
                 raise ValueError("uid field does not contain issuer info")
@@ -112,7 +112,7 @@ def process_account_event(database, body, metrics=None):
         ):
             generation = event["generation"]
     except (ValueError, KeyError) as e:
-        logger.exception("Invalid account message: %s", e)
+        logger.exception(f"Invalid account message: {e}", )
     else:
         if email is not None:
             record_metric = True

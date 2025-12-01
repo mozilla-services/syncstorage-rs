@@ -37,6 +37,8 @@ UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 
 SPANNER_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_integration__results.xml
 SPANNER_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_no_oauth_integration__results.xml
+POSTGRES_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_integration__results.xml
+POSTGRES_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_no_oauth_integration__results.xml
 MYSQL_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_integration__results.xml
 MYSQL_NO_JWK_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_no_oauth_integration__results.xml
 
@@ -90,13 +92,26 @@ docker_run_mysql_e2e_tests:
 	exit $$exit_code;
 
 .ONESHELL:
+docker_run_postgres_e2e_tests:
+	docker compose \
+		-f docker-compose.postgres.yaml \
+		-f docker-compose.e2e.postgres.yaml \
+	 	up \
+	 	--exit-code-from postgres-e2e-tests \
+	 	--abort-on-container-exit;
+	exit_code=$$?;
+	docker cp postgres-e2e-tests:/postgres_integration_results.xml ${POSTGRES_INT_JUNIT_XML};
+	docker cp postgres-e2e-tests:/postgres_no_jwk_integration_results.xml ${POSTGRES_NO_JWK_INT_JUNIT_XML};
+	exit $$exit_code;
+
+.ONESHELL:
 docker_run_spanner_e2e_tests:
 	docker compose \
 		-f docker-compose.spanner.yaml \
 		-f docker-compose.e2e.spanner.yaml \
 	 	up \
 	 	--exit-code-from spanner-e2e-tests \
-	 	--abort-on-container-exit; 
+	 	--abort-on-container-exit;
 	exit_code=$$?;
 	docker cp spanner-e2e-tests:/spanner_integration_results.xml ${SPANNER_INT_JUNIT_XML};
 	docker cp spanner-e2e-tests:/spanner_no_jwk_integration_results.xml ${SPANNER_NO_JWK_INT_JUNIT_XML};

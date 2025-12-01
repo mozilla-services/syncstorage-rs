@@ -1,0 +1,24 @@
+[project]
+name = "postgres-tools"
+version = "0.1.0"
+description = "Scripts for syncstorage-rs on Postgres"
+authors = [
+    {name = "Mozilla"}
+]
+license = "Mozilla Public License Version 2.0"
+requires-python = ">=3.9.2"
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.dependencies]
+sqlalchemy = "^1.4.46"
+psycopg2-binary = "^2.9.11"
+statsd = "^4.0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -132,7 +132,7 @@ class TestMisc(TestCase, unittest.TestCase):
         self.assertEqual(user["keys_changed_at"], 1234)
         self.assertEqual(user["client_state"], "aaaa")
         # Get all the replaced users
-        email = "test@%s" % self.FXA_EMAIL_DOMAIN
+        email = f"test@{self.FXA_EMAIL_DOMAIN}"
         replaced_users = self._get_replaced_users(self.service_id, email)
         # Only one user should be replaced
         self.assertEqual(len(replaced_users), 1)

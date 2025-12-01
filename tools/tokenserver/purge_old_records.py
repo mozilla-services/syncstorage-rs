@@ -98,7 +98,7 @@ def purge_old_records(
                 # completely removed from service.
                 if row.node is None:
                     logger.info(
-                        "Deleting user record for uid %s on %s", row.uid, row.node
+                        f"Deleting user record for uid {row.uid} on row.node"
                     )
                     if not dryrun:
                         if metrics:
@@ -107,7 +107,7 @@ def purge_old_records(
                     # NOTE: only delete_user+service_data calls count
                     # against the counter
                 elif not row.downed:
-                    logger.info("Purging uid %s on %s", row.uid, row.node)
+                    logger.info("Purging uid {row.uid} on {row.node}")
                     if not dryrun:
                         retryable(
                             delete_service_data,

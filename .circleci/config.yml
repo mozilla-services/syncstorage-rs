@@ -77,13 +77,24 @@ commands:
       - run:
           name: Install MySQL client
           command: sudo apt-get update && sudo apt-get install -y default-mysql-client
-  create-tokenserver-database:
+  create-tokenserver-database-mysql:
     steps:
       - run:
-          name: Create Tokenserver database
+          name: Create MySQL Tokenserver database
           command: |
             mysql -u root -ppassword -h 127.0.0.1 -e 'CREATE DATABASE tokenserver;'
             mysql -u root -ppassword -h 127.0.0.1 -e "GRANT ALL ON tokenserver.* to 'test'@'%';"
+  setup-postgres:
+    steps:
+      - run:
+          name: Install PostgreSQL client
+          command: sudo apt-get update && sudo apt-get install -y postgresql-client
+  create-tokenserver-database-postgres:
+    steps:
+      - run:
+          name: Create PostgreSQL Tokenserver database
+          command: |
+            PGPASSWORD=test psql -U test -h 127.0.0.1 -d syncstorage -c 'CREATE DATABASE tokenserver;'
 
   write-version:
     steps:
@@ -110,7 +121,7 @@ commands:
           name: Create test-results directory
           command: mkdir -p workflow/test-results
 
-  run-unit-tests:
+  run-unit-tests-mysql:
     steps:
       - run:
           name: nextest with code coverage
@@ -120,6 +131,25 @@ commands:
           command: make test_with_coverage
           environment:
             SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
+
+  run-unit-tests-postgres:
+    steps:
+      - run:
+          name: Tokenserver tests on PostgreSQL
+          command: |
+            cargo llvm-cov --no-report --summary-only \
+              nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ci
+
+  run-utils-tests-postgres:
+    steps:
+      - run:
+          name: Postgres utils tests
+          working_directory: tools/postgres
+          command: |
+            poetry install --no-interaction --no-ansi
+            poetry run pytest test_purge_ttl.py -v --junit-xml="../../workflow/test-results/${CIRCLE_BUILD_NUM}-${CIRCLE_JOB}-utils_tests.xml"
+          environment:
+            SYNC_SYNCSTORAGE__DATABASE_URL: postgresql://test:test@127.0.0.1/syncstorage
 
   run-spanner-tests:
     steps:
@@ -162,6 +192,42 @@ commands:
           name: Merge llvm-cov results
           command: make merge_coverage_results
 
+  persist-coverage-to-workspace:
+    parameters:
+      job_name:
+        type: string
+    steps:
+      - run:
+          name: Compress and copy coverage data
+          command: |
+            mkdir -p /tmp/coverage-<< parameters.job_name >>
+            tar -czf /tmp/coverage-<< parameters.job_name >>/llvm-cov-target.tar.gz -C target llvm-cov-target
+            tar -czf /tmp/coverage-<< parameters.job_name >>/test-results.tar.gz -C workflow test-results
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - coverage-<< parameters.job_name >>
+
+  attach-coverage-workspace:
+    steps:
+      - attach_workspace:
+          at: /tmp
+      - run:
+          name: Extract and merge coverage data
+          command: |
+            mkdir -p target/llvm-cov-target
+            mkdir -p workflow/test-results
+            for tarball in /tmp/coverage-*/llvm-cov-target.tar.gz; do
+              if [ -f "$tarball" ]; then
+                tar -xzf "$tarball" -C target
+              fi
+            done
+            for tarball in /tmp/coverage-*/test-results.tar.gz; do
+              if [ -f "$tarball" ]; then
+                tar -xzf "$tarball" -C workflow
+              fi
+            done
+
   store-test-results:
     steps:
       - store_test_results:
@@ -184,7 +250,7 @@ commands:
     parameters:
       db:
         type: enum
-        enum: ["mysql", "spanner"]
+        enum: ["mysql", "postgres", "spanner"]
     steps:
       - run:
           name: e2e tests (syncstorage << parameters.db >>)
@@ -263,7 +329,7 @@ jobs:
       - setup-python
       - python-check
 
-  build-and-test:
+  build-and-test-mysql:
     docker:
       - image: cimg/rust:1.89 # RUST_VER
         auth:
@@ -284,26 +350,102 @@ jobs:
           MYSQL_USER: test
           MYSQL_PASSWORD: test
           MYSQL_DATABASE: syncstorage
-      - image: gcr.io/cloud-spanner-emulator/emulator
     resource_class: large
     steps:
       - checkout
       - display-versions
       - setup-python
       - setup-mysql
-      - create-tokenserver-database
+      - create-tokenserver-database-mysql
       # XXX: currently the time needed to setup-sccache negates its savings
       # - setup-sccache
       # - restore-sccache-cache
       - write-version
       - install-test-deps
       - make-test-dir
-      - run-unit-tests
+      - run-unit-tests-mysql
+      - persist-coverage-to-workspace:
+          job_name: mysql
+      # - save-sccache-cache
+
+  build-and-test-postgres:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@127.0.0.1/syncstorage
+          SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@127.0.0.1/tokenserver
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
+      - image: cimg/postgres:18.0
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: syncstorage
+    resource_class: large
+    steps:
+      - checkout
+      - display-versions
+      - setup-python
+      - setup-postgres
+      - create-tokenserver-database-postgres
+      # XXX: currently the time needed to setup-sccache negates its savings
+      # - setup-sccache
+      # - restore-sccache-cache
+      - write-version
+      - install-test-deps
+      - make-test-dir
+      - run-unit-tests-postgres
+      - run-utils-tests-postgres
+      - persist-coverage-to-workspace:
+          job_name: postgres
+      # - save-sccache-cache
+
+  build-and-test-spanner:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+        environment:
+          RUST_BACKTRACE: 1
+          # XXX: begin_test_transaction doesn't play nice over threaded tests
+          RUST_TEST_THREADS: 1
+      - image: gcr.io/cloud-spanner-emulator/emulator
+    resource_class: xlarge
+    steps:
+      - checkout
+      - display-versions
+      - setup-python
+      # XXX: currently the time needed to setup-sccache negates its savings
+      # - setup-sccache
+      # - restore-sccache-cache
+      - write-version
+      - install-test-deps
+      - make-test-dir
       - run-spanner-tests
+      - persist-coverage-to-workspace:
+          job_name: spanner
+      # - save-sccache-cache
+
+  merge-coverage:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - checkout
+      - install-test-deps
+      - attach-coverage-workspace
       - merge-unit-test-coverage
-      # if the above tests don't run tokenserver-db tests (i.e. using --workspace)
-      # then run-tokenserver-scripts-tests will fail. These tests expect the db to be
-      # configured already, and it appears unit-tests modify the db to the expected state
       - store-test-results
       - gcs-configure-and-upload:
           source: workflow/test-results
@@ -313,7 +455,6 @@ jobs:
           source: workflow/test-results
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
           extension: json
-      # - save-sccache-cache
 
   build-mysql-image:
     docker:
@@ -332,7 +473,8 @@ jobs:
           name: Build MySQL Docker image
           command: >
             docker build -t app:build
-            --build-arg DATABASE_BACKEND=mysql
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
+            --build-arg TOKENSERVER_DATABASE_BACKEND=mysql
             .
           no_output_timeout: 30m
       # save the built docker container into CircleCI's cache. This is
@@ -350,6 +492,44 @@ jobs:
           command: cp Makefile /home/circleci/cache
       - save_cache:
           key: mysql-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
+          paths:
+            - /home/circleci/cache
+  build-postgres-image:
+    docker:
+      - image: cimg/rust:1.89 # RUST_VER
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    resource_class: large
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - display-versions
+      - write-version
+      - run:
+          name: Build Postgres Docker image
+          command: >
+            docker build -t app:build
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
+            --build-arg TOKENSERVER_DATABASE_BACKEND=postgres
+            .
+          no_output_timeout: 30m
+      # save the built docker container into CircleCI's cache. This is
+      # required since Workflows do not have the same remote docker instance.
+      - run:
+          name: docker save app:build
+          command: |
+            mkdir -p /home/circleci/cache
+            docker save -o /home/circleci/cache/docker.tar "app:build"
+      - run:
+          name: Save docker-compose config
+          command: cp docker-compose*postgres.yaml /home/circleci/cache
+      - run:
+          name: Save Makefile to cache
+          command: cp Makefile /home/circleci/cache
+      - save_cache:
+          key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}-{{ epoch }}
           paths:
             - /home/circleci/cache
   build-spanner-image:
@@ -370,7 +550,7 @@ jobs:
           # Build w/ the Oracle libmysqlclient-dev for TLS support
           command: >
             docker build -t app:build
-            --build-arg DATABASE_BACKEND=spanner
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
             --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
             .
           no_output_timeout: 30m
@@ -475,6 +655,35 @@ jobs:
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
 
+  postgres-e2e-tests:
+    docker:
+      - image: cimg/base:2025.04
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+          key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Restore Makefile from save_cache
+          command: cp /home/circleci/cache/Makefile .
+      - run:
+          name: Restore docker-compose config
+          command: cp /home/circleci/cache/docker-compose*.yaml .
+      - make-test-dir
+      - run-e2e-tests:
+          db: postgres
+      - store-test-results
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
+
   spanner-e2e-tests:
     docker:
       - image: cimg/base:2025.04
@@ -543,7 +752,7 @@ jobs:
               echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
 
-  deploy-python-utils:
+  deploy-spanner-python-utils:
     docker:
       - image: docker:stable-git
         auth:
@@ -589,25 +798,53 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - build-and-test:
+      - build-and-test-mysql:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test-postgres:
+          filters:
+            tags:
+              only: /.*/
+      - build-and-test-spanner:
+          filters:
+            tags:
+              only: /.*/
+      - merge-coverage:
+          requires:
+            - build-and-test-mysql
+            - build-and-test-postgres
+            - build-and-test-spanner
           filters:
             tags:
               only: /.*/
       - build-mysql-image:
           requires:
-            - build-and-test
+            - build-and-test-mysql
+          filters:
+            tags:
+              only: /.*/
+      - build-postgres-image:
+          requires:
+            - build-and-test-postgres
           filters:
             tags:
               only: /.*/
       - build-spanner-image:
           requires:
-            - build-and-test
+            - build-and-test-spanner
           filters:
             tags:
               only: /.*/
       - mysql-e2e-tests:
           requires:
             - build-mysql-image
+          filters:
+            tags:
+              only: /.*/
+      - postgres-e2e-tests:
+          requires:
+            - build-postgres-image
           filters:
             tags:
               only: /.*/
@@ -620,6 +857,7 @@ workflows:
       - deploy:
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
@@ -633,16 +871,19 @@ workflows:
           image: syncstorage-rs
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
               only: /.*/
             branches:
               only: master
-      - deploy-python-utils:
+      - deploy-spanner-python-utils:
           requires:
             - mysql-e2e-tests
+            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:
               only: /.*/
+

@@ -3443,6 +3443,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "base64",
+ "chrono",
  "deadpool",
  "diesel",
  "diesel-async",
@@ -3457,6 +3458,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3691,19 +3693,13 @@ name = "tokenserver-db"
 version = "0.21.1"
 dependencies = [
  "async-trait",
- "deadpool",
- "diesel",
- "diesel-async",
- "diesel_logger",
- "diesel_migrations",
  "env_logger 0.11.8",
- "http 1.3.1",
  "syncserver-common",
  "syncserver-db-common",
  "syncserver-settings",
- "tokenserver-common",
  "tokenserver-db-common",
- "tokenserver-db-postgres",
+ "tokenserver-mysql",
+ "tokenserver-postgres",
  "tokenserver-settings",
  "tokio",
  "url",
@@ -3729,7 +3725,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokenserver-db-postgres"
+name = "tokenserver-mysql"
+version = "0.21.1"
+dependencies = [
+ "async-trait",
+ "deadpool",
+ "diesel",
+ "diesel-async",
+ "diesel_logger",
+ "diesel_migrations",
+ "http 1.3.1",
+ "syncserver-common",
+ "syncserver-db-common",
+ "tokenserver-common",
+ "tokenserver-db-common",
+ "tokenserver-settings",
+ "tokio",
+]
+
+[[package]]
+name = "tokenserver-postgres"
 version = "0.21.1"
 dependencies = [
  "async-trait",

@@ -1,5 +1,6 @@
-use crate::schema::{nodes, services, users};
 use diesel::{Identifiable, Insertable, Queryable};
+
+use super::schema::{nodes, services, users};
 
 #[derive(Queryable, Debug, Identifiable, Insertable)]
 pub struct Service {

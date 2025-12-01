@@ -19,7 +19,7 @@ use syncserver_db_common::test::test_transaction_hook;
 use syncserver_db_common::{GetPoolState, PoolState};
 use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
-use super::models::TokenserverPgDb;
+use crate::db::TokenserverPgDb;
 use tokenserver_settings::Settings;
 use tokio::task::spawn_blocking;
 
@@ -31,14 +31,12 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 /// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
 
-#[allow(dead_code)]
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
     let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
     LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
     Ok(())
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct TokenserverPgPool {
     /// Pool of db connections.
@@ -57,7 +55,6 @@ pub struct TokenserverPgPool {
     database_url: String,
 }
 
-#[allow(dead_code)]
 impl TokenserverPgPool {
     pub fn new(
         settings: &Settings,

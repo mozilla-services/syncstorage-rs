@@ -1,0 +1,47 @@
+services:
+  postgres-e2e-tests:
+    container_name: postgres-e2e-tests
+    depends_on:
+      mock-fxa-server:
+        condition: service_started
+      syncserver:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
+    image: app:build
+    privileged: true
+    user: root
+    environment:
+      # Setting this to false will delete any of those keys before starting
+      # the syncserver and starting the test. This can be set/passed
+      # in from CircleCI when calling `docker-compose -f docker-compose.e2e.postgres.yaml`
+      JWK_CACHE_DISABLED: false
+      MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
+      SYNC_HOST: 0.0.0.0
+      SYNC_MASTER_SECRET: secret0
+      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
+      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
+      SYNC_TOKENSERVER__ENABLED: "true"
+      SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
+      SYNC_TOKENSERVER__FXA_BROWSERID_ISSUER: "api-accounts.stage.mozaws.net"
+      SYNC_TOKENSERVER__FXA_EMAIL_DOMAIN: api-accounts.stage.mozaws.net
+      SYNC_TOKENSERVER__FXA_METRICS_HASH_SECRET: secret0
+      SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KTY: "RSA"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__ALG: "RS256"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__KID: "20190730-15e473fd"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__FXA_CREATED_AT: "1564502400"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__USE: "sig"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__N: "15OpVGC7ws_SlU0gRbRh1Iwo8_gR8ElX2CDnbN5blKyXLg-ll0ogktoDXc-tDvTabRTxi7AXU0wWQ247odhHT47y5uz0GASYXdfPponynQ_xR9CpNn1eEL1gvDhQN9rfPIzfncl8FUi9V4WMd5f600QC81yDw9dX-Z8gdkru0aDaoEKF9-wU2TqrCNcQdiJCX9BISotjz_9cmGwKXFEekQNJWBeRQxH2bUmgwUK0HaqwW9WbYOs-zstNXXWFsgK9fbDQqQeGehXLZM4Cy5Mgl_iuSvnT3rLzPo2BmlxMLUvRqBx3_v8BTtwmNGA0v9O0FJS_mnDq0Iue0Dz8BssQCQ"
+      SYNC_TOKENSERVER__FXA_OAUTH_PRIMARY_JWK__E: "AQAB"
+      TOKENSERVER_HOST: http://localhost:8000
+      SQLALCHEMY_SILENCE_UBER_WARNING: 1
+    entrypoint: >
+      /bin/sh -c "
+        exit_code=0;
+        PYTHONPATH=/app pytest /app/tools/integration_tests/ --junit-xml=/postgres_integration_results.xml || exit_code=$$?;
+        export JWK_CACHE_DISABLED=true;
+        PYTHONPATH=/app pytest /app/tools/integration_tests/ --junit-xml=/postgres_no_jwk_integration_results.xml || exit_code=$$?;
+        exit $$exit_code;
+      "

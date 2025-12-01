@@ -5,6 +5,7 @@ import pytest
 import unittest
 
 from integration_tests.tokenserver.test_support import TestCase
+from sqlalchemy.sql import text as sqltext
 
 
 @pytest.mark.usefixtures("setup_server_local_testing_with_oauth")
@@ -46,7 +47,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_new_user_allocation(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
+        cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()
 
         self._add_node(
@@ -77,7 +78,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_successfully_releasing_node_capacity(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
+        cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()
 
         node_id1 = self._add_node(
@@ -125,7 +126,7 @@ class TestNodeAssignment(TestCase, unittest.TestCase):
 
     def test_unsuccessfully_releasing_node_capacity(self):
         # Start with a clean database
-        cursor = self._execute_sql("DELETE FROM nodes", ())
+        cursor = self._execute_sql(sqltext("DELETE FROM nodes"), {})
         cursor.close()
 
         self._add_node(

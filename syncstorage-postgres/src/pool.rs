@@ -21,7 +21,7 @@ use diesel_async::{
 };
 #[cfg(debug_assertions)]
 use diesel_logger::LoggingConnection;
-//use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
@@ -32,50 +32,43 @@ use tokio::task::spawn_blocking;
 
 use super::{DbError, DbResult, PgDb};
 
-//pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+/// The `embed_migrations!` macro reads migrations at compile time.
+/// This creates a constant that references a list of migrations.
+/// See https://docs.rs/diesel_migrations/2.2.0/diesel_migrations/macro.embed_migrations.html
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
+/// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
 
 /// Run the diesel embedded migrations
-///
-/// TODO: XXX: Pg notes
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
+/// Postgres DDL statements implicitly commit, which could disrupt PgDbPool's
 /// begin_test_transaction during tests. So this runs on its own separate conn.
 ///
 /// Note that this runs as a plain diesel blocking method as diesel_async
 /// doesn't support async migrations (but we utilize its connection via its
 /// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    todo!();
-    /*
     let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
-
-    // This conn2 charade is to make mut-ness the same for both cases.
-    #[cfg(debug_assertions)]
-    let mut conn2 = LoggingConnection::new(conn);
-    #[cfg(not(debug_assertions))]
-    let mut conn2 = conn;
-
-    conn2.run_pending_migrations(MIGRATIONS)?;
+    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
     Ok(())
-    */
 }
 
 #[derive(Clone)]
 pub struct PgDbPool {
-    /// Pool of db connections
+    /// diesel-async Pool of db connections
     pool: Pool<AsyncPgConnection>,
-    /// Thread Pool for running synchronous db calls
     /// In-memory cache of collection_ids and their names
     coll_cache: Arc<CollectionCache>,
-
+    /// Metrics module from syncserver-common.
     metrics: Metrics,
+    /// Configured quota, with defined size, enabled, and enforced attributes.
     quota: Quota,
+    /// URL for associated Postgres database
     database_url: String,
 }
 
 impl PgDbPool {
-    /// Creates a new pool of Pg db connections.
+    /// Creates a new pool of Pg DB connections.
     ///
     /// Doesn't initialize the db (does not run migrations).
     pub fn new(
@@ -102,6 +95,7 @@ impl PgDbPool {
         let builder = Pool::builder(manager)
             .config(config)
             .runtime(deadpool::Runtime::Tokio1);
+
         #[cfg(debug_assertions)]
         let builder = if settings.database_use_test_transactions {
             builder.post_create(deadpool::managed::Hook::async_fn(|conn, _| {
@@ -110,9 +104,10 @@ impl PgDbPool {
         } else {
             builder
         };
-        let pool = builder
-            .build()
-            .map_err(|e| DbError::internal(format!("Couldn't build Db Pool: {e}")))?;
+
+        let pool = builder.build().map_err(|e| {
+            DbError::internal(format!("Couldn't build Postgres Db Pool PgDbPool: {e}"))
+        })?;
 
         Ok(Self {
             pool,
@@ -144,15 +139,12 @@ impl PgDbPool {
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
         })?;
 
-        todo!();
-        /*
         Ok(PgDb::new(
             conn,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
         ))
-        */
     }
 }
 
@@ -176,12 +168,12 @@ impl DbPool for PgDbPool {
     }
 
     async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
-        todo!();
-        //Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
+        // Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
+        todo!()
     }
-
+    /// XXX: Will complete when implementing the entire batch.rs module.
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        todo!();
+        todo!()
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {

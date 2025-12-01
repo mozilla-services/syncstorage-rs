@@ -1,5 +1,5 @@
 [package]
-name = "tokenserver-db-postgres"
+name = "tokenserver-postgres"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
