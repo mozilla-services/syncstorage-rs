@@ -1,5 +1,9 @@
+#[cfg(target_os = "linux")]
 use std::fs;
+
 use std::io;
+
+#[cfg(target_os = "linux")]
 use std::os::linux::fs::MetadataExt;
 
 use crate::error::ApiResult;
@@ -7,6 +11,7 @@ use crate::error::ApiResult;
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
 
+#[cfg(target_os = "linux")]
 fn connected_to_journal() -> bool {
     fs::metadata("/dev/stderr")
         .map(|meta| format!("{}:{}", meta.st_dev(), meta.st_ino()))
@@ -15,6 +20,11 @@ fn connected_to_journal() -> bool {
             std::env::var_os("JOURNAL_STREAM").map(|s| s == stderr.as_str())
         })
         .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn connected_to_journal() -> bool {
+    false
 }
 
 pub fn init_logging(json: bool) -> ApiResult<()> {
