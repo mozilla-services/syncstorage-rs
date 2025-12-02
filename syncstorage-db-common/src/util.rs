@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use chrono::{
     offset::{FixedOffset, TimeZone, Utc},
-    DateTime, SecondsFormat,
+    DateTime, NaiveDateTime, SecondsFormat,
 };
 use diesel::{
     backend::Backend,
@@ -129,6 +129,19 @@ impl From<SyncTimestamp> for i64 {
 impl From<SyncTimestamp> for u64 {
     fn from(val: SyncTimestamp) -> u64 {
         val.0
+    }
+}
+
+impl From<SyncTimestamp> for NaiveDateTime {
+    fn from(ts: SyncTimestamp) -> NaiveDateTime {
+        let millis = ts.as_i64();
+        let secs = millis / 1000;
+        let nsecs = ((millis % 1000) * 1_000_000) as u32;
+
+        // chrono 0.5 deprecation-free path (straight NaiveDateTime doesn't work):
+        DateTime::<Utc>::from_timestamp(secs, nsecs)
+            .expect("timestamp out of range")
+            .naive_utc()
     }
 }
 

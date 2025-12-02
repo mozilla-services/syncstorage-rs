@@ -4,9 +4,8 @@ use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::{
     sql_query,
-    sql_types::{BigInt, Integer, Text},
-    sql_types::{Integer, Nullable, Text, Timestamp},
-    ExpressionMethods, OptionalExtension, OptionalExtension, QueryDsl,
+    sql_types::{BigInt, Integer, Nullable, Text, Timestamp},
+    ExpressionMethods, OptionalExtension, OptionalExtension, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
@@ -343,11 +342,11 @@ impl Db for PgDb {
                          count = EXCLUDED.count
         "#;
         let total_bytes = quota.total_bytes as i64;
-        let timestamp = self.timestamp().as_i64();
+        let timestamp: NaiveDateTime = self.timestamp().into();
         sql_query(upsert)
             .bind::<BigInt, _>(params.user_id.legacy_id as i64)
             .bind::<Integer, _>(&params.collection_id)
-            .bind::<BigInt, _>(&timestamp)
+            .bind::<Timestamp, _>(&timestamp)
             .bind::<Integer, _>(&quota.count)
             .bind::<BigInt, _>(&total_bytes)
             .execute(&mut self.conn)
