@@ -342,11 +342,15 @@ impl Db for PgDb {
                          count = EXCLUDED.count
         "#;
         let total_bytes = quota.total_bytes as i64;
-        let timestamp: NaiveDateTime = self.timestamp().into();
+        let sync_ts = self.timestamp();
+
+        // Convert SyncTimestamp -> NaiveDateTime using the new method
+        let modified: NaiveDateTime = sync_ts.as_naive_datetime().map_err(DbError::from)?; // adjust if DbError conversion is different
+
         sql_query(upsert)
             .bind::<BigInt, _>(params.user_id.legacy_id as i64)
             .bind::<Integer, _>(&params.collection_id)
-            .bind::<Timestamp, _>(&timestamp)
+            .bind::<Timestamp, _>(&modified)
             .bind::<Integer, _>(&quota.count)
             .bind::<BigInt, _>(&total_bytes)
             .execute(&mut self.conn)

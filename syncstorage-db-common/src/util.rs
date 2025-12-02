@@ -112,6 +112,29 @@ impl SyncTimestamp {
     pub fn as_rfc3339(self) -> Result<String, SyncstorageDbError> {
         to_rfc3339(self.as_i64())
     }
+
+    /// Convert this SyncTimestamp into a chrono::NaiveDateTime (UTC) for use with Diesel's `Timestamp`.
+    pub fn as_naive_datetime(self) -> Result<NaiveDateTime, SyncstorageDbError> {
+        let millis = self.as_i64();
+        let secs = millis / 1000;
+        let nsecs: u32 = ((millis % 1000) * 1_000_000).try_into().map_err(|e| {
+            SyncstorageDbError::internal(format!(
+                "Invalid timestamp (nanoseconds) {}: {}",
+                millis, e
+            ))
+        })?;
+
+        let ts = Utc.timestamp_opt(secs, nsecs);
+
+        if let Some(dt) = ts.single() {
+            Ok(dt.naive_utc())
+        } else {
+            Err(SyncstorageDbError::internal(format!(
+                "Invalid or ambiguous timestamp {}: {:?}",
+                millis, ts
+            )))
+        }
+    }
 }
 
 impl Default for SyncTimestamp {
@@ -129,19 +152,6 @@ impl From<SyncTimestamp> for i64 {
 impl From<SyncTimestamp> for u64 {
     fn from(val: SyncTimestamp) -> u64 {
         val.0
-    }
-}
-
-impl From<SyncTimestamp> for NaiveDateTime {
-    fn from(ts: SyncTimestamp) -> NaiveDateTime {
-        let millis = ts.as_i64();
-        let secs = millis / 1000;
-        let nsecs = ((millis % 1000) * 1_000_000) as u32;
-
-        // chrono 0.5 deprecation-free path (straight NaiveDateTime doesn't work):
-        DateTime::<Utc>::from_timestamp(secs, nsecs)
-            .expect("timestamp out of range")
-            .naive_utc()
     }
 }
 
