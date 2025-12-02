@@ -87,7 +87,8 @@ impl Db for PgDb {
             return Ok(());
         }
 
-        // Lock db.
+        // `FOR SHARE`
+        // Obtains shared lock, allowing multiple transactions to read rows simultaneously.
         self.begin(false).await?;
 
         let modified: Option<NaiveDateTime> = user_collections::table
@@ -125,7 +126,9 @@ impl Db for PgDb {
             ));
         }
 
-        // Lock DB
+        // `FOR UPDATE`
+        // Acquires exclusive lock on select rows, prohibits other transactions from modifying
+        // until complete.
         self.begin(true).await?;
         let modified: Option<NaiveDateTime> = user_collections::table
             .select(user_collections::modified)
