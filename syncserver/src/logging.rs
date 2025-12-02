@@ -16,9 +16,7 @@ fn connected_to_journal() -> bool {
     fs::metadata("/dev/stderr")
         .map(|meta| format!("{}:{}", meta.st_dev(), meta.st_ino()))
         .ok()
-        .and_then(|stderr| {
-            std::env::var_os("JOURNAL_STREAM").map(|s| s == stderr.as_str())
-        })
+        .and_then(|stderr| std::env::var_os("JOURNAL_STREAM").map(|s| s == stderr.as_str()))
         .unwrap_or(false)
 }
 
