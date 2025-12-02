@@ -1,16 +1,17 @@
 #![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
+use chrono::NaiveDateTime;
 use diesel::{
     sql_query,
-    sql_types::{Integer, Text},
-    OptionalExtension,
+    sql_types::{Integer, Nullable, Text, Timestamp},
+    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, Db};
+use syncstorage_db_common::{params, results, util::SyncTimestamp, Db, Sorting};
 use syncstorage_settings::Quota;
 
 use super::PgDb;
-use crate::{pool::Conn, DbError, DbResult};
+use crate::{bsos_query, pool::Conn, schema::bsos, DbError, DbResult};
 
 #[async_trait(?Send)]
 impl Db for PgDb {
@@ -135,14 +136,24 @@ impl Db for PgDb {
     }
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
-        todo!()
+        let selection = (
+            bsos::bso_id,
+            bsos::modified,
+            bsos::payload,
+            bsos::sortindex,
+            bsos::expiry,
+        );
+        let (bsos, offset) = bsos_query!(self, params, selection, GetBso);
+        let items = bsos.into_iter().map(Into::into).collect();
+        Ok(results::GetBsos { items, offset })
     }
 
     async fn get_bso_ids(
         &mut self,
         params: params::GetBsoIds,
     ) -> Result<results::GetBsoIds, Self::Error> {
-        todo!()
+        let (items, offset) = bsos_query!(self, params, bsos::bso_id, String);
+        Ok(results::GetBsoIds { items, offset })
     }
 
     async fn post_bsos(
@@ -240,4 +251,32 @@ impl Db for PgDb {
 struct IdResult {
     #[diesel(sql_type = Integer)]
     id: i32,
+}
+
+#[derive(Debug, Queryable, QueryableByName)]
+pub struct GetBso {
+    #[diesel(sql_type = Text)]
+    pub bso_id: String,
+    #[diesel(sql_type = Timestamp)]
+    pub modified: NaiveDateTime,
+    #[diesel(sql_type = Text)]
+    pub payload: String,
+    #[diesel(sql_type = Nullable<Integer>)]
+    pub sortindex: Option<i32>,
+    #[diesel(sql_type = Timestamp)]
+    pub expiry: NaiveDateTime,
+}
+
+impl From<GetBso> for results::GetBso {
+    fn from(pg: GetBso) -> Self {
+        Self {
+            id: pg.bso_id,
+            modified: SyncTimestamp::from_milliseconds(
+                pg.modified.and_utc().timestamp_millis() as u64
+            ),
+            payload: pg.payload,
+            sortindex: pg.sortindex,
+            expiry: pg.modified.and_utc().timestamp_millis(),
+        }
+    }
 }

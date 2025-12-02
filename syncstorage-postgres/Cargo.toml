@@ -12,7 +12,7 @@ backtrace.workspace = true
 base64.workspace = true
 chrono.workspace = true
 deadpool.workspace = true
-diesel.workspace = true
+diesel = { workspace = true, features = ["chrono"] }
 diesel-async = { workspace = true, features = ["postgres"] }
 diesel_logger.workspace = true
 diesel_migrations.workspace = true
