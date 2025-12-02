@@ -5,7 +5,7 @@ use chrono::NaiveDateTime;
 use diesel::{
     sql_query,
     sql_types::{BigInt, Integer, Nullable, Text, Timestamp},
-    ExpressionMethods, OptionalExtension, OptionalExtension, OptionalExtension, QueryDsl,
+    ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use syncstorage_db_common::{
