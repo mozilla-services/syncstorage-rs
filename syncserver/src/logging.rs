@@ -1,9 +1,29 @@
+#[cfg(target_os = "linux")]
+use std::fs;
+
 use std::io;
+
+#[cfg(target_os = "linux")]
+use std::os::linux::fs::MetadataExt;
 
 use crate::error::ApiResult;
 
 use slog::{self, slog_o, Drain};
 use slog_mozlog_json::MozLogJson;
+
+#[cfg(target_os = "linux")]
+fn connected_to_journal() -> bool {
+    fs::metadata("/dev/stderr")
+        .map(|meta| format!("{}:{}", meta.st_dev(), meta.st_ino()))
+        .ok()
+        .and_then(|stderr| std::env::var_os("JOURNAL_STREAM").map(|s| s == stderr.as_str()))
+        .unwrap_or(false)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn connected_to_journal() -> bool {
+    false
+}
 
 pub fn init_logging(json: bool) -> ApiResult<()> {
     let logger = if json {
@@ -26,10 +46,19 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
         let drain = slog_async::Async::new(drain).build().fuse();
         slog::Logger::root(drain, slog_o!())
     } else {
-        let decorator = slog_term::TermDecorator::new().build();
-        let drain = slog_term::FullFormat::new(decorator).build().fuse();
-        let drain = slog_envlogger::new(drain);
-        let drain = slog_async::Async::new(drain).build().fuse();
+        let drain = if connected_to_journal() {
+            #[cfg(target_os = "linux")]
+            let drain = slog_journald::JournaldDrain.fuse();
+            #[cfg(not(target_os = "linux"))]
+            let drain = slog::Discard;
+            let drain = slog_envlogger::new(drain);
+            slog_async::Async::new(drain).build().fuse()
+        } else {
+            let decorator = slog_term::TermDecorator::new().build();
+            let drain = slog_term::FullFormat::new(decorator).build().fuse();
+            let drain = slog_envlogger::new(drain);
+            slog_async::Async::new(drain).build().fuse()
+        };
         slog::Logger::root(drain, slog_o!())
     };
     // XXX: cancel slog_scope's NoGlobalLoggerSet for now, it's difficult to
