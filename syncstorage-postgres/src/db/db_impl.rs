@@ -13,7 +13,10 @@ use syncstorage_db_common::{
 use syncstorage_settings::Quota;
 
 use super::PgDb;
-use crate::{bsos_query, pool::Conn, schema::bsos, schema::user_collections, DbError, DbResult};
+use crate::{
+    bsos_query, db::CollectionLock, pool::Conn, schema::bsos, schema::user_collections, DbError,
+    DbResult,
+};
 
 #[async_trait(?Send)]
 impl Db for PgDb {
