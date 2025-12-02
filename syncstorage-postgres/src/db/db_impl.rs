@@ -64,7 +64,6 @@ impl Db for PgDb {
         &mut self,
         params: params::LockCollection,
     ) -> DbResult<results::LockCollection> {
-        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self
             .get_collection_id(&params.collection)
             .await
@@ -83,7 +82,7 @@ impl Db for PgDb {
         if self
             .session
             .coll_locks
-            .contains_key(&(user_id as u32, collection_id))
+            .contains_key(&(params.user_id.clone(), collection_id))
         {
             return Ok(());
         }
@@ -93,7 +92,7 @@ impl Db for PgDb {
 
         let modified: Option<NaiveDateTime> = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id))
+            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
             .first::<NaiveDateTime>(&mut self.conn)
@@ -104,22 +103,22 @@ impl Db for PgDb {
             let modified = SyncTimestamp::from_i64(modified.and_utc().timestamp_millis())?;
             self.session
                 .coll_modified_cache
-                .insert((user_id as u32, collection_id), modified);
+                .insert((params.user_id.clone(), collection_id), modified);
         }
-        self.session
-            .coll_locks
-            .insert((user_id as u32, collection_id), CollectionLock::Read);
+        self.session.coll_locks.insert(
+            (params.user_id.clone(), collection_id),
+            CollectionLock::Read,
+        );
         Ok(())
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
-        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
 
         if let Some(CollectionLock::Read) = self
             .session
             .coll_locks
-            .get(&(user_id as u32, collection_id))
+            .get(&(params.user_id.clone(), collection_id))
         {
             return Err(DbError::internal(
                 "Can't escalate read-lock to write-lock".to_string(),
@@ -130,7 +129,7 @@ impl Db for PgDb {
         self.begin(true).await?;
         let modified: Option<NaiveDateTime> = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id))
+            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first::<NaiveDateTime>(&mut self.conn)
@@ -145,12 +144,13 @@ impl Db for PgDb {
             }
             self.session
                 .coll_modified_cache
-                .insert((user_id as u32, collection_id), modified);
+                .insert((params.user_id.clone(), collection_id), modified);
         }
 
-        self.session
-            .coll_locks
-            .insert((user_id as u32, collection_id), CollectionLock::Write);
+        self.session.coll_locks.insert(
+            (params.user_id.clone(), collection_id),
+            CollectionLock::Write,
+        );
         Ok(())
     }
 
