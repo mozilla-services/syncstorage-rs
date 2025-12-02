@@ -1,0 +1,29 @@
+name: Build, Tag and Push Container Images to GAR Repository
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+    # paths:
+    #     - '**/sync*/**'
+  workflow_dispatch: {}
+
+jobs:
+  build-and-push-syncstorage-rs:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@78c0263d9e6c1d698fa7f4f5d76f5b1eb9dda69a # v4.5.0
+    with:
+      image_name: syncstorage-rs
+      gar_name: sync-prod
+      project_id: moz-fx-sync-prod
+      docker_build_args: |
+        SYNCSTORAGE_DATABASE_BACKEND=spanner
+        MYSQLCLIENT_PKG=libmysqlclient-dev
