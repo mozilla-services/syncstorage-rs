@@ -49,7 +49,10 @@ pub fn init_logging(json: bool) -> ApiResult<()> {
         slog::Logger::root(drain, slog_o!())
     } else {
         let drain = if connected_to_journal() {
+            #[cfg(target_os = "linux")]
             let drain = slog_journald::JournaldDrain.fuse();
+            #[cfg(not(target_os = "linux"))]
+            let drain = slog::Discard;
             let drain = slog_envlogger::new(drain);
             slog_async::Async::new(drain).build().fuse()
         } else {
