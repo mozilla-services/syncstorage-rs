@@ -19,7 +19,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@78c0263d9e6c1d698fa7f4f5d76f5b1eb9dda69a # v4.5.0
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
     with:
       image_name: syncstorage-rs
       gar_name: sync-prod
