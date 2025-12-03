@@ -17,6 +17,7 @@ use tokenserver_auth::TokenserverOrigin;
 use super::{urldecode, RequestErrorLocation};
 use crate::{
     error::{ApiError, ApiErrorKind},
+    server::ReverseProxyState,
     web::{
         auth::HawkPayload,
         error::{HawkErrorKind, ValidationErrorKind},
@@ -97,6 +98,7 @@ impl HawkIdentifier {
         method: &str,
         uri: &Uri,
         ci: &ConnectionInfo,
+        reverse_proxy_state: &ReverseProxyState,
         secrets: &Secrets,
     ) -> Result<Self, Error>
     where
@@ -113,6 +115,7 @@ impl HawkIdentifier {
             .to_str()
             .map_err(|e| -> ApiError { HawkErrorKind::Header(e).into() })?;
         let identifier = Self::generate(
+            reverse_proxy_state,
             secrets,
             method,
             auth_header,
@@ -125,6 +128,7 @@ impl HawkIdentifier {
     }
 
     pub fn generate(
+        reverse_proxy_state: &ReverseProxyState,
         secrets: &Secrets,
         method: &str,
         header: &str,
@@ -132,7 +136,14 @@ impl HawkIdentifier {
         uri: &Uri,
         exts: &mut Extensions,
     ) -> Result<Self, Error> {
-        let payload = HawkPayload::extrude(header, method, secrets, connection_info, uri)?;
+        let payload = HawkPayload::extrude(
+            header,
+            method,
+            reverse_proxy_state,
+            secrets,
+            connection_info,
+            uri,
+        )?;
         let puid = Self::uid_from_path(uri)?;
         if payload.user_id != puid {
             warn!("⚠️ Hawk UID not in URI: {:?} {:?}", payload.user_id, uri);
@@ -186,6 +197,17 @@ impl FromRequest for HawkIdentifier {
         // NOTE: `connection_info()` will get a mutable reference lock on `extensions()`
         let connection_info = req.connection_info().clone();
         let method = req.method().clone();
+
+        let reverse_proxy_state: &ReverseProxyState =
+            match &req.app_data::<Data<ReverseProxyState>>() {
+                Some(data) => data,
+                None => {
+                    let err: ApiError =
+                        ApiErrorKind::Internal("No app_data ReverseProxyState".to_owned()).into();
+                    return future::ready(Err(err.into()));
+                }
+            };
+
         // Tried collapsing this to a `.or_else` and hit problems with the return resolving
         // to an appropriate error state. Can't use `?` since the function does not return a result.
         let secrets = match req.app_data::<Data<Arc<Secrets>>>() {
@@ -196,7 +218,14 @@ impl FromRequest for HawkIdentifier {
             }
         };
 
-        let result = Self::extrude(&req, method.as_str(), uri, &connection_info, secrets);
+        let result = Self::extrude(
+            &req,
+            method.as_str(),
+            uri,
+            &connection_info,
+            reverse_proxy_state,
+            secrets,
+        );
 
         if let Ok(ref hawk_id) = result {
             // Store the origin of the token as an extra to be included when emitting a Sentry error
@@ -226,8 +255,8 @@ mod tests {
     use crate::web::{
         auth::HawkPayload,
         extractors::test_utils::{
-            create_valid_hawk_header, extract_body_as_str, make_state, SECRETS, TEST_HOST,
-            TEST_PORT, USER_ID, USER_ID_STR,
+            create_valid_hawk_header, extract_body_as_str, make_reverse_proxy_state, make_state,
+            SECRETS, TEST_HOST, TEST_PORT, USER_ID, USER_ID_STR,
         },
     };
 
@@ -236,6 +265,7 @@ mod tests {
         let hawk_payload = HawkPayload::test_default(*USER_ID);
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/col2", *USER_ID);
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
@@ -244,6 +274,7 @@ mod tests {
             .method(Method::GET)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .param("uid", USER_ID_STR.as_str())
             .to_http_request();
         let mut payload = Payload::None;
@@ -259,12 +290,14 @@ mod tests {
         let mismatch_uid = "5";
         let state = make_state();
         let secrets = Arc::clone(&SECRETS);
+        let reverse_proxy_state = make_reverse_proxy_state();
         let uri = format!("/1.5/{}/storage/col2", mismatch_uid);
         let header =
             create_valid_hawk_header(&hawk_payload, &secrets, "GET", &uri, TEST_HOST, TEST_PORT);
         let req = TestRequest::with_uri(&uri)
             .data(state)
             .data(secrets)
+            .data(reverse_proxy_state)
             .insert_header(("authorization", header))
             .method(Method::GET)
             .param("uid", mismatch_uid)
