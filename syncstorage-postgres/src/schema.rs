@@ -2,7 +2,7 @@ diesel::table! {
     batch_bsos (user_id, collection_id, batch_id, batch_bso_id) {
         user_id -> Int8,
         collection_id -> Int4,
-        batch_id -> Text,
+        batch_id -> Uuid,
         batch_bso_id -> Text,
         sortindex -> Nullable<Int4>,
         payload -> Nullable<Text>,
@@ -14,7 +14,7 @@ diesel::table! {
     batches (user_id, collection_id, batch_id) {
         user_id -> Int8,
         collection_id -> Int4,
-        batch_id -> Text,
+        batch_id -> Uuid,
         expiry -> Timestamp,
     }
 }
