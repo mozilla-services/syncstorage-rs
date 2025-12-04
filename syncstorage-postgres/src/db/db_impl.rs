@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::{
     sql_query,
-    sql_types::{BigInt, Integer, Nullable, Text, Timestamp},
+    sql_types::{Integer, Nullable, Text, Timestamp},
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
@@ -15,8 +15,11 @@ use syncstorage_settings::Quota;
 
 use super::PgDb;
 use crate::{
-    bsos_query, db::CollectionLock, pool::Conn, schema::bsos, schema::user_collections, DbError,
-    DbResult,
+    bsos_query,
+    db::CollectionLock,
+    pool::Conn,
+    schema::{bsos, user_collections},
+    DbError, DbResult,
 };
 
 #[async_trait(?Send)]
@@ -328,31 +331,26 @@ impl Db for PgDb {
             total_bytes: 0,
             count: 0,
         };
-
-        // This method is an upsert operation, which allows the update of an existing row
-        // or inserts a new one if it doesn’t exist. Postgres does not have `UPSERT` but
-        // achieves this though `INSERT...ON CONFLICT`.
-        let upsert = r#"
-                INSERT INTO user_collections (user_id, collection_id, modified, count, total_bytes)
-                VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (user_id, collection_id)
-                    DO UPDATE SET
-                         modified = EXCLUDED.modified,
-                         total_bytes = EXCLUDED.total_bytes,
-                         count = EXCLUDED.count
-        "#;
         let total_bytes = quota.total_bytes as i64;
         let sync_ts = self.timestamp();
-
         // Convert SyncTimestamp -> NaiveDateTime using the new method
-        let modified: NaiveDateTime = sync_ts.as_naive_datetime().map_err(DbError::from)?; // adjust if DbError conversion is different
+        let modified: NaiveDateTime = sync_ts.as_naive_datetime()?;
 
-        sql_query(upsert)
-            .bind::<BigInt, _>(params.user_id.legacy_id as i64)
-            .bind::<Integer, _>(&params.collection_id)
-            .bind::<Timestamp, _>(&modified)
-            .bind::<Integer, _>(&quota.count)
-            .bind::<BigInt, _>(&total_bytes)
+        diesel::insert_into(user_collections::table)
+            .values((
+                user_collections::user_id.eq(params.user_id.legacy_id as i64),
+                user_collections::collection_id.eq(params.collection_id),
+                user_collections::modified.eq(modified),
+                user_collections::count.eq(quota.count as i64),
+                user_collections::total_bytes.eq(total_bytes),
+            ))
+            .on_conflict((user_collections::user_id, user_collections::collection_id))
+            .do_update()
+            .set((
+                user_collections::modified.eq(modified),
+                user_collections::total_bytes.eq(total_bytes),
+                user_collections::count.eq(quota.count as i64),
+            ))
             .execute(&mut self.conn)
             .await?;
         Ok(self.timestamp())
