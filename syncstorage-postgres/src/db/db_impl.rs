@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 // XXX:
 use async_trait::async_trait;
-use chrono::{DateTime, NaiveDateTime};
+use chrono::NaiveDateTime;
 use diesel::{
     delete, sql_query,
     sql_types::{Integer, Nullable, Text, Timestamp},
@@ -301,9 +301,7 @@ impl Db for PgDb {
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection).await?;
-        let naive_datetime = DateTime::from_timestamp(self.timestamp().as_i64() / 1000, 0)
-            .ok_or_else(|| DbError::internal("Invalid timestamp".to_owned()))?
-            .naive_utc();
+        let naive_datetime = self.timestamp().as_naive_datetime()?;
         let affected_rows = delete(bsos::table)
             .filter(bsos::user_id.eq(user_id as i64))
             .filter(bsos::collection_id.eq(&collection_id))
