@@ -5,7 +5,7 @@ services:
       mock-fxa-server:
         condition: service_started
       syncserver:
-        condition: service_started
+        condition: service_healthy
       tokenserver-db:
         condition: service_healthy
     image: app:build

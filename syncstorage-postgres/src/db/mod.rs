@@ -162,3 +162,79 @@ impl PgDb {
             .collect()
     }
 }
+
+#[macro_export]
+macro_rules! bsos_query {
+    ($self:expr, $params:expr, $selection:expr, $row_type:ty) => {
+        {
+            let user_id = $params.user_id.legacy_id as i64;
+            let collection_id = $self.get_collection_id(&$params.collection).await?;
+            let limit = $params.limit.map(i64::from);
+
+            fn timestamp_ser_err() -> DbError {
+                DbError::internal("Couldn't convert to Timestamp".to_owned())
+            }
+
+            let expiry = chrono::DateTime::from_timestamp_millis($self.timestamp().as_i64())
+                .ok_or_else(timestamp_ser_err)?
+                .naive_utc();
+            let mut query = bsos::table
+                .select($selection)
+                .filter(bsos::user_id.eq(user_id))
+                .filter(bsos::collection_id.eq(collection_id))
+                .filter(bsos::expiry.gt(expiry))
+                .into_boxed();
+
+            if let Some(older) = $params.older {
+                let older = chrono::DateTime::from_timestamp_millis(older.as_i64())
+                    .ok_or_else(timestamp_ser_err)?
+                    .naive_utc();
+                query = query.filter(bsos::modified.lt(older));
+            }
+            if let Some(newer) = $params.newer {
+                let newer = chrono::DateTime::from_timestamp_millis(newer.as_i64())
+                    .ok_or_else(timestamp_ser_err)?
+                    .naive_utc();
+                query = query.filter(bsos::modified.gt(newer));
+            }
+
+            if !$params.ids.is_empty() {
+                query = query.filter(bsos::bso_id.eq_any($params.ids));
+            }
+
+            query = match $params.sort {
+                Sorting::Index => query.order((bsos::sortindex.desc(), bsos::bso_id.desc())),
+                Sorting::Newest => query.order((bsos::modified.desc(), bsos::bso_id.desc())),
+                Sorting::Oldest => query.order((bsos::modified.asc(), bsos::bso_id.asc())),
+                _ => query,
+            };
+
+            // fetch an extra row to detect if there are more rows that
+            // match the query conditions. Negative limits will cause an error.
+            if let Some(limit) = limit {
+                query = query.limit(limit + 1);
+            }
+            let numeric_offset = $params.offset.map_or(0, |offset| offset.offset as i64);
+            if numeric_offset != 0 {
+                // XXX: copy over this optimization:
+                // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
+                query = query.offset(numeric_offset);
+            }
+            let mut items = query.load::<$row_type>(&mut $self.conn).await?;
+
+            // XXX: an additional get_collection_timestamp is done here in
+            // python to trigger potential CollectionNotFoundErrors
+            //if bsos.len() == 0 {
+            //}
+
+            let limit = limit.unwrap_or(-1);
+            let next_offset = if limit >= 0 && items.len() > limit as usize {
+                items.pop();
+                Some((limit + numeric_offset).to_string())
+            } else {
+                None
+            };
+            (items, next_offset)
+        }
+    }
+}

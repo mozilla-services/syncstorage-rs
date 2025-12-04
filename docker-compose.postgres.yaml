@@ -62,7 +62,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - sync-db-setup
+      sync-db-setup:
+        condition: service_started
+      tokenserver-db:
+        condition: service_healthy
     environment:
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
@@ -70,6 +73,12 @@ services:
       SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/__heartbeat__ || exit 1"]
+      interval: 2s
+      retries: 5
+      start_period: 30s
+      timeout: 3s
 
 volumes:
   tokenserver_db_data:
