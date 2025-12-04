@@ -183,37 +183,24 @@ impl PgDb {
 
 #[macro_export]
 macro_rules! bsos_query {
-    ($self:expr, $params:expr, $selection:expr, $row_type:ty) => {
+    ($self:expr, $params:expr, $selection:expr) => {
         {
             let user_id = $params.user_id.legacy_id as i64;
             let collection_id = $self.get_collection_id(&$params.collection).await?;
             let limit = $params.limit.map(i64::from);
 
-            fn timestamp_ser_err() -> DbError {
-                DbError::internal("Couldn't convert to Timestamp".to_owned())
-            }
-
-            let expiry = chrono::DateTime::from_timestamp_millis($self.timestamp().as_i64())
-                .ok_or_else(timestamp_ser_err)?
-                .naive_utc();
             let mut query = bsos::table
                 .select($selection)
                 .filter(bsos::user_id.eq(user_id))
                 .filter(bsos::collection_id.eq(collection_id))
-                .filter(bsos::expiry.gt(expiry))
+                .filter(bsos::expiry.gt($self.timestamp().as_naive_datetime()?))
                 .into_boxed();
 
             if let Some(older) = $params.older {
-                let older = chrono::DateTime::from_timestamp_millis(older.as_i64())
-                    .ok_or_else(timestamp_ser_err)?
-                    .naive_utc();
-                query = query.filter(bsos::modified.lt(older));
+                query = query.filter(bsos::modified.lt(older.as_naive_datetime()?));
             }
             if let Some(newer) = $params.newer {
-                let newer = chrono::DateTime::from_timestamp_millis(newer.as_i64())
-                    .ok_or_else(timestamp_ser_err)?
-                    .naive_utc();
-                query = query.filter(bsos::modified.gt(newer));
+                query = query.filter(bsos::modified.gt(newer.as_naive_datetime()?));
             }
 
             if !$params.ids.is_empty() {
@@ -238,7 +225,7 @@ macro_rules! bsos_query {
                 // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
                 query = query.offset(numeric_offset);
             }
-            let mut items = query.load::<$row_type>(&mut $self.conn).await?;
+            let mut items = query.load(&mut $self.conn).await?;
 
             // XXX: an additional get_collection_timestamp is done here in
             // python to trigger potential CollectionNotFoundErrors
