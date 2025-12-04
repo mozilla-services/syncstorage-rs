@@ -6,10 +6,10 @@ use diesel_async::RunQueryDsl;
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::diesel::DbError;
-use syncstorage_db_common::{util::SyncTimestamp, UserIdentifier};
+use syncstorage_db_common::{util::SyncTimestamp, Db, UserIdentifier};
 use syncstorage_settings::Quota;
 
-use super::schema::collections;
+use super::schema::{collections, user_collections};
 use super::{
     pool::{CollectionCache, Conn},
     DbResult,
@@ -17,6 +17,8 @@ use super::{
 
 mod batch_impl;
 mod db_impl;
+
+const TOMBSTONE: i32 = 0;
 
 #[derive(Debug, Eq, PartialEq)]
 enum CollectionLock {
@@ -160,6 +162,22 @@ impl PgDb {
                 })
             })
             .collect()
+    }
+
+    async fn erect_tombstone(&mut self, user_id: i64) -> DbResult<()> {
+        let naive_datetime = self.timestamp().as_naive_datetime()?;
+        diesel::insert_into(user_collections::table)
+            .values((
+                user_collections::user_id.eq(user_id),
+                user_collections::collection_id.eq(TOMBSTONE),
+                user_collections::modified.eq(naive_datetime),
+            ))
+            .on_conflict((user_collections::user_id, user_collections::collection_id))
+            .do_update()
+            .set(user_collections::modified.eq(naive_datetime))
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
     }
 }
 

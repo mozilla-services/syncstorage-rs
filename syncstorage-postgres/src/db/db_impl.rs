@@ -1,9 +1,9 @@
 #![allow(unused_variables)]
 // XXX:
 use async_trait::async_trait;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use diesel::{
-    sql_query,
+    delete, sql_query,
     sql_types::{Integer, Nullable, Text, Timestamp},
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
@@ -216,22 +216,58 @@ impl Db for PgDb {
     async fn delete_storage(
         &mut self,
         params: params::DeleteStorage,
-    ) -> Result<results::DeleteStorage, Self::Error> {
-        todo!()
+    ) -> DbResult<results::DeleteStorage> {
+        let user_id = params.legacy_id as i64;
+        delete(bsos::table)
+            .filter(bsos::user_id.eq(user_id))
+            .execute(&mut self.conn)
+            .await?;
+        delete(user_collections::table)
+            .filter(user_collections::user_id.eq(user_id))
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
     }
 
     async fn delete_collection(
         &mut self,
         params: params::DeleteCollection,
-    ) -> Result<results::DeleteCollection, Self::Error> {
-        todo!()
+    ) -> DbResult<results::DeleteCollection> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        let mut count = delete(bsos::table)
+            .filter(bsos::user_id.eq(user_id))
+            .filter(bsos::collection_id.eq(&collection_id))
+            .execute(&mut self.conn)
+            .await?;
+        count += delete(user_collections::table)
+            .filter(user_collections::user_id.eq(user_id))
+            .filter(user_collections::collection_id.eq(&collection_id))
+            .execute(&mut self.conn)
+            .await?;
+        if count == 0 {
+            return Err(DbError::collection_not_found());
+        } else {
+            self.erect_tombstone(user_id).await?;
+        }
+        self.get_storage_timestamp(params.user_id).await
     }
 
-    async fn delete_bsos(
-        &mut self,
-        params: params::DeleteBsos,
-    ) -> Result<results::DeleteBsos, Self::Error> {
-        todo!()
+    async fn delete_bsos(&mut self, params: params::DeleteBsos) -> DbResult<results::DeleteBsos> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        delete(bsos::table)
+            .filter(bsos::user_id.eq(user_id))
+            .filter(bsos::collection_id.eq(&collection_id))
+            .filter(bsos::bso_id.eq_any(params.ids))
+            .execute(&mut self.conn)
+            .await?;
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
+        })
+        .await
     }
 
     async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
@@ -262,11 +298,28 @@ impl Db for PgDb {
         todo!()
     }
 
-    async fn delete_bso(
-        &mut self,
-        params: params::DeleteBso,
-    ) -> Result<results::DeleteBso, Self::Error> {
-        todo!()
+    async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
+        let user_id = params.user_id.legacy_id;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        let naive_datetime = DateTime::from_timestamp(self.timestamp().as_i64() / 1000, 0)
+            .ok_or_else(|| DbError::internal("Invalid timestamp".to_owned()))?
+            .naive_utc();
+        let affected_rows = delete(bsos::table)
+            .filter(bsos::user_id.eq(user_id as i64))
+            .filter(bsos::collection_id.eq(&collection_id))
+            .filter(bsos::bso_id.eq(params.id))
+            .filter(bsos::expiry.gt(naive_datetime))
+            .execute(&mut self.conn)
+            .await?;
+        if affected_rows == 0 {
+            return Err(DbError::bso_not_found());
+        }
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
+        })
+        .await
     }
 
     async fn get_bso(
