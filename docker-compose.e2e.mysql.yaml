@@ -12,7 +12,7 @@ services:
     # the syncserver isn't actually used for the tests,
     # but collisions can happen particularly in CI.
       syncserver:
-        condition: service_started
+        condition: service_healthy
     image: app:build
     privileged: true
     user: root
