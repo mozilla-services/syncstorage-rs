@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use chrono::{
     offset::{FixedOffset, TimeZone, Utc},
-    DateTime, SecondsFormat,
+    DateTime, NaiveDateTime, SecondsFormat,
 };
 use diesel::{
     backend::Backend,
@@ -111,6 +111,14 @@ impl SyncTimestamp {
     /// 1996-12-19T16:39:57-08:00
     pub fn as_rfc3339(self) -> Result<String, SyncstorageDbError> {
         to_rfc3339(self.as_i64())
+    }
+
+    /// Convert this SyncTimestamp into a chrono::NaiveDateTime (UTC).
+    /// Required for use with Diesel's `Timestamp` and in other scenarios where conversion is essential.
+    pub fn as_naive_datetime(self: SyncTimestamp) -> Result<NaiveDateTime, SyncstorageDbError> {
+        chrono::DateTime::from_timestamp_millis(self.as_i64())
+            .map(|dt| dt.naive_utc())
+            .ok_or_else(|| SyncstorageDbError::internal("Invalid timestamp".to_owned()))
     }
 }
 

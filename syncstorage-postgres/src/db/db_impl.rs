@@ -1,4 +1,5 @@
-#![allow(unused_variables)] // XXX:
+#![allow(unused_variables)]
+// XXX:
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::{
@@ -14,8 +15,11 @@ use syncstorage_settings::Quota;
 
 use super::PgDb;
 use crate::{
-    bsos_query, db::CollectionLock, pool::Conn, schema::bsos, schema::user_collections, DbError,
-    DbResult,
+    bsos_query,
+    db::CollectionLock,
+    pool::Conn,
+    schema::{bsos, user_collections},
+    DbError, DbResult,
 };
 
 #[async_trait(?Send)]
@@ -313,11 +317,43 @@ impl Db for PgDb {
         self.get_or_create_collection_id(name).await
     }
 
+    /// Updates a given collection entry, when provided the `user_id`, `collection_id`,
+    /// and `collection` string. This is an insertion operation should the
+    /// `user_id` and `collection_id` keys not exist, but will update with the Postgres
+    /// `INSERT...ON CONFLICT` statement.
     async fn update_collection(
         &mut self,
         params: params::UpdateCollection,
-    ) -> Result<SyncTimestamp, Self::Error> {
-        todo!()
+    ) -> DbResult<SyncTimestamp> {
+        // XXX: In MySQL impl, this is where the unused quota
+        // enforcement takes place. We may/may not impl it.
+        let quota = results::GetQuotaUsage {
+            total_bytes: 0,
+            count: 0,
+        };
+        let total_bytes = quota.total_bytes as i64;
+        let sync_ts = self.timestamp();
+        // Convert SyncTimestamp -> NaiveDateTime using the new method
+        let modified: NaiveDateTime = sync_ts.as_naive_datetime()?;
+
+        diesel::insert_into(user_collections::table)
+            .values((
+                user_collections::user_id.eq(params.user_id.legacy_id as i64),
+                user_collections::collection_id.eq(params.collection_id),
+                user_collections::modified.eq(modified),
+                user_collections::count.eq(quota.count as i64),
+                user_collections::total_bytes.eq(total_bytes),
+            ))
+            .on_conflict((user_collections::user_id, user_collections::collection_id))
+            .do_update()
+            .set((
+                user_collections::modified.eq(modified),
+                user_collections::total_bytes.eq(total_bytes),
+                user_collections::count.eq(quota.count as i64),
+            ))
+            .execute(&mut self.conn)
+            .await?;
+        Ok(self.timestamp())
     }
 
     fn timestamp(&self) -> SyncTimestamp {
