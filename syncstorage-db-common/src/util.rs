@@ -113,27 +113,12 @@ impl SyncTimestamp {
         to_rfc3339(self.as_i64())
     }
 
-    /// Convert this SyncTimestamp into a chrono::NaiveDateTime (UTC) for use with Diesel's `Timestamp`.
-    pub fn as_naive_datetime(self) -> Result<NaiveDateTime, SyncstorageDbError> {
-        let millis = self.as_i64();
-        let secs = millis / 1000;
-        let nsecs: u32 = ((millis % 1000) * 1_000_000).try_into().map_err(|e| {
-            SyncstorageDbError::internal(format!(
-                "Invalid timestamp (nanoseconds) {}: {}",
-                millis, e
-            ))
-        })?;
-
-        let ts = Utc.timestamp_opt(secs, nsecs);
-
-        if let Some(dt) = ts.single() {
-            Ok(dt.naive_utc())
-        } else {
-            Err(SyncstorageDbError::internal(format!(
-                "Invalid or ambiguous timestamp {}: {:?}",
-                millis, ts
-            )))
-        }
+    /// Convert this SyncTimestamp into a chrono::NaiveDateTime (UTC).
+    /// Required for use with Diesel's `Timestamp` and in other scenarios where conversion is essential.
+    pub fn as_naive_datetime(self: SyncTimestamp) -> Result<NaiveDateTime, SyncstorageDbError> {
+        chrono::DateTime::from_timestamp_millis(self.as_i64())
+            .map(|dt| dt.naive_utc())
+            .ok_or_else(|| SyncstorageDbError::internal("Invalid timestamp".to_owned()))
     }
 }
 
