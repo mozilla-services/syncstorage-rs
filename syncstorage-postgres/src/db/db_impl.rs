@@ -11,8 +11,9 @@ use diesel::{
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
+use std::collections::HashMap;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::Quota;
 
@@ -416,8 +417,101 @@ impl Db for PgDb {
         Ok(modified)
     }
 
-    async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {
-        todo!()
+    async fn put_bso(&mut self, bso: params::PutBso) -> Result<results::PutBso, Self::Error> {
+        let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
+        let user_id: u64 = bso.user_id.legacy_id;
+        let timestamp = self.timestamp().as_i64();
+        if self.quota.enabled {
+            let usage = self
+                .get_quota_usage(params::GetQuotaUsage {
+                    user_id: bso.user_id.clone(),
+                    collection: bso.collection.clone(),
+                    collection_id,
+                })
+                .await?;
+            if usage.total_bytes >= self.quota.size {
+                let mut tags = HashMap::default();
+                tags.insert("collection".to_owned(), bso.collection.clone());
+                self.metrics.incr_with_tags("storage.quota.at_limit", tags);
+                if self.quota.enforced {
+                    return Err(DbError::quota());
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                }
+            }
+        }
+
+        let payload = bso.payload.as_deref().unwrap_or_default();
+        let sortindex = bso.sortindex;
+        let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+
+        // This method is an upsert operation, which allows the update of an existing row
+        // or inserts a new one if it doesn’t exist. Postgres does not have `UPSERT` but
+        // achieves this though `INSERT...ON CONFLICT`.
+        let q: String = r#"
+            INSERT INTO bso (user_id, collection_id, bso_id, sortindex, payload, modified, expiry)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+                ON CONFLICT (user_id, collection_id, bso_id)
+                DO UPDATE SET
+                   user_id = EXCLUDED.user_id,
+                   collection_id = EXCLUDED.collection_id,
+                   bso_id = EXCLUDED.bso_id,
+            "#
+        .to_string();
+
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.sortindex.is_some() {
+                ", sortindex = VALUES(sortindex)"
+            } else {
+                ""
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.payload.is_some() {
+                ", payload = VALUES(payload)"
+            } else {
+                ""
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.ttl.is_some() {
+                "expiry = VALUES(expiry)"
+            } else {
+                ""
+            },
+        );
+        let q = format!(
+            "{}{}",
+            q,
+            if bso.payload.is_some() || bso.sortindex.is_some() {
+                "modified = VALUES(modified)"
+            } else {
+                ""
+            },
+        );
+        sql_query(q)
+            .bind::<BigInt, _>(user_id as i64) // XXX:
+            .bind::<Integer, _>(&collection_id)
+            .bind::<Text, _>(&bso.id)
+            .bind::<Nullable<Integer>, _>(sortindex)
+            .bind::<Text, _>(payload)
+            .bind::<BigInt, _>(timestamp)
+            .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
+            .execute(&mut self.conn)
+            .await?;
+
+        self.update_collection(params::UpdateCollection {
+            user_id: bso.user_id,
+            collection_id,
+            collection: bso.collection,
+        })
+        .await
     }
 
     async fn get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {
