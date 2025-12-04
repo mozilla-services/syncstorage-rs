@@ -13,7 +13,7 @@ use crate::{server::ServerState, web::error::ValidationErrorKind};
 #[derive(Clone, Copy, Debug, Serialize)]
 pub struct QuotaInfo {
     pub enabled: bool,
-    pub size: u32,
+    pub size: u64,
 }
 
 #[derive(Clone, Debug)]

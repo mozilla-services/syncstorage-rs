@@ -23,7 +23,7 @@ static DEFAULT_MAX_TOTAL_BYTES: u32 = 100 * DEFAULT_MAX_POST_BYTES;
 pub static DEFAULT_MAX_TOTAL_RECORDS: u32 = 100 * DEFAULT_MAX_POST_RECORDS;
 // Hard spanner limit is 4GB per split (items under a unique index).
 // This gives us more than a bit of wiggle room.
-static DEFAULT_MAX_QUOTA_LIMIT: u32 = 2 * GIGABYTE;
+static DEFAULT_MAX_QUOTA_LIMIT: u64 = (2 * GIGABYTE) as u64;
 
 #[derive(Clone, Debug, Default, Copy)]
 pub struct Quota {
@@ -191,7 +191,7 @@ pub struct ServerLimits {
 
     /// Maximum BSO count across a batch upload.
     pub max_total_records: u32,
-    pub max_quota_limit: u32,
+    pub max_quota_limit: u64,
 }
 
 impl Default for ServerLimits {
