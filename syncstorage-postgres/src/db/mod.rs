@@ -183,7 +183,7 @@ impl PgDb {
 
 #[macro_export]
 macro_rules! bsos_query {
-    ($self:expr, $params:expr, $selection:expr, $row_type:ty) => {
+    ($self:expr, $params:expr, $selection:expr) => {
         {
             let user_id = $params.user_id.legacy_id as i64;
             let collection_id = $self.get_collection_id(&$params.collection).await?;
@@ -238,7 +238,7 @@ macro_rules! bsos_query {
                 // https://github.com/mozilla-services/server-syncstorage/blob/a0f8117/syncstorage/storage/sql/__init__.py#L404
                 query = query.offset(numeric_offset);
             }
-            let mut items = query.load::<$row_type>(&mut $self.conn).await?;
+            let mut items = query.load(&mut $self.conn).await?;
 
             // XXX: an additional get_collection_timestamp is done here in
             // python to trigger potential CollectionNotFoundErrors
