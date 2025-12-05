@@ -469,61 +469,83 @@ impl Db for PgDb {
         // This method is an upsert operation, which allows the update of an existing row
         // or inserts a new one if it doesn’t exist. Postgres does not have `UPSERT` but
         // achieves this though `INSERT...ON CONFLICT`.
-        let q: String = r#"
-            INSERT INTO bso (user_id, collection_id, bso_id, sortindex, payload, modified, expiry)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (user_id, collection_id, bso_id)
-                DO UPDATE SET
-                   user_id = EXCLUDED.user_id,
-                   collection_id = EXCLUDED.collection_id,
-                   bso_id = EXCLUDED.bso_id,
-            "#
-        .to_string();
+        // let q: String = r#"
+        //     INSERT INTO bso (user_id, collection_id, bso_id, sortindex, payload, modified, expiry)
+        //     VALUES ($1, $2, $3, $4, $5, $6, $7)
+        //         ON CONFLICT (user_id, collection_id, bso_id)
+        //         DO UPDATE SET
+        //            user_id = EXCLUDED.user_id,
+        //            collection_id = EXCLUDED.collection_id,
+        //            bso_id = EXCLUDED.bso_id,
+        //     "#
+        // .to_string();
 
-        let q = format!(
-            "{}{}",
-            q,
-            if bso.sortindex.is_some() {
-                ", sortindex = VALUES(sortindex)"
-            } else {
-                ""
-            },
-        );
-        let q = format!(
-            "{}{}",
-            q,
-            if bso.payload.is_some() {
-                ", payload = VALUES(payload)"
-            } else {
-                ""
-            },
-        );
-        let q = format!(
-            "{}{}",
-            q,
-            if bso.ttl.is_some() {
-                "expiry = VALUES(expiry)"
-            } else {
-                ""
-            },
-        );
-        let q = format!(
-            "{}{}",
-            q,
-            if bso.payload.is_some() || bso.sortindex.is_some() {
-                "modified = VALUES(modified)"
-            } else {
-                ""
-            },
-        );
-        sql_query(q)
-            .bind::<BigInt, _>(user_id as i64) // XXX:
-            .bind::<Integer, _>(&collection_id)
-            .bind::<Text, _>(&bso.id)
-            .bind::<Nullable<Integer>, _>(sortindex)
-            .bind::<Text, _>(payload)
-            .bind::<BigInt, _>(timestamp)
-            .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
+        // let q = format!(
+        //     "{}{}",
+        //     q,
+        //     if bso.sortindex.is_some() {
+        //         ", sortindex = VALUES(sortindex)"
+        //     } else {
+        //         ""
+        //     },
+        // );
+        // let q = format!(
+        //     "{}{}",
+        //     q,
+        //     if bso.payload.is_some() {
+        //         ", payload = VALUES(payload)"
+        //     } else {
+        //         ""
+        //     },
+        // );
+        // let q = format!(
+        //     "{}{}",
+        //     q,
+        //     if bso.ttl.is_some() {
+        //         "expiry = VALUES(expiry)"
+        //     } else {
+        //         ""
+        //     },
+        // );
+        // let q = format!(
+        //     "{}{}",
+        //     q,
+        //     if bso.payload.is_some() || bso.sortindex.is_some() {
+        //         "modified = VALUES(modified)"
+        //     } else {
+        //         ""
+        //     },
+        // );
+        // sql_query(q)
+        //     .bind::<BigInt, _>(user_id as i64) // XXX:
+        //     .bind::<Integer, _>(&collection_id)
+        //     .bind::<Text, _>(&bso.id)
+        //     .bind::<Nullable<Integer>, _>(sortindex)
+        //     .bind::<Text, _>(payload)
+        //     .bind::<BigInt, _>(timestamp)
+        //     .bind::<BigInt, _>(timestamp + (i64::from(ttl) * 1000)) // remember: this is in millis
+        //     .execute(&mut self.conn)
+        //     .await?;
+
+        let expiry_ts = SyncTimestamp::from_i64(timestamp + (i64::from(ttl) * 1000))?; // remember: original milli conversion
+        let modified_ts = SyncTimestamp::from_i64(timestamp)?;
+        diesel::insert_into(bsos::table)
+            .values((
+                bsos::user_id.eq(user_id as i64),
+                bsos::collection_id.eq(&collection_id),
+                bsos::bso_id.eq(&bso.id),
+                bsos::sortindex.eq(sortindex),
+                bsos::payload.eq(payload),
+                bsos::modified.eq(modified_ts.as_naive_datetime()?),
+                bsos::expiry.eq(expiry_ts.as_naive_datetime()?),
+            ))
+            .on_conflict((bsos::user_id, bsos::collection_id, bsos::bso_id))
+            .do_update()
+            .set((
+                bsos::user_id.eq(user_id as i64),
+                bsos::collection_id.eq(&collection_id),
+                bsos::bso_id.eq(&bso.id),
+            ))
             .execute(&mut self.conn)
             .await?;
 
