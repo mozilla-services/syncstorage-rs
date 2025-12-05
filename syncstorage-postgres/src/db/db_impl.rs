@@ -21,6 +21,7 @@ use super::PgDb;
 use crate::{
     bsos_query,
     db::CollectionLock,
+    orm_models::BsoChangeset,
     pool::Conn,
     schema::{bsos, user_collections},
     DbError, DbResult,
@@ -529,6 +530,34 @@ impl Db for PgDb {
 
         let expiry_ts = SyncTimestamp::from_i64(timestamp + (i64::from(ttl) * 1000))?; // remember: original milli conversion
         let modified_ts = SyncTimestamp::from_i64(timestamp)?;
+
+        let expiry_dt = expiry_ts.as_naive_datetime()?;
+        let modified_dt = modified_ts.as_naive_datetime()?;
+
+        // The changeset utilizes Diesel's `AsChangeset` trait.
+        // This allows selective updates of fields if and only if they are `Some(<T>)`
+        let changeset = BsoChangeset {
+            sortindex: if bso.sortindex.is_some() {
+                Some(sortindex)
+            } else {
+                None
+            },
+            payload: if bso.payload.is_some() {
+                Some(payload)
+            } else {
+                None
+            },
+            expiry: if bso.ttl.is_some() {
+                Some(expiry_dt)
+            } else {
+                None
+            },
+            modified: if bso.payload.is_some() || bso.sortindex.is_some() {
+                Some(modified_dt)
+            } else {
+                None
+            },
+        };
         diesel::insert_into(bsos::table)
             .values((
                 bsos::user_id.eq(user_id as i64),
@@ -541,11 +570,7 @@ impl Db for PgDb {
             ))
             .on_conflict((bsos::user_id, bsos::collection_id, bsos::bso_id))
             .do_update()
-            .set((
-                bsos::user_id.eq(user_id as i64),
-                bsos::collection_id.eq(&collection_id),
-                bsos::bso_id.eq(&bso.id),
-            ))
+            .set(changeset)
             .execute(&mut self.conn)
             .await?;
 

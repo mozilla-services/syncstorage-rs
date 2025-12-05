@@ -2,7 +2,7 @@ use chrono::NaiveDateTime;
 use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
-use diesel::{Identifiable, Queryable};
+use diesel::{AsChangeset, Identifiable, Queryable};
 
 #[allow(clippy::all)]
 #[derive(Queryable, Debug, Identifiable)]
@@ -37,6 +37,15 @@ pub struct Bso {
     pub payload: String,
     pub modified: NaiveDateTime,
     pub expiry: NaiveDateTime,
+}
+
+#[derive(AsChangeset)]
+#[diesel(table_name = bsos)]
+pub struct BsoChangeset<'a> {
+    pub sortindex: Option<Option<i32>>,
+    pub payload: Option<&'a str>,
+    pub modified: Option<NaiveDateTime>,
+    pub expiry: Option<NaiveDateTime>,
 }
 
 #[derive(Queryable, Debug, Identifiable)]
