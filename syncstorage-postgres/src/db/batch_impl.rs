@@ -1,9 +1,13 @@
 #![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
-use syncstorage_db_common::{params, results, BatchDb};
+use diesel::{delete, ExpressionMethods};
+use diesel_async::RunQueryDsl;
+
+use syncstorage_db_common::{params, results, BatchDb, Db};
 
 use super::PgDb;
-use crate::DbError;
+use crate::schema::{batch_bsos, batches};
+use crate::{DbError, DbResult};
 
 #[async_trait(?Send)]
 impl BatchDb for PgDb {
@@ -47,7 +51,20 @@ impl BatchDb for PgDb {
     async fn delete_batch(
         &mut self,
         params: params::DeleteBatch,
-    ) -> Result<results::DeleteBatch, Self::Error> {
-        todo!()
+    ) -> DbResult<results::DeleteBatch> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        delete(batches::table)
+            .filter(batches::batch_id.eq(&params.id))
+            .filter(batches::user_id.eq(&user_id))
+            .filter(batches::collection_id.eq(&collection_id))
+            .execute(&mut self.conn)
+            .await?;
+        delete(batch_bsos::table)
+            .filter(batch_bsos::batch_id.eq(&params.id))
+            .filter(batch_bsos::user_id.eq(&user_id))
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
     }
 }
