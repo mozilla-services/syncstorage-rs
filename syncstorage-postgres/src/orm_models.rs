@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
 use diesel::{Identifiable, Queryable};
@@ -9,7 +10,7 @@ use diesel::{Identifiable, Queryable};
 pub struct BatchBso {
     pub user_id: i64,
     pub collection_id: i32,
-    pub batch_id: String,
+    pub batch_id: Uuid,
     pub batch_bso_id: String,
     pub sortindex: Option<i64>,
     pub payload: Option<Vec<u8>>,
@@ -22,7 +23,7 @@ pub struct BatchBso {
 pub struct Batch {
     pub user_id: i64,
     pub collection_id: i32,
-    pub batch_id: String,
+    pub batch_id: Uuid,
     pub expiry: NaiveDateTime,
 }
 
