@@ -174,6 +174,23 @@ where
     }
 }
 
+use diesel::{
+    query_builder::bind_collector::RawBytesBindCollector,
+    serialize::{self, Output, ToSql},
+};
+impl<DB> ToSql<Timestamp, DB> for SyncTimestamp
+where
+    NaiveDateTime: ToSql<Timestamp, DB>,
+    for<'c> DB: Backend<BindCollector<'c> = RawBytesBindCollector<DB>>,
+{
+    fn to_sql<'b>(&'b self, out: &mut Output<'b, '_, DB>) -> serialize::Result {
+        let ndt = self
+            .as_naive_datetime()
+            .map_err(|e| format!("Invalid SyncTimestamp NaiveDateTime {}", e))?;
+        ToSql::<Timestamp, DB>::to_sql(&ndt, &mut out.reborrow())
+    }
+}
+
 /// Format a timestamp as second since epoch with two decimal places of precision.
 fn format_ts(val: u64) -> String {
     format!("{:.*}", 2, val as f64 / 1000.0)
