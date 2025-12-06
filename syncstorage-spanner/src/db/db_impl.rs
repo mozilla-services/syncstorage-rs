@@ -447,7 +447,7 @@ impl Db for SpannerDb {
             .one()
             .await?;
         if row[0].has_null_value() {
-            SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
+            Ok(SyncTimestamp::zero())
         } else {
             sync_timestamp_from_rfc3339(row[0].get_string_value())
         }
@@ -847,27 +847,25 @@ impl Db for SpannerDb {
             "bso_id" => params.id,
         };
 
-        let result = self
-            .sql(
-                "SELECT modified
-                   FROM bsos
-                  WHERE fxa_uid = @fxa_uid
-                    AND fxa_kid = @fxa_kid
-                    AND collection_id = @collection_id
-                    AND bso_id = @bso_id
-                    AND expiry > CURRENT_TIMESTAMP()",
-            )
-            .await?
-            .params(sqlparams)
-            .param_types(sqlparam_types)
-            .execute(&self.conn)?
-            .one_or_none()
-            .await?;
-        if let Some(result) = result {
-            sync_timestamp_from_rfc3339(result[0].get_string_value())
-        } else {
-            SyncTimestamp::from_i64(0).map_err(|e| DbError::integrity(e.to_string()))
-        }
+        self.sql(
+            "SELECT modified
+               FROM bsos
+              WHERE fxa_uid = @fxa_uid
+                AND fxa_kid = @fxa_kid
+                AND collection_id = @collection_id
+                AND bso_id = @bso_id
+                AND expiry > CURRENT_TIMESTAMP()",
+        )
+        .await?
+        .params(sqlparams)
+        .param_types(sqlparam_types)
+        .execute(&self.conn)?
+        .one_or_none()
+        .await?
+        .map_or_else(
+            || Ok(SyncTimestamp::zero()),
+            |row| sync_timestamp_from_rfc3339(row[0].get_string_value()),
+        )
     }
 
     async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {

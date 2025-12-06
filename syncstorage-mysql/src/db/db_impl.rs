@@ -483,7 +483,7 @@ impl Db for MysqlDb {
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&params.id))
-            .filter(bso::expiry.ge(self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(self.timestamp().as_i64()))
             .get_result::<results::GetBso>(&mut self.conn)
             .await
             .optional()?)

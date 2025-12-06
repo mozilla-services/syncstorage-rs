@@ -387,7 +387,7 @@ async fn delete_collection() {
         "/1.5/42/storage/bookmarks",
         &move |result: DeleteBso| {
             assert!(
-                result == SyncTimestamp::from_seconds(0.00),
+                result == SyncTimestamp::zero(),
                 "Bad Bookmarks {:?} != 0",
                 result
             );

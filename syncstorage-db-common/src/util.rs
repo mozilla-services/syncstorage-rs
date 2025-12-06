@@ -7,7 +7,7 @@ use chrono::{
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
-    sql_types::BigInt,
+    sql_types::{BigInt, Timestamp},
     FromSqlRow,
 };
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
@@ -86,7 +86,7 @@ impl SyncTimestamp {
         Self::from_datetime(dt)
     }
 
-    /// Create a `SyncTimestamp` from a chrono DateTime
+    /// Create a `SyncTimestamp` from a chrono DateTime<FixedOffset>
     fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, SyncstorageDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
@@ -95,6 +95,16 @@ impl SyncTimestamp {
             ));
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
+    }
+
+    /// Create a `SyncTimestamp` from a chrono NaiveDateTime
+    pub fn from_naive_datetime(val: NaiveDateTime) -> Result<Self, SyncstorageDbError> {
+        SyncTimestamp::from_datetime(val.and_utc().into())
+    }
+
+    /// Create a `SyncTimestamp` at epoch
+    pub fn zero() -> Self {
+        SyncTimestamp(0)
     }
 
     /// Return the timestamp as an i64 milliseconds since epoch
@@ -152,6 +162,18 @@ where
     }
 }
 
+impl<DB> FromSql<Timestamp, DB> for SyncTimestamp
+where
+    NaiveDateTime: FromSql<Timestamp, DB>,
+    DB: Backend,
+{
+    fn from_sql(value: <DB as Backend>::RawValue<'_>) -> deserialize::Result<Self> {
+        let ndt = <NaiveDateTime as FromSql<Timestamp, DB>>::from_sql(value)?;
+        SyncTimestamp::from_naive_datetime(ndt)
+            .map_err(|e| format!("Invalid SyncTimestamp NaiveDateTime {}", e).into())
+    }
+}
+
 /// Format a timestamp as second since epoch with two decimal places of precision.
 fn format_ts(val: u64) -> String {
     format!("{:.*}", 2, val as f64 / 1000.0)
@@ -192,4 +214,29 @@ pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
         "Invalid or ambiguous timestamp {}: {:?}",
         val, ts
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::DateTime;
+
+    use super::SyncTimestamp;
+    use crate::error::SyncstorageDbError;
+
+    #[test]
+    fn from_naive_datetime() -> Result<(), SyncstorageDbError> {
+        let full_time = "2020-06-02T23:58:40.347847393Z";
+        let sync_time = "2020-06-02T23:58:40.340000000Z";
+        let ndt = DateTime::parse_from_rfc3339(full_time).unwrap().naive_utc();
+        let ts = SyncTimestamp::from_naive_datetime(ndt)?;
+        assert_eq!(ts.as_rfc3339()?, sync_time);
+        Ok(())
+    }
+
+    #[test]
+    fn zero() {
+        let zero = SyncTimestamp::zero();
+        assert_eq!(zero, SyncTimestamp::from_i64(0).unwrap());
+        assert_eq!(zero, SyncTimestamp::from_seconds(0.00));
+    }
 }
