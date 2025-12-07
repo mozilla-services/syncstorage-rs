@@ -11,8 +11,7 @@ use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
 use syncstorage_db_common::{
-    params, results, util::SyncTimestamp, BatchDb, Db, UserIdentifier, BATCH_LIFETIME,
-    DEFAULT_BSO_TTL,
+    params, results, BatchDb, Db, UserIdentifier, BATCH_LIFETIME, DEFAULT_BSO_TTL,
 };
 
 use super::PgDb;
@@ -32,8 +31,8 @@ impl BatchDb for PgDb {
         let batch_id = Uuid::new_v4();
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        let timestamp_ms = self.timestamp().as_i64();
-        let expiry = SyncTimestamp::from_i64(timestamp_ms + BATCH_LIFETIME)?.as_naive_datetime()?;
+        let expiry =
+            self.timestamp().as_naive_datetime()? + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
 
         insert_into(batches::table)
             .values((
@@ -122,13 +121,7 @@ impl BatchDb for PgDb {
                 id: params.id.clone(),
             })
             .await?;
-        let batch = if is_valid {
-            Some(results::GetBatch { id: params.id })
-        } else {
-            None
-        };
-
-        Ok(batch)
+        Ok(is_valid.then_some(results::GetBatch { id: params.id }))
     }
 
     async fn commit_batch(
@@ -193,8 +186,7 @@ impl BatchDb for PgDb {
         &mut self,
         params: params::DeleteBatch,
     ) -> DbResult<results::DeleteBatch> {
-        let batch_id = Uuid::parse_str(&params.id)
-            .map_err(|e| DbError::internal(format!("Invalid batch_id: {}", e)))?;
+        let batch_id = validate_batch_id(&params.id)?;
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
 
@@ -258,4 +250,8 @@ pub async fn do_append(
     }
 
     Ok(())
+}
+
+pub fn validate_batch_id(id: &str) -> DbResult<Uuid> {
+    Uuid::parse_str(id).map_err(|e| DbError::internal(format!("Invalid batch_id: {}", e)))
 }
