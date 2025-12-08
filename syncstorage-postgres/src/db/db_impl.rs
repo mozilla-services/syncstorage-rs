@@ -3,11 +3,14 @@
 use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::{
-    delete, sql_query,
-    sql_types::{Integer, Nullable, Text, Timestamp},
-    ExpressionMethods, OptionalExtension, QueryDsl,
+    delete,
+    dsl::{count, max, sql},
+    sql_query,
+    sql_types::{BigInt, Integer, Nullable, Text},
+    ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
+use futures::TryStreamExt;
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
 };
@@ -98,17 +101,16 @@ impl Db for PgDb {
         // Obtains shared lock, allowing multiple transactions to read rows simultaneously.
         self.begin(false).await?;
 
-        let modified: Option<NaiveDateTime> = user_collections::table
+        let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
-            .first::<NaiveDateTime>(&mut self.conn)
+            .first(&mut self.conn)
             .await
             .optional()?;
 
         if let Some(modified) = modified {
-            let modified = SyncTimestamp::from_i64(modified.and_utc().timestamp_millis())?;
             self.session
                 .coll_modified_cache
                 .insert((params.user_id.clone(), collection_id), modified);
@@ -137,17 +139,16 @@ impl Db for PgDb {
         // Acquires exclusive lock on select rows, prohibits other transactions from modifying
         // until complete.
         self.begin(true).await?;
-        let modified: Option<NaiveDateTime> = user_collections::table
+        let modified = user_collections::table
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
-            .first::<NaiveDateTime>(&mut self.conn)
+            .first(&mut self.conn)
             .await
             .optional()?;
 
         if let Some(modified) = modified {
-            let modified = SyncTimestamp::from_i64(modified.and_utc().timestamp_millis())?;
             // Do not allow write if it would incorrectly increment timestamp.
             if modified >= self.timestamp() {
                 return Err(DbError::conflict());
@@ -167,50 +168,117 @@ impl Db for PgDb {
     async fn get_collection_timestamps(
         &mut self,
         params: params::GetCollectionTimestamps,
-    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetCollectionTimestamps> {
+        let modifieds = user_collections::table
+            .select((user_collections::collection_id, user_collections::modified))
+            .filter(user_collections::user_id.eq(params.legacy_id as i64))
+            .load_stream::<(_, SyncTimestamp)>(&mut self.conn)
+            .await?
+            .try_collect()
+            .await?;
+        self.map_collection_names(modifieds).await
     }
 
     async fn get_collection_timestamp(
         &mut self,
         params: params::GetCollectionTimestamp,
-    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetCollectionTimestamp> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        if let Some(modified) = self
+            .session
+            .coll_modified_cache
+            .get(&(params.user_id, collection_id))
+        {
+            return Ok(*modified);
+        }
+        user_collections::table
+            .select(user_collections::modified)
+            .filter(user_collections::user_id.eq(user_id))
+            .filter(user_collections::collection_id.eq(collection_id))
+            .first(&mut self.conn)
+            .await
+            .optional()?
+            .ok_or_else(DbError::collection_not_found)
     }
 
     async fn get_collection_counts(
         &mut self,
         params: params::GetCollectionCounts,
-    ) -> Result<results::GetCollectionCounts, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetCollectionCounts> {
+        let counts = bsos::table
+            .group_by(bsos::collection_id)
+            .select((bsos::collection_id, count(bsos::collection_id)))
+            .filter(bsos::user_id.eq(params.legacy_id as i64))
+            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .load_stream::<(_, i64)>(&mut self.conn)
+            .await?
+            .try_collect()
+            .await?;
+        self.map_collection_names(counts).await
     }
 
     async fn get_collection_usage(
         &mut self,
         params: params::GetCollectionUsage,
-    ) -> Result<results::GetCollectionUsage, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetCollectionUsage> {
+        let counts = bsos::table
+            .group_by(bsos::collection_id)
+            .select((bsos::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
+            .filter(bsos::user_id.eq(params.legacy_id as i64))
+            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .load_stream::<(_, i64)>(&mut self.conn)
+            .await?
+            .try_collect()
+            .await?;
+        self.map_collection_names(counts).await
     }
 
     async fn get_storage_timestamp(
         &mut self,
         params: params::GetStorageTimestamp,
-    ) -> Result<results::GetStorageTimestamp, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetStorageTimestamp> {
+        let modified = user_collections::table
+            .select(max(user_collections::modified))
+            .filter(user_collections::user_id.eq(params.legacy_id as i64))
+            .first::<Option<_>>(&mut self.conn)
+            .await?
+            .unwrap_or_else(SyncTimestamp::zero);
+        Ok(modified)
     }
 
     async fn get_storage_usage(
         &mut self,
         params: params::GetStorageUsage,
-    ) -> Result<results::GetStorageUsage, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetStorageUsage> {
+        let total_bytes = bsos::table
+            .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
+            .filter(bsos::user_id.eq(params.legacy_id as i64))
+            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .get_result::<Option<i64>>(&mut self.conn)
+            .await?;
+        Ok(total_bytes.unwrap_or_default() as u64)
     }
 
     async fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
-    ) -> Result<results::GetQuotaUsage, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetQuotaUsage> {
+        let (total_bytes, count): (i64, i32) = user_collections::table
+            .select((
+                sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
+                sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
+            ))
+            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
+            .filter(user_collections::collection_id.eq(params.collection_id))
+            .get_result(&mut self.conn)
+            .await
+            .optional()?
+            .unwrap_or_default();
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
     }
 
     async fn delete_storage(
@@ -270,31 +338,21 @@ impl Db for PgDb {
         .await
     }
 
-    async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
-        let selection = (
-            bsos::bso_id,
-            bsos::modified,
-            bsos::payload,
-            bsos::sortindex,
-            bsos::expiry,
-        );
-        let (bsos, offset) = bsos_query!(self, params, selection, GetBso);
-        let items = bsos.into_iter().map(Into::into).collect();
+    async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
+        let (bsos, offset) = bsos_query!(self, params, GetBso::as_select());
+        let items = bsos
+            .into_iter()
+            .map(TryInto::try_into)
+            .collect::<DbResult<_>>()?;
         Ok(results::GetBsos { items, offset })
     }
 
-    async fn get_bso_ids(
-        &mut self,
-        params: params::GetBsoIds,
-    ) -> Result<results::GetBsoIds, Self::Error> {
-        let (items, offset) = bsos_query!(self, params, bsos::bso_id, String);
+    async fn get_bso_ids(&mut self, params: params::GetBsoIds) -> DbResult<results::GetBsoIds> {
+        let (items, offset) = bsos_query!(self, params, bsos::bso_id);
         Ok(results::GetBsoIds { items, offset })
     }
 
-    async fn post_bsos(
-        &mut self,
-        params: params::PostBsos,
-    ) -> Result<results::PostBsos, Self::Error> {
+    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
         todo!()
     }
 
@@ -320,21 +378,42 @@ impl Db for PgDb {
         .await
     }
 
-    async fn get_bso(
-        &mut self,
-        params: params::GetBso,
-    ) -> Result<Option<results::GetBso>, Self::Error> {
-        todo!()
+    async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        let bso = bsos::table
+            .select(GetBso::as_select())
+            .filter(bsos::user_id.eq(user_id))
+            .filter(bsos::collection_id.eq(collection_id))
+            .filter(bsos::bso_id.eq(&params.id))
+            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .get_result(&mut self.conn)
+            .await
+            .optional()?
+            .map(TryInto::try_into)
+            .transpose()?;
+        Ok(bso)
     }
 
     async fn get_bso_timestamp(
         &mut self,
         params: params::GetBsoTimestamp,
-    ) -> Result<results::GetBsoTimestamp, Self::Error> {
-        todo!()
+    ) -> DbResult<results::GetBsoTimestamp> {
+        let user_id = params.user_id.legacy_id as i64;
+        let collection_id = self.get_collection_id(&params.collection).await?;
+        let modified = bsos::table
+            .select(bsos::modified)
+            .filter(bsos::user_id.eq(user_id))
+            .filter(bsos::collection_id.eq(collection_id))
+            .filter(bsos::bso_id.eq(&params.id))
+            .first(&mut self.conn)
+            .await
+            .optional()?
+            .unwrap_or_else(SyncTimestamp::zero);
+        Ok(modified)
     }
 
-    async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error> {
+    async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {
         todo!()
     }
 
@@ -383,9 +462,7 @@ impl Db for PgDb {
             count: 0,
         };
         let total_bytes = quota.total_bytes as i64;
-        let sync_ts = self.timestamp();
-        // Convert SyncTimestamp -> NaiveDateTime using the new method
-        let modified: NaiveDateTime = sync_ts.as_naive_datetime()?;
+        let modified = self.timestamp().as_naive_datetime()?;
 
         diesel::insert_into(user_collections::table)
             .values((
@@ -415,7 +492,7 @@ impl Db for PgDb {
         self.session.timestamp = timestamp;
     }
 
-    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+    async fn clear_coll_cache(&mut self) -> DbResult<()> {
         self.coll_cache.clear();
         Ok(())
     }
@@ -435,30 +512,31 @@ struct IdResult {
     id: i32,
 }
 
-#[derive(Debug, Queryable, QueryableByName)]
+#[derive(Debug, Queryable, Selectable)]
+#[diesel(table_name = bsos)]
 pub struct GetBso {
     #[diesel(sql_type = Text)]
     pub bso_id: String,
-    #[diesel(sql_type = Timestamp)]
-    pub modified: NaiveDateTime,
-    #[diesel(sql_type = Text)]
-    pub payload: String,
     #[diesel(sql_type = Nullable<Integer>)]
     pub sortindex: Option<i32>,
+    #[diesel(sql_type = Text)]
+    pub payload: String,
+    #[diesel(sql_type = Timestamp)]
+    pub modified: NaiveDateTime,
     #[diesel(sql_type = Timestamp)]
     pub expiry: NaiveDateTime,
 }
 
-impl From<GetBso> for results::GetBso {
-    fn from(pg: GetBso) -> Self {
-        Self {
+impl TryFrom<GetBso> for results::GetBso {
+    type Error = DbError;
+
+    fn try_from(pg: GetBso) -> DbResult<Self> {
+        Ok(Self {
             id: pg.bso_id,
-            modified: SyncTimestamp::from_milliseconds(
-                pg.modified.and_utc().timestamp_millis() as u64
-            ),
-            payload: pg.payload,
             sortindex: pg.sortindex,
-            expiry: pg.modified.and_utc().timestamp_millis(),
-        }
+            payload: pg.payload,
+            modified: SyncTimestamp::from_naive_datetime(pg.modified)?,
+            expiry: pg.expiry.and_utc().timestamp_millis(),
+        })
     }
 }
