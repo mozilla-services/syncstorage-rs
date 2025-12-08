@@ -5,7 +5,7 @@ updates:
   schedule:
     interval: monthly
     timezone: UCT
-  open-pull-requests-limit: 0
+  open-pull-requests-limit: 1
   labels:
   - dependencies
   ignore:
