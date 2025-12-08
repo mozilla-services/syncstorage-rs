@@ -260,6 +260,7 @@ impl Db for PgDb {
         Ok(total_bytes.unwrap_or_default() as u64)
     }
 
+    /// Performs a light-weight "read only" quota storage check
     async fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
