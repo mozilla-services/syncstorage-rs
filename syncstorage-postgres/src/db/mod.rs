@@ -21,6 +21,8 @@ use super::{
 mod batch_impl;
 mod db_impl;
 
+pub use batch_impl::validate_batch_id;
+
 const TOMBSTONE: i32 = 0;
 
 #[derive(Debug, Eq, PartialEq)]
