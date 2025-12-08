@@ -168,7 +168,7 @@ impl Db for PgDb {
     async fn get_collection_timestamps(
         &mut self,
         params: params::GetCollectionTimestamps,
-    ) -> Result<results::GetCollectionTimestamps, Self::Error> {
+    ) -> DbResult<results::GetCollectionTimestamps> {
         let modifieds = user_collections::table
             .select((user_collections::collection_id, user_collections::modified))
             .filter(user_collections::user_id.eq(params.legacy_id as i64))
@@ -182,7 +182,7 @@ impl Db for PgDb {
     async fn get_collection_timestamp(
         &mut self,
         params: params::GetCollectionTimestamp,
-    ) -> Result<results::GetCollectionTimestamp, Self::Error> {
+    ) -> DbResult<results::GetCollectionTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
         if let Some(modified) = self
@@ -205,7 +205,7 @@ impl Db for PgDb {
     async fn get_collection_counts(
         &mut self,
         params: params::GetCollectionCounts,
-    ) -> Result<results::GetCollectionCounts, Self::Error> {
+    ) -> DbResult<results::GetCollectionCounts> {
         let counts = bsos::table
             .group_by(bsos::collection_id)
             .select((bsos::collection_id, count(bsos::collection_id)))
@@ -221,7 +221,7 @@ impl Db for PgDb {
     async fn get_collection_usage(
         &mut self,
         params: params::GetCollectionUsage,
-    ) -> Result<results::GetCollectionUsage, Self::Error> {
+    ) -> DbResult<results::GetCollectionUsage> {
         let counts = bsos::table
             .group_by(bsos::collection_id)
             .select((bsos::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
@@ -237,7 +237,7 @@ impl Db for PgDb {
     async fn get_storage_timestamp(
         &mut self,
         params: params::GetStorageTimestamp,
-    ) -> Result<results::GetStorageTimestamp, Self::Error> {
+    ) -> DbResult<results::GetStorageTimestamp> {
         let modified = user_collections::table
             .select(max(user_collections::modified))
             .filter(user_collections::user_id.eq(params.legacy_id as i64))
@@ -250,7 +250,7 @@ impl Db for PgDb {
     async fn get_storage_usage(
         &mut self,
         params: params::GetStorageUsage,
-    ) -> Result<results::GetStorageUsage, Self::Error> {
+    ) -> DbResult<results::GetStorageUsage> {
         let total_bytes = bsos::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
@@ -263,7 +263,7 @@ impl Db for PgDb {
     async fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
-    ) -> Result<results::GetQuotaUsage, Self::Error> {
+    ) -> DbResult<results::GetQuotaUsage> {
         let (total_bytes, count): (i64, i32) = user_collections::table
             .select((
                 sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
@@ -338,7 +338,7 @@ impl Db for PgDb {
         .await
     }
 
-    async fn get_bsos(&mut self, params: params::GetBsos) -> Result<results::GetBsos, Self::Error> {
+    async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let (bsos, offset) = bsos_query!(self, params, GetBso::as_select());
         let items = bsos
             .into_iter()
@@ -347,18 +347,12 @@ impl Db for PgDb {
         Ok(results::GetBsos { items, offset })
     }
 
-    async fn get_bso_ids(
-        &mut self,
-        params: params::GetBsoIds,
-    ) -> Result<results::GetBsoIds, Self::Error> {
+    async fn get_bso_ids(&mut self, params: params::GetBsoIds) -> DbResult<results::GetBsoIds> {
         let (items, offset) = bsos_query!(self, params, bsos::bso_id);
         Ok(results::GetBsoIds { items, offset })
     }
 
-    async fn post_bsos(
-        &mut self,
-        params: params::PostBsos,
-    ) -> Result<results::PostBsos, Self::Error> {
+    async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
         todo!()
     }
 
@@ -384,10 +378,7 @@ impl Db for PgDb {
         .await
     }
 
-    async fn get_bso(
-        &mut self,
-        params: params::GetBso,
-    ) -> Result<Option<results::GetBso>, Self::Error> {
+    async fn get_bso(&mut self, params: params::GetBso) -> DbResult<Option<results::GetBso>> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
         let bso = bsos::table
@@ -407,7 +398,7 @@ impl Db for PgDb {
     async fn get_bso_timestamp(
         &mut self,
         params: params::GetBsoTimestamp,
-    ) -> Result<results::GetBsoTimestamp, Self::Error> {
+    ) -> DbResult<results::GetBsoTimestamp> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
         let modified = bsos::table
@@ -422,7 +413,7 @@ impl Db for PgDb {
         Ok(modified)
     }
 
-    async fn put_bso(&mut self, params: params::PutBso) -> Result<results::PutBso, Self::Error> {
+    async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {
         todo!()
     }
 
@@ -501,7 +492,7 @@ impl Db for PgDb {
         self.session.timestamp = timestamp;
     }
 
-    async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
+    async fn clear_coll_cache(&mut self) -> DbResult<()> {
         self.coll_cache.clear();
         Ok(())
     }
