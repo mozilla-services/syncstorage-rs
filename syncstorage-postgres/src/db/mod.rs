@@ -1,15 +1,18 @@
 #![allow(dead_code)] // XXX:
-use std::{collections::HashMap, fmt, sync::Arc};
-
-use diesel::{ExpressionMethods, QueryDsl};
+use diesel::{
+    dsl::sql,
+    sql_types::{BigInt, Integer},
+    ExpressionMethods, OptionalExtension, QueryDsl,
+};
 use diesel_async::RunQueryDsl;
+use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::diesel::DbError;
-use syncstorage_db_common::{util::SyncTimestamp, Db, UserIdentifier};
+use syncstorage_db_common::{results, util::SyncTimestamp, Db, UserIdentifier};
 use syncstorage_settings::Quota;
 
-use super::schema::{collections, user_collections};
+use super::schema::{bsos, collections, user_collections};
 use super::{
     pool::{CollectionCache, Conn},
     DbResult,
@@ -178,6 +181,30 @@ impl PgDb {
             .execute(&mut self.conn)
             .await?;
         Ok(())
+    }
+
+    // perform a heavier weight quota calculation
+    async fn calc_quota_usage(
+        &mut self,
+        user_id: i64,
+        collection_id: i32,
+    ) -> DbResult<results::GetQuotaUsage> {
+        let (total_bytes, count): (i64, i32) = bsos::table
+            .select((
+                sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
+                sql::<Integer>("COALESCE(COUNT(*),0)"),
+            ))
+            .filter(bsos::user_id.eq(user_id))
+            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::collection_id.eq(&collection_id))
+            .get_result(&mut self.conn)
+            .await
+            .optional()?
+            .unwrap_or_default();
+        Ok(results::GetQuotaUsage {
+            total_bytes: total_bytes as usize,
+            count,
+        })
     }
 }
 

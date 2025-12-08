@@ -260,6 +260,9 @@ impl Db for PgDb {
         Ok(total_bytes.unwrap_or_default() as u64)
     }
 
+    /// Performs a light-weight "read only" quota storage check.
+    /// Currently used by `put_bso`
+    /// XXX: Once `put_bso` impl in place, adjust to use this method.
     async fn get_quota_usage(
         &mut self,
         params: params::GetQuotaUsage,
@@ -455,11 +458,14 @@ impl Db for PgDb {
         &mut self,
         params: params::UpdateCollection,
     ) -> DbResult<SyncTimestamp> {
-        // XXX: In MySQL impl, this is where the unused quota
-        // enforcement takes place. We may/may not impl it.
-        let quota = results::GetQuotaUsage {
-            total_bytes: 0,
-            count: 0,
+        let quota = if self.quota.enabled {
+            self.calc_quota_usage(params.user_id.legacy_id as i64, params.collection_id)
+                .await?
+        } else {
+            results::GetQuotaUsage {
+                count: 0,
+                total_bytes: 0,
+            }
         };
         let total_bytes = quota.total_bytes as i64;
         let modified = self.timestamp().as_naive_datetime()?;
