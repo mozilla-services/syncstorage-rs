@@ -2,7 +2,7 @@ services:
   sync-db:
     image: docker.io/library/postgres:18.0
     volumes:
-      - sync_db_data:/var/lib/postgresql
+      - sync_db_data:/var/lib/postgresql/18/docker
     restart: always
     ports:
       - "5432"
@@ -26,14 +26,14 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - diesel migration run --database-url postgres://test:test@sync-db:5432/syncstorage --migration-dir /app/syncstorage-postgres/migrations && sleep infinity
+      - sleep infinity
     environment:
       SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
 
   tokenserver-db:
     image: docker.io/library/postgres:18.0
     volumes:
-      - tokenserver_db_data:/var/lib/postgresql
+      - tokenserver_db_data:/var/lib/postgresql/18/docker
     restart: always
     ports:
       - "5432"
