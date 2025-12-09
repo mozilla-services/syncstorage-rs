@@ -1,4 +1,3 @@
-#![allow(dead_code)] // XXX:
 #![allow(unused_variables)] // XXX:
 use async_trait::async_trait;
 
@@ -168,12 +167,11 @@ impl DbPool for PgDbPool {
     }
 
     async fn get<'a>(&'a self) -> DbResult<Box<dyn Db<Error = Self::Error>>> {
-        // Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
-        todo!()
+        Ok(Box::new(self.get_pg_db().await?) as Box<dyn Db<Error = Self::Error>>)
     }
-    /// XXX: Will complete when implementing the entire batch.rs module.
+
     fn validate_batch_id(&self, id: String) -> DbResult<()> {
-        todo!()
+        super::db::validate_batch_id(&id).map(|_| ())
     }
 
     fn box_clone(&self) -> Box<dyn DbPool<Error = Self::Error>> {

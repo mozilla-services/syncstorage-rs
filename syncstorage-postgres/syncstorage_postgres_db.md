@@ -33,7 +33,7 @@ Stores actual records being synced — Basic Storage Objects.
 | `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 2) & FK (part 2) to `user_collections`                           |
 | `bso_id`        | `TEXT`      | Unique ID within a collection. PK (part 4) |
 | `sortindex`     | `BIGINT`    | Indicates record importance for syncing (optional) |
-| `payload`       | `BYTEA`     | Bytes payload (e.g. JSON blob)                     |
+| `payload`       | `TEXT`      | Bytes payload (e.g. JSON blob)                     |
 | `modified`      | `TIMESTAMP` | Auto-assigned modification timestamp               |
 | `expiry`        | `TIMESTAMP` | TTL as absolute expiration time (optional)         |
 
@@ -63,8 +63,8 @@ Temporary table for staging batch uploads before final commit.
 | --------------- | ----------- | ------------------------------------------------- |
 | `user_id`       | `BIGINT`    | The user id (assigned by Tokenserver), FK (part 1) to `user_collections` |
 |
-| `collection_id` | `INTEGER`    | Maps to a named collection. PK (part 2) & FK (part 2) to `user_collections` |
-| `batch_id`      | `TEXT`      | Client-generated or server-assigned batch ID. PK (part 3)  |
+| `collection_id` | `INTEGER`   | Maps to a named collection. PK (part 2) & FK (part 2) to `user_collections` |
+| `batch_id`      | `UUID`      | Client-generated or server-assigned batch ID. PK (part 3)  |
 | `expiry`        | `TIMESTAMP` | Time at which batch is discarded if not committed |
 
 Indexes:
@@ -75,12 +75,12 @@ Stores BSOs during a batch upload, not yet committed to bsos.
 
 | Column          | Type     | Description                 |
 | --------------- | -------- | --------------------------- |
-| `user_id`       | `BIGINT` | FK to `batches`          |
-| `collection_id` | `INTEGER` | FK to `batches`             |
-| `batch_id`      | `TEXT`   | FK to `batches`             |
+| `user_id`       | `BIGINT` | FK to `batches`             |
+| `collection_id` | `INTEGER`| FK to `batches`             |
+| `batch_id`      | `UUID`   | FK to `batches`             |
 | `batch_bso_id`  | `TEXT`   | Unique ID within batch      |
 | `sortindex`     | `BIGINT` | Optional, for sort priority |
-| `payload`       | `BYTEA`  | Bytes payload               |
+| `payload`       | `TEXT`   | Payload                     |
 | `ttl`           | `BIGINT` | Time-to-live in seconds     |
 
 ## Database Diagram and Relationship
@@ -104,7 +104,7 @@ erDiagram
         INTEGER collection_id PK
         TEXT bso_id PK
         BIGINT sortindex
-        BYTEA payload
+        TEXT payload
         TIMESTAMP modified
         TIMESTAMP expiry
     }
@@ -112,17 +112,17 @@ erDiagram
     BATCHES {
         BIGINT user_id PK
         INTEGER collection_id PK
-        TEXT batch_id PK
+        UUID batch_id PK
         TIMESTAMP expiry
     }
 
     BATCH_BSOS {
         BIGINT user_id PK
         INTEGER collection_id PK
-        TEXT batch_id PK
+        UUID batch_id PK
         TEXT batch_bso_id PK
         BIGINT sortindex
-        BYTEA payload
+        TEXT payload
         BIGINT ttl
     }
 

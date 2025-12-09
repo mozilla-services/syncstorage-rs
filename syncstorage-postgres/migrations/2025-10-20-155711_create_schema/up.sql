@@ -47,7 +47,7 @@ CREATE TABLE collections (
 CREATE TABLE batches (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
-    batch_id TEXT NOT NULL,
+    batch_id UUID NOT NULL,
     expiry TIMESTAMP NOT NULL,
     PRIMARY KEY (
         user_id,
@@ -67,7 +67,7 @@ CREATE INDEX batch_expiry_idx ON batches (
 CREATE TABLE batch_bsos (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
-    batch_id TEXT NOT NULL,
+    batch_id UUID NOT NULL,
     batch_bso_id TEXT NOT NULL,
     sortindex INTEGER,
     payload TEXT,
