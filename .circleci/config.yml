@@ -473,6 +473,7 @@ jobs:
           name: Build MySQL Docker image
           command: >
             docker build -t app:build
+            --progress=plain
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=mysql
             --build-arg TOKENSERVER_DATABASE_BACKEND=mysql
             .
@@ -511,6 +512,7 @@ jobs:
           name: Build Postgres Docker image
           command: >
             docker build -t app:build
+            --progress=plain
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
             --build-arg TOKENSERVER_DATABASE_BACKEND=postgres
             .
@@ -550,6 +552,7 @@ jobs:
           # Build w/ the Oracle libmysqlclient-dev for TLS support
           command: >
             docker build -t app:build
+            --progress=plain
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
             --build-arg MYSQLCLIENT_PKG=libmysqlclient-dev
             .
@@ -783,7 +786,7 @@ jobs:
               echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
               echo ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}
               cd tools/spanner
-              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} .
+              docker build -t ${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG} --progress=plain .
               docker images
               docker push "${UTILS_DOCKERHUB_REPO}:${DOCKER_TAG}"
             else
