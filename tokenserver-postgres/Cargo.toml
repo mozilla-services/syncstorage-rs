@@ -10,7 +10,6 @@ async-trait.workspace = true
 deadpool.workspace = true
 diesel = { workspace = true, features = ["postgres"] }
 diesel-async = { workspace = true, features = ["postgres"] }
-diesel_logger.workspace = true
 diesel_migrations.workspace = true
 http.workspace = true
 tokio = { workspace = true, features = ["macros", "sync"] }

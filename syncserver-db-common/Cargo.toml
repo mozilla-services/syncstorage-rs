@@ -13,4 +13,5 @@ thiserror.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
 diesel_migrations.workspace = true
+log.workspace = true
 syncserver-common = { path = "../syncserver-common" }

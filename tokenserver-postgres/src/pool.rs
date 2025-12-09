@@ -1,9 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::Connection;
 use diesel_async::{
-    async_connection_wrapper::AsyncConnectionWrapper,
     pooled_connection::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
@@ -11,12 +9,13 @@ use diesel_async::{
     AsyncPgConnection,
 };
 
-use diesel_logger::LoggingConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::{
+    manager_config_with_logging, run_embedded_migrations, GetPoolState, PoolState,
+};
 use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
 use crate::db::TokenserverPgDb;
@@ -25,17 +24,11 @@ use tokio::task::spawn_blocking;
 
 /// The `embed_migrations!` macro reads migrations at compile time.
 /// This creates a constant that references a list of migrations.
-/// See https://docs.rs/diesel_migrations/2.2.0/diesel_migrations/macro.embed_migrations.html
+/// See https://docs.rs/diesel_migrations/latest/diesel_migrations/macro.embed_migrations.html
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 /// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
-
-fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
-    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
-    Ok(())
-}
 
 #[derive(Clone)]
 pub struct TokenserverPgPool {
@@ -51,8 +44,6 @@ pub struct TokenserverPgPool {
     pub timeout: Option<Duration>,
     /// Config setting flag to determine if migrations should run.
     run_migrations: bool,
-    /// URL for associated Postgres database
-    database_url: String,
 }
 
 impl TokenserverPgPool {
@@ -61,8 +52,10 @@ impl TokenserverPgPool {
         metrics: &Metrics,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
-        let manager =
-            AsyncDieselConnectionManager::<AsyncPgConnection>::new(&settings.database_url);
+        let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new_with_config(
+            &settings.database_url,
+            manager_config_with_logging(),
+        );
 
         let wait = settings
             .database_pool_connection_timeout
@@ -103,7 +96,6 @@ impl TokenserverPgPool {
             service_id: None,
             timeout,
             run_migrations: settings.run_migrations,
-            database_url: settings.database_url.clone(),
         })
     }
 
@@ -135,8 +127,8 @@ impl TokenserverPgPool {
 impl DbPool for TokenserverPgPool {
     async fn init(&mut self) -> Result<(), DbError> {
         if self.run_migrations {
-            let database_url = self.database_url.clone();
-            spawn_blocking(move || run_embedded_migrations(&database_url))
+            let conn = self.inner.get().await?;
+            spawn_blocking(move || run_embedded_migrations(conn, MIGRATIONS))
                 .await
                 .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
         }

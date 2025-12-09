@@ -9,13 +9,9 @@ edition.workspace = true
 async-trait.workspace = true
 env_logger.workspace = true
 lazy_static.workspace = true
+log.workspace = true
 rand.workspace = true
 slog-scope.workspace = true
-
-log = { version = "0.4", features = [
-    "max_level_debug",
-    "release_max_level_info",
-] }
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
 syncserver-settings = { path = "../syncserver-settings" }

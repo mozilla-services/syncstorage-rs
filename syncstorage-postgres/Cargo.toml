@@ -14,7 +14,6 @@ chrono.workspace = true
 deadpool.workspace = true
 diesel = { workspace = true, features = ["chrono", "postgres", "uuid"] }
 diesel-async = { workspace = true, features = ["postgres"] }
-diesel_logger.workspace = true
 diesel_migrations.workspace = true
 futures.workspace = true
 http.workspace = true
