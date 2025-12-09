@@ -53,6 +53,9 @@ clippy_mysql:
 	# Matches what's run in circleci
 	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/mysql --features=py_verifier -- -D clippy::dbg_macro -D warnings
 
+clippy_postgres:
+	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/postgres --features=py_verifier -- -D clippy::dbg_macro -D warnings
+
 clippy_spanner:
 	# Matches what's run in circleci
 	cargo clippy --workspace --all-targets --no-default-features --features=syncstorage-db/spanner --features=py_verifier -- -D clippy::dbg_macro -D warnings
@@ -157,6 +160,13 @@ spanner_test_with_coverage:
 	cargo llvm-cov --no-report --summary-only \
 		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE}|| true; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${SPANNER_UNIT_JUNIT_XML}
+	exit $$exit_code
+
+.ONESHELL:
+postgres_test_with_coverage:
+	cargo llvm-cov --no-report --summary-only \
+		nextest --workspace --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
+	mv target/nextest/${TEST_PROFILE}/junit.xml ${UNIT_JUNIT_XML}
 	exit $$exit_code
 
 merge_coverage_results:

@@ -1,30 +1,34 @@
 services:
   sync-db:
-    # Getting sporadic errors in spanner.
-    # These errors are "INTERNAL: ZETASQL_RET_CHECK failure"
-    # in the `backend/query/query_engine.cc` file for spanner.
-    # These result in a 500 error, which causes the test to fail.
-    # I believe come from the SQL parser, but am not sure. I am
-    # unable to produce these errors locally, and am using the cited
-    # version.
-    image: gcr.io/cloud-spanner-emulator/emulator:1.5.13
+    image: docker.io/library/postgres:18.0
+    volumes:
+      - sync_db_data:/var/lib/postgresql
+    restart: always
     ports:
-      - "9010:9010"
-      - "9020:9020"
+      - "5432"
     environment:
-      PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      POSTGRES_DB: syncstorage
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d syncstorage"]
+      interval: 2s
+      retries: 10
+      start_period: 20s
+      timeout: 2s
 
   sync-db-setup:
     image: app:build
     depends_on:
-      - sync-db
+      sync-db:
+        condition: service_healthy
     restart: "no"
     entrypoint:
       - /bin/sh
       - -c
-      - /app/scripts/prepare-spanner.sh && sleep infinity
+      - diesel migration run --database-url postgres://test:test@sync-db:5432/syncstorage --migration-dir /app/syncstorage-postgres/migrations && sleep infinity
     environment:
-      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9020
+      SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
 
   tokenserver-db:
     image: docker.io/library/postgres:18.0
@@ -69,8 +73,7 @@ services:
     environment:
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SYNC_TOKENSERVER__RUN_MIGRATIONS: "true"
     healthcheck:
@@ -81,6 +84,7 @@ services:
       timeout: 3s
 
 volumes:
+  sync_db_data:
   tokenserver_db_data:
 
     # Application runs off of port 8000.
