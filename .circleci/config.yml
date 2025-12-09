@@ -67,6 +67,11 @@ commands:
       - run:
           name: Rust Clippy MySQL
           command: make clippy_mysql
+  rust-clippy-postgres:
+    steps:
+      - run:
+          name: Rust Clippy Postgres
+          command: make clippy_postgres
   rust-clippy-spanner:
     steps:
       - run:
@@ -135,10 +140,13 @@ commands:
   run-unit-tests-postgres:
     steps:
       - run:
-          name: Tokenserver tests on PostgreSQL
-          command: |
-            cargo llvm-cov --no-report --summary-only \
-              nextest --package tokenserver-db --features=tokenserver-db/postgres --profile ci
+          name: nextest with code coverage
+          command: make postgres_test_with_coverage
+      - run:
+          name: nextest with code coverage (quota enforced)
+          command: make postgres_test_with_coverage
+          environment:
+            SYNC_SYNCSTORAGE__ENFORCE_QUOTA: 1
 
   run-utils-tests-postgres:
     steps:
@@ -326,6 +334,7 @@ jobs:
       - rust-check
       - rust-clippy-spanner
       - rust-clippy-mysql
+      - rust-clippy-postgres
       - setup-python
       - python-check
 
@@ -512,8 +521,9 @@ jobs:
           name: Build Postgres Docker image
           command: >
             docker build -t app:build
-            --progress=plain
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
+            --progress=plain
+            --build-arg SYNCSTORAGE_DATABASE_BACKEND=postgres
             --build-arg TOKENSERVER_DATABASE_BACKEND=postgres
             .
           no_output_timeout: 30m
