@@ -25,7 +25,6 @@ use syncserver_db_common::{
 };
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
-use tokio::task::spawn_blocking;
 
 use super::{db::MysqlDb, DbError, DbResult};
 
@@ -108,7 +107,7 @@ impl MysqlDbPool {
         sweeper()
     }
 
-    pub async fn get_conn(&self) -> DbResult<Conn> {
+    async fn get_conn(&self) -> DbResult<Conn> {
         self.pool.get().await.map_err(|e| match e {
             PoolError::Backend(be) => match be {
                 diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
@@ -146,9 +145,7 @@ impl DbPool for MysqlDbPool {
         // its own separate conn
         let conn =
             establish_connection_with_logging::<AsyncMysqlConnection>(&self.database_url).await?;
-        spawn_blocking(move || run_embedded_migrations(conn, MIGRATIONS))
-            .await
-            .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        run_embedded_migrations(conn, MIGRATIONS).await?;
         Ok(())
     }
 

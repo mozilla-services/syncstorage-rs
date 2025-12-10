@@ -3490,6 +3490,7 @@ dependencies = [
  "log",
  "syncserver-common",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -3563,7 +3564,6 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
- "tokio",
  "url",
 ]
 
@@ -3587,7 +3587,6 @@ dependencies = [
  "syncstorage-db-common",
  "syncstorage-settings",
  "thiserror 1.0.69",
- "tokio",
  "url",
  "uuid 1.19.0",
 ]
@@ -3888,7 +3887,6 @@ dependencies = [
  "tokenserver-common",
  "tokenserver-db-common",
  "tokenserver-settings",
- "tokio",
 ]
 
 [[package]]

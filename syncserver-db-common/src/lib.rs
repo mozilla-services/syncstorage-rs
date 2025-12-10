@@ -1,7 +1,7 @@
 pub mod error;
 pub mod test;
 
-use std::fmt::Debug;
+use std::{error::Error, fmt::Debug};
 
 #[cfg(debug_assertions)]
 use diesel::connection::InstrumentationEvent;
@@ -11,6 +11,7 @@ use diesel_async::{
     AsyncConnection, AsyncMigrationHarness,
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness};
+use tokio::task::spawn_blocking;
 
 /// A trait to be implemented by database pool data structures. It provides an interface to
 /// derive the current state of the pool, as represented by the `PoolState` struct.
@@ -77,18 +78,21 @@ where
 
 /// Run the diesel embedded migrations
 ///
-/// Note that this is a blocking operation. Internally it uses tokio
-/// `block_in_place` so it should be called via `spawn_blocking` under Tokio's
-/// current thread runtime
-pub fn run_embedded_migrations<C>(
+/// Note that the migrations require a blocking operation ran via
+/// `block_in_place`, so this function runs them via `spawn_blocking` for
+/// compatibility with Tokio's current thread runtime
+pub async fn run_embedded_migrations<C>(
     conn: C,
     source: EmbeddedMigrations,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+) -> Result<(), Box<dyn Error + Send + Sync>>
 where
-    C: AsyncConnection,
+    C: AsyncConnection + 'static,
     AsyncConnectionWrapper<C>: Connection<Backend = C::Backend> + MigrationHarness<C::Backend>,
 {
     let mut harness = AsyncMigrationHarness::new(conn);
-    harness.run_pending_migrations(source)?;
-    Ok(())
+    spawn_blocking(move || {
+        harness.run_pending_migrations(source)?;
+        Ok(())
+    })
+    .await?
 }

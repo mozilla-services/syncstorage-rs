@@ -14,7 +14,6 @@ diesel-async.workspace = true
 diesel_migrations.workspace = true
 slog-scope.workspace = true
 
-tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.1"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }

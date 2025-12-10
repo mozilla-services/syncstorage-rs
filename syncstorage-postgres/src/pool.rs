@@ -25,7 +25,6 @@ use syncserver_db_common::{
 };
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
-use tokio::task::spawn_blocking;
 
 use super::{DbError, DbResult, PgDb};
 
@@ -145,10 +144,7 @@ impl DbPool for PgDbPool {
     type Error = DbError;
 
     async fn init(&mut self) -> Result<(), Self::Error> {
-        let conn = self.get_conn().await?;
-        spawn_blocking(move || run_embedded_migrations(conn, MIGRATIONS))
-            .await
-            .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        run_embedded_migrations(self.get_conn().await?, MIGRATIONS).await?;
         Ok(())
     }
 

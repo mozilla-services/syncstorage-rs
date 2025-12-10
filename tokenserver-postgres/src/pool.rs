@@ -20,7 +20,6 @@ use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
 use crate::db::TokenserverPgDb;
 use tokenserver_settings::Settings;
-use tokio::task::spawn_blocking;
 
 /// The `embed_migrations!` macro reads migrations at compile time.
 /// This creates a constant that references a list of migrations.
@@ -127,10 +126,7 @@ impl TokenserverPgPool {
 impl DbPool for TokenserverPgPool {
     async fn init(&mut self) -> Result<(), DbError> {
         if self.run_migrations {
-            let conn = self.inner.get().await?;
-            spawn_blocking(move || run_embedded_migrations(conn, MIGRATIONS))
-                .await
-                .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+            run_embedded_migrations(self.inner.get().await?, MIGRATIONS).await?;
         }
         // As long as the sync service "sync-1.5" service record is in the database, this query should not fail,
         // unless there is a network failure or unpredictable event.

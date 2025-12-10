@@ -21,7 +21,6 @@ slog-scope.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
-tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.1"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }

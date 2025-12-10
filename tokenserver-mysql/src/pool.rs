@@ -19,7 +19,6 @@ use syncserver_db_common::{
 use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
 use tokenserver_settings::Settings;
-use tokio::task::spawn_blocking;
 
 use crate::db::TokenserverDb;
 
@@ -128,9 +127,7 @@ impl DbPool for TokenserverPool {
             let conn =
                 establish_connection_with_logging::<AsyncMysqlConnection>(&self.database_url)
                     .await?;
-            spawn_blocking(move || run_embedded_migrations(conn, MIGRATIONS))
-                .await
-                .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+            run_embedded_migrations(conn, MIGRATIONS).await?;
         }
 
         // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
