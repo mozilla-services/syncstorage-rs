@@ -193,49 +193,6 @@ commands:
             RUST_TEST_THREADS: 1
           command: make spanner_test_with_coverage
 
-  merge-unit-test-coverage:
-    steps:
-      - run:
-          when: always
-          name: Merge llvm-cov results
-          command: make merge_coverage_results
-
-  persist-coverage-to-workspace:
-    parameters:
-      job_name:
-        type: string
-    steps:
-      - run:
-          name: Compress and copy coverage data
-          command: |
-            mkdir -p /tmp/coverage-<< parameters.job_name >>
-            tar -czf /tmp/coverage-<< parameters.job_name >>/llvm-cov-target.tar.gz -C target llvm-cov-target
-            tar -czf /tmp/coverage-<< parameters.job_name >>/test-results.tar.gz -C workflow test-results
-      - persist_to_workspace:
-          root: /tmp
-          paths:
-            - coverage-<< parameters.job_name >>
-
-  attach-coverage-workspace:
-    steps:
-      - attach_workspace:
-          at: /tmp
-      - run:
-          name: Extract and merge coverage data
-          command: |
-            mkdir -p target/llvm-cov-target
-            mkdir -p workflow/test-results
-            for tarball in /tmp/coverage-*/llvm-cov-target.tar.gz; do
-              if [ -f "$tarball" ]; then
-                tar -xzf "$tarball" -C target
-              fi
-            done
-            for tarball in /tmp/coverage-*/test-results.tar.gz; do
-              if [ -f "$tarball" ]; then
-                tar -xzf "$tarball" -C workflow
-              fi
-            done
-
   store-test-results:
     steps:
       - store_test_results:
@@ -373,8 +330,15 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-unit-tests-mysql
-      - persist-coverage-to-workspace:
-          job_name: mysql
+      - store-test-results
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+          extension: json
       # - save-sccache-cache
 
   build-and-test-postgres:
@@ -412,9 +376,15 @@ jobs:
       - make-test-dir
       - run-unit-tests-postgres
       - run-utils-tests-postgres
-      - persist-coverage-to-workspace:
-          job_name: postgres
-      # - save-sccache-cache
+      - store-test-results
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
+          extension: xml
+      - gcs-configure-and-upload:
+          source: workflow/test-results
+          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+          extension: json
 
   build-and-test-spanner:
     docker:
@@ -439,22 +409,6 @@ jobs:
       - install-test-deps
       - make-test-dir
       - run-spanner-tests
-      - persist-coverage-to-workspace:
-          job_name: spanner
-      # - save-sccache-cache
-
-  merge-coverage:
-    docker:
-      - image: cimg/rust:1.89 # RUST_VER
-        auth:
-          username: $DOCKER_USER
-          password: $DOCKER_PASS
-    resource_class: large
-    steps:
-      - checkout
-      - install-test-deps
-      - attach-coverage-workspace
-      - merge-unit-test-coverage
       - store-test-results
       - gcs-configure-and-upload:
           source: workflow/test-results
@@ -820,14 +774,6 @@ workflows:
             tags:
               only: /.*/
       - build-and-test-spanner:
-          filters:
-            tags:
-              only: /.*/
-      - merge-coverage:
-          requires:
-            - build-and-test-mysql
-            - build-and-test-postgres
-            - build-and-test-spanner
           filters:
             tags:
               only: /.*/

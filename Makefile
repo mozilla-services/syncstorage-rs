@@ -35,6 +35,9 @@ UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__results.xml
 MYSQL_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_unit__results.xml
 POSTGRES_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_unit__results.xml
 SPANNER_UNIT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_unit__results.xml
+MYSQL_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)mysql_unit__coverage.json
+POSTGRES_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)postgres_unit__coverage.json
+SPANNER_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_unit__coverage.json
 UNIT_COVERAGE_JSON := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)unit__coverage.json
 
 SPANNER_INT_JUNIT_XML := $(TEST_RESULTS_DIR)/$(TEST_FILE_PREFIX)spanner_integration__results.xml
@@ -152,27 +155,24 @@ test_with_coverage:
 	SYNC_SYNCSTORAGE__DATABASE_URL=${SYNC_SYNCSTORAGE__DATABASE_URL} \
 	SYNC_TOKENSERVER__DATABASE_URL=${SYNC_TOKENSERVER__DATABASE_URL} \
 	RUST_TEST_THREADS=1 \
-	cargo llvm-cov --no-report --summary-only \
+	cargo llvm-cov --summary-only --json --output-path ${MYSQL_COVERAGE_JSON} \
 		nextest --workspace --profile ${TEST_PROFILE}; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${MYSQL_UNIT_JUNIT_XML}
 	exit $$exit_code
 
 .ONESHELL:
 spanner_test_with_coverage:
-	cargo llvm-cov --no-report --summary-only \
+	cargo llvm-cov --summary-only --json --output-path ${SPANNER_COVERAGE_JSON} \
 		nextest --workspace --no-default-features --features=syncstorage-db/spanner --features=py_verifier --profile ${TEST_PROFILE} || true; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${SPANNER_UNIT_JUNIT_XML}
 	exit $$exit_code
 
 .ONESHELL:
 postgres_test_with_coverage:
-	cargo llvm-cov --no-report --summary-only \
+	cargo llvm-cov --summary-only --json --output-path ${POSTGRES_COVERAGE_JSON} \
 		nextest --workspace --no-default-features --features=syncstorage-db/postgres --features=tokenserver-db/postgres --features=py_verifier --profile ${TEST_PROFILE}; exit_code=$$?
 	mv target/nextest/${TEST_PROFILE}/junit.xml ${POSTGRES_UNIT_JUNIT_XML}
 	exit 0
-
-merge_coverage_results:
-	cargo llvm-cov report --summary-only --json --output-path ${UNIT_COVERAGE_JSON}
 
 .ONESHELL:
 run_token_server_integration_tests:
