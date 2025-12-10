@@ -3564,6 +3564,7 @@ dependencies = [
  "syncserver-settings",
  "syncstorage-db-common",
  "syncstorage-settings",
+ "tokio",
  "url",
 ]
 
