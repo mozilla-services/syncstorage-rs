@@ -15,7 +15,7 @@ diesel::table! {
         user_id -> Int8,
         collection_id -> Int4,
         batch_id -> Uuid,
-        expiry -> Timestamp,
+        expiry -> Timestamptz,
     }
 }
 
@@ -26,8 +26,8 @@ diesel::table! {
         bso_id -> Text,
         sortindex -> Nullable<Int4>,
         payload -> Text,
-        modified -> Timestamp,
-        expiry -> Timestamp,
+        modified -> Timestamptz,
+        expiry -> Timestamptz,
     }
 }
 
@@ -43,7 +43,7 @@ diesel::table! {
     user_collections (user_id, collection_id) {
         user_id -> Int8,
         collection_id -> Int4,
-        modified -> Timestamp,
+        modified -> Timestamptz,
         count -> Nullable<Int8>,
         total_bytes -> Nullable<Int8>,
     }

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use diesel::{
     self, delete,
-    dsl::sql,
+    dsl::{now, sql},
     insert_into, sql_query,
-    sql_types::{BigInt, Integer, Timestamp, Uuid as SqlUuid},
+    sql_types::{BigInt, Integer, Timestamptz, Uuid as SqlUuid},
     upsert::excluded,
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
@@ -32,7 +32,7 @@ impl BatchDb for PgDb {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let expiry =
-            self.timestamp().as_naive_datetime()? + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
+            self.timestamp().as_datetime()? + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
 
         insert_into(batches::table)
             .values((
@@ -75,7 +75,7 @@ impl BatchDb for PgDb {
             .filter(batches::batch_id.eq(&batch_id))
             .filter(batches::user_id.eq(user_id))
             .filter(batches::collection_id.eq(collection_id))
-            .filter(batches::expiry.gt(diesel::dsl::now))
+            .filter(batches::expiry.gt(now))
             .first::<i32>(&mut self.conn)
             .await
             .optional()?;
@@ -140,7 +140,6 @@ impl BatchDb for PgDb {
                 collection: params.collection.clone(),
             })
             .await?;
-        let naive_datetime = timestamp.as_naive_datetime()?;
         let default_ttl_seconds = DEFAULT_BSO_TTL as i64;
 
         sql_query(
@@ -166,7 +165,7 @@ impl BatchDb for PgDb {
         )
         .bind::<BigInt, _>(user_id)
         .bind::<Integer, _>(collection_id)
-        .bind::<Timestamp, _>(naive_datetime)
+        .bind::<Timestamptz, _>(timestamp.as_datetime()?)
         .bind::<BigInt, _>(default_ttl_seconds)
         .bind::<SqlUuid, _>(&batch_id)
         .execute(&mut self.conn)

@@ -20,3 +20,6 @@ thiserror.workspace = true
 
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
+
+[features]
+postgres = ["diesel/postgres"]

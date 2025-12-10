@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{offset::Utc, DateTime};
 use uuid::Uuid;
 
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
@@ -24,7 +24,7 @@ pub struct Batch {
     pub user_id: i64,
     pub collection_id: i32,
     pub batch_id: Uuid,
-    pub expiry: NaiveDateTime,
+    pub expiry: DateTime<Utc>,
 }
 
 #[derive(Queryable, Debug, Identifiable)]
@@ -35,8 +35,8 @@ pub struct Bso {
     pub bso_id: String,
     pub sortindex: Option<i32>,
     pub payload: String,
-    pub modified: NaiveDateTime,
-    pub expiry: NaiveDateTime,
+    pub modified: DateTime<Utc>,
+    pub expiry: DateTime<Utc>,
 }
 
 #[derive(AsChangeset)]
@@ -44,8 +44,8 @@ pub struct Bso {
 pub struct BsoChangeset<'a> {
     pub sortindex: Option<i32>,
     pub payload: Option<&'a str>,
-    pub modified: Option<NaiveDateTime>,
-    pub expiry: Option<NaiveDateTime>,
+    pub modified: Option<DateTime<Utc>>,
+    pub expiry: Option<DateTime<Utc>>,
 }
 
 #[derive(Queryable, Debug, Identifiable)]
@@ -61,7 +61,7 @@ pub struct UserCollection {
     pub user_id: i64,
 
     pub collection_id: i32,
-    pub modified: NaiveDateTime,
+    pub modified: DateTime<Utc>,
     pub count: Option<i64>,
     pub total_bytes: Option<i64>,
 }
