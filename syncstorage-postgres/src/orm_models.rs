@@ -42,7 +42,7 @@ pub struct Bso {
 #[derive(AsChangeset)]
 #[diesel(table_name = bsos)]
 pub struct BsoChangeset<'a> {
-    pub sortindex: Option<Option<i32>>,
+    pub sortindex: Option<i32>,
     pub payload: Option<&'a str>,
     pub modified: Option<NaiveDateTime>,
     pub expiry: Option<NaiveDateTime>,

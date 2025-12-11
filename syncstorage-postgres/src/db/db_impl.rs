@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 // XXX:
 use async_trait::async_trait;
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, sql},
@@ -442,7 +442,6 @@ impl Db for PgDb {
     async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
         let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
         let user_id: u64 = bso.user_id.legacy_id;
-        let timestamp = self.timestamp().as_i64();
         if self.quota.enabled {
             let usage = self
                 .get_quota_usage(params::GetQuotaUsage {
@@ -467,20 +466,15 @@ impl Db for PgDb {
         let sortindex = bso.sortindex;
         let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
 
-        // original required millisecond conversion
-        let expiry_ts = SyncTimestamp::from_i64(timestamp + (i64::from(ttl) * 1000))?;
-        let modified_ts = SyncTimestamp::from_i64(timestamp)?;
-
-        let expiry_dt = expiry_ts.as_naive_datetime()?;
-        let modified_dt = modified_ts.as_naive_datetime()?;
-
         let modified = self.timestamp().as_naive_datetime()?;
-        let expiry = modified_dt + TimeDelta::seconds(ttl as i64);
+        // Expiry originally required millisecond conversion
+        let expiry = modified + TimeDelta::seconds(ttl as i64);
+
         // The changeset utilizes Diesel's `AsChangeset` trait.
         // This allows selective updates of fields if and only if they are `Some(<T>)`
         let changeset = BsoChangeset {
             sortindex: if bso.sortindex.is_some() {
-                Some(sortindex)
+                sortindex // sortindex is already an Option of type `Option<i32>`
             } else {
                 None
             },
@@ -490,12 +484,12 @@ impl Db for PgDb {
                 None
             },
             expiry: if bso.ttl.is_some() {
-                Some(expiry_dt)
+                Some(expiry)
             } else {
                 None
             },
             modified: if bso.payload.is_some() || bso.sortindex.is_some() {
-                Some(modified_dt)
+                Some(modified)
             } else {
                 None
             },
@@ -507,8 +501,8 @@ impl Db for PgDb {
                 bsos::bso_id.eq(&bso.id),
                 bsos::sortindex.eq(sortindex),
                 bsos::payload.eq(payload),
-                bsos::modified.eq(modified_dt),
-                bsos::expiry.eq(expiry_dt),
+                bsos::modified.eq(modified),
+                bsos::expiry.eq(expiry),
             ))
             .on_conflict((bsos::user_id, bsos::collection_id, bsos::bso_id))
             .do_update()
