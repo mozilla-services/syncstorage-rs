@@ -475,7 +475,6 @@ jobs:
           name: Build Postgres Docker image
           command: >
             docker build -t app:build
-            --build-arg SYNCSTORAGE_DATABASE_BACKEND=spanner
             --progress=plain
             --build-arg SYNCSTORAGE_DATABASE_BACKEND=postgres
             --build-arg TOKENSERVER_DATABASE_BACKEND=postgres
