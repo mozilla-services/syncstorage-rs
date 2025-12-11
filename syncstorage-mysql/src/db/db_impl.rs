@@ -39,7 +39,6 @@ impl Db for MysqlDb {
     /// than explicit locking, but our ops team have expressed concerns about
     /// the efficiency of that approach at scale.
     async fn lock_for_read(&mut self, params: params::LockCollection) -> DbResult<()> {
-        let user_id = params.user_id.legacy_id as i64;
         let collection_id = self
             .get_collection_id(&params.collection)
             .await
@@ -57,7 +56,7 @@ impl Db for MysqlDb {
         if self
             .session
             .coll_locks
-            .contains_key(&(user_id as u32, collection_id))
+            .contains_key(&(params.user_id.clone(), collection_id))
         {
             return Ok(());
         }
@@ -66,7 +65,7 @@ impl Db for MysqlDb {
         self.begin(false).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(user_id))
+            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(collection_id))
             .lock_in_share_mode()
             .first(&mut self.conn)
@@ -76,12 +75,13 @@ impl Db for MysqlDb {
             let modified = SyncTimestamp::from_i64(modified)?;
             self.session
                 .coll_modified_cache
-                .insert((user_id as u32, collection_id), modified); // why does it still expect a u32 int?
+                .insert((params.user_id.clone(), collection_id), modified); // why does it still expect a u32 int?
         }
         // XXX: who's responsible for unlocking (removing the entry)
-        self.session
-            .coll_locks
-            .insert((user_id as u32, collection_id), CollectionLock::Read);
+        self.session.coll_locks.insert(
+            (params.user_id.clone(), collection_id),
+            CollectionLock::Read,
+        );
         Ok(())
     }
 
@@ -91,7 +91,7 @@ impl Db for MysqlDb {
         if let Some(CollectionLock::Read) = self
             .session
             .coll_locks
-            .get(&(user_id as u32, collection_id))
+            .get(&(params.user_id.clone(), collection_id))
         {
             return Err(DbError::internal(
                 "Can't escalate read-lock to write-lock".to_owned(),
@@ -116,11 +116,12 @@ impl Db for MysqlDb {
             }
             self.session
                 .coll_modified_cache
-                .insert((user_id as u32, collection_id), modified);
+                .insert((params.user_id.clone(), collection_id), modified);
         }
-        self.session
-            .coll_locks
-            .insert((user_id as u32, collection_id), CollectionLock::Write);
+        self.session.coll_locks.insert(
+            (params.user_id.clone(), collection_id),
+            CollectionLock::Write,
+        );
         Ok(())
     }
 
@@ -572,7 +573,7 @@ impl Db for MysqlDb {
         if let Some(modified) = self
             .session
             .coll_modified_cache
-            .get(&(user_id, collection_id))
+            .get(&(params.user_id, collection_id))
         {
             return Ok(*modified);
         }
