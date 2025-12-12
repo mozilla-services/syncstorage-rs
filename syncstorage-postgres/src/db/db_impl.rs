@@ -5,8 +5,7 @@ use chrono::NaiveDateTime;
 use diesel::{
     delete,
     dsl::{count, max, sql},
-    sql_query,
-    sql_types::{BigInt, Integer, Nullable, Text},
+    sql_types::{BigInt, Integer, Nullable},
     ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
@@ -21,7 +20,7 @@ use crate::{
     bsos_query,
     db::CollectionLock,
     pool::Conn,
-    schema::{bsos, user_collections},
+    schema::{bsos, collections, user_collections},
     DbError, DbResult,
 };
 
@@ -425,17 +424,14 @@ impl Db for PgDb {
             return Ok(id);
         }
 
-        let id = sql_query(
-            "SELECT id
-               FROM collections
-              WHERE name = $1",
-        )
-        .bind::<Text, _>(name)
-        .get_result::<IdResult>(&mut self.conn)
-        .await
-        .optional()?
-        .ok_or_else(DbError::collection_not_found)?
-        .id;
+        let id = collections::table
+            .select(collections::collection_id)
+            .filter(collections::name.eq(name))
+            .first::<i32>(&mut self.conn)
+            .await
+            .optional()?
+            .ok_or_else(DbError::collection_not_found)?;
+
         if !self.session.in_write_transaction {
             self.coll_cache.put(id, name.to_owned())?;
         }
@@ -510,12 +506,6 @@ impl Db for PgDb {
             enforced,
         }
     }
-}
-
-#[derive(Debug, QueryableByName)]
-struct IdResult {
-    #[diesel(sql_type = Integer)]
-    id: i32,
 }
 
 #[derive(Debug, Queryable, Selectable)]
