@@ -14,7 +14,6 @@ chrono.workspace = true
 deadpool.workspace = true
 diesel = { workspace = true, features = ["chrono", "postgres", "uuid"] }
 diesel-async = { workspace = true, features = ["postgres"] }
-diesel_logger.workspace = true
 diesel_migrations.workspace = true
 futures.workspace = true
 http.workspace = true
@@ -22,7 +21,6 @@ slog-scope.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
 
-tokio = { workspace = true, features = ["macros", "sync"] }
 url = "2.1"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }

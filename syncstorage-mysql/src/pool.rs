@@ -8,52 +8,29 @@ use std::{
 };
 
 use deadpool::managed::PoolError;
-use diesel::Connection;
 use diesel_async::{
-    async_connection_wrapper::AsyncConnectionWrapper,
     pooled_connection::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
     },
     AsyncMysqlConnection,
 };
-#[cfg(debug_assertions)]
-use diesel_logger::LoggingConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::{
+    establish_connection_with_logging, manager_config_with_logging, run_embedded_migrations,
+    GetPoolState, PoolState,
+};
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
-use tokio::task::spawn_blocking;
 
 use super::{db::MysqlDb, DbError, DbResult};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub(crate) type Conn = Object<AsyncMysqlConnection>;
-
-/// Run the diesel embedded migrations
-///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-///
-/// Note that this runs as a plain diesel blocking method as diesel_async
-/// doesn't support async migrations (but we utilize its connection via its
-/// [AsyncConnectionWrapper])
-fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncMysqlConnection>::establish(database_url)?;
-
-    // This conn2 charade is to make mut-ness the same for both cases.
-    #[cfg(debug_assertions)]
-    let mut conn2 = LoggingConnection::new(conn);
-    #[cfg(not(debug_assertions))]
-    let mut conn2 = conn;
-
-    conn2.run_pending_migrations(MIGRATIONS)?;
-    Ok(())
-}
 
 #[derive(Clone)]
 pub struct MysqlDbPool {
@@ -77,8 +54,10 @@ impl MysqlDbPool {
         metrics: &Metrics,
         _blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> DbResult<Self> {
-        let manager =
-            AsyncDieselConnectionManager::<AsyncMysqlConnection>::new(&settings.database_url);
+        let manager = AsyncDieselConnectionManager::<AsyncMysqlConnection>::new_with_config(
+            &settings.database_url,
+            manager_config_with_logging(),
+        );
 
         let wait = settings
             .database_pool_connection_timeout
@@ -128,18 +107,20 @@ impl MysqlDbPool {
         sweeper()
     }
 
-    pub async fn get_mysql_db(&self) -> DbResult<MysqlDb> {
-        let conn = self.pool.get().await.map_err(|e| match e {
+    async fn get_conn(&self) -> DbResult<Conn> {
+        self.pool.get().await.map_err(|e| match e {
             PoolError::Backend(be) => match be {
                 diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
                 diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
             },
             PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
-        })?;
+        })
+    }
 
+    pub async fn get_mysql_db(&self) -> DbResult<MysqlDb> {
         Ok(MysqlDb::new(
-            conn,
+            self.get_conn().await?,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
@@ -159,10 +140,12 @@ impl DbPool for MysqlDbPool {
     type Error = DbError;
 
     async fn init(&mut self) -> Result<(), Self::Error> {
-        let database_url = self.database_url.clone();
-        spawn_blocking(move || run_embedded_migrations(&database_url))
-            .await
-            .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        // Mysql DDL statements implicitly commit which could disrupt
+        // MysqlPool's begin_test_transaction during tests. So this runs on
+        // its own separate conn
+        let conn =
+            establish_connection_with_logging::<AsyncMysqlConnection>(&self.database_url).await?;
+        run_embedded_migrations(conn, MIGRATIONS).await?;
         Ok(())
     }
 

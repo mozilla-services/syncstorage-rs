@@ -9,48 +9,32 @@ use std::{
 };
 
 use deadpool::managed::PoolError;
-use diesel::Connection;
 use diesel_async::{
-    async_connection_wrapper::AsyncConnectionWrapper,
     pooled_connection::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
     },
     AsyncPgConnection,
 };
-#[cfg(debug_assertions)]
-use diesel_logger::LoggingConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use syncserver_common::{BlockingThreadpool, Metrics};
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::{
+    manager_config_with_logging, run_embedded_migrations, GetPoolState, PoolState,
+};
 use syncstorage_db_common::{Db, DbPool, STD_COLLS};
 use syncstorage_settings::{Quota, Settings};
-use tokio::task::spawn_blocking;
 
 use super::{DbError, DbResult, PgDb};
 
 /// The `embed_migrations!` macro reads migrations at compile time.
 /// This creates a constant that references a list of migrations.
-/// See https://docs.rs/diesel_migrations/2.2.0/diesel_migrations/macro.embed_migrations.html
+/// See https://docs.rs/diesel_migrations/latest/diesel_migrations/macro.embed_migrations.html
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 /// Connection type defined as an AsyncPgConnection for purposes of abstraction.
 pub(crate) type Conn = Object<AsyncPgConnection>;
-
-/// Run the diesel embedded migrations
-/// Postgres DDL statements implicitly commit, which could disrupt PgDbPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-///
-/// Note that this runs as a plain diesel blocking method as diesel_async
-/// doesn't support async migrations (but we utilize its connection via its
-/// [AsyncConnectionWrapper])
-fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
-    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
-    Ok(())
-}
 
 #[derive(Clone)]
 pub struct PgDbPool {
@@ -62,8 +46,6 @@ pub struct PgDbPool {
     metrics: Metrics,
     /// Configured quota, with defined size, enabled, and enforced attributes.
     quota: Quota,
-    /// URL for associated Postgres database
-    database_url: String,
 }
 
 impl PgDbPool {
@@ -75,8 +57,10 @@ impl PgDbPool {
         metrics: &Metrics,
         _blocking_threadpool: Arc<BlockingThreadpool>,
     ) -> DbResult<Self> {
-        let manager =
-            AsyncDieselConnectionManager::<AsyncPgConnection>::new(&settings.database_url);
+        let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new_with_config(
+            &settings.database_url,
+            manager_config_with_logging(),
+        );
 
         let wait = settings
             .database_pool_connection_timeout
@@ -117,7 +101,6 @@ impl PgDbPool {
                 enabled: settings.enable_quota,
                 enforced: settings.enforce_quota,
             },
-            database_url: settings.database_url.clone(),
         })
     }
 
@@ -128,18 +111,20 @@ impl PgDbPool {
         sweeper()
     }
 
-    pub async fn get_pg_db(&self) -> DbResult<PgDb> {
-        let conn = self.pool.get().await.map_err(|e| match e {
+    async fn get_conn(&self) -> DbResult<Conn> {
+        self.pool.get().await.map_err(|e| match e {
             PoolError::Backend(be) => match be {
                 diesel_async::pooled_connection::PoolError::ConnectionError(ce) => ce.into(),
                 diesel_async::pooled_connection::PoolError::QueryError(dbe) => dbe.into(),
             },
             PoolError::Timeout(timeout_type) => DbError::pool_timeout(timeout_type),
             _ => DbError::internal(format!("deadpool PoolError: {e}")),
-        })?;
+        })
+    }
 
+    pub async fn get_pg_db(&self) -> DbResult<PgDb> {
         Ok(PgDb::new(
-            conn,
+            self.get_conn().await?,
             Arc::clone(&self.coll_cache),
             &self.metrics,
             &self.quota,
@@ -159,10 +144,7 @@ impl DbPool for PgDbPool {
     type Error = DbError;
 
     async fn init(&mut self) -> Result<(), Self::Error> {
-        let database_url = self.database_url.clone();
-        spawn_blocking(move || run_embedded_migrations(&database_url))
-            .await
-            .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+        run_embedded_migrations(self.get_conn().await?, MIGRATIONS).await?;
         Ok(())
     }
 

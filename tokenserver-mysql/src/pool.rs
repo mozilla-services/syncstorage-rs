@@ -1,47 +1,30 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::Connection;
 use diesel_async::{
-    async_connection_wrapper::AsyncConnectionWrapper,
     pooled_connection::{
         deadpool::{Object, Pool},
         AsyncDieselConnectionManager,
     },
     AsyncMysqlConnection,
 };
-use diesel_logger::LoggingConnection;
-use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use syncserver_common::Metrics;
 #[cfg(debug_assertions)]
 use syncserver_db_common::test::test_transaction_hook;
-use syncserver_db_common::{GetPoolState, PoolState};
+use syncserver_db_common::{
+    establish_connection_with_logging, manager_config_with_logging, run_embedded_migrations,
+    GetPoolState, PoolState,
+};
 use tokenserver_db_common::{params, Db, DbError, DbPool, DbResult};
 
 use tokenserver_settings::Settings;
-use tokio::task::spawn_blocking;
 
 use crate::db::TokenserverDb;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub(crate) type Conn = Object<AsyncMysqlConnection>;
-
-/// Run the diesel embedded migrations
-///
-/// Mysql DDL statements implicitly commit which could disrupt MysqlPool's
-/// begin_test_transaction during tests. So this runs on its own separate conn.
-///
-/// Note that this runs as a plain diesel blocking method as diesel_async
-/// doesn't support async migrations (but we utilize its connection via its
-/// [AsyncConnectionWrapper])
-fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncMysqlConnection>::establish(database_url)?;
-
-    LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
-
-    Ok(())
-}
 
 #[derive(Clone)]
 pub struct TokenserverPool {
@@ -62,8 +45,10 @@ impl TokenserverPool {
         metrics: &Metrics,
         _use_test_transactions: bool,
     ) -> DbResult<Self> {
-        let manager =
-            AsyncDieselConnectionManager::<AsyncMysqlConnection>::new(&settings.database_url);
+        let manager = AsyncDieselConnectionManager::<AsyncMysqlConnection>::new_with_config(
+            &settings.database_url,
+            manager_config_with_logging(),
+        );
 
         let wait = settings
             .database_pool_connection_timeout
@@ -136,10 +121,13 @@ impl TokenserverPool {
 impl DbPool for TokenserverPool {
     async fn init(&mut self) -> Result<(), DbError> {
         if self.run_migrations {
-            let database_url = self.database_url.clone();
-            spawn_blocking(move || run_embedded_migrations(&database_url))
-                .await
-                .map_err(|e| DbError::internal(format!("Couldn't spawn migrations: {e}")))??;
+            // Mysql DDL statements implicitly commit which could disrupt
+            // MysqlPool's begin_test_transaction during tests. So this runs on
+            // its own separate conn
+            let conn =
+                establish_connection_with_logging::<AsyncMysqlConnection>(&self.database_url)
+                    .await?;
+            run_embedded_migrations(conn, MIGRATIONS).await?;
         }
 
         // NOTE: Provided there's a "sync-1.5" service record in the database, it is highly
