@@ -47,8 +47,15 @@ pub(crate) type Conn = Object<AsyncPgConnection>;
 /// doesn't support async migrations (but we utilize its connection via its
 /// [AsyncConnectionWrapper])
 fn run_embedded_migrations(database_url: &str) -> DbResult<()> {
-    let conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
+    #[cfg_attr(debug_assertions, allow(unused_mut))]
+    let mut conn = AsyncConnectionWrapper::<AsyncPgConnection>::establish(database_url)?;
+
+    #[cfg(debug_assertions)]
     LoggingConnection::new(conn).run_pending_migrations(MIGRATIONS)?;
+
+    #[cfg(not(debug_assertions))]
+    conn.run_pending_migrations(MIGRATIONS)?;
+
     Ok(())
 }
 
