@@ -350,6 +350,8 @@ impl Db for PgDb {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let modified = self.timestamp();
 
+        self.ensure_user_collection(params.user_id.legacy_id as i64, collection_id)
+            .await?;
         for pbso in params.bsos {
             self.put_bso(params::PutBso {
                 user_id: params.user_id.clone(),
@@ -483,6 +485,8 @@ impl Db for PgDb {
                 None
             },
         };
+        self.ensure_user_collection(user_id as i64, collection_id)
+            .await?;
         diesel::insert_into(bsos::table)
             .values((
                 bsos::user_id.eq(user_id as i64),
