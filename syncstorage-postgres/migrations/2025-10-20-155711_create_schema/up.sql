@@ -2,7 +2,7 @@
 CREATE TABLE user_collections (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
-    modified TIMESTAMP NOT NULL,
+    modified TIMESTAMPTZ NOT NULL,
     count BIGINT,
     total_bytes BIGINT,
     PRIMARY KEY (user_id, collection_id)
@@ -15,8 +15,8 @@ CREATE TABLE bsos (
     bso_id TEXT NOT NULL,
     sortindex INTEGER,
     payload TEXT NOT NULL,
-    modified TIMESTAMP NOT NULL,
-    expiry TIMESTAMP NOT NULL,
+    modified TIMESTAMPTZ NOT NULL,
+    expiry TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (
         user_id,
         collection_id,
@@ -48,7 +48,7 @@ CREATE TABLE batches (
     user_id BIGINT NOT NULL,
     collection_id INTEGER NOT NULL,
     batch_id UUID NOT NULL,
-    expiry TIMESTAMP NOT NULL,
+    expiry TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (
         user_id,
         collection_id,

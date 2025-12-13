@@ -1,13 +1,15 @@
 use std::convert::TryInto;
 
 use chrono::{
-    offset::{FixedOffset, TimeZone, Utc},
-    DateTime, NaiveDateTime, SecondsFormat,
+    offset::{TimeZone, Utc},
+    DateTime, SecondsFormat,
 };
+#[cfg(feature = "postgres")]
+use diesel::sql_types::Timestamptz;
 use diesel::{
     backend::Backend,
     deserialize::{self, FromSql},
-    sql_types::{BigInt, Timestamp},
+    sql_types::BigInt,
     FromSqlRow,
 };
 use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
@@ -86,8 +88,8 @@ impl SyncTimestamp {
         Self::from_datetime(dt)
     }
 
-    /// Create a `SyncTimestamp` from a chrono DateTime<FixedOffset>
-    fn from_datetime(val: DateTime<FixedOffset>) -> Result<Self, SyncstorageDbError> {
+    /// Create a `SyncTimestamp` from a chrono DateTime<Tz>
+    pub fn from_datetime<Tz: TimeZone>(val: DateTime<Tz>) -> Result<Self, SyncstorageDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
             return Err(SyncstorageDbError::internal(
@@ -95,11 +97,6 @@ impl SyncTimestamp {
             ));
         }
         Ok(SyncTimestamp::from_milliseconds(millis as u64))
-    }
-
-    /// Create a `SyncTimestamp` from a chrono NaiveDateTime
-    pub fn from_naive_datetime(val: NaiveDateTime) -> Result<Self, SyncstorageDbError> {
-        SyncTimestamp::from_datetime(val.and_utc().into())
     }
 
     /// Create a `SyncTimestamp` at epoch
@@ -123,11 +120,12 @@ impl SyncTimestamp {
         to_rfc3339(self.as_i64())
     }
 
-    /// Convert this SyncTimestamp into a chrono::NaiveDateTime (UTC).
-    /// Required for use with Diesel's `Timestamp` and in other scenarios where conversion is essential.
-    pub fn as_naive_datetime(self: SyncTimestamp) -> Result<NaiveDateTime, SyncstorageDbError> {
+    /// Convert this SyncTimestamp into a chrono::DateTime<Utc>.
+    ///
+    /// Required for use with Diesel's `Timestamptz` and in other scenarios where conversion is
+    /// essential.
+    pub fn as_datetime(self) -> Result<DateTime<Utc>, SyncstorageDbError> {
         chrono::DateTime::from_timestamp_millis(self.as_i64())
-            .map(|dt| dt.naive_utc())
             .ok_or_else(|| SyncstorageDbError::internal("Invalid timestamp".to_owned()))
     }
 }
@@ -162,15 +160,16 @@ where
     }
 }
 
-impl<DB> FromSql<Timestamp, DB> for SyncTimestamp
+#[cfg(feature = "postgres")]
+impl<DB> FromSql<Timestamptz, DB> for SyncTimestamp
 where
-    NaiveDateTime: FromSql<Timestamp, DB>,
+    DateTime<Utc>: FromSql<Timestamptz, DB>,
     DB: Backend,
 {
     fn from_sql(value: <DB as Backend>::RawValue<'_>) -> deserialize::Result<Self> {
-        let ndt = <NaiveDateTime as FromSql<Timestamp, DB>>::from_sql(value)?;
-        SyncTimestamp::from_naive_datetime(ndt)
-            .map_err(|e| format!("Invalid SyncTimestamp NaiveDateTime {}", e).into())
+        let dt = <DateTime<Utc> as FromSql<Timestamptz, DB>>::from_sql(value)?;
+        SyncTimestamp::from_datetime(dt)
+            .map_err(|e| format!("Invalid SyncTimestamp DateTime<Utc> {}", e).into())
     }
 }
 
@@ -218,18 +217,42 @@ pub fn to_rfc3339(val: i64) -> Result<String, SyncstorageDbError> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::DateTime;
+    use std::error::Error;
+
+    use chrono::{offset::Utc, DateTime};
 
     use super::SyncTimestamp;
-    use crate::error::SyncstorageDbError;
+
+    // a CURRENT_TIMESTAMP from Spanner
+    pub const SPAN_TS: &str = "2020-06-02T23:58:40.347847393Z";
+    // Sync's version w/ 2 decimal places of precision
+    pub const SYNC_TS: &str = "2020-06-02T23:58:40.340000000Z";
 
     #[test]
-    fn from_naive_datetime() -> Result<(), SyncstorageDbError> {
-        let full_time = "2020-06-02T23:58:40.347847393Z";
-        let sync_time = "2020-06-02T23:58:40.340000000Z";
-        let ndt = DateTime::parse_from_rfc3339(full_time).unwrap().naive_utc();
-        let ts = SyncTimestamp::from_naive_datetime(ndt)?;
-        assert_eq!(ts.as_rfc3339()?, sync_time);
+    fn from_datetime() -> Result<(), Box<dyn Error>> {
+        let fixed_dt = DateTime::parse_from_rfc3339(SPAN_TS)?;
+        let utc_dt = DateTime::parse_from_rfc3339(SPAN_TS)?.with_timezone(&Utc);
+        assert_eq!(fixed_dt, utc_dt);
+        assert_eq!(fixed_dt.timestamp_millis(), utc_dt.timestamp_millis());
+
+        let ts = SyncTimestamp::from_datetime(fixed_dt)?;
+        assert_eq!(ts.as_rfc3339()?, SYNC_TS);
+        let ts = SyncTimestamp::from_datetime(utc_dt)?;
+        assert_eq!(ts.as_rfc3339()?, SYNC_TS);
+
+        let ts = SyncTimestamp::from_milliseconds(fixed_dt.timestamp_millis() as u64);
+        assert_eq!(ts.as_rfc3339()?, SYNC_TS);
+
+        Ok(())
+    }
+
+    #[test]
+    fn from_rfc3339() -> Result<(), Box<dyn Error>> {
+        let ts = SyncTimestamp::from_rfc3339(SPAN_TS)?;
+        assert_eq!(ts.as_rfc3339()?, SYNC_TS);
+        let ts = SyncTimestamp::from_rfc3339(SYNC_TS)?;
+        assert_eq!(ts.as_rfc3339()?, SYNC_TS);
+        assert_eq!(ts.as_seconds(), 1591142320.34);
         Ok(())
     }
 

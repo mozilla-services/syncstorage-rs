@@ -1,7 +1,8 @@
 #![allow(dead_code)] // XXX:
 use diesel::{
-    dsl::sql,
+    dsl::{now, sql},
     sql_types::{BigInt, Integer},
+    upsert::excluded,
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
@@ -170,16 +171,15 @@ impl PgDb {
     }
 
     async fn erect_tombstone(&mut self, user_id: i64) -> DbResult<()> {
-        let naive_datetime = self.timestamp().as_naive_datetime()?;
         diesel::insert_into(user_collections::table)
             .values((
                 user_collections::user_id.eq(user_id),
                 user_collections::collection_id.eq(TOMBSTONE),
-                user_collections::modified.eq(naive_datetime),
+                user_collections::modified.eq(self.timestamp().as_datetime()?),
             ))
             .on_conflict((user_collections::user_id, user_collections::collection_id))
             .do_update()
-            .set(user_collections::modified.eq(naive_datetime))
+            .set(user_collections::modified.eq(excluded(user_collections::modified)))
             .execute(&mut self.conn)
             .await?;
         Ok(())
@@ -197,7 +197,7 @@ impl PgDb {
                 sql::<Integer>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bsos::user_id.eq(user_id))
-            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::expiry.gt(now))
             .filter(bsos::collection_id.eq(&collection_id))
             .get_result(&mut self.conn)
             .await
@@ -222,14 +222,14 @@ macro_rules! bsos_query {
                 .select($selection)
                 .filter(bsos::user_id.eq(user_id))
                 .filter(bsos::collection_id.eq(collection_id))
-                .filter(bsos::expiry.gt($self.timestamp().as_naive_datetime()?))
+                .filter(bsos::expiry.gt(now))
                 .into_boxed();
 
             if let Some(older) = $params.older {
-                query = query.filter(bsos::modified.lt(older.as_naive_datetime()?));
+                query = query.filter(bsos::modified.lt(older.as_datetime()?));
             }
             if let Some(newer) = $params.newer {
-                query = query.filter(bsos::modified.gt(newer.as_naive_datetime()?));
+                query = query.filter(bsos::modified.gt(newer.as_datetime()?));
             }
 
             if !$params.ids.is_empty() {
