@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
 // XXX:
 use async_trait::async_trait;
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, sql},
@@ -10,8 +10,9 @@ use diesel::{
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
+use std::collections::HashMap;
 use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting,
+    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, DEFAULT_BSO_TTL,
 };
 use syncstorage_settings::Quota;
 
@@ -19,6 +20,7 @@ use super::PgDb;
 use crate::{
     bsos_query,
     db::CollectionLock,
+    orm_models::BsoChangeset,
     pool::Conn,
     schema::{bsos, collections, user_collections},
     DbError, DbResult,
@@ -355,7 +357,28 @@ impl Db for PgDb {
     }
 
     async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
-        todo!()
+        let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+        let modified = self.timestamp();
+
+        for pbso in params.bsos {
+            self.put_bso(params::PutBso {
+                user_id: params.user_id.clone(),
+                collection: params.collection.clone(),
+                id: pbso.id.clone(),
+                payload: pbso.payload,
+                sortindex: pbso.sortindex,
+                ttl: pbso.ttl,
+            })
+            .await?;
+        }
+        self.update_collection(params::UpdateCollection {
+            user_id: params.user_id,
+            collection_id,
+            collection: params.collection,
+        })
+        .await?;
+
+        Ok(modified)
     }
 
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
@@ -415,8 +438,83 @@ impl Db for PgDb {
         Ok(modified)
     }
 
-    async fn put_bso(&mut self, params: params::PutBso) -> DbResult<results::PutBso> {
-        todo!()
+    async fn put_bso(&mut self, bso: params::PutBso) -> DbResult<results::PutBso> {
+        let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
+        let user_id: u64 = bso.user_id.legacy_id;
+        if self.quota.enabled {
+            let usage = self
+                .get_quota_usage(params::GetQuotaUsage {
+                    user_id: bso.user_id.clone(),
+                    collection: bso.collection.clone(),
+                    collection_id,
+                })
+                .await?;
+            if usage.total_bytes >= self.quota.size {
+                let mut tags = HashMap::default();
+                tags.insert("collection".to_owned(), bso.collection.clone());
+                self.metrics.incr_with_tags("storage.quota.at_limit", tags);
+                if self.quota.enforced {
+                    return Err(DbError::quota());
+                } else {
+                    warn!("Quota at limit for user's collection ({} bytes)", usage.total_bytes; "collection"=>bso.collection.clone());
+                }
+            }
+        }
+
+        let payload = bso.payload.as_deref().unwrap_or_default();
+        let sortindex = bso.sortindex;
+        let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
+
+        let modified = self.timestamp().as_naive_datetime()?;
+        // Expiry originally required millisecond conversion
+        let expiry = modified + TimeDelta::seconds(ttl as i64);
+
+        // The changeset utilizes Diesel's `AsChangeset` trait.
+        // This allows selective updates of fields if and only if they are `Some(<T>)`
+        let changeset = BsoChangeset {
+            sortindex: if bso.sortindex.is_some() {
+                sortindex // sortindex is already an Option of type `Option<i32>`
+            } else {
+                None
+            },
+            payload: if bso.payload.is_some() {
+                Some(payload)
+            } else {
+                None
+            },
+            expiry: if bso.ttl.is_some() {
+                Some(expiry)
+            } else {
+                None
+            },
+            modified: if bso.payload.is_some() || bso.sortindex.is_some() {
+                Some(modified)
+            } else {
+                None
+            },
+        };
+        diesel::insert_into(bsos::table)
+            .values((
+                bsos::user_id.eq(user_id as i64),
+                bsos::collection_id.eq(&collection_id),
+                bsos::bso_id.eq(&bso.id),
+                bsos::sortindex.eq(sortindex),
+                bsos::payload.eq(payload),
+                bsos::modified.eq(modified),
+                bsos::expiry.eq(expiry),
+            ))
+            .on_conflict((bsos::user_id, bsos::collection_id, bsos::bso_id))
+            .do_update()
+            .set(changeset)
+            .execute(&mut self.conn)
+            .await?;
+
+        self.update_collection(params::UpdateCollection {
+            user_id: bso.user_id,
+            collection_id,
+            collection: bso.collection,
+        })
+        .await
     }
 
     async fn get_collection_id(&mut self, name: &str) -> DbResult<results::GetCollectionId> {

@@ -11,7 +11,6 @@ async-trait.workspace = true
 deadpool.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
-diesel_logger.workspace = true
 diesel_migrations.workspace = true
 http.workspace = true
 syncserver-common = { path = "../syncserver-common" }

@@ -218,6 +218,8 @@ This will walk you through the steps to connect this project to your local copy 
 
 We use [env_logger](https://crates.io/crates/env_logger): set the `RUST_LOG` env var.
 
+The logging of non-Spanner SQL queries is supported in non-optimized builds via `RUST_LOG=syncserver=debug`.
+
 ## Tests
 
 ### Unit tests
