@@ -88,13 +88,11 @@ impl Db for PgDb {
                 }
             })?;
 
+        let user_id = params.user_id.legacy_id as i64;
+        let key = (params.user_id, collection_id);
         // If we already have a read or write lock then it's safe to
         // use it as-is.
-        if self
-            .session
-            .coll_locks
-            .contains_key(&(params.user_id.clone(), collection_id))
-        {
+        if self.session.coll_locks.contains_key(&key) {
             return Ok(());
         }
 
@@ -104,7 +102,7 @@ impl Db for PgDb {
 
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
             .first(&mut self.conn)
@@ -114,23 +112,18 @@ impl Db for PgDb {
         if let Some(modified) = modified {
             self.session
                 .coll_modified_cache
-                .insert((params.user_id.clone(), collection_id), modified);
+                .insert(key.clone(), modified);
         }
-        self.session.coll_locks.insert(
-            (params.user_id.clone(), collection_id),
-            CollectionLock::Read,
-        );
+        self.session.coll_locks.insert(key, CollectionLock::Read);
         Ok(())
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+        let user_id = params.user_id.legacy_id as i64;
+        let key = (params.user_id, collection_id);
 
-        if let Some(CollectionLock::Read) = self
-            .session
-            .coll_locks
-            .get(&(params.user_id.clone(), collection_id))
-        {
+        if let Some(CollectionLock::Read) = self.session.coll_locks.get(&key) {
             return Err(DbError::internal(
                 "Can't escalate read-lock to write-lock".to_string(),
             ));
@@ -142,7 +135,7 @@ impl Db for PgDb {
         self.begin(true).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first(&mut self.conn)
@@ -156,13 +149,10 @@ impl Db for PgDb {
             }
             self.session
                 .coll_modified_cache
-                .insert((params.user_id.clone(), collection_id), modified);
+                .insert(key.clone(), modified);
         }
 
-        self.session.coll_locks.insert(
-            (params.user_id.clone(), collection_id),
-            CollectionLock::Write,
-        );
+        self.session.coll_locks.insert(key, CollectionLock::Write);
         Ok(())
     }
 
