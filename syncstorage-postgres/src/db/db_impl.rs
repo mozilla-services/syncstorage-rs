@@ -19,7 +19,7 @@ use syncstorage_settings::Quota;
 use super::{PgDb, TOMBSTONE};
 use crate::{
     bsos_query,
-    db::CollectionLock,
+    db::{CollectionLock, PRETOUCH_DT},
     orm_models::BsoChangeset,
     pool::Conn,
     schema::{bsos, collections, user_collections},
@@ -137,6 +137,7 @@ impl Db for PgDb {
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .for_update()
             .first(&mut self.conn)
             .await
@@ -164,6 +165,7 @@ impl Db for PgDb {
             .select((user_collections::collection_id, user_collections::modified))
             .filter(user_collections::user_id.eq(params.legacy_id as i64))
             .filter(user_collections::collection_id.ne(TOMBSTONE))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .load_stream::<(_, SyncTimestamp)>(&mut self.conn)
             .await?
             .try_collect()
@@ -188,6 +190,7 @@ impl Db for PgDb {
             .select(user_collections::modified)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .first(&mut self.conn)
             .await
             .optional()?
@@ -306,6 +309,7 @@ impl Db for PgDb {
         count += delete(user_collections::table)
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(&collection_id))
+            .filter(user_collections::modified.gt(PRETOUCH_DT))
             .execute(&mut self.conn)
             .await?;
         if count == 0 {
