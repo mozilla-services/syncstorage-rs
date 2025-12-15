@@ -185,6 +185,23 @@ impl PgDb {
         Ok(())
     }
 
+    /// Due to foreign key constraints we need to ensure an entry exists in user_collections prior
+    /// to inserting bsos or batches.
+    async fn ensure_user_collection(&mut self, user_id: i64, collection_id: i32) -> DbResult<()> {
+        let ndt = self.timestamp().as_naive_datetime()?;
+        diesel::insert_into(user_collections::table)
+            .values((
+                user_collections::user_id.eq(user_id),
+                user_collections::collection_id.eq(collection_id),
+                user_collections::modified.eq(ndt),
+            ))
+            .on_conflict((user_collections::user_id, user_collections::collection_id))
+            .do_nothing()
+            .execute(&mut self.conn)
+            .await?;
+        Ok(())
+    }
+
     // perform a heavier weight quota calculation
     async fn calc_quota_usage(
         &mut self,
