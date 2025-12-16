@@ -5,8 +5,7 @@ use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, now, sql},
-    sql_query,
-    sql_types::{BigInt, Integer, Nullable, Text},
+    sql_types::{BigInt, Integer, Nullable},
     ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
@@ -23,7 +22,7 @@ use crate::{
     db::CollectionLock,
     orm_models::BsoChangeset,
     pool::Conn,
-    schema::{bsos, user_collections},
+    schema::{bsos, collections, user_collections},
     DbError, DbResult,
 };
 
@@ -89,13 +88,11 @@ impl Db for PgDb {
                 }
             })?;
 
+        let user_id = params.user_id.legacy_id as i64;
+        let key = (params.user_id, collection_id);
         // If we already have a read or write lock then it's safe to
         // use it as-is.
-        if self
-            .session
-            .coll_locks
-            .contains_key(&(params.user_id.clone(), collection_id))
-        {
+        if self.session.coll_locks.contains_key(&key) {
             return Ok(());
         }
 
@@ -105,7 +102,7 @@ impl Db for PgDb {
 
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_share()
             .first(&mut self.conn)
@@ -115,23 +112,18 @@ impl Db for PgDb {
         if let Some(modified) = modified {
             self.session
                 .coll_modified_cache
-                .insert((params.user_id.clone(), collection_id), modified);
+                .insert(key.clone(), modified);
         }
-        self.session.coll_locks.insert(
-            (params.user_id.clone(), collection_id),
-            CollectionLock::Read,
-        );
+        self.session.coll_locks.insert(key, CollectionLock::Read);
         Ok(())
     }
 
     async fn lock_for_write(&mut self, params: params::LockCollection) -> DbResult<()> {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
+        let user_id = params.user_id.legacy_id as i64;
+        let key = (params.user_id, collection_id);
 
-        if let Some(CollectionLock::Read) = self
-            .session
-            .coll_locks
-            .get(&(params.user_id.clone(), collection_id))
-        {
+        if let Some(CollectionLock::Read) = self.session.coll_locks.get(&key) {
             return Err(DbError::internal(
                 "Can't escalate read-lock to write-lock".to_string(),
             ));
@@ -143,7 +135,7 @@ impl Db for PgDb {
         self.begin(true).await?;
         let modified = user_collections::table
             .select(user_collections::modified)
-            .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
+            .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .for_update()
             .first(&mut self.conn)
@@ -157,13 +149,10 @@ impl Db for PgDb {
             }
             self.session
                 .coll_modified_cache
-                .insert((params.user_id.clone(), collection_id), modified);
+                .insert(key.clone(), modified);
         }
 
-        self.session.coll_locks.insert(
-            (params.user_id.clone(), collection_id),
-            CollectionLock::Write,
-        );
+        self.session.coll_locks.insert(key, CollectionLock::Write);
         Ok(())
     }
 
@@ -362,6 +351,8 @@ impl Db for PgDb {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
         let modified = self.timestamp();
 
+        self.ensure_user_collection(params.user_id.legacy_id as i64, collection_id)
+            .await?;
         for pbso in params.bsos {
             self.put_bso(params::PutBso {
                 user_id: params.user_id.clone(),
@@ -494,6 +485,8 @@ impl Db for PgDb {
                 None
             },
         };
+        self.ensure_user_collection(user_id as i64, collection_id)
+            .await?;
         diesel::insert_into(bsos::table)
             .values((
                 bsos::user_id.eq(user_id as i64),
@@ -523,17 +516,14 @@ impl Db for PgDb {
             return Ok(id);
         }
 
-        let id = sql_query(
-            "SELECT id
-               FROM collections
-              WHERE name = $1",
-        )
-        .bind::<Text, _>(name)
-        .get_result::<IdResult>(&mut self.conn)
-        .await
-        .optional()?
-        .ok_or_else(DbError::collection_not_found)?
-        .id;
+        let id = collections::table
+            .select(collections::collection_id)
+            .filter(collections::name.eq(name))
+            .first::<i32>(&mut self.conn)
+            .await
+            .optional()?
+            .ok_or_else(DbError::collection_not_found)?;
+
         if !self.session.in_write_transaction {
             self.coll_cache.put(id, name.to_owned())?;
         }
@@ -608,12 +598,6 @@ impl Db for PgDb {
             enforced,
         }
     }
-}
-
-#[derive(Debug, QueryableByName)]
-struct IdResult {
-    #[diesel(sql_type = Integer)]
-    id: i32,
 }
 
 #[derive(Debug, Queryable, Selectable)]

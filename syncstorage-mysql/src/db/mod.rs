@@ -8,7 +8,7 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
-use syncstorage_db_common::{results, util::SyncTimestamp, Db};
+use syncstorage_db_common::{results, util::SyncTimestamp, Db, UserIdentifier};
 use syncstorage_settings::Quota;
 
 use crate::{
@@ -47,9 +47,9 @@ struct MysqlDbSession {
     /// The "current time" on the server used for this session's operations
     timestamp: SyncTimestamp,
     /// Cache of collection modified timestamps per (user_id, collection_id)
-    coll_modified_cache: HashMap<(u32, i32), SyncTimestamp>,
+    coll_modified_cache: HashMap<(UserIdentifier, i32), SyncTimestamp>,
     /// Currently locked collections
-    coll_locks: HashMap<(u32, i32), CollectionLock>,
+    coll_locks: HashMap<(UserIdentifier, i32), CollectionLock>,
     /// Whether a transaction was started (begin() called)
     in_transaction: bool,
     in_write_transaction: bool,
