@@ -2,7 +2,9 @@
 #![allow(clippy::new_without_default)]
 use async_trait::async_trait;
 use syncserver_db_common::{GetPoolState, PoolState};
-use syncstorage_db_common::{params, results, util::SyncTimestamp, BatchDb, Db, DbPool};
+#[cfg(debug_assertions)]
+use syncstorage_db_common::util::SyncTimestamp;
+use syncstorage_db_common::{params, results, BatchDb, Db, DbPool};
 
 use crate::DbError;
 
@@ -206,6 +208,7 @@ impl Db for MockDb {
         Ok(Default::default())
     }
 
+    #[cfg(debug_assertions)]
     async fn create_collection(
         &mut self,
         _params: &str,
@@ -220,16 +223,20 @@ impl Db for MockDb {
         Ok(Default::default())
     }
 
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp {
         Default::default()
     }
 
+    #[cfg(debug_assertions)]
     fn set_timestamp(&mut self, _: SyncTimestamp) {}
 
+    #[cfg(debug_assertions)]
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 
+    #[cfg(debug_assertions)]
     fn set_quota(&mut self, _: bool, _: usize, _: bool) {}
 }
 
