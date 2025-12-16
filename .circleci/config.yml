@@ -381,10 +381,11 @@ jobs:
           source: workflow/test-results
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-          extension: json
+      # TODO: enable when run-unit-tests-postgres succeeds
+      #- gcs-configure-and-upload:
+      #    source: workflow/test-results
+      #    destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+      #    extension: json
 
   build-and-test-spanner:
     docker:
@@ -414,10 +415,11 @@ jobs:
           source: workflow/test-results
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
-      - gcs-configure-and-upload:
-          source: workflow/test-results
-          destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
-          extension: json
+      # TODO: enable when run-spanner-tests succeeds
+      #- gcs-configure-and-upload:
+      #    source: workflow/test-results
+      #    destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/coverage
+      #    extension: json
 
   build-mysql-image:
     docker:
