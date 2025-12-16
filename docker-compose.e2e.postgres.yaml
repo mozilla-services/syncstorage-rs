@@ -6,6 +6,8 @@ services:
         condition: service_started
       syncserver:
         condition: service_healthy
+      sync-db:
+        condition: service_healthy
       tokenserver-db:
         condition: service_healthy
     image: app:build
@@ -19,8 +21,7 @@ services:
       MOCK_FXA_SERVER_URL: http://mock-fxa-server:6000
       SYNC_HOST: 0.0.0.0
       SYNC_MASTER_SECRET: secret0
-      SYNC_SYNCSTORAGE__DATABASE_URL: spanner://projects/test-project/instances/test-instance/databases/test-database
-      SYNC_SYNCSTORAGE__SPANNER_EMULATOR_HOST: sync-db:9010
+      SYNC_SYNCSTORAGE__DATABASE_URL: postgres://test:test@sync-db:5432/syncstorage
       SYNC_TOKENSERVER__DATABASE_URL: postgres://test:test@tokenserver-db:5432/tokenserver
       SYNC_TOKENSERVER__ENABLED: "true"
       SYNC_TOKENSERVER__FXA_BROWSERID_AUDIENCE: "https://token.stage.mozaws.net/"
