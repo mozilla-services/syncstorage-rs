@@ -34,6 +34,7 @@ impl BatchDb for PgDb {
         let expiry =
             self.timestamp().as_naive_datetime()? + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
 
+        self.ensure_user_collection(user_id, collection_id).await?;
         insert_into(batches::table)
             .values((
                 batches::batch_id.eq(&batch_id),
