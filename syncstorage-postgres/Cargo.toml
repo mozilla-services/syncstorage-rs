@@ -24,5 +24,5 @@ uuid.workspace = true
 url = "2.1"
 syncserver-common = { path = "../syncserver-common" }
 syncserver-db-common = { path = "../syncserver-db-common" }
-syncstorage-db-common = { path = "../syncstorage-db-common" }
+syncstorage-db-common = { path = "../syncstorage-db-common", features = ["postgres"] }
 syncstorage-settings = { path = "../syncstorage-settings" }

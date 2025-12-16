@@ -1,9 +1,8 @@
-use std::fmt;
+use std::{error::Error, fmt};
 
 use backtrace::Backtrace;
 use http::StatusCode;
 use syncserver_common::{impl_fmt_display, ReportableError};
-use thiserror::Error;
 
 /// Errors common to all supported syncstorage database backends. These errors can be thought of
 /// as being related more to the syncstorage application logic as opposed to a particular
@@ -18,10 +17,12 @@ pub struct SyncstorageDbError {
     pub backtrace: Backtrace,
 }
 
+impl Error for SyncstorageDbError {}
+
 /// Enum mapping of possible error types.
 /// Each variant represents a distinct error condition.
 /// Note the `thiserror` automatic `Display` macro string.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 enum SyncstorageDbErrorKind {
     /// Collection cannot be found.
     #[error("Specified collection does not exist")]

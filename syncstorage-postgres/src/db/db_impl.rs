@@ -1,10 +1,10 @@
 #![allow(unused_variables)]
 // XXX:
 use async_trait::async_trait;
-use chrono::{NaiveDateTime, TimeDelta};
+use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
-    dsl::{count, max, sql},
+    dsl::{count, max, now, sql},
     sql_types::{BigInt, Integer, Nullable},
     ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
 };
@@ -16,7 +16,7 @@ use syncstorage_db_common::{
 };
 use syncstorage_settings::Quota;
 
-use super::PgDb;
+use super::{PgDb, TOMBSTONE};
 use crate::{
     bsos_query,
     db::CollectionLock,
@@ -163,6 +163,7 @@ impl Db for PgDb {
         let modifieds = user_collections::table
             .select((user_collections::collection_id, user_collections::modified))
             .filter(user_collections::user_id.eq(params.legacy_id as i64))
+            .filter(user_collections::collection_id.ne(TOMBSTONE))
             .load_stream::<(_, SyncTimestamp)>(&mut self.conn)
             .await?
             .try_collect()
@@ -201,7 +202,7 @@ impl Db for PgDb {
             .group_by(bsos::collection_id)
             .select((bsos::collection_id, count(bsos::collection_id)))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
-            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::expiry.gt(now))
             .load_stream::<(_, i64)>(&mut self.conn)
             .await?
             .try_collect()
@@ -217,7 +218,7 @@ impl Db for PgDb {
             .group_by(bsos::collection_id)
             .select((bsos::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
-            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::expiry.gt(now))
             .load_stream::<(_, i64)>(&mut self.conn)
             .await?
             .try_collect()
@@ -245,7 +246,7 @@ impl Db for PgDb {
         let total_bytes = bsos::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
             .filter(bsos::user_id.eq(params.legacy_id as i64))
-            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::expiry.gt(now))
             .get_result::<Option<i64>>(&mut self.conn)
             .await?;
         Ok(total_bytes.unwrap_or_default() as u64)
@@ -376,12 +377,11 @@ impl Db for PgDb {
     async fn delete_bso(&mut self, params: params::DeleteBso) -> DbResult<results::DeleteBso> {
         let user_id = params.user_id.legacy_id;
         let collection_id = self.get_collection_id(&params.collection).await?;
-        let naive_datetime = self.timestamp().as_naive_datetime()?;
         let affected_rows = delete(bsos::table)
             .filter(bsos::user_id.eq(user_id as i64))
             .filter(bsos::collection_id.eq(&collection_id))
             .filter(bsos::bso_id.eq(params.id))
-            .filter(bsos::expiry.gt(naive_datetime))
+            .filter(bsos::expiry.gt(now))
             .execute(&mut self.conn)
             .await?;
         if affected_rows == 0 {
@@ -403,7 +403,7 @@ impl Db for PgDb {
             .filter(bsos::user_id.eq(user_id))
             .filter(bsos::collection_id.eq(collection_id))
             .filter(bsos::bso_id.eq(&params.id))
-            .filter(bsos::expiry.gt(self.timestamp().as_naive_datetime()?))
+            .filter(bsos::expiry.gt(now))
             .get_result(&mut self.conn)
             .await
             .optional()?
@@ -457,7 +457,7 @@ impl Db for PgDb {
         let sortindex = bso.sortindex;
         let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
 
-        let modified = self.timestamp().as_naive_datetime()?;
+        let modified = self.timestamp().as_datetime()?;
         // Expiry originally required millisecond conversion
         let expiry = modified + TimeDelta::seconds(ttl as i64);
 
@@ -556,7 +556,7 @@ impl Db for PgDb {
             }
         };
         let total_bytes = quota.total_bytes as i64;
-        let modified = self.timestamp().as_naive_datetime()?;
+        let modified = self.timestamp().as_datetime()?;
 
         diesel::insert_into(user_collections::table)
             .values((
@@ -609,10 +609,10 @@ pub struct GetBso {
     pub sortindex: Option<i32>,
     #[diesel(sql_type = Text)]
     pub payload: String,
-    #[diesel(sql_type = Timestamp)]
-    pub modified: NaiveDateTime,
-    #[diesel(sql_type = Timestamp)]
-    pub expiry: NaiveDateTime,
+    #[diesel(sql_type = Timestamptz)]
+    pub modified: DateTime<Utc>,
+    #[diesel(sql_type = Timestamptz)]
+    pub expiry: DateTime<Utc>,
 }
 
 impl TryFrom<GetBso> for results::GetBso {
@@ -623,8 +623,8 @@ impl TryFrom<GetBso> for results::GetBso {
             id: pg.bso_id,
             sortindex: pg.sortindex,
             payload: pg.payload,
-            modified: SyncTimestamp::from_naive_datetime(pg.modified)?,
-            expiry: pg.expiry.and_utc().timestamp_millis(),
+            modified: SyncTimestamp::from_datetime(pg.modified)?,
+            expiry: pg.expiry.timestamp_millis(),
         })
     }
 }
