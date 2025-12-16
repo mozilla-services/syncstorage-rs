@@ -616,7 +616,6 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
@@ -633,7 +632,6 @@ async fn accept_new_or_dev_ios() {
     let response = app.call(req).await.unwrap();
     assert!(response.status().is_success());
 
-    let app = init_app!().await;
     let mut headers = HashMap::new();
     headers.insert(
         "User-Agent",
