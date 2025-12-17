@@ -5,7 +5,7 @@ use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, now, sql},
-    sql_types::{BigInt, Integer, Nullable},
+    sql_types::{BigInt, Nullable},
     ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
@@ -259,10 +259,10 @@ impl Db for PgDb {
         &mut self,
         params: params::GetQuotaUsage,
     ) -> DbResult<results::GetQuotaUsage> {
-        let (total_bytes, count): (i64, i32) = user_collections::table
+        let (total_bytes, count): (i64, i64) = user_collections::table
             .select((
-                sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)"),
-                sql::<Integer>("COALESCE(SUM(COALESCE(count, 0)), 0)"),
+                sql::<BigInt>("COALESCE(SUM(COALESCE(total_bytes, 0)), 0)::BIGINT"),
+                sql::<BigInt>("COALESCE(SUM(COALESCE(count, 0)), 0)::BIGINT"),
             ))
             .filter(user_collections::user_id.eq(params.user_id.legacy_id as i64))
             .filter(user_collections::collection_id.eq(params.collection_id))
@@ -272,7 +272,7 @@ impl Db for PgDb {
             .unwrap_or_default();
         Ok(results::GetQuotaUsage {
             total_bytes: total_bytes as usize,
-            count,
+            count: count as i32,
         })
     }
 

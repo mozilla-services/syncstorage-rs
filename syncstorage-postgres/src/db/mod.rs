@@ -1,7 +1,7 @@
 #![allow(dead_code)] // XXX:
 use diesel::{
     dsl::{now, sql},
-    sql_types::{BigInt, Integer},
+    sql_types::BigInt,
     upsert::excluded,
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
@@ -207,10 +207,10 @@ impl PgDb {
         user_id: i64,
         collection_id: i32,
     ) -> DbResult<results::GetQuotaUsage> {
-        let (total_bytes, count): (i64, i32) = bsos::table
+        let (total_bytes, count): (i64, i64) = bsos::table
             .select((
-                sql::<BigInt>(r#"COALESCE(SUM(LENGTH(COALESCE(payload, ""))),0)"#),
-                sql::<Integer>("COALESCE(COUNT(*),0)"),
+                sql::<BigInt>("COALESCE(SUM(LENGTH(COALESCE(payload, ''))),0)::BIGINT"),
+                sql::<BigInt>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bsos::user_id.eq(user_id))
             .filter(bsos::expiry.gt(now))
@@ -221,7 +221,7 @@ impl PgDb {
             .unwrap_or_default();
         Ok(results::GetQuotaUsage {
             total_bytes: total_bytes as usize,
-            count,
+            count: count as i32,
         })
     }
 }
