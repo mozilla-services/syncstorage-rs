@@ -314,3 +314,53 @@ async fn test_append_async_w_null() -> Result<(), DbError> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_append_async_w_empty_string() -> Result<(), DbError> {
+    let settings = Settings::test_settings().syncstorage;
+    let pool = db_pool(Some(settings)).await?;
+    let mut db = test_db(pool).await?;
+
+    let ttl_0 = 86_400;
+    let bid_0 = "b0";
+    let bid_1 = "b1";
+
+    let uid = 1;
+    let coll = "clients";
+    let payload_0 = "payload 0";
+    let payload_1 = "payload 1";
+
+    let first_bso = pbso(uid, coll, bid_0, Some(payload_0), Some(10), Some(ttl_0));
+    db.put_bso(first_bso).await?;
+
+    let new_batch = db.create_batch(cb(uid, coll, vec![])).await?;
+    db.append_to_batch(ab(
+        uid,
+        coll,
+        new_batch.clone(),
+        vec![
+            postbso(bid_0, Some(""), Some(15), None),
+            postbso(bid_1, Some(payload_1), Some(10), Some(ttl_0)),
+        ],
+    ))
+    .await?;
+
+    let batch = db
+        .get_batch(gb(uid, coll, new_batch.id.clone()))
+        .await?
+        .unwrap();
+    db.commit_batch(params::CommitBatch {
+        user_id: hid(uid),
+        collection: coll.to_owned(),
+        batch,
+    })
+    .await?;
+
+    let bso_1_updated = db.get_bso(gbso(uid, coll, bid_0)).await?.unwrap();
+    assert!(
+        bso_1_updated.payload.is_empty(),
+        "Updated payload should be empty string"
+    );
+
+    Ok(())
+}
