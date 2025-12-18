@@ -356,9 +356,9 @@ async fn test_append_async_w_empty_string() -> Result<(), DbError> {
     })
     .await?;
 
-    let bso_1_updated = db.get_bso(gbso(uid, coll, bid_0)).await?.unwrap();
+    let bso_0_updated = db.get_bso(gbso(uid, coll, bid_0)).await?.unwrap();
     assert!(
-        bso_1_updated.payload.is_empty(),
+        bso_0_updated.payload.is_empty(),
         "Updated payload should be empty string"
     );
 
