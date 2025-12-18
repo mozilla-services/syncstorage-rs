@@ -4,7 +4,6 @@ use uuid::Uuid;
 use crate::schema::{batch_bsos, batches, bsos, collections, user_collections};
 use diesel::{AsChangeset, Identifiable, Queryable};
 
-#[allow(clippy::all)]
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(user_id, collection_id, batch_id, batch_bso_id))]
 pub struct BatchBso {
