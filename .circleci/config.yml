@@ -485,7 +485,7 @@ jobs:
       # save the built docker container into CircleCI's cache. This is
       # required since Workflows do not have the same remote docker instance.
       - run:
-          name: docker save app:build
+          name: docker save app:build (postgres)
           command: |
             mkdir -p /home/circleci/cache
             docker save -o /home/circleci/cache/docker.tar "app:build"
@@ -541,7 +541,7 @@ jobs:
             - /home/circleci/cache
 
   # Auth to GCR, tag and push image
-  deploy-to-gar:
+  deploy-spanner-to-gar:
     executor: gcp-gcr/default
     parameters:
       image:
@@ -561,6 +561,60 @@ jobs:
           use_oidc: true
       - restore_cache:
           key: spanner-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Tag image
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              GAR_TAG="${CIRCLE_SHA1}"
+            fi
+
+            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+              GAR_TAG="${CIRCLE_BRANCH}"
+            fi
+
+            if [ -n "${CIRCLE_TAG}" ]; then
+              GAR_TAG="$CIRCLE_TAG"
+            fi
+
+            if [ -n "${GAR_TAG}" ]; then
+              echo "export GAR_TAG=${GAR_TAG}" >> $BASH_ENV
+              echo "export GAR_IMAGE=\"<<parameters.registry-url>>/${GOOGLE_PROJECT_ID}/<<parameters.gar-repo>>/<<parameters.image>>\"" >> $BASH_ENV
+              source $BASH_ENV
+              docker tag app:build ${GAR_IMAGE}:${GAR_TAG}
+            else
+              echo "Not pushing to gar for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+            fi
+      # Push image
+      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-push-image
+      - gcp-gcr/push-image:
+          image: <<parameters.gar-repo>>/<<parameters.image>>
+          registry-url: <<parameters.registry-url>>
+          tag: $GAR_TAG
+
+  # Auth to GCR, tag and push image
+  deploy-postgres-to-gar:
+    executor: gcp-gcr/default
+    parameters:
+      image:
+        type: string
+        default: syncstorage-rs-postgres
+      registry-url:
+        type: string
+        default: us-docker.pkg.dev
+      gar-repo:
+        type: string
+        default: sync-prod
+    steps:
+      # Auth to GCR
+      # https://circleci.com/developer/orbs/orb/circleci/gcp-gcr#commands-gcr-auth
+      - gcp-gcr/gcr-auth:
+          registry-url: <<parameters.registry-url>>
+          use_oidc: true
+      - restore_cache:
+          key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
       - run:
           name: Restore Docker image cache
           command: docker load -i /home/circleci/cache/docker.tar
@@ -681,7 +735,7 @@ jobs:
           destination: gs://ecosystem-test-eng-metrics/syncstorage-rs/junit
           extension: xml
 
-  deploy:
+  deploy-spanner:
     docker:
       - image: docker:18.02.0-ce
         auth:
@@ -716,6 +770,45 @@ jobs:
               docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}
               docker images
               docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}"
+            else
+              echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
+            fi
+
+  deploy-postgres:
+    docker:
+      - image: docker:18.02.0-ce
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASS
+    steps:
+      - setup_remote_docker
+      - display-versions
+      - restore_cache:
+          key: postgres-{{ .Branch }}-{{ .Environment.CIRCLE_SHA1 }}
+      - run:
+          name: Restore Docker image cache
+          command: docker load -i /home/circleci/cache/docker.tar
+      - run:
+          name: Deploy Postgres Image to Dockerhub
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              DOCKER_TAG="${CIRCLE_SHA1}"
+            fi
+
+            if echo "${CIRCLE_BRANCH}" | grep '^feature\..*' > /dev/null; then
+              DOCKER_TAG="${CIRCLE_BRANCH}"
+            fi
+
+            if [ -n "${CIRCLE_TAG}" ]; then
+              DOCKER_TAG="$CIRCLE_TAG"
+            fi
+
+            if [ -n "${DOCKER_TAG}" ]; then
+              echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+              echo ${DOCKERHUB_REPO}:${DOCKER_TAG}-postgres
+              docker tag app:build ${DOCKERHUB_REPO}:${DOCKER_TAG}-postgres
+              docker images
+              docker push "${DOCKERHUB_REPO}:${DOCKER_TAG}-postgres"
             else
               echo "Not pushing to dockerhub for tag=${CIRCLE_TAG} branch=${CIRCLE_BRANCH}"
             fi
@@ -825,10 +918,23 @@ workflows:
             branches:
               only: master
               # touch: 1676417203
-      - deploy-to-gar:
+      - deploy-spanner-to-gar:
           registry-url: us-docker.pkg.dev
           gar-repo: sync-prod
           image: syncstorage-rs
+          requires:
+            - mysql-e2e-tests
+            - postgres-e2e-tests
+            - spanner-e2e-tests
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
+      - deploy-postgres-to-gar:
+          registry-url: us-docker.pkg.dev
+          gar-repo: sync-prod
+          image: syncstorage-rs-postgres
           requires:
             - mysql-e2e-tests
             - postgres-e2e-tests
@@ -846,4 +952,3 @@ workflows:
           filters:
             tags:
               only: /.*/
-
