@@ -27,3 +27,23 @@ jobs:
       docker_build_args: |
         SYNCSTORAGE_DATABASE_BACKEND=spanner
         MYSQLCLIENT_PKG=libmysqlclient-dev
+
+  build-and-push-syncstorage-rs-postgres:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'preview') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      )
+    permissions:
+      contents: read
+      id-token: write
+    uses: mozilla-it/deploy-actions/.github/workflows/build-and-push.yml@1b87069d293273436a84dff04954a8950d3ff9ca # v6.1.0
+    with:
+      image_name: syncstorage-rs-postgres
+      gar_name: sync-prod
+      project_id: moz-fx-sync-prod
+      docker_build_args: |
+        SYNCSTORAGE_DATABASE_BACKEND=postgres
+        TOKENSERVER_DATABASE_BACKEND=postgres

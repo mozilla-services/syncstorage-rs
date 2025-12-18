@@ -907,7 +907,18 @@ workflows:
           filters:
             tags:
               only: /.*/
-      - deploy:
+      - deploy-spanner:
+          requires:
+            - mysql-e2e-tests
+            - postgres-e2e-tests
+            - spanner-e2e-tests
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
+              # touch: 1676417203
+      - deploy-postgres:
           requires:
             - mysql-e2e-tests
             - postgres-e2e-tests
