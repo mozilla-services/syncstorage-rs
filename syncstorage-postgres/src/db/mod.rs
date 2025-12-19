@@ -1,4 +1,5 @@
 #![allow(dead_code)] // XXX:
+use chrono::{DateTime, NaiveDate, Utc};
 use diesel::{
     dsl::{now, sql},
     sql_types::BigInt,
@@ -25,6 +26,12 @@ mod db_impl;
 pub use batch_impl::validate_batch_id;
 
 const TOMBSTONE: i32 = 0;
+
+const PRETOUCH_DT: DateTime<Utc> = NaiveDate::from_ymd_opt(1, 1, 1)
+    .unwrap()
+    .and_hms_opt(0, 0, 0)
+    .unwrap()
+    .and_utc();
 
 #[derive(Debug, Eq, PartialEq)]
 enum CollectionLock {
@@ -192,7 +199,7 @@ impl PgDb {
             .values((
                 user_collections::user_id.eq(user_id),
                 user_collections::collection_id.eq(collection_id),
-                user_collections::modified.eq(self.timestamp().as_datetime()?),
+                user_collections::modified.eq(PRETOUCH_DT),
             ))
             .on_conflict((user_collections::user_id, user_collections::collection_id))
             .do_nothing()

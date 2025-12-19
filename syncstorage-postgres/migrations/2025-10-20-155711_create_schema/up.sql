@@ -43,6 +43,27 @@ CREATE TABLE collections (
     name VARCHAR(32) NOT NULL UNIQUE
 );
 
+-- Insert Standard Collections.
+-- These are the 13 standard collections that are expected to exist by clients.
+-- The IDs are fixed.
+-- Reserved spaces for additions to the standard collections begin after 100.
+INSERT INTO collections (collection_id, name) VALUES
+    ( 1, 'clients'),
+    ( 2, 'crypto'),
+    ( 3, 'forms'),
+    ( 4, 'history'),
+    ( 5, 'keys'),
+    ( 6, 'meta'),
+    ( 7, 'bookmarks'),
+    ( 8, 'prefs'),
+    ( 9, 'tabs'),
+    (10, 'passwords'),
+    (11, 'addons'),
+    (12, 'addresses'),
+    (13, 'creditcards');
+
+
+
 -- batches table
 CREATE TABLE batches (
     user_id BIGINT NOT NULL,
@@ -88,3 +109,4 @@ CREATE TABLE batch_bsos (
         batch_id
     ) ON DELETE CASCADE
 );
+
