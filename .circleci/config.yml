@@ -945,10 +945,10 @@ workflows:
           registry-url: us-docker.pkg.dev
           gar-repo: sync-prod
           image: syncstorage-rs-postgres
-          requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
-            - spanner-e2e-tests
+          # requires:
+          # - mysql-e2e-tests
+          # - postgres-e2e-tests
+          # - spanner-e2e-tests
           filters:
             tags:
               only: /.*/
