@@ -1,4 +1,3 @@
-#![allow(dead_code)] // XXX:
 use chrono::{DateTime, NaiveDate, Utc};
 use diesel::{
     dsl::{now, sql},
@@ -75,8 +74,6 @@ struct PgDbSession {
     in_transaction: bool,
     /// Boolean to identify if query in active transaction.
     in_write_transaction: bool,
-    /// Whether update_collection has already been called.
-    updated_collection: bool,
 }
 
 impl PgDb {
@@ -279,10 +276,9 @@ macro_rules! bsos_query {
             }
             let mut items = query.load(&mut $self.conn).await?;
 
-            // XXX: an additional get_collection_timestamp is done here in
-            // python to trigger potential CollectionNotFoundErrors
-            //if bsos.len() == 0 {
-            //}
+            // Note that "Non-existent collections do not trigger a 404 Not
+            // Found for backwards-compatibility reasons.": an empty list is
+            // returned in those cases
 
             let limit = limit.unwrap_or(-1);
             let next_offset = if limit >= 0 && items.len() > limit as usize {
