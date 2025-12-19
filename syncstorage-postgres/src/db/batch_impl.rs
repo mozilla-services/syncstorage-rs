@@ -3,8 +3,7 @@ use diesel::{
     self, delete,
     dsl::{now, sql},
     insert_into, sql_query,
-    sql_types::{BigInt, Integer, Timestamptz, Uuid as SqlUuid},
-    upsert::excluded,
+    sql_types::{BigInt, Integer, Nullable, Text, Timestamptz, Uuid as SqlUuid},
     ExpressionMethods, OptionalExtension, QueryDsl,
 };
 use diesel_async::RunQueryDsl;
@@ -142,31 +141,63 @@ impl BatchDb for PgDb {
             })
             .await?;
         let default_ttl_seconds = DEFAULT_BSO_TTL as i64;
+        let ts_datetime = timestamp.as_datetime()?;
+
+        sql_query(
+            "UPDATE bsos
+             SET
+                 sortindex = COALESCE(src.sortindex, bsos.sortindex),
+                 payload = COALESCE(src.payload, bsos.payload),
+                 modified = $3,
+                 expiry = COALESCE(
+                     CASE
+                         WHEN src.ttl IS NOT NULL THEN $3 + (src.ttl || ' seconds')::INTERVAL
+                         ELSE NULL
+                     END,
+                     bsos.expiry
+                 )
+             FROM (
+                 SELECT batch_bso_id, sortindex, payload, ttl
+                 FROM batch_bsos
+                 WHERE user_id = $1 AND collection_id = $2 AND batch_id = $5
+             ) AS src
+             WHERE bsos.user_id = $1
+               AND bsos.collection_id = $2
+               AND bsos.bso_id = src.batch_bso_id",
+        )
+        .bind::<BigInt, _>(user_id)
+        .bind::<Integer, _>(collection_id)
+        .bind::<Timestamptz, _>(ts_datetime)
+        .bind::<BigInt, _>(default_ttl_seconds)
+        .bind::<SqlUuid, _>(&batch_id)
+        .execute(&mut self.conn)
+        .await?;
 
         sql_query(
             "INSERT INTO bsos (user_id, collection_id, bso_id, sortindex, payload, modified, expiry)
              SELECT
-                 $1::BIGINT,
-                 $2::INTEGER,
+                 $1,
+                 $2,
                  batch_bso_id,
                  sortindex,
                  COALESCE(payload, ''::TEXT),
-                 $3::TIMESTAMP,
+                 $3,
                  CASE
-                     WHEN ttl IS NOT NULL THEN $3::TIMESTAMP + (ttl || ' seconds')::INTERVAL
-                     ELSE $3::TIMESTAMP + ($4::BIGINT || ' seconds')::INTERVAL
+                     WHEN ttl IS NOT NULL THEN $3 + (ttl || ' seconds')::INTERVAL
+                     ELSE $3 + ($4 || ' seconds')::INTERVAL
                  END
              FROM batch_bsos
              WHERE user_id = $1 AND batch_id = $5
-             ON CONFLICT (user_id, collection_id, bso_id) DO UPDATE SET
-                 sortindex = COALESCE(EXCLUDED.sortindex, bsos.sortindex),
-                 payload = COALESCE(EXCLUDED.payload, bsos.payload),
-                 modified = EXCLUDED.modified,
-                 expiry = COALESCE(EXCLUDED.expiry, bsos.expiry)"
+               AND NOT EXISTS (
+                   SELECT 1 FROM bsos
+                   WHERE bsos.user_id = $1
+                     AND bsos.collection_id = $2
+                     AND bsos.bso_id = batch_bsos.batch_bso_id
+               )"
         )
         .bind::<BigInt, _>(user_id)
         .bind::<Integer, _>(collection_id)
-        .bind::<Timestamptz, _>(timestamp.as_datetime()?)
+        .bind::<Timestamptz, _>(ts_datetime)
         .bind::<BigInt, _>(default_ttl_seconds)
         .bind::<SqlUuid, _>(&batch_id)
         .execute(&mut self.conn)
@@ -222,31 +253,25 @@ pub async fn do_append(
     for bso in bsos {
         let ttl = bso.ttl.map(|t| t as i64);
         let sortindex = bso.sortindex;
+        let user_id_i64 = user_id.legacy_id as i64;
 
-        insert_into(batch_bsos::table)
-            .values((
-                batch_bsos::batch_id.eq(&batch_id),
-                batch_bsos::user_id.eq(user_id.legacy_id as i64),
-                batch_bsos::collection_id.eq(collection_id),
-                batch_bsos::batch_bso_id.eq(&bso.id),
-                batch_bsos::sortindex.eq(sortindex),
-                batch_bsos::payload.eq(&bso.payload),
-                batch_bsos::ttl.eq(ttl),
-            ))
-            .on_conflict((
-                batch_bsos::user_id,
-                batch_bsos::collection_id,
-                batch_bsos::batch_id,
-                batch_bsos::batch_bso_id,
-            ))
-            .do_update()
-            .set((
-                batch_bsos::sortindex.eq(excluded(batch_bsos::sortindex)),
-                batch_bsos::payload.eq(excluded(batch_bsos::payload)),
-                batch_bsos::ttl.eq(excluded(batch_bsos::ttl)),
-            ))
-            .execute(&mut db.conn)
-            .await?;
+        sql_query(
+            "INSERT INTO batch_bsos (user_id, collection_id, batch_id, batch_bso_id, sortindex, payload, ttl)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (user_id, collection_id, batch_id, batch_bso_id) DO UPDATE SET
+                 sortindex = COALESCE(EXCLUDED.sortindex, batch_bsos.sortindex),
+                 payload = COALESCE(EXCLUDED.payload, batch_bsos.payload),
+                 ttl = COALESCE(EXCLUDED.ttl, batch_bsos.ttl)"
+        )
+        .bind::<BigInt, _>(user_id_i64)
+        .bind::<Integer, _>(collection_id)
+        .bind::<SqlUuid, _>(&batch_id)
+        .bind::<Text, _>(&bso.id)
+        .bind::<Nullable<Integer>, _>(sortindex)
+        .bind::<Nullable<Text>, _>(&bso.payload)
+        .bind::<Nullable<BigInt>, _>(ttl)
+        .execute(&mut db.conn)
+        .await?;
     }
 
     Ok(())
