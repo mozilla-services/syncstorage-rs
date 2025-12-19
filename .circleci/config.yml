@@ -621,7 +621,7 @@ jobs:
       - run:
           name: Tag image
           command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+            if [ "${CIRCLE_BRANCH}" != "master" ]; then
               GAR_TAG="${CIRCLE_SHA1}"
             fi
 
