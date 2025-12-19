@@ -141,7 +141,7 @@ impl VerifyToken for Verifier {
             })
             .map_err(|e| TokenserverError {
                 context: format!("pyo3 error in OAuth verifier: {}", e),
-                ..TokenserverError::invalid_credentials("Unauthorized".to_owned())
+                ..TokenserverError::internal_error()
             })?;
 
             match maybe_verify_output_string {
