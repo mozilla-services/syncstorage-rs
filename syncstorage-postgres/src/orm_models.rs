@@ -18,7 +18,7 @@ pub struct BatchBso {
 
 #[derive(Queryable, Debug, Identifiable)]
 #[diesel(primary_key(user_id, collection_id, batch_id))]
-#[diesel(table_name=batches)]
+#[diesel(table_name = batches)]
 pub struct Batch {
     pub user_id: i64,
     pub collection_id: i32,
@@ -26,8 +26,9 @@ pub struct Batch {
     pub expiry: DateTime<Utc>,
 }
 
-#[derive(Queryable, Debug, Identifiable)]
+#[derive(Queryable, Debug, Identifiable, Insertable)]
 #[diesel(primary_key(user_id, collection_id, bso_id))]
+#[diesel(table_name = bsos)]
 pub struct Bso {
     pub user_id: i64,
     pub collection_id: i32,
