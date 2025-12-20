@@ -207,21 +207,33 @@ pub trait Db: BatchDb {
 
     // Internal methods used by the db tests
 
+    // TODO: should be test only but currently isn't:
+    // https://github.com/mozilla-services/syncstorage-rs/issues/1959
+    //#[cfg(debug_assertions)]
     async fn get_collection_id(&mut self, name: &str) -> Result<i32, Self::Error>;
 
+    #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error>;
 
+    // TODO: all impls rely on this method internally so it can't currently be
+    // cfg(debug_assertions). they should be refactored to not rely on the
+    // trait method itself
+    //#[cfg(debug_assertions)]
     async fn update_collection(
         &mut self,
         params: params::UpdateCollection,
     ) -> Result<SyncTimestamp, Self::Error>;
 
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp;
 
+    #[cfg(debug_assertions)]
     fn set_timestamp(&mut self, timestamp: SyncTimestamp);
 
+    #[cfg(debug_assertions)]
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error>;
 
+    #[cfg(debug_assertions)]
     fn set_quota(&mut self, enabled: bool, limit: usize, enforce: bool);
 }
 

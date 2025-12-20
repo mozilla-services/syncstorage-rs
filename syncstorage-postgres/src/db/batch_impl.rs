@@ -30,8 +30,8 @@ impl BatchDb for PgDb {
         let batch_id = Uuid::new_v4();
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        let expiry =
-            self.timestamp().as_datetime()? + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
+        let expiry = self.checked_timestamp()?.as_datetime()?
+            + chrono::TimeDelta::milliseconds(BATCH_LIFETIME);
 
         self.ensure_user_collection(user_id, collection_id).await?;
         insert_into(batches::table)

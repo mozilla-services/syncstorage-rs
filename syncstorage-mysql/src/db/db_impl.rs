@@ -14,7 +14,7 @@ use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, UserIdentifier,
     DEFAULT_BSO_TTL,
 };
-use syncstorage_settings::{Quota, DEFAULT_MAX_TOTAL_RECORDS};
+use syncstorage_settings::DEFAULT_MAX_TOTAL_RECORDS;
 
 use super::{
     diesel_ext::LockInShareModeDsl,
@@ -105,7 +105,7 @@ impl Db for MysqlDb {
         if let Some(modified) = modified {
             let modified = SyncTimestamp::from_i64(modified)?;
             // Forbid the write if it would not properly incr the timestamp
-            if modified >= self.timestamp() {
+            if modified >= self.session.timestamp {
                 return Err(DbError::conflict());
             }
             self.session
@@ -216,7 +216,7 @@ impl Db for MysqlDb {
 
         let collection_id = self.get_or_create_collection_id(&bso.collection).await?;
         let user_id: u64 = bso.user_id.legacy_id;
-        let timestamp = self.timestamp().as_i64();
+        let timestamp = self.session.timestamp.as_i64();
         if self.quota.enabled {
             let usage = self
                 .get_quota_usage(params::GetQuotaUsage {
@@ -311,7 +311,7 @@ impl Db for MysqlDb {
     async fn get_bsos(&mut self, params: params::GetBsos) -> DbResult<results::GetBsos> {
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
-        let now = self.timestamp().as_i64();
+        let now = self.session.timestamp.as_i64();
         let mut query = bso::table
             .select((
                 bso::id,
@@ -405,7 +405,7 @@ impl Db for MysqlDb {
             .select(bso::id)
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(collection_id))
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(self.session.timestamp.as_i64()))
             .into_boxed();
 
         if let Some(older) = params.older {
@@ -475,7 +475,7 @@ impl Db for MysqlDb {
             .filter(bso::user_id.eq(user_id))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(&params.id))
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(self.session.timestamp.as_i64()))
             .get_result::<results::GetBso>(&mut self.conn)
             .await
             .optional()?)
@@ -488,7 +488,7 @@ impl Db for MysqlDb {
             .filter(bso::user_id.eq(user_id as i64))
             .filter(bso::collection_id.eq(&collection_id))
             .filter(bso::id.eq(params.id))
-            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(&self.session.timestamp.as_i64()))
             .execute(&mut self.conn)
             .await?;
         if affected_rows == 0 {
@@ -521,7 +521,7 @@ impl Db for MysqlDb {
 
     async fn post_bsos(&mut self, input: params::PostBsos) -> DbResult<SyncTimestamp> {
         let collection_id = self.get_or_create_collection_id(&input.collection).await?;
-        let modified = self.timestamp();
+        let modified = self.session.timestamp;
 
         for pbso in input.bsos {
             self.put_bso(params::PutBso {
@@ -657,19 +657,19 @@ impl Db for MysqlDb {
             total_bytes = TOTAL_BYTES,
         );
         let total_bytes = quota.total_bytes as i64;
-        let timestamp = self.timestamp().as_i64();
+        let modified = self.session.timestamp;
         sql_query(upsert)
             .bind::<BigInt, _>(params.user_id.legacy_id as i64)
             .bind::<Integer, _>(&params.collection_id)
-            .bind::<BigInt, _>(&timestamp)
+            .bind::<BigInt, _>(&modified.as_i64())
             .bind::<BigInt, _>(&total_bytes)
             .bind::<Integer, _>(&quota.count)
-            .bind::<BigInt, _>(&timestamp)
+            .bind::<BigInt, _>(&modified.as_i64())
             .bind::<BigInt, _>(&total_bytes)
             .bind::<Integer, _>(&quota.count)
             .execute(&mut self.conn)
             .await?;
-        Ok(self.timestamp())
+        Ok(modified)
     }
 
     // Perform a lighter weight "read only" storage size check
@@ -681,7 +681,7 @@ impl Db for MysqlDb {
         let total_bytes = bso::table
             .select(sql::<Nullable<BigInt>>("SUM(LENGTH(payload))"))
             .filter(bso::user_id.eq(uid))
-            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(&self.session.timestamp.as_i64()))
             .get_result::<Option<i64>>(&mut self.conn)
             .await?;
         Ok(total_bytes.unwrap_or_default() as u64)
@@ -717,7 +717,7 @@ impl Db for MysqlDb {
         let counts = bso::table
             .select((bso::collection_id, sql::<BigInt>("SUM(LENGTH(payload))")))
             .filter(bso::user_id.eq(user_id.legacy_id as i64))
-            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(&self.session.timestamp.as_i64()))
             .group_by(bso::collection_id)
             .load(&mut self.conn)
             .await?
@@ -739,7 +739,7 @@ impl Db for MysqlDb {
                 )),
             ))
             .filter(bso::user_id.eq(user_id.legacy_id as i64))
-            .filter(bso::expiry.gt(&self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(&self.session.timestamp.as_i64()))
             .group_by(bso::collection_id)
             .load(&mut self.conn)
             .await?
@@ -748,29 +748,34 @@ impl Db for MysqlDb {
         self.map_collection_names(counts).await
     }
 
-    fn timestamp(&self) -> SyncTimestamp {
-        self.session.timestamp
-    }
-
     fn get_connection_info(&self) -> results::ConnectionInfo {
         results::ConnectionInfo::default()
     }
 
+    #[cfg(debug_assertions)]
     async fn create_collection(&mut self, name: &str) -> Result<i32, Self::Error> {
         self.get_or_create_collection_id(name).await
     }
 
+    #[cfg(debug_assertions)]
+    fn timestamp(&self) -> SyncTimestamp {
+        self.session.timestamp
+    }
+
+    #[cfg(debug_assertions)]
     fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
         self.session.timestamp = timestamp;
     }
 
+    #[cfg(debug_assertions)]
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
         self.coll_cache.clear();
         Ok(())
     }
 
+    #[cfg(debug_assertions)]
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
-        self.quota = Quota {
+        self.quota = syncstorage_settings::Quota {
             size: limit,
             enabled,
             enforced,
