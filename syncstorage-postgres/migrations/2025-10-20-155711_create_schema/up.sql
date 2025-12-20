@@ -62,7 +62,9 @@ INSERT INTO collections (collection_id, name) VALUES
     (12, 'addresses'),
     (13, 'creditcards');
 
-
+-- Set subsequent values to insert after 100.
+ALTER TABLE collections 
+ALTER COLUMN collection_id RESTART WITH 101;
 
 -- batches table
 CREATE TABLE batches (

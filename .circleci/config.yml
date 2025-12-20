@@ -955,8 +955,6 @@ workflows:
               only: master
       - deploy-spanner-python-utils:
           requires:
-            - mysql-e2e-tests
-            - postgres-e2e-tests
             - spanner-e2e-tests
           filters:
             tags:

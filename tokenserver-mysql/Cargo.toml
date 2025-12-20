@@ -18,4 +18,3 @@ syncserver-db-common = { path = "../syncserver-db-common" }
 tokenserver-common = { path = "../tokenserver-common" }
 tokenserver-db-common = { path = "../tokenserver-db-common" }
 tokenserver-settings = { path = "../tokenserver-settings" }
-tokio = { workspace = true, features = ["macros", "sync"] }
