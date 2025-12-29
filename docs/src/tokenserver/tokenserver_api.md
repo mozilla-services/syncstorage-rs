@@ -20,7 +20,7 @@ The first /1.0/ in the URL defines the version of the authentication
 token itself.
 
 Example for Mozilla Account OAuth 2.0::
-```
+```json
     GET /1.0/sync/1.5
     Host: token.services.mozilla.com
     Authorization: bearer <assertion>
@@ -36,7 +36,7 @@ This API returns several values in a json mapping:
 - **duration** -- the validity duration of the issued token, in seconds.
 
 Example::
-```
+```json
 HTTP/1.1 200 OK
 Content-Type: application/json
 

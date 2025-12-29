@@ -230,6 +230,10 @@ ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
 doc-install-deps:  ## Install the dependencies for doc generation
 	cargo install mdbook && cargo install mdbook-mermaid
 
+.PHONY: doc-test
+doc-test:  ##  Tests documentation for errors.
+	mdbook test docs/
+
 .PHONY: doc-prev
 doc-prev:  ##  Generate live preview of docs and open in browser.
 	mdbook clean docs/

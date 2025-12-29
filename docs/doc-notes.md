@@ -1,8 +1,10 @@
 # Documentation Notes and Comments
 
-## mdbook
+mdBook is a command line tool to create books with Markdown. It is ideal for creating product or API documentation, tutorials, course materials or anything that requires a clean, easily navigable and customizable presentation. Source: [mdBook Documentation](https://rust-lang.github.io/mdBook/index.html).
 
-To build the documentation, install mdbook:
+## mdBook
+
+To build the documentation, install mdBook:
 
 ```bash
 cargo install mdbook
