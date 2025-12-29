@@ -1,0 +1,14 @@
+[book]
+title = "Mozilla Syncstorage-rs"
+authors = ["Storage Team", "Barry Chen", "Philip Jenvey", "Taddes Korris"]
+description = "Detailed description and operation of the Mozilla WebPush Server named Autopush"
+language = "en"
+
+[rust]
+edition = "2021"
+
+[build]
+build-dir = "output"
+
+[output.html]
+additional-css = ["style.css"]
