@@ -1,7 +1,7 @@
 [book]
 title = "Mozilla Syncstorage-rs"
 authors = ["Storage Team", "Barry Chen", "Philip Jenvey", "Taddes Korris"]
-description = "Detailed description and operation of the Mozilla WebPush Server named Autopush"
+description = "Detailed description and operation of Mozilla's Syncstorage & Tokenserver."
 language = "en"
 
 [rust]
