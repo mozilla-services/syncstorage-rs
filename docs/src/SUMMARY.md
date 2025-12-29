@@ -1,6 +1,7 @@
 # Summary
 
-[Introduction](../../README.md)
+[Introduction](introduction.md)
+[Application Configuration](config.md)
 [Docs and MdBook Notes](doc-notes.md)
 
 - [Tokenserver](tokenserver/tokenserver.md)

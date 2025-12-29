@@ -22,7 +22,8 @@ This will generate the html files into the `./output` directory. You can also ru
 mdbook serve
 ```
 
-which will serve those files on `http://localhost:3000`.
+which will serve those files on `http://localhost:3000`. You can also add the `--open` flag to the end of
+`mdbook serve` which will open the docs in a browser window.
 
 TIP: We created the handy Makefile utility `doc-prev` which will clean, build, and open fresh
 docs for you in the browser. Just run `make doc-prev` in your command line.

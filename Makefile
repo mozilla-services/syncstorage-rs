@@ -235,7 +235,7 @@ doc-test:  ##  Tests documentation for errors.
 	mdbook test docs/
 
 .PHONY: doc-clear
-doc-test:  ##  Erases output/ contents and clears mdBook output.
+doc-clear:  ##  Erases output/ contents and clears mdBook output.
 	mdbook clean docs/
 
 .PHONY: doc-prev
