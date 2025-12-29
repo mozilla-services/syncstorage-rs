@@ -10,5 +10,13 @@ edition = "2021"
 [build]
 build-dir = "output"
 
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+
 [output.html]
 additional-css = ["style.css"]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[output.html.fold]
+enable = true
