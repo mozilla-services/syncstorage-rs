@@ -1,7 +1,7 @@
 # Summary
 
-<!-- [Introduction](/README.md) -->
-[Docs and MdBook Notes](../doc-notes.md)
+[Introduction](../../README.md)
+[Docs and MdBook Notes](doc-notes.md)
 
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Tokenserver API](tokenserver/tokenserver_api.md)

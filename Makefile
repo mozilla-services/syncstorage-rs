@@ -234,6 +234,10 @@ doc-install-deps:  ## Install the dependencies for doc generation
 doc-test:  ##  Tests documentation for errors.
 	mdbook test docs/
 
+.PHONY: doc-clear
+doc-test:  ##  Erases output/ contents and clears mdBook output.
+	mdbook clean docs/
+
 .PHONY: doc-prev
 doc-prev:  ##  Generate live preview of docs and open in browser.
 	mdbook clean docs/
