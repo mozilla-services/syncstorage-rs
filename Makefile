@@ -224,3 +224,14 @@ ruff-fmt: $(INSTALL_STAMP)  ##  Format check with change summary.
 .PHONY: ruff-format
 ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
 	$(POETRY) run ruff format $(TOOLS_DIR)
+
+# Documentation utilities
+.PHONY: doc-install-deps
+doc-install-deps:  ## Install the dependencies for doc generation
+	cargo install mdbook && cargo install mdbook-mermaid
+
+.PHONY: doc-prev
+doc-prev:  ##  Generate live preview of docs and open in browser.
+	mdbook clean docs/
+	mdbook build docs/
+	mdbook serve docs/ --open
