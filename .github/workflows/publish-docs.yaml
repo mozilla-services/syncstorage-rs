@@ -1,4 +1,4 @@
-name: Publish docs to pages
+name: Publish Sync docs to pages
 run-name: ${{ github.actor }} is publishing docs
 on:
   workflow_dispatch: # Allow manual triggering

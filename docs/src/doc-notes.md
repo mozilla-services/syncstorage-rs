@@ -10,7 +10,15 @@ To build the documentation, install mdBook:
 cargo install mdbook
 ```
 
-Then run:
+To have a live interactive instance when working with docs, you can use mdBook's `watch` feature.
+
+```bash
+mdbook watch path/to/book
+```
+
+Or use the Makefile utility `make doc-watch` from the rood.
+
+To build documentation locally, run:
 
 ```bash
 mdbook build
@@ -32,16 +40,24 @@ docs for you in the browser. Just run `make doc-prev` in your command line.
 
 It is highly recommended that any additions/changes to documentation are tested. This ensures there are no syntax issues or invalid links that will break the deployed documentation. MdBook has a useful `mdbook test` utility for this. We've created the Makefile command `make doc-test` ease, run from the root of the `syncstorage-rs` crate. 
 
+As Rust's documentation often serves as a method of testing itself, code blocks are evaluated in documentation. Only blocks annotated with `rust` are tested. To ignore, annotate as follows: `rust,ignore` at the open of a code block.
+
+
 ### Integration with rustdoc
 
 `mdbook` does not cleanly integrate with `rustdoc` at this time. It's possible (via some fun github actions) to build the docs and include them in the deploy.
 
 ## Building Pages using Github Actions
 
+### Running
+
+You specify triggers within the `.github/workflows` directory, in the `publish-docs.yml` file. 
+This invokes the `make_book.sh` shell script to build API, mdBook, and cargo docs.
+
 ### Setup
 
-Github Actions allows for various CI like steps to run. Currently, there is [publish_docs.yml](../.github/workflows/publish_docs.yml).
-It currently has two "jobs", one to do the build, another to deploy the built artifact to Github pages.
+Github Actions allows for various CI-like steps to run. The [publish-docs.yaml](../../.github/workflows/publish-docs.yaml).
+has two "jobs": one to do the build, another to deploy the built artifact to Github pages.
 
 Under the repo settings, be sure to set:
 
@@ -65,6 +81,3 @@ Under the repo settings, be sure to set:
   **Build and deployment**
   Source: GitHub Actions
 
-### Running
-
-You specify triggers within the `.github/workflows` document. Currently `publish-docs.yml` 
