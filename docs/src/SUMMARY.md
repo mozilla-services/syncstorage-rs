@@ -1,3 +1,8 @@
+<!-- NOTE: `mdbook build` will create documents if they're not present. It uses
+     the path specified in the parenthesis. It has no idea about internal links
+     so (foo.md#bar) will create a doc named "foo.md#bar".
+-->
+
 # Summary
 
 [Introduction](introduction.md)
