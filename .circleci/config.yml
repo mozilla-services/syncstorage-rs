@@ -39,7 +39,7 @@ commands:
       - run:
           name: Setup documentation checks
           command: |
-            cargo install mdbook
+            make doc-install-deps
   setup-python:
     steps:
       - run:
