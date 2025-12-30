@@ -4,6 +4,7 @@ cargo doc --all-features --workspace --no-deps
 
 echo Generating mdbook
 mdbook build
+mdbook-mermaid install .
 
 echo Generate the API docs
 mkdir -p output/api
