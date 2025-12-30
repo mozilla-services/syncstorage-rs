@@ -65,7 +65,7 @@ commands:
       - run:
           name: Documentation checks
           command: |
-            make doc-check
+            make doc-test
   python-check:
     steps:
       - run:
