@@ -88,7 +88,7 @@ impl SyncTimestamp {
         Self::from_datetime(dt)
     }
 
-    /// Create a `SyncTimestamp` from a chrono DateTime<Tz>
+    /// Create a `SyncTimestamp` from a chrono `DateTime<Tz>`
     pub fn from_datetime<Tz: TimeZone>(val: DateTime<Tz>) -> Result<Self, SyncstorageDbError> {
         let millis = val.timestamp_millis();
         if millis < 0 {
@@ -120,7 +120,7 @@ impl SyncTimestamp {
         to_rfc3339(self.as_i64())
     }
 
-    /// Convert this SyncTimestamp into a chrono::DateTime<Utc>.
+    /// Convert this SyncTimestamp into a `chrono::DateTime<Utc>`.
     ///
     /// Required for use with Diesel's `Timestamptz` and in other scenarios where conversion is
     /// essential.
