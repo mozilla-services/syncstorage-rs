@@ -50,3 +50,4 @@ book/
 .book.toml.swp
 mermaid-init.js
 mermaid.min.js
+docs/output

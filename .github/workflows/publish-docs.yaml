@@ -50,5 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
-        id: depolyment
+        id: deployment
         uses: actions/deploy-pages@v4
+      - name: Print deployed docs URL
+        run: |
+          echo "Docs deployed to: ${{ steps.deployment.outputs.page_url }}"
