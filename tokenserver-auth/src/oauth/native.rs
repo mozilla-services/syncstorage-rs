@@ -63,11 +63,20 @@ where
         let jwks_url = base_url
             .join("v1/jwks")
             .map_err(|_| TokenserverError::internal_error())?;
-        let http_client = reqwest::Client::builder()
+        let mut client_builder = reqwest::Client::builder()
             .timeout(Duration::from_secs(settings.fxa_oauth_request_timeout))
-            .use_rustls_tls()
-            .build()
-            .map_err(|_| TokenserverError::internal_error())?;
+            .use_rustls_tls();
+        if let Some(proxy) = &settings.fxa_oauth_request_proxy {
+            let proxy_url = Url::parse(proxy)
+               .map_err(|_| TokenserverError::internal_error())?;
+            client_builder = client_builder.proxy(
+               reqwest::Proxy::all(proxy_url)
+                .map_err(|_| TokenserverError::internal_error())?,
+            );
+        }
+        let http_client = client_builder
+           .build()
+           .map_err(|_| TokenserverError::internal_error())?;
 
         Ok(Self {
             verify_url,
