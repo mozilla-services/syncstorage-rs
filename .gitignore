@@ -44,3 +44,9 @@ workspace
 
 # For poetry install
 .install.stamp
+
+# mdBook generated files
+book/
+.book.toml.swp
+mermaid-init.js
+mermaid.min.js

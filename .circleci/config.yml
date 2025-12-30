@@ -34,6 +34,12 @@ commands:
             rustup component add rustfmt
             cargo install --locked cargo-audit
             rustup component add clippy
+  setup-docs-check:
+    steps:
+      - run:
+          name: Setup documentation checks
+          command: |
+            make doc-install-deps
   setup-python:
     steps:
       - run:
@@ -54,6 +60,12 @@ commands:
           command: |
             cargo fmt -- --check
             cargo audit
+  docs-check:
+    steps:
+      - run:
+          name: Documentation checks
+          command: |
+            make doc-test
   python-check:
     steps:
       - run:
@@ -289,6 +301,8 @@ jobs:
       - display-versions
       - setup-rust-check
       - rust-check
+      - setup-docs-check
+      - docs-check
       - rust-clippy-spanner
       - rust-clippy-mysql
       - rust-clippy-postgres
