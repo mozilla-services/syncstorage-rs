@@ -46,7 +46,7 @@ impl BatchDb for MysqlDb {
         // while still letting us treat these ids as millisecond timestamps.  It's
         // yuck, but it works and it keeps the weirdness contained to this single
         // line of code.
-        let mut batch_id = self.timestamp().as_i64() + (user_id % 10);
+        let mut batch_id = self.session.timestamp.as_i64() + (user_id % 10);
         // Occasionally batch_ids clash (usually during unit testing), so also
         // retry w/ increments
         for i in 1..=MAX_BATCH_CREATE_RETRY {
@@ -81,7 +81,7 @@ impl BatchDb for MysqlDb {
         let batch_id = decode_id(&params.id)?;
         // Avoid hitting the db for batches that are obviously too old.  Recall
         // that the batchid is a millisecond timestamp.
-        if (batch_id + BATCH_LIFETIME) < self.timestamp().as_i64() {
+        if (batch_id + BATCH_LIFETIME) < self.session.timestamp.as_i64() {
             return Ok(false);
         }
 
@@ -159,17 +159,17 @@ impl BatchDb for MysqlDb {
         let batch_id = decode_id(&params.batch.id)?;
         let user_id = params.user_id.legacy_id as i64;
         let collection_id = self.get_collection_id(&params.collection).await?;
-        let timestamp = self.timestamp();
+        let timestamp = self.session.timestamp;
         sql_query(include_str!("batch_commit.sql"))
             .bind::<BigInt, _>(user_id)
             .bind::<Integer, _>(&collection_id)
-            .bind::<BigInt, _>(&self.timestamp().as_i64())
-            .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .bind::<BigInt, _>(&timestamp.as_i64())
+            .bind::<BigInt, _>(&timestamp.as_i64())
             .bind::<BigInt, _>((MAX_TTL as i64) * 1000) // XXX:
             .bind::<BigInt, _>(&batch_id)
             .bind::<BigInt, _>(user_id)
-            .bind::<BigInt, _>(&self.timestamp().as_i64())
-            .bind::<BigInt, _>(&self.timestamp().as_i64())
+            .bind::<BigInt, _>(&timestamp.as_i64())
+            .bind::<BigInt, _>(&timestamp.as_i64())
             .execute(&mut self.conn)
             .await?;
 

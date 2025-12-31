@@ -3,8 +3,9 @@ use chrono::{offset::Utc, DateTime, TimeDelta};
 use diesel::{
     delete,
     dsl::{count, max, now, sql},
-    sql_types::{BigInt, Nullable},
-    ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper,
+    sql_types::{BigInt, Nullable, Timestamptz},
+    upsert::excluded,
+    ExpressionMethods, IntoSql, OptionalExtension, QueryDsl, SelectableHelper,
 };
 use diesel_async::{AsyncConnection, RunQueryDsl, TransactionManager};
 use futures::TryStreamExt;
@@ -12,7 +13,6 @@ use std::collections::HashMap;
 use syncstorage_db_common::{
     error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, Sorting, DEFAULT_BSO_TTL,
 };
-use syncstorage_settings::Quota;
 
 use super::{PgDb, TOMBSTONE};
 use crate::{
@@ -130,9 +130,10 @@ impl Db for PgDb {
         // `FOR UPDATE`
         // Acquires exclusive lock on select rows, prohibits other transactions from modifying
         // until complete.
+        let nowtz = now.into_sql::<Timestamptz>();
         self.begin(true).await?;
-        let modified = user_collections::table
-            .select(user_collections::modified)
+        let row = user_collections::table
+            .select((user_collections::modified, nowtz))
             .filter(user_collections::user_id.eq(user_id))
             .filter(user_collections::collection_id.eq(collection_id))
             .filter(user_collections::modified.gt(PRETOUCH_DT))
@@ -141,15 +142,19 @@ impl Db for PgDb {
             .await
             .optional()?;
 
-        if let Some(modified) = modified {
+        let timestamp = if let Some((modified, timestamp)) = row {
             // Do not allow write if it would incorrectly increment timestamp.
-            if modified >= self.timestamp() {
+            if modified >= timestamp {
                 return Err(DbError::conflict());
             }
             self.session
                 .coll_modified_cache
                 .insert(key.clone(), modified);
-        }
+            timestamp
+        } else {
+            diesel::select(nowtz).get_result(&mut self.conn).await?
+        };
+        self.session.timestamp = Some(timestamp);
 
         self.session.coll_locks.insert(key, CollectionLock::Write);
         Ok(())
@@ -350,7 +355,7 @@ impl Db for PgDb {
 
     async fn post_bsos(&mut self, params: params::PostBsos) -> DbResult<results::PostBsos> {
         let collection_id = self.get_or_create_collection_id(&params.collection).await?;
-        let modified = self.timestamp();
+        let modified = self.checked_timestamp()?;
 
         self.ensure_user_collection(params.user_id.legacy_id as i64, collection_id)
             .await?;
@@ -458,7 +463,7 @@ impl Db for PgDb {
         let sortindex = bso.sortindex;
         let ttl = bso.ttl.map_or(DEFAULT_BSO_TTL, |ttl| ttl);
 
-        let modified = self.timestamp().as_datetime()?;
+        let modified = self.checked_timestamp()?.as_datetime()?;
         // Expiry originally required millisecond conversion
         let expiry = modified + TimeDelta::seconds(ttl as i64);
 
@@ -535,10 +540,6 @@ impl Db for PgDb {
         results::ConnectionInfo::default()
     }
 
-    async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
-        self.get_or_create_collection_id(name).await
-    }
-
     /// Updates a given collection entry, when provided the `user_id`, `collection_id`,
     /// and `collection` string. This is an insertion operation should the
     /// `user_id` and `collection_id` keys not exist, but will update with the Postgres
@@ -557,43 +558,54 @@ impl Db for PgDb {
             }
         };
         let total_bytes = quota.total_bytes as i64;
-        let modified = self.timestamp().as_datetime()?;
+        let modified = self.checked_timestamp()?;
 
         diesel::insert_into(user_collections::table)
             .values((
                 user_collections::user_id.eq(params.user_id.legacy_id as i64),
                 user_collections::collection_id.eq(params.collection_id),
-                user_collections::modified.eq(modified),
+                user_collections::modified.eq(modified.as_datetime()?),
                 user_collections::count.eq(quota.count as i64),
                 user_collections::total_bytes.eq(total_bytes),
             ))
             .on_conflict((user_collections::user_id, user_collections::collection_id))
             .do_update()
             .set((
-                user_collections::modified.eq(modified),
-                user_collections::total_bytes.eq(total_bytes),
-                user_collections::count.eq(quota.count as i64),
+                user_collections::modified.eq(excluded(user_collections::modified)),
+                user_collections::count.eq(excluded(user_collections::count)),
+                user_collections::total_bytes.eq(excluded(user_collections::total_bytes)),
             ))
             .execute(&mut self.conn)
             .await?;
-        Ok(self.timestamp())
+        Ok(modified)
     }
 
+    #[cfg(debug_assertions)]
+    async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
+        self.get_or_create_collection_id(name).await
+    }
+
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp {
-        self.session.timestamp
+        self.session
+            .timestamp
+            .expect("set_timestamp() not called yet for PgDb")
     }
 
+    #[cfg(debug_assertions)]
     fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
-        self.session.timestamp = timestamp;
+        self.session.timestamp = Some(timestamp);
     }
 
+    #[cfg(debug_assertions)]
     async fn clear_coll_cache(&mut self) -> DbResult<()> {
         self.coll_cache.clear();
         Ok(())
     }
 
+    #[cfg(debug_assertions)]
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
-        self.quota = Quota {
+        self.quota = syncstorage_settings::Quota {
             size: limit,
             enabled,
             enforced,

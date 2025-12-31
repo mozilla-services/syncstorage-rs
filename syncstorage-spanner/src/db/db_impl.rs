@@ -14,10 +14,7 @@ use protobuf::{
     well_known_types::{ListValue, Value},
     Message, RepeatedField,
 };
-use syncstorage_db_common::{
-    error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db, FIRST_CUSTOM_COLLECTION_ID,
-};
-use syncstorage_settings::Quota;
+use syncstorage_db_common::{error::DbErrorIntrospect, params, results, util::SyncTimestamp, Db};
 
 use super::{
     support::{as_type, bso_from_row, IntoSpannerValue},
@@ -54,46 +51,6 @@ impl Db for SpannerDb {
         if !self.in_write_transaction() {
             self.coll_cache.put(id, name.to_owned()).await;
         }
-        Ok(id)
-    }
-
-    async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
-        // This should always run within a r/w transaction, so that: "If a
-        // transaction successfully commits, then no other writer modified the
-        // data that was read in the transaction after it was read."
-        if !cfg!(debug_assertions) && !self.in_write_transaction() {
-            return Err(DbError::internal(
-                "Can't escalate read-lock to write-lock".to_owned(),
-            ));
-        }
-        let result = self
-            .sql(
-                "SELECT COALESCE(MAX(collection_id), 1)
-                   FROM collections",
-            )
-            .await?
-            .execute(&self.conn)?
-            .one()
-            .await?;
-        let max = result[0]
-            .get_string_value()
-            .parse::<i32>()
-            .map_err(|e| DbError::integrity(e.to_string()))?;
-        let id = FIRST_CUSTOM_COLLECTION_ID.max(max + 1);
-        let (sqlparams, sqlparam_types) = params! {
-            "name" => name.to_string(),
-            "collection_id" => id,
-        };
-
-        self.sql(
-            "INSERT INTO collections (collection_id, name)
-             VALUES (@collection_id, @name)",
-        )
-        .await?
-        .params(sqlparams)
-        .param_types(sqlparam_types)
-        .execute_dml(&self.conn)
-        .await?;
         Ok(id)
     }
 
@@ -188,17 +145,13 @@ impl Db for SpannerDb {
                 .await?;
             sync_timestamp_from_rfc3339(result[0].get_string_value())?
         };
-        self.set_timestamp(timestamp);
+        self.session.timestamp = Some(timestamp);
 
         self.session
             .coll_locks
             .insert((params.user_id, collection_id), CollectionLock::Write);
 
         Ok(())
-    }
-
-    fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
-        self.session.timestamp = Some(timestamp);
     }
 
     async fn begin(&mut self, for_write: bool) -> DbResult<()> {
@@ -912,18 +865,31 @@ impl Db for SpannerDb {
         }
     }
 
+    #[cfg(debug_assertions)]
+    async fn create_collection(&mut self, name: &str) -> DbResult<i32> {
+        self._create_collection(name).await
+    }
+
+    #[cfg(debug_assertions)]
     fn timestamp(&self) -> SyncTimestamp {
         self.checked_timestamp()
             .expect("set_timestamp() not called yet for SpannerDb")
     }
 
+    #[cfg(debug_assertions)]
+    fn set_timestamp(&mut self, timestamp: SyncTimestamp) {
+        self.session.timestamp = Some(timestamp);
+    }
+
+    #[cfg(debug_assertions)]
     async fn clear_coll_cache(&mut self) -> Result<(), Self::Error> {
         self.coll_cache.clear().await;
         Ok(())
     }
 
+    #[cfg(debug_assertions)]
     fn set_quota(&mut self, enabled: bool, limit: usize, enforced: bool) {
-        self.quota = Quota {
+        self.quota = syncstorage_settings::Quota {
             size: limit,
             enabled,
             enforced,
