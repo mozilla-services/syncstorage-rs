@@ -8,6 +8,7 @@
 [Introduction](introduction.md)
 [Application Configuration](config.md)
 [Docs and MdBook Notes](doc-notes.md)
+[Application Architecture](architecture.md)
 
 - [Tokenserver](tokenserver/tokenserver.md)
     - [Tokenserver API](tokenserver/tokenserver_api.md)
