@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      MDBOOK_ENV: 0.5.0 # Current mdbook version. See `https://crates.io/crates/mdbook`.
+      MDBOOK_ENV: 0.4.51 # Current mdbook version. See `https://crates.io/crates/mdbook`.
       MERMAID_ENV: 0.15.0 # For crate `mdbook-mermaid`. See: `https://github.com/badboy/mdBook-mermaid/`.
       DEST_DIR: /home/runner/.cargo/bin
     steps:
@@ -33,7 +33,23 @@ jobs:
           curl -sSL "https://github.com/rust-lang/mdBook/releases/download/v$MDBOOK_ENV/mdbook-v$MDBOOK_ENV-x86_64-unknown-linux-gnu.tar.gz" | tar -xz --directory $DEST_DIR
           curl -sSL "https://github.com/badboy/mdBook-mermaid/releases/download/v$MERMAID_ENV/mdbook-mermaid-v$MERMAID_ENV-x86_64-unknown-linux-gnu.tar.gz" | tar -xz --directory $DEST_DIR
       - name: Build docs
-        run: cd docs && sh make_book.sh
+        run: |
+          cd docs
+          echo Generating the cargo docs
+          cargo doc --no-deps
+          echo Generating mdbook - DEBUG mode for logging
+          mdbook-mermaid install .
+          MDBOOK_LOG=debug mdbook build -d output
+          echo Generate the API docs
+          mkdir -p output/api
+          cargo doc --no-deps
+          cp -r ../target/doc/* output/api
+      - name: Debug output directory
+        run: |
+          echo "Checking docs/output:"
+          ls -lah output || true
+          echo "Listing output root files:"
+          find output -maxdepth 2 -type f -name "index.html" -print || true
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
