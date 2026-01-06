@@ -14,8 +14,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      MDBOOK_ENV: 0.4.51 # Current mdbook version. See `https://crates.io/crates/mdbook`.
-      MERMAID_ENV: 0.15.0 # For crate `mdbook-mermaid`. See: `https://github.com/badboy/mdBook-mermaid/`.
+      MDBOOK_ENV: 0.5 # Current `mdbook` version. See `https://crates.io/crates/mdbook`.
+      MERMAID_ENV: 0.17.0 # For crate `mdbook-mermaid`. See: `https://github.com/badboy/mdBook-mermaid/`. Always check version compatibility with mdbook.
       DEST_DIR: /home/runner/.cargo/bin
     steps:
       - uses: actions/checkout@v4
