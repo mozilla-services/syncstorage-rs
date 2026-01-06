@@ -10,7 +10,7 @@ use std::{collections::HashMap, fmt, sync::Arc};
 
 use syncserver_common::Metrics;
 use syncstorage_db_common::diesel::DbError;
-use syncstorage_db_common::{results, util::SyncTimestamp, Db, UserIdentifier};
+use syncstorage_db_common::{results, util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
 use super::schema::{bsos, collections, user_collections};
@@ -38,7 +38,7 @@ enum CollectionLock {
     Write,
 }
 pub struct PgDb {
-    // Reference to asynchronous database connection.
+    /// Reference to asynchronous database connection.
     pub(super) conn: Conn,
     /// Database session struct reference.
     session: PgDbSession,
@@ -64,8 +64,8 @@ impl fmt::Debug for PgDb {
 /// Per-session Db metadata.
 #[derive(Debug, Default)]
 struct PgDbSession {
-    /// The "current time" on the server used for this session's operations.
-    timestamp: SyncTimestamp,
+    /// CURRENT_TIMESTAMP from Postgres, used for this session's operations.
+    timestamp: Option<SyncTimestamp>,
     /// Cache of collection modified timestamps per (HawkIdentifier, collection_id).
     coll_modified_cache: HashMap<(UserIdentifier, i32), SyncTimestamp>,
     /// Currently locked collections.
@@ -179,7 +179,7 @@ impl PgDb {
             .values((
                 user_collections::user_id.eq(user_id),
                 user_collections::collection_id.eq(TOMBSTONE),
-                user_collections::modified.eq(self.timestamp().as_datetime()?),
+                user_collections::modified.eq(self.checked_timestamp()?.as_datetime()?),
             ))
             .on_conflict((user_collections::user_id, user_collections::collection_id))
             .do_update()
@@ -227,6 +227,12 @@ impl PgDb {
             total_bytes: total_bytes as usize,
             count: count as i32,
         })
+    }
+
+    pub fn checked_timestamp(&self) -> DbResult<SyncTimestamp> {
+        self.session
+            .timestamp
+            .ok_or_else(|| DbError::internal("CURRENT_TIMESTAMP not read yet".to_owned()))
     }
 }
 
