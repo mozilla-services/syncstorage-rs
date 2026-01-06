@@ -9,9 +9,9 @@ Obsolete records are those replaced by newer records for the same user or marked
 ---
 
 ## Status
-    - Running as Kubernetes Workload as part of deployment in `sync-prod` as: `tokenserver-prod-sync-app-1-purge-old-records-0`
-    - See YAML configuration when editing each job.
-    - See Kubernetes Engine Workload Panel in [`sync-prod`](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
+  - Running as Kubernetes Workload as part of deployment in `sync-prod` as: `tokenserver-prod-sync-app-1-purge-old-records-0`
+  - See YAML configuration when editing each job.
+  - See Kubernetes Engine Workload Panel in [sync-prod](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
 
 ---
 
@@ -47,13 +47,12 @@ Obsolete records are those replaced by newer records for the same user or marked
 
 1. **Python Environment**: Ensure Python 3.7+ is installed.
 2. **Dependencies**:
-   - Install required Python packages:
-     ```
-     pip install requests hawkauthlib backoff
-     ```
+  - Install required Python packages:
+    `pip install requests hawkauthlib backoff`
+
 3. **Configuration**:
-   - Set up access to the Tokenserver database.
-   - Provide necessary metrics and logging configurations.
+  - Set up access to the Tokenserver database.
+  - Provide necessary metrics and logging configurations.
 
 ### Usage
 

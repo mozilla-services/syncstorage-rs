@@ -7,17 +7,17 @@ The `purge_ttl.py` script is a utility for purging expired Time-To-Live (TTL) re
 ---
 
 ## Status
-    - Running as Kubernetes Workload cron job in `sync-prod`.
-    - Runs at 10 minutes past every 2nd hour.
-    - Runs per-collection and is configured for each of the following: 
-        - batches
-        - clients
-        - crypto
-        - forms
-        - meta
-        - tabs
-    - See YAML configuration when editing each job.
-    - See Kubernetes Engine Workload Panel in [`sync-prod`](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
+- Running as Kubernetes Workload cron job in `sync-prod`.
+- Runs at 10 minutes past every 2nd hour.
+- Runs per-collection and is configured for each of the following: 
+    - batches
+    - clients
+    - crypto
+    - forms
+    - meta
+    - tabs
+- See YAML configuration when editing each job.
+- See Kubernetes Engine Workload Panel in [sync-prod](https://console.cloud.google.com/kubernetes/workload/overview?inv=1&invt=AbmJeQ&project=moz-fx-sync-prod-3f0c) for more information. 
 
 ## Specifics
 
