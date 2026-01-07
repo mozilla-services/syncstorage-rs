@@ -8,7 +8,7 @@ use diesel::{
 };
 use diesel_async::RunQueryDsl;
 use syncserver_common::Metrics;
-use syncstorage_db_common::{results, util::SyncTimestamp, Db, UserIdentifier};
+use syncstorage_db_common::{results, util::SyncTimestamp, UserIdentifier};
 use syncstorage_settings::Quota;
 
 use crate::{
@@ -103,7 +103,7 @@ impl MysqlDb {
         ))
         .bind::<BigInt, _>(user_id as i64)
         .bind::<Integer, _>(TOMBSTONE)
-        .bind::<BigInt, _>(self.timestamp().as_i64())
+        .bind::<BigInt, _>(self.session.timestamp.as_i64())
         .execute(&mut self.conn)
         .await?;
         Ok(())
@@ -210,7 +210,7 @@ impl MysqlDb {
                 sql::<Integer>("COALESCE(COUNT(*),0)"),
             ))
             .filter(bso::user_id.eq(user_id))
-            .filter(bso::expiry.gt(self.timestamp().as_i64()))
+            .filter(bso::expiry.gt(self.session.timestamp.as_i64()))
             .filter(bso::collection_id.eq(collection_id))
             .get_result(&mut self.conn)
             .await

@@ -10,13 +10,21 @@ To build the documentation, install mdBook:
 cargo install mdbook
 ```
 
+For mermaid diagram support, you also have to install [mdbook-mermaid](https://github.com/badboy/mdbook-mermaid).
+Then you need to run an install command to create two minified `js` files `["mermaid.min.js", "mermaid-init.js"]` to render mermaid diagrams:
+
+```bash
+cargo install mdbook-mermaid
+mdbook-mermaid install path/to/book
+```
+
 To have a live interactive instance when working with docs, you can use mdBook's `watch` feature.
 
 ```bash
 mdbook watch path/to/book
 ```
 
-Or use the Makefile utility `make doc-watch` from the rood.
+Or use the Makefile utility `make doc-watch` from the root of syncstorage-rs.
 
 To build documentation locally, run:
 
