@@ -101,6 +101,11 @@ class TestStorage(StorageFunctionalTestCase):
         try:
             with super(TestStorage, self)._switch_user():
                 self.root = "/1.5/%d" % (self.user_id,)
+                # Potentially slow: it's possible this is a user from
+                # a previous test w/ left over data. Clearing instead
+                # in a tearDown is more involved because at least one
+                # test calls _switch_user+writes many times
+                self.retry_delete(self.root)
                 yield
         finally:
             self.root = orig_root
