@@ -64,28 +64,28 @@ This invokes the `make_book.sh` shell script to build API, mdBook, and cargo doc
 
 ### Setup
 
-Github Actions allows for various CI-like steps to run. The [publish-docs.yaml](../../.github/workflows/publish-docs.yaml).
+Github Actions allows for various CI-like steps to run. The [publish-docs.yaml](../../.github/workflows/publish-docs.yaml)
 has two "jobs": one to do the build, another to deploy the built artifact to Github pages.
 
-Under the repo settings, be sure to set:
+Under the repo settings, be sure to set the following settings like below:
 
-* Actions
-  * General
-    _Actions permissions_
-    ◉**Allow $USER, and select non-$USER, actions and reusable workflows**
-    ☑ Allow actions created by GitHub
-    ☑ Allow actions by Marketplace verified creators
-    _Artifact and log retention_
-    (can use default)
-    _Fork pull request workflows from outside collaborators_
-    ◉ **Require approval for first-time contributors**
-    _Workflow permission_
-    ◉ Read and write permissions
-    ☑ Allow GitHub Actions to create and approve pull requests
-  * Runners
-    No settings needed
+- Actions
+  - General
+    - _Actions permissions_:
+      - ☑ **Allow $USER, and select non-$USER, actions and reusable workflows**
+      - ☑ Allow actions created by GitHub
+      - ☑ Allow actions by Marketplace verified creators
+    - _Artifact and log retention_: 
+      - (can use default)
+    - _Fork pull request workflows from outside collaborators_
+      - **Require approval for first-time contributors**
+    - _Workflow permission_
+      -  Read and write permissions
+      - ☑ Allow GitHub Actions to create and approve pull requests
+    - _Runners_
+      - No settings needed
 
-* Pages
-  **Build and deployment**
-  Source: GitHub Actions
+  - Pages
+    -  _Build and deployment_:
+      - Source: GitHub Actions
 

@@ -228,7 +228,7 @@ ruff-format: $(INSTALL_STAMP)  ##  Formats files in directory.
 # Documentation utilities
 .PHONY: doc-install-deps
 doc-install-deps:  ## Install the dependencies for doc generation
-	cargo install mdbook && cargo install mdbook-mermaid
+	cargo install mdbook && cargo install mdbook-mermaid && mdbook-mermaid install docs/
 
 .PHONY: doc-test
 doc-test:  ##  Tests documentation for errors.
@@ -245,6 +245,7 @@ doc-watch:  ##  Generate live preview of docs and open in browser and watch. No 
 
 .PHONY: doc-prev
 doc-prev:  ##  Generate live preview of docs and open in browser.
+	mdbook-mermaid install docs/
 	mdbook clean docs/
 	mdbook build docs/
 	mdbook serve docs/ --open
