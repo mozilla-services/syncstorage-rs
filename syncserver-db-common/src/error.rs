@@ -14,6 +14,16 @@ pub struct SqlError {
     pub backtrace: Backtrace,
 }
 
+impl SqlError {
+    #[cfg(debug_assertions)]
+    pub fn is_diesel_not_found(&self) -> bool {
+        matches!(
+            self.kind,
+            SqlErrorKind::DieselQuery(diesel::result::Error::NotFound)
+        )
+    }
+}
+
 #[derive(Debug, Error)]
 enum SqlErrorKind {
     #[error("A database error occurred: {}", _0)]
