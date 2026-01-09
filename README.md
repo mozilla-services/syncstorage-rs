@@ -1,4 +1,7 @@
-[![License: MPL 2.0][mpl-svg]][mpl] [![Build Status][circleci-badge]][circleci] [![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
+[![License: MPL 2.0][mpl-svg]][mpl]
+[![Build Status][circleci-badge]][circleci]
+[![docs][docs-badge]][docs]
+[![Connect to Matrix via the Riot webapp][matrix-badge]][matrix]
 
 # Syncstorage-rs
 
@@ -9,5 +12,7 @@ For full documentation, please navigate to the service docs [here](https://mozil
 [mpl]: https://opensource.org/licenses/MPL-2.0
 [circleci-badge]: https://circleci.com/gh/mozilla-services/syncstorage-rs.svg?style=shield
 [circleci]: https://circleci.com/gh/mozilla-services/syncstorage-rs
+[docs-badge]: https://github.com/mozilla-services/syncstorage-rs/actions/workflows/publish-docs.yaml/badge.svg
+[docs]: https://mozilla-services.github.io/syncstorage-rs/
 [matrix-badge]: https://img.shields.io/badge/chat%20on%20[m]-%23services%3Amozilla.org-blue
 [matrix]: https://chat.mozilla.org/#/room/#services:mozilla.org
