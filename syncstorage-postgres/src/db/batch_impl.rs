@@ -143,65 +143,14 @@ impl BatchDb for PgDb {
         let default_ttl_seconds = DEFAULT_BSO_TTL as i64;
         let ts_datetime = timestamp.as_datetime()?;
 
-        sql_query(
-            "UPDATE bsos
-             SET
-                 sortindex = COALESCE(src.sortindex, bsos.sortindex),
-                 payload = COALESCE(src.payload, bsos.payload),
-                 modified = $3,
-                 expiry = COALESCE(
-                     CASE
-                         WHEN src.ttl IS NOT NULL THEN $3 + (src.ttl || ' seconds')::INTERVAL
-                         ELSE NULL
-                     END,
-                     bsos.expiry
-                 )
-             FROM (
-                 SELECT batch_bso_id, sortindex, payload, ttl
-                 FROM batch_bsos
-                 WHERE user_id = $1 AND collection_id = $2 AND batch_id = $5
-             ) AS src
-             WHERE bsos.user_id = $1
-               AND bsos.collection_id = $2
-               AND bsos.bso_id = src.batch_bso_id",
-        )
-        .bind::<BigInt, _>(user_id)
-        .bind::<Integer, _>(collection_id)
-        .bind::<Timestamptz, _>(ts_datetime)
-        .bind::<BigInt, _>(default_ttl_seconds)
-        .bind::<SqlUuid, _>(&batch_id)
-        .execute(&mut self.conn)
-        .await?;
-
-        sql_query(
-            "INSERT INTO bsos (user_id, collection_id, bso_id, sortindex, payload, modified, expiry)
-             SELECT
-                 $1,
-                 $2,
-                 batch_bso_id,
-                 sortindex,
-                 COALESCE(payload, ''::TEXT),
-                 $3,
-                 CASE
-                     WHEN ttl IS NOT NULL THEN $3 + (ttl || ' seconds')::INTERVAL
-                     ELSE $3 + ($4 || ' seconds')::INTERVAL
-                 END
-             FROM batch_bsos
-             WHERE user_id = $1 AND batch_id = $5
-               AND NOT EXISTS (
-                   SELECT 1 FROM bsos
-                   WHERE bsos.user_id = $1
-                     AND bsos.collection_id = $2
-                     AND bsos.bso_id = batch_bsos.batch_bso_id
-               )"
-        )
-        .bind::<BigInt, _>(user_id)
-        .bind::<Integer, _>(collection_id)
-        .bind::<Timestamptz, _>(ts_datetime)
-        .bind::<BigInt, _>(default_ttl_seconds)
-        .bind::<SqlUuid, _>(&batch_id)
-        .execute(&mut self.conn)
-        .await?;
+        sql_query(include_str!("batch_commit.sql"))
+            .bind::<BigInt, _>(user_id)
+            .bind::<Integer, _>(collection_id)
+            .bind::<SqlUuid, _>(&batch_id)
+            .bind::<Timestamptz, _>(ts_datetime)
+            .bind::<BigInt, _>(default_ttl_seconds)
+            .execute(&mut self.conn)
+            .await?;
 
         self.delete_batch(params::DeleteBatch {
             user_id: params.user_id,
