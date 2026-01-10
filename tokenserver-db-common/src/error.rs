@@ -25,6 +25,11 @@ impl DbError {
     pub fn pool_timeout(timeout_type: deadpool::managed::TimeoutType) -> Self {
         DbErrorKind::PoolTimeout(timeout_type).into()
     }
+
+    #[cfg(debug_assertions)]
+    pub fn is_diesel_not_found(&self) -> bool {
+        matches!(&self.kind, DbErrorKind::Sql(e) if e.is_diesel_not_found())
+    }
 }
 
 impl ReportableError for DbError {

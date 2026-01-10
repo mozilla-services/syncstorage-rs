@@ -50,32 +50,27 @@ class TestCase:
         )
 
         # Start each test with a blank slate.
-        cursor = self._execute_sql(sqltext(("DELETE FROM users")), {})
-        cursor.close()
+        self._clear_db()
 
-        cursor = self._execute_sql((sqltext("DELETE FROM nodes")), {})
-        cursor.close()
-
-        cursor = self._execute_sql(sqltext(("DELETE FROM services")), {})
-        cursor.close()
-
-        self.service_id = self._add_service("sync-1.5", r"{node}/1.5/{uid}")
+        # TODO: tokenserver-mysql's migration should add this
+        # service entry for us (if possible)
+        self.service_id = self._get_or_add_service("sync-1.5", r"{node}/1.5/{uid}")
 
         # Ensure we have a node with enough capacity to run the tests.
         self._add_node(capacity=100, node=self.NODE_URL, id=self.NODE_ID)
 
     def tearDown(self):
         # And clean up at the end, for good measure.
+        self._clear_db()
+        self.database.close()
+
+    def _clear_db(self):
         cursor = self._execute_sql(sqltext(("DELETE FROM users")), {})
         cursor.close()
-
         cursor = self._execute_sql(sqltext(("DELETE FROM nodes")), {})
         cursor.close()
-
-        cursor = self._execute_sql(sqltext(("DELETE FROM services")), {})
-        cursor.close()
-
-        self.database.close()
+        # NOTE: don't clear the services between tests as tokenserver
+        # may have already cached its "sync-1.5" service_id
 
     def _build_oauth_headers(
         self,
@@ -337,10 +332,16 @@ class TestCase:
     def _get_service_id(self, service):
         query = sqltext("select id from services where service = :service")
         cursor = self._execute_sql(query, {"service": service})
-        (service_id,) = cursor.fetchone()
+        row = cursor.fetchone()
         cursor.close()
 
-        return service_id
+        return None if row is None else row[0]
+
+    def _get_or_add_service(self, service, pattern):
+        service_id = self._get_service_id(service)
+        if service_id is not None:
+            return service_id
+        return self._add_service(service, pattern)
 
     def _count_users(self):
         query = sqltext("select COUNT(DISTINCT(uid)) from users")
