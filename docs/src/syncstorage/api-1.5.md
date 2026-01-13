@@ -1,0 +1,725 @@
+<a id="server_syncstorage_api_15"></a>
+
+# SyncStorage API v1.5
+
+The SyncStorage API defines a HTTP web service used to store and retrieve
+simple objects called **Basic Storage Objects** (**BSOs**), which are organized
+into named **collections**.
+
+## Concepts
+
+<a id="syncstorage_bso"></a>
+
+### Basic Storage Object
+
+A **Basic Storage Object (BSO)** is the generic JSON wrapper around all items
+passed into and out of the SyncStorage server. Like all JSON documents, BSOs
+are composed of unicode character data rather than raw bytes and must be
+encoded for transmission over the network. The SyncStorage service always
+encodes BSOs in UTF8.
+
+Basic Storage Objects have the following fields:
+
+| Parameter | Default | Type/Max | Description |
+|----------|---------|----------|-------------|
+| `id` | required | string (64) | An identifying string. For a user, the id must be unique for a BSO within a collection, though objects in different collections may have the same ID. BSO ids **must** only contain printable ASCII characters. They **should** be exactly 12 base64-urlsafe characters; while this isn’t enforced by the server, the Firefox client expects it in most cases. |
+| `modified` | none | float (2 decimals) | The timestamp at which this object was last modified, in seconds since UNIX epoch (1970-01-01 00:00:00 UTC). Set automatically by the server according to its own clock; any client-supplied value is ignored. |
+| `sortindex` | none | integer (9 digits) | An integer indicating the relative importance of this item in the collection. |
+| `payload` | empty string | string (at least 256KiB) | A string containing the data of the record. The structure of this string is defined separately for each BSO type. This spec makes no requirements for its format; JSONObjects are common in practice. Servers **must** support payloads up to 256KiB. They may accept larger payloads and advertise their maximum payload size via dynamic configuration. |
+| `ttl` | none | integer (positive, 9 digits) | The number of seconds to keep this record. After that time this item will no longer be returned in response to any request, and it may be pruned from the database. If not specified or null, the record will not expire. This field may be set on write, but is not returned by the server. |
+
+Example:
+```json
+{
+    "id": "-F_Szdjg3GzX",
+    "modified": 1388635807.41,
+    "sortindex": 140,
+    "payload": "{ \"this is\": \"an example\" }"
+}
+```
+
+### Collections
+
+Each BSO is assigned to a collection with other related BSOs. Collection names
+may be up to 32 characters long, and must contain only characters from the
+urlsafe-base64 alphabet (alphanumeric characters, underscore and hyphen) and
+the period.
+
+Collections are created implicitly when a BSO is stored in them for the first
+time. They continue to exist until explicitly deleted, even if they no longer
+contain any BSOs.
+
+The default collections used by Firefox to store sync data are:
+
+- bookmarks
+- history
+- forms
+- prefs
+- tabs
+- passwords
+
+The following additional collections are used for internal management purposes
+by the storage client:
+
+- clients
+- crypto
+- keys
+- meta
+
+### Timestamps
+
+In order to allow multiple clients to coordinate their changes, the SyncStorage
+server associates a **last-modified time** with the data stored for each user.
+This is a server-assigned decimal value, precise to two decimal places, that is
+updated from the server's clock with every modification made to the user's data.
+
+The last-modified time is tracked at three levels of nesting:
+
+- The store as a whole has a **last-modified time** that is updated whenever
+  any change is made to the user's data.
+- Each collection has a **last-modified time** that is updated whenever an item
+  in that collection is modified or deleted. It will always be less than or
+  equal to the overall last-modified time.
+- Each BSO has a **last-modified time** that is updated whenever that specific
+  item is modified. It will always be less than or equal to the last-modified
+  time of the containing collection.
+
+The last-modified time is guaranteed to be monotonically increasing and can be
+used for coordination and conflict management as described in
+[Syncstorage Concurrency](#syncstorage_concurrency).
+
+Note that the last-modified time of a collection may be larger than that of any
+item within it. For example, if all items are deleted from the collection, its
+last-modified time will be the timestamp of the last deletion.
+
+## API Instructions
+
+The SyncStorage data for a given user may be accessed via authenticated HTTP
+requests to their SyncStorage API endpoint. Request and response bodies are
+all UTF8-encoded JSON unless otherwise specified. All requests are to URLs of
+the form:
+
+`https://<endpoint-url>/<api-instruction>`
+
+The user's SyncStorage endpoint URL can be obtained via the `tokenserver`
+authentication flow. All requests must be signed using HAWK Authentication
+credentials obtained from the tokenserver.
+
+Error responses generated by the SyncStorage server will, wherever possible,
+conform to the `respcodes` defined for the User API. The format of a successful
+response is defined in the appropriate section below.
+
+## General Info
+
+APIs in this section provide high-level interactions with the user's data store
+as a whole.
+
+### `GET https://<endpoint-url>/info/collections`
+
+Returns an object mapping collection names associated with the account to the
+last-modified time for each collection.
+
+The server may allow requests to this endpoint to be authenticated with an
+expired token, so that clients can check for server-side changes before
+fetching an updated token from the tokenserver.
+
+### `GET https://<endpoint-url>/info/quota`
+
+Returns a two-item list giving the user's current usage and quota (in KB). The
+second item will be null if the server does not enforce quotas.
+
+Note that usage numbers may be approximate.
+
+### `GET https://<endpoint-url>/info/collection_usage`
+
+Returns an object mapping collection names associated with the account to the
+data volume used for each collection (in KB).
+
+Note that this request may be very expensive as it calculates more detailed and
+accurate usage information than the request to `/info/quota`.
+
+### `GET https://<endpoint-url>/info/collection_counts`
+
+Returns an object mapping collection names associated with the account to the
+total number of items in each collection.
+
+### `GET https://<endpoint-url>/info/configuration`
+
+Provides information about the configuration of this storage server with
+respect to various protocol and size limits. Returns an object mapping
+configuration item names to their values as enforced by this server. The
+following configuration items may be present:
+
+- **max_request_bytes**: maximum size in bytes of the overall HTTP request body.
+- **max_post_records**: maximum number of records in a single POST.
+- **max_post_bytes**: maximum combined payload size in bytes for a single POST.
+- **max_total_records**: maximum total number of records in a batched upload.
+- **max_total_bytes**: maximum total combined payload size in a batched upload.
+- **max_record_payload_bytes**: maximum size of an individual BSO payload, in bytes.
+
+### `DELETE https://<endpoint-url>/storage`
+
+Deletes all records for the user. This URL is provided for backwards
+compatibility; new clients should use **`DELETE https://<endpoint-url>`**.
+
+### `DELETE https://<endpoint-url>`
+
+Deletes all records for the user.
+
+## Individual Collection Interaction
+
+APIs in this section provide a mechanism for interacting with a single
+collection.
+
+### `GET https://<endpoint-url>/storage/<collection>`
+
+Returns a list of the BSOs contained in a collection. For example:
+
+`["GXS58IDC_12", "GXS58IDC_13", "GXS58IDC_15"]`
+
+By default only the BSO ids are returned, but full objects can be requested
+using the **full** parameter. If the collection does not exist, an empty list
+is returned.
+
+Optional query parameters:
+
+- **ids**: comma-separated list of ids; only those ids will be returned (max 100).
+- **newer**: timestamp; return only items with modified time strictly greater than this.
+- **older**: timestamp; return only items with modified time strictly smaller than this.
+- **full**: any value; return full BSO objects rather than ids.
+- **limit**: positive integer; return at most this many objects. If more match, returns `X-Weave-Next-Offset`.
+- **offset**: string token from a previous `X-Weave-Next-Offset`.
+- **sort**: ordering:
+  - `newest` — orders by last-modified time, largest first
+  - `oldest` — orders by last-modified time, smallest first
+  - `index` — orders by sortindex, highest weight first
+
+The response may include an `X-Weave-Records` header indicating the total number
+of records, if the server can efficiently provide it.
+
+If `limit` is provided and more items match, the response will include an
+`X-Weave-Next-Offset` header. Pass that value back as `offset` to fetch more
+items. See `syncstorage_paging` for an example.
+
+Output formats for multi-record GET requests are selected by `Accept` header and
+prioritized in this order:
+
+- **application/json**: JSON list of records (ids or full objects).
+- **application/newlines**: each record followed by a newline (id or full object).
+
+Potential HTTP error responses include:
+
+- **400 Bad Request**: too many ids were included in the query parameter.
+
+### `GET https://<endpoint-url>/storage/<collection>/<id>`
+
+Returns the BSO in the collection corresponding to the requested id.
+
+### `PUT https://<endpoint-url>/storage/<collection>/<id>`
+
+Creates or updates a specific BSO within a collection. The request body must be
+a JSON object containing new data for the BSO.
+
+If the target BSO already exists it will be updated with the data from the
+request body. Fields not provided will not be overwritten, so it is possible to
+update `ttl` without re-submitting `payload`. Fields explicitly set to `null`
+will be set to their default value by the server.
+
+If the target BSO does not exist, then fields not provided in the request body
+will be set to their default value by the server.
+
+This request may include the `X-If-Unmodified-Since` header to avoid overwriting
+data if it has changed since the client fetched it.
+
+Successful responses return the new last-modified time for the collection.
+
+Potential HTTP error responses include:
+
+- **400 Bad Request**: user has exceeded their storage quota.
+- **413 Request Entity Too Large**: the object is larger than the server will store.
+
+### `POST https://<endpoint-url>/storage/<collection>`
+
+Takes a list of BSOs in the request body and iterates over them, effectively
+doing a series of individual PUTs with the same timestamp.
+
+Each BSO must include an `id` field. The corresponding BSO will be created or
+updated according to the semantics of a PUT request targeting that record; in
+particular, fields not provided will not be overwritten on BSOs that already
+exist.
+
+Input formats for multi-record POST requests are selected by `Content-Type`:
+
+- **application/json**: JSON list of BSO objects.
+- **application/newlines**: each BSO is a JSON object followed by a newline.
+
+For backwards-compatibility, **text/plain** is also treated as JSON.
+
+Servers may impose limits on request size and/or the number of BSOs per request.
+The default limit is 100 BSOs per request.
+
+Successful responses contain a JSON object with:
+
+- **modified**: new last-modified time for updated items.
+- **success**: list of ids successfully stored.
+- **failed**: object mapping ids to a string describing the failure.
+
+For example:
+```json
+{
+"modified": 1233702554.25,
+"success": ["GXS58IDC_12", "GXS58IDC_13", "GXS58IDC_15",
+            "GXS58IDC_16", "GXS58IDC_18", "GXS58IDC_19"],
+"failed": {"GXS58IDC_11": "invalid ttl",
+            "GXS58IDC_14": "invalid sortindex"}
+}
+```
+
+Posted BSOs whose ids do not appear in either `success` or `failed` should be
+treated as failed for an unspecified reason.
+
+#### Batch uploads
+
+To allow upload of large numbers of items while ensuring that other clients do
+not sync down inconsistent data, servers may support combining several POST
+requests into a single "batch" so that all modified BSOs appear to have been
+submitted at the same time. Batching is controlled via query parameters:
+
+- **batch**:
+  - to begin a new batch: pass the string `true`
+  - to add to an existing batch: pass a previously-obtained batch identifier
+  - ignored by servers that do not support batching
+- **commit**:
+  - if present, must be `true`
+  - the **batch** parameter must also be specified
+
+When submitting items for a multi-request batch upload, successful responses
+will have status **202 Accepted** and will include a JSON object containing the
+batch identifier along with per-item status, e.g.:
+
+```json
+{
+    "batch": "OPAQUEBATCHID",
+    "success": ["GXS58IDC_12", "GXS58IDC_13", "GXS58IDC_15",
+                "GXS58IDC_16", "GXS58IDC_18", "GXS58IDC_19"],
+    "failed": {"GXS58IDC_11": "invalid ttl",
+                "GXS58IDC_14": "invalid sortindex"}
+}
+```
+
+The returned `batch` value can be passed back in the `batch` query parameter to
+add more items. Items in `success` are guaranteed to become available if and
+when the batch is successfully committed.
+
+The value of `batch` may not be safe to include directly in a URL; it must be
+URL-encoded first (e.g., JavaScript `encodeURIComponent`, Python `urllib.quote`,
+or equivalent).
+
+If the server does not support batching, it will ignore `batch` and return **200 OK**
+without a batch identifier.
+
+The response when committing a batch is identical to a non-batched request.
+Semantics of `batch=true&commit=true` (start and commit immediately) are identical
+to a non-batched request.
+
+Servers may impose limits on total payload size and/or number of BSOs in a batch.
+If exceeded, the server returns **400 Bad Request** with response code **17**.
+Where possible, clients should use the `X-Weave-Total-Records` and
+`X-Weave-Total-Bytes` headers to signal expected total upload size so oversized
+batches can be rejected before upload.
+
+Potential HTTP error responses include:
+
+- **400 Bad Request, response code 14**: user has exceeded storage quota.
+- **400 Bad Request, response code 17**: server size or item-count limit exceeded.
+- **413 Request Entity Too Large**: request contains more data than server will process.
+
+### `DELETE https://<endpoint-url>/storage/<collection>`
+
+Deletes an entire collection.
+
+After executing this request, the collection will not appear in `GET /info/collections`
+and calls to `GET /storage/<collection>` will return an empty list.
+
+### `DELETE https://<endpoint-url>/storage/<collection>?ids=<ids>`
+
+Deletes multiple BSOs from a collection with a single request.
+
+Selection parameter:
+
+- **ids**: comma-separated list of ids to delete (max 100).
+
+The collection itself still exists after this request. Even if all BSOs are deleted,
+it will receive an updated last-modified time, appear in `GET /info/collections`,
+and be readable via `GET /storage/<collection>`.
+
+Successful responses include a JSON body with `"modified"` giving the new last-modified
+time for the collection.
+
+Potential HTTP error responses include:
+
+- **400 Bad Request**: too many ids were included in the query parameter.
+
+### `DELETE https://<endpoint-url>/storage/<collection>/<id>`
+
+Deletes the BSO at the given location.
+
+## Request Headers
+
+### `X-If-Modified-Since`
+
+May be added to any GET request as a decimal timestamp. If last-modified time of the
+resource is less than or equal to the given value, returns **`304 Not Modified`**.
+
+Similar to HTTP `If-Modified-Since`, but uses a decimal timestamp rather than an HTTP date.
+
+If the value is not a valid positive decimal, or if `X-If-Unmodified-Since` is also present,
+returns **`400 Bad Request`**.
+
+### `X-If-Unmodified-Since`
+
+May be added to any request to a collection or item as a decimal timestamp. If last-modified
+time of the resource is greater than the given value, request fails with **`412 Precondition Failed`**.
+
+Similar to HTTP `If-Unmodified-Since`, but uses a decimal timestamp rather than an HTTP date.
+
+If the value is not a valid positive decimal, or if `X-If-Modified-Since` is also present,
+returns **`400 Bad Request`**.
+
+### `X-Weave-Records`
+
+May be sent with multi-record uploads to indicate total number of records included.
+If server would not accept that many, returns **`400 Bad Request`** with response code **17**.
+
+### `X-Weave-Bytes`
+
+May be sent with multi-record uploads to indicate combined payload size in bytes.
+If server would not accept that many bytes, returns **`400 Bad Request`** with response code **17**.
+
+### `X-Weave-Total-Records`
+
+May be included with a POST request using `batch` to indicate total number of records in the batch.
+If server would not accept, returns **`400 Bad Request`** with response code **17**.
+
+If value is not a valid positive integer, or request is not operating on a batch, returns
+**`400 Bad Request`** with response code **1**.
+
+### `X-Weave-Total-Bytes`
+
+May be included with a POST request using `batch` to indicate total payload size in bytes for the batch.
+If server would not accept, returns **`400 Bad Request`** with response code **17**.
+
+If value is not a valid positive integer, or request is not operating on a batch, returns
+**`400 Bad Request`** with response code **1**.
+
+## Response Headers
+
+###` Retry-After`
+
+- With HTTP **`503`**: server is undergoing maintenance; client should not attempt further requests for the specified seconds.
+- With HTTP **`409`**: indicates time after which conflicting edits are expected to complete; clients should wait at least this long before retrying.
+
+### `X-Weave-Backoff`
+
+Indicates server is under heavy load but still capable of servicing requests.
+Unlike `Retry-After`, it may be included with any response including **`200 OK`**.
+
+Clients should do the minimum additional requests required to maintain consistency, then stop
+for the specified seconds.
+
+### `X-Last-Modified`
+
+Last-modified time of the target resource during processing. Included in all success responses
+(200, 201, 204). Similar to HTTP `Last-Modified` but uses a decimal timestamp.
+
+For write requests, equals server current time and new last-modified time of created/changed BSOs.
+
+### `X-Weave-Timestamp`
+
+Returned with all responses, indicating current server timestamp. Similar to HTTP `Date` but uses
+seconds since epoch with two decimal places.
+
+For write requests: equals new last-modified time of created/changed BSOs (same as `X-Last-Modified`).
+
+For successful read requests: is >= both `X-Last-Modified` and the modified timestamp of any returned BSOs.
+
+Clients **must not** use `X-Weave-Timestamp` for coordination/conflict management; use last-modified timestamps
+as described in `syncstorage_concurrency`.
+
+### `X-Weave-Records`
+
+May be returned with multi-record responses indicating total number of records in the response.
+
+### `X-Weave-Next-Offset`
+
+May be returned with multi-record responses when `limit` was provided and more records are available.
+Value can be passed back as `offset` to retrieve additional records.
+
+Always a string from the urlsafe-base64 alphabet; clients must treat it as opaque.
+
+### `X-Weave-Quota-Remaining`
+
+May be returned in response to write requests indicating remaining storage space (KB). Not returned if quotas are disabled.
+
+### `X-Weave-Alert`
+
+May be returned in response to any request and contains warning/informational alerts.
+
+If first character is not `{`, it is a human-readable string.
+
+If first character is `{`, it is a JSON object signalling impending shutdown and contains:
+
+- **code**: `"soft-eol"` or `"hard-eol"`
+- **message**: human-readable message
+- **url**: URL for more information
+
+## HTTP Status Codes
+
+Since the protocol is implemented on HTTP, clients should handle any valid HTTP response.
+This section highlights the explicit protocol response codes.
+
+### `200 OK`
+
+Request processed successfully; response body contains useful information.
+
+### `304 Not Modified`
+
+For requests with `X-If-Modified-Since`, indicates resource has not been modified; client should use local copy.
+
+### `400 Bad Request`
+
+Request or supplied data is invalid and cannot be processed. Returned for malformed headers or unparsable JSON.
+
+If `Content-Type` is `application/json`, the body will be an integer response code as documented in `respcodes`.
+Codes of particular meaning include:
+
+- **`6`**: JSON parse failure
+- **`8`**: invalid BSO
+- **`13`**: invalid collection (invalid chars in collection name)
+- **`14`**: user exceeded storage quota
+- **`16`**: client known to be incompatible with server
+- **`17`**: server limit exceeded (too many items or too large payload)
+
+### `401 Unauthorized`
+
+Authentication credentials are invalid on this node (node reassignment or expired/invalid auth token).
+Client should check with tokenserver whether endpoint URL has changed; if so, abort and retry against new endpoint.
+
+### `404 Not Found`
+
+Resource not found. May be returned for GET/DELETE on non-existent items. Non-existent collections do not trigger 404
+for backwards-compatibility reasons.
+
+### `405 Method Not Allowed`
+
+URL does not support the request method (e.g., PUT to `/info/quota`).
+
+### `409 Conflict`
+
+Write request (PUT, POST, DELETE) rejected due to conflicting changes by another client. Client should retry after
+accounting for changes from other clients.
+
+May include `Retry-After` indicating when conflicting edits are expected to complete.
+
+### `412 Precondition Failed`
+
+For requests with `X-If-Unmodified-Since`, indicates resource has been modified more recently than the given time.
+Write is not performed.
+
+### `413 Request Entity Too Large`
+
+Write request body (PUT, POST) larger than server will accept. For multi-record POST, retry with smaller batches.
+
+### `415 Unsupported Media Type`
+
+`Content-Type` for PUT/POST specifies an unsupported data format.
+
+### `503 Service Unavailable`
+
+Server undergoing maintenance. Includes `Retry-After`. Client should not attempt another sync for the specified seconds.
+Response body may contain a JSON string describing status/error.
+
+### `513 Service Decommissioned`
+
+Service has been decommissioned. Includes `X-Weave-Alert` header with a JSON object:
+
+- **code**: `"hard-eol"`
+- **message**: human-readable message
+- **url**: URL for more info
+
+Client should display message to user and cease further attempts to use the service.
+
+<a id="syncstorage_concurrency"></a>
+
+# Concurrency and Conflict Management
+
+The SyncStorage service allows multiple clients to synchronize data via a shared server
+without requiring inter-client coordination or blocking. To achieve proper synchronization
+without skipping or overwriting data, clients are expected to use timestamp-driven coordination
+features such as `X-Last-Modified` and `X-If-Unmodified-Since`.
+
+The server guarantees a strictly consistent and monotonically-increasing timestamp across the
+user's stored data. Any request that alters the contents of a collection will cause the
+last-modified time to increase. Any BSOs added or modified by such a request will have their
+`modified` field set to the updated timestamp.
+
+Conceptually, each write request performs the following operations as an atomic unit:
+
+- Read current time `T` and check it is greater than overall last-modified time; if not return **409 Conflict**.
+- Create new BSOs as specified, setting their `modified` to `T`.
+- Modify existing BSOs as specified, setting their `modified` to `T`.
+- Delete specified BSOs.
+- Set the collection last-modified time to `T`.
+- Set the overall last-modified time for the user's data to `T`.
+- Generate **200 OK** with `X-Last-Modified` and `X-Weave-Timestamp` set to `T`.
+
+Writes from different clients may be processed concurrently but appear sequential and atomic to clients.
+
+To avoid retransmitting unchanged data, clients should set `X-If-Modified-Since` and/or the `newer` parameter to the
+last known value of `X-Last-Modified` on the target resource.
+
+To avoid overwriting changes, clients should set `X-If-Unmodified-Since` to the last known value of `X-Last-Modified`
+on the target resource.
+
+## Examples
+
+### Example: polling for changes to a BSO
+
+Use `GET /storage/<collection>/<id>` with `X-If-Modified-Since` set to the last known `X-Last-Modified`:
+```python
+last_modified = 0
+while True:
+    headers = {"X-If-Modified-Since": last_modified}
+    r = server.get("/collection/id", headers)
+    if r.status != 304:
+        print " MODIFIED ITEM: ", r.json_body
+        last_modified = r.headers["X-Last-Modified"]
+```
+
+### Example: polling for changes to a collection
+
+Use `GET /storage/<collection>` with `newer` set to last known `X-Last-Modified`:
+```python
+last_modified = 0
+while True:
+    r = server.get("/collection?newer=" + last_modified)
+    for item in r.json_body["items"]:
+        print "MODIFIED ITEM: ", item
+    last_modified = r.headers["X-Last-Modified"]
+```
+
+### Example: safely updating items in a collection
+
+Use `POST /storage/<collection>` with `X-If-Unmodified-Since`:
+
+```python
+r = server.get("/collection")
+last_modified = r.headers["X-Last-Modified"]
+bsos = generate_changes_to_the_collection()
+headers = {"X-If-Unmodified-Since": last_modified}
+r = server.post("/collection", bsos, headers)
+if r.status == 412:
+    print "WRITE FAILED DUE TO CONCURRENT EDITS"
+```
+
+Client may abort or merge and retry with updated `X-Last-Modified`. Similar technique works for
+`PUT /storage/<collection>/<id>`.
+
+### Example: creating a BSO only if it does not exist
+
+Use `X-If-Unmodified-Since: 0`:
+
+```python
+headers = {"X-If-Unmodified-Since": "0"}
+r = server.put("/collection/item", data, headers)
+if r.status == 412:
+    print "ITEM ALREADY EXISTS"
+```
+
+<a id="syncstorage_paging"></a>
+
+### Example: paging through a large set of items
+
+Use `limit` and `offset`, combining with `X-If-Unmodified-Since` to guard against concurrent changes:
+```python
+r = server.get("/collection?limit=100")
+print "GOT ITEMS: ", r.json_body["items"]
+
+last_modified = r.headers["X-Last-Modified"]
+next_offset = r.headers.get("X-Weave-Next-Offset")
+
+while next_offset:
+    headers = {"X-If-Unmodified-Since": last_modified}
+    r = server.get("/collection?limit=100&offset=" + next_offset, headers)
+
+    if r.status == 412:
+        print "COLLECTION WAS MODIFIED WHILE READING ITEMS"
+        break
+
+    print "GOT ITEMS: ", r.json_body["items"]
+    next_offset = r.headers.get("X-Weave-Next-Offset")
+```
+
+<a id="syncstorage_batch_upload"></a>
+
+### Example: uploading a large batch of items
+
+Combine multiple POSTs into a single batch with `batch` and `commit`, always using `X-If-Unmodified-Since`:
+
+```python
+# Make an initial request to start a batch upload.
+# It's possible to send some items here, but not required.
+r = server.post("/collection?batch=true", [])
+# Note that the batch id is opaque and cannot be safely put in a URL directly
+batch_id = urllib.quote(r.json_body["batch"])
+
+# Always use X-If-Unmodified-Since to detect conflicts.
+last_modified = r.headers["X-Last-Modified"]
+headers = {"X-If-Unmodified-Since": last_modified}
+
+for items in split_items_into_smaller_batches():
+
+    # Send the items in several smaller batches.
+    r = server.post("/collection?batch=" + batch_id, items, headers)
+    if r.status == 412:
+        raise Exception("COLLECTION WAS MODIFIED WHILE UPLOADING ITEMS")
+
+    # The collection will not be modified yet.
+    assert r.headers['X-Last-Modified'] == last_modified
+
+# Commit the batch once all items are uploaded.
+# Again, it's possible to send some final items here, but not required.
+r = server.post("/collection?commit=true&batch=" + batch_id, [], headers)
+if r.status == 412:
+    raise Exception("COLLECTION WAS MODIFIED WHILE COMMITTING ITEMS")
+
+# At this point all the uploaded items become visible,
+# and the collection appears modified to other clients.
+assert r.headers['X-Last-Modified'] > last_modified
+```
+
+## Changes from v1.1
+
+The following is a summary of protocol changes from Storage [API v1.1](api-1.1.md)
+along with a justification for each change:
+
+| What Changed | Why |
+|-------------|-----|
+| Authentication is now performed using a BrowserID-based tokenserver flow and HAWK Access Authentication. | Supports authentication via Mozilla accounts and allows iteration of flow details without changing the sync protocol. |
+| The structure of the endpoint URL is no longer specified, and should be considered an implementation detail. | Removes unnecessary coupling; clients do not need to configure endpoint components. Needed to support TokenServer-based auth. |
+| The datatypes and defaults of BSO fields are more precisely specified. | Reflects current server behavior and is safer to specify explicitly. |
+| The BSO fields `parentid` and `predecessorid` have been removed along with related query parameters. | Deprecated in 1.1 and not in active use in current Firefox. |
+| The `application/whoisi` output format has been removed. | Not used in current Firefox. |
+| The previously-undocumented `X-Weave-Quota-Remaining` header has been documented. | It is used, so it should be documented. |
+| The `X-Confirm-Delete` header has been removed. | Sent unconditionally by existing client code and therefore useless; safely ignored by the server. |
+| The `X-Weave-Alert` header has grown additional semantics related to service end-of-life announcements. | Already implemented in Firefox; should be documented. |
+| `GET /storage/<collection>` no longer accepts `index_above` or `index_below`. | Not used in current Firefox; adds server requirements limiting operational flexibility. |
+| `DELETE /storage/<collection>` no longer accepts query parameters other than `ids`. | Not used in current Firefox; not all implemented correctly; adds server requirements limiting flexibility. |
+| `POST /storage/<collection>` now accepts `application/newlines` input in addition to `application/json`. | Matches `application/newlines` output; may enable streaming; existing client code need not change. |
+| The `offset` parameter is now an opaque server-generated value; clients must not create their own values. | Existing semantics hard to implement efficiently; enables more efficient pagination in future. |
+| The `X-Last-Modified` header has been added. | Different semantics from `X-Weave-Timestamp`; enables better conflict management; existing clients need not change. |
+| The `X-If-Modified-Since` header has been added and can be used on all GET requests. | Allows future clients to avoid redundant data transmission. |
+| The `X-If-Unmodified-Since` header can be used on some GET requests. | Allows future clients to detect changes during paginated fetches. |
+| Server may reject concurrent writes with **409 Conflict**. | Visible to existing clients but can be handled like 503; provides stronger consistency guarantees. |
+| Batch uploads are supported across several POST requests. | Backwards-compatible extension for consistent uploads. |
+| Size limits can be read from a new `/info/configuration` endpoint. | Backwards-compatible extension for interoperability with configurable server behavior. |

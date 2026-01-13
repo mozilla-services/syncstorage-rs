@@ -62,7 +62,6 @@ Temporary table for staging batch uploads before final commit.
 | Column          | Type        | Description                                       |
 | --------------- | ----------- | ------------------------------------------------- |
 | `user_id`       | `BIGINT`    | The user id (assigned by Tokenserver), FK (part 1) to `user_collections` |
-|
 | `collection_id` | `INTEGER`   | Maps to a named collection. PK (part 2) & FK (part 2) to `user_collections` |
 | `batch_id`      | `UUID`      | Client-generated or server-assigned batch ID. PK (part 3)  |
 | `expiry`        | `TIMESTAMP` | Time at which batch is discarded if not committed |
