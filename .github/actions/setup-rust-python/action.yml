@@ -43,14 +43,9 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        enable-cache: true
-
-    - name: Install Poetry with uv
+    - name: Install Poetry
       shell: bash
-      run: uv pip install poetry
+      run: pip install poetry
 
     - name: Create workspace directory
       shell: bash
